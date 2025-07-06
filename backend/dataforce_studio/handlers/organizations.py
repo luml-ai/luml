@@ -48,6 +48,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
+    __members_limit = 3
     __organization_membership_limit = 5
 
     def _set_organizations_permissions(
