@@ -125,3 +125,27 @@ class BucketSecretInUseError(ServiceError):
             message=message,
             status_code=status_code,
         )
+
+
+class UserAPIKeyCreateError(ServiceError):
+    def __init__(
+        self,
+        message: str = "User can have only one api key",
+        status_code: int = status.HTTP_409_CONFLICT,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )
+
+
+class APIKeyNotFoundError(ServiceError):
+    def __init__(
+        self,
+        message: str = "API key not found",
+        status_code: int = status.HTTP_404_NOT_FOUND,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )

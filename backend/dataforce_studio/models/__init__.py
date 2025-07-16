@@ -1,3 +1,4 @@
+from dataforce_studio.models.api_keys import APIKeyOrm
 from dataforce_studio.models.base import Base
 from dataforce_studio.models.bucket_secrets import BucketSecretOrm
 from dataforce_studio.models.collection import CollectionOrm
@@ -25,4 +26,5 @@ __all__ = [
     "BucketSecretOrm",
     "MLModelOrm",
     "CollectionOrm",
+    "APIKeyOrm",
 ]
