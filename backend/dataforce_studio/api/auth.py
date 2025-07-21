@@ -7,7 +7,7 @@ from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.infra.dependencies import is_user_authenticated
+from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.models.auth import Token
 from dataforce_studio.schemas.user import (
     CreateUserIn,
@@ -17,6 +17,9 @@ from dataforce_studio.schemas.user import (
     UserOut,
 )
 from dataforce_studio.settings import config
+
+
+is_user_authenticated = UserAuthentication(["jwt"])
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 

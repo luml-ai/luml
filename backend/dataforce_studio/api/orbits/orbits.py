@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 
 from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.infra.dependencies import is_user_authenticated_jwt_api_key
+from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.orbit import (
     Orbit,
@@ -12,7 +12,7 @@ from dataforce_studio.schemas.orbit import (
 
 organization_orbits_router = APIRouter(
     prefix="/{organization_id}/orbits",
-    dependencies=[Depends(is_user_authenticated_jwt_api_key)],
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
     tags=["orbits"],
 )
 

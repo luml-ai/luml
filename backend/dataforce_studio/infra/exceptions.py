@@ -24,128 +24,140 @@ class AuthError(ApplicationError):
         )
 
 
+class NotFoundError(ApplicationError):
+    def __init__(self, message: str = "Not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
 class OrganizationLimitReachedError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Organization reached users limit",
-        status_code: int = status.HTTP_409_CONFLICT,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "Organization reached users limit") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class OrganizationDeleteError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Organization cant be deleted",
-        status_code: int = status.HTTP_409_CONFLICT,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "Organization cant be deleted") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
+
+
+class OrganizationMemberAlreadyExistsError(ApplicationError):
+    def __init__(self, message: str = "Organization member already exists") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
+
+
+class OrganizationMemberNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Organization member not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class OrganizationInviteNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Organization invite not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class OrganizationInviteAlreadyExistsError(ApplicationError):
+    def __init__(self, message: str = "Organization invite already exists") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class CollectionDeleteError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Collection cant be deleted",
-        status_code: int = status.HTTP_409_CONFLICT,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "Collection cant be deleted") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class OrbitLimitReachedError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Orbit reached users limit",
-        status_code: int = status.HTTP_409_CONFLICT,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "Orbit reached users limit") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class GoogleCodeMissingError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Google code is missing",
-        status_code: int = status.HTTP_400_BAD_REQUEST,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
-
-
-class NotFoundError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Not found",
-        status_code: int = status.HTTP_404_NOT_FOUND,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "Google code is missing") -> None:
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
 
 
 class InsufficientPermissionsError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "Not enough rights",
-        status_code: int = status.HTTP_403_FORBIDDEN,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
-
-
-class DatabaseConstraintError(ApplicationError):
-    def __init__(
-        self, message: str, status_code: int = status.HTTP_409_CONFLICT
-    ) -> None:
-        super().__init__(message=message, status_code=status_code)
+    def __init__(self, message: str = "Not enough rights") -> None:
+        super().__init__(message, status.HTTP_403_FORBIDDEN)
 
 
 class BucketSecretInUseError(ApplicationError):
     def __init__(
         self,
         message: str = "Cannot delete bucket secret that is currently used by orbits",
-        status_code: int = status.HTTP_409_CONFLICT,
     ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class UserAPIKeyCreateError(ApplicationError):
-    def __init__(
-        self,
-        message: str = "User can have only one api key",
-        status_code: int = status.HTTP_409_CONFLICT,
-    ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+    def __init__(self, message: str = "User can have only one api key") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
 
 
 class APIKeyNotFoundError(ApplicationError):
+    def __init__(self, message: str = "API key not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class OrbitError(ApplicationError):
+    def __init__(self, message: str = "Orbit Error", status_code: int = status.HTTP_409_CONFLICT) -> None:
+        super().__init__(message, status_code)
+
+
+class OrbitMemberNotAllowedError(ApplicationError):
+    def __init__(self, message: str = "User cannot be added to orbit") -> None:
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
+
+
+class OrbitMemberAlreadyExistsError(ApplicationError):
+    def __init__(self, message: str = "Member for this this user already exist.") -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
+
+
+class OrbitAccessDeniedError(ApplicationError):
+    def __init__(self, message: str = "Access to orbit denied") -> None:
+        super().__init__(message, status.HTTP_403_FORBIDDEN)
+
+
+class OrbitMemberNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Orbit member not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class OrbitNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Orbit not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class InvalidStatusTransitionError(ApplicationError):
+    def __init__(self, message: str = "Invalid status transition") -> None:
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
+
+
+class RepositoryError(Exception):
     def __init__(
-        self,
-        message: str = "API key not found",
-        status_code: int = status.HTTP_404_NOT_FOUND,
+        self, 
+        message: str = "Repository error", 
+        status_code: int = status.HTTP_400_BAD_REQUEST
     ) -> None:
-        super().__init__(
-            message=message,
-            status_code=status_code,
-        )
+        self.message = message
+        self.status_code = status_code
+        super().__init__(self.message)
+
+
+class DatabaseConstraintError(RepositoryError):
+    def __init__(self, message: str = "Database Constraint Error.", status_code: int = status.HTTP_409_CONFLICT) -> None:
+        super().__init__(message, status_code)
+
+
+class BucketSecretNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Bucket secret not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class CollectionNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Collection not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class MLModelNotFoundError(ApplicationError):
+    def __init__(self, message: str = "ML model not found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)

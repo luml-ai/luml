@@ -1,11 +1,12 @@
 import random
+import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.exceptions import (
-    NotFoundError,
+    NotFoundError, OrbitMemberNotFoundError, OrbitNotFoundError,
 )
 from dataforce_studio.models import OrganizationMemberOrm
 from dataforce_studio.schemas.orbit import (
@@ -50,7 +51,7 @@ test_orbit_member = {
     "role": OrbitRole.MEMBER,
     "user": {
         "id": random.randint(1, 10000),
-        "email": "brandihernandez@example.org",
+        "email": f"email_{uuid.uuid4()}@example.org",
         "full_name": "Kathy Hall",
         "disabled": False,
         "photo": None,
@@ -97,7 +98,6 @@ async def test_create_organization_orbit(
 ) -> None:
     orbit_id = random.randint(1, 10000)
     user_id = random.randint(1, 10000)
-    orbit_to_create = OrbitCreate(**test_orbit)
     mock_get_bucket_secret.return_value = type(
         "obj",
         (),
@@ -291,7 +291,7 @@ async def test_get_orbit_not_found(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
-    with pytest.raises(NotFoundError, match="Orbit not found") as error:
+    with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
         await handler.get_orbit(user_id, organization_id, orbit_id)
 
     assert error.value.status_code == 404
@@ -359,7 +359,7 @@ async def test_update_orbit_not_found(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
-    with pytest.raises(NotFoundError, match="Orbit not found") as error:
+    with pytest.raises(OrbitNotFoundError, match="Orbit not found") as error:
         await handler.update_orbit(user_id, organization_id, orbit_id, update_orbit)
 
     assert error.value.status_code == 404
@@ -580,7 +580,7 @@ async def test_update_orbit_member_not_found(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_orbit_member_role.return_value = OrgRole.ADMIN
 
-    with pytest.raises(NotFoundError, match="Orbit Member not found") as error:
+    with pytest.raises(OrbitMemberNotFoundError, match="Orbit member not found") as error:
         await handler.update_orbit_member(
             user_id, organization_id, orbit_id, update_member
         )

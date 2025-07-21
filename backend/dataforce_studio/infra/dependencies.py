@@ -1,21 +1,19 @@
 from fastapi import HTTPException, Request, status
 
 
-def is_user_authenticated(request: Request) -> None:
-    if not request.user.is_authenticated:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
+class UserAuthentication:
+    def __init__(self, scopes):
+        self.scopes = scopes
 
-    if "jwt" not in request.auth.scopes:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This endpoint requires JWT authentication.",
-        )
+    def __call__(self, request: Request) -> None:
+        if not request.user.is_authenticated:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Not authenticated"
+            )
 
-
-def is_user_authenticated_jwt_api_key(request: Request) -> None:
-    if not request.user.is_authenticated:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
-        )
+        if not any(scope in request.auth.scopes for scope in self.scopes):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"This endpoint requires {', '.join(self.scopes)} authentication.",
+            )

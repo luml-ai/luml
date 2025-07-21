@@ -1,12 +1,17 @@
 from datetime import timedelta
 from uuid import uuid4
 
-from fastapi import status
 from minio import Minio
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import ApplicationError, NotFoundError
+from dataforce_studio.infra.exceptions import (
+    BucketSecretNotFoundError,
+    CollectionNotFoundError,
+    InvalidStatusTransitionError,
+    MLModelNotFoundError,
+    OrbitNotFoundError,
+)
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.ml_models import MLModelRepository
@@ -42,7 +47,7 @@ class MLModelHandler:
     async def _get_presigned_url(self, secret_id: int, object_name: str) -> str:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
-            raise NotFoundError("Bucket secret not found")
+            raise BucketSecretNotFoundError()
 
         client = Minio(
             secret.endpoint,
@@ -62,7 +67,7 @@ class MLModelHandler:
     async def _get_download_url(self, secret_id: int, object_name: str) -> str:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
-            raise NotFoundError("Bucket secret not found")
+            raise BucketSecretNotFoundError()
 
         client = Minio(
             secret.endpoint,
@@ -82,7 +87,7 @@ class MLModelHandler:
     async def _get_delete_url(self, secret_id: int, object_name: str) -> str:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
-            raise NotFoundError("Bucket secret not found")
+            raise BucketSecretNotFoundError()
 
         client = Minio(
             secret.endpoint,
@@ -107,10 +112,10 @@ class MLModelHandler:
             orbit_id, organization_id
         )
         if not orbit or orbit.organization_id != organization_id:
-            raise NotFoundError("Orbit not found")
+            raise OrbitNotFoundError()
         collection = await self.__collection_repository.get_collection(collection_id)
         if not collection or collection.orbit_id != orbit_id:
-            raise NotFoundError("Collection not found")
+            raise CollectionNotFoundError()
         return orbit, collection
 
     async def create_ml_model(
@@ -180,12 +185,12 @@ class MLModelHandler:
         model_obj = await self.__repository.get_ml_model(model_id, collection_id)
 
         if not model_obj:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
 
         if model.status and model.status not in self.__model_transitions.get(
             model_obj.status, set()
         ):
-            raise ApplicationError(
+            raise InvalidStatusTransitionError(
                 f"Invalid status transition from {model_obj.status} to {model.status}"
             )
 
@@ -198,7 +203,7 @@ class MLModelHandler:
         )
 
         if not updated:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
 
         return updated
 
@@ -223,7 +228,7 @@ class MLModelHandler:
         )
         model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
 
         return await self._get_download_url(
             orbit.bucket_secret_id,
@@ -250,13 +255,13 @@ class MLModelHandler:
         )
         model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
 
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
         )
         if not orbit:
-            raise NotFoundError("Orbit not found")
+            raise OrbitNotFoundError()
 
         url = await self._get_delete_url(orbit.bucket_secret_id, model.bucket_location)
         await self.__repository.update_status(model_id, MLModelStatus.PENDING_DELETION)
@@ -282,11 +287,10 @@ class MLModelHandler:
         )
         model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
         if model.status != MLModelStatus.PENDING_DELETION:
-            raise ApplicationError(
-                f"Unable to confirm deletion with status '{model.status}'",
-                status_code=status.HTTP_409_CONFLICT,
+            raise InvalidStatusTransitionError(
+                f"Unable to confirm deletion with status '{model.status}'"
             )
         await self.__repository.delete_ml_model(model_id)
 
@@ -329,7 +333,7 @@ class MLModelHandler:
         )
         model = await self.__repository.get_ml_model(model_id, collection_id)
         if not model:
-            raise NotFoundError("ML model not found")
+            raise MLModelNotFoundError()
 
         url = await self._get_download_url(
             orbit.bucket_secret_id, model.bucket_location

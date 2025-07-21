@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.dependencies import is_user_authenticated
+from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.schemas.organization import UserInvite
 
 user_invites_router = APIRouter(
     prefix="/invitations",
     tags=["users-me-invites"],
-    dependencies=[Depends(is_user_authenticated)],
+    dependencies=[Depends(UserAuthentication(["jwt"]))],
 )
 
 organization_handler = OrganizationHandler()

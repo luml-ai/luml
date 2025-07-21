@@ -1,15 +1,18 @@
 from pydantic import EmailStr
-from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
-    ApplicationError,
     DatabaseConstraintError,
+    InsufficientPermissionsError,
     NotFoundError,
     OrganizationDeleteError,
+    OrganizationInviteAlreadyExistsError,
+    OrganizationInviteNotFoundError,
     OrganizationLimitReachedError,
+    OrganizationMemberAlreadyExistsError,
+    OrganizationMemberNotFoundError,
 )
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -165,7 +168,7 @@ class OrganizationHandler:
 
         if members_count >= self.__members_limit:
             raise OrganizationLimitReachedError(
-                "Organization reached maximum number of users", 409
+                "Organization reached maximum number of users"
             )
 
     async def send_invite(
@@ -181,14 +184,14 @@ class OrganizationHandler:
         user_info = await self.__user_repository.get_public_user_by_id(user_id)
 
         if user_info and invite_.email == user_info.email:
-            raise ApplicationError("You can't invite yourself")
+            raise InsufficientPermissionsError("You can't invite yourself")
 
         member = await self.__user_repository.get_organization_member_by_email(
             invite_.organization_id, invite_.email
         )
 
         if member:
-            raise ApplicationError("Already a member of the organization")
+            raise OrganizationMemberAlreadyExistsError("Already a member of the organization")
 
         existing_invite = (
             await self.__invites_repository.get_organization_invite_by_email(
@@ -197,7 +200,7 @@ class OrganizationHandler:
         )
 
         if existing_invite:
-            raise ApplicationError("Invite already exist for this email")
+            raise OrganizationInviteAlreadyExistsError()
 
         await self.check_org_members_limit(invite_.organization_id)
 
@@ -207,7 +210,7 @@ class OrganizationHandler:
         invite = await self.__invites_repository.get_invite(db_created_invite.id)
 
         if not invite:
-            raise ApplicationError("Cant select created invite")
+            raise OrganizationInviteNotFoundError()
 
         self.__email_handler.send_organization_invite_email(
             invite.email if invite else "",
@@ -234,7 +237,7 @@ class OrganizationHandler:
         invite = await self.__invites_repository.get_invite(invite_id)
 
         if not invite:
-            raise NotFoundError("Invite not found")
+            raise OrganizationInviteNotFoundError()
 
         await self._organization_membership_limit_check(user_id)
         await self.check_org_members_limit(invite.organization_id)
@@ -247,10 +250,8 @@ class OrganizationHandler:
                     role=invite.role,
                 )
             )
-        except IntegrityError as error:
-            raise DatabaseConstraintError(
-                "Organization member already exist."
-            ) from error
+        except DatabaseConstraintError as error:
+            raise OrganizationMemberAlreadyExistsError() from error
 
         await self.__invites_repository.delete_organization_invites_for_user(
             invite.organization_id, invite.email
@@ -307,13 +308,13 @@ class OrganizationHandler:
         )
 
         if not member_to_update:
-            raise ApplicationError("Member does not exist.")
+            raise OrganizationMemberNotFoundError()
 
         if user_id == member_to_update.user.id:
-            raise ApplicationError("You can not update your own data.")
+            raise InsufficientPermissionsError("You can not update your own data.")
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
-            raise ApplicationError("Only Organization Owner can assign new admins.")
+            raise InsufficientPermissionsError("Only Organization Owner can assign new admins.")
 
         return await self.__user_repository.update_organization_member(
             member_id, member
@@ -334,13 +335,13 @@ class OrganizationHandler:
         )
 
         if not member_to_delete:
-            raise ApplicationError("Member does not exist.")
+            raise OrganizationMemberNotFoundError()
 
         if user_id == member_to_delete.user.id:
-            raise ApplicationError("You can not remove yourself from organization.")
+            raise InsufficientPermissionsError("You can not remove yourself from organization.")
 
         if member_to_delete and member_to_delete.role == OrgRole.OWNER:
-            raise ApplicationError("Organization Owner can not be removed.")
+            raise InsufficientPermissionsError("Organization Owner can not be removed.")
 
         return await self.__user_repository.delete_organization_member(member_id)
 
@@ -355,14 +356,12 @@ class OrganizationHandler:
         )
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
-            raise ApplicationError("Only Organization Owner can add new admins.")
+            raise InsufficientPermissionsError("Only Organization Owner can add new admins.")
         try:
             created_member = await self.__user_repository.create_organization_member(
                 member
             )
-        except IntegrityError as error:
-            raise DatabaseConstraintError(
-                "Organization member already exist."
-            ) from error
+        except DatabaseConstraintError as error:
+            raise OrganizationMemberAlreadyExistsError() from error
 
         return created_member

@@ -1,8 +1,6 @@
-from sqlalchemy.exc import IntegrityError
-
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import BucketSecretInUseError, NotFoundError
+from dataforce_studio.infra.exceptions import BucketSecretInUseError, NotFoundError, DatabaseConstraintError
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreate,
@@ -75,5 +73,5 @@ class BucketSecretHandler:
         )
         try:
             await self.__secret_repository.delete_bucket_secret(secret_id)
-        except IntegrityError as e:
+        except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e

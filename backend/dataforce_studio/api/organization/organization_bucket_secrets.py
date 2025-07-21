@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
-from dataforce_studio.infra.dependencies import is_user_authenticated_jwt_api_key
+from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
@@ -9,9 +9,12 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretUpdate,
 )
 
+
+
+
 bucket_secrets_router = APIRouter(
     prefix="/{organization_id}/bucket-secrets",
-    dependencies=[Depends(is_user_authenticated_jwt_api_key)],
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
     tags=["organizations-bucket-secrets"],
 )
 

@@ -119,7 +119,6 @@ class CollectionHandler:
         )
         if models_count:
             raise CollectionDeleteError(
-                "Collection has models and cant be deleted",
-                status_code=status.HTTP_409_CONFLICT,
+                "Collection has models and cant be deleted"
             )
         await self.__repository.delete_collection(collection_id)

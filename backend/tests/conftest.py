@@ -1,5 +1,6 @@
 import datetime
 import random
+import uuid
 
 import asyncpg
 import pytest_asyncio
@@ -137,11 +138,9 @@ member_data = {
 
 
 @pytest_asyncio.fixture(scope="function")
-def test_user(email: str | None = None) -> dict:
+def test_user() -> dict:
     return {
-        "email": email
-        if email
-        else f"test_user{random.randint(1000, 99999)}_{random.randint(1000, 99999)}@example.com",
+        "email": f"testuser_{uuid.uuid4()}@example.com",
         "full_name": "Test User",
         "disabled": False,
         "email_verified": True,
@@ -243,7 +242,7 @@ async def create_organization_with_members(
 
     user_main = await repo.create_user(
         CreateUser(
-            email=f"userMAIN{random.randint(1000, 999999)}@gmail.com",
+            email=f"userMAIN_{uuid.uuid4()}@gmail.com",
             full_name="Test User MAIN",
             disabled=False,
             email_verified=True,
@@ -263,7 +262,7 @@ async def create_organization_with_members(
 
     for i in range(10):
         user = CreateUser(
-            email=f"user{random.randint(1000, 999999)}@gmail.com",
+            email=f"user_{uuid.uuid4()}@gmail.com",
             full_name=f"Test User {i}",
             disabled=False,
             email_verified=True,
@@ -283,11 +282,11 @@ async def create_organization_with_members(
         )
         members.append(member)
 
-    for i in range(5):
+    for _ in range(5):
         invited_by_user = random.choice(users)
         invite = await invites_repo.create_organization_invite(
             CreateOrganizationInvite(
-                email=f"invited_{random.randint(1000, 999999)}_@gmail.com",
+                email=f"invited_{uuid.uuid4()}_@gmail.com",
                 role=OrgRole.MEMBER,
                 organization_id=organization.id,
                 invited_by=invited_by_user.id,
@@ -370,7 +369,7 @@ async def create_orbit_with_members(
 
     for i in range(10):
         new_user = test_user.copy()
-        new_user["email"] = f"email_user_{random.randint(1000, 999999)}@example.com"
+        new_user["email"] = f"email_user_{uuid.uuid4()}@example.com"
         created_user = await user_repo.create_user(CreateUser(**new_user))
         member = await repo.create_orbit_member(
             OrbitMemberCreate(

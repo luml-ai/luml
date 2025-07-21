@@ -44,16 +44,16 @@ class APIKeyHandler:
         return key.user if key else None
 
     async def create_user_api_key(self, user_id: int) -> APIKeyCreateOut:
+        key = self._generate_api_key()
         try:
-            key = self._generate_api_key()
-
             created_key = await self.__api_key_repository.create_api_key(
                 APIKeyCreate(user_id=user_id, hash=self._get_key_hash(key))
             )
-            created_key.key = key
-            return created_key
         except DatabaseConstraintError as error:
             raise UserAPIKeyCreateError() from error
+
+        created_key.key = key
+        return created_key
 
     async def get_user_api_key(self, user_id: int) -> APIKeyOut | None:
         return await self.__api_key_repository.get_api_key_by_user_id(user_id)

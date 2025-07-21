@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
-from dataforce_studio.infra.exceptions import DatabaseConstraintError
+from dataforce_studio.infra.exceptions import DatabaseConstraintError, RepositoryError
 from dataforce_studio.models.api_keys import APIKeyOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.api_keys import (
@@ -14,14 +14,12 @@ from dataforce_studio.schemas.api_keys import (
 
 class APIKeyRepository(RepositoryBase, CrudMixin):
     async def create_api_key(self, key: APIKeyCreate) -> APIKeyCreateOut:
-        try:
-            async with self._get_session() as session:
+        async with self._get_session() as session:
+            try:
                 db_key = await self.create_model(session, APIKeyOrm, key)
-                return db_key.to_api_key_full()
-        except IntegrityError as error:
-            raise DatabaseConstraintError(
-                "API key already exists for this user"
-            ) from error
+            except IntegrityError as error:
+                raise DatabaseConstraintError("API key already exists for this user") from error
+            return db_key.to_api_key_full()
 
     async def get_api_key(self, key_id: int) -> APIKeyOut | None:
         async with self._get_session() as session:

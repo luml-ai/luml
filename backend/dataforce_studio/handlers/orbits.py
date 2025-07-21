@@ -1,5 +1,4 @@
 from fastapi import BackgroundTasks
-from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
@@ -7,7 +6,8 @@ from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     ApplicationError,
     NotFoundError,
-    OrganizationLimitReachedError,
+    OrganizationLimitReachedError, DatabaseConstraintError, OrbitError, OrbitMemberAlreadyExistsError,
+    OrbitMemberNotAllowedError, OrbitAccessDeniedError, OrbitMemberNotFoundError, OrbitNotFoundError,
 )
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
@@ -74,7 +74,7 @@ class OrbitHandler:
 
         if orbits_count >= self.__orbits_limit:
             raise OrganizationLimitReachedError(
-                "Organization reached maximum number of orbits", 409
+                "Organization reached maximum number of orbits"
             )
 
     async def _validate_orbit_members(
@@ -86,10 +86,10 @@ class OrbitHandler:
         user_ids = [m.user_id for m in members]
 
         if len(user_ids) != len(set(user_ids)):
-            raise ApplicationError("Orbit members should contain only unique values.")
+            raise OrbitMemberNotAllowedError("Orbit members should contain only unique values.")
 
         if user_id in user_ids:
-            raise ApplicationError("You can not add yourself to orbit.")
+            raise OrbitMemberNotAllowedError("You can not add yourself to orbit.")
 
         org_members = await self.__user_repository.get_organization_members_by_user_ids(
             organization_id, user_ids
@@ -98,7 +98,7 @@ class OrbitHandler:
         invalid_user_ids = set(user_ids) - {m.user.id for m in org_members}
 
         if invalid_user_ids:
-            raise ApplicationError(
+            raise OrbitMemberNotAllowedError(
                 f"Users {invalid_user_ids} are not in the organization."
             )
 
@@ -126,8 +126,8 @@ class OrbitHandler:
             organization_id, orbit
         )
 
-        if not created_orbit:
-            raise ApplicationError("Some errors occurred when creating the orbit.")
+        # if not created_orbit:
+        #     raise ApplicationError("Some errors occurred when creating the orbit.")
 
         created_orbit.permissions = (
             self.__permissions_handler.get_orbit_permissions_by_role(org_role, None)
@@ -172,7 +172,7 @@ class OrbitHandler:
         orbit = await self.__orbits_repository.get_orbit(orbit_id, organization_id)
 
         if not orbit:
-            raise NotFoundError("Orbit not found")
+            raise OrbitNotFoundError()
 
         orbit.permissions = self.__permissions_handler.get_orbit_permissions_by_role(
             org_role, orbit_role
@@ -194,7 +194,7 @@ class OrbitHandler:
         orbit_obj = await self.__orbits_repository.update_orbit(orbit_id, orbit)
 
         if not orbit_obj:
-            raise NotFoundError("Orbit not found")
+            raise OrbitNotFoundError()
 
         return orbit_obj
 
@@ -239,16 +239,16 @@ class OrbitHandler:
         )
 
         if not org_member:
-            raise ApplicationError(
+            raise OrbitAccessDeniedError(
                 "User must be a member of the organization to be added to an orbit."
             )
 
         if user_id == member.user_id:
-            raise ApplicationError("You can not add yourself to orbit.")
+            raise OrbitMemberNotAllowedError("You can not add yourself to orbit.")
         try:
             created_member = await self.__orbits_repository.create_orbit_member(member)
-        except IntegrityError as error:
-            raise ApplicationError("Member already exist.") from error
+        except DatabaseConstraintError as error:
+            raise OrbitMemberAlreadyExistsError() from error
 
         orbit = await self.__orbits_repository.get_orbit_simple(
             member.orbit_id, organization_id
@@ -277,10 +277,10 @@ class OrbitHandler:
         member_obj = await self.__orbits_repository.get_orbit_member(member.id)
 
         if not member_obj:
-            raise NotFoundError("Orbit Member not found")
+            raise OrbitMemberNotFoundError()
 
         if user_id == member_obj.user.id:
-            raise ApplicationError("You can not update your own data.")
+            raise OrbitMemberNotAllowedError("You can not update your own data.")
 
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -292,7 +292,7 @@ class OrbitHandler:
         updated = await self.__orbits_repository.update_orbit_member(member)
 
         if not updated:
-            raise NotFoundError("Orbit Member not found")
+            raise OrbitMemberNotFoundError()
 
         return updated
 
@@ -302,10 +302,10 @@ class OrbitHandler:
         member_obj = await self.__orbits_repository.get_orbit_member(member_id)
 
         if not member_obj:
-            raise NotFoundError("Orbit Member not found")
+            raise OrbitMemberNotFoundError()
 
         if user_id == member_obj.user.id:
-            raise ApplicationError("You can not remove yourself from orbit.")
+            raise OrbitMemberNotAllowedError("You can not remove yourself from orbit.")
 
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
