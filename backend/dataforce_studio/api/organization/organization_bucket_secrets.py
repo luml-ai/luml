@@ -7,6 +7,7 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
+    BucketSecretUrls,
 )
 
 bucket_secrets_router = APIRouter(
@@ -70,4 +71,15 @@ async def delete_bucket_secret(
 ) -> None:
     await bucket_secret_handler.delete_bucket_secret(
         request.user.id, organization_id, secret_id
+    )
+
+
+@bucket_secrets_router.get(
+    "/{secret_id}/urls", responses=endpoint_responses, response_model=BucketSecretUrls
+)
+async def get_bucket_secret_connection_urls(
+    request: Request, organization_id: int, secret_id: int
+) -> BucketSecretUrls:
+    return await bucket_secret_handler.get_bucket_urls(
+        organization_id, request.user.id, secret_id
     )

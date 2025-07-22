@@ -74,7 +74,7 @@ manifest_example_obj = Manifest(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_presigned_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_presigned_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -164,7 +164,7 @@ async def test_create_ml_model_with_tags(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_download_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -243,7 +243,7 @@ async def test_get_ml_model(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_download_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -303,7 +303,7 @@ async def test_get_ml_model_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_download_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -386,7 +386,7 @@ async def test_request_download_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_delete_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_delete_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

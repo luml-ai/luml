@@ -11,13 +11,16 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
+    BucketSecretUrls,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.services.s3_service import S3Service
 
 
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
     __permissions_handler = PermissionsHandler()
+    __s3_service = S3Service()
 
     async def create_bucket_secret(
         self, user_id: int, organization_id: int, secret: BucketSecretCreateIn
@@ -79,3 +82,22 @@ class BucketSecretHandler:
             await self.__secret_repository.delete_bucket_secret(secret_id)
         except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e
+
+    async def get_bucket_urls(
+        self, organization_id: int, user_id: int, secret_id: int
+    ) -> BucketSecretUrls:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
+
+        object_name = "test_file"
+
+        return BucketSecretUrls(
+            presigned_url=await self.__s3_service.get_presigned_url(
+                secret_id, object_name
+            ),
+            download_url=await self.__s3_service.get_download_url(
+                secret_id, object_name
+            ),
+            delete_url=await self.__s3_service.get_delete_url(secret_id, object_name),
+        )
