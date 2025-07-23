@@ -73,18 +73,16 @@ export const useModelsStore = defineStore('models', () => {
   }
 
   async function deleteModels(modelsIds: number[]) {
+    const results = await Promise.allSettled(modelsIds.map(id => deleteModel(id).then(() => id)));
     const deleted: number[] = []
     const failed: number[] = []
-    for (let i = modelsIds.length - 1; i >= 0; i--) {
-      const id = modelsIds[i]
-      try {
-        await deleteModel(id)
-
-        deleted.push(id)
-      } catch (error) {
-        failed.push(id)
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        deleted.push(result.value);
+      } else {
+        failed.push(modelsIds[index]);
       }
-    }
+    });
     modelsList.value = modelsList.value.filter((model) => !deleted.includes(model.id))
     return { deleted, failed }
   }

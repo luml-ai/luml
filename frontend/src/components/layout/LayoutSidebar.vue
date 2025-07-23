@@ -3,9 +3,9 @@
     <div>
       <div style="margin-bottom: 8px">
         <OrganizationManagePopover v-if="authStore.isAuth"></OrganizationManagePopover>
-        <d-button v-else disabled variant="text" class="menu-link">
+        <d-button v-else disabled variant="text" class="menu-link disabled" v-tooltip.right="'Log in to unlock this feature.'">
           <Users :size="14" class="icon"></Users>
-          <span class="label">My Organization</span>
+          <span class="label">My Org...</span>
           <ChevronDown :size="20" class="icon" />
         </d-button>
       </div>
@@ -24,8 +24,7 @@
 
             <div
               v-else-if="item.authRequired && !authStore.isAuth"
-              v-tooltip.bottom="isSidebarOpened ? 'Available only to authorized users' : null"
-              v-tooltip.right="!isSidebarOpened ? 'Available only to authorized users' : null"
+              v-tooltip.right="'Log in to unlock this feature.'"
               class="menu-link disabled"
             >
               <component :is="item.icon" :size="14" class="icon"></component>
