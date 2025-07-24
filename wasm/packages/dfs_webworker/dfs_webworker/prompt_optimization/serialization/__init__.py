@@ -21,7 +21,7 @@ def _add_openai_dynattrs(builder: PyfuncBuilder):
     builder.add_dynamic_attribute(
         Var(
             name="api_key",
-            description="API key for the provder",
+            description="API key for the provider",
             tags=[
                 f"{PRODUCER}::provider_api_key:v1",
                 "dataforce.studio::runtime_secret:v1",
