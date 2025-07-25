@@ -99,12 +99,12 @@ def test_bucket() -> BucketSecret:
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_presigned_url",
+    "dataforce_studio.handlers.ml_models.S3Service.get_upload_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_ml_model_with_tags(
-    mock_get_presigned: AsyncMock,
+    mock_get_upload_url: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
     mock_create_model: AsyncMock,
     mock_get_collection: AsyncMock,
@@ -147,7 +147,7 @@ async def test_create_ml_model_with_tags(
     )
     mock_get_collection.return_value = type("obj", (), {"orbit_id": orbit_id})
     mock_get_secret_or_raise.return_value = mock_secret
-    mock_get_presigned.return_value = "url"
+    mock_get_upload_url.return_value = "url"
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
     ml_model_in = MLModelIn(

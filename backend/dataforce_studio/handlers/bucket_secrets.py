@@ -99,10 +99,10 @@ class BucketSecretHandler:
 
         secret = await self._get_secret_or_raise(secret_id)
 
-        s3_service = S3Service(secret)
+        s3_service = S3Service(secret, secret.bucket_name)
 
         return BucketSecretUrls(
-            presigned_url=await s3_service.get_presigned_url(object_name),
+            presigned_url=await s3_service.get_upload_url(object_name),
             download_url=await s3_service.get_download_url(object_name),
             delete_url=await s3_service.get_delete_url(object_name),
         )

@@ -7,8 +7,8 @@ from dataforce_studio.schemas.bucket_secrets import BucketSecret
 
 
 class S3Service:
-    def __init__(self, secret: BucketSecret) -> None:
-        self._secret = secret
+    def __init__(self, secret: BucketSecret, bucket_name: str) -> None:
+        self._bucket_name = bucket_name
         self._client = self._create_minio_client(secret)
 
     def _create_minio_client(self, secret: BucketSecret) -> Minio:
@@ -22,10 +22,10 @@ class S3Service:
             cert_check=secret.cert_check if secret.cert_check is not None else True,
         )
 
-    async def get_presigned_url(self, object_name: str) -> str:
+    async def get_upload_url(self, object_name: str) -> str:
         try:
             return self._client.presigned_put_object(
-                bucket_name=self._secret.bucket_name,
+                bucket_name=self._bucket_name,
                 object_name=object_name,
                 expires=timedelta(hours=1),
             )
@@ -37,7 +37,7 @@ class S3Service:
     async def get_download_url(self, object_name: str) -> str:
         try:
             return self._client.presigned_get_object(
-                bucket_name=self._secret.bucket_name,
+                bucket_name=self._bucket_name,
                 object_name=object_name,
                 expires=timedelta(hours=1),
             )
@@ -50,7 +50,7 @@ class S3Service:
         try:
             return self._client.get_presigned_url(
                 "DELETE",
-                bucket_name=self._secret.bucket_name,
+                bucket_name=self._bucket_name,
                 object_name=object_name,
                 expires=timedelta(hours=1),
             )

@@ -51,7 +51,7 @@ class MLModelHandler:
 
     async def _get_s3_service(self, secret_id: int) -> S3Service:
         secret = await self._get_secret_or_raise(secret_id)
-        return S3Service(secret)
+        return S3Service(secret, secret.bucket_name)
 
     async def _check_orbit_and_collection_access(
         self, organization_id: int, orbit_id: int, collection_id: int
@@ -108,7 +108,7 @@ class MLModelHandler:
         )
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        url = await s3_service.get_presigned_url(bucket_location)
+        url = await s3_service.get_upload_url(bucket_location)
         return created_model, url
 
     async def update_model(
