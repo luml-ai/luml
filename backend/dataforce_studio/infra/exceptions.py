@@ -171,7 +171,7 @@ class MLModelNotFoundError(ApplicationError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
-class BucketConnectionError(ServiceError):
+class BucketConnectionError(ApplicationError):
     def __init__(
         self,
         message: str = "Failed to connect to bucket.",

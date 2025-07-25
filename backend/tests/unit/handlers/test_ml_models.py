@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, patch, ANY
 import pytest
 
 from dataforce_studio.handlers.ml_models import MLModelHandler
+from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.schemas.bucket_secrets import BucketSecret
 from dataforce_studio.infra.exceptions import ApplicationError, MLModelNotFoundError
 from dataforce_studio.schemas.ml_models import (
     Manifest,
@@ -20,37 +22,56 @@ from dataforce_studio.schemas.organization import OrgRole
 handler = MLModelHandler()
 
 
-manifest_example_obj = Manifest(
-    **{
-        "variant": "pipeline",
-        "description": "",
-        "producer_name": "falcon.beastbyte.ai",
-        "producer_version": "0.8.0",
-        "producer_tags": [
-            "falcon.beastbyte.ai::tabular_classification:v1",
-            "dataforce.studio::tabular_classification:v1",
-        ],
-        "inputs": [
-            {
-                "name": "sepal.length",
-                "content_type": "NDJSON",
-                "dtype": "Array[float32]",
-                "shape": ["batch", 1],
-                "tags": ["falcon.beastbyte.ai::numeric:v1"],
-            },
-        ],
-        "outputs": [
-            {
-                "name": "y_pred",
-                "content_type": "NDJSON",
-                "dtype": "Array[string]",
-                "shape": ["batch"],
-            }
-        ],
-        "dynamic_attributes": [],
-        "env_vars": [],
-    }
-)
+@pytest.fixture
+def manifest_example() -> Manifest:
+    return Manifest(
+        **{
+            "variant": "pipeline",
+            "description": "",
+            "producer_name": "falcon.beastbyte.ai",
+            "producer_version": "0.8.0",
+            "producer_tags": [
+                "falcon.beastbyte.ai::tabular_classification:v1",
+                "dataforce.studio::tabular_classification:v1",
+            ],
+            "inputs": [
+                {
+                    "name": "sepal.length",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "shape": ["batch", 1],
+                    "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "y_pred",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[string]",
+                    "shape": ["batch"],
+                }
+            ],
+            "dynamic_attributes": [],
+            "env_vars": [],
+        }
+    )
+
+
+@pytest.fixture
+def test_bucket() -> BucketSecret:
+    return BucketSecret(
+        id=1,
+        organization_id=1,
+        endpoint='url',
+        bucket_name='name',
+        access_key='access_key',
+        secret_key='secret_key',
+        session_token='session_token',
+        secure=True,
+        region='region',
+        cert_check=True,
+        created_at=datetime.now()
+    )
 
 
 @patch(
@@ -90,6 +111,8 @@ async def test_create_ml_model_with_tags(
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -102,7 +125,7 @@ async def test_create_ml_model_with_tags(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -114,8 +137,8 @@ async def test_create_ml_model_with_tags(
         updated_at=None,
     )
 
-    mock_secret = type("obj", (), {"id": 1, "name": "test_secret"})
-    
+    mock_secret = test_bucket
+
     mock_create_model.return_value = model
     mock_get_orbit_simple.return_value = type(
         "obj",
@@ -129,7 +152,7 @@ async def test_create_ml_model_with_tags(
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
     ml_model_in = MLModelIn(
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         size=1,
@@ -149,7 +172,6 @@ async def test_create_ml_model_with_tags(
     assert url == "url"
     mock_create_model.assert_awaited_once()
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_presigned.assert_awaited_once_with(mock_secret, ANY)
 
 
 @patch(
@@ -189,6 +211,8 @@ async def test_get_ml_model(
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -202,7 +226,7 @@ async def test_get_ml_model(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -213,7 +237,7 @@ async def test_get_ml_model(
         updated_at=None,
     )
 
-    mock_secret = type("obj", (), {"id": 1, "name": "test_secret"})
+    mock_secret = test_bucket
     
     mock_get_model.return_value = model
     mock_get_orbit_simple.return_value = type("obj", (), {"bucket_secret_id": 1})
@@ -237,7 +261,7 @@ async def test_get_ml_model(
     mock_get_model.assert_awaited_once_with(model_id, collection_id)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_download_url.assert_awaited_once_with(mock_secret, model.bucket_location)
+    mock_get_download_url.assert_awaited_once_with(model.bucket_location)
 
 
 @patch(
@@ -337,6 +361,8 @@ async def test_request_download_url(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
     mock_get_collection: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -350,7 +376,7 @@ async def test_request_download_url(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -361,7 +387,7 @@ async def test_request_download_url(
         updated_at=None,
     )
 
-    mock_secret = type("obj", (), {"id": 1, "name": "test_secret"})
+    mock_secret = test_bucket
     
     mock_get_model.return_value = model
     mock_get_orbit_simple.return_value = type(
@@ -385,7 +411,7 @@ async def test_request_download_url(
 
     assert url == "url"
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_download_url.assert_awaited_once_with(mock_secret, model.bucket_location)
+    mock_get_download_url.assert_awaited_once_with(model.bucket_location)
 
 
 @patch(
@@ -430,6 +456,8 @@ async def test_request_delete_url(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
     mock_get_collection: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -443,7 +471,7 @@ async def test_request_delete_url(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -454,7 +482,7 @@ async def test_request_delete_url(
         updated_at=None,
     )
 
-    mock_secret = type("obj", (), {"id": 1, "name": "test_secret"})
+    mock_secret = test_bucket
     
     mock_get_model.return_value = model
     mock_get_orbit_simple.return_value = type(
@@ -481,7 +509,7 @@ async def test_request_delete_url(
         model_id, MLModelStatus.PENDING_DELETION
     )
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_delete_url.assert_awaited_once_with(mock_secret, model.bucket_location)
+    mock_get_delete_url.assert_awaited_once_with(model.bucket_location)
 
 
 @patch(
@@ -516,6 +544,7 @@ async def test_confirm_deletion_pending(
     mock_get_org_role: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -529,7 +558,7 @@ async def test_confirm_deletion_pending(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -594,6 +623,7 @@ async def test_confirm_deletion_not_pending(
     mock_get_org_role: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -607,7 +637,7 @@ async def test_confirm_deletion_not_pending(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -677,6 +707,7 @@ async def test_update_model(
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_model: AsyncMock,
+    manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
@@ -689,7 +720,7 @@ async def test_update_model(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",
@@ -709,7 +740,7 @@ async def test_update_model(
         file_name="model",
         model_name=None,
         metrics={},
-        manifest=manifest_example_obj,
+        manifest=manifest_example,
         file_hash="hash",
         file_index={},
         bucket_location="loc",

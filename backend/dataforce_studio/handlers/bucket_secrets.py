@@ -21,25 +21,12 @@ from dataforce_studio.services.s3_service import S3Service
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
     __permissions_handler = PermissionsHandler()
-    __s3_service = S3Service()
 
     async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
             raise NotFoundError("Bucket secret not found")
         return secret
-
-    async def _get_presigned_url(self, secret_id: int, object_name: str) -> str:
-        secret = await self._get_secret_or_raise(secret_id)
-        return await self.__s3_service.get_presigned_url(secret, object_name)
-
-    async def _get_download_url(self, secret_id: int, object_name: str) -> str:
-        secret = await self._get_secret_or_raise(secret_id)
-        return await self.__s3_service.get_download_url(secret, object_name)
-
-    async def _get_delete_url(self, secret_id: int, object_name: str) -> str:
-        secret = await self._get_secret_or_raise(secret_id)
-        return await self.__s3_service.get_delete_url(secret, object_name)
 
     async def create_bucket_secret(
         self, user_id: int, organization_id: int, secret: BucketSecretCreateIn
@@ -108,11 +95,14 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
         )
-
         object_name = "test_file"
 
+        secret = await self._get_secret_or_raise(secret_id)
+
+        s3_service = S3Service(secret)
+
         return BucketSecretUrls(
-            presigned_url=await self._get_presigned_url(secret_id, object_name),
-            download_url=await self._get_download_url(secret_id, object_name),
-            delete_url=await self._get_delete_url(secret_id, object_name),
+            presigned_url=await s3_service.get_presigned_url(object_name),
+            download_url=await s3_service.get_download_url(object_name),
+            delete_url=await s3_service.get_delete_url(object_name),
         )

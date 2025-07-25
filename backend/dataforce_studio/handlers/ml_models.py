@@ -1,6 +1,5 @@
 from uuid import uuid4
 
-
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
@@ -35,13 +34,6 @@ class MLModelHandler:
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
     __permissions_handler = PermissionsHandler()
-    __s3_service = S3Service()
-
-    async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
-        secret = await self.__secret_repository.get_bucket_secret(secret_id)
-        if not secret:
-            raise NotFoundError("Bucket secret not found")
-        return secret
 
     __model_transitions = {
         MLModelStatus.PENDING_UPLOAD: {
@@ -50,6 +42,16 @@ class MLModelHandler:
         },
         MLModelStatus.PENDING_DELETION: {MLModelStatus.DELETION_FAILED},
     }
+
+    async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
+        secret = await self.__secret_repository.get_bucket_secret(secret_id)
+        if not secret:
+            raise BucketSecretNotFoundError()
+        return secret
+
+    async def _get_s3_service(self, secret_id: int) -> S3Service:
+        secret = await self._get_secret_or_raise(secret_id)
+        return S3Service(secret)
 
     async def _check_orbit_and_collection_access(
         self, organization_id: int, orbit_id: int, collection_id: int
@@ -105,8 +107,8 @@ class MLModelHandler:
             )
         )
 
-        secret = await self._get_secret_or_raise(orbit.bucket_secret_id)
-        url = await self.__s3_service.get_presigned_url(secret, bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_presigned_url(bucket_location)
         return created_model, url
 
     async def update_model(
@@ -177,8 +179,8 @@ class MLModelHandler:
         if not model:
             raise MLModelNotFoundError()
 
-        secret = await self._get_secret_or_raise(orbit.bucket_secret_id)
-        return await self.__s3_service.get_download_url(secret, model.bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        return await s3_service.get_download_url(model.bucket_location)
 
     async def request_delete_url(
         self,
@@ -208,8 +210,8 @@ class MLModelHandler:
         if not orbit:
             raise OrbitNotFoundError()
 
-        secret = await self._get_secret_or_raise(orbit.bucket_secret_id)
-        url = await self.__s3_service.get_delete_url(secret, model.bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_delete_url(model.bucket_location)
         await self.__repository.update_status(model_id, MLModelStatus.PENDING_DELETION)
         return url
 
@@ -281,6 +283,6 @@ class MLModelHandler:
         if not model:
             raise MLModelNotFoundError()
 
-        secret = await self._get_secret_or_raise(orbit.bucket_secret_id)
-        url = await self.__s3_service.get_download_url(secret, model.bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_download_url(model.bucket_location)
         return model, url
