@@ -66,13 +66,11 @@
           <Column field="status" header="Status">
             <template #body="{ data }">
               <div style="width: 150px">
-                <div v-if="data.status === MlModelStatusEnum.deletion_failed">Deletion failed</div>
-                <div v-if="data.status === MlModelStatusEnum.pending_deletion">
-                  Pending deletion
-                </div>
-                <div v-if="data.status === MlModelStatusEnum.pending_upload">Pending upload</div>
-                <div v-if="data.status === MlModelStatusEnum.upload_failed">Upload failed</div>
-                <div v-if="data.status === MlModelStatusEnum.uploaded">Uploaded</div>
+                <Tag v-if="data.status === MlModelStatusEnum.deletion_failed" severity="danger" class="tag">Deletion failed</Tag>
+                <Tag v-if="data.status === MlModelStatusEnum.pending_deletion" severity="warn" class="tag">Pending deletions</Tag>
+                <Tag v-if="data.status === MlModelStatusEnum.pending_upload" severity="warn" class="tag">Pending upload</Tag>
+                <Tag v-if="data.status === MlModelStatusEnum.upload_failed" severity="danger" class="tag">Upload failed</Tag>
+                <Tag v-if="data.status === MlModelStatusEnum.uploaded" severity="success" class="tag">Uploaded</Tag>
               </div>
             </template>
           </Column>
