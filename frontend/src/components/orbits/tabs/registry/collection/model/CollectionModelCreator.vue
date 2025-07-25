@@ -118,10 +118,14 @@ function searchTags(event: AutoCompleteCompleteEvent) {
 
 function onSelectFile(event: File) {
   fileError.value = false
-  if (event.name.endsWith('.dfs')) {
+  const regex = /^[^\s<>:\"/\\|?*{}\[\]~#%;'^)+!(]+$/
+  const isFileNameCorrect = regex.test(event.name)
+  const isDfsFile = event.name.endsWith('.dfs')
+  if (isDfsFile && isFileNameCorrect) {
     formData.value.file = event
   } else {
     fileError.value = true
+    !isFileNameCorrect && toast.add(simpleErrorToast('Incorrect file name'))
   }
 }
 
