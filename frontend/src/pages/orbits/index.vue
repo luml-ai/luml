@@ -48,13 +48,14 @@ const createAvailable = computed(
     !!organizationStore.currentOrganization?.permissions?.orbit?.includes(PermissionEnum.create),
 )
 
-async function loadOrbits(organizationId: number) {
+async function loadOrbits(organizationId: number, skipHideLoading = false) {
   try {
     loading.value = true
     await orbitsStore.loadOrbitsList(organizationId)
   } catch (e: any) {
     toast.add(simpleErrorToast(e?.message || 'Failed to load orbits'))
   } finally {
+    if (skipHideLoading) return
     loading.value = false
   }
 }
@@ -69,9 +70,15 @@ watch(
   },
 )
 
-onBeforeMount(() => {
-  loadOrbits(+route.params.organizationId)
-  organizationStore.getOrganizationDetails(+route.params.organizationId)
+onBeforeMount(async () => {
+  await loadOrbits(+route.params.organizationId, true)
+  try {
+    await organizationStore.getOrganizationDetails(+route.params.organizationId)
+  } catch (e: any) {
+    toast.add(simpleErrorToast(e?.message || 'Failed to load organization details'))
+  } finally {
+    loading.value = false
+  }
 })
 </script>
 

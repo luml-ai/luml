@@ -37,6 +37,7 @@
           }"
           dataKey="id"
           style="font-size: 14px"
+          :loading="modelsLoading"
         >
           <template #empty>
             <div class="placeholder">No models to show. Add model to the table.</div>
@@ -133,6 +134,7 @@ const orbitsStore = useOrbitsStore()
 
 const selectedModels = ref<{ id: number, modelName: string, fileName: string }[]>([])
 const loading = ref(false)
+const modelsLoading = ref(false)
 
 const tableData = computed(() =>
   modelsStore.modelsList.map((item) => {
@@ -203,9 +205,12 @@ async function downloadClick() {
 
 onBeforeMount(async () => {
   try {
+    modelsLoading.value = true
     await modelsStore.loadModelsList()
   } catch {
     toast.add(simpleErrorToast('Failed to load models'))
+  } finally {
+    modelsLoading.value = false
   }
 })
 

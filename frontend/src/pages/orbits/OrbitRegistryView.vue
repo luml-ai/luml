@@ -1,8 +1,12 @@
 <template>
-  <div>
+  <div v-if="!loading">
     <header class="header">
       <h2 class="title">{{ orbitsStore.currentOrbitDetails?.name }}</h2>
-      <Button v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.create)" class="button" @click="showCreator = true">
+      <Button
+        v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.create)"
+        class="button"
+        @click="showCreator = true"
+      >
         <Plus :size="14" />
         <span>Create collection</span>
       </Button>
@@ -18,7 +22,12 @@
         <p>Start by creating your first collection.</p>
       </div>
     </div>
-    <CollectionsList v-else :edit-available="!!orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.update)"></CollectionsList>
+    <CollectionsList
+      v-else
+      :edit-available="
+        !!orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.update)
+      "
+    ></CollectionsList>
   </div>
   <CollectionCreator v-model:visible="showCreator"></CollectionCreator>
 </template>
