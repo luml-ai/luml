@@ -7,8 +7,8 @@ from dataforce_studio.schemas.bucket_secrets import BucketSecret
 
 
 class S3Service:
-    def __init__(self, secret: BucketSecret, bucket_name: str) -> None:
-        self._bucket_name = bucket_name
+    def __init__(self, secret: BucketSecret) -> None:
+        self._bucket_name = secret.bucket_name
         self._client = self._create_minio_client(secret)
 
     def _create_minio_client(self, secret: BucketSecret) -> Minio:

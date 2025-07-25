@@ -51,7 +51,7 @@ class MLModelHandler:
 
     async def _get_s3_service(self, secret_id: int) -> S3Service:
         secret = await self._get_secret_or_raise(secret_id)
-        return S3Service(secret, secret.bucket_name)
+        return S3Service(secret)
 
     async def _check_orbit_and_collection_access(
         self, organization_id: int, orbit_id: int, collection_id: int
