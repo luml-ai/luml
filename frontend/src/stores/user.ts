@@ -24,6 +24,7 @@ export const useUserStore = defineStore('user', () => {
   const getUserAvatar = computed(() => user.value?.photo)
   const isUserLoggedWithSSO = computed(() => user.value?.auth_method !== 'email')
   const getUserId = computed(() => user.value?.id)
+  const isUserApiKeyExist = computed(() => !!user.value?.has_api_key)
 
   const loadUser = async () => {
     const data = await dataforceApi.getMe()
@@ -56,6 +57,19 @@ export const useUserStore = defineStore('user', () => {
     return response
   }
 
+  const createApiKey = async () => {
+    if (!user.value) return null
+    const { key } = await dataforceApi.apiKeys.createApiKey()
+    user.value.has_api_key = true
+    return key
+  }
+
+  const deleteApiKey = async () => {
+    if (!user.value) return
+    await dataforceApi.apiKeys.deleteApiKey()
+    user.value.has_api_key = false
+  }
+
   watch(
     () => user.value?.id,
     async (id) => {
@@ -77,11 +91,14 @@ export const useUserStore = defineStore('user', () => {
     isPasswordHasBeenChanged,
     isUserLoggedWithSSO,
     getUserId,
+    isUserApiKeyExist,
     loadUser,
     changePassword,
     deleteAccount,
     resetUser,
     resetPassword,
     updateUser,
+    createApiKey,
+    deleteApiKey,
   }
 })

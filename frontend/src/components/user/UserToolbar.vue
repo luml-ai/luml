@@ -51,6 +51,7 @@
     </template>
     <user-change-password @success="onChangePasswordSuccess" />
   </d-dialog>
+  <ApiKeyModal v-model:show="isApiKeyVisible"/>
 </template>
 
 <script setup lang="ts">
@@ -66,6 +67,7 @@ import { useThemeStore, type Theme } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
 import { passwordChangedSuccessToast } from '@/lib/primevue/data/toasts'
 import UserInvitations from './UserInvitations.vue'
+import ApiKeyModal from './ApiKeyModal.vue'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
@@ -82,7 +84,8 @@ const { getUserEmail, getUserFullName, getUserAvatar } = storeToRefs(userStore)
 
 const mainButtonLabel = computed(() => getUserFullName.value || 'Account')
 
-const isDialogVisible = ref(false);
+const isDialogVisible = ref(false)
+const isApiKeyVisible = ref(false)
 const menuItems = ref([
   {
     label: 'Account',
@@ -101,6 +104,12 @@ const menuItems = ref([
   {
     label: 'About',
     action: () => {},
+  },
+  {
+    label: 'API key',
+    action: () => {
+      isApiKeyVisible.value = true
+    },
   },
   {
     label: 'Appearance',
