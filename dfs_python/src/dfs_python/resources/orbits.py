@@ -1,0 +1,2 @@
+class Orbit:
+    pass

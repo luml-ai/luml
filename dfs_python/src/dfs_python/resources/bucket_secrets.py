@@ -1,0 +1,2 @@
+class BucketSecret:
+    pass
