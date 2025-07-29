@@ -169,3 +169,15 @@ class CollectionNotFoundError(ApplicationError):
 class MLModelNotFoundError(ApplicationError):
     def __init__(self, message: str = "ML model not found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class BucketConnectionError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Failed to connect to bucket.",
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+    ) -> None:
+        super().__init__(
+            message=message,
+            status_code=status_code,
+        )

@@ -1,7 +1,4 @@
-from datetime import timedelta
 from uuid import uuid4
-
-from minio import Minio
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
@@ -16,6 +13,7 @@ from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.ml_models import MLModelRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.bucket_secrets import BucketSecret
 from dataforce_studio.schemas.ml_models import (
     Collection,
     MLModel,
@@ -27,6 +25,7 @@ from dataforce_studio.schemas.ml_models import (
 )
 from dataforce_studio.schemas.orbit import Orbit
 from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.services.s3_service import S3Service
 
 
 class MLModelHandler:
@@ -44,66 +43,15 @@ class MLModelHandler:
         MLModelStatus.PENDING_DELETION: {MLModelStatus.DELETION_FAILED},
     }
 
-    async def _get_presigned_url(self, secret_id: int, object_name: str) -> str:
+    async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
             raise BucketSecretNotFoundError()
+        return secret
 
-        client = Minio(
-            secret.endpoint,
-            access_key=secret.access_key,
-            secret_key=secret.secret_key,
-            session_token=secret.session_token,
-            secure=secret.secure if secret.secure is not None else True,
-            region=secret.region,
-            cert_check=secret.cert_check if secret.cert_check is not None else True,
-        )
-        return client.presigned_put_object(
-            bucket_name=secret.bucket_name,
-            object_name=object_name,
-            expires=timedelta(hours=1),
-        )
-
-    async def _get_download_url(self, secret_id: int, object_name: str) -> str:
-        secret = await self.__secret_repository.get_bucket_secret(secret_id)
-        if not secret:
-            raise BucketSecretNotFoundError()
-
-        client = Minio(
-            secret.endpoint,
-            access_key=secret.access_key,
-            secret_key=secret.secret_key,
-            session_token=secret.session_token,
-            secure=secret.secure if secret.secure is not None else True,
-            region=secret.region,
-            cert_check=secret.cert_check if secret.cert_check is not None else True,
-        )
-        return client.presigned_get_object(
-            bucket_name=secret.bucket_name,
-            object_name=object_name,
-            expires=timedelta(hours=1),
-        )
-
-    async def _get_delete_url(self, secret_id: int, object_name: str) -> str:
-        secret = await self.__secret_repository.get_bucket_secret(secret_id)
-        if not secret:
-            raise BucketSecretNotFoundError()
-
-        client = Minio(
-            secret.endpoint,
-            access_key=secret.access_key,
-            secret_key=secret.secret_key,
-            session_token=secret.session_token,
-            secure=secret.secure if secret.secure is not None else True,
-            region=secret.region,
-            cert_check=secret.cert_check if secret.cert_check is not None else True,
-        )
-        return client.get_presigned_url(
-            "DELETE",
-            bucket_name=secret.bucket_name,
-            object_name=object_name,
-            expires=timedelta(hours=1),
-        )
+    async def _get_s3_service(self, secret_id: int) -> S3Service:
+        secret = await self._get_secret_or_raise(secret_id)
+        return S3Service(secret)
 
     async def _check_orbit_and_collection_access(
         self, organization_id: int, orbit_id: int, collection_id: int
@@ -159,7 +107,8 @@ class MLModelHandler:
             )
         )
 
-        url = await self._get_presigned_url(orbit.bucket_secret_id, bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_upload_url(bucket_location)
         return created_model, url
 
     async def update_model(
@@ -230,10 +179,8 @@ class MLModelHandler:
         if not model:
             raise MLModelNotFoundError()
 
-        return await self._get_download_url(
-            orbit.bucket_secret_id,
-            model.bucket_location,
-        )
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        return await s3_service.get_download_url(model.bucket_location)
 
     async def request_delete_url(
         self,
@@ -263,7 +210,8 @@ class MLModelHandler:
         if not orbit:
             raise OrbitNotFoundError()
 
-        url = await self._get_delete_url(orbit.bucket_secret_id, model.bucket_location)
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_delete_url(model.bucket_location)
         await self.__repository.update_status(model_id, MLModelStatus.PENDING_DELETION)
         return url
 
@@ -335,7 +283,6 @@ class MLModelHandler:
         if not model:
             raise MLModelNotFoundError()
 
-        url = await self._get_download_url(
-            orbit.bucket_secret_id, model.bucket_location
-        )
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_download_url(model.bucket_location)
         return model, url

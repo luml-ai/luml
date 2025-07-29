@@ -74,7 +74,7 @@ async def test_send_invite(
 
     invite = CreateOrganizationInviteIn(**invite_data)
     mocked_invite = OrganizationInvite(
-        **invite_data, id=invite_id, created_at=datetime.utcnow()
+        **invite_data, id=invite_id, created_at=datetime.now()
     )
 
     mock_get_organization_invite_by_email.return_value = None

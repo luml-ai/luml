@@ -1,4 +1,5 @@
 import random
+import uuid
 
 import pytest
 
@@ -12,7 +13,7 @@ def get_invite_obj(
     organization: OrganizationOrm, user: User
 ) -> CreateOrganizationInvite:
     return CreateOrganizationInvite(
-        email=f"test_create_organization_invite_{random.randint(1000, 99999)}@gmail.com",
+        email=f"invite_{uuid.uuid4()}@gmail.com",
         role=OrgRole.MEMBER,
         organization_id=organization.id,
         invited_by=user.id,
@@ -71,10 +72,8 @@ async def test_get_invite_where(create_organization_with_user: dict) -> None:
     engine, user, organization = data["engine"], data["user"], data["organization"]
     repo = InviteRepository(engine)
 
-    for i in range(4):
-        invite_i = get_invite_obj(organization, user)
-        invite_i.email = f"{i}_{invite_i.email}"
-        await repo.create_organization_invite(invite_i)
+    for _ in range(4):
+        await repo.create_organization_invite(get_invite_obj(organization, user))
 
     invites = await repo.get_invites_by_organization_id(organization.id)
 
@@ -89,10 +88,8 @@ async def test_delete_invite_where(create_organization_with_user: dict) -> None:
     engine, user, organization = data["engine"], data["user"], data["organization"]
     repo = InviteRepository(engine)
 
-    for i in range(4):
-        invite_i = get_invite_obj(organization, user)
-        invite_i.email = f"{i}_{invite_i.email}"
-        await repo.create_organization_invite(invite_i)
+    for _ in range(4):
+        await repo.create_organization_invite(get_invite_obj(organization, user))
 
     deleted_invites = await repo.delete_all_organization_invites(organization.id)
 

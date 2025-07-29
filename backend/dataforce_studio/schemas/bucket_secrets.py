@@ -44,3 +44,9 @@ class BucketSecretOut(BaseModel, BaseOrmConfig):
 
 class BucketSecretUpdate(_BucketSecretBase):
     id: int
+
+
+class BucketSecretUrls(BaseModel, BaseOrmConfig):
+    presigned_url: str
+    download_url: str
+    delete_url: str
