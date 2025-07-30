@@ -40,12 +40,14 @@ import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
 import { BucketSecretsApi } from './bucket-secrets'
 import { OrbitCollectionsApi } from './orbit-collections'
 import { MlModelsApi } from './orbit-ml-models'
+import { ApiKeysApi } from './api-keys'
 
 export class DataforceApiClass {
   private api: AxiosInstance
   public bucketSecrets: BucketSecretsApi
   public orbitCollections: OrbitCollectionsApi
   public mlModels: MlModelsApi
+  public apiKeys: ApiKeysApi
 
   constructor() {
     this.api = axios.create({
@@ -58,6 +60,7 @@ export class DataforceApiClass {
     this.bucketSecrets = new BucketSecretsApi(this.api)
     this.orbitCollections = new OrbitCollectionsApi(this.api)
     this.mlModels = new MlModelsApi(this.api)
+    this.apiKeys = new ApiKeysApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {

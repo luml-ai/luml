@@ -144,3 +144,17 @@ export const deleteBucketConfirmOptions = (accept: () => void): ConfirmationOpti
   },
   accept,
 })
+
+export const deleteAPIKeyConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This key will be permanently deleted. You’ll still be able to generate a new one at any time.',
+  header: 'Delete API key?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})

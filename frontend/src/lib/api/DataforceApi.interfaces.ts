@@ -61,6 +61,7 @@ export interface IGetUserResponse {
   auth_method: 'email' | 'google'
   photo: string
   id: string
+  has_api_key: boolean
 }
 
 export interface IPostLogoutRequest {

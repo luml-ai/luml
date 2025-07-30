@@ -4,5 +4,6 @@ export interface IUser {
   disabled: boolean
   auth_method: 'email' | 'google'
   id: string
+  has_api_key: boolean
   photo?: string
 }
