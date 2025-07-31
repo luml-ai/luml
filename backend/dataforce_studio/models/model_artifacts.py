@@ -7,7 +7,7 @@ from dataforce_studio.schemas.model_artifacts import ModelArtifact, ModelArtifac
 
 
 class ModelArtifactOrm(TimestampMixin, Base):
-    __tablename__ = "ml_models"
+    __tablename__ = "model_artifacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     collection_id: Mapped[int] = mapped_column(
