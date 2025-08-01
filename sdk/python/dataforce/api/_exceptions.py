@@ -12,12 +12,73 @@ class DataForceAPIError(Exception):
         super().__init__(self.message)
 
 
-class ResourceNotFoundError(DataForceAPIError):
+class ConfigurationError(DataForceAPIError):
     pass
 
 
 class MultipleResourcesFoundError(DataForceAPIError):
     pass
+
+
+class ResourceNotFoundError(Exception):
+    def __init__(
+        self,
+        resource_type: str,
+        value: int | str,
+        all_values: list | None = None,
+        message: str | None = None,
+    ) -> None:
+        if message:
+            self.message = message
+        else:
+            value_reference = "id" if isinstance(value, int) else "name"
+            self.message = (
+                f"{resource_type} with {value_reference} '{value}'"
+                f" not found. Try to set with another id or name."
+            )
+        if all_values:
+            if len(all_values) > 0:
+                formatted_resources = "\n      ".join(
+                    f'{resource_type}(id={e.id}, name="{e.name}")' for e in all_values
+                )
+                self.message += (
+                    f"\nAvailable {resource_type}s for configuration:"
+                    f"\n      {formatted_resources}"
+                )
+            else:
+                self.message += f"\nYou do not have available {resource_type}s yet."
+
+        super().__init__(self.message)
+
+
+class OrbitResourceNotFoundError(ResourceNotFoundError):
+    def __init__(
+        self,
+        value: int | str,
+        all_values: list | None = None,
+        message: str | None = None,
+    ) -> None:
+        super().__init__("Orbit", value, all_values, message)
+
+
+class OrganizationResourceNotFoundError(ResourceNotFoundError):
+    def __init__(
+        self,
+        value: int | str,
+        all_values: list | None = None,
+        message: str | None = None,
+    ) -> None:
+        super().__init__("Organization", value, all_values, message)
+
+
+class CollectionResourceNotFoundError(ResourceNotFoundError):
+    def __init__(
+        self,
+        value: int | str,
+        all_values: list | None = None,
+        message: str | None = None,
+    ) -> None:
+        super().__init__("Collection", value, all_values, message)
 
 
 class APIError(DataForceAPIError):

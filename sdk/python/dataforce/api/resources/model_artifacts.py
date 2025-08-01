@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING
 
 from .._types import ModelArtifact
 from .._utils import find_by_name
+from ._validators import validate_organization_orbit_collection
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -12,6 +13,7 @@ class ModelArtifactResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
+    @validate_organization_orbit_collection
     def get_by_name(
         self, organization_id: int, orbit_id: int, collection_id: int, name: str
     ) -> ModelArtifact | None:
@@ -21,6 +23,7 @@ class ModelArtifactResource:
             condition=lambda m: m.model_name == name or m.file_name == name,
         )
 
+    @validate_organization_orbit_collection
     def list(
         self, organization_id: int, orbit_id: int, collection_id: int
     ) -> list[ModelArtifact]:
@@ -31,6 +34,7 @@ class ModelArtifactResource:
             return []
         return [ModelArtifact.model_validate(model) for model in response]
 
+    @validate_organization_orbit_collection
     def download_url(
         self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
     ) -> dict:
@@ -38,18 +42,24 @@ class ModelArtifactResource:
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/download-url"
         )
 
+    @validate_organization_orbit_collection
     def delete_url(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
+        model_id: int,
     ) -> dict:
         return self._client.get(
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/delete-url"
         )
 
+    @validate_organization_orbit_collection
     def create(
         self,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
         file_name: str,
         metrics: dict,
         manifest: dict,
@@ -75,11 +85,12 @@ class ModelArtifactResource:
             },
         )
 
+    @validate_organization_orbit_collection
     def update(
         self,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
         model_id: int,
         file_name: str | None = None,
         model_name: str | None = None,
@@ -100,6 +111,7 @@ class ModelArtifactResource:
             ),
         )
 
+    @validate_organization_orbit_collection
     def delete(
         self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
     ) -> None:
@@ -112,8 +124,13 @@ class AsyncModelArtifactResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
+    @validate_organization_orbit_collection
     async def get_by_name(
-        self, organization_id: int, orbit_id: int, collection_id: int, name: str
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
+        name: str,
     ) -> ModelArtifact | None:
         return find_by_name(
             await self.list(organization_id, orbit_id, collection_id),
@@ -121,8 +138,12 @@ class AsyncModelArtifactResource:
             condition=lambda m: m.model_name == name or m.file_name == name,
         )
 
+    @validate_organization_orbit_collection
     async def list(
-        self, organization_id: int, orbit_id: int, collection_id: int
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
     ) -> list[ModelArtifact]:
         response = await self._client.get(
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models"
@@ -131,25 +152,36 @@ class AsyncModelArtifactResource:
             return []
         return [ModelArtifact.model_validate(model) for model in response]
 
+    @validate_organization_orbit_collection
     async def download_url(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
+        model_id: int,
     ) -> dict:
         return await self._client.get(
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/download-url"
         )
 
+    @validate_organization_orbit_collection
     async def delete_url(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
+        model_id: int,
     ) -> dict:
         return await self._client.get(
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/delete-url"
         )
 
+    @validate_organization_orbit_collection
     async def create(
         self,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
         file_name: str,
         metrics: dict,
         manifest: dict,
@@ -175,11 +207,12 @@ class AsyncModelArtifactResource:
             },
         )
 
+    @validate_organization_orbit_collection
     async def update(
         self,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
         model_id: int,
         file_name: str | None = None,
         model_name: str | None = None,
@@ -200,8 +233,13 @@ class AsyncModelArtifactResource:
             ),
         )
 
+    @validate_organization_orbit_collection
     async def delete(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
+        self,
+        organization_id: int | None,
+        orbit_id: int | None,
+        collection_id: int | None,
+        model_id: int,
     ) -> None:
         return await self._client.delete(
             f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}"
