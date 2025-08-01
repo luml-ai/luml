@@ -1,7 +1,7 @@
 import pytest
 
 from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.schemas.ml_models import CollectionCreate, CollectionType
+from dataforce_studio.schemas.model_artifacts import CollectionCreate, CollectionType
 
 
 @pytest.mark.asyncio

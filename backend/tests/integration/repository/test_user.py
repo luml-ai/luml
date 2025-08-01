@@ -1,4 +1,4 @@
-import random
+import uuid
 
 import pytest
 import pytest_asyncio
@@ -37,7 +37,7 @@ async def test_create_user_and_organization(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     user = CreateUser(
-        email=f"test_create_user_and_organization_{random.randint(1000, 99999)}@email.com",
+        email=f"test_create_user_org_{uuid.uuid4()}@email.com",
         full_name="Test User",
         disabled=False,
         email_verified=True,

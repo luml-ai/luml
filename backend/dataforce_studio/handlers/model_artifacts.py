@@ -6,41 +6,41 @@ from dataforce_studio.infra.exceptions import (
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     InvalidStatusTransitionError,
-    MLModelNotFoundError,
+    ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.repositories.ml_models import MLModelRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
-    MLModel,
-    MLModelCreate,
-    MLModelIn,
-    MLModelStatus,
-    MLModelUpdate,
-    MLModelUpdateIn,
+    ModelArtifact,
+    ModelArtifactCreate,
+    ModelArtifactIn,
+    ModelArtifactStatus,
+    ModelArtifactUpdate,
+    ModelArtifactUpdateIn,
 )
 from dataforce_studio.schemas.orbit import Orbit
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.services.s3_service import S3Service
 
 
-class MLModelHandler:
-    __repository = MLModelRepository(engine)
+class ModelArtifactHandler:
+    __repository = ModelArtifactRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __model_transitions = {
-        MLModelStatus.PENDING_UPLOAD: {
-            MLModelStatus.UPLOADED,
-            MLModelStatus.UPLOAD_FAILED,
+    __model_artifact_transitions = {
+        ModelArtifactStatus.PENDING_UPLOAD: {
+            ModelArtifactStatus.UPLOADED,
+            ModelArtifactStatus.UPLOAD_FAILED,
         },
-        MLModelStatus.PENDING_DELETION: {MLModelStatus.DELETION_FAILED},
+        ModelArtifactStatus.PENDING_DELETION: {ModelArtifactStatus.DELETION_FAILED},
     }
 
     async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
@@ -66,14 +66,14 @@ class MLModelHandler:
             raise CollectionNotFoundError()
         return orbit, collection
 
-    async def create_ml_model(
+    async def create_model_artifact(
         self,
         user_id: int,
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model: MLModelIn,
-    ) -> tuple[MLModel, str]:
+        model_artifact: ModelArtifactIn,
+    ) -> tuple[ModelArtifact, str]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -86,40 +86,40 @@ class MLModelHandler:
             organization_id, orbit_id, collection_id
         )
         unique_id = uuid4().hex
-        object_name = f"{unique_id}-{model.file_name}"
+        object_name = f"{unique_id}-{model_artifact.file_name}"
         bucket_location = f"orbit-{orbit_id}/collection-{collection_id}/{object_name}"
 
-        created_model = await self.__repository.create_ml_model(
-            MLModelCreate(
+        created_model_artifact = await self.__repository.create_model_artifact(
+            ModelArtifactCreate(
                 collection_id=collection_id,
-                file_name=model.file_name,
-                model_name=model.model_name,
-                description=model.description,
-                metrics=model.metrics,
-                manifest=model.manifest,
-                file_hash=model.file_hash,
-                file_index=model.file_index,
+                file_name=model_artifact.file_name,
+                model_name=model_artifact.model_name,
+                description=model_artifact.description,
+                metrics=model_artifact.metrics,
+                manifest=model_artifact.manifest,
+                file_hash=model_artifact.file_hash,
+                file_index=model_artifact.file_index,
                 bucket_location=bucket_location,
-                size=model.size,
+                size=model_artifact.size,
                 unique_identifier=unique_id,
-                tags=model.tags,
-                status=MLModelStatus.PENDING_UPLOAD,
+                tags=model_artifact.tags,
+                status=ModelArtifactStatus.PENDING_UPLOAD,
             )
         )
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
         url = await s3_service.get_upload_url(bucket_location)
-        return created_model, url
+        return created_model_artifact, url
 
-    async def update_model(
+    async def update_model_artifact(
         self,
         user_id: int,
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model_id: int,
-        model: MLModelUpdateIn,
-    ) -> MLModel:
+        model_artifact_id: int,
+        model_artifact: ModelArtifactUpdateIn,
+    ) -> ModelArtifact:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -131,28 +131,35 @@ class MLModelHandler:
             organization_id, orbit_id, collection_id
         )
 
-        model_obj = await self.__repository.get_ml_model(model_id, collection_id)
+        model_artifact_obj = await self.__repository.get_model_artifact(
+            model_artifact_id, collection_id
+        )
 
-        if not model_obj:
-            raise MLModelNotFoundError()
+        if not model_artifact_obj:
+            raise ModelArtifactNotFoundError()
 
-        if model.status and model.status not in self.__model_transitions.get(
-            model_obj.status, set()
+        if (
+            model_artifact.status
+            and model_artifact.status
+            not in self.__model_artifact_transitions.get(
+                model_artifact_obj.status, set()
+            )
         ):
             raise InvalidStatusTransitionError(
-                f"Invalid status transition from {model_obj.status} to {model.status}"
+                f"Invalid status transition from "
+                f"{model_artifact_obj.status} to {model_artifact.status}"
             )
 
-        update_data = model.model_dump(exclude_unset=True)
-        update_data["id"] = model_id
-        updated = await self.__repository.update_ml_model(
-            model_id,
+        update_data = model_artifact.model_dump(exclude_unset=True)
+        update_data["id"] = model_artifact_id
+        updated = await self.__repository.update_model_artifact(
+            model_artifact_id,
             collection_id,
-            MLModelUpdate(**update_data),
+            ModelArtifactUpdate(**update_data),
         )
 
         if not updated:
-            raise MLModelNotFoundError()
+            raise ModelArtifactNotFoundError()
 
         return updated
 
@@ -162,7 +169,7 @@ class MLModelHandler:
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model_id: int,
+        model_artifact_id: int,
     ) -> str:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -175,12 +182,14 @@ class MLModelHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id, collection_id)
-        if not model:
-            raise MLModelNotFoundError()
+        model_artifact = await self.__repository.get_model_artifact(
+            model_artifact_id, collection_id
+        )
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        return await s3_service.get_download_url(model.bucket_location)
+        return await s3_service.get_download_url(model_artifact.bucket_location)
 
     async def request_delete_url(
         self,
@@ -188,7 +197,7 @@ class MLModelHandler:
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model_id: int,
+        model_artifact_id: int,
     ) -> str:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -200,9 +209,11 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id, collection_id)
-        if not model:
-            raise MLModelNotFoundError()
+        model_artifact = await self.__repository.get_model_artifact(
+            model_artifact_id, collection_id
+        )
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
 
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -211,8 +222,10 @@ class MLModelHandler:
             raise OrbitNotFoundError()
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        url = await s3_service.get_delete_url(model.bucket_location)
-        await self.__repository.update_status(model_id, MLModelStatus.PENDING_DELETION)
+        url = await s3_service.get_delete_url(model_artifact.bucket_location)
+        await self.__repository.update_status(
+            model_artifact_id, ModelArtifactStatus.PENDING_DELETION
+        )
         return url
 
     async def confirm_deletion(
@@ -221,7 +234,7 @@ class MLModelHandler:
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model_id: int,
+        model_artifact_id: int,
     ) -> None:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -233,22 +246,24 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id, collection_id)
-        if not model:
-            raise MLModelNotFoundError()
-        if model.status != MLModelStatus.PENDING_DELETION:
+        model_artifact = await self.__repository.get_model_artifact(
+            model_artifact_id, collection_id
+        )
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
+        if model_artifact.status != ModelArtifactStatus.PENDING_DELETION:
             raise InvalidStatusTransitionError(
-                f"Unable to confirm deletion with status '{model.status}'"
+                f"Unable to confirm deletion with status '{model_artifact.status}'"
             )
-        await self.__repository.delete_ml_model(model_id)
+        await self.__repository.delete_model_artifact(model_artifact_id)
 
-    async def get_collection_models(
+    async def get_collection_model_artifact(
         self,
         user_id: int,
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-    ) -> list[MLModel]:
+    ) -> list[ModelArtifact]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -259,16 +274,16 @@ class MLModelHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        return await self.__repository.get_collection_models(collection_id)
+        return await self.__repository.get_collection_model_artifact(collection_id)
 
-    async def get_ml_model(
+    async def get_model_artifact(
         self,
         user_id: int,
         organization_id: int,
         orbit_id: int,
         collection_id: int,
-        model_id: int,
-    ) -> tuple[MLModel, str]:
+        model_artifact_id: int,
+    ) -> tuple[ModelArtifact, str]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -279,10 +294,12 @@ class MLModelHandler:
         orbit, _ = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model = await self.__repository.get_ml_model(model_id, collection_id)
-        if not model:
-            raise MLModelNotFoundError()
+        model_artifact = await self.__repository.get_model_artifact(
+            model_artifact_id, collection_id
+        )
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        url = await s3_service.get_download_url(model.bucket_location)
-        return model, url
+        url = await s3_service.get_download_url(model_artifact.bucket_location)
+        return model_artifact, url

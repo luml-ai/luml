@@ -4,8 +4,8 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models import Base
 from dataforce_studio.models.base import TimestampMixin
-from dataforce_studio.models.ml_models import MLModelOrm
-from dataforce_studio.schemas.ml_models import Collection
+from dataforce_studio.models.model_artifacts import ModelArtifactOrm
+from dataforce_studio.schemas.model_artifacts import Collection
 
 
 class CollectionOrm(TimestampMixin, Base):
@@ -23,14 +23,14 @@ class CollectionOrm(TimestampMixin, Base):
     orbit: Mapped["OrbitOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm", back_populates="collections", lazy="selectin"
     )
-    models: Mapped[list["MLModelOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    models: Mapped[list["ModelArtifactOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="collection", cascade="all, delete, delete-orphan"
     )
 
     total_models = column_property(
-        select(func.count(MLModelOrm.id))
-        .where(MLModelOrm.collection_id == id)
-        .correlate_except(MLModelOrm)
+        select(func.count(ModelArtifactOrm.id))
+        .where(ModelArtifactOrm.collection_id == id)
+        .correlate_except(ModelArtifactOrm)
         .scalar_subquery()
     )
 

@@ -6,15 +6,6 @@ from pydantic import BaseModel, Field
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 
-MLModelNamesField = Annotated[
-    str,
-    Field(
-        pattern=r"^[^\s<>:\"/\\|?*{}\[\]`~#%;'^)+!(]+$",
-        description="mustn't contain whitespace or characters: "
-        "< > : \" / \\ | ? * { } [ ] ` ~ # % ; ' ^ ) + ! (",
-    ),
-]
-
 
 class CollectionType(StrEnum):
     MODEL = "model"
@@ -61,7 +52,17 @@ class CollectionUpdateIn(BaseModel):
     tags: list[str] | None = None
 
 
-class MLModelStatus(StrEnum):
+ModelArtifactNamesField = Annotated[
+    str,
+    Field(
+        pattern=r"^[^\s<>:\"/\\|?*{}\[\]`~#%;'^)+!(]+$",
+        description="mustn't contain whitespace or characters: "
+        "< > : \" / \\ | ? * { } [ ] ` ~ # % ; ' ^ ) + ! (",
+    ),
+]
+
+
+class ModelArtifactStatus(StrEnum):
     PENDING_UPLOAD = "pending_upload"
     UPLOADED = "uploaded"
     PENDING_DELETION = "pending_deletion"
@@ -114,7 +115,7 @@ class Manifest(BaseModel):
     env_vars: list[Var]
 
 
-class MLModelCreate(BaseModel):
+class ModelArtifactCreate(BaseModel):
     collection_id: int
     file_name: str
     model_name: str | None = None
@@ -127,11 +128,11 @@ class MLModelCreate(BaseModel):
     size: int
     unique_identifier: str
     tags: list[str] | None = None
-    status: MLModelStatus = MLModelStatus.PENDING_UPLOAD
+    status: ModelArtifactStatus = ModelArtifactStatus.PENDING_UPLOAD
 
 
-class MLModelIn(BaseModel):
-    file_name: MLModelNamesField
+class ModelArtifactIn(BaseModel):
+    file_name: ModelArtifactNamesField
     model_name: str | None = None
     description: str | None = None
     metrics: dict
@@ -142,31 +143,31 @@ class MLModelIn(BaseModel):
     tags: list[str] | None = None
 
 
-class MLModelUpdate(BaseModel):
+class ModelArtifactUpdate(BaseModel):
     id: int
     file_name: str | None = None
     model_name: str | None = None
     description: str | None = None
-    status: MLModelStatus | None = None
+    status: ModelArtifactStatus | None = None
     tags: list[str] | None = None
 
 
-class MLModelUpdateIn(BaseModel):
-    file_name: MLModelNamesField | None = None
+class ModelArtifactUpdateIn(BaseModel):
+    file_name: ModelArtifactNamesField | None = None
     model_name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
     status: (
         Literal[
-            MLModelStatus.UPLOADED,
-            MLModelStatus.UPLOAD_FAILED,
-            MLModelStatus.DELETION_FAILED,
+            ModelArtifactStatus.UPLOADED,
+            ModelArtifactStatus.UPLOAD_FAILED,
+            ModelArtifactStatus.DELETION_FAILED,
         ]
         | None
     ) = None
 
 
-class MLModel(BaseModel, BaseOrmConfig):
+class ModelArtifact(BaseModel, BaseOrmConfig):
     id: int
     collection_id: int
     file_name: str
@@ -180,11 +181,11 @@ class MLModel(BaseModel, BaseOrmConfig):
     size: int
     unique_identifier: str
     tags: list[str] | None = None
-    status: MLModelStatus
+    status: ModelArtifactStatus
     created_at: datetime
     updated_at: datetime | None = None
 
 
-class CreateMLModelResponse(BaseModel):
-    model: MLModel
+class CreateModelArtifactResponse(BaseModel):
+    model: ModelArtifact
     url: str

@@ -1,25 +1,27 @@
 import random
 from datetime import datetime
-from unittest.mock import AsyncMock, patch, ANY
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dataforce_studio.handlers.ml_models import MLModelHandler
-from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
+from dataforce_studio.infra.exceptions import (
+    ApplicationError,
+    ModelArtifactNotFoundError,
+)
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
-from dataforce_studio.infra.exceptions import ApplicationError, MLModelNotFoundError
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Manifest,
-    MLModel,
-    MLModelIn,
-    MLModelStatus,
-    MLModelUpdate,
-    MLModelUpdateIn,
+    ModelArtifact,
+    ModelArtifactIn,
+    ModelArtifactStatus,
+    ModelArtifactUpdate,
+    ModelArtifactUpdateIn,
 )
 from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
 
-handler = MLModelHandler()
+handler = ModelArtifactHandler()
 
 
 @pytest.fixture
@@ -62,15 +64,15 @@ def test_bucket() -> BucketSecret:
     return BucketSecret(
         id=1,
         organization_id=1,
-        endpoint='url',
-        bucket_name='name',
-        access_key='access_key',
-        secret_key='secret_key',
-        session_token='session_token',
+        endpoint="url",
+        bucket_name="name",
+        access_key="access_key",
+        secret_key="secret_key",
+        session_token="session_token",
         secure=True,
-        region='region',
+        region="region",
         cert_check=True,
-        created_at=datetime.now()
+        created_at=datetime.now(),
     )
 
 
@@ -83,30 +85,30 @@ def test_bucket() -> BucketSecret:
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.create_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.create_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_secret_or_raise",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_upload_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.get_upload_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_create_ml_model_with_tags(
+async def test_create_model_artifact_with_tags(
     mock_get_upload_url: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
-    mock_create_model: AsyncMock,
+    mock_create_model_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
@@ -119,7 +121,7 @@ async def test_create_ml_model_with_tags(
     orbit_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
+    model_artifact = ModelArtifact(
         id=1,
         collection_id=collection_id,
         file_name="model",
@@ -132,14 +134,14 @@ async def test_create_ml_model_with_tags(
         size=1,
         unique_identifier="uid",
         tags=["tag"],
-        status=MLModelStatus.PENDING_UPLOAD,
+        status=ModelArtifactStatus.PENDING_UPLOAD,
         created_at=datetime.now(),
         updated_at=None,
     )
 
     mock_secret = test_bucket
 
-    mock_create_model.return_value = model
+    mock_create_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -150,7 +152,7 @@ async def test_create_ml_model_with_tags(
     mock_get_upload_url.return_value = "url"
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
-    ml_model_in = MLModelIn(
+    model_artifact_in = ModelArtifactIn(
         metrics={},
         manifest=manifest_example,
         file_hash="hash",
@@ -160,17 +162,17 @@ async def test_create_ml_model_with_tags(
         model_name=None,
         tags=["tag"],
     )
-    result_model, url = await handler.create_ml_model(
+    result_model_artifact, url = await handler.create_model_artifact(
         user_id,
         organization_id,
         orbit_id,
         collection_id,
-        ml_model_in,
+        model_artifact_in,
     )
 
-    assert result_model == model
+    assert result_model_artifact == model_artifact
     assert url == "url"
-    mock_create_model.assert_awaited_once()
+    mock_create_model_artifact.assert_awaited_once()
     mock_get_secret_or_raise.assert_awaited_once_with(1)
 
 
@@ -183,30 +185,30 @@ async def test_create_ml_model_with_tags(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_secret_or_raise",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_ml_model(
+async def test_get_model_artifact(
     mock_get_download_url: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
@@ -217,11 +219,11 @@ async def test_get_ml_model(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -232,14 +234,14 @@ async def test_get_ml_model(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
     mock_secret = test_bucket
-    
-    mock_get_model.return_value = model
+
+    mock_get_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = type("obj", (), {"bucket_secret_id": 1})
     mock_get_orbit_simple.return_value = type(
         "obj",
@@ -252,16 +254,16 @@ async def test_get_ml_model(
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
-    result_model, url = await handler.get_ml_model(
-        user_id, organization_id, orbit_id, collection_id, model_id
+    result_model_artifact, url = await handler.get_model_artifact(
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
-    assert result_model == model
+    assert result_model_artifact == model_artifact
     assert url == "url"
-    mock_get_model.assert_awaited_once_with(model_id, collection_id)
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id, collection_id)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_download_url.assert_awaited_once_with(model.bucket_location)
+    mock_get_download_url.assert_awaited_once_with(model_artifact.bucket_location)
 
 
 @patch(
@@ -273,25 +275,25 @@ async def test_get_ml_model(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_ml_model_not_found(
+async def test_get_model_artifact_not_found(
     mock_get_download_url: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_role: AsyncMock,
@@ -300,10 +302,10 @@ async def test_get_ml_model_not_found(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    mock_get_model.return_value = None
+    mock_get_model_artifact.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
     mock_get_orbit_simple.return_value = type(
@@ -313,19 +315,19 @@ async def test_get_ml_model_not_found(
     )
     mock_get_collection.return_value = type("obj", (), {"orbit_id": orbit_id})
 
-    with pytest.raises(MLModelNotFoundError) as error:
-        await handler.get_ml_model(
-            user_id, organization_id, orbit_id, collection_id, model_id
+    with pytest.raises(ModelArtifactNotFoundError) as error:
+        await handler.get_model_artifact(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
 
     assert error.value.status_code == 404
-    mock_get_model.assert_awaited_once_with(model_id, collection_id)
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id, collection_id)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_download_url.assert_not_called()
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
@@ -337,26 +339,26 @@ async def test_get_ml_model_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_secret_or_raise",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_download_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.get_download_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_request_download_url(
     mock_get_download_url: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
@@ -367,11 +369,11 @@ async def test_request_download_url(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -382,14 +384,14 @@ async def test_request_download_url(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
     mock_secret = test_bucket
-    
-    mock_get_model.return_value = model
+
+    mock_get_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -406,16 +408,16 @@ async def test_request_download_url(
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     url = await handler.request_download_url(
-        user_id, organization_id, orbit_id, collection_id, model_id
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
     assert url == "url"
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_download_url.assert_awaited_once_with(model.bucket_location)
+    mock_get_download_url.assert_awaited_once_with(model_artifact.bucket_location)
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
@@ -427,23 +429,23 @@ async def test_request_download_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.update_status",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_status",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelHandler._get_secret_or_raise",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.S3Service.get_delete_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.get_delete_url",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -451,7 +453,7 @@ async def test_request_delete_url(
     mock_get_delete_url: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
     mock_update_status: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
@@ -462,11 +464,11 @@ async def test_request_delete_url(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -477,14 +479,14 @@ async def test_request_delete_url(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
     mock_secret = test_bucket
-    
-    mock_get_model.return_value = model
+
+    mock_get_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -501,23 +503,23 @@ async def test_request_delete_url(
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     url = await handler.request_delete_url(
-        user_id, organization_id, orbit_id, collection_id, model_id
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
     assert url == "url"
     mock_update_status.assert_awaited_once_with(
-        model_id, MLModelStatus.PENDING_DELETION
+        model_artifact_id, ModelArtifactStatus.PENDING_DELETION
     )
     mock_get_secret_or_raise.assert_awaited_once_with(1)
-    mock_get_delete_url.assert_awaited_once_with(model.bucket_location)
+    mock_get_delete_url.assert_awaited_once_with(model_artifact.bucket_location)
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
@@ -529,17 +531,17 @@ async def test_request_delete_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.delete_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_confirm_deletion_pending(
-    mock_delete: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_delete_model_artifact: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
@@ -549,11 +551,11 @@ async def test_confirm_deletion_pending(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -564,12 +566,12 @@ async def test_confirm_deletion_pending(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.PENDING_DELETION,
+        status=ModelArtifactStatus.PENDING_DELETION,
         created_at=datetime.now(),
         updated_at=None,
     )
 
-    mock_get_model.return_value = model
+    mock_get_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -584,19 +586,19 @@ async def test_confirm_deletion_pending(
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     await handler.confirm_deletion(
-        user_id, organization_id, orbit_id, collection_id, model_id
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
-    mock_get_model.assert_awaited_once_with(model_id, collection_id)
-    mock_delete.assert_awaited_once_with(model_id)
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id, collection_id)
+    mock_delete_model_artifact.assert_awaited_once_with(model_artifact_id)
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
@@ -608,11 +610,11 @@ async def test_confirm_deletion_pending(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.delete_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -628,11 +630,11 @@ async def test_confirm_deletion_not_pending(
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -643,12 +645,12 @@ async def test_confirm_deletion_not_pending(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
-    mock_get_model.return_value = model
+    mock_get_model.return_value = model_artifact
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -668,23 +670,23 @@ async def test_confirm_deletion_not_pending(
             organization_id,
             orbit_id,
             collection_id,
-            model_id,
+            model_artifact_id,
         )
 
-    mock_get_model.assert_awaited_once_with(model_id, collection_id)
+    mock_get_model.assert_awaited_once_with(model_artifact_id, collection_id)
     mock_delete.assert_not_called()
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
@@ -696,26 +698,26 @@ async def test_confirm_deletion_not_pending(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.update_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_update_model(
-    mock_update: AsyncMock,
+async def test_update_model_artifact(
+    mock_update_model_artifact: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
-    mock_get_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
-    model = MLModel(
-        id=model_id,
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -726,16 +728,16 @@ async def test_update_model(
         bucket_location="loc",
         size=1,
         unique_identifier="uid",
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
-    mock_get_model.return_value = model
+    mock_get_model_artifact.return_value = model_artifact
 
     tags = ["t1", "t2"]
-    expected = MLModel(
-        id=model_id,
+    expected = ModelArtifact(
+        id=model_artifact_id,
         collection_id=1,
         file_name="model",
         model_name=None,
@@ -747,12 +749,12 @@ async def test_update_model(
         size=1,
         unique_identifier="uid",
         tags=tags,
-        status=MLModelStatus.UPLOADED,
+        status=ModelArtifactStatus.UPLOADED,
         created_at=datetime.now(),
         updated_at=None,
     )
 
-    mock_update.return_value = expected
+    mock_update_model_artifact.return_value = expected
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -766,30 +768,32 @@ async def test_update_model(
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
-    update_in = MLModelUpdateIn(tags=tags)
-    result = await handler.update_model(
-        user_id, organization_id, orbit_id, collection_id, model_id, update_in
+    update_in = ModelArtifactUpdateIn(tags=tags)
+    result = await handler.update_model_artifact(
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id, update_in
     )
 
     assert result == expected
-    expected_update = MLModelUpdate(id=model_id, model_name=None, tags=tags)
-    mock_update.assert_awaited_once_with(
-        model_id,
+    expected_update = ModelArtifactUpdate(
+        id=model_artifact_id, model_name=None, tags=tags
+    )
+    mock_update_model_artifact.assert_awaited_once_with(
+        model_artifact_id,
         collection_id,
         expected_update,
     )
 
 
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.get_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.OrbitRepository.get_orbit_simple",
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
@@ -801,25 +805,25 @@ async def test_update_model(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.ml_models.MLModelRepository.update_ml_model",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_update_model_not_found(
-    mock_update: AsyncMock,
+async def test_update_model_artifact_not_found(
+    mock_update_model_artifact: AsyncMock,
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
-    mock_get_ml_model: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
     organization_id = random.randint(1, 10000)
     orbit_id = random.randint(1, 10000)
-    model_id = random.randint(1, 10000)
+    model_artifact_id = random.randint(1, 10000)
     collection_id = random.randint(1, 10000)
 
-    mock_update.return_value = None
+    mock_update_model_artifact.return_value = None
     mock_get_orbit_simple.return_value = type(
         "obj",
         (),
@@ -830,14 +834,19 @@ async def test_update_model_not_found(
         (),
         {"id": collection_id, "orbit_id": orbit_id},
     )
-    mock_get_ml_model.return_value = None
+    mock_get_model_artifact.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
-    update_in = MLModelUpdateIn(tags=["t1"])
-    with pytest.raises(MLModelNotFoundError):
-        await handler.update_model(
-            user_id, organization_id, orbit_id, collection_id, model_id, update_in
+    update_in = ModelArtifactUpdateIn(tags=["t1"])
+    with pytest.raises(ModelArtifactNotFoundError):
+        await handler.update_model_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            model_artifact_id,
+            update_in,
         )
 
-    mock_update.assert_not_awaited()
+    mock_update_model_artifact.assert_not_awaited()

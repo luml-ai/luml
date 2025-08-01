@@ -19,9 +19,11 @@ from dataforce_studio.schemas.orbit import (
 )
 from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
+    OrganizationCreateIn,
     OrganizationInvite,
     OrganizationMember,
-    OrgRole, OrganizationCreateIn, OrganizationMemberCreate,
+    OrganizationMemberCreate,
+    OrgRole,
 )
 from dataforce_studio.schemas.user import AuthProvider, CreateUser
 from dataforce_studio.settings import config
@@ -365,7 +367,7 @@ async def create_orbit_with_members(
 
     members = []
 
-    for i in range(10):
+    for _ in range(10):
         new_user = test_user.copy()
         new_user["email"] = f"email_user_{uuid.uuid4()}@example.com"
         created_user = await user_repo.create_user(CreateUser(**new_user))

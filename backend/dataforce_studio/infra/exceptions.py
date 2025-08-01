@@ -166,8 +166,8 @@ class CollectionNotFoundError(ApplicationError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
-class MLModelNotFoundError(ApplicationError):
-    def __init__(self, message: str = "ML model not found") -> None:
+class ModelArtifactNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Model Artifact model not found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 

@@ -2,9 +2,9 @@ from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
 from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.repositories.ml_models import MLModelRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
@@ -18,7 +18,7 @@ class CollectionHandler:
     __repository = CollectionRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
-    __models_repository = MLModelRepository(engine)
+    __models_repository = ModelArtifactRepository(engine)
 
     async def create_collection(
         self,
@@ -112,8 +112,10 @@ class CollectionHandler:
         collection = await self.__repository.get_collection(collection_id)
         if not collection:
             raise NotFoundError("Collection not found")
-        models_count = await self.__models_repository.get_collection_models_count(
-            collection_id
+        models_count = (
+            await self.__models_repository.get_collection_model_artifacts_count(
+                collection_id
+            )
         )
         if models_count:
             raise CollectionDeleteError("Collection has models and cant be deleted")

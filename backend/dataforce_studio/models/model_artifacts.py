@@ -3,11 +3,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.ml_models import MLModel, MLModelStatus
+from dataforce_studio.schemas.model_artifacts import ModelArtifact, ModelArtifactStatus
 
 
-class MLModelOrm(TimestampMixin, Base):
-    __tablename__ = "ml_models"
+class ModelArtifactOrm(TimestampMixin, Base):
+    __tablename__ = "model_artifacts"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     collection_id: Mapped[int] = mapped_column(
@@ -29,7 +29,7 @@ class MLModelOrm(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default=MLModelStatus.PENDING_UPLOAD.value,
+        default=ModelArtifactStatus.PENDING_UPLOAD.value,
     )
 
     collection: Mapped["CollectionOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
@@ -37,7 +37,7 @@ class MLModelOrm(TimestampMixin, Base):
     )
 
     def __repr__(self) -> str:
-        return f"MLModel(id={self.id!r}, identifier={self.unique_identifier!r})"
+        return f"ModelArtifact(id={self.id!r}, identifier={self.unique_identifier!r})"
 
-    def to_ml_model(self) -> MLModel:
-        return MLModel.model_validate(self)
+    def to_model_artifact(self) -> ModelArtifact:
+        return ModelArtifact.model_validate(self)

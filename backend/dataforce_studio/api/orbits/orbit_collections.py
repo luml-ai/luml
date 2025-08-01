@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Request, status
 from dataforce_studio.handlers.collections import CollectionHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreateIn,
     CollectionUpdateIn,

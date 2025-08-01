@@ -1,6 +1,6 @@
 from dataforce_studio.models import CollectionOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionUpdate,

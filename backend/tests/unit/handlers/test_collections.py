@@ -6,7 +6,7 @@ import pytest
 
 from dataforce_studio.handlers.collections import CollectionHandler
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
-from dataforce_studio.schemas.ml_models import (
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
@@ -438,7 +438,7 @@ async def test_update_collection_orbit_wrong_org(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.MLModelRepository.get_collection_models_count",
+    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
@@ -502,7 +502,7 @@ async def test_delete_collection_empty(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.MLModelRepository.get_collection_models_count",
+    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
@@ -625,7 +625,7 @@ async def test_delete_collection_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.MLModelRepository.get_collection_models_count",
+    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
