@@ -2,6 +2,7 @@ import builtins
 from typing import TYPE_CHECKING
 
 from .._types import Collection, CollectionType
+from .._utils import find_by_name
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -10,6 +11,11 @@ if TYPE_CHECKING:
 class CollectionResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
+
+    def get_by_name(
+        self, organization_id: int, orbit_id: int, name: str
+    ) -> Collection | None:
+        return find_by_name(self.list(organization_id, orbit_id), name)
 
     def list(self, organization_id: int, orbit_id: int) -> list[Collection]:
         response = self._client.get(
@@ -70,6 +76,11 @@ class CollectionResource:
 class AsyncCollectionResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
+
+    async def get_by_name(
+        self, organization_id: int, orbit_id: int, name: str
+    ) -> Collection | None:
+        return find_by_name(await self.list(organization_id, orbit_id), name)
 
     async def list(self, organization_id: int, orbit_id: int) -> list[Collection]:
         response = await self._client.get(

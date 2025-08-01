@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from .._types import Organization
+from .._utils import find_by_name
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -16,6 +17,9 @@ class OrganizationResource:
             return []
         return [Organization.model_validate(org) for org in response]
 
+    def get_by_name(self, name: str) -> Organization | None:
+        return find_by_name(self.list(), name)
+
 
 class AsyncOrganizationResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
@@ -26,6 +30,9 @@ class AsyncOrganizationResource:
         if response is None:
             return []
         return [Organization.model_validate(org) for org in response]
+
+    async def get_by_name(self, name: str) -> Organization | None:
+        return find_by_name(await self.list(), name)
 
     # async def create(self, name: str, logo: str | None = None) -> Organization:
     #     response = await self._post(

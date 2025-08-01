@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from .._types import BucketSecret
+from .._utils import find_by_name
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -9,6 +10,17 @@ if TYPE_CHECKING:
 class BucketSecretResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
+
+    def get(self, organization_id: int, secret_id: int) -> BucketSecret:
+        response = self._client.get(
+            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+        )
+        return BucketSecret.model_validate(response)
+
+    def get_by_name(self, organization_id: int, name: str) -> BucketSecret | None:
+        return find_by_name(
+            self.list(organization_id), name, lambda b: b.bucket_name == name
+        )
 
     def list(self, organization_id: int) -> list[BucketSecret]:
         response = self._client.get(f"/organizations/{organization_id}/bucket-secrets")
@@ -40,12 +52,6 @@ class BucketSecretResource:
                 "region": region,
                 "cert_check": cert_check,
             },
-        )
-        return BucketSecret.model_validate(response)
-
-    def get(self, organization_id: int, secret_id: int) -> BucketSecret:
-        response = self._client.get(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 
@@ -89,6 +95,17 @@ class AsyncBucketSecretResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
+    async def get(self, organization_id: int, secret_id: int) -> BucketSecret:
+        response = await self._client.get(
+            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+        )
+        return BucketSecret.model_validate(response)
+
+    async def get_by_name(self, organization_id: int, name: str) -> BucketSecret | None:
+        return find_by_name(
+            await self.list(organization_id), name, lambda b: b.bucket_name == name
+        )
+
     async def list(self, organization_id: int) -> list[BucketSecret]:
         response = await self._client.get(
             f"/organizations/{organization_id}/bucket-secrets"
@@ -121,12 +138,6 @@ class AsyncBucketSecretResource:
                 "region": region,
                 "cert_check": cert_check,
             },
-        )
-        return BucketSecret.model_validate(response)
-
-    async def get(self, organization_id: int, secret_id: int) -> BucketSecret:
-        response = await self._client.get(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 

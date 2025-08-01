@@ -136,7 +136,11 @@ class SyncBaseClient(BaseClient):
                 body = response.json()
             except Exception:
                 body = response.text if response.content else None
-            raise self._make_status_error("", body=body, response=response)
+            raise self._make_status_error(
+                f"Error response {response.status_code} while requesting {response.request.method} {response.url}",
+                body=body,
+                response=response
+            )
 
         if response.status_code == 204 or not response.content:
             return None
@@ -200,7 +204,11 @@ class AsyncBaseClient(BaseClient):
             except Exception:
                 body = response.text if response.content else None
 
-            raise self._make_status_error("", body=body, response=response)
+            raise self._make_status_error(
+                f"Error response {response.status_code} while requesting {response.request.method} {response.url}",
+                body=body,
+                response=response
+            )
 
         if response.status_code == 204 or not response.content:
             return None

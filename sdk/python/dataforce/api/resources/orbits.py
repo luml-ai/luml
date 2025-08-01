@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 from .._types import Orbit
+from .._utils import find_by_name
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -15,6 +16,9 @@ class OrbitResource:
             f"/organizations/{organization_id}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
+
+    def get_by_name(self, organization_id: int, name: str) -> Orbit:
+        return find_by_name(self.list(organization_id), name)
 
     def list(self, organization_id: int) -> list[Orbit]:
         response = self._client.get(f"/organizations/{organization_id}/orbits")
@@ -63,6 +67,9 @@ class AsyncOrbitResource:
             f"/organizations/{organization_id}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
+
+    async def get_by_name(self, organization_id: int, name: str) -> Orbit:
+        return find_by_name(await self.list(organization_id), name)
 
     async def list(self, organization_id: int) -> list[Orbit]:
         response = await self._client.get(f"/organizations/{organization_id}/orbits")

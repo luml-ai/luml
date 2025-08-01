@@ -1,12 +1,12 @@
 from enum import StrEnum
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 
 
 class Organization(BaseModel):
     id: int
     name: str
-    logo: HttpUrl | None = None
+    logo: str | None = None
     created_at: str
     updated_at: str | None = None
 

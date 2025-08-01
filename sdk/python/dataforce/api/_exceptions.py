@@ -12,6 +12,14 @@ class DataForceAPIError(Exception):
         super().__init__(self.message)
 
 
+class ResourceNotFoundError(DataForceAPIError):
+    pass
+
+
+class MultipleResourcesFoundError(DataForceAPIError):
+    pass
+
+
 class APIError(DataForceAPIError):
     message: str
     request: httpx.Request

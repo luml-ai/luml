@@ -2,6 +2,7 @@ import builtins
 from typing import TYPE_CHECKING
 
 from .._types import ModelArtifact
+from .._utils import find_by_name
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -10,6 +11,15 @@ if TYPE_CHECKING:
 class ModelArtifactResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
+
+    def get_by_name(
+        self, organization_id: int, orbit_id: int, collection_id: int, name: str
+    ) -> ModelArtifact | None:
+        return find_by_name(
+            self.list(organization_id, orbit_id, collection_id),
+            name,
+            condition=lambda m: m.model_name == name or m.file_name == name,
+        )
 
     def list(
         self, organization_id: int, orbit_id: int, collection_id: int
@@ -101,6 +111,15 @@ class ModelArtifactResource:
 class AsyncModelArtifactResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
+
+    async def get_by_name(
+        self, organization_id: int, orbit_id: int, collection_id: int, name: str
+    ) -> ModelArtifact | None:
+        return find_by_name(
+            await self.list(organization_id, orbit_id, collection_id),
+            name,
+            condition=lambda m: m.model_name == name or m.file_name == name,
+        )
 
     async def list(
         self, organization_id: int, orbit_id: int, collection_id: int
