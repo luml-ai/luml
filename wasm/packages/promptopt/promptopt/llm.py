@@ -124,114 +124,65 @@ class OpenAIProvider(LLM):
         ]
 
 
-# class OllamaProvider(LLM):
-#     def __init__(self, base_url: str = "http://localhost:11434"):
-#         self.base_url = base_url
+class OllamaProvider(LLM):
+    provider_name = "ollama"
+    
+    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2:1b"):
+        self.base_url = base_url
+        self.model = model
 
-#     async def chat(
-#         self,
-#         model: str,
-#         messages: list[dict[str, str]],
-#         temperature: float = 0.0,
-#         response_format: dict | None = None,
-#         **kwargs,
-#     ) -> dict[str, str]:
-#         url = f"{self.base_url}/api/chat"
+    async def chat(
+        self,
+        model: str,
+        messages: list[dict[str, str]],
+        temperature: float = 0.0,
+        response_format: dict | None = None,
+        **kwargs,
+    ) -> dict[str, str]:
+        url = f"{self.base_url}/api/chat"
 
-#         headers = {"Content-Type": "application/json", "Accept": "application/json"}
+        headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-#         payload = {
-#             "model": model,
-#             "messages": messages,
-#             "stream": False,
-#             "format": response_format,
-#             "options": {
-#                 "temperature": temperature,
-#                 **kwargs,
-#             },
-#         }
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "format": response_format,
+            "options": {
+                "temperature": temperature,
+                **kwargs,
+            },
+        }
 
-#         async with httpx.AsyncClient() as client:
-#             response = await client.post(url, json=payload, headers=headers)
-#             response.raise_for_status()
-#             return response.json()
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response.json()
 
+    async def generate(self, messages: list, out_schema) -> str:
 
-# async def openai_provider_structured():
-#     api_key = "api-key"
-#     provider = OpenAIProvider(api_key=api_key)
+        out = await self.chat(
+            model=self.model, messages=messages, response_format=out_schema.model_json_schema()
+        )
+        
+        return out["message"]["content"]  # type: ignore
 
-#     math_schema = {
-#         "type": "json_schema",
-#         "json_schema": {
-#             "name": "math_reasoning",
-#             "schema": {
-#                 "type": "object",
-#                 "properties": {
-#                     "steps": {
-#                         "type": "array",
-#                         "items": {
-#                             "type": "object",
-#                             "properties": {
-#                                 "explanation": {"type": "string"},
-#                                 "output": {"type": "string"},
-#                             },
-#                             "required": ["explanation", "output"],
-#                             "additionalProperties": False,
-#                         },
-#                     },
-#                     "final_answer": {"type": "string"},
-#                 },
-#                 "required": ["steps", "final_answer"],
-#                 "additionalProperties": False,
-#             },
-#             "strict": True,
-#         },
-#     }
-
-#     response = await provider.chat(
-#         model="gpt-4o-mini",
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": "Solve this math problem step by step: If a train travels at 120 km/h and covers a distance of 450 km, how long does the journey take in hours and minutes?",
-#             }
-#         ],
-#         temperature=0.2,
-#         response_format=math_schema,
-#     )
-
-#     return response
+    async def batch_generate(
+            self,
+            messages: list,
+            temperature: float = 0.0,
+            n_responses: int = 1,
+    ) -> list[str]:
+        tasks = []
+        for _ in range(n_responses):
+            task = self.chat(
+                model=self.model,
+                messages=messages,
+                temperature=temperature
+            )
+            tasks.append(task)
+        
+        responses = await asyncio.gather(*tasks)
+        return [resp["message"]["content"] for resp in responses]
 
 
-# async def call_ollama_chat():
-#     provider = OllamaProvider()
-
-#     response = await provider.chat(
-#         model="llama3.2:1b",
-#         messages=[
-#             {
-#                 "role": "user",
-#                 "content": "Ollama is 22 years old and busy saving the world.",
-#             }
-#         ],
-#         temperature=0,
-#         response_format={
-#             "type": "object",
-#             "properties": {
-#                 "age": {"type": "integer"},
-#                 "available": {"type": "boolean"},
-#             },
-#             "required": ["age", "available"],
-#         },
-#         stream=False,
-#     )
-
-#     return response
-
-
-# if __name__ == "__main__":
-#     result = asyncio.run(call_ollama_chat())
-#     print(result)
-#     result = asyncio.run(openai_provider_structured())
-#     print(result)

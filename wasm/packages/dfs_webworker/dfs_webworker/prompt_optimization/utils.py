@@ -2,7 +2,7 @@ from dfs_webworker.prompt_optimization.jsdata import JsData, Provider, Field as 
 
 from promptopt.dataclasses import Field as NativeField
 from promptopt.graph import Graph, BaseNode, InputNode, OutputNode, Processor, Gate
-from promptopt.llm import OpenAIProvider, LLM
+from promptopt.llm import OpenAIProvider, OllamaProvider, LLM
 from promptopt.dataclasses import Example
 
 
@@ -35,14 +35,18 @@ def convert_js_field(js_field: JSField) -> NativeField:
 
 def init_llm(provider: Provider) -> LLM:
     if provider.provider_id == "openAi":
+        if not provider.provider_settings.api_key:
+            raise ValueError("API key is required for OpenAI provider")
         return OpenAIProvider(
             api_key=provider.provider_settings.api_key,
             model=provider.model_id,
         )
-    # elif provider.provider_id == "ollama":
-    #     pass
-    else:
-        raise ValueError(f"Unsupported provider: {provider.provider_id}")
+    if provider.provider_id == "ollama":
+        base_url = provider.provider_settings.api_base or 'http://localhost:11434'
+        return OllamaProvider(
+            base_url=base_url,
+            model=provider.model_id,
+        )
 
 
 def jsdata_to_graph(js_data: JsData) -> Graph:

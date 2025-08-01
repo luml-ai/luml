@@ -49,7 +49,7 @@ class GraphData:
 
 @dataclass
 class ProviderSettings:
-    api_key: str
+    api_key: str | None = None
     organization: str | None = None
     api_base: str | None = None
 
@@ -121,7 +121,7 @@ class JsData:
 
         def parse_provider_settings(settings: dict) -> ProviderSettings:
             return ProviderSettings(
-                api_key=settings["apiKey"],
+                api_key=settings.get("apiKey"),
                 organization=settings.get("organization"),
                 api_base=settings.get("apiBase"),
             )

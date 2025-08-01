@@ -21,9 +21,22 @@ def _add_openai_dynattrs(builder: PyfuncBuilder):
     builder.add_dynamic_attribute(
         Var(
             name="api_key",
-            description="API key for the provder",
+            description="API key for the provider",
             tags=[
                 f"{PRODUCER}::provider_api_key:v1",
+                "dataforce.studio::runtime_secret:v1",
+            ],
+        )
+    )
+
+
+def _add_ollama_dynattrs(builder: PyfuncBuilder):
+    builder.add_dynamic_attribute(
+        Var(
+            name="base_url",
+            description="Base url for the provider",
+            tags=[
+                f"{PRODUCER}::provider_base_url:v1",
                 "dataforce.studio::runtime_secret:v1",
             ],
         )
@@ -68,6 +81,8 @@ def serialize(graph: Graph, provider: str, model: str, fe_graph_def: dict) -> by
 
     if provider == "openai":
         _add_openai_dynattrs(builder)
+    elif provider == "ollama":
+        _add_ollama_dynattrs(builder)
 
     builder.set_producer_info(
         name="app.dataforce.studio/prompt-fusion",
