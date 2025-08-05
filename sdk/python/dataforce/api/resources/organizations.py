@@ -11,6 +11,11 @@ class OrganizationResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
+    def get(self, organization_value: str) -> Organization | None:
+        if isinstance(organization_value, str):
+            return self.get_by_name(organization_value)
+        return None
+
     def list(self) -> list[Organization]:
         response = self._client.get("/users/me/organizations")
         if response is None:
@@ -24,6 +29,11 @@ class OrganizationResource:
 class AsyncOrganizationResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
+
+    async def get(self, organization_value: str) -> Organization | None:
+        if isinstance(organization_value, str):
+            return await self.get_by_name(organization_value)
+        return None
 
     async def list(self) -> list[Organization]:
         response = await self._client.get("/users/me/organizations")

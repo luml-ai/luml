@@ -2,7 +2,6 @@ from typing import TYPE_CHECKING
 
 from .._types import BucketSecret
 from .._utils import find_by_name
-from ._validators import validate_organization
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -12,30 +11,32 @@ class BucketSecretResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
-    @validate_organization
-    def get(self, organization_id: int, secret_id: int) -> BucketSecret:
+    def get(self, secret_value: int | str) -> BucketSecret | None:
+        if isinstance(secret_value, int):
+            return self._get_by_id(secret_value)
+        if isinstance(secret_value, str):
+            return self._get_by_name(secret_value)
+        return None
+
+    def _get_by_id(self, secret_id: int) -> BucketSecret:
         response = self._client.get(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
-    def get_by_name(self, organization_id: int, name: str) -> BucketSecret | None:
-        return find_by_name(
-            self.list(organization_id), name, lambda b: b.bucket_name == name
-        )
+    def _get_by_name(self, name: str) -> BucketSecret | None:
+        return find_by_name(self.list(), name, lambda b: b.bucket_name == name)
 
-    @validate_organization
-    def list(self, organization_id: int) -> list[BucketSecret]:
-        response = self._client.get(f"/organizations/{organization_id}/bucket-secrets")
+    def list(self) -> list[BucketSecret]:
+        response = self._client.get(
+            f"/organizations/{self._client.organization}/bucket-secrets"
+        )
         if response is None:
             return []
         return [BucketSecret.model_validate(secret) for secret in response]
 
-    @validate_organization
     def create(
         self,
-        organization_id: int,
         endpoint: str,
         bucket_name: str,
         access_key: str | None = None,
@@ -46,7 +47,7 @@ class BucketSecretResource:
         cert_check: bool | None = None,
     ) -> BucketSecret:
         response = self._client.post(
-            f"/organizations/{organization_id}/bucket-secrets",
+            f"/organizations/{self._client.organization}/bucket-secrets",
             json={
                 "endpoint": endpoint,
                 "bucket_name": bucket_name,
@@ -60,10 +61,8 @@ class BucketSecretResource:
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
     def update(
         self,
-        organization_id: int,
         secret_id: int,
         endpoint: str | None = None,
         bucket_name: str | None = None,
@@ -75,7 +74,7 @@ class BucketSecretResource:
         cert_check: bool | None = None,
     ) -> BucketSecret:
         response = self._client.patch(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}",
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -91,10 +90,9 @@ class BucketSecretResource:
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
-    def delete(self, organization_id: int, secret_id: int) -> None:
+    def delete(self, secret_id: int) -> None:
         return self._client.delete(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
 
 
@@ -102,32 +100,32 @@ class AsyncBucketSecretResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
-    @validate_organization
-    async def get(self, organization_id: int, secret_id: int) -> BucketSecret:
+    async def get(self, secret_value: int | str) -> BucketSecret | None:
+        if isinstance(secret_value, int):
+            return await self._get_by_id(secret_value)
+        if isinstance(secret_value, str):
+            return await self._get_by_name(secret_value)
+        return None
+
+    async def _get_by_id(self, secret_id: int) -> BucketSecret:
         response = await self._client.get(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
-    async def get_by_name(self, organization_id: int, name: str) -> BucketSecret | None:
-        return find_by_name(
-            await self.list(organization_id), name, lambda b: b.bucket_name == name
-        )
+    async def _get_by_name(self, name: str) -> BucketSecret | None:
+        return find_by_name(await self.list(), name, lambda b: b.bucket_name == name)
 
-    @validate_organization
-    async def list(self, organization_id: int) -> list[BucketSecret]:
+    async def list(self) -> list[BucketSecret]:
         response = await self._client.get(
-            f"/organizations/{organization_id}/bucket-secrets"
+            f"/organizations/{self._client.organization}/bucket-secrets"
         )
         if response is None:
             return []
         return [BucketSecret.model_validate(secret) for secret in response]
 
-    @validate_organization
     async def create(
         self,
-        organization_id: int,
         endpoint: str,
         bucket_name: str,
         access_key: str | None = None,
@@ -138,7 +136,7 @@ class AsyncBucketSecretResource:
         cert_check: bool | None = None,
     ) -> BucketSecret:
         response = await self._client.post(
-            f"/organizations/{organization_id}/bucket-secrets",
+            f"/organizations/{self._client.organization}/bucket-secrets",
             json={
                 "endpoint": endpoint,
                 "bucket_name": bucket_name,
@@ -152,10 +150,8 @@ class AsyncBucketSecretResource:
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
     async def update(
         self,
-        organization_id: int,
         secret_id: int,
         endpoint: str | None = None,
         bucket_name: str | None = None,
@@ -167,7 +163,7 @@ class AsyncBucketSecretResource:
         cert_check: bool | None = None,
     ) -> BucketSecret:
         response = await self._client.patch(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}",
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -183,8 +179,7 @@ class AsyncBucketSecretResource:
         )
         return BucketSecret.model_validate(response)
 
-    @validate_organization
-    async def delete(self, organization_id: int, secret_id: int) -> None:
+    async def delete(self, secret_id: int) -> None:
         return await self._client.delete(
-            f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )

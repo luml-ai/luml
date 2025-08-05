@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 from .._types import ModelArtifact
 from .._utils import find_by_name
-from ._validators import validate_organization_orbit_collection
+from ._validators import validate_collection
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -13,52 +13,44 @@ class ModelArtifactResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
-    @validate_organization_orbit_collection
-    def get_by_name(
-        self, organization_id: int, orbit_id: int, collection_id: int, name: str
+    @validate_collection
+    def get(
+        self, collection_id: int | None, model_value: str | int
     ) -> ModelArtifact | None:
+        return self._get_by_name(collection_id, model_value)
+
+    @validate_collection
+    def _get_by_name(self, collection_id: int | None, name: str) -> ModelArtifact | None:
         return find_by_name(
-            self.list(organization_id, orbit_id, collection_id),
+            self.list(collection_id),
             name,
             condition=lambda m: m.model_name == name or m.file_name == name,
         )
 
-    @validate_organization_orbit_collection
-    def list(
-        self, organization_id: int, orbit_id: int, collection_id: int
-    ) -> list[ModelArtifact]:
+    @validate_collection
+    def list(self, collection_id: int | None = None) -> list[ModelArtifact]:
         response = self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts"
         )
         if response is None:
             return []
         return [ModelArtifact.model_validate(model) for model in response]
 
-    @validate_organization_orbit_collection
-    def download_url(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
-    ) -> dict:
+    @validate_collection
+    def download_url(self, collection_id: int | None, model_id: int) -> dict:
         return self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/download-url"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}/download-url"
         )
 
-    @validate_organization_orbit_collection
-    def delete_url(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-        model_id: int,
-    ) -> dict:
+    @validate_collection
+    def delete_url(self, collection_id: int | None, model_id: int) -> dict:
         return self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/delete-url"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}/delete-url"
         )
 
-    @validate_organization_orbit_collection
+    @validate_collection
     def create(
         self,
-        organization_id: int | None,
-        orbit_id: int | None,
         collection_id: int | None,
         file_name: str,
         metrics: dict,
@@ -71,7 +63,7 @@ class ModelArtifactResource:
         tags: builtins.list[str] | None = None,
     ) -> ModelArtifact:
         return self._client.post(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",
             json={
                 "file_name": file_name,
                 "metrics": metrics,
@@ -85,11 +77,9 @@ class ModelArtifactResource:
             },
         )
 
-    @validate_organization_orbit_collection
+    @validate_collection
     def update(
         self,
-        organization_id: int | None,
-        orbit_id: int | None,
         collection_id: int | None,
         model_id: int,
         file_name: str | None = None,
@@ -99,7 +89,7 @@ class ModelArtifactResource:
         status: str | None = None,
     ) -> ModelArtifact:
         return self._client.patch(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}",
             json=self._client.filter_none(
                 {
                     "file_name": file_name,
@@ -111,12 +101,10 @@ class ModelArtifactResource:
             ),
         )
 
-    @validate_organization_orbit_collection
-    def delete(
-        self, organization_id: int, orbit_id: int, collection_id: int, model_id: int
-    ) -> None:
+    @validate_collection
+    def delete(self, collection_id: int | None, model_id: int) -> None:
         return self._client.delete(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}"
         )
 
 
@@ -124,63 +112,48 @@ class AsyncModelArtifactResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
-    @validate_organization_orbit_collection
+    @validate_collection
+    async def get(
+        self, collection_id: int | None, model_value: str | int
+    ) -> ModelArtifact | None:
+        if isinstance(model_value, str):
+            return await self.get_by_name(collection_id, model_value)
+        return None
+
+    @validate_collection
     async def get_by_name(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-        name: str,
+        self, collection_id: int | None, name: str
     ) -> ModelArtifact | None:
         return find_by_name(
-            await self.list(organization_id, orbit_id, collection_id),
+            await self.list(collection_id),
             name,
             condition=lambda m: m.model_name == name or m.file_name == name,
         )
 
-    @validate_organization_orbit_collection
-    async def list(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-    ) -> list[ModelArtifact]:
+    @validate_collection
+    async def list(self, collection_id: int | None) -> list[ModelArtifact]:
         response = await self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts"
         )
         if response is None:
             return []
         return [ModelArtifact.model_validate(model) for model in response]
 
-    @validate_organization_orbit_collection
-    async def download_url(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-        model_id: int,
-    ) -> dict:
+    @validate_collection
+    async def download_url(self, collection_id: int | None, model_id: int) -> dict:
         return await self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/download-url"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}/download-url"
         )
 
-    @validate_organization_orbit_collection
-    async def delete_url(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-        model_id: int,
-    ) -> dict:
+    @validate_collection
+    async def delete_url(self, collection_id: int | None, model_id: int) -> dict:
         return await self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}/delete-url"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}/delete-url"
         )
 
-    @validate_organization_orbit_collection
+    @validate_collection
     async def create(
         self,
-        organization_id: int | None,
-        orbit_id: int | None,
         collection_id: int | None,
         file_name: str,
         metrics: dict,
@@ -193,7 +166,7 @@ class AsyncModelArtifactResource:
         tags: builtins.list[str] | None = None,
     ) -> ModelArtifact:
         return await self._client.post(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",
             json={
                 "file_name": file_name,
                 "metrics": metrics,
@@ -207,11 +180,9 @@ class AsyncModelArtifactResource:
             },
         )
 
-    @validate_organization_orbit_collection
+    @validate_collection
     async def update(
         self,
-        organization_id: int | None,
-        orbit_id: int | None,
         collection_id: int | None,
         model_id: int,
         file_name: str | None = None,
@@ -221,7 +192,7 @@ class AsyncModelArtifactResource:
         status: str | None = None,
     ) -> ModelArtifact:
         return await self._client.patch(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}",
             json=self._client.filter_none(
                 {
                     "file_name": file_name,
@@ -233,14 +204,8 @@ class AsyncModelArtifactResource:
             ),
         )
 
-    @validate_organization_orbit_collection
-    async def delete(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        collection_id: int | None,
-        model_id: int,
-    ) -> None:
+    @validate_collection
+    async def delete(self, collection_id: int | None, model_id: int) -> None:
         return await self._client.delete(
-            f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/ml-models/{model_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts/{model_id}"
         )

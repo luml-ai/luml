@@ -2,10 +2,6 @@ from typing import TYPE_CHECKING
 
 from .._types import Orbit
 from .._utils import find_by_name
-from ._validators import (
-    validate_organization,
-    validate_organization_orbit,
-)
 
 if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
@@ -15,42 +11,43 @@ class OrbitResource:
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
-    @validate_organization_orbit
-    def get(self, organization_id: int, orbit_id: int) -> Orbit:
+    def get(self, orbit_value: int | str | None = None) -> Orbit | None:
+        if isinstance(orbit_value, int) or orbit_value is None:
+            return self._get_by_id()
+        if isinstance(orbit_value, str):
+            return self._get_by_name(orbit_value)
+        return None
+
+    def _get_by_id(self) -> Orbit:
         response = self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
         return Orbit.model_validate(response)
 
-    def get_by_name(self, organization_id: int, name: str) -> Orbit:
-        return find_by_name(self.list(organization_id), name)
+    def _get_by_name(self, name: str) -> Orbit:
+        return find_by_name(self.list(), name)
 
-    @validate_organization
-    def list(self, organization_id: int) -> list[Orbit]:
-        response = self._client.get(f"/organizations/{organization_id}/orbits")
+    def list(self) -> list[Orbit]:
+        response = self._client.get(
+            f"/organizations/{self._client.organization}/orbits"
+        )
         if response is None:
             return []
         return [Orbit.model_validate(orbit) for orbit in response]
 
-    @validate_organization
-    def create(self, organization_id: int, name: str, bucket_secret_id: int) -> Orbit:
+    def create(self, name: str, bucket_secret_id: int) -> Orbit:
         response = self._client.post(
-            f"/organizations/{organization_id}/orbits",
+            f"/organizations/{self._client.organization}/orbits",
             json={"name": name, "bucket_secret_id": bucket_secret_id},
         )
 
         return Orbit.model_validate(response)
 
-    @validate_organization_orbit
     def update(
-        self,
-        organization_id: int,
-        orbit_id: int,
-        name: str | None = None,
-        bucket_secret_id: int | None = None,
+        self, name: str | None = None, bucket_secret_id: int | None = None
     ) -> Orbit:
         response = self._client.patch(
-            f"/organizations/{organization_id}/orbits/{orbit_id}",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}",
             json=self._client.filter_none(
                 {
                     "name": name,
@@ -70,44 +67,43 @@ class AsyncOrbitResource:
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
-    @validate_organization_orbit
-    async def get(self, organization_id: int | None, orbit_id: int | None) -> Orbit:
+    async def get(self, orbit_value: int | str | None = None) -> Orbit | None:
+        if isinstance(orbit_value, int) or orbit_value is None:
+            return await self._get_by_id()
+        if isinstance(orbit_value, str):
+            return await self._get_by_name(orbit_value)
+        return None
+
+    async def _get_by_id(self) -> Orbit:
         response = await self._client.get(
-            f"/organizations/{organization_id}/orbits/{orbit_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
         return Orbit.model_validate(response)
 
-    async def get_by_name(self, organization_id: int | None, name: str) -> Orbit:
-        return find_by_name(await self.list(organization_id), name)
+    async def _get_by_name(self, name: str) -> Orbit:
+        return find_by_name(await self.list(), name)
 
-    @validate_organization
-    async def list(self, organization_id: int | None) -> list[Orbit]:
-        response = await self._client.get(f"/organizations/{organization_id}/orbits")
+    async def list(self) -> list[Orbit]:
+        response = await self._client.get(
+            f"/organizations/{self._client.organization}/orbits"
+        )
         if response is None:
             return []
         return [Orbit.model_validate(orbit) for orbit in response]
 
-    @validate_organization
-    async def create(
-        self, organization_id: int | None, name: str, bucket_secret_id: int
-    ) -> Orbit:
+    async def create(self, name: str, bucket_secret_id: int) -> Orbit:
         response = await self._client.post(
-            f"/organizations/{organization_id}/orbits",
+            f"/organizations/{self._client.organization}/orbits",
             json={"name": name, "bucket_secret_id": bucket_secret_id},
         )
 
         return Orbit.model_validate(response)
 
-    @validate_organization_orbit
     async def update(
-        self,
-        organization_id: int | None,
-        orbit_id: int | None,
-        name: str | None = None,
-        bucket_secret_id: int | None = None,
+        self, name: str | None = None, bucket_secret_id: int | None = None
     ) -> Orbit:
         response = await self._client.patch(
-            f"/organizations/{organization_id}/orbits/{orbit_id}",
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}",
             json=self._client.filter_none(
                 {
                     "name": name,
@@ -117,8 +113,7 @@ class AsyncOrbitResource:
         )
         return Orbit.model_validate(response)
 
-    @validate_organization_orbit
-    async def delete(self, organization_id: int | None, orbit_id: int | None) -> None:
+    async def delete(self) -> None:
         return await self._client.delete(
-            f"/organizations/{organization_id}/orbits/{orbit_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
