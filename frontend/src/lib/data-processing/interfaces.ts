@@ -1,4 +1,4 @@
-import type { PromptFusionPayload } from "../promt-fusion/prompt-fusion.interfaces"
+import type { PayloadData, PromptFusionPayload } from '../promt-fusion/prompt-fusion.interfaces'
 
 export enum WebworkerMessage {
   LOAD_PYODIDE = 'LOAD_PYODIDE',
@@ -68,14 +68,14 @@ export interface RegressionMetrics {
 }
 
 export interface PredictRequestData {
-  data: object,
+  data: object
   model_id: string
 }
 
-export interface RuntimeMetrics {
+export interface TabularMetrics {
   performance: {
-    eval_cv?: ClassificationMetrics | RegressionMetrics
-    eval_holdout?: ClassificationMetrics | RegressionMetrics
+    eval_cv?: ClassificationMetrics
+    eval_holdout?: RegressionMetrics
     train: ClassificationMetrics | RegressionMetrics
   }
   permutation_feature_importance_train: {
@@ -86,3 +86,9 @@ export interface RuntimeMetrics {
 export interface PromptOptimizationData {
   task_spec: PromptFusionPayload
 }
+
+export interface TabularModelMetadataPayload {
+  metrics: TabularMetrics
+}
+
+export interface OptimizationModelMetadataPayload extends PayloadData {}

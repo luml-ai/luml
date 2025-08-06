@@ -1,43 +1,36 @@
 <template>
-  <div v-if="isTabular" class="model-info">
-    <ModelPerformance
-      :total-score="getTotalScore"
-      :test-metrics="testMetrics"
-      :training-metrics="testMetrics"
-      :task="Tasks.TABULAR_CLASSIFICATION"
-      grid-metrics
-    ></ModelPerformance>
-    <div class="features card">
+  <div v-if="modelsStore.currentModelMetadata && modelsStore.currentModelTag">
+    <CollectionModelCardTabular
+      v-if="isTabular && 'metrics' in modelsStore.currentModelMetadata"
+      :metrics="modelsStore.currentModelMetadata.metrics"
+      :tag="modelsStore.currentModelTag"
+    ></CollectionModelCardTabular>
+    <CollectionModelCardOptimization
+      v-else-if="isOptimization && 'edges' in modelsStore.currentModelMetadata"
+      :data="modelsStore.currentModelMetadata"
+    ></CollectionModelCardOptimization>
+    <div v-else class="card">
       <header class="card-header">
-        <h3 class="card-title">Top {{ 5 }} features</h3>
-        <info
-          width="20"
-          height="20"
-          class="info-icon"
-          v-tooltip.bottom="
-            `Understand which features play the biggest role in your model's outcomes to guide further data analysis`
-          "
-        />
+        <h3 class="card-title card-title--medium">Inputs and outputs</h3>
       </header>
       <div>{{ currentModel?.manifest.producer_tags }}</div>
     </div>
   </div>
-  <div v-else class="card">
-    <header class="card-header">
-      <h3 class="card-title card-title--medium">Inputs and outputs</h3>
-    </header>
-    <div>{{ currentModel?.manifest.producer_tags }}</div>
-  </div>
+  <CollectionModelCardHtml
+    v-else-if="modelsStore.currentModelHtmlBlobUrl"
+    :url="modelsStore.currentModelHtmlBlobUrl"
+  >
+  </CollectionModelCardHtml>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useRoute } from 'vue-router'
-import { getMetrics, toPercent } from '@/helpers/helpers'
-import { Tasks } from '@/lib/data-processing/interfaces'
-import ModelPerformance from '@/components/model/ModelPerformance.vue'
-import { Info } from 'lucide-vue-next'
+import { FnnxService } from '@/lib/fnnx/FnnxService'
+import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/model/CollectionModelCardTabular.vue'
+import CollectionModelCardOptimization from '@/components/orbits/tabs/registry/collection/model/CollectionModelCardOptimization.vue'
+import CollectionModelCardHtml from '@/components/orbits/tabs/registry/collection/model/CollectionModelCardHtml.vue'
 
 const modelsStore = useModelsStore()
 const route = useRoute()
@@ -46,32 +39,15 @@ const currentModel = computed(() => {
   if (typeof route.params.modelId !== 'string') return undefined
   return modelsStore.modelsList.find((model) => model.id === +route.params.modelId)
 })
-const isTabular = computed(() => !currentModel.value)
-const testMetrics = computed(() => {
-  if (!currentModel.value) return []
-  const testMetrics: any = currentModel.value.metrics
-  return getMetrics(
-    { test_metrics: testMetrics, train_metrics: testMetrics },
-    Tasks.TABULAR_CLASSIFICATION,
-    'test_metrics',
-  )
-})
-const getTotalScore = computed(() =>
-  currentModel.value ? toPercent(+currentModel.value.metrics.SC_SCORE) : 0,
+const isTabular = computed(
+  () => modelsStore.currentModelTag && FnnxService.isTabularTag(modelsStore.currentModelTag),
 )
-// const getTop5Feature = computed(
-//   () => currentModel.value?.importances.filter((item, index) => index < 5) || [],
-// )
+const isOptimization = computed(
+  () => modelsStore.currentModelTag && FnnxService.isOptimizationTag(modelsStore.currentModelTag),
+)
 </script>
 
 <style scoped>
-.model-info {
-  display: grid;
-  grid-template-columns: 55% 1fr;
-  gap: 20px;
-  align-items: flex-start;
-}
-
 .card {
   padding: 24px;
   border: 1px solid var(--p-content-border-color);

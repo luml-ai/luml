@@ -1,25 +1,30 @@
 import { Model } from '@fnnx/web'
 import {
-  Tasks,
+  type ClassificationMetrics,
+  type RegressionMetrics,
+  type TabularMetrics,
 } from '../data-processing/interfaces'
-
+import type { Manifest, MetaEntry } from '@fnnx/common/dist/interfaces'
+import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
 
 export enum FNNX_PRODUCER_TAGS_METADATA_ENUM {
   contains_classification_metrics_v1 = 'falcon.beastbyte.ai::tabular_classification_metrics:v1',
   contains_regression_metrics_v1 = 'falcon.beastbyte.ai::tabular_regression_metrics:v1',
   contains_registry_metricss_v1 = 'dataforce.studio::registry_metrics:v1',
+  contains_prompt_fusion_v1 = 'dataforce.studio/prompt-fusion::graph_fe_def:v1',
 }
 
 export enum FNNX_PRODUCER_TAGS_MANIFEST_ENUM {
-  tabular_classification_v1 = "dataforce.studio::tabular_classification:v1",
-  tabular_regression_v1 = "dataforce.studio::tabular_regression:v1",
+  tabular_classification_v1 = 'dataforce.studio::tabular_classification:v1',
+  tabular_regression_v1 = 'dataforce.studio::tabular_regression:v1',
+  prompt_optimization_v1 = 'dataforce.studio::prompt_optimization:v1',
 }
 
 class FnnxServiceClass {
   async createModelFromFile(file: File) {
     const allowedExtensions = ['.fnnx', '.pyfnx', '.dfs']
-    if (!allowedExtensions.some(ext => file.name.endsWith(ext))) {
-      throw new Error('Incorrect file format');
+    if (!allowedExtensions.some((ext) => file.name.endsWith(ext))) {
+      throw new Error('Incorrect file format')
     }
     const buffer = await file.arrayBuffer()
     return Model.fromBuffer(buffer)
@@ -27,29 +32,31 @@ class FnnxServiceClass {
 
   getRegistryMetrics(model: Model) {
     // extract the metrics to be used in the registry
-    const tag = this.getTypeTag(model)
+    const tag = this.getTypeTag(model.getManifest())
     if (tag) {
       switch (tag) {
         case FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1:
         case FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_regression_v1:
-          const tabularMetrics = this.getTabularMetadata(model)
-          const tabularEvalMetrics = tabularMetrics.performance.eval_holdout || tabularMetrics.performance.eval_cv || {}
+          const tabularMetrics = this.getTabularMetrics(model.getMetadata())
+          const tabularEvalMetrics =
+            tabularMetrics.performance.eval_holdout || tabularMetrics.performance.eval_cv || {}
           return Object.fromEntries(
-            Object.entries(tabularEvalMetrics).filter(([key, value]) => key !== "N_SAMPLES")
-          );
+            Object.entries(tabularEvalMetrics).filter(([key, value]) => key !== 'N_SAMPLES'),
+          )
       }
     }
-    const customMetrics = this.getMetadataByTag(model, [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_registry_metricss_v1])
+    const customMetrics = this.getMetadataByTag(model.getMetadata(), [
+      FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_registry_metricss_v1,
+    ])
     if (customMetrics) {
       return customMetrics.metrics || {}
     }
     return {}
   }
 
-  getMetadataByTag(model: Model, availableTags: FNNX_PRODUCER_TAGS_METADATA_ENUM[]) {
+  getMetadataByTag(metaArray: Array<MetaEntry>, availableTags: FNNX_PRODUCER_TAGS_METADATA_ENUM[]) {
     // extracts the first available metadata entry that a metadata tag
-    const metadata = model.getMetadata()
-    for (const meta of metadata) {
+    for (const meta of metaArray) {
       const tag = meta.producer_tags.find((tag) =>
         availableTags.includes(tag as FNNX_PRODUCER_TAGS_METADATA_ENUM),
       )
@@ -58,37 +65,90 @@ class FnnxServiceClass {
     return null
   }
 
-  getTabularMetadata(model: Model) {
-    const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1, FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1]
-    return this.getMetadataByTag(model, availableTags)?.metrics || null
+  getTabularMetrics(metadata: Array<MetaEntry>) {
+    const availableTags = [
+      FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1,
+      FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1,
+    ]
+    return this.getMetadataByTag(metadata, availableTags)?.metrics || null
   }
 
-  getTypeTag(model: Model) {
+  getPromptOptimizationData(metadata: Array<MetaEntry>): any {
+    const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_prompt_fusion_v1]
+    return this.getMetadataByTag(metadata, availableTags)
+  }
+
+  getTypeTag(manifest: Manifest) {
     // extracts the extract tag that is used to determine the type of the model
     const availableTags = Object.values(FNNX_PRODUCER_TAGS_MANIFEST_ENUM)
-    const manifest = model.getManifest()
-    const tag = manifest.producer_tags.find((tag) =>
+    const tag = (manifest.producer_tags as FNNX_PRODUCER_TAGS_MANIFEST_ENUM[]).find((tag) =>
       availableTags.includes(tag as FNNX_PRODUCER_TAGS_MANIFEST_ENUM),
     )
     return tag || null
   }
 
-  getStudioTask(model: Model) { // TODO: get rid of this completely, use type tag instead as it is more robust
-    // determines the DFS task based on the type tag
-    const tag = this.getTypeTag(model)
-    if (tag) {
-      switch (tag) {
-        case FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1:
-          return Tasks.TABULAR_CLASSIFICATION
-        case FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_regression_v1:
-          return Tasks.TABULAR_REGRESSION
-        default:
-          return null
-      }
-    }
-    return null
+  getTop5TabularFeatures(metrics: TabularMetrics) {
+    return (
+      metrics.permutation_feature_importance_train.importances
+        .filter((item, index) => index < 5)
+        .map((feature) => ({
+          ...feature,
+          scaled_importance: Math.round(feature.scaled_importance * 100),
+        })) || []
+    )
   }
 
+  getTabularTotalScore(metrics: TabularMetrics) {
+    if (metrics.performance.eval_cv) {
+      return toPercent(metrics.performance.eval_cv.SC_SCORE)
+    } else if (metrics.performance.eval_holdout) {
+      return toPercent(metrics.performance.eval_holdout.SC_SCORE)
+    } else {
+      return 0
+    }
+  }
+
+  prepareTabularMetrics(
+    metrics: ClassificationMetrics | RegressionMetrics,
+    tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM,
+  ) {
+    if (tag === FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1) {
+      return this.getClassificationMetricsV1(metrics as ClassificationMetrics)
+    } else if (tag === FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_regression_v1) {
+      return this.getRegressionMetricsV1(metrics as RegressionMetrics)
+    } else {
+      return []
+    }
+  }
+
+  getClassificationMetricsV1(metrics: ClassificationMetrics) {
+    return [
+      fixNumber(metrics.ACC, 2),
+      fixNumber(metrics.PRECISION, 2),
+      fixNumber(metrics.RECALL, 2),
+      fixNumber(metrics.F1, 2),
+    ]
+  }
+
+  getRegressionMetricsV1(metrics: RegressionMetrics) {
+    return [
+      getFormattedMetric(metrics.MSE),
+      getFormattedMetric(metrics.RMSE),
+      getFormattedMetric(metrics.MAE),
+      getFormattedMetric(metrics.R2),
+    ]
+  }
+
+  isTabularTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
+    return [
+      FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1,
+      FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_regression_v1,
+    ].includes(tag)
+  }
+
+  isOptimizationTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
+    return [FNNX_PRODUCER_TAGS_MANIFEST_ENUM.prompt_optimization_v1].includes(tag)
+  }
 }
 
 export const FnnxService = new FnnxServiceClass()

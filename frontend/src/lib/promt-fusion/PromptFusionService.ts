@@ -1,5 +1,11 @@
-import type { FlowExportObject } from '@vue-flow/core'
-import { NodeTypeEnum, type NodeData } from '@/components/express-tasks/prompt-fusion/interfaces'
+import { Position, type Edge, type FlowExportObject } from '@vue-flow/core'
+import {
+  NodeTypeEnum,
+  PROMPT_NODES_ICONS,
+  type FieldVariant,
+  type NodeData,
+  type PromptNode,
+} from '@/components/express-tasks/prompt-fusion/interfaces'
 import type {
   PayloadData,
   PayloadNode,
@@ -242,6 +248,34 @@ class PromptFusionServiceClass extends Observable<Events> {
     URL.revokeObjectURL(url)
   }
 
+  createFlowFromMetadata(metadata: PayloadData) {
+    const nodes = metadata.nodes.map<PromptNode>((node, index) => ({
+      id: node.id,
+      type: 'custom',
+      data: {
+        ...node.data,
+        icon: this.getNodeIconByNodeType(node.data.type),
+        iconColor: this.getNodeIconColorByNodeType(node.data.type),
+        showMenu: false,
+        fields: node.data.fields.map((field) => ({
+          ...field,
+          handlePosition: this.getFieldHandlePosition(node.data.type, field.variant),
+        })),
+      },
+      position: { x: index * 260 + 20, y: 20 },
+      selected: false,
+    }))
+    const edges: any = metadata.edges.map<Edge>((edge) => ({
+      id: edge.id,
+      source: edge.sourceNode,
+      target: edge.targetNode,
+      sourceHandle: edge.sourceField,
+      targetHandle: edge.targetField,
+      type: 'custom',
+    }))
+    return { nodes, edges }
+  }
+
   private haveDuplicatedFields() {
     return this.nodesData?.nodes.find((node) => {
       const values = node.data.fields.map((field) => field.value)
@@ -340,6 +374,50 @@ class PromptFusionServiceClass extends Observable<Events> {
     if (!model) throw new Error('Model not found')
     const modelBytes = new Uint8Array(Object.values(model))
     this.modelBlob = new Blob([modelBytes])
+  }
+
+  private getNodeIconByNodeType(nodeType: NodeTypeEnum): keyof typeof PROMPT_NODES_ICONS {
+    switch (nodeType) {
+      case NodeTypeEnum.gate:
+        return 'gate'
+      case NodeTypeEnum.input:
+        return 'input'
+      case NodeTypeEnum.output:
+        return 'output'
+      case NodeTypeEnum.processor:
+        return 'cpu'
+      default:
+        throw new Error('Invalid node type')
+    }
+  }
+
+  private getNodeIconColorByNodeType(nodeType: NodeTypeEnum) {
+    switch (nodeType) {
+      case NodeTypeEnum.gate:
+        return 'var(--p-badge-success-background)'
+      case NodeTypeEnum.input:
+        return 'var(--p-primary-color)'
+      case NodeTypeEnum.output:
+        return 'var(--p-primary-color)'
+      case NodeTypeEnum.processor:
+        return 'var(--p-badge-warn-background)'
+      default:
+        throw new Error('Invalid node type')
+    }
+  }
+
+  private getFieldHandlePosition(nodeType: NodeTypeEnum, inputVariant: FieldVariant) {
+    if (nodeType === NodeTypeEnum.gate) {
+      return inputVariant === 'condition' ? Position.Left : Position.Right
+    } else if (nodeType === NodeTypeEnum.processor) {
+      return inputVariant === 'input' ? Position.Left : Position.Right
+    } else if (nodeType === NodeTypeEnum.input) {
+      return Position.Right
+    } else if (nodeType === NodeTypeEnum.output) {
+      return Position.Left
+    } else {
+      throw new Error('Invalid node type')
+    }
   }
 }
 
