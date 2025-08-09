@@ -43,8 +43,7 @@
 </template>
 
 <script setup lang="ts">
-import { Tasks, type RuntimeMetrics } from '@/lib/data-processing/interfaces'
-import { FNNX_PRODUCER_TAGS_METADATA_ENUM } from '@/lib/fnnx/FnnxService'
+import { type TabularMetrics } from '@/lib/data-processing/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { SelectButton } from 'primevue'
@@ -52,22 +51,20 @@ import PredictManual from './PredictManual.vue'
 import PredictFile from './PredictFile.vue'
 import ModelPerformance from './ModelPerformance.vue'
 import ModelTopFeatures from './ModelTopFeatures.vue'
-import { getMetricsCards, prepareRuntimeMetrics, toPercent } from '@/helpers/helpers'
+import { getMetricsCards } from '@/helpers/helpers'
 import { Model } from '@fnnx/web'
 import { ArrayDType, NDArray } from '@fnnx/common'
-import { FnnxService } from '@/lib/fnnx/FnnxService'
-
-const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_classification_metrics_v1, FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_regression_metrics_v1]
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 
 type Props = {
   model: Model
-  currentTask: Tasks
+  currentTag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM
 }
 
 const props = defineProps<Props>()
 
 const predictType = ref<'Manual' | 'Upload file'>('Manual')
-const metrics = ref<RuntimeMetrics | null>(null)
+const metrics = ref<TabularMetrics | null>(null)
 
 const inputNames = computed(() => {
   if (!props.model) return []
@@ -76,39 +73,25 @@ const inputNames = computed(() => {
 })
 const features = computed(() => {
   if (!metrics.value) return []
-  return (
-    metrics.value.permutation_feature_importance_train.importances
-      .filter((item, index) => index < 5)
-      .map((feature) => ({
-        ...feature,
-        scaled_importance: Math.round(feature.scaled_importance * 100),
-      })) || []
-  )
+  return FnnxService.getTop5TabularFeatures(metrics.value)
 })
 const totalScore = computed(() => {
   if (!metrics.value) return 0
-  else if (metrics.value.performance.eval_cv)
-    return toPercent(metrics.value.performance.eval_cv.SC_SCORE)
-  else if (metrics.value.performance.eval_holdout)
-    return toPercent(metrics.value.performance.eval_holdout.SC_SCORE)
-  else return 0
+  return FnnxService.getTabularTotalScore(metrics.value)
 })
 const testMetrics = computed(() => {
-  if (!metrics.value || !props.currentTask) return []
-  else if (metrics.value.performance.eval_cv)
-    return prepareRuntimeMetrics(metrics.value.performance.eval_cv, props.currentTask)
-  else if (metrics.value.performance.eval_holdout)
-    return prepareRuntimeMetrics(metrics.value.performance.eval_holdout, props.currentTask)
-  else return []
+  if (!metrics.value || !props.currentTag) return []
+  return FnnxService.prepareTabularMetrics(
+    metrics.value.performance.eval_cv || metrics.value.performance.eval_holdout!,
+    props.currentTag,
+  )
 })
 const trainMetrics = computed(() => {
-  if (!metrics.value || !props.currentTask) return []
-  return prepareRuntimeMetrics(metrics.value.performance.train, props.currentTask)
+  if (!metrics.value || !props.currentTag) return []
+  return FnnxService.prepareTabularMetrics(metrics.value.performance.train, props.currentTag)
 })
 const metricCardsData = computed(() =>
-  props.currentTask
-    ? getMetricsCards(testMetrics.value, trainMetrics.value, props.currentTask)
-    : [],
+  props.currentTag ? getMetricsCards(testMetrics.value, trainMetrics.value, props.currentTag) : [],
 )
 
 async function predict(values: Record<string, (string | number)[]>) {
@@ -138,7 +121,7 @@ function extractType(string: string): ArrayDType | null {
 }
 
 onBeforeMount(() => {
-  metrics.value = FnnxService.getTabularMetadata(props.model)
+  metrics.value = FnnxService.getTabularMetrics(props.model.getMetadata())
 })
 </script>
 

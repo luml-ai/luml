@@ -31,20 +31,21 @@
 </template>
 
 <script setup lang="ts">
-import type { Tasks } from '@/lib/data-processing/interfaces'
 import { getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
 import { Info } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { getMetricsCards } from '@/helpers/helpers'
 import MetricCard from '../ui/MetricCard.vue'
 import VueApexCharts from 'vue3-apexcharts'
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 
 type Props = {
   totalScore: number
   testMetrics: string[]
   trainingMetrics: string[]
-  task: Tasks
+  tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM
   gridMetrics?: boolean
+  tooltip?: string
 }
 
 const props = defineProps<Props>()
@@ -52,7 +53,7 @@ const props = defineProps<Props>()
 const options = ref(getRadialBarOptions())
 
 const metricCardsData = computed(() =>
-  props.task ? getMetricsCards(props.testMetrics, props.trainingMetrics, props.task) : [],
+  props.tag ? getMetricsCards(props.testMetrics, props.trainingMetrics, props.tag) : [],
 )
 </script>
 

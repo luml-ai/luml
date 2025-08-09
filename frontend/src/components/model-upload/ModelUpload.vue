@@ -184,7 +184,7 @@ async function onOrbitChange(orbitId: number | null) {
 
 async function onCollectionChange(collectionId: number | null) {
   if (collectionId) {
-    if (!formData.value.orbit) throw new Error('Current orbit not found')
+    if (!formData.value.orbit) throw new Error('Orbit was not found')
     await modelsStore.loadModelsList(organizationId.value, formData.value.orbit, collectionId)
   } else {
     modelsStore.resetList()
@@ -192,7 +192,7 @@ async function onCollectionChange(collectionId: number | null) {
 }
 
 function getRequestInfo() {
-  if (!formData.value.orbit) throw new Error('Orbit not found')
+  if (!formData.value.orbit) throw new Error('Orbit was not found')
   if (!formData.value.collection) throw new Error('Collection not found')
 
   return {

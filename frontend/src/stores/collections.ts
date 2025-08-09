@@ -15,7 +15,7 @@ export const useCollectionsStore = defineStore('collections', () => {
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string') throw new Error('Current organization not found')
-    if (typeof route.params.id !== 'string') throw new Error('Current orbit not found')
+    if (typeof route.params.id !== 'string') throw new Error('Orbit was not found')
     return {
       organizationId: +route.params.organizationId,
       orbitId: +route.params.id,

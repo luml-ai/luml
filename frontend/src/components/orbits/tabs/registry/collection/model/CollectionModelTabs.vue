@@ -20,6 +20,11 @@
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
 import { LayoutDashboard, FolderDot, ScanEye } from 'lucide-vue-next'
+import { computed } from 'vue'
+
+type Props = {
+  showModelCard: boolean
+}
 
 const tabsListPT = {
   tabList: { style: 'border-left: none; border-top: none; border-right: none;' },
@@ -27,7 +32,9 @@ const tabsListPT = {
 
 const tabPT: TabPassThroughOptions = {}
 
-const items = [
+const props = defineProps<Props>()
+
+const items = computed(() => [
   {
     label: 'Model overview',
     routeName: 'model',
@@ -37,7 +44,7 @@ const items = [
     label: 'Model card',
     routeName: 'model-card',
     icon: FolderDot,
-    disabled: true,
+    disabled: !props.showModelCard,
   },
   {
     label: 'Experiment snapshot',
@@ -45,7 +52,7 @@ const items = [
     icon: ScanEye,
     disabled: true,
   },
-]
+])
 </script>
 
 <style scoped>

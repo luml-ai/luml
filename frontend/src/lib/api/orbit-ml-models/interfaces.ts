@@ -1,5 +1,7 @@
 import type { Manifest } from '@fnnx/common/dist/interfaces'
 
+export interface FileIndex extends Record<string, [number, number]> {}
+
 export enum MlModelStatusEnum {
   pending_upload = 'pending_upload',
   uploaded = 'uploaded',
@@ -11,7 +13,7 @@ export enum MlModelStatusEnum {
 export interface MlModelCreator {
   metrics: Record<string, object>
   manifest: Manifest
-  file_index: Record<string, [number, number]>
+  file_index: FileIndex
   file_hash: string
   size: number
   file_name: string
@@ -29,7 +31,7 @@ export interface MlModel {
   metrics: Record<string, number | string>
   manifest: Manifest
   file_hash: string
-  file_index: Record<string, [number, number]>
+  file_index: FileIndex
   bucket_location: string
   size: number
   unique_identifier: string

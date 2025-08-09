@@ -9,7 +9,7 @@
       <predict-content
         :manual-fields="predictionFields"
         :model-id="trainingModelId"
-        :task="predictTask"
+        :task="taskName"
       />
     </d-dialog>
     <header class="header">
@@ -29,14 +29,14 @@
       </div>
     </header>
     <div class="body">
-      <ModelPerformance
+      <ModelTabularPerformance
         v-if="currentTask"
         :total-score="totalScore"
         :test-metrics="testMetrics"
         :training-metrics="trainingMetrics"
-        :task="currentTask"
+        :tag="producedTag"
         class="performance"
-      ></ModelPerformance>
+      ></ModelTabularPerformance>
       <div class="features card">
         <header class="card-header">
           <h3 class="card-title">Top {{ features.length }} features</h3>
@@ -88,7 +88,8 @@ import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/Analyt
 import { SplitButton } from 'primevue'
 import ModelUpload from '@/components/model-upload/ModelUpload.vue'
 import { useOrganizationStore } from '@/stores/organization'
-import ModelPerformance from '@/components/model/ModelPerformance.vue'
+import ModelTabularPerformance from '@/components/model/ModelTabularPerformance.vue'
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 
 type Props = {
   predictionFields: string[]
@@ -128,18 +129,6 @@ const EXPORT_ITEMS = [
   },
 ]
 
-const finishConfirm = () => {
-  if (props.currentTask) {
-    const task =
-      props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression'
-    AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task })
-  }
-  const accept = async () => {
-    router.push({ name: 'home' })
-  }
-  confirm.require(dashboardFinishConfirmOptions(accept))
-}
-
 const isPredictVisible = ref(false)
 const detailedView = ref<any>([])
 
@@ -162,17 +151,30 @@ const barChartHeight = computed(() => {
   const featuresCount = props.features.length
   return 45 * featuresCount + 60 + 'px'
 })
-const predictTask = computed(() =>
+const taskName = computed(() =>
   props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression',
+)
+const producedTag = computed(() =>
+  props.currentTask === Tasks.TABULAR_CLASSIFICATION
+    ? FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1
+    : FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_regression_v1,
 )
 
 function onDownloadClick() {
   props.downloadModelCallback()
   if (props.currentTask) {
-    const task =
-      props.currentTask === Tasks.TABULAR_CLASSIFICATION ? 'classification' : 'regression'
-    AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task })
+    AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task: taskName.value })
   }
+}
+
+const finishConfirm = () => {
+  if (props.currentTask) {
+    AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: taskName.value })
+  }
+  const accept = async () => {
+    router.push({ name: 'home' })
+  }
+  confirm.require(dashboardFinishConfirmOptions(accept))
 }
 
 onBeforeMount(() => {
