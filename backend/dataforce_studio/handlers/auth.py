@@ -9,7 +9,7 @@ from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import AuthError
+from dataforce_studio.infra.exceptions import AuthError, EmailDeliveryError
 from dataforce_studio.models.auth import (
     Token,
 )
@@ -99,25 +99,33 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid token", 401) from err
 
-    async def handle_signup(self, create_user: CreateUserIn) -> dict[str, str]:
-        if await self.__user_repository.get_user(create_user.email):
+    async def handle_signup(self, create_user_in: CreateUserIn) -> dict[str, str]:
+        if await self.__user_repository.get_user(create_user_in.email):
             raise AuthError("Email already registered", 400)
 
-        hashed_password = self._get_password_hash(create_user.password)
+        hashed_password = self._get_password_hash(create_user_in.password)
 
-        user = CreateUser(
-            **create_user.model_dump(exclude={"password"}),
+        create_user = CreateUser(
+            email=create_user_in.email,
+            full_name=create_user_in.full_name,
+            photo=create_user_in.photo,
             hashed_password=hashed_password,
             auth_method=AuthProvider.EMAIL,
         )
 
-        await self.__user_repository.create_user(create_user=user)
+        user = await self.__user_repository.create_user(create_user=create_user)
 
         confirmation_token = self._generate_email_confirmation_token(user.email)
         confirmation_link = self._get_email_confirmation_link(confirmation_token)
-        self.__emails_handler.send_activation_email(
-            create_user.email, confirmation_link, create_user.full_name
-        )
+        try:
+            self.__emails_handler.send_activation_email(
+                user.email, confirmation_link, user.full_name
+            )
+        except Exception as error:
+            raise EmailDeliveryError(
+                "Error sending confirmation email.", 201
+            ) from error
+
         return {"detail": "Please confirm your email address"}
 
     def _get_email_confirmation_link(self, token: str) -> str:
@@ -294,9 +302,12 @@ class AuthHandler:
             return
         token = self._generate_password_reset_token(service_user.email)
         link = self._get_password_reset_link(token)
-        self.__emails_handler.send_password_reset_email(
-            email, link, service_user.full_name
-        )
+        try:
+            self.__emails_handler.send_password_reset_email(
+                email, link, service_user.full_name
+            )
+        except Exception as error:
+            raise EmailDeliveryError() from error
 
     def _get_password_reset_link(self, token: str) -> str:
         return config.CHANGE_PASSWORD_URL + token

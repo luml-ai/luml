@@ -59,6 +59,15 @@ class OrganizationInviteAlreadyExistsError(ApplicationError):
         super().__init__(message, status.HTTP_409_CONFLICT)
 
 
+class EmailDeliveryError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Error sending email",
+        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+    ) -> None:
+        super().__init__(message, status_code)
+
+
 class CollectionDeleteError(ApplicationError):
     def __init__(self, message: str = "Collection cant be deleted") -> None:
         super().__init__(message, status.HTTP_409_CONFLICT)

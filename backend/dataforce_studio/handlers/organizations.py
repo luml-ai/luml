@@ -5,6 +5,7 @@ from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     DatabaseConstraintError,
+    EmailDeliveryError,
     InsufficientPermissionsError,
     NotFoundError,
     OrganizationDeleteError,
@@ -214,12 +215,17 @@ class OrganizationHandler:
         if not invite:
             raise OrganizationInviteNotFoundError()
 
-        self.__email_handler.send_organization_invite_email(
-            invite.email if invite else "",
-            get_invited_by_name(invite),
-            get_organization_email_name(invite),
-            config.APP_EMAIL_URL,
-        )
+        try:
+            self.__email_handler.send_organization_invite_email(
+                invite.email if invite else "",
+                get_invited_by_name(invite),
+                get_organization_email_name(invite),
+                config.APP_EMAIL_URL,
+            )
+        except Exception as error:
+            raise EmailDeliveryError(
+                "Invite created successfully but email delivery failed.", 201
+            ) from error
 
         return invite
 

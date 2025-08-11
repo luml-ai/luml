@@ -55,7 +55,7 @@ create_user_data = {
 
 
 @pytest.fixture
-def get_create_user() -> dict:
+def  get_create_user() -> dict:
     create_user = CreateUserIn.model_validate(create_user_data)
     user = User.model_validate(user_data)
     return {"create_user": create_user, "user": user}
@@ -257,15 +257,17 @@ async def test_handle_signup(
     mock_hash: Mock,
     get_create_user: dict,
 ) -> None:
-    data = get_create_user
-    create_user_in = data["create_user"]
+    create_user_in = get_create_user["create_user"]
     create_user = CreateUser(
-        **create_user_in.model_dump(exclude={"password"}),
+        email=create_user_in.email,
+        full_name=create_user_in.full_name,
+        photo=create_user_in.photo,
         hashed_password=passwords["hashed_password"],
         auth_method=AuthProvider.EMAIL,
     )
     mock_get_user.return_value = None
     mock_hash.return_value = passwords["hashed_password"]
+    mock_create_user.return_value = create_user
 
     actual = await handler.handle_signup(create_user_in)
 
