@@ -39,8 +39,6 @@ class OrbitHandler:
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
 
-    __orbits_limit = 10
-
     def notify_members(
         self, orbit: OrbitDetails, background_tasks: BackgroundTasks
     ) -> None:
@@ -73,11 +71,13 @@ class OrbitHandler:
         return orbits
 
     async def _check_organization_orbits_limit(self, organization_id: int) -> None:
-        orbits_count = await self.__orbits_repository.get_organization_orbits_count(
+        organization = await self.__user_repository.get_organization_details(
             organization_id
         )
+        if not organization:
+            raise NotFoundError("Organization not found")
 
-        if orbits_count >= self.__orbits_limit:
+        if organization.total_orbits >= organization.orbits_limit:
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of orbits"
             )

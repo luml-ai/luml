@@ -45,7 +45,6 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __members_limit = 50
     __organization_membership_limit = 5
 
     def _set_organizations_permissions(
@@ -69,6 +68,18 @@ class OrganizationHandler:
         if membership_num >= self.__organization_membership_limit:
             raise OrganizationLimitReachedError(
                 "You’ve reached the limit of organizations you can join or create"
+            )
+
+    async def _check_org_members_limit(self, organization_id: int) -> None:
+        organization = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+        if not organization:
+            raise NotFoundError("Organization not found")
+
+        if organization.total_members >= organization.members_limit:
+            raise OrganizationLimitReachedError(
+                "Organization reached maximum number of users"
             )
 
     async def create_organization(
@@ -161,16 +172,6 @@ class OrganizationHandler:
         )
         return organization
 
-    async def check_org_members_limit(self, organization_id: int) -> None:
-        members_count = await self.__user_repository.get_organization_members_count(
-            organization_id
-        )
-
-        if members_count >= self.__members_limit:
-            raise OrganizationLimitReachedError(
-                "Organization reached maximum number of users"
-            )
-
     async def send_invite(
         self, user_id: int, invite_: CreateOrganizationInviteIn
     ) -> OrganizationInvite:
@@ -204,7 +205,7 @@ class OrganizationHandler:
         if existing_invite:
             raise OrganizationInviteAlreadyExistsError()
 
-        await self.check_org_members_limit(invite_.organization_id)
+        await self._check_org_members_limit(invite_.organization_id)
 
         db_created_invite = await self.__invites_repository.create_organization_invite(
             CreateOrganizationInvite(**invite_.model_dump(), invited_by=user_id)
@@ -242,7 +243,7 @@ class OrganizationHandler:
             raise OrganizationInviteNotFoundError()
 
         await self._organization_membership_limit_check(user_id)
-        await self.check_org_members_limit(invite.organization_id)
+        await self._check_org_members_limit(invite.organization_id)
 
         try:
             await self.__user_repository.create_organization_member(
@@ -360,6 +361,7 @@ class OrganizationHandler:
             Resource.ORGANIZATION_USER,
             Action.CREATE,
         )
+        await self._check_org_members_limit(organization_id)
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise InsufficientPermissionsError(
