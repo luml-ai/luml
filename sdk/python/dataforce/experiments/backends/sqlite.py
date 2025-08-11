@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from dataforce.experiments.backends._base import Backend
+from dataforce.experiments.utils import guess_span_type
 from dataforce.modelref import DiskArtifact, _BaseArtifact
 from dataforce.utils.tar import create_and_index_tar
 
@@ -64,6 +65,7 @@ _DDL_EXPERIMENT_CREATE_SPANS = """
         -- span details
         name TEXT NOT NULL,  -- OTEL uses 'name' instead of 'operation_name'
         kind INTEGER,        -- SpanKind: 0=UNSPECIFIED, 1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER
+        dfs_span_type INTEGER NOT NULL DEFAULT 0,  -- SpanType: 0=DEFAULT
 
         -- Timing
         start_time_unix_nano BIGINT NOT NULL,
@@ -419,8 +421,8 @@ class SQLiteBackend(Backend):
                 trace_id, span_id, parent_span_id, name, kind,
                 start_time_unix_nano, end_time_unix_nano,
                 status_code, status_message,
-                attributes, events, links, trace_flags
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                attributes, events, links, trace_flags, dfs_span_type
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 trace_id,
@@ -436,6 +438,7 @@ class SQLiteBackend(Backend):
                 events_json,
                 links_json,
                 trace_flags,
+                guess_span_type(attributes).value if attributes else 0,
             ),
         )
 
