@@ -1,5 +1,5 @@
 [project]
-name = "dfs"
+name = "dataforce"
 version = "0.1.0"
 description = "DataForce Studio Python SDK"
 readme = "README.md"
@@ -8,6 +8,7 @@ requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1,<1.0.0",
     "pydantic>=2.11.7,<3.0.0",
+    "pyfnx-utils>=0.0.1,<1.0.0",
 ]
 
 [build-system]
@@ -28,6 +29,11 @@ dev = [
     "respx==0.22.0",
     "ruff==0.11.5",
     "types-passlib==1.7.7.20250408",
+]
+tracing = [
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-instrumentation-openai>=0.44.1",
+    "opentelemetry-sdk>=1.36.0",
 ]
 
 [tool.ruff]
