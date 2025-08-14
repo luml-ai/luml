@@ -1,17 +1,17 @@
 from typing import Any
 
 try:
-    from sklearn.base import BaseEstimator
+    from sklearn.base import BaseEstimator  # type: ignore[import-not-found]
 except ImportError:
     BaseEstimator = None
 
 try:
-    import cloudpickle
+    import cloudpickle  # type: ignore[import-not-found]
 except ImportError:
     cloudpickle = None
 
 try:
-    import pandas as pd
+    import pandas as pd  # type: ignore[import-untyped]
 except ImportError:
     pd = None
 
@@ -20,9 +20,9 @@ import os
 import shutil
 import tempfile
 
-import numpy as np
-from pyfnx_utils.builder import PyfuncBuilder
-from pyfnx_utils.models.manifest import NDJSON
+import numpy as np  # type: ignore[import-not-found]
+from pyfnx_utils.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from pyfnx_utils.models.manifest import NDJSON  # type: ignore[import-untyped]
 
 from dataforce.packaging.integrations.sklearn.template import SKlearnPyFunc
 from dataforce.packaging.utils import get_version
@@ -38,7 +38,7 @@ def _resolve_dtype(dtype: np.dtype) -> str:
 
 def save(
     estimator: Any,  # noqa: ANN401
-    inputs: np.typing.ArrayLike | pd.DataFrame | None,
+    inputs: Any,  # noqa: ANN401
     path: str = "model.dfs",
     model_name: str | None = None,
     model_version: str | None = None,

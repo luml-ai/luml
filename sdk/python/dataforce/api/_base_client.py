@@ -22,8 +22,8 @@ class BaseClient(ABC):
         base_url: str | URL,
         timeout: float = 30.0,
     ) -> None:
-        self._base_url = base_url
-        self._timeout = timeout
+        self._base_url: URL = URL(base_url) if isinstance(base_url, str) else base_url
+        self._timeout: float = timeout
 
     @property
     def base_url(self) -> URL:
@@ -84,7 +84,7 @@ class BaseClient(ABC):
         return APIStatusError(err_msg, response=response, body=body)
 
     @abstractmethod
-    def _process_response(self, response: httpx.Response) -> dict | None:
+    def _process_response(self, response: httpx.Response) -> Any:  # noqa: ANN401
         raise NotImplementedError()
 
     @abstractmethod

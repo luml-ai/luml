@@ -85,7 +85,10 @@ def test_model_artifact_create(
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
-    mock_sync_client.post.return_value = sample_model_artifact
+    mock_sync_client.post.return_value = {
+        "url": "https://example.com/upload",
+        "model": sample_model_artifact.model_dump()
+    }
 
     resource = ModelArtifactResource(mock_sync_client)
     artifact = resource.create(
@@ -114,7 +117,9 @@ def test_model_artifact_create(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/model_artifacts",
         json=expected_json,
     )
-    assert artifact.file_name == expected_json["file_name"]
+
+    assert artifact['url']
+    assert artifact['model'].file_name == expected_json['file_name']
 
 
 def test_model_artifact_update(
@@ -206,7 +211,7 @@ async def test_async_model_artifact_get_by_name(
     mock_async_client.get.return_value = [sample_model_artifact]
 
     resource = AsyncModelArtifactResource(mock_async_client)
-    artifact = await resource.get_by_name(name=name)
+    artifact = await resource._get_by_name(collection_id=None, name=name)
 
     assert artifact.model_name == name
 
@@ -266,7 +271,10 @@ async def test_async_model_artifact_create(
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
-    mock_async_client.post.return_value = sample_model_artifact
+    mock_async_client.post.return_value = {
+        "url": "https://example.com/upload",
+        "model": sample_model_artifact.model_dump()
+    }
 
     resource = AsyncModelArtifactResource(mock_async_client)
     artifact = await resource.create(
@@ -295,7 +303,8 @@ async def test_async_model_artifact_create(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/model_artifacts",
         json=expected_json,
     )
-    assert artifact.file_name == expected_json["file_name"]
+    assert artifact['url']
+    assert artifact['model'].file_name == expected_json['file_name']
 
 
 @pytest.mark.asyncio

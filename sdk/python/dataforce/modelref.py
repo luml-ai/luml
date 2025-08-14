@@ -9,7 +9,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pyfnx_utils.reader import Reader
+from pyfnx_utils.reader import Reader  # type: ignore[import-untyped]
 
 
 class PathSeparators(str, Enum):

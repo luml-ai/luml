@@ -3,7 +3,7 @@ from dataforce.experiments.backends.sqlite import SQLiteBackend
 
 
 class BackendRegistry:
-    backends = {}
+    backends: dict = {}
 
     @classmethod
     def register(cls, backend_type: str, backend_class: type) -> None:

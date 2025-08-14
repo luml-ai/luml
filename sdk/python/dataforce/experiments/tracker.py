@@ -184,7 +184,10 @@ class ExperimentTracker:
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
         exp_db = self.backend.get_experiment_db(exp_id)
-        attachments, index = self.backend.get_attachments(exp_id)
+        attachments_result = self.backend.get_attachments(exp_id)
+        if attachments_result is None:
+            raise ValueError(f"No attachments found for experiment {exp_id}")
+        attachments, index = attachments_result
         tag = "dataforce.studio::experiment_snapshot:v1"
         with NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
             zip_path = temp_zip.name

@@ -24,7 +24,7 @@ class OrbitResource:
         )
         return Orbit.model_validate(response)
 
-    def _get_by_name(self, name: str) -> Orbit:
+    def _get_by_name(self, name: str) -> Orbit | None:
         return find_by_name(self.list(), name)
 
     def list(self) -> list[Orbit]:
@@ -80,7 +80,7 @@ class AsyncOrbitResource:
         )
         return Orbit.model_validate(response)
 
-    async def _get_by_name(self, name: str) -> Orbit:
+    async def _get_by_name(self, name: str) -> Orbit | None:
         return find_by_name(await self.list(), name)
 
     async def list(self) -> list[Orbit]:

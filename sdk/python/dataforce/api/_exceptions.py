@@ -153,3 +153,17 @@ class UnprocessableEntityError(APIStatusError):
 
 class InternalServerError(APIStatusError):
     pass
+
+
+class FileError(Exception):
+    pass
+
+
+class FileUploadError(FileError):
+    def __init__(self, message: str = "") -> None:
+        super().__init__("Error uploading file to bucket." + message)
+
+
+class FileDownloadError(FileError):
+    def __init__(self, message: str = "") -> None:
+        super().__init__("Error downloading file from bucket." + message)

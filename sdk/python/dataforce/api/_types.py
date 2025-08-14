@@ -68,3 +68,12 @@ class ModelArtifact(BaseModel):
     status: str
     created_at: str
     updated_at: str | None = None
+
+
+class ModelDetails(BaseModel):
+    file_name: str
+    metrics: dict
+    manifest: dict
+    file_hash: str
+    file_index: dict[str, tuple[int, int]]
+    size: int

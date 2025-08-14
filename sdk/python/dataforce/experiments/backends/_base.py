@@ -118,5 +118,5 @@ class Backend(ABC):
     @abstractmethod
     def get_attachments(
         self, experiment_id: str
-    ) -> tuple[_BaseArtifact, _BaseArtifact]:
+    ) -> tuple[_BaseArtifact, _BaseArtifact] | None:
         pass

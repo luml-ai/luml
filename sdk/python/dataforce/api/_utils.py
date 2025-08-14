@@ -9,7 +9,7 @@ T = TypeVar("T")
 def find_by_name(
     items: list[T], name: str, condition: Callable[[T], bool] | None = None
 ) -> T | None:
-    condition = condition or (lambda item: item.name == name)
+    condition = condition or (lambda item: getattr(item, "name", None) == name)
 
     matches = [item for item in items if condition(item)]
 

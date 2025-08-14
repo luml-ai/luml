@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 import atexit
 import contextlib
 import json
@@ -24,9 +25,10 @@ _DDL_META_CREATE_EXPERIMENTS = """
 )
 """
 _DDL_META_CREATE_GROUPS = """
-    CREATE TABLE IF NOT EXISTS groups (
+    CREATE TABLE IF NOT EXISTS experiment_groups (
         id TEXT PRIMARY KEY,
         name TEXT,
+        description TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """
@@ -112,7 +114,7 @@ _DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE = """
     )
 """
 
-#
+
 _DDL_EXPERIMENT_CREATE_ADDITIONAL_INDEXES = [
     # spans
     "CREATE INDEX IF NOT EXISTS idx_spans_trace_id ON spans (trace_id);",
@@ -121,16 +123,16 @@ _DDL_EXPERIMENT_CREATE_ADDITIONAL_INDEXES = [
     # evals
     "CREATE INDEX IF NOT EXISTS idx_evals_dataset_id ON evals (dataset_id);",
     "CREATE INDEX IF NOT EXISTS idx_evals_id ON evals (id);",
-    "CREATE INDEX IF NOT EXISTS idx_evals_dataset_created ON evals (dataset_id, created_at);",  # noqa: E501
-    "CREATE INDEX IF NOT EXISTS idx_eval_traces_eval ON eval_traces_bridge (eval_dataset_id, eval_id);",  # noqa: E501
-    "CREATE INDEX IF NOT EXISTS idx_eval_traces_trace_id ON eval_traces_bridge (trace_id);",  # noqa: E501
-    "CREATE INDEX IF NOT EXISTS idx_eval_traces_dataset_id ON eval_traces_bridge (eval_dataset_id);",  # noqa: E501
+    "CREATE INDEX IF NOT EXISTS idx_evals_dataset_created ON evals (dataset_id, created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_eval_traces_eval ON eval_traces_bridge (eval_dataset_id, eval_id);",
+    "CREATE INDEX IF NOT EXISTS idx_eval_traces_trace_id ON eval_traces_bridge (trace_id);",
+    "CREATE INDEX IF NOT EXISTS idx_eval_traces_dataset_id ON eval_traces_bridge (eval_dataset_id);",
     # dynamic metrics
     "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_key ON dynamic_metrics (key);",
     "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_step ON dynamic_metrics (step);",
-    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_key_step ON dynamic_metrics (key, step);",  # noqa: E501
-    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_logged_at ON dynamic_metrics (logged_at);",  # noqa: E501
-    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_key_logged_at ON dynamic_metrics (key, logged_at);",  # noqa: E501
+    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_key_step ON dynamic_metrics (key, step);",
+    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_logged_at ON dynamic_metrics (logged_at);",
+    "CREATE INDEX IF NOT EXISTS idx_dynamic_metrics_key_logged_at ON dynamic_metrics (key, logged_at);",
 ]
 
 
@@ -550,7 +552,7 @@ class SQLiteBackend(Backend):
         cursor.execute(
             "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
         )
-        dynamic_metrics = {}
+        dynamic_metrics: dict[str, list[dict[str, Any]]] = {}
         for key, value, step in cursor.fetchall():
             if key not in dynamic_metrics:
                 dynamic_metrics[key] = []

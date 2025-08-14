@@ -1,11 +1,11 @@
-from fnnx.utils import to_thread
-from fnnx.variants.pyfunc import PyFunc
+from fnnx.utils import to_thread  # type: ignore[import-not-found]
+from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-not-found]
 
 
 class SKlearnPyFunc(PyFunc):
     def warmup(self) -> None:
-        import numpy as np
-        from cloudpickle import load
+        import numpy as np  # type: ignore[import-not-found]
+        from cloudpickle import load  # type: ignore[import-not-found]
 
         self.np = np
         pickled_estimator_path = self.fnnx_context.get_filepath("estimator.pkl")

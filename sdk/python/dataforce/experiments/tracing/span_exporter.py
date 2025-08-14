@@ -109,13 +109,13 @@ class DataforceSpanExporter(SpanExporter):
             if isinstance(value, str | int | float | bool):
                 result[key] = value
             elif isinstance(value, list | tuple):
-                result[key] = list(value)
+                result[key] = list(value)  # type: ignore[assignment]
             else:
                 result[key] = str(value)
 
         return result
 
-    def _convert_events(self, events: list[Event]) -> list[dict[str, Any]] | None:
+    def _convert_events(self, events: Sequence[Event]) -> list[dict[str, Any]] | None:
         if not events:
             return None
 
@@ -133,7 +133,7 @@ class DataforceSpanExporter(SpanExporter):
 
         return result
 
-    def _convert_links(self, links: list[Link]) -> list[dict[str, Any]] | None:
+    def _convert_links(self, links: Sequence[Link]) -> list[dict[str, Any]] | None:
         if not links:
             return None
 

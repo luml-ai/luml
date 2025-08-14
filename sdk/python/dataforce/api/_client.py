@@ -1,7 +1,9 @@
 import os
 from abc import ABC, abstractmethod
 from functools import cached_property
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from httpx import URL
 
 from ._base_client import AsyncBaseClient, SyncBaseClient
 from ._exceptions import (
@@ -33,7 +35,7 @@ class DataForceClientBase(ABC):
         if base_url is None:
             base_url = "https://api.dataforce.studio"
 
-        super().__init__(base_url=base_url)
+        self._base_url: URL = URL(base_url)
 
         if api_key is None:
             api_key = os.environ.get("DFS_API_KEY")
@@ -45,9 +47,9 @@ class DataForceClientBase(ABC):
             )
         self._api_key = api_key
 
-        self._organization = None
-        self._orbit = None
-        self._collection = None
+        self._organization: int | None = None
+        self._orbit: int | None = None
+        self._collection: int | None = None
 
     @staticmethod
     def _validate_default_resource(
@@ -71,15 +73,15 @@ class DataForceClientBase(ABC):
         return entity.id
 
     @abstractmethod
-    def _validate_organization(self, org_value: int | str | None) -> int | None:
+    def _validate_organization(self, org_value: int | str | None) -> Any:  # noqa: ANN401
         raise NotImplementedError()
 
     @abstractmethod
-    def _validate_orbit(self, orbit_value: int | str | None) -> int | None:
+    def _validate_orbit(self, orbit_value: int | str | None) -> Any:  # noqa: ANN401
         raise NotImplementedError()
 
     @abstractmethod
-    def _validate_collection(self, collection_value: int | str | None) -> int | None:
+    def _validate_collection(self, collection_value: int | str | None) -> Any:  # noqa: ANN401
         raise NotImplementedError()
 
     @property
@@ -137,6 +139,14 @@ class DataForceClientBase(ABC):
 
 
 class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        api_key: str | None = None,
+    ) -> None:
+        DataForceClientBase.__init__(self, base_url=base_url, api_key=api_key)
+        AsyncBaseClient.__init__(self, base_url=self._base_url)
+
     async def setup_config(
         self,
         organization: int | None = None,
@@ -220,7 +230,8 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         orbit: int | str | None = None,
         collection: int | str | None = None,
     ) -> None:
-        super().__init__(base_url=base_url, api_key=api_key)
+        DataForceClientBase.__init__(self, base_url=base_url, api_key=api_key)
+        SyncBaseClient.__init__(self, base_url=self._base_url)
 
         validated_org = self._validate_organization(organization)
         self._organization = validated_org
