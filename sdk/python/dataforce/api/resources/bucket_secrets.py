@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from collections.abc import Coroutine
+from typing import TYPE_CHECKING, Any
 
 from .._types import BucketSecret
 from .._utils import find_by_name
@@ -7,7 +9,64 @@ if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
 
 
-class BucketSecretResource:
+class BucketSecretResourceBase(ABC):
+    @abstractmethod
+    def get(
+        self, secret_value: int | str
+    ) -> BucketSecret | None | Coroutine[Any, Any, BucketSecret | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_by_id(
+        self, secret_id: int
+    ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_by_name(
+        self, name: str
+    ) -> BucketSecret | None | Coroutine[Any, Any, BucketSecret | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def list(self) -> list[BucketSecret] | Coroutine[Any, Any, list[BucketSecret]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def create(
+        self,
+        endpoint: str,
+        bucket_name: str,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        region: str | None = None,
+        cert_check: bool | None = None,
+    ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def update(
+        self,
+        secret_id: int,
+        endpoint: str | None = None,
+        bucket_name: str | None = None,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        region: str | None = None,
+        cert_check: bool | None = None,
+    ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete(self, secret_id: int) -> None | Coroutine[Any, Any, None]:
+        raise NotImplementedError()
+
+
+class BucketSecretResource(BucketSecretResourceBase):
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
@@ -96,7 +155,7 @@ class BucketSecretResource:
         )
 
 
-class AsyncBucketSecretResource:
+class AsyncBucketSecretResource(BucketSecretResourceBase):
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 

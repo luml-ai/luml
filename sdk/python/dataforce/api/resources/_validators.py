@@ -10,7 +10,6 @@ def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(
         self: Any,  # noqa: ANN401
-        collection_id: int | None = None,
         *args: Any,  # noqa: ANN401
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
@@ -18,17 +17,17 @@ def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
             raise ConfigurationError("Default organization must be set")
         if not self._client.orbit:
             raise ConfigurationError("Default orbit must be set")
+
+        # collection_id is now always in kwargs (keyword-only parameter)
+        collection_id = kwargs.get("collection_id")
+
         if collection_id is None and not self._client.collection:
             raise ConfigurationError(
                 "collection_id must be provided or default collection must be set"
             )
 
-        result = func(
-            self,
-            collection_id=collection_id or self._client.collection,
-            *args,  # noqa: B026
-            **kwargs,
-        )
+        kwargs["collection_id"] = collection_id or self._client.collection
+        result = func(self, *args, **kwargs)
         if asyncio.iscoroutine(result):
             return result
         return result

@@ -1,5 +1,7 @@
 import builtins
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from collections.abc import Coroutine
+from typing import TYPE_CHECKING, Any
 
 from .._types import Collection, CollectionType
 from .._utils import find_by_name
@@ -9,7 +11,50 @@ if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
 
 
-class CollectionResource:
+class CollectionResourceBase(ABC):
+    @abstractmethod
+    def get(
+        self, collection_value: str
+    ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_by_name(
+        self, name: str
+    ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def list(self) -> list[Collection] | Coroutine[Any, Any, list[Collection]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def create(
+        self,
+        description: str,
+        name: str,
+        collection_type: CollectionType,
+        tags: builtins.list[str] | None = None,
+    ) -> Collection | Coroutine[Any, Any, Collection]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def update(
+        self,
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        *,
+        collection_id: int,
+    ) -> Collection | Coroutine[Any, Any, Collection]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete(self, collection_id: int) -> None | Coroutine[Any, Any, None]:
+        raise NotImplementedError()
+
+
+class CollectionResource(CollectionResourceBase):
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
@@ -49,10 +94,11 @@ class CollectionResource:
     @validate_collection
     def update(
         self,
-        collection_id: int,
-        description: str | None = None,
         name: str | None = None,
+        description: str | None = None,
         tags: builtins.list[str] | None = None,
+        *,
+        collection_id: int,
     ) -> Collection:
         response = self._client.patch(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
@@ -73,7 +119,7 @@ class CollectionResource:
         )
 
 
-class AsyncCollectionResource:
+class AsyncCollectionResource(CollectionResourceBase):
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
@@ -113,10 +159,11 @@ class AsyncCollectionResource:
     @validate_collection
     async def update(
         self,
-        collection_id: int | None,
-        description: str | None = None,
         name: str | None = None,
+        description: str | None = None,
         tags: builtins.list[str] | None = None,
+        *,
+        collection_id: int | None,
     ) -> Collection:
         response = await self._client.patch(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",

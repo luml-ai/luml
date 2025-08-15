@@ -1,4 +1,6 @@
-from typing import TYPE_CHECKING
+from abc import ABC, abstractmethod
+from collections.abc import Coroutine
+from typing import TYPE_CHECKING, Any
 
 from .._types import Orbit
 from .._utils import find_by_name
@@ -7,7 +9,45 @@ if TYPE_CHECKING:
     from .._client import AsyncDataForceClient, DataForceClient
 
 
-class OrbitResource:
+class OrbitResourceBase(ABC):
+    @abstractmethod
+    def get(
+        self, orbit_value: int | str | None = None
+    ) -> Orbit | None | Coroutine[Any, Any, Orbit | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_by_id(self) -> Orbit | Coroutine[Any, Any, Orbit]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def _get_by_name(
+        self, name: str
+    ) -> Orbit | None | Coroutine[Any, Any, Orbit | None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def list(self) -> list[Orbit] | Coroutine[Any, Any, list[Orbit]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def create(
+        self, name: str, bucket_secret_id: int
+    ) -> Orbit | Coroutine[Any, Any, Orbit]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def update(
+        self, name: str | None = None, bucket_secret_id: int | None = None
+    ) -> Orbit | Coroutine[Any, Any, Orbit]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete(self) -> None | Coroutine[Any, Any, None]:
+        raise NotImplementedError()
+
+
+class OrbitResource(OrbitResourceBase):
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
@@ -57,13 +97,13 @@ class OrbitResource:
         )
         return Orbit.model_validate(response)
 
-    def delete(self, organization_id: int, orbit_id: int) -> None:
+    def delete(self) -> None:
         return self._client.delete(
-            f"/organizations/{organization_id}/orbits/{orbit_id}"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
 
 
-class AsyncOrbitResource:
+class AsyncOrbitResource(OrbitResourceBase):
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 

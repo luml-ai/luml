@@ -87,7 +87,7 @@ def test_model_artifact_create(
     collection_id = mock_sync_client.collection
     mock_sync_client.post.return_value = {
         "url": "https://example.com/upload",
-        "model": sample_model_artifact.model_dump()
+        "model": sample_model_artifact.model_dump(),
     }
 
     resource = ModelArtifactResource(mock_sync_client)
@@ -118,8 +118,8 @@ def test_model_artifact_create(
         json=expected_json,
     )
 
-    assert artifact['url']
-    assert artifact['model'].file_name == expected_json['file_name']
+    assert artifact["url"]
+    assert artifact["model"].file_name == expected_json["file_name"]
 
 
 def test_model_artifact_update(
@@ -172,7 +172,7 @@ async def test_async_model_artifact_list(
     mock_async_client.get.return_value = [sample_model_artifact]
 
     resource = AsyncModelArtifactResource(mock_async_client)
-    artifacts = await resource.list(None)
+    artifacts = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/model_artifacts"
@@ -273,7 +273,7 @@ async def test_async_model_artifact_create(
     collection_id = mock_async_client.collection
     mock_async_client.post.return_value = {
         "url": "https://example.com/upload",
-        "model": sample_model_artifact.model_dump()
+        "model": sample_model_artifact.model_dump(),
     }
 
     resource = AsyncModelArtifactResource(mock_async_client)
@@ -303,8 +303,8 @@ async def test_async_model_artifact_create(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/model_artifacts",
         json=expected_json,
     )
-    assert artifact['url']
-    assert artifact['model'].file_name == expected_json['file_name']
+    assert artifact["url"]
+    assert artifact["model"].file_name == expected_json["file_name"]
 
 
 @pytest.mark.asyncio

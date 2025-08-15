@@ -39,6 +39,13 @@ class CollectionType(StrEnum):
     DATASET = "dataset"
 
 
+class ModelArtifactStatus(StrEnum):
+    PENDING_UPLOAD = "pending_upload"
+    UPLOADED = "uploaded"
+    UPLOAD_FAILED = "upload_failed"
+    DELETION_FAILED = "deletion_failed"
+
+
 class Collection(BaseModel):
     id: int
     orbit_id: int

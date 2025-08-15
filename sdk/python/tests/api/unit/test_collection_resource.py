@@ -124,7 +124,7 @@ def test_collection_update(
     mock_sync_client.filter_none.return_value = update_data
 
     resource = CollectionResource(mock_sync_client)
-    collection = resource.update(collection_id, name="Updated Collection")
+    collection = resource.update(collection_id=collection_id, name="Updated Collection")
 
     mock_sync_client.patch.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}",
@@ -150,7 +150,7 @@ def test_collection_update_all_params(
 
     resource = CollectionResource(mock_sync_client)
     collection = resource.update(
-        collection_id,
+        collection_id=collection_id,
         description="Updated Description",
         name="Updated Collection",
         tags=["new_tag"],
@@ -170,7 +170,7 @@ def test_collection_delete(mock_sync_client: Mock) -> None:
     mock_sync_client.delete.return_value = None
 
     resource = CollectionResource(mock_sync_client)
-    result = resource.delete(collection_id)
+    result = resource.delete(collection_id=collection_id)
 
     mock_sync_client.delete.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}"
@@ -306,7 +306,7 @@ async def test_async_collection_update(
     mock_async_client.filter_none.return_value = update_data
 
     resource = AsyncCollectionResource(mock_async_client)
-    collection = await resource.update(collection_id, name="Updated Collection")
+    collection = await resource.update(collection_id=collection_id, name="Updated Collection")
 
     mock_async_client.patch.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}",
@@ -333,7 +333,7 @@ async def test_async_collection_update_all_params(
 
     resource = AsyncCollectionResource(mock_async_client)
     collection = await resource.update(
-        collection_id,
+        collection_id=collection_id,
         description="Updated Description",
         name="Updated Collection",
         tags=["new_tag"],
@@ -354,7 +354,7 @@ async def test_async_collection_delete(mock_async_client: AsyncMock) -> None:
     mock_async_client.delete.return_value = None
 
     resource = AsyncCollectionResource(mock_async_client)
-    result = await resource.delete(collection_id)
+    result = await resource.delete(collection_id=collection_id)
 
     mock_async_client.delete.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}"

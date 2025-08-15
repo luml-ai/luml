@@ -101,7 +101,7 @@ def test_orbit_delete(mock_sync_client: Mock) -> None:
     mock_sync_client.delete.return_value = None
 
     resource = OrbitResource(mock_sync_client)
-    result = resource.delete(organization_id, orbit_id)
+    result = resource.delete()
 
     mock_sync_client.delete.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}"
