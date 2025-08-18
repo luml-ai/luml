@@ -23,6 +23,12 @@ class OrganizationOrm(TimestampMixin, Base):
 
     name: Mapped[str | None] = mapped_column(String, nullable=False)
     logo: Mapped[str | None] = mapped_column(String, nullable=True)
+    members_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="3"
+    )
+    orbits_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="1"
+    )
 
     members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"

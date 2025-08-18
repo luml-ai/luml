@@ -23,19 +23,21 @@ handler = OrganizationHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
+    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_check_org_members_limit_raises(
-    mock_get_organization_members_count: AsyncMock,
+    mock_get_organization_details: AsyncMock,
 ) -> None:
-    mock_get_organization_members_count.return_value = 200
+    mock_get_organization_details.return_value = type(
+        "obj", (), {"members_limit": 50, "total_members": 200}
+    )
 
     with pytest.raises(OrganizationLimitReachedError):
-        await handler.check_org_members_limit(organization_id=random.randint(1, 10000))
+        await handler._check_org_members_limit(organization_id=random.randint(1, 10000))
 
-    mock_get_organization_members_count.assert_awaited_once()
+    mock_get_organization_details.assert_awaited_once()
 
 
 @patch(

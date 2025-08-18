@@ -114,12 +114,17 @@ async def test_delete_organization_member_by_id(
     new_callable=AsyncMock,
 )
 @patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.UserRepository.create_organization_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_add_organization_member(
     mock_create_organization_member: AsyncMock,
+    mock_get_organization_details: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
     member_create = OrganizationMemberCreate(
@@ -133,6 +138,9 @@ async def test_add_organization_member(
 
     mock_create_organization_member.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_organization_details.return_value = type(
+        "obj", (), {"members_limit": 50, "total_members": 0}
+    )
 
     actual = await handler.add_organization_member(
         member_create.user_id, member_create.organization_id, member_create

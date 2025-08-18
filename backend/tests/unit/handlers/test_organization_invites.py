@@ -46,6 +46,10 @@ handler = OrganizationHandler()
     new_callable=AsyncMock,
 )
 @patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.EmailHandler.send_organization_invite_email",
     new_callable=MagicMock,
 )
@@ -62,6 +66,7 @@ async def test_send_invite(
     mock_create_organization_invite: AsyncMock,
     mock_get_organization_members_count: AsyncMock,
     mock_send_organization_invite_email: MagicMock,
+    mock_get_organization_details: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
     mock_get_invite: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
@@ -84,6 +89,9 @@ async def test_send_invite(
     mock_create_organization_invite.return_value = mocked_invite
     mock_get_invite.return_value = mocked_invite
     mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_organization_details.return_value = type(
+        "obj", (), {"members_limit": 50, "total_members": 0}
+    )
 
     result = await handler.send_invite(user.id, invite)
 
@@ -152,6 +160,10 @@ async def test_cancel_invite(
     new_callable=AsyncMock,
 )
 @patch(
+    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
 )
@@ -173,6 +185,7 @@ async def test_accept_invite(
     mock_get_invite: AsyncMock,
     mock_create_organization_member: AsyncMock,
     mock_get_organization_members_count: AsyncMock,
+    mock_get_organization_details: AsyncMock,
     mock_get_user_organizations_membership_count: AsyncMock,
 ) -> None:
     user_id = random.randint(1, 10000)
@@ -181,12 +194,15 @@ async def test_accept_invite(
     mock_get_invite.return_value = invite
     mock_get_organization_members_count.return_value = 0
     mock_get_user_organizations_membership_count.return_value = 0
+    mock_get_organization_details.return_value = type(
+        "obj", (), {"members_limit": 50, "total_members": 0}
+    )
 
     result = await handler.accept_invite(invite.id, user_id)
 
     assert result is None
     mock_get_invite.assert_awaited_once_with(invite.id)
-    mock_get_organization_members_count.assert_awaited_once_with(invite.organization_id)
+    mock_get_organization_details.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
             user_id=user_id,
