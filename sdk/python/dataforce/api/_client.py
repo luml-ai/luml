@@ -166,11 +166,15 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
     async def _validate_orbit(self, orbit_value: int | str | None) -> int | None:
         if not orbit_value and not self._organization:
             return None
+
+        all_orbits = await self.orbits.list()
+
         if not self._organization and orbit_value:
             raise ConfigurationError(
-                "Default organization must be set before setting default orbit."
+                "Orbit",
+                "Default organization must be set before setting default orbit.",
+                all_values=all_orbits,
             )
-        all_orbits = await self.orbits.list()
         return self._validate_default_resource(
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
@@ -180,12 +184,15 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
     ) -> int | None:
         if not collection_value and (not self._organization or not self._orbit):
             return None
+
+        all_collections = await self.collections.list()
         if (not self._organization or not self._orbit) and collection_value:
             raise ConfigurationError(
+                "Collection",
                 "Default organization and orbit must be "
-                "set before setting default collection."
+                "set before setting default collection.",
+                all_values=all_collections,
             )
-        all_collections = await self.collections.list()
         return self._validate_default_resource(
             collection_value, all_collections, CollectionResourceNotFoundError
         )
@@ -251,11 +258,15 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
     def _validate_orbit(self, orbit_value: int | str | None) -> int | None:
         if not orbit_value and not self._organization:
             return None
+
+        all_orbits = self.orbits.list()
+
         if not self._organization and orbit_value:
             raise ConfigurationError(
-                "Default organization must be set before setting default orbit."
+                "Orbit",
+                "Default organization must be set before setting default orbit.",
+                all_values=all_orbits,
             )
-        all_orbits = self.orbits.list()
         return self._validate_default_resource(
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
@@ -263,12 +274,14 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
     def _validate_collection(self, collection_value: int | str | None) -> int | None:
         if not collection_value and (not self._organization or not self._orbit):
             return None
+        all_collections = self.collections.list()
         if (not self._organization or not self._orbit) and collection_value:
             raise ConfigurationError(
+                "Collection",
                 "Default organization and orbit must be "
-                "set before setting default collection."
+                "set before setting default collection.",
+                all_values=all_collections,
             )
-        all_collections = self.collections.list()
         return self._validate_default_resource(
             collection_value, all_collections, CollectionResourceNotFoundError
         )

@@ -202,7 +202,9 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             )
         except FileUploadError as error:
             self.update(
-                created_model["model"].id, status=ModelArtifactStatus.UPLOAD_FAILED, collection_id=collection_id
+                created_model["model"].id,
+                status=ModelArtifactStatus.UPLOAD_FAILED,
+                collection_id=collection_id,
             )
             raise error
 
@@ -424,7 +426,9 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             )
         except FileUploadError as error:
             self.update(
-                created_model["model"].id, status=ModelArtifactStatus.UPLOAD_FAILED, collection_id=collection_id
+                created_model["model"].id,
+                status=ModelArtifactStatus.UPLOAD_FAILED,
+                collection_id=collection_id,
             )
             raise error
 

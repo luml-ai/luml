@@ -51,7 +51,7 @@ class ModelFileHandler:
     def get_file_hash(self) -> str:
         hash_sha256 = hashlib.sha256()
         with open(self._file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(8 * 1024 * 1024), b""):
+            for chunk in iter(lambda: f.read(8388608), b""):  # 8mb
                 hash_sha256.update(chunk)
         return hash_sha256.hexdigest()
 
@@ -60,7 +60,11 @@ class ModelFileHandler:
             try:
                 with tarfile.open(self._file_path, "r") as tar:
                     meta_file = tar.extractfile(tar.getmember("meta.json"))
-                    self._metadata = json.loads(meta_file.read().decode("utf-8")) if meta_file else []
+                    self._metadata = (
+                        json.loads(meta_file.read().decode("utf-8"))
+                        if meta_file
+                        else []
+                    )
             except (Exception, KeyError):
                 self._metadata = []
         return self._metadata
@@ -100,7 +104,7 @@ class ModelFileHandler:
 
     def get_file_index(self) -> dict[str, tuple[int, int]]:
         file_index = {}
-        with tarfile.open(self._file_path, 'r') as tar:
+        with tarfile.open(self._file_path, "r") as tar:
             for member in tar.getmembers():
                 if member.isfile():
                     file_index[member.name] = (member.offset_data, member.size)

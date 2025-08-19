@@ -14,11 +14,18 @@ def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
         if not self._client.organization:
-            raise ConfigurationError("Default organization must be set")
+            raise ConfigurationError(
+                "Organization",
+                "Default organization must be set",
+                all_values=self._client.organizations.list(),
+            )
         if not self._client.orbit:
-            raise ConfigurationError("Default orbit must be set")
+            raise ConfigurationError(
+                "Orbit",
+                "Default orbit must be set",
+                all_values=self._client.orbits.list(),
+            )
 
-        # collection_id is now always in kwargs (keyword-only parameter)
         collection_id = kwargs.get("collection_id")
 
         if collection_id is None and not self._client.collection:

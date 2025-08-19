@@ -8,22 +8,19 @@ from dataforce.api._exceptions import FileDownloadError, FileUploadError
 class FileHandler:
     @staticmethod
     def _calculate_optimal_chunk_size(file_size: int) -> int:
-        mb = 1024 * 1024
-        gb = 1024 * mb
-
-        if file_size < 10 * mb:
-            return 1 * mb
-        if file_size < 50 * mb:
-            return 4 * mb
-        if file_size < 100 * mb:
-            return 16 * mb
-        if file_size < 500 * mb:
-            return 64 * mb
-        if file_size < gb:
-            return 128 * mb
-        if file_size < 5 * gb:
-            return 256 * mb
-        return 256 * mb
+        if file_size < 10485760:  # 10mb
+            return 1048576  # 1mb
+        if file_size < 52428800:  # 50mb
+            return 4194304  # 4mb
+        if file_size < 104857600:  # 100mb
+            return 16777216  # 16mb
+        if file_size < 524288000:  # 500mb
+            return 67108864  # 64mb
+        if file_size < 1073741824:  # 1gb
+            return 134217728  # 128mb
+        if file_size < 5368709120:  # 5gb
+            return 268435456  # 256mb
+        return 268435456  # 256mb
 
     @staticmethod
     def create_progress_bar(

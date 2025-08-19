@@ -13,7 +13,34 @@ class DataForceAPIError(Exception):
 
 
 class ConfigurationError(DataForceAPIError):
-    pass
+    def __init__(
+        self,
+        resource_type: str,
+        message: str | None = None,
+        all_values: list | None = None,
+    ) -> None:
+        self.message = message if message else ""
+        self.message += """
+        dfs = DataForceClient(
+            api_key="dfs_api_key",
+            organization=1,
+            orbit=1215,
+            collection=15
+        )
+        """
+        if all_values:
+            if len(all_values) > 0:
+                formatted_resources = "\n      ".join(
+                    f'{resource_type}(id={e.id}, name="{e.name}")' for e in all_values
+                )
+                self.message += (
+                    f"\nAvailable {resource_type}s for configuration:"
+                    f"\n      {formatted_resources}"
+                )
+            else:
+                self.message += f"\nYou do not have available {resource_type}s yet."
+
+        super().__init__(self.message)
 
 
 class MultipleResourcesFoundError(DataForceAPIError):
