@@ -22,6 +22,14 @@ class BaseClient(ABC):
         base_url: str | URL,
         timeout: float = 30.0,
     ) -> None:
+        """
+        Abstract base client for HTTP operations with common
+        configuration and error handling.
+
+        Args:
+            base_url: Base URL for API requests
+            timeout: Request timeout in seconds (default: 30.0)
+        """
         self._base_url: URL = URL(base_url) if isinstance(base_url, str) else base_url
         self._timeout: float = timeout
 
@@ -43,10 +51,12 @@ class BaseClient(ABC):
 
     @property
     def auth_headers(self) -> dict[str, str]:
+        """Authentication headers for HTTP requests."""
         return {}
 
     @property
     def default_headers(self) -> dict[str, str]:
+        """Default HTTP headers including auth headers."""
         return {
             "Accept": "application/json",
             "Content-Type": "application/json",
@@ -131,6 +141,7 @@ class SyncBaseClient(BaseClient):
         super().__init__(base_url=base_url, timeout=timeout)
 
     def _process_response(self, response: httpx.Response) -> dict | None:
+        """Process HTTP response and handle errors."""
         if response.status_code >= 400:
             try:
                 body = response.json()
@@ -157,6 +168,7 @@ class SyncBaseClient(BaseClient):
         headers: dict[str, str] | None = None,
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
+        """Execute HTTP request with default headers and error handling."""
         final_headers = {**self.default_headers}
         if headers:
             final_headers.update(headers)
@@ -199,6 +211,7 @@ class AsyncBaseClient(BaseClient):
         super().__init__(base_url=base_url, timeout=timeout)
 
     async def _process_response(self, response: httpx.Response) -> dict | None:
+        """Process HTTP response and handle errors."""
         if response.status_code >= 400:
             try:
                 body = response.json()
@@ -226,6 +239,7 @@ class AsyncBaseClient(BaseClient):
         headers: dict[str, str] | None = None,
         **kwargs: Any,  # noqa: ANN401
     ) -> Any:  # noqa: ANN401
+        """Execute HTTP request with default headers and error handling."""
         final_headers = {**self.default_headers}
         if headers:
             final_headers.update(headers)
