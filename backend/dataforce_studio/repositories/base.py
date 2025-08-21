@@ -32,9 +32,9 @@ class CrudMixin:
     async def create_models(
         self,
         session: AsyncSession,
-        orm_class: type,
+        orm_class: type[TOrm],
         data_list: list[TPydantic],
-    ) -> list:
+    ) -> list[TOrm]:
         db_objects = [orm_class(**item.model_dump()) for item in data_list]
         session.add_all(db_objects)
         await session.flush()
@@ -48,7 +48,7 @@ class CrudMixin:
         session: AsyncSession,
         orm_class: type[TOrm],
         data: TPydantic,
-        *where_conditions,
+        *where_conditions: Any,  # noqa: ANN401
     ) -> TOrm | None:
         result = await session.execute(select(orm_class).where(*where_conditions))
         db_obj = result.scalar_one_or_none()
@@ -95,9 +95,12 @@ class CrudMixin:
             await session.commit()
 
     async def delete_model_where(
-        self, session: AsyncSession, orm_class: type[TOrm], *where_conditions
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions: Any,  # noqa: ANN401
     ) -> None:
-        result = await session.execute(select(orm_class).where(*where_conditions))  # type: ignore[attr-defined]
+        result = await session.execute(select(orm_class).where(*where_conditions))
         obj = result.scalar_one_or_none()
 
         if obj:
@@ -105,22 +108,23 @@ class CrudMixin:
             await session.commit()
 
     async def delete_models_where(
-        self, session: AsyncSession, orm_class: type[TOrm], *where_conditions
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions: Any,  # noqa: ANN401
     ) -> None:
-        await session.execute(delete(orm_class).where(*where_conditions))  # type: ignore[attr-defined]
+        await session.execute(delete(orm_class).where(*where_conditions))
         await session.commit()
 
     async def get_model_where(
         self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        *where_conditions,
-        options: list | None = None,
+        *where_conditions: Any,  # noqa: ANN401
+        options: list[Any] | None = None,  # noqa: ANN401
     ) -> TOrm | None:
         result = await session.execute(
-            select(orm_class)
-            .where(*where_conditions)  # type: ignore[attr-defined]
-            .options(*(options or []))
+            select(orm_class).where(*where_conditions).options(*(options or []))
         )
 
         return result.scalar_one_or_none()
@@ -130,7 +134,7 @@ class CrudMixin:
         session: AsyncSession,
         orm_class: type[TOrm],
         obj_id: int,
-        options: list | None = None,
+        options: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
     ) -> TOrm | None:
         result = await session.execute(
@@ -147,13 +151,13 @@ class CrudMixin:
         self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        *where_conditions,
-        options: list | None = None,
-        order_by: list | None = None,
-        join_condition: tuple | None = None,  # type: ignore[ANN401]
-        select_fields: list | None = None,
+        *where_conditions: Any,  # noqa: ANN401
+        options: list[Any] | None = None,  # noqa: ANN401
+        order_by: list[Any] | None = None,  # noqa: ANN401
+        join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
+        select_fields: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
-    ) -> Sequence[Any]:
+    ) -> Sequence[Any]:  # noqa: ANN401
         stmt = select(*(select_fields or [orm_class]))
 
         if join_condition:
@@ -161,7 +165,7 @@ class CrudMixin:
 
         stmt = (
             stmt.where(*where_conditions)
-            .options(*(options or []))  # type: ignore[attr-defined]
+            .options(*(options or []))
             .order_by(*(order_by or []))
         )
 
@@ -175,9 +179,9 @@ class CrudMixin:
         self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        *where_conditions,
+        *where_conditions: Any,  # noqa: ANN401
     ) -> int:
         result = await session.execute(
-            select(func.count()).select_from(orm_class).where(*where_conditions)  # type: ignore[attr-defined]
+            select(func.count()).select_from(orm_class).where(*where_conditions)
         )
         return result.scalar() or 0

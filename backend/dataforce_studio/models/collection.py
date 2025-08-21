@@ -23,7 +23,7 @@ class CollectionOrm(TimestampMixin, Base):
     orbit: Mapped["OrbitOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm", back_populates="collections", lazy="selectin"
     )
-    models: Mapped[list["ModelArtifactOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    models: Mapped[list["ModelArtifactOrm"]] = relationship(  # noqa: F821
         back_populates="collection", cascade="all, delete, delete-orphan"
     )
 

@@ -63,7 +63,7 @@ class EmailDeliveryError(ApplicationError):
     def __init__(
         self,
         message: str = "Error sending email",
-        status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code: int = status.HTTP_503_SERVICE_UNAVAILABLE,
     ) -> None:
         super().__init__(message, status_code)
 

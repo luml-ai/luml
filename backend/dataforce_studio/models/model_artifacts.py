@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -16,8 +18,8 @@ class ModelArtifactOrm(TimestampMixin, Base):
     file_name: Mapped[str] = mapped_column(String, nullable=False)
     model_name: Mapped[str | None] = mapped_column(String, nullable=True)
     description: Mapped[str] = mapped_column(String, nullable=True)
-    metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    manifest: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
     file_index: Mapped[dict[str, tuple[int, int]]] = mapped_column(
         JSONB, nullable=False

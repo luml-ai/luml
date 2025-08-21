@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
@@ -28,7 +30,7 @@ async def create_model_artifact(
     orbit_id: int,
     collection_id: int,
     model_artifact: ModelArtifactIn,
-) -> dict:
+) -> dict[str, Any]:
     created_model_artifact, url = await model_artifacts_handler.create_model_artifact(
         request.user.id,
         organization_id,
@@ -90,7 +92,7 @@ async def get_model_artifact_download_url(
     orbit_id: int,
     collection_id: int,
     model_artifact_id: int,
-) -> dict:
+) -> dict[str, Any]:
     url = await model_artifacts_handler.request_download_url(
         request.user.id,
         organization_id,
@@ -110,7 +112,7 @@ async def get_model_artifact_delete_url(
     orbit_id: int,
     collection_id: int,
     model_artifact_id: int,
-) -> dict:
+) -> dict[str, Any]:
     url = await model_artifacts_handler.request_delete_url(
         request.user.id,
         organization_id,

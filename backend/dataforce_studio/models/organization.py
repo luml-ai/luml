@@ -42,7 +42,7 @@ class OrganizationOrm(TimestampMixin, Base):
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 
-    bucket_secrets: Mapped[list["BucketSecretOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    bucket_secrets: Mapped[list["BucketSecretOrm"]] = relationship(  # noqa: F821
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
 

@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -23,7 +24,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     role: OrbitRole | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    permissions: dict | None = None
+    permissions: dict[str, Any] | None = None
 
 
 class OrbitDetails(Orbit):

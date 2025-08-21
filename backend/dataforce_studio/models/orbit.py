@@ -72,7 +72,7 @@ class OrbitOrm(TimestampMixin, Base):
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    collections: Mapped[list["CollectionOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    collections: Mapped[list["CollectionOrm"]] = relationship(  # noqa: F821
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 

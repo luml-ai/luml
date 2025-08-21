@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import EmailStr
 
 from dataforce_studio.schemas.orbit import OrbitMemberCreate, OrbitMemberCreateSimple
@@ -10,7 +12,7 @@ def generate_organization_name(email: EmailStr, full_name: str | None = None) ->
     return f"{str(email).split('@')[0]}'s organization"
 
 
-def get_members_roles_count(members: list) -> dict:
+def get_members_roles_count(members: list[Any]) -> dict[str, int]:
     members_by_role = {
         str(OrgRole.OWNER): 0,
         str(OrgRole.ADMIN): 0,
