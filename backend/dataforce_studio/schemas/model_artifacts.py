@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -120,7 +120,7 @@ class ModelArtifactCreate(BaseModel):
     file_name: str
     model_name: str | None = None
     description: str | None = None
-    metrics: dict
+    metrics: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -135,7 +135,7 @@ class ModelArtifactIn(BaseModel):
     file_name: ModelArtifactNamesField
     model_name: str | None = None
     description: str | None = None
-    metrics: dict
+    metrics: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -173,7 +173,7 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     file_name: str
     model_name: str | None = None
     description: str | None = None
-    metrics: dict
+    metrics: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]

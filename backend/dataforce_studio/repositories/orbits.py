@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy import case, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -149,7 +151,10 @@ class OrbitRepository(RepositoryBase, CrudMixin):
             db_member = await self.get_model(session, OrbitMembersOrm, member_id)
             return db_member.to_orbit_member() if db_member else None
 
-    async def get_orbit_member_where(self, *where_conditions) -> OrbitMembersOrm | None:
+    async def get_orbit_member_where(
+        self,
+        *where_conditions: Any,  # noqa: ANN401
+    ) -> OrbitMembersOrm | None:
         async with self._get_session() as session:
             return await self.get_model_where(
                 session, OrbitMembersOrm, *where_conditions

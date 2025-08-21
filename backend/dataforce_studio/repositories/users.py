@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import EmailStr
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
@@ -260,7 +262,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             return await self.delete_model(session, OrganizationMemberOrm, member_id)
 
-    async def delete_organization_member_where(self, *where_conditions) -> None:
+    async def delete_organization_member_where(self, *where_conditions: Any) -> None:  # noqa: ANN401
         async with self._get_session() as session:
             result = await session.execute(
                 select(OrganizationMemberOrm).where(*where_conditions)

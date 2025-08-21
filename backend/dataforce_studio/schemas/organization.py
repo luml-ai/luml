@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
@@ -40,7 +41,7 @@ class Organization(BaseModel, BaseOrmConfig):
 
 class OrganizationSwitcher(Organization):
     role: OrgRole | None = None
-    permissions: dict | None = None
+    permissions: dict[str, Any] | None = None
 
 
 class CreateOrganizationInviteIn(BaseModel):
@@ -139,4 +140,4 @@ class OrganizationDetails(Organization):
     total_orbits: int = 0
     total_members: int = 0
     members_by_role: dict[str, int] = Field(default_factory=dict)
-    permissions: dict | None = None
+    permissions: dict[str, Any] | None = None

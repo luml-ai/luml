@@ -55,7 +55,7 @@ create_user_data = {
 
 
 @pytest.fixture
-def  get_create_user() -> dict:
+def get_create_user() -> dict:
     create_user = CreateUserIn.model_validate(create_user_data)
     user = User.model_validate(user_data)
     return {"create_user": create_user, "user": user}

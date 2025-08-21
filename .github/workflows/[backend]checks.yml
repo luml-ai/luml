@@ -28,12 +28,12 @@ jobs:
       - name: Check formatting
         working-directory: backend
         run: |
-          uv run ruff format --check dataforce_studio
+          uv run ruff format --check dataforce_studio migrations tests utils
 
       - name: Linting
         working-directory: backend
         run: |
-          uv run ruff check dataforce_studio
+          uv run ruff check dataforce_studio migrations tests utils
 
       - name: Type checking
         working-directory: backend

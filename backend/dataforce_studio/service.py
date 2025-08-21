@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -53,7 +55,7 @@ class AppService(FastAPI):
                 content={"detail": exc.message},
             )
 
-    def custom_openapi(self) -> dict:
+    def custom_openapi(self) -> dict[str, Any]:
         if self.openapi_schema:
             return self.openapi_schema
         openapi_schema = get_openapi(

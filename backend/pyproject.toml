@@ -35,7 +35,7 @@ target-version = "py312"
 line-length = 88
 indent-width = 4
 
-src = ["dataforce_studio"]
+src = ["dataforce_studio", "migrations", "tests", "utils"]
 
 [tool.ruff.lint]
 # Enable all rules for maximum coverage
@@ -74,3 +74,8 @@ combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["dataforce_studio"]
 split-on-trailing-comma = true
+
+[tool.mypy]
+files = ["dataforce_studio", "utils"]
+python_version = "3.12"
+strict = true
