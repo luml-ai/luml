@@ -16,26 +16,22 @@ class BucketSecretResourceBase(ABC):
     def get(
         self, secret_value: int | str
     ) -> BucketSecret | None | Coroutine[Any, Any, BucketSecret | None]:
-        """Abstract Method to get bucket secret by ID or name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_id(
         self, secret_id: int
     ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
-        """Abstract Method to get bucket secret by ID."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_name(
         self, name: str
     ) -> BucketSecret | None | Coroutine[Any, Any, BucketSecret | None]:
-        """Abstract Method to get bucket secret by name."""
         raise NotImplementedError()
 
     @abstractmethod
     def list(self) -> list[BucketSecret] | Coroutine[Any, Any, list[BucketSecret]]:
-        """Abstract Method to list all bucket secrets in the organization."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -50,7 +46,6 @@ class BucketSecretResourceBase(ABC):
         region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
-        """Abstract Method to create new bucket secret configuration."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -66,12 +61,10 @@ class BucketSecretResourceBase(ABC):
         region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
-        """Abstract Method to update existing bucket secret configuration."""
         raise NotImplementedError()
 
     @abstractmethod
     def delete(self, secret_id: int) -> None | Coroutine[Any, Any, None]:
-        """Abstract Method to delete bucket secret by ID."""
         raise NotImplementedError()
 
 
@@ -127,14 +120,12 @@ class BucketSecretResource(BucketSecretResourceBase):
         return None
 
     def _get_by_id(self, secret_id: int) -> BucketSecret:
-        """Private Method for retrieving BucketSecret by ID."""
         response = self._client.get(
             f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 
     def _get_by_name(self, name: str) -> BucketSecret | None:
-        """Private Method for retrieving BucketSecret by name."""
         return find_by_value(self.list(), name, lambda b: b.bucket_name == name)
 
     def list(self) -> list[BucketSecret]:
@@ -401,14 +392,12 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         return None
 
     async def _get_by_id(self, secret_id: int) -> BucketSecret:
-        """Private Method for retrieving BucketSecret by ID."""
         response = await self._client.get(
             f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return BucketSecret.model_validate(response)
 
     async def _get_by_name(self, name: str) -> BucketSecret | None:
-        """Private Method for retrieving BucketSecret by name."""
         return find_by_value(await self.list(), name, lambda b: b.bucket_name == name)
 
     async def list(self) -> list[BucketSecret]:

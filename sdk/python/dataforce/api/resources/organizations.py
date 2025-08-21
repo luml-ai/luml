@@ -17,19 +17,16 @@ class OrganizationResourceBase(ABC):
     def get(
         self, organization_value: str | int | None = None
     ) -> Organization | None | Coroutine[Any, Any, Organization | None]:
-        """Abstract method for selecting Organization details"""
         raise NotImplementedError()
 
     @abstractmethod
     def list(self) -> list[Organization] | Coroutine[Any, Any, list[Organization]]:
-        """Abstract method for list all organizations available for user."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_name(
         self, name: str
     ) -> Organization | None | Coroutine[Any, Any, Organization | None]:
-        """Abstract Method for search organization by name"""
         raise NotImplementedError()
 
 
@@ -109,11 +106,9 @@ class OrganizationResource(OrganizationResourceBase):
         return [Organization.model_validate(org) for org in response]
 
     def _get_by_name(self, name: str) -> Organization | None:
-        """Private Method for search organization by name"""
         return find_by_value(self.list(), name)
 
     def _get_by_id(self, organization_id: int) -> Organization | None:
-        """Private Method for retrieving Organization by id."""
         return find_by_value(
             self.list(), organization_id, lambda c: c.id == organization_id
         )
@@ -198,27 +193,9 @@ class AsyncOrganizationResource(OrganizationResourceBase):
         return [Organization.model_validate(org) for org in response]
 
     async def _get_by_name(self, name: str) -> Organization | None:
-        """Private Method for search organization by name"""
         return find_by_value(await self.list(), name)
 
     async def _get_by_id(self, organization_id: int) -> Organization | None:
-        """Private Method for retrieving Organization by id."""
         return find_by_value(
             await self.list(), organization_id, lambda c: c.id == organization_id
         )
-
-    # async def create(self, name: str, logo: str | None = None) -> Organization:
-    #     response = await self._post(
-    #         "/organizations",
-    #         json={"name": name, "logo": logo}
-    #     )
-    #     return Organization(**response)
-    #
-    # async def update(
-    #     self, organization_id: int, name: str | None = None, logo: str | None = None
-    # ) -> Organization:
-    #     response = await self._patch(
-    #         f"/organizations/{organization_id}",
-    #         json={"id": organization_id, "name": name, "logo": logo},
-    #     )
-    #     return Organization(**response)

@@ -7,20 +7,6 @@ from .._exceptions import ConfigurationError
 
 
 def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
-    """
-    Decorator to validate and autofill collection_id parameter.
-
-    Ensures organization, orbit, and collection are configured before method execution.
-    If collection_id is None, uses default collection from client.
-
-    Raises:
-        ConfigurationError: In the following cases:
-            - Default organization is not set in client
-            - Default orbit is not set in client
-            - collection_id parameter is None AND default collection
-                is not set in client
-    """
-
     @wraps(func)
     def wrapper(
         self: Any,  # noqa: ANN401
@@ -57,16 +43,6 @@ def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
 
 
 def validate_organization(func: Callable[..., Any]) -> Callable[..., Any]:
-    """
-    Decorator to validate and autofill organization_value parameter.
-
-    Ensures default organization is configured before method execution.
-    If organization_value is None, uses default organization from client.
-
-    Raises:
-        ConfigurationError: If organization_value parameter is None and
-            default organization is not set in client.
-    """
     @wraps(func)
     def wrapper(
         self: Any,  # noqa: ANN401

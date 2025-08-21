@@ -17,43 +17,36 @@ class OrbitResourceBase(ABC):
     def get(
         self, orbit_value: int | str | None = None
     ) -> Orbit | None | Coroutine[Any, Any, Orbit | None]:
-        """Abstract Method to get orbit by ID or name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_id(self) -> Orbit | Coroutine[Any, Any, Orbit]:
-        """Abstract Method to get orbit by default ID."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_name(
         self, name: str
     ) -> Orbit | None | Coroutine[Any, Any, Orbit | None]:
-        """Abstract Method to get orbit by name."""
         raise NotImplementedError()
 
     @abstractmethod
     def list(self) -> list[Orbit] | Coroutine[Any, Any, list[Orbit]]:
-        """Abstract Method to list all orbits in the organization."""
         raise NotImplementedError()
 
     @abstractmethod
     def create(
         self, name: str, bucket_secret_id: int
     ) -> Orbit | Coroutine[Any, Any, Orbit]:
-        """Abstract Method to create new orbit."""
         raise NotImplementedError()
 
     @abstractmethod
     def update(
         self, name: str | None = None, bucket_secret_id: int | None = None
     ) -> Orbit | Coroutine[Any, Any, Orbit]:
-        """Abstract Method to update existing orbit."""
         raise NotImplementedError()
 
     @abstractmethod
     def delete(self, orbit_id: int) -> None | Coroutine[Any, Any, None]:
-        """Abstract Method to delete orbit by ID."""
         raise NotImplementedError()
 
 
@@ -108,14 +101,12 @@ class OrbitResource(OrbitResourceBase):
         return None
 
     def _get_by_id(self) -> Orbit:
-        """Private Method for retrieving Orbit by ID."""
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
         return Orbit.model_validate(response)
 
     def _get_by_name(self, name: str) -> Orbit | None:
-        """Private Method for retrieving Orbit by name."""
         return find_by_value(self.list(), name)
 
     def list(self) -> list[Orbit]:
@@ -330,14 +321,12 @@ class AsyncOrbitResource(OrbitResourceBase):
         return None
 
     async def _get_by_id(self) -> Orbit:
-        """Private Method for retrieving Orbit by ID."""
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
         )
         return Orbit.model_validate(response)
 
     async def _get_by_name(self, name: str) -> Orbit | None:
-        """Private Method for retrieving Orbit by name."""
         return find_by_value(await self.list(), name)
 
     async def list(self) -> list[Orbit]:

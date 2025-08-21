@@ -59,9 +59,6 @@ class DataForceClientBase(ABC):
         entities: list,
         exception_class: type[Exception],
     ) -> int | None:
-        """
-        Validate and resolve resource ID from value or auto-select if single option.
-        """
         if not entity_value:
             return entities[0].id if len(entities) == 1 else None
 
@@ -79,17 +76,14 @@ class DataForceClientBase(ABC):
 
     @abstractmethod
     def _validate_organization(self, org_value: int | str | None) -> Any:  # noqa: ANN401
-        """Abstract method for validation default organization"""
         raise NotImplementedError()
 
     @abstractmethod
     def _validate_orbit(self, orbit_value: int | str | None) -> Any:  # noqa: ANN401
-        """Abstract method for validation default orbit"""
         raise NotImplementedError()
 
     @abstractmethod
     def _validate_collection(self, collection_value: int | str | None) -> Any:  # noqa: ANN401
-        """Abstract method for validation default collection"""
         raise NotImplementedError()
 
     @property
@@ -229,7 +223,8 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
 
         Example:
             >>> dfs = AsyncDataForceClient(api_key="dfs_api_key")
-            ... await dfs.setup_config(1, 1215, 15)
+            >>> async def main():
+            ...     await dfs.setup_config(1, 1215, 15)
 
         """
         self._organization = await self._validate_organization(organization)
@@ -237,14 +232,12 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
         self._collection = await self._validate_collection(collection)
 
     async def _validate_organization(self, org_value: int | str | None) -> int | None:
-        """Private method for validation default organization"""
         all_organizations = await self.organizations.list()
         return self._validate_default_resource(
             org_value, all_organizations, OrganizationResourceNotFoundError
         )
 
     async def _validate_orbit(self, orbit_value: int | str | None) -> int | None:
-        """Private method for validation default orbit"""
         if not orbit_value and not self._organization:
             return None
 
@@ -263,7 +256,6 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
     async def _validate_collection(
         self, collection_value: int | str | None
     ) -> int | None:
-        """Private method for validation default collection"""
         if not collection_value and (not self._organization or not self._orbit):
             return None
 
@@ -401,14 +393,12 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         self._collection = validated_collection
 
     def _validate_organization(self, org_value: int | str | None) -> int | None:
-        """Private method for validation default organization"""
         all_organizations = self.organizations.list()
         return self._validate_default_resource(
             org_value, all_organizations, OrganizationResourceNotFoundError
         )
 
     def _validate_orbit(self, orbit_value: int | str | None) -> int | None:
-        """Private method for validation default orbit"""
         if not orbit_value and not self._organization:
             return None
 
@@ -425,7 +415,6 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         )
 
     def _validate_collection(self, collection_value: int | str | None) -> int | None:
-        """Private method for validation default collection"""
         if not collection_value and (not self._organization or not self._orbit):
             return None
         all_collections = self.collections.list()

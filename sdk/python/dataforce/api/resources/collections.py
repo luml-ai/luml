@@ -18,26 +18,22 @@ class CollectionResourceBase(ABC):
     def get(
         self, collection_value: str | int | None
     ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
-        """Abstract Method to get collection by name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_name(
         self, name: str
     ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
-        """Abstract Method to get collection by name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_id(
         self, secret_id: int
     ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
-        """Abstract Method to get collection by ID."""
         raise NotImplementedError()
 
     @abstractmethod
     def list(self) -> list[Collection] | Coroutine[Any, Any, list[Collection]]:
-        """Abstract Method to list all collections in the orbit."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -48,7 +44,6 @@ class CollectionResourceBase(ABC):
         collection_type: CollectionType,
         tags: builtins.list[str] | None = None,
     ) -> Collection | Coroutine[Any, Any, Collection]:
-        """Abstract Method to create new collection."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -60,12 +55,10 @@ class CollectionResourceBase(ABC):
         *,
         collection_id: int,
     ) -> Collection | Coroutine[Any, Any, Collection]:
-        """Abstract Method to update existing collection."""
         raise NotImplementedError()
 
     @abstractmethod
     def delete(self, collection_id: int) -> None | Coroutine[Any, Any, None]:
-        """Abstract Method to delete collection by ID."""
         raise NotImplementedError()
 
 
@@ -118,11 +111,9 @@ class CollectionResource(CollectionResourceBase):
         return None
 
     def _get_by_name(self, name: str) -> Collection | None:
-        """Private Method for retrieving Collection by name."""
         return find_by_value(self.list(), name)
 
     def _get_by_id(self, collection_id: int) -> Collection | None:
-        """Private Method for retrieving Collection by id."""
         return find_by_value(
             self.list(), collection_id, lambda c: c.id == collection_id
         )
@@ -365,11 +356,9 @@ class AsyncCollectionResource(CollectionResourceBase):
         return None
 
     async def _get_by_name(self, name: str) -> Collection | None:
-        """Private Method for retrieving Collection by name."""
         return find_by_value(await self.list(), name)
 
     async def _get_by_id(self, collection_id: int) -> Collection | None:
-        """Private Method for retrieving Collection by id."""
         return find_by_value(
             await self.list(), collection_id, lambda c: c.id == collection_id
         )

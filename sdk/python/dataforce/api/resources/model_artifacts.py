@@ -23,42 +23,36 @@ class ModelArtifactResourceBase(ABC):
     def get(
         self, model_value: str | int, *, collection_id: int | None = None
     ) -> ModelArtifact | None | Coroutine[Any, Any, ModelArtifact | None]:
-        """Abstract Method to get model artifact by ID or name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_name(
         self, collection_id: int | None, name: str
     ) -> ModelArtifact | None | Coroutine[Any, Any, ModelArtifact | None]:
-        """Abstract Method to get model artifact by name."""
         raise NotImplementedError()
 
     @abstractmethod
     def _get_by_id(
         self, collection_id: int | None, model_value: int
     ) -> ModelArtifact | None | Coroutine[Any, Any, ModelArtifact | None]:
-        """Abstract Method to get model artifact by ID."""
         raise NotImplementedError()
 
     @abstractmethod
     def list(
         self, *, collection_id: int | None = None
     ) -> list[ModelArtifact] | Coroutine[Any, Any, list[ModelArtifact]]:
-        """Abstract Method to list all model artifacts in collection."""
         raise NotImplementedError()
 
     @abstractmethod
     def download_url(
         self, model_id: int, *, collection_id: int | None = None
     ) -> dict | Coroutine[Any, Any, dict]:
-        """Abstract Method to get download URL for model artifact."""
         raise NotImplementedError()
 
     @abstractmethod
     def delete_url(
         self, model_id: int, *, collection_id: int | None = None
     ) -> dict | Coroutine[Any, Any, dict]:
-        """Abstract Method to get delete URL for model artifact."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -71,7 +65,6 @@ class ModelArtifactResourceBase(ABC):
         *,
         collection_id: int | None = None,
     ) -> ModelArtifact | Coroutine[Any, Any, ModelArtifact]:
-        """Abstract Method to upload model artifact file."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -82,7 +75,6 @@ class ModelArtifactResourceBase(ABC):
         *,
         collection_id: int | None = None,
     ) -> None | Coroutine[Any, Any, None]:
-        """Abstract Method to download model artifact file."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -102,7 +94,6 @@ class ModelArtifactResourceBase(ABC):
         dict[str, str | ModelArtifact]
         | Coroutine[Any, Any, dict[str, str | ModelArtifact]]
     ):
-        """Abstract Method to create new model artifact record."""
         raise NotImplementedError()
 
     @abstractmethod
@@ -117,14 +108,12 @@ class ModelArtifactResourceBase(ABC):
         *,
         collection_id: int | None = None,
     ) -> ModelArtifact | Coroutine[Any, Any, ModelArtifact]:
-        """Abstract Method to update existing model artifact."""
         raise NotImplementedError()
 
     @abstractmethod
     def delete(
         self, model_id: int, *, collection_id: int | None = None
     ) -> None | Coroutine[Any, Any, None]:
-        """Abstract Method to delete model artifact by ID."""
         raise NotImplementedError()
 
 
@@ -188,7 +177,6 @@ class ModelArtifactResource(ModelArtifactResourceBase):
     def _get_by_name(
         self, collection_id: int | None, name: str
     ) -> ModelArtifact | None:
-        """Private Method for retrieving ModelArtifact by name or file name."""
         return find_by_value(
             self.list(collection_id=collection_id),
             name,
@@ -198,7 +186,6 @@ class ModelArtifactResource(ModelArtifactResourceBase):
     def _get_by_id(
         self, collection_id: int | None, model_value: int
     ) -> ModelArtifact | None:
-        """Private Method for retrieving ModelArtifact by ID."""
         for model in self.list(collection_id=collection_id):
             if model.id == model_value:
                 return model
@@ -704,7 +691,6 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
     async def _get_by_name(
         self, collection_id: int | None, name: str
     ) -> ModelArtifact | None:
-        """Private Method for retrieving ModelArtifact by name or file name."""
         return find_by_value(
             await self.list(collection_id=collection_id),
             name,
@@ -714,7 +700,6 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
     async def _get_by_id(
         self, collection_id: int | None, model_value: int
     ) -> ModelArtifact | None:
-        """Private Method for retrieving ModelArtifact by ID."""
         for model in await self.list(collection_id=collection_id):
             if model.id == model_value:
                 return model
