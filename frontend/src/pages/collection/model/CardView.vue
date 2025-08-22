@@ -71,7 +71,7 @@ async function setHtmlData(model: MlModel) {
   if (!htmlArchiveName) return
   const url = await modelsStore.getDownloadUrl(model.id)
   const modelDownloader = new ModelDownloader(url)
-  const arrayBuffer: ArrayBuffer = await modelDownloader.getFileFromBucket(
+  const arrayBuffer = await modelDownloader.getFileFromBucket<ArrayBuffer>(
     model.file_index,
     htmlArchiveName,
     true,

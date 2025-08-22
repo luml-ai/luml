@@ -8,7 +8,12 @@ export class ModelDownloader {
     this.url = url
   }
 
-  async getFileFromBucket(fileIndex: FileIndex, fileName: string, buffer?: boolean, outerOffset = 0) {
+  async getFileFromBucket<T = any>(
+    fileIndex: FileIndex,
+    fileName: string,
+    buffer?: boolean,
+    outerOffset = 0,
+  ): Promise<T> {
     const range = this.getRangeHeader(fileIndex, fileName, outerOffset)
     const file = await axios.get(this.url, {
       headers: { Range: range },

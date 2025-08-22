@@ -160,6 +160,12 @@ class FnnxServiceClass {
     if (fileIndex['meta.json']) return 'meta.json'
     return null
   }
+
+  findExperimentSnapshotArchiveName(fileIndex: FileIndex) {
+    const regex =
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/exp\.db\.zip$/
+    return Object.keys(fileIndex).find((file) => regex.test(file))
+  }
 }
 
 export const FnnxService = new FnnxServiceClass()

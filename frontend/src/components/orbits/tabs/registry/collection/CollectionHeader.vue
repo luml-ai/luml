@@ -2,7 +2,6 @@
   <header class="header">
     <h3 class="title">{{ title }}</h3>
     <div class="buttons">
-      <Button disabled severity="secondary">Compare models</Button>
       <Button @click="$emit('add')">
         <Plus :size="14" />
         <span>Add model</span>

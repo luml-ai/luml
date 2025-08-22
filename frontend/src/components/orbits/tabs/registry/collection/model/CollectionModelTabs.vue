@@ -24,6 +24,7 @@ import { computed } from 'vue'
 
 type Props = {
   showModelCard: boolean
+  showExperimentSnapshot: boolean
 }
 
 const tabsListPT = {
@@ -50,7 +51,7 @@ const items = computed(() => [
     label: 'Experiment snapshot',
     routeName: 'model-snapshot',
     icon: ScanEye,
-    disabled: true,
+    disabled: !props.showExperimentSnapshot
   },
 ])
 </script>

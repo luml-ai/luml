@@ -434,8 +434,8 @@
   --p-tag-contrast-background: #ffffff;
   --p-tag-contrast-color: #0a0a0a;
   --p-tag-figma-container-background: #000000b3;
-  --p-tag-font-size: 12.25px;
-  --p-tag-font-weight: 700;
+  --p-tag-font-size: 12px;
+  --p-tag-font-weight: 400;
   --p-tag-gap: 3.5px;
   --p-tag-border-radius: 6px;
   --p-tag-rounded-border-radius: 12px;
@@ -1356,6 +1356,11 @@
   --p-avatar-icon-size: 14px;
   --p-progressbar-background: #27272a;
   --p-progressbar-value-background: #1d4ed8;
+  --p-progressbar-value-background-2: #dfa3f0;
+  --p-progressbar-value-background-3: #ff7f0e;
+  --p-progressbar-value-background-4: #2ca02c;
+  --p-progressbar-value-background-5: #ffbe49;
+  --p-progressbar-value-background-6: #17becf;
   --p-progressbar-label-color: #ffffff;
   --p-progressbar-label-font-weight: 600;
   --p-progressbar-border-radius: 6px;
@@ -1707,7 +1712,7 @@
   --p-tabs-tab-focus-ring-color: #1d4ed8;
   --p-tabs-tab-focus-ring-width: 1px;
   --p-tabs-tab-focus-ring-offset: -1px;
-  --p-tabs-tab-font-weight: 600;
+  --p-tabs-tab-font-weight: 500;
   --p-tabs-tab-gap: 7px;
   --p-tabs-tabpanel-background: #0a0a0a;
   --p-tabs-tabpanel-color: #ffffff;
@@ -2144,4 +2149,20 @@
   --p-inputotp-input-sm-width: 28px;
   --p-inputotp-input-lg-width: 42px;
   --p-inputotp-gap: 7px;
+  --p-charts-color-1: #2462d0;
+  --p-charts-color-2: #b888c6;
+  --p-charts-color-3: #ff7f0e;
+  --p-charts-color-4: #298629;
+  --p-charts-color-5: #b12526;
+  --p-charts-color-6: #7c589d;
+  --p-charts-color-7: #189eab;
+  --p-charts-color-8: #9c9d21;
+  --p-charts-color-9: #6c6c6c;
+  --p-charts-color-10: #bc65a1;
+  --p-trace-span-icon-color-1: #1d4ed8;
+  --p-trace-span-icon-color-2: #dfa3f0;
+  --p-trace-span-icon-color-3: #ff7f0e;
+  --p-trace-span-icon-color-4: #2ca02c;
+  --p-trace-span-icon-color-5: #ffbe49;
+  --p-trace-span-icon-color-6: #17becf;
 }

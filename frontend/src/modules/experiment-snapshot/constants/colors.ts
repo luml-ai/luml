@@ -1,0 +1,13 @@
+export const MODELS_COLORS = [
+  'var(--p-charts-color-1)',
+  'var(--p-charts-color-2)',
+  'var(--p-charts-color-3)',
+  'var(--p-charts-color-4)',
+  'var(--p-charts-color-5)',
+  'var(--p-charts-color-6)',
+  'var(--p-charts-color-7)',
+  'var(--p-charts-color-8)',
+  'var(--p-charts-color-9)',
+  'var(--p-charts-color-10)',
+]
+
