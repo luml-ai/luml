@@ -24,13 +24,19 @@
       </div>
       <div class="details__item">
         <div class="details__label">Description</div>
-        <div class="details__value">{{ currentModel.description }}</div>
+        <div class="details__value">{{ currentModel.description || '-' }}</div>
       </div>
       <div class="details__item">
         <div class="details__label">Tags</div>
         <div class="details__value">
           <div class="details__tags">
-            <Tag v-for="tag in currentModel.tags" :value="tag" class="tag"></Tag>
+            <Tag
+              v-if="currentModel.tags?.length"
+              v-for="tag in currentModel.tags"
+              :value="tag"
+              class="tag"
+            ></Tag>
+            <span v-else>-</span>
           </div>
         </div>
       </div>

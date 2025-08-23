@@ -30,23 +30,23 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getEvalsList() {
-    const list = this.modelsSnapshots
-      .map((snapshot) => this.getEvals(snapshot.database, snapshot.modelId))
-      .filter((modelDatasets) => Object.keys(modelDatasets).length)
-      .reduce((acc: EvalsDatasets, modelDatasets) => {
-        console.log(modelDatasets)
-        const entries = Object.entries(modelDatasets)
-        entries.map(([datasetId, list]) => {
-          const existedDataset = acc[datasetId]
-          if (existedDataset) {
-            existedDataset.push(...list)
-          } else {
-            acc[datasetId] = list
-          }
-        })
-        return acc
+    const data = this.modelsSnapshots.map((snapshot) =>
+      this.getEvals(snapshot.database, snapshot.modelId),
+    )
+    const notEmptyData = data.filter((modelDatasets) => Object.keys(modelDatasets).length)
+    if (!notEmptyData.length) return null
+    return notEmptyData.reduce((acc: EvalsDatasets, modelDatasets) => {
+      const entries = Object.entries(modelDatasets)
+      entries.map(([datasetId, list]) => {
+        const existedDataset = acc[datasetId]
+        if (existedDataset) {
+          existedDataset.push(...list)
+        } else {
+          acc[datasetId] = list
+        }
       })
-    return list
+      return acc
+    })
   }
 
   private parseValue(val: any, type: SqlValue | 'json' | 'int' | 'float' | 'bool') {
@@ -93,6 +93,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       const existedDataset = data[dsid]
       const info = {
         id,
+        dataset_id: dsid,
         inputs: safeParse(inputs) || {},
         outputs: safeParse(outputs) || {},
         refs: safeParse(refs) || {},

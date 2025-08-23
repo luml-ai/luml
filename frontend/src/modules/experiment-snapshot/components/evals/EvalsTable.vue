@@ -3,85 +3,87 @@
     :columns="allColumns"
     :selected-columns="selectedColumns"
     scrollable
-    scrollHeight="400px"
-    :virtualScrollerOptions="{ itemSize: 45.5 }"
     @edit="setSelectedColumns"
     @export="exportTable"
   ></EvalsToolbar>
-  <DataTable
-    ref="tableRef"
-    :value="data"
-    show-gridlines
-    rowGroupMode="rowspan"
-    groupRowsBy="id"
-    sortMode="single"
-    sortField="id"
-    :sortOrder="1"
-    export-filename="experiment_snapshot"
-    class="evals-table"
-  >
-    <ColumnGroup type="header">
-      <Row>
-        <template v-for="column in visibleTree">
+  <div class="table-wrapper">
+    <DataTable
+      ref="tableRef"
+      :value="data"
+      show-gridlines
+      rowGroupMode="rowspan"
+      groupRowsBy="id"
+      sortMode="single"
+      sortField="id"
+      :sortOrder="1"
+      export-filename="experiment_snapshot"
+      scrollHeight="400px"
+      :virtualScrollerOptions="{ itemSize: 45.5 }"
+      class="evals-table"
+    >
+      <ColumnGroup type="header">
+        <Row>
+          <template v-for="column in visibleTree">
+            <Column
+              v-if="isParentColumnVisible(column)"
+              :header="column.title === 'modelId' ? 'Model name' : column.title"
+              :rowspan="column.children?.length ? 1 : 2"
+              :colspan="column.children?.length ? column.children.length : 1"
+              :field="column.title"
+              :pt="{
+                headerCell: 'header-cell-parent',
+              }"
+            >
+              <template #header>
+                <component
+                  v-if="columnIcon(column.title)"
+                  :is="columnIcon(column.title)"
+                  :size="16"
+                  color="var(--p-primary-500)"
+                ></component>
+              </template>
+            </Column>
+          </template>
+        </Row>
+        <Row>
           <Column
-            v-if="isParentColumnVisible(column)"
-            :header="column.title === 'modelId' ? 'Model name' : column.title"
-            :rowspan="column.children?.length ? 1 : 2"
-            :colspan="column.children?.length ? column.children.length : 1"
-            :field="column.title"
+            v-for="children in visibleChildren"
+            :header="children"
             :pt="{
-              headerCell: 'header-cell-parent',
+              headerCell: childrenWithLeftBorder.includes(children)
+                ? 'children-with-left-border'
+                : '',
+              columnTitle: {
+                style: 'width: 88px; overflow: hidden; text-overflow: ellipsis;',
+              },
             }"
           >
-            <template #header>
-              <component
-                v-if="columnIcon(column.title)"
-                :is="columnIcon(column.title)"
-                :size="16"
-                color="var(--p-primary-500)"
-              ></component>
-            </template>
           </Column>
-        </template>
-      </Row>
-      <Row>
-        <Column
-          v-for="children in visibleChildren"
-          :header="children"
-          :pt="{
-            headerCell: childrenWithLeftBorder.includes(children)
-              ? 'children-with-left-border'
-              : '',
-            columnTitle: {
-              style: 'width: 88px; overflow: hidden; text-overflow: ellipsis;',
-            },
-          }"
-        >
+        </Row>
+      </ColumnGroup>
+      <template v-for="column in visibleColumns">
+        <Column :field="column">
+          <template #body="slotProps">
+            <div
+              v-if="column === 'modelId'"
+              v-tooltip.top="modelsInfo[slotProps.data[column]]?.name"
+              class="cell"
+              style="width: 123px"
+            >
+              <span
+                class="circle"
+                :style="{ backgroundColor: modelsInfo[slotProps.data[column]]?.color }"
+              ></span>
+              {{ modelsInfo[slotProps.data[column]]?.name }}
+            </div>
+            <div v-else v-tooltip.top="`${slotProps.data[column]}`" class="cell">
+              {{ slotProps.data[column] }}
+            </div>
+          </template>
         </Column>
-      </Row>
-    </ColumnGroup>
-    <template v-for="column in visibleColumns">
-      <Column :field="column">
-        <template #body="slotProps">
-          <div
-            v-if="column === 'modelId'"
-            v-tooltip.top="modelsInfo[slotProps.data[column]]?.name"
-            class="cell"
-            style="width: 123px"
-          >
-            <span
-              class="circle"
-              :style="{ backgroundColor: modelsInfo[slotProps.data[column]]?.color }"
-            ></span>
-            {{ modelsInfo[slotProps.data[column]]?.name }}
-          </div>
-          <div v-else v-tooltip.top="slotProps.data[column]" class="cell">
-            {{ slotProps.data[column] }}
-          </div>
-        </template>
-      </Column>
-    </template>
-  </DataTable>
+      </template>
+    </DataTable>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -205,6 +207,15 @@ function exportTable() {
   white-space: nowrap;
 }
 
+.table-wrapper {
+  overflow: hidden;
+}
+
+.evals-table {
+  margin-left: -1px;
+  margin-right: -1px;
+}
+
 .evals-table :deep(th) {
   border: none;
 }
@@ -215,6 +226,10 @@ function exportTable() {
 
 .evals-table :deep(td:first-child) {
   border-left: none;
+}
+
+.evals-table :deep(tbody td:first-child) {
+  border-left: 1px solid var(--p-datatable-body-cell-border-color);
 }
 
 :deep(.header-cell-parent:not(:first-child)) {

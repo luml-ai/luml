@@ -1,5 +1,5 @@
 <template>
-  <UiCard title="Evals">
+  <UiCard :title="data[0]?.dataset_id">
     <EvalsScoresSingle
       v-if="averageScores.length === 1"
       :scores="averageScores[0].scores"

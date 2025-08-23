@@ -17,6 +17,7 @@ export const plotlyLineChartLayout = (params: PlotlyLineChartLayoutParams) => {
       gridcolor: params.gridColor,
       gridwidth: 2,
       zeroline: false,
+      pad: 20
     },
     margin: { l: 40, r: 20, t: 2, b: 20 },
     showlegend: false,

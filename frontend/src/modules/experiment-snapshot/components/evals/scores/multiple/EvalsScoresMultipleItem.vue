@@ -51,6 +51,7 @@ function setScaledChart() {
   nextTick(() => {
     Plotly.newPlot(chartScaledRef.value, plotlyData.value, plotlyLayout.value, {
       displayModeBar: false,
+      responsive: true,
     })
   })
 }
@@ -58,6 +59,7 @@ function setScaledChart() {
 onMounted(() => {
   Plotly.newPlot(chartRef.value, plotlyData.value, plotlyLayout.value, {
     displayModeBar: false,
+    responsive: true,
   })
 })
 </script>

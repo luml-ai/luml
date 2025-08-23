@@ -1,6 +1,6 @@
 <template>
   <div class="content">
-    <template v-if="staticParams">
+    <template v-if="staticParams?.length">
       <StaticParameters
         v-if="modelsIds.length === 1"
         :parameters="staticParams[0]"

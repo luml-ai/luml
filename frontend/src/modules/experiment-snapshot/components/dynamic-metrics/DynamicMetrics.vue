@@ -48,7 +48,9 @@ const { uniqueMetrics, metricsRecord } = computed(() => {
   }
 
   return {
-    uniqueMetrics: [...keysSet],
+    uniqueMetrics: [...keysSet].sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
+    ),
     metricsRecord: record,
   }
 }).value

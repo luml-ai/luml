@@ -3,7 +3,7 @@ import type { Database } from 'sql.js'
 export interface ExperimentSnapshotProvider {
   getStaticParamsList: () => Promise<ExperimentSnapshotStaticParams[]>
   getDynamicMetricsList: () => Promise<ExperimentSnapshotDynamicMetrics[]>
-  getEvalsList: () => Promise<Record<string, EvalsInfo[]>>
+  getEvalsList: () => Promise<Record<string, EvalsInfo[]> | null>
 }
 
 export interface ExperimentSnapshotStaticParams {
@@ -27,6 +27,7 @@ export interface EvalsDatasets extends Record<string, EvalsInfo[]> {}
 
 export interface EvalsInfo {
   id: string
+  dataset_id: string
   inputs: Record<string, string | number>
   outputs: Record<string, string | number>
   refs: Record<string, string | number>

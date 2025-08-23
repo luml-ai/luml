@@ -1,6 +1,13 @@
 <template>
-  <div v-if="loading" class="loading-block">
-    <ProgressSpinner></ProgressSpinner>
+  <div v-if="loading">
+    <Skeleton style="height: 210px; margin-bottom: 20px"></Skeleton>
+    <div
+      style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px"
+    >
+      <Skeleton style="height: 300px; width: 100%"></Skeleton>
+      <Skeleton style="height: 300px; width: 100%"></Skeleton>
+    </div>
+    <Skeleton style="height: 210px; margin-bottom: 20px"></Skeleton>
   </div>
   <ExperimentSnapshot
     v-if="modelsStore.experimentSnapshotProvider && currentModel"
@@ -15,7 +22,7 @@ import { ExperimentSnapshot } from '@/modules/experiment-snapshot'
 import { computed, onMounted, ref } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useRoute } from 'vue-router'
-import { ProgressSpinner } from 'primevue'
+import { Skeleton } from 'primevue'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
 
 const modelsStore = useModelsStore()
@@ -51,11 +58,4 @@ onMounted(async () => {
 })
 </script>
 
-<style scoped>
-.loading-block {
-  min-height: 300px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-</style>
+<style scoped></style>

@@ -3,12 +3,8 @@
     <Column v-for="column in columns" :field="column" :header="column" :pt="{ bodyCell: 'cell' }">
       <template #body="slotProps">
         <div class="cell-content">
-          <span v-tooltip.top="slotProps.data[column]">
-            {{
-              typeof slotProps.data[column] === 'object' && slotProps.data[column]?.length
-                ? slotProps.data[column].join(', ')
-                : slotProps.data[column]
-            }}
+          <span v-tooltip.top="getParameterText(slotProps.data[column])">
+            {{ getParameterText(slotProps.data[column]) }}
           </span>
         </div>
       </template>
@@ -32,6 +28,12 @@ const columns = computed(() => {
     if (a === 'Parameters') return -1
     return 1
   })
+})
+
+const getParameterText = computed(() => (parameter: any) => {
+  const string =
+    typeof parameter === 'object' && parameter.length ? parameter.join(', ') : parameter
+  return string
 })
 </script>
 
