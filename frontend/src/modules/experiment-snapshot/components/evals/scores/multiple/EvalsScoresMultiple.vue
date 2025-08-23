@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelScores, ModelsInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
+import type { ModelScores, ModelsInfo } from '../../../../interfaces/interfaces'
 import { computed } from 'vue'
 import EvalsScoresMultipleItem from './EvalsScoresMultipleItem.vue'
 

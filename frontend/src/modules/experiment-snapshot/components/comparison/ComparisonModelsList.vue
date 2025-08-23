@@ -13,22 +13,18 @@
 </template>
 
 <script setup lang="ts">
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { getModelColorByIndex } from '../../helpers/helpers'
 import { computed } from 'vue'
 
 type Props = {
-  modelsIds: number[]
-  modelsList: MlModel[]
+  modelsInfo: { id: number; name: string }[]
 }
 
 const props = defineProps<Props>()
 
 const models = computed(() => {
-  return props.modelsIds.map((modelId, index) => {
-    const model = props.modelsList.find((model) => model.id === modelId)
-    const name = model?.model_name || 'Unknown model'
-    return { name, color: getModelColorByIndex(index) }
+  return props.modelsInfo.map((model, index) => {
+    return { ...model, color: getModelColorByIndex(index) }
   })
 })
 </script>

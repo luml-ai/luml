@@ -17,7 +17,7 @@
 <script setup lang="ts">
 import { Button } from 'primevue'
 import { Bolt, Download } from 'lucide-vue-next'
-import TableEditColumns from '@/components/table/TableEditColumns.vue'
+import TableEditColumns from '../table/TableEditColumns.vue'
 
 type Props = {
   columns: string[]

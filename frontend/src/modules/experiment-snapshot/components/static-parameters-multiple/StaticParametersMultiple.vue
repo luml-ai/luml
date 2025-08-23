@@ -18,8 +18,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { ExperimentSnapshotStaticParams } from '../../interfaces/interfaces'
-import { useModelsStore } from '@/stores/models'
+import type { ExperimentSnapshotStaticParams, ModelsInfo } from '../../interfaces/interfaces'
 import UiCard from '../ui/UiCard.vue'
 import UiScalable from '../ui/UiScalable.vue'
 import { Button } from 'primevue'
@@ -28,24 +27,12 @@ import StaticParametersMultipleTable from './StaticParametersMultipleTable.vue'
 
 type Props = {
   parametersList: ExperimentSnapshotStaticParams[]
-  modelsIds: number[]
+  modelsInfo: ModelsInfo
 }
 
 const props = defineProps<Props>()
 
-const modelsStore = useModelsStore()
-
 const scaled = ref(false)
-
-const modelsWithNames = computed(() =>
-  props.modelsIds.map((modelId) => {
-    const model = modelsStore.modelsList.find((model) => model.id === modelId)
-    return {
-      id: modelId,
-      name: model?.model_name || 'Unknown model',
-    }
-  }),
-)
 
 const uniqueParams = computed(() => {
   const paramsSet = props.parametersList.reduce((acc, item) => {
@@ -59,11 +46,12 @@ const uniqueParams = computed(() => {
 
 const tableData = computed(() => {
   return uniqueParams.value.map((param) => {
-    const modelsWithParams = modelsWithNames.value.map((model) => {
+    const modelsWithParams = Object.entries(props.modelsInfo).map((entries) => {
       const modelValue =
-        props.parametersList.find((staticParams) => staticParams.modelId === model.id)?.[param] ||
-        '-'
-      return [model.name, modelValue]
+        props.parametersList.find((staticParams) => staticParams.modelId === +entries[0])?.[
+          param
+        ] || '-'
+      return [entries[1].name, modelValue]
     })
     const row: Record<string, any> = Object.fromEntries(modelsWithParams)
     row['Parameters'] = param

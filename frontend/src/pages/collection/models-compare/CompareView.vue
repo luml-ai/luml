@@ -4,6 +4,7 @@
     <ComparisonModelsList
       :models-ids="modelIdsList"
       :models-list="modelsStore.modelsList"
+      :models-info="modelsInfo"
     ></ComparisonModelsList>
     <div v-if="loading" class="loading-block">
       <ProgressSpinner></ProgressSpinner>
@@ -43,6 +44,12 @@ const modelsList = computed(() =>
     .map((modelId) => modelsStore.modelsList.find((model) => model.id === modelId))
     .filter((model) => !!model),
 )
+
+const modelsInfo = computed(() => {
+  return modelsList.value.map((model) => {
+    return { id: model.id, name: model.model_name }
+  })
+})
 
 const modelsNames = computed(() => {
   return modelsList.value.reduce((acc: Record<string, string>, model) => {

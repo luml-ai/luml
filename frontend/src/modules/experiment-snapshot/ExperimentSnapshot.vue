@@ -8,7 +8,7 @@
       <StaticParametersMultiple
         v-else
         :parameters-list="staticParams"
-        :models-ids="modelsIds"
+        :models-info="modelsInfo"
       ></StaticParametersMultiple>
     </template>
     <DynamicMetrics
@@ -35,7 +35,7 @@ import StaticParameters from './components/static-parameters/StaticParameters.vu
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
 import EvalsCard from './components/evals/EvalsCard.vue'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from './lib/primevue/data/toasts'
 import StaticParametersMultiple from './components/static-parameters-multiple/StaticParametersMultiple.vue'
 import { getModelColorByIndex } from './helpers/helpers'
 

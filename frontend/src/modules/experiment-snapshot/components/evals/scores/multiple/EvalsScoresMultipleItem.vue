@@ -10,9 +10,9 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import Plotly from 'plotly.js-dist'
-import { useVariableValue } from '@/modules/experiment-snapshot/hooks/useVariableValue'
+import { useVariableValue } from '../../../../hooks/useVariableValue'
+import { plotlyBarChartLayout } from '../../../../lib/plotly/layouts'
 import EvalsScoresMultipleItemContent from './EvalsScoresMultipleItemContent.vue'
-import { plotlyBarChartLayout } from '@/modules/experiment-snapshot/lib/plotly/layouts'
 
 type Props = {
   data: { modelName: string; color: string; value: number | undefined; scoreName: string }[]
