@@ -1,4 +1,6 @@
 from collections.abc import Callable, Generator
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 
 import httpx
 
@@ -71,7 +73,7 @@ class FileHandler:
                 update_progress(len(chunk))
                 yield chunk
 
-    def upload_file_with_progress(
+    def upload_simple_file_with_progress(
         self,
         url: str,
         file_path: str,
@@ -124,3 +126,109 @@ class FileHandler:
         except Exception as error:
             self.finish_progress()
             raise FileDownloadError(f" Error: {error}") from error
+
+    def _complete_multipart_upload(
+        self, url: str, parts_complete: list[dict[str, int | str]]
+    ) -> httpx.Response:
+        parts_complete.sort(key=lambda x: x["part_number"])
+        parts_xml = ""
+        for part in parts_complete:
+            parts_xml += f"<Part><PartNumber>{part['part_number']}</PartNumber><ETag>{part['etag']}</ETag></Part>"  # noqa: E501
+        complete_xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <CompleteMultipartUpload>
+        {parts_xml}
+        </CompleteMultipartUpload>"""
+        with httpx.Client(timeout=300) as client:
+            response = client.post(
+                url=url,
+                content=complete_xml,
+                headers={"Content-Type": "application/xml"},
+            )
+
+            response.raise_for_status()
+            result = response
+
+        self.finish_progress()
+
+        return result
+
+    def _upload_single_part(
+        self,
+        part: dict,
+        file_path: str,
+        progress_lock: Lock,
+        update_progress: Callable[[int], None],
+    ) -> dict[str, int | str]:
+        part_size = part["end_byte"] - part["start_byte"] + 1
+
+        with open(file_path, "rb") as f:
+            f.seek(part["start_byte"])
+            part_data = f.read(part_size)
+            actual_size = len(part_data)
+
+        with httpx.Client(timeout=300) as client:
+            response = client.put(
+                part["url"],
+                content=part_data,
+                headers={"Content-Length": str(actual_size)},
+            )
+            response.raise_for_status()
+            etag = response.headers.get("ETag", "").strip('"')
+
+        with progress_lock:
+            update_progress(actual_size)
+
+        return {"part_number": part["part_number"], "etag": etag}
+
+    def upload_file_with_backend_multipart(
+        self,
+        file_size: int,
+        multipart_data: dict,
+        file_path: str,
+        description: str = "",
+        max_workers: int = 5,
+    ) -> httpx.Response:
+        try:
+            update_progress = self.create_progress_bar(file_size, description)
+            parts = multipart_data["parts"]
+            parts_complete = []
+            progress_lock = Lock()
+
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_to_part = {
+                    executor.submit(
+                        self._upload_single_part,
+                        part,
+                        file_path,
+                        progress_lock,
+                        update_progress,
+                    ): part
+                    for part in parts
+                }
+
+                for future in as_completed(future_to_part):
+                    part_result = future.result()
+                    parts_complete.append(part_result)
+            return self._complete_multipart_upload(
+                multipart_data["complete_url"], parts_complete
+            )
+
+        except Exception as error:
+            raise FileUploadError(f"Multipart upload failed: {error}") from error
+
+    def upload_file_with_progress(
+        self,
+        urls: str | dict,
+        file_size: int,
+        file_path: str,
+        object_name: str = "",
+    ) -> httpx.Response:
+        if isinstance(urls, dict) and "parts" in urls:
+            return self.upload_file_with_backend_multipart(
+                file_size, urls, file_path, f'Uploading model "{object_name}"...'
+            )
+        if isinstance(urls, str):
+            return self.upload_simple_file_with_progress(
+                urls, file_path, file_size, f'Uploading model "{object_name}"...'
+            )
+        raise FileUploadError("Invalid URLs format")

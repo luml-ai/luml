@@ -311,8 +311,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         """Upload model artifact file to the collection.
 
         Uploads a model file (.fnnx, .pyfnx, or .dfs format) to the collection storage.
-        Maximum file size is 5GB. If collection_id is None,
-            uses the default collection from client.
+        If collection_id is None, uses the default collection from client.
 
         Args:
             file_path: Path to the local model file to upload.
@@ -346,21 +345,36 @@ class ModelArtifactResource(ModelArtifactResourceBase):
 
         Response object:
             >>> ModelArtifact(
-            ...     id=123,
-            ...     model_name="Production Model",
-            ...     file_name="model.fnnx",
-            ...     description="Trained on latest dataset",
-            ...     collection_id=456,
+            ...     id=103,
+            ...     collection_id=15,
+            ...     file_name="output.dfs",
+            ...     model_name="500mb",
+            ...     description=None,
+            ...     metrics={
+            ...         'F1': 0.9598319029897976,
+            ...         'ACC': 0.9600000000000002,
+            ...         'BACC': 0.96,
+            ...         'B_F1': 0.9598319029897976,
+            ...         'SCORE': 0.96
+            ...     },
+            ...     manifest={
+            ...         'variant': 'pipeline',
+            ...         'name': None,
+            ...         'version': None,
+            ...         'description': '',
+            ...         'producer_name': 'falcon.beastbyte.ai',
+            ...         'producer_version': '0.8.0'
+            ...     },
+            ...     file_hash='b128c34757114835c4bf690a87e7cbe',
+            ...     size=524062720,
+            ...     unique_identifier='b31fa3cb54aa453d9ca625aa24617e7a',
             ...     status=ModelArtifactStatus.UPLOADED,
-            ...     tags=["ml", "production"],
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at='2025-01-15T10:35:00.123456Z'
+            ...     tags=None,
+            ...     created_at='2025-08-25T09:15:15.524206Z',
+            ...     updated_at='2025-08-25T09:16:05.816506Z'
             ... )
         """
         model_details = ModelFileHandler(file_path).model_details()
-
-        if model_details.size > 5368709120:
-            raise FileError("Maximum allowed model size - 5GB")
 
         file_format = model_details.file_name.split(".")[1]
         if file_format not in ["fnnx", "pyfnx", "dfs"]:
@@ -380,10 +394,10 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         )
         try:
             response = file_handler.upload_file_with_progress(
-                url=created_model["url"],
-                file_path=file_path,
+                urls=created_model["url"],
                 file_size=model_details.size,
-                description=f'"Uploading model "{model_name}"..."',
+                file_path=file_path,
+                object_name=model_details.file_name,
             )
             status = (
                 ModelArtifactStatus.UPLOADED
@@ -392,14 +406,16 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             )
         except FileUploadError as error:
             self.update(
-                created_model["model"].id,
+                model_id=created_model["model"].id,
                 status=ModelArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
             raise error
 
         return self.update(
-            created_model["model"].id, status=status, collection_id=collection_id
+            model_id=created_model["model"].id,
+            status=status,
+            collection_id=collection_id,
         )
 
     @validate_collection
@@ -976,7 +992,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             collection_id=collection_id,
         )
         try:
-            response = file_handler.upload_file_with_progress(
+            response = file_handler.upload_simple_file_with_progress(
                 url=created_model["url"],
                 file_path=file_path,
                 file_size=model_details.size,
