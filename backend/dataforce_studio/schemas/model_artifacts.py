@@ -186,6 +186,26 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
 
 
+class MultipartUploadInfo(BaseModel):
+    upload_id: str
+    parts_count: int
+    part_size: int
+
+
+class MultiPartUploadPartDetails(BaseModel):
+    part_number: int
+    url: str
+    start_byte: int
+    end_byte: int
+    part_size: int
+
+
+class MultiPartUploadDetails(BaseModel):
+    upload_id: str
+    parts: list[MultiPartUploadPartDetails]
+    complete_url: str
+
+
 class CreateModelArtifactResponse(BaseModel):
     model: ModelArtifact
-    url: str
+    url: str | MultiPartUploadDetails

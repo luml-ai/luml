@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import uuid4
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
@@ -73,7 +74,7 @@ class ModelArtifactHandler:
         orbit_id: int,
         collection_id: int,
         model_artifact: ModelArtifactIn,
-    ) -> tuple[ModelArtifact, str]:
+    ) -> tuple[ModelArtifact, dict[str, str | Any]] | tuple[ModelArtifact, str]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -108,6 +109,25 @@ class ModelArtifactHandler:
         )
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        if s3_service.should_use_multipart(model_artifact.size):
+            multipart_info = s3_service.initiate_multipart_upload(
+                object_name, model_artifact.size
+            )
+            urls = await s3_service.get_multipart_upload_urls(
+                object_name, multipart_info.upload_id, multipart_info.parts_count
+            )
+            upload_data = {
+                "upload_id": multipart_info.upload_id,
+                "parts": s3_service.parts_upload_details(
+                    urls, model_artifact.size, multipart_info.part_size
+                ),
+                "complete_url": await s3_service.get_complete_url(
+                    object_name, multipart_info.upload_id
+                ),
+            }
+
+            return created_model_artifact, upload_data
+
         url = await s3_service.get_upload_url(bucket_location)
         return created_model_artifact, url
 
