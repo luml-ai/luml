@@ -111,10 +111,10 @@ class ModelArtifactHandler:
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
         if s3_service.should_use_multipart(model_artifact.size):
             multipart_info = s3_service.initiate_multipart_upload(
-                object_name, model_artifact.size
+                bucket_location, model_artifact.size
             )
             urls = await s3_service.get_multipart_upload_urls(
-                object_name, multipart_info.upload_id, multipart_info.parts_count
+                bucket_location, multipart_info.upload_id, multipart_info.parts_count
             )
             upload_data = {
                 "upload_id": multipart_info.upload_id,
@@ -122,7 +122,7 @@ class ModelArtifactHandler:
                     urls, model_artifact.size, multipart_info.part_size
                 ),
                 "complete_url": await s3_service.get_complete_url(
-                    object_name, multipart_info.upload_id
+                    bucket_location, multipart_info.upload_id
                 ),
             }
 
