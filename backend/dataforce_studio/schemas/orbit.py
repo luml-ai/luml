@@ -33,7 +33,7 @@ class OrbitDetails(Orbit):
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
     id: int | None = None
-    name: str
+    name: str | None = None
     bucket_secret_id: int | None = None
 
 

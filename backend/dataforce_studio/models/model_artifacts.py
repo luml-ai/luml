@@ -1,6 +1,6 @@
 from typing import Any
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import BigInteger, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,7 +25,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
         JSONB, nullable=False
     )
     bucket_location: Mapped[str] = mapped_column(String, nullable=False)
-    size: Mapped[int] = mapped_column(Integer, nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     unique_identifier: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
     status: Mapped[str] = mapped_column(
