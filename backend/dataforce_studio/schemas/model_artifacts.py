@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 
@@ -130,6 +130,13 @@ class ModelArtifactCreate(BaseModel):
     tags: list[str] | None = None
     status: ModelArtifactStatus = ModelArtifactStatus.PENDING_UPLOAD
 
+    @field_validator("size")
+    @classmethod
+    def validate_model_size(cls, value: int) -> int:
+        if value > 5497558138880:
+            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        return value
+
 
 class ModelArtifactIn(BaseModel):
     file_name: ModelArtifactNamesField
@@ -141,6 +148,13 @@ class ModelArtifactIn(BaseModel):
     file_index: dict[str, tuple[int, int]]
     size: int
     tags: list[str] | None = None
+
+    @field_validator("size")
+    @classmethod
+    def validate_model_size(cls, value: int) -> int:
+        if value > 5497558138880:
+            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        return value
 
 
 class ModelArtifactUpdate(BaseModel):
@@ -184,6 +198,13 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     status: ModelArtifactStatus
     created_at: datetime
     updated_at: datetime | None = None
+
+    @field_validator("size")
+    @classmethod
+    def validate_model_size(cls, value: int) -> int:
+        if value > 5497558138880:
+            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        return value
 
 
 class MultipartUploadInfo(BaseModel):

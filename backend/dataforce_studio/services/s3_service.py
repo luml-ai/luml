@@ -1,6 +1,5 @@
 import math
 from datetime import timedelta
-from typing import Any
 
 from minio import Minio
 
@@ -13,6 +12,7 @@ class S3Service:
     def __init__(self, secret: BucketSecret | BucketSecretCreateIn) -> None:
         self._bucket_name = secret.bucket_name
         self._client = self._create_minio_client(secret)
+        self._url_expire = 12  # hours
 
     def _create_minio_client(
         self, secret: BucketSecret | BucketSecretCreateIn
@@ -35,7 +35,9 @@ class S3Service:
             return 67108864  # 64 mb
         if file_size <= 10737418240:  # 10gb
             return 134217728  # 128 mb
-        return 268435456  # 256mb
+        if file_size <= 107374182400:  # 100gb
+            return 536870912  # 512 mb
+        return 1073741824  # 1gb
 
     def _calculate_multipart_params(self, file_size: int) -> tuple[int, int]:
         part_size = self._calculate_optimal_chunk_size(file_size)
@@ -52,7 +54,7 @@ class S3Service:
             return self._client.presigned_put_object(
                 bucket_name=self._bucket_name,
                 object_name=object_name,
-                expires=timedelta(hours=1),
+                expires=timedelta(hours=self._url_expire),
             )
         except Exception as e:
             raise BucketConnectionError(
@@ -88,7 +90,7 @@ class S3Service:
                     "PUT",
                     bucket_name=self._bucket_name,
                     object_name=object_name,
-                    expires=timedelta(hours=1),
+                    expires=timedelta(hours=self._url_expire),
                     extra_query_params={
                         "partNumber": str(part_number),
                         "uploadId": upload_id,
@@ -105,18 +107,19 @@ class S3Service:
     @staticmethod
     def parts_upload_details(
         urls: list[str], size: int, part_size: int
-    ) -> list[dict[str, Any]]:  # noqa: ANN401
-        parts = []
-        start_byte = 0
+    ) -> list[dict[str, int | str]]:  # noqa: ANN401
+        parts: list[dict[str, int | str]] = []
+        start_byte: int = 0
         for part_number in range(len(urls)):
-            current_part_size = min(part_size, size - part_number * part_size)
+            current_part_size: int = min(part_size, size - part_number * part_size)
+            end_byte: int = start_byte + current_part_size
 
             parts.append(
                 {
                     "part_number": part_number + 1,
                     "url": urls[part_number],
                     "start_byte": start_byte,
-                    "end_byte": start_byte + current_part_size,
+                    "end_byte": end_byte,
                     "part_size": current_part_size,
                 }
             )
@@ -129,7 +132,7 @@ class S3Service:
             "POST",
             self._bucket_name,
             object_name,
-            expires=timedelta(hours=1),
+            expires=timedelta(hours=self._url_expire),
             extra_query_params={"uploadId": upload_id},
         )
 
@@ -138,7 +141,7 @@ class S3Service:
             return self._client.presigned_get_object(
                 bucket_name=self._bucket_name,
                 object_name=object_name,
-                expires=timedelta(hours=1),
+                expires=timedelta(hours=self._url_expire),
             )
         except Exception as e:
             raise BucketConnectionError(
@@ -151,7 +154,7 @@ class S3Service:
                 "DELETE",
                 bucket_name=self._bucket_name,
                 object_name=object_name,
-                expires=timedelta(hours=1),
+                expires=timedelta(hours=self._url_expire),
             )
         except Exception as e:
             raise BucketConnectionError(
