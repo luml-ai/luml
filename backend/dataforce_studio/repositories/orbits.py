@@ -96,6 +96,11 @@ class OrbitRepository(RepositoryBase, CrudMixin):
 
             return db_orbit.to_orbit() if db_orbit else None
 
+    async def get_orbit_by_id(self, orbit_id: int) -> Orbit | None:
+        async with self._get_session() as session:
+            db_orbit = await self.get_model(session, OrbitOrm, orbit_id)
+            return db_orbit.to_orbit() if db_orbit else None
+
     async def create_orbit(
         self, organization_id: int, orbit: OrbitCreateIn
     ) -> OrbitDetails | None:

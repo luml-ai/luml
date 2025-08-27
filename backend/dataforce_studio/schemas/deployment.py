@@ -54,3 +54,11 @@ class DeploymentUpdate(BaseModel, BaseOrmConfig):
 class DeploymentUpdateIn(BaseModel):
     inference_url: str
     tags: list[str] | None = None
+
+
+class InferenceAccessIn(BaseModel):
+    api_key: str
+
+
+class InferenceAccessOut(BaseModel):
+    authorized: bool

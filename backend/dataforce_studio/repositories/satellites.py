@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 
@@ -16,7 +17,7 @@ from dataforce_studio.schemas.satellite import (
 
 class SatelliteRepository(RepositoryBase, CrudMixin):
     async def create_satellite(
-        self, satellite: SatelliteCreate, payload: dict | None = None
+        self, satellite: SatelliteCreate, payload: dict[str, Any] | None = None
     ) -> tuple[Satellite, SatelliteQueueTask]:
         async with self._get_session() as session:
             db_sat = SatelliteOrm(**satellite.model_dump())
@@ -100,7 +101,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
         satellite_id: int,
         task_id: int,
         status: SatelliteTaskStatus,
-        result_payload: dict | None = None,
+        result_payload: dict[str, Any] | None = None,
     ) -> SatelliteQueueTask | None:
         async with self._get_session() as session:
             res = await session.execute(

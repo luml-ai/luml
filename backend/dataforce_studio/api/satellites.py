@@ -5,7 +5,12 @@ from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
 from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.deployment import Deployment, DeploymentUpdateIn
+from dataforce_studio.schemas.deployment import (
+    Deployment,
+    DeploymentUpdateIn,
+    InferenceAccessIn,
+    InferenceAccessOut,
+)
 from dataforce_studio.schemas.orbit_secret import OrbitSecret
 from dataforce_studio.schemas.satellite import (
     Satellite,
@@ -109,3 +114,18 @@ async def update_deployment(
         deployment_id,
         data.inference_url,
     )
+
+
+@satellite_worker_router.post(
+    "/deployments/inference-access",
+    responses=endpoint_responses,
+    response_model=InferenceAccessOut,
+)
+async def authorize_inference_access(
+    request: Request, data: InferenceAccessIn
+) -> InferenceAccessOut:
+    await satellite_handler.touch_last_seen(request.user.id)
+    authorized = await deployment_handler.verify_user_inference_access(
+        request.user.orbit_id, data.api_key
+    )
+    return InferenceAccessOut(authorized=authorized)

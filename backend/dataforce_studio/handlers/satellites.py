@@ -149,7 +149,7 @@ class SatelliteHandler:
         satellite_id: int,
         task_id: int,
         status: SatelliteTaskStatus,
-        result: dict | None = None,
+        result: dict[str, Any] | None = None,
     ) -> SatelliteQueueTask:
         task = await self.__sat_repo.update_task_status(
             satellite_id, task_id, status, result

@@ -36,9 +36,9 @@ class AuthSatellite(BaseUser):
         self.orbit_id = orbit_id
 
     @property
-    def is_authenticated(self) -> bool:  # type: ignore[override]
+    def is_authenticated(self) -> bool:
         return True
 
     @property
-    def display_name(self) -> str:  # type: ignore[override]
+    def display_name(self) -> str:
         return f"satellite-{self.id}"

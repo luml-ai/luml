@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, HttpUrl
 
@@ -53,12 +54,12 @@ class SatelliteQueueTask(BaseModel, BaseOrmConfig):
     satellite_id: int
     orbit_id: int
     type: SatelliteTaskType
-    payload: dict
+    payload: dict[str, Any]
     status: SatelliteTaskStatus
     scheduled_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
-    result: dict | None = None
+    result: dict[str, Any] | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -71,4 +72,4 @@ class SatelliteCreateOut(BaseModel, BaseOrmConfig):
 
 class SatelliteTaskUpdateIn(BaseModel):
     status: SatelliteTaskStatus
-    result: dict | None = None
+    result: dict[str, Any] | None = None

@@ -1,6 +1,12 @@
+from dataforce_studio.handlers.api_keys import APIKeyHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.infra.exceptions import (
+    BucketSecretNotFoundError,
+    InsufficientPermissionsError,
+    NotFoundError,
+)
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.deployments import DeploymentRepository
@@ -27,6 +33,7 @@ class DeploymentHandler:
     __secret_repo = BucketSecretRepository(engine)
     __user_repo = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
+    __api_key_handler = APIKeyHandler()
 
     async def create_deployment(
         self,
@@ -121,3 +128,22 @@ class DeploymentHandler:
         if not deployment:
             raise NotFoundError("Deployment not found")
         return deployment
+
+    async def verify_user_inference_access(self, orbit_id: int, api_key: str) -> bool:
+        user = await self.__api_key_handler.authenticate_api_key(api_key)
+        if not user:
+            return False
+        orbit = await self.__orbit_repo.get_orbit_by_id(orbit_id)
+        if not orbit:
+            return False
+        try:
+            await self.__permissions_handler.check_orbit_action_access(
+                orbit.organization_id,
+                orbit.id,
+                user.id,
+                Resource.DEPLOYMENT,
+                Action.READ,
+            )
+        except (NotFoundError, InsufficientPermissionsError):
+            return False
+        return True
