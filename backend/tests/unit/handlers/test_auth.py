@@ -1,4 +1,3 @@
-import random
 from time import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -36,7 +35,7 @@ passwords = {
 }
 
 user_data = {
-    "id": random.randint(1, 10000),
+    "id": 1,
     "email": "testuser@example.com",
     "full_name": "Test User",
     "disabled": False,
@@ -135,10 +134,16 @@ async def test_authenticate_user_user_not_found(mock_get_user: AsyncMock) -> Non
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_invalid_auth_method(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["auth_method"] = AuthProvider.GOOGLE
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=user_data["id"],
+        email=user_data["email"],
+        full_name=user_data["full_name"],
+        disabled=user_data["disabled"],
+        email_verified=user_data["email_verified"],
+        auth_method=AuthProvider.GOOGLE,
+        photo=user_data["photo"],
+        hashed_password=user_data["hashed_password"],
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Invalid auth method") as error:
@@ -151,10 +156,16 @@ async def test_authenticate_user_invalid_auth_method(mock_get_user: AsyncMock) -
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_password_is_invalid(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["hashed_password"] = None
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=user_data["id"],
+        email=user_data["email"],
+        full_name=user_data["full_name"],
+        disabled=user_data["disabled"],
+        email_verified=user_data["email_verified"],
+        auth_method=user_data["auth_method"],
+        photo=user_data["photo"],
+        hashed_password=None,
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Password is invalid") as error:
@@ -185,10 +196,16 @@ async def test_authenticate_user_password_not_verified(
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_email_not_verified(mock_get_user: AsyncMock) -> None:
-    new_test_user = user_data.copy()
-    new_test_user["email_verified"] = False
-
-    expected = User.model_validate(new_test_user)
+    expected = User(
+        id=user_data["id"],
+        email=user_data["email"],
+        full_name=user_data["full_name"],
+        disabled=user_data["disabled"],
+        email_verified=False,
+        auth_method=user_data["auth_method"],
+        photo=user_data["photo"],
+        hashed_password=user_data["hashed_password"],
+    )
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Email not verified") as error:
@@ -560,9 +577,13 @@ async def test_handle_get_current_user_not_found(
 async def test_handle_get_current_account_is_disabled(
     mock_get_public_user: AsyncMock,
 ) -> None:
-    disabled_user_data = user_data.copy()
-    disabled_user_data["disabled"] = True
-    user = UserOut.model_validate(disabled_user_data)
+    user = UserOut(
+        id=user_data["id"],
+        email=user_data["email"],
+        full_name=user_data["full_name"],
+        disabled=True,
+        photo=user_data["photo"],
+    )
 
     mock_get_public_user.return_value = user
 

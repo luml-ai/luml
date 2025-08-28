@@ -139,7 +139,7 @@ class ModelArtifactHandler:
         )
 
         model_artifact_obj = await self.__repository.get_model_artifact(
-            model_artifact_id, collection_id
+            model_artifact_id
         )
 
         if not model_artifact_obj:
@@ -189,9 +189,7 @@ class ModelArtifactHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(
-            model_artifact_id, collection_id
-        )
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:
             raise ModelArtifactNotFoundError()
 
@@ -216,9 +214,7 @@ class ModelArtifactHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(
-            model_artifact_id, collection_id
-        )
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:
             raise ModelArtifactNotFoundError()
 
@@ -253,9 +249,7 @@ class ModelArtifactHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(
-            model_artifact_id, collection_id
-        )
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:
             raise ModelArtifactNotFoundError()
         if model_artifact.status != ModelArtifactStatus.PENDING_DELETION:
@@ -301,9 +295,7 @@ class ModelArtifactHandler:
         orbit, _ = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(
-            model_artifact_id, collection_id
-        )
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:
             raise ModelArtifactNotFoundError()
 

@@ -21,8 +21,8 @@ class SatelliteOrm(TimestampMixin, Base):
     __tablename__ = "satellites"
     __table_args__ = (
         CheckConstraint(
-            "(paired = false AND cardinality(capabilities) = 0) OR "
-            "(paired = true AND cardinality(capabilities) >= 1)",
+            "(paired = false AND capabilities = '{}'::jsonb) OR "
+            "(paired = true AND capabilities != '{}'::jsonb)",
             name="satellite_pairing_capabilities_check",
         ),
     )

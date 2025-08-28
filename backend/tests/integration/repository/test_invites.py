@@ -6,6 +6,7 @@ from dataforce_studio.models import OrganizationOrm
 from dataforce_studio.repositories.invites import InviteRepository
 from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
 from dataforce_studio.schemas.user import User
+from tests.conftest import FixtureData
 
 
 def get_invite_obj(
@@ -20,9 +21,11 @@ def get_invite_obj(
 
 
 @pytest.mark.asyncio
-async def test_create_organization_invite(create_organization_with_user: dict) -> None:
+async def test_create_organization_invite(
+    create_organization_with_user: FixtureData,
+) -> None:
     data = create_organization_with_user
-    engine, user, organization = data["engine"], data["user"], data["organization"]
+    engine, user, organization = data.engine, data.user, data.organization
     repo = InviteRepository(engine)
 
     invite = get_invite_obj(organization, user)
@@ -34,9 +37,11 @@ async def test_create_organization_invite(create_organization_with_user: dict) -
 
 
 @pytest.mark.asyncio
-async def test_delete_organization_invite(create_organization_with_user: dict) -> None:
+async def test_delete_organization_invite(
+    create_organization_with_user: FixtureData,
+) -> None:
     data = create_organization_with_user
-    engine, user, organization = data["engine"], data["user"], data["organization"]
+    engine, user, organization = data.engine, data.user, data.organization
     repo = InviteRepository(engine)
 
     invite = get_invite_obj(organization, user)
@@ -49,9 +54,9 @@ async def test_delete_organization_invite(create_organization_with_user: dict) -
 
 
 @pytest.mark.asyncio
-async def test_get_invite(create_organization_with_user: dict) -> None:
+async def test_get_invite(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
-    engine, user, organization = data["engine"], data["user"], data["organization"]
+    engine, user, organization = data.engine, data.user, data.organization
     repo = InviteRepository(engine)
 
     created_invite = await repo.create_organization_invite(
@@ -66,9 +71,9 @@ async def test_get_invite(create_organization_with_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_invite_where(create_organization_with_user: dict) -> None:
+async def test_get_invite_where(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
-    engine, user, organization = data["engine"], data["user"], data["organization"]
+    engine, user, organization = data.engine, data.user, data.organization
     repo = InviteRepository(engine)
 
     for _ in range(4):
@@ -82,9 +87,9 @@ async def test_get_invite_where(create_organization_with_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_invite_where(create_organization_with_user: dict) -> None:
+async def test_delete_invite_where(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
-    engine, user, organization = data["engine"], data["user"], data["organization"]
+    engine, user, organization = data.engine, data.user, data.organization
     repo = InviteRepository(engine)
 
     for _ in range(4):

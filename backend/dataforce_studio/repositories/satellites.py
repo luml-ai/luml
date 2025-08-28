@@ -132,5 +132,5 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             )
             sat = result.scalar_one_or_none()
             if sat:
-                sat.last_seen_at = datetime.utcnow()
+                sat.last_seen_at = datetime.now(UTC)
                 await session.commit()

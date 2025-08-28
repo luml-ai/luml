@@ -13,15 +13,16 @@ from dataforce_studio.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
+from tests.conftest import FixtureData
 
 
 @pytest.mark.asyncio
-async def test_create_orbit(create_organization_with_user: dict) -> None:
+async def test_create_orbit(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
     engine, organization, secret = (
-        data["engine"],
-        data["organization"],
-        data["bucket_secret"],
+        data.engine,
+        data.organization,
+        data.bucket_secret,
     )
     repo = OrbitRepository(engine)
 
@@ -34,12 +35,12 @@ async def test_create_orbit(create_organization_with_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_orbit(create_organization_with_user: dict) -> None:
+async def test_update_orbit(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
     engine, organization, secret = (
-        data["engine"],
-        data["organization"],
-        data["bucket_secret"],
+        data.engine,
+        data.organization,
+        data.bucket_secret,
     )
     repo = OrbitRepository(engine)
 
@@ -57,12 +58,12 @@ async def test_update_orbit(create_organization_with_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_attach_bucket_secret(create_organization_with_user: dict) -> None:
+async def test_attach_bucket_secret(create_organization_with_user: FixtureData) -> None:
     data = create_organization_with_user
     engine, organization, secret = (
-        data["engine"],
-        data["organization"],
-        data["bucket_secret"],
+        data.engine,
+        data.organization,
+        data.bucket_secret,
     )
     repo = OrbitRepository(engine)
     secret_repo = BucketSecretRepository(engine)
@@ -84,9 +85,10 @@ async def test_attach_bucket_secret(create_organization_with_user: dict) -> None
 
 
 @pytest.mark.asyncio
-async def test_delete_orbit(create_orbit: dict) -> None:
+async def test_delete_orbit(create_orbit: FixtureData) -> None:
     data = create_orbit
-    repo, orbit = data["repo"], data["orbit"]
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
 
     deleted_orbit = await repo.delete_orbit(orbit.id)
     fetched_orbit = await repo.get_orbit_simple(orbit.id, orbit.organization_id)
@@ -96,9 +98,10 @@ async def test_delete_orbit(create_orbit: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_orbit(create_orbit: dict) -> None:
+async def test_get_orbit(create_orbit: FixtureData) -> None:
     data = create_orbit
-    repo, orbit = data["repo"], data["orbit"]
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
 
     fetched_orbit = await repo.get_orbit(orbit.id, orbit.organization_id)
 
@@ -110,12 +113,14 @@ async def test_get_orbit(create_orbit: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_organization_orbits(create_organization_with_user: dict) -> None:
+async def test_get_organization_orbits(
+    create_organization_with_user: FixtureData,
+) -> None:
     data = create_organization_with_user
     engine, organization, secret = (
-        data["engine"],
-        data["organization"],
-        data["bucket_secret"],
+        data.engine,
+        data.organization,
+        data.bucket_secret,
     )
     repo = OrbitRepository(engine)
 
@@ -134,9 +139,10 @@ async def test_get_organization_orbits(create_organization_with_user: dict) -> N
 
 
 @pytest.mark.asyncio
-async def test_get_orbit_members(create_orbit_with_members: dict) -> None:
+async def test_get_orbit_members(create_orbit_with_members: FixtureData) -> None:
     data = create_orbit_with_members
-    repo, orbit, members = data["repo"], data["orbit"], data["members"]
+    repo = OrbitRepository(data.engine)
+    orbit, members = data.orbit, data.members
 
     orbit_members = await repo.get_orbit_members(orbit.id)
 
@@ -148,12 +154,12 @@ async def test_get_orbit_members(create_orbit_with_members: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_orbit_member(create_orbit: dict) -> None:
+async def test_create_orbit_member(create_orbit: FixtureData) -> None:
     data = create_orbit
-    repo, orbit, user = (
-        data["repo"],
-        data["orbit"],
-        data["user"],
+    repo = OrbitRepository(data.engine)
+    orbit, user = (
+        data.orbit,
+        data.user,
     )
 
     member = OrbitMemberCreate(
@@ -166,12 +172,12 @@ async def test_create_orbit_member(create_orbit: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_update_orbit_member(create_orbit: dict) -> None:
+async def test_update_orbit_member(create_orbit: FixtureData) -> None:
     data = create_orbit
-    repo, orbit, user = (
-        data["repo"],
-        data["orbit"],
-        data["user"],
+    repo = OrbitRepository(data.engine)
+    orbit, user = (
+        data.orbit,
+        data.user,
     )
 
     member = OrbitMemberCreate(
@@ -189,12 +195,12 @@ async def test_update_orbit_member(create_orbit: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_orbit_member(create_orbit: dict) -> None:
+async def test_delete_orbit_member(create_orbit: FixtureData) -> None:
     data = create_orbit
-    repo, orbit, user = (
-        data["repo"],
-        data["orbit"],
-        data["user"],
+    repo = OrbitRepository(data.engine)
+    orbit, user = (
+        data.orbit,
+        data.user,
     )
 
     member = OrbitMemberCreate(

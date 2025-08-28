@@ -46,15 +46,6 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
                 else error_mess
             ) from error
 
-    async def get_model_artifact_by_id(
-        self, model_artifact_id: int
-    ) -> ModelArtifact | None:
-        async with self._get_session() as session:
-            db_model = await self.get_model(
-                session, ModelArtifactOrm, model_artifact_id
-            )
-            return db_model.to_model_artifact() if db_model else None
-
     async def get_collection_model_artifact(
         self, collection_id: int
     ) -> list[ModelArtifact]:
@@ -67,15 +58,10 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
             db_versions = result.scalars().all()
             return [v.to_model_artifact() for v in db_versions]
 
-    async def get_model_artifact(
-        self, model_artifact_id: int, collection_id: int
-    ) -> ModelArtifact | None:
+    async def get_model_artifact(self, model_artifact_id: int) -> ModelArtifact | None:
         async with self._get_session() as session:
-            db_model = await self.get_model_where(
-                session,
-                ModelArtifactOrm,
-                ModelArtifactOrm.id == model_artifact_id,
-                ModelArtifactOrm.collection_id == collection_id,
+            db_model = await self.get_model(
+                session, ModelArtifactOrm, model_artifact_id
             )
             return db_model.to_model_artifact() if db_model else None
 

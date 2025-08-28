@@ -1,55 +1,46 @@
-import datetime
-import random
-import uuid
-
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
 from dataforce_studio.schemas.user import CreateUser
-
-organization_data = {
-    "id": random.randint(2000, 10000),
-    "name": "test organization name",
-    "logo": None,
-    "created_at": datetime.datetime.now(),
-    "updated_at": datetime.datetime.now(),
-}
+from tests.conftest import FixtureData
 
 
 @pytest.mark.asyncio
 async def test_create_organization(
-    create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str,
+    test_user: CreateUser,
+    test_org: Organization,
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
-    organization = Organization.model_validate(organization_data)
+    organization = test_org
 
-    new_user = test_user.copy()
-    new_user["email"] = f"testcreateorganization_{uuid.uuid4()}@example.com"
-    user = await repo.create_user(CreateUser(**new_user))
+    user = await repo.create_user(test_user)
 
     created_organization = await repo.create_organization(
         user.id, OrganizationCreateIn(name=organization.name, logo=organization.logo)
     )
 
     assert created_organization.id
-    assert created_organization.name == organization_data["name"]
-    assert created_organization.logo == organization_data["logo"]
+    assert created_organization.name == test_org.name
+    assert created_organization.logo == test_org.logo
     await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_get_user_organizations(create_organization_with_members: dict) -> None:
+async def test_get_user_organizations(
+    create_organization_with_members: FixtureData,
+) -> None:
     data = create_organization_with_members
-    repo, _members, user_owner = (
-        data["repo"],
-        data["members"],
-        data["user_owner"],
+    repo = UserRepository(data.engine)
+    _members, user = (
+        data.members,
+        data.user,
     )
 
-    organizations = await repo.get_user_organizations(user_owner.id)
+    organizations = await repo.get_user_organizations(user.id)
 
     assert organizations
     assert hasattr(organizations[0], "id")
@@ -59,9 +50,12 @@ async def test_get_user_organizations(create_organization_with_members: dict) ->
 
 
 @pytest.mark.asyncio
-async def test_get_organization_details(create_organization_with_members: dict) -> None:
+async def test_get_organization_details(
+    create_organization_with_members: FixtureData,
+) -> None:
     data = create_organization_with_members
-    repo, org = data["repo"], data["organization"]
+    repo = UserRepository(data.engine)
+    org = data.organization
 
     organization = await repo.get_organization_details(org.id)
 

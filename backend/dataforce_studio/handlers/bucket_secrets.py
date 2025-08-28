@@ -82,7 +82,8 @@ class BucketSecretHandler:
         except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e
 
-    async def get_bucket_urls(self, secret: BucketSecretCreateIn) -> BucketSecretUrls:
+    @staticmethod
+    async def get_bucket_urls(secret: BucketSecretCreateIn) -> BucketSecretUrls:
         object_name = "test_file"
 
         s3_service = S3Service(secret)

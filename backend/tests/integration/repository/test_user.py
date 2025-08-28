@@ -16,12 +16,12 @@ from dataforce_studio.schemas.user import (
 
 @pytest_asyncio.fixture(scope="function")
 async def get_created_user(
-    create_database_and_apply_migrations: str, test_user: dict
+    create_database_and_apply_migrations: str, test_user: CreateUser
 ) -> dict:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    user = await repo.create_user(CreateUser(**test_user))
+    user = await repo.create_user(test_user)
 
     return {
         "engine": engine,

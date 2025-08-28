@@ -27,6 +27,7 @@ class Satellite(BaseModel, BaseOrmConfig):
     id: int
     orbit_id: int
     name: str | None = None
+    base_url: str | None = None
     paired: bool
     capabilities: dict[SatelliteCapability, dict | None]
     created_at: datetime

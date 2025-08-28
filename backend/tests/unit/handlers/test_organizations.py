@@ -1,4 +1,3 @@
-import random
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -35,7 +34,7 @@ async def test_check_org_members_limit_raises(
     )
 
     with pytest.raises(OrganizationLimitReachedError):
-        await handler._check_org_members_limit(organization_id=random.randint(1, 10000))
+        await handler.check_org_members_limit(organization_id=1)
 
     mock_get_organization_details.assert_awaited_once()
 
@@ -46,10 +45,19 @@ async def test_check_org_members_limit_raises(
 )
 @pytest.mark.asyncio
 async def test_get_user_organizations(
-    mock_get_user_organizations: AsyncMock, test_org: dict
+    mock_get_user_organizations: AsyncMock, test_org: Organization
 ) -> None:
-    user_id = random.randint(1, 10000)
-    expected = [OrganizationSwitcher(**test_org, role=OrgRole.MEMBER)]
+    user_id = 1
+    expected = [
+        OrganizationSwitcher(
+            id=test_org.id,
+            name=test_org.name,
+            logo=test_org.logo,
+            created_at=test_org.created_at,
+            updated_at=test_org.updated_at,
+            role=OrgRole.MEMBER,
+        )
+    ]
     mock_get_user_organizations.return_value = expected
 
     actual = await handler.get_user_organizations(user_id)
@@ -70,11 +78,11 @@ async def test_get_user_organizations(
 async def test_get_organization(
     mock_get_organization_details: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
-    test_org_details: dict,
+    test_org_details: OrganizationDetails,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
-    expected = OrganizationDetails(**test_org_details)
+    user_id = 1
+    organization_id = 1
+    expected = test_org_details
 
     mock_get_organization_details.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -98,8 +106,8 @@ async def test_get_organization_not_found(
     mock_get_organization_details: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
     mock_get_organization_details.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
@@ -124,14 +132,20 @@ async def test_get_organization_not_found(
 async def test_create_organization(
     mock_create_organization: AsyncMock,
     mock_get_user_organizations_membership_count: AsyncMock,
-    test_org: dict,
+    test_org: Organization,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    org_to_create = OrganizationCreateIn(name=test_org["name"], logo=test_org["logo"])
-    expected = Organization(**test_org)
+    user_id = 1
+    org_to_create = OrganizationCreateIn(name=test_org.name, logo=test_org.logo)
+    expected = test_org
 
     mock_get_user_organizations_membership_count.return_value = 0
-    mock_create_organization.return_value = OrganizationOrm(**test_org)
+    mock_create_organization.return_value = OrganizationOrm(
+        id=test_org.id,
+        name=test_org.name,
+        logo=test_org.logo,
+        created_at=test_org.created_at,
+        updated_at=test_org.updated_at,
+    )
 
     actual = await handler.create_organization(user_id, org_to_create)
 
@@ -159,8 +173,8 @@ async def test_update_organization(
     mock_get_organization_member_role: AsyncMock,
     test_org_details: dict,
 ) -> None:
-    expected = OrganizationDetails(**test_org_details)
-    user_id = random.randint(1, 10000)
+    expected = OrganizationDetails.model_validate(test_org_details)
+    user_id = 1
 
     mock_get_organization_details.return_value = expected
     mock_update_organization.return_value = expected
@@ -186,8 +200,8 @@ async def test_update_organization_not_found(
     mock_update_organization: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
     organization_to_update = OrganizationUpdate(name="test", logo=None)
 
     mock_update_organization.return_value = None
@@ -225,11 +239,13 @@ async def test_delete_organization(
     mock_get_organization_member_role: AsyncMock,
     test_org_details: dict,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
 
     mock_delete_organization.return_value = None
-    mock_get_organization_details.return_value = OrganizationDetails(**test_org_details)
+    mock_get_organization_details.return_value = OrganizationDetails.model_validate(
+        test_org_details
+    )
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     deleted = await handler.delete_organization(user_id, organization_id)
@@ -252,8 +268,8 @@ async def test_leave_from_organization(
     mock_get_organization_member_role: AsyncMock,
     test_org_details: dict,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
 
     mock_delete_organization_member_by_user_id.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.MEMBER
@@ -280,8 +296,8 @@ async def test_leave_from_organization_owner(
     mock_get_organization_member_role: AsyncMock,
     test_org_details: dict,
 ) -> None:
-    user_id = random.randint(1, 10000)
-    organization_id = random.randint(1, 10000)
+    user_id = 1
+    organization_id = 1
 
     mock_delete_organization_member_by_user_id.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER

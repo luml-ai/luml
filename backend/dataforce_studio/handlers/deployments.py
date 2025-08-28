@@ -57,15 +57,13 @@ class DeploymentHandler:
         if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
 
-        artifact = await self.__artifact_repo.get_model_artifact_by_id(
-            data.model_artifact_id
-        )
+        artifact = await self.__artifact_repo.get_model_artifact(data.model_artifact_id)
         if not artifact:
             raise NotFoundError("Model artifact not found")
 
         collection = await self.__collection_repo.get_collection(artifact.collection_id)
         if not collection or collection.orbit_id != orbit_id:
-            raise NotFoundError("Model artifact not in orbit")
+            raise NotFoundError("Collection not found")
 
         user = await self.__user_repo.get_public_user_by_id(user_id)
         if not user:
