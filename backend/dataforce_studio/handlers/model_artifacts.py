@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import uuid4
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
@@ -17,6 +16,7 @@ from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
 from dataforce_studio.schemas.model_artifacts import (
     Collection,
+    CreateModelArtifactResponse,
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactIn,
@@ -74,7 +74,7 @@ class ModelArtifactHandler:
         orbit_id: int,
         collection_id: int,
         model_artifact: ModelArtifactIn,
-    ) -> tuple[ModelArtifact, dict[str, str | Any]] | tuple[ModelArtifact, str]:
+    ) -> CreateModelArtifactResponse:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -109,27 +109,14 @@ class ModelArtifactHandler:
         )
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        if s3_service.should_use_multipart(model_artifact.size):
-            multipart_info = s3_service.initiate_multipart_upload(
-                bucket_location, model_artifact.size
-            )
-            urls = await s3_service.get_multipart_upload_urls(
-                bucket_location, multipart_info.upload_id, multipart_info.parts_count
-            )
-            upload_data = {
-                "upload_id": multipart_info.upload_id,
-                "parts": s3_service.parts_upload_details(
-                    urls, model_artifact.size, multipart_info.part_size
-                ),
-                "complete_url": await s3_service.get_complete_url(
-                    bucket_location, multipart_info.upload_id
-                ),
-            }
 
-            return created_model_artifact, upload_data
+        upload_data = await s3_service.create_upload(
+            bucket_location, model_artifact.size
+        )
 
-        url = await s3_service.get_upload_url(bucket_location)
-        return created_model_artifact, url
+        return CreateModelArtifactResponse(
+            model=created_model_artifact, url=upload_data
+        )
 
     async def update_model_artifact(
         self,

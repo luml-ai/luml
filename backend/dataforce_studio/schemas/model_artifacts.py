@@ -5,6 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.s3 import UploadDetails
 
 
 class CollectionType(StrEnum):
@@ -207,26 +208,6 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
         return value
 
 
-class MultipartUploadInfo(BaseModel):
-    upload_id: str
-    parts_count: int
-    part_size: int
-
-
-class MultiPartUploadPartDetails(BaseModel):
-    part_number: int
-    url: str
-    start_byte: int
-    end_byte: int
-    part_size: int
-
-
-class MultiPartUploadDetails(BaseModel):
-    upload_id: str
-    parts: list[MultiPartUploadPartDetails]
-    complete_url: str
-
-
 class CreateModelArtifactResponse(BaseModel):
     model: ModelArtifact
-    url: str | MultiPartUploadDetails
+    url: UploadDetails
