@@ -3,6 +3,7 @@ from datetime import timedelta
 
 from minio import Minio
 
+from dataforce_studio.constants import MAX_FILE_SIZE_BYTES, USE_MULTIPART_BYTES
 from dataforce_studio.infra.exceptions import BucketConnectionError
 from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreateIn
 from dataforce_studio.schemas.s3 import (
@@ -45,7 +46,7 @@ class S3Service:
 
     @staticmethod
     def _should_use_multipart(file_size: int) -> bool:
-        return file_size > 524288000  # 500 mb
+        return file_size > USE_MULTIPART_BYTES  # 500 mb
 
     def _calculate_multipart_params(self, file_size: int) -> tuple[int, int]:
         part_size = self._calculate_optimal_chunk_size(file_size)
@@ -205,6 +206,11 @@ class S3Service:
         )
 
     async def create_upload(self, bucket_location: str, size: int) -> UploadDetails:
+        if size > MAX_FILE_SIZE_BYTES:
+            raise ValueError(
+                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
+            )
+
         if self._should_use_multipart(size):
             return await self.create_multipart_upload(bucket_location, size)
         return await self.create_single_upload(bucket_location, size)

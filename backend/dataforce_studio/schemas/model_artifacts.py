@@ -4,6 +4,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from dataforce_studio.constants import MAX_FILE_SIZE_BYTES
 from dataforce_studio.schemas.base import BaseOrmConfig
 from dataforce_studio.schemas.s3 import UploadDetails
 
@@ -134,8 +135,10 @@ class ModelArtifactCreate(BaseModel):
     @field_validator("size")
     @classmethod
     def validate_model_size(cls, value: int) -> int:
-        if value > 5497558138880:
-            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        if value > MAX_FILE_SIZE_BYTES:
+            raise ValueError(
+                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
+            )
         return value
 
 
@@ -153,8 +156,10 @@ class ModelArtifactIn(BaseModel):
     @field_validator("size")
     @classmethod
     def validate_model_size(cls, value: int) -> int:
-        if value > 5497558138880:
-            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        if value > MAX_FILE_SIZE_BYTES:
+            raise ValueError(
+                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
+            )
         return value
 
 
@@ -203,8 +208,10 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     @field_validator("size")
     @classmethod
     def validate_model_size(cls, value: int) -> int:
-        if value > 5497558138880:
-            raise ValueError("Model cant be bigger than 5TB - 5497558138880 bytes")
+        if value > MAX_FILE_SIZE_BYTES:
+            raise ValueError(
+                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
+            )
         return value
 
 
