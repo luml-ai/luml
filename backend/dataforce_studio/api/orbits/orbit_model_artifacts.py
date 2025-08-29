@@ -30,15 +30,14 @@ async def create_model_artifact(
     orbit_id: int,
     collection_id: int,
     model_artifact: ModelArtifactIn,
-) -> dict[str, Any]:
-    created_model_artifact, url = await model_artifacts_handler.create_model_artifact(
+) -> CreateModelArtifactResponse:
+    return await model_artifacts_handler.create_model_artifact(
         request.user.id,
         organization_id,
         orbit_id,
         collection_id,
         model_artifact,
     )
-    return {"model": created_model_artifact, "url": url}
 
 
 @model_artifacts_router.patch(

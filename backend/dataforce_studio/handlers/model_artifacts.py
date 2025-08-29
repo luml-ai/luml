@@ -16,6 +16,7 @@ from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
 from dataforce_studio.schemas.model_artifacts import (
     Collection,
+    CreateModelArtifactResponse,
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactIn,
@@ -73,7 +74,7 @@ class ModelArtifactHandler:
         orbit_id: int,
         collection_id: int,
         model_artifact: ModelArtifactIn,
-    ) -> tuple[ModelArtifact, str]:
+    ) -> CreateModelArtifactResponse:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
             orbit_id,
@@ -108,8 +109,14 @@ class ModelArtifactHandler:
         )
 
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
-        url = await s3_service.get_upload_url(bucket_location)
-        return created_model_artifact, url
+
+        upload_data = await s3_service.create_upload(
+            bucket_location, model_artifact.size
+        )
+
+        return CreateModelArtifactResponse(
+            model=created_model_artifact, url=upload_data
+        )
 
     async def update_model_artifact(
         self,

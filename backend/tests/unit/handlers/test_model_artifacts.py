@@ -20,6 +20,7 @@ from dataforce_studio.schemas.model_artifacts import (
 )
 from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.s3 import PartDetails, UploadDetails
 
 handler = ModelArtifactHandler()
 
@@ -101,12 +102,12 @@ def test_bucket() -> BucketSecret:
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.S3Service.get_upload_url",
+    "dataforce_studio.handlers.model_artifacts.S3Service.create_single_upload",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_model_artifact_with_tags(
-    mock_get_upload_url: AsyncMock,
+    mock_create_single_upload: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
     mock_create_model_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
@@ -149,7 +150,13 @@ async def test_create_model_artifact_with_tags(
     )
     mock_get_collection.return_value = type("obj", (), {"orbit_id": orbit_id})
     mock_get_secret_or_raise.return_value = mock_secret
-    mock_get_upload_url.return_value = "url"
+    mock_create_single_upload.return_value = UploadDetails(
+        upload_id=None,
+        parts=[
+            PartDetails(part_number=1, url="url", start_byte=0, end_byte=1, part_size=1)
+        ],
+        complete_url=None,
+    )
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
     model_artifact_in = ModelArtifactIn(
@@ -162,16 +169,17 @@ async def test_create_model_artifact_with_tags(
         model_name=None,
         tags=["tag"],
     )
-    result_model_artifact, url = await handler.create_model_artifact(
+    result = await handler.create_model_artifact(
         user_id,
         organization_id,
         orbit_id,
         collection_id,
         model_artifact_in,
     )
+    result_model_artifact, url = result.model, result.url
 
     assert result_model_artifact == model_artifact
-    assert url == "url"
+    assert isinstance(url, UploadDetails)
     mock_create_model_artifact.assert_awaited_once()
     mock_get_secret_or_raise.assert_awaited_once_with(1)
 
