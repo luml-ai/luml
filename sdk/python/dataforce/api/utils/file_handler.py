@@ -218,17 +218,18 @@ class FileHandler:
 
     def upload_file_with_progress(
         self,
-        urls: str | dict,
+        urls: dict,
         file_size: int,
         file_path: str,
         object_name: str = "",
     ) -> httpx.Response:
-        if isinstance(urls, dict) and "parts" in urls:
+        if len(urls["parts"]) > 1:
             return self.upload_file_with_backend_multipart(
                 file_size, urls, file_path, f'Uploading model "{object_name}"...'
             )
-        if isinstance(urls, str):
-            return self.upload_simple_file_with_progress(
-                urls, file_path, file_size, f'Uploading model "{object_name}"...'
-            )
-        raise FileUploadError("Invalid URLs format")
+        return self.upload_simple_file_with_progress(
+            urls["parts"][0]["url"],
+            file_path,
+            file_size,
+            f'Uploading model "{object_name}"...',
+        )
