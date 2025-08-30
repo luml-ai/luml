@@ -1,0 +1,94 @@
+import type { Database } from 'sql.js'
+
+export interface ExperimentSnapshotProvider {
+  getStaticParamsList: () => Promise<ExperimentSnapshotStaticParams[]>
+  getDynamicMetricsList: () => Promise<ExperimentSnapshotDynamicMetrics[]>
+  getEvalsList: () => Promise<Record<string, EvalsInfo[]> | null>
+  getSpansList: (args: SpansParams) => Promise<Omit<TraceSpan, 'children'>[]>
+  buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => TraceSpan[]
+  getTraceId: (params: any) => any
+}
+
+export interface ExperimentSnapshotStaticParams {
+  eval_dataset: string
+  eval_version: string
+  evaluation_metrics: string[]
+  model_type: string
+  modelId: number
+}
+
+export interface ExperimentSnapshotDynamicMetrics
+  extends Record<string, ExperimentSnapshotDynamicMetric> {}
+
+export interface ExperimentSnapshotDynamicMetric {
+  x: number[]
+  y: number[]
+  modelId: number
+}
+
+export interface EvalsDatasets extends Record<string, EvalsInfo[]> {}
+
+export interface EvalsInfo {
+  id: string
+  dataset_id: string
+  inputs: Record<string, string | number>
+  outputs: Record<string, string | number>
+  refs: Record<string, string | number>
+  scores: Record<string, string | number>
+  metadata: Record<string, string | number>
+  modelId: number
+}
+
+export interface ModelSnapshot {
+  modelId: number
+  database: Database
+}
+
+export interface ModelInfo {
+  name: string
+  color: string
+}
+
+export interface ModelsInfo extends Record<string, ModelInfo> {}
+
+export interface ScoreInfo {
+  name: string
+  value: number
+}
+
+export interface ModelScores {
+  modelId: number | string
+  scores: ScoreInfo[]
+}
+
+export interface SpansParams {
+  modelId: number
+  datasetId: string
+  evalId: string
+}
+
+export interface TraceSpan {
+  trace_id: string
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  kind: number
+  start_time_unix_nano: number
+  end_time_unix_nano: number
+  status_code: number
+  status_message: string | null
+  attributes: string
+  events: string | null
+  links: string | null
+  children: TraceSpan[]
+  dfs_span_type: SpanTypeEnum | null
+}
+
+export enum SpanTypeEnum {
+  DEFAULT = 0,
+  CHAT = 1,
+  AGENT = 2,
+  TOOL = 3,
+  EMBEDDER = 4,
+  RERANKER = 5,
+}

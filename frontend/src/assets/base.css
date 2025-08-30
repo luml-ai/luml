@@ -8,6 +8,10 @@ html {
   font-size: 16px;
 }
 
+.lock {
+  overflow: hidden;
+}
+
 body {
   min-height: 100vh;
   min-width: 360px;

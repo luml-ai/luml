@@ -14,6 +14,7 @@ import { dataforceApi } from '@/lib/api'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
+import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
 
 export const useModelsStore = defineStore('models', () => {
   const route = useRoute()
@@ -24,13 +25,13 @@ export const useModelsStore = defineStore('models', () => {
     TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload | null
   >(null)
   const currentModelHtmlBlobUrl = ref<string | null>(null)
+  const experimentSnapshotProvider = ref<ExperimentSnapshotProvider | null>(null)
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
       throw new Error('Current organization not found')
     if (typeof route.params.id !== 'string') throw new Error('Orbit was not found')
-    if (typeof route.params.collectionId !== 'string')
-      throw new Error('Collection was not found')
+    if (typeof route.params.collectionId !== 'string') throw new Error('Collection was not found')
 
     return {
       organizationId: +route.params.organizationId,
@@ -164,12 +165,21 @@ export const useModelsStore = defineStore('models', () => {
     currentModelHtmlBlobUrl.value = null
   }
 
+  function setExperimentSnapshotProvider(provider: ExperimentSnapshotProvider) {
+    experimentSnapshotProvider.value = provider
+  }
+
+  function resetExperimentSnapshotProvider() {
+    experimentSnapshotProvider.value = null
+  }
+
   return {
     modelsList,
     requestInfo,
     currentModelTag,
     currentModelMetadata,
     currentModelHtmlBlobUrl,
+    experimentSnapshotProvider,
     initiateCreateModel,
     confirmModelUpload,
     loadModelsList,
@@ -184,5 +194,7 @@ export const useModelsStore = defineStore('models', () => {
     resetCurrentModelMetadata,
     setCurrentModelHtmlBlobUrl,
     resetCurrentModelHtmlBlobUrl,
+    setExperimentSnapshotProvider,
+    resetExperimentSnapshotProvider,
   }
 })

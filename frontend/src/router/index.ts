@@ -154,6 +154,11 @@ const router = createRouter({
             },
           ],
         },
+        {
+          path: 'compare',
+          name: 'compare',
+          component: () => import('../pages/collection/models-compare/CompareView.vue'),
+        },
       ],
     },
     {

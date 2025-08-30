@@ -1,7 +1,10 @@
 <template>
   <div v-if="currentModel">
     <div class="title">Model details</div>
-    <CollectionModelTabs :show-model-card="isModelCardAvailable"></CollectionModelTabs>
+    <CollectionModelTabs
+      :show-model-card="isModelCardAvailable"
+      :show-experiment-snapshot="isExperimentSnapshotCardAvailable"
+    ></CollectionModelTabs>
     <div class="view-wrapper">
       <RouterView></RouterView>
     </div>
@@ -30,10 +33,17 @@ const isModelCardAvailable = computed(() => {
   return !!(includeDataforceTag || FnnxService.findHtmlCard(fileIndex))
 })
 
+const isExperimentSnapshotCardAvailable = computed(() => {
+  if (!currentModel.value) return false
+  const fileIndex = currentModel.value.file_index
+  return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
+})
+
 onUnmounted(() => {
   modelsStore.resetCurrentModelTag()
   modelsStore.resetCurrentModelMetadata()
   modelsStore.resetCurrentModelHtmlBlobUrl()
+  modelsStore.resetExperimentSnapshotProvider()
 })
 </script>
 

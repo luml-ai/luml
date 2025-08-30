@@ -2417,11 +2417,11 @@
     },
     "font": {
       "size": {
-        "$value": 12.25,
+        "$value": 12,
         "$type": "number"
       },
       "weight": {
-        "$value": 700,
+        "$value": 400,
         "$type": "number"
       }
     },
@@ -7397,6 +7397,26 @@
       "background": {
         "$value": "{primary.color}",
         "$type": "color"
+      },
+      "background-2": {
+        "$value": "#dfa3f0",
+        "$type": "color"
+      },
+      "background-3": {
+        "$value": "#ff7f0e",
+        "$type": "color"
+      },
+      "background-4": {
+        "$value": "#2ca02c",
+        "$type": "color"
+      },
+      "background-5": {
+        "$value": "#ffbe49",
+        "$type": "color"
+      },
+      "background-6": {
+        "$value": "#17becf",
+        "$type": "color"
       }
     },
     "label": {
@@ -9434,7 +9454,7 @@
       },
       "font": {
         "weight": {
-          "$value": 600,
+          "$value": 500,
           "$type": "number"
         }
       },
@@ -11862,6 +11882,94 @@
     "gap": {
       "$value": 7,
       "$type": "number"
+    }
+  },
+  "charts": {
+    "color-1": {
+      "$value": "#2462d0",
+      "$type": "color"
+    },
+    "color-2": {
+      "$value": "#b888c6",
+      "$type": "color"
+    },
+    "color-3": {
+      "$value": "#ff7f0e",
+      "$type": "color"
+    },
+    "color-4": {
+      "$value": "#298629",
+      "$type": "color"
+    },
+    "color-5": {
+      "$value": "#b12526",
+      "$type": "color"
+    },
+    "color-6": {
+      "$value": "#7c589d",
+      "$type": "color"
+    },
+    "color-7": {
+      "$value": "#189eab",
+      "$type": "color"
+    },
+    "color-8": {
+      "$value": "#9c9d21",
+      "$type": "color"
+    },
+    "color-9": {
+      "$value": "#6c6c6c",
+      "$type": "color"
+    },
+    "color-10": {
+      "$value": "#bc65a1",
+      "$type": "color"
+    },
+    "color-11": {
+      "$value": "#e55237",
+      "$type": "color"
+    },
+    "color-12": {
+      "$value": "#7966f0",
+      "$type": "color"
+    },
+    "color-13": {
+      "$value": "#40ca40",
+      "$type": "color"
+    },
+    "color-14": {
+      "$value": "#55797b",
+      "$type": "color"
+    }
+  },
+  "trace": {
+    "span": {
+      "icon": {
+        "color-1": {
+          "$value": "{primary.color}",
+          "$type": "color"
+        },
+        "color-2": {
+          "$value": "#dfa3f0",
+          "$type": "color"
+        },
+        "color-3": {
+          "$value": "#ff7f0e",
+          "$type": "color"
+        },
+        "color-4": {
+          "$value": "#2ca02c",
+          "$type": "color"
+        },
+        "color-5": {
+          "$value": "#ffbe49",
+          "$type": "color"
+        },
+        "color-6": {
+          "$value": "#17becf",
+          "$type": "color"
+        }
+      }
     }
   }
 }

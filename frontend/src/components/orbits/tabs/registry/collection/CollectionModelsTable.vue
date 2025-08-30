@@ -2,12 +2,12 @@
   <div>
     <div class="content">
       <div class="toolbar">
-        <div>{{ selectedModels?.length || 0 }} Selected</div>
+        <div class="counter">{{ selectedModels.length || 0 }} Selected</div>
         <Button
           v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.delete)"
           variant="text"
           severity="secondary"
-          :disabled="!selectedModels?.length"
+          :disabled="!selectedModels.length"
           rounded
           @click="onDeleteClick"
         >
@@ -19,7 +19,7 @@
           variant="text"
           severity="secondary"
           rounded
-          :disabled="selectedModels.length !== 1"
+          :disabled="downloadButtonDisabled"
           @click="downloadClick"
         >
           <template #icon>
@@ -37,6 +37,18 @@
             <Rocket :size="14" />
           </template>
         </Button>
+        <Button
+          variant="text"
+          severity="secondary"
+          rounded
+          v-tooltip="'Compare'"
+          :disabled="compareButtonDisabled"
+          @click="compareClick"
+        >
+          <template #icon>
+            <Repeat :size="14" />
+          </template>
+        </Button>
       </div>
       <div class="table-wrapper">
         <DataTable
@@ -47,13 +59,11 @@
               style: 'padding: 25px 16px;',
             },
           }"
-          selectionMode="single"
-          dataKey="id"
+          selection-mode="multiple"
+          data-key="id"
           style="font-size: 14px"
           class="table-white"
-          @row-click="
-            (row: any) => $router.push({ name: 'model', params: { modelId: row.data.id } })
-          "
+          @row-click="onRowClick"
         >
           <template #empty>
             <div class="placeholder">No models to show. Add model to the table.</div>
@@ -154,8 +164,8 @@
 </template>
 
 <script setup lang="ts">
-import { Button, useToast, Tag, useConfirm } from 'primevue'
-import { Trash2, Download, Rocket } from 'lucide-vue-next'
+import { Button, useToast, Tag, useConfirm, type DataTableRowClickEvent } from 'primevue'
+import { Trash2, Download, Rocket, Repeat } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
 import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
@@ -165,6 +175,7 @@ import { getSizeText } from '@/helpers/helpers'
 import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { useRouter } from 'vue-router'
 
 const columnBodyStyle = 'white-space: nowrap; overflow:hidden; text-overflow: ellipsis;'
 
@@ -172,6 +183,7 @@ const modelsStore = useModelsStore()
 const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
+const router = useRouter()
 
 const selectedModels = ref<{ id: number; modelName: string; fileName: string }[]>([])
 const loading = ref(false)
@@ -201,8 +213,12 @@ const metricsKeys = computed(() => {
   }, new Set<string>())
 })
 
+const downloadButtonDisabled = computed(() => !selectedModels.value.length)
+
+const compareButtonDisabled = computed(() => selectedModels.value.length < 2)
+
 async function confirmDelete() {
-  const modelsForDelete = selectedModels.value.map((model: any) => model.id)
+  const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
   loading.value = true
   try {
     const result = await modelsStore.deleteModels(modelsForDelete)
@@ -225,11 +241,12 @@ async function confirmDelete() {
 }
 
 async function onDeleteClick() {
-  if (!selectedModels.value?.length || loading.value) return
+  if (!selectedModels.value.length || loading.value) return
   confirm.require(deleteModelConfirmOptions(confirmDelete, selectedModels.value?.length))
 }
 
 async function downloadClick() {
+  if (!selectedModels.value) throw new Error('Select model before')
   if (!selectedModels.value[0]?.id || loading.value) return
   loading.value = true
   try {
@@ -241,6 +258,21 @@ async function downloadClick() {
     selectedModels.value = []
     loading.value = false
   }
+}
+
+function onRowClick(event: DataTableRowClickEvent) {
+  const target: any = event.originalEvent.target
+  const modelId = event.data.id
+  if (!target || !modelId) return
+  const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
+  if (rowIncludeCheckbox) return
+  router.push({ name: 'model', params: { modelId } })
+}
+
+function compareClick() {
+  if (!selectedModels.value.length) return
+  const selectedModelsIds = selectedModels.value.map((model) => model.id)
+  router.push({ name: 'compare', query: { models: selectedModelsIds } })
 }
 
 onBeforeMount(async () => {
@@ -294,6 +326,10 @@ onBeforeMount(async () => {
 .metric-column {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.counter {
+  font-variant-numeric: tabular-nums;
 }
 
 @media (min-width: 768px) {

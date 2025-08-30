@@ -2,14 +2,16 @@
   <ul class="parameters__list">
     <li v-for="[key, value] of Object.entries(parameters)" class="parameters__item parameter">
       <div class="parameter__label">{{ key }}</div>
-      <div class="parameter__value">{{ value }}</div>
+      <div class="parameter__value">
+        {{ typeof value === 'object' && value.length ? value.join(', ') : value }}
+      </div>
     </li>
   </ul>
 </template>
 
 <script setup lang="ts">
 type Props = {
-  parameters: Record<string, string | number>
+  parameters: Record<string, any>
 }
 
 defineProps<Props>()
@@ -23,11 +25,13 @@ defineProps<Props>()
 }
 .parameter {
   display: grid;
-  grid-template-columns: 100px 1fr;
+  grid-template-columns: 130px 1fr;
   gap: 24px;
   font-size: 14px;
 }
 .parameter__label {
   color: var(--p-text-muted-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

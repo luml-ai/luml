@@ -46,6 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const checkIsLoggedId = async () => {
+    if (isAuth.value) return
     const token = localStorage.getItem('token')
     const refreshToken = localStorage.getItem('refreshToken')
     if (!token && !refreshToken) {
