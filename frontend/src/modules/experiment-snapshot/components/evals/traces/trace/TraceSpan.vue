@@ -31,7 +31,6 @@
         <History :size="12" />
         <span>{{ time }}</span>
       </div>
-      {{ startProgress }} - {{ endProgress }}
       <div class="progress-wrapper">
         <div
           class="progress-plug"
