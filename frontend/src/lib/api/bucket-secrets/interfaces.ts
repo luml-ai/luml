@@ -20,3 +20,9 @@ export interface BucketSecretCreator {
   region?: string
   cert_check?: boolean
 }
+
+export interface BucketConnectionUrls {
+  presigned_url: string
+  download_url: string
+  delete_url: string
+}

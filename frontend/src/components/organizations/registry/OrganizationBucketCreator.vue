@@ -53,11 +53,12 @@ async function create(data: BucketSecretCreator) {
   }
   try {
     loading.value = true
+    await bucketsStore.checkBucket(data)
     await bucketsStore.createBucket(organizationId, data)
     visible.value = false
     toast.add(simpleSuccessToast('New bucket has been added.'))
-  } catch {
-    toast.add(simpleErrorToast('Failed to create bucket'))
+  } catch (e: any) {
+    toast.add(simpleErrorToast(e?.response?.data?.detail || 'Failed to create bucket'))
   } finally {
     loading.value = false
   }

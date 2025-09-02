@@ -61,7 +61,7 @@
       </div>
       <div class="field">
         <label for="region" :class="{
-          'label required': !update,
+          'label': !update,
           'label--medium': update,
           }">Region</label>
         <InputText
@@ -77,7 +77,7 @@
 
     <div class="field field--protocol">
       <label :class="{
-        'label required': !update,
+        'label': !update,
         'label--medium': update,
         }">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
