@@ -45,8 +45,7 @@ async def test_delete_expired_tokens(create_database_and_apply_migrations: str) 
     for _ in range(3):
         await repo.add_token(token, expire)
 
-    deleted = await repo.delete_expired_tokens()
+    await repo.delete_expired_tokens()
     is_blacklisted = await repo.is_token_blacklisted(token)
 
-    assert deleted is None
     assert is_blacklisted is False

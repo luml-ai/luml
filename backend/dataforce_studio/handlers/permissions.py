@@ -161,6 +161,9 @@ class PermissionsHandler:
                     Resource.ORBIT_USER,
                     Resource.MODEL,
                     Resource.COLLECTION,
+                    Resource.SATELLITE,
+                    Resource.ORBIT_SECRET,
+                    Resource.DEPLOYMENT,
                 ],
             )
 
@@ -169,5 +172,13 @@ class PermissionsHandler:
 
         return self.get_orbit_permissions_for_role_and_resources(
             OrbitRole(role),
-            [Resource.ORBIT, Resource.ORBIT_USER, Resource.MODEL, Resource.COLLECTION],
+            [
+                Resource.ORBIT,
+                Resource.ORBIT_USER,
+                Resource.MODEL,
+                Resource.COLLECTION,
+                Resource.SATELLITE,
+                Resource.ORBIT_SECRET,
+                Resource.DEPLOYMENT,
+            ],
         )

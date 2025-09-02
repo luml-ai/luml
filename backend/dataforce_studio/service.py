@@ -11,6 +11,7 @@ from dataforce_studio.api.bucket_secret_urls import bucket_secret_urls_router
 from dataforce_studio.api.email_routes import email_routers
 from dataforce_studio.api.organization.organization import organization_router
 from dataforce_studio.api.organization_routes import organization_all_routers
+from dataforce_studio.api.satellites import satellite_worker_router
 from dataforce_studio.api.user_routes import users_routers
 from dataforce_studio.infra.exceptions import ApplicationError
 from dataforce_studio.infra.security import JWTAuthenticationBackend
@@ -26,6 +27,7 @@ class AppService(FastAPI):
         self.include_router(router=organization_router)
         self.include_router(router=organization_all_routers)
         self.include_router(router=bucket_secret_urls_router)
+        self.include_router(router=satellite_worker_router)
         self.include_authentication()
         self.include_error_handlers()
         self.custom_openapi()

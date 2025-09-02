@@ -1,8 +1,10 @@
 import uuid
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.user import (
@@ -14,20 +16,23 @@ from dataforce_studio.schemas.user import (
 )
 
 
+@dataclass
+class UserFixtureData:
+    engine: AsyncEngine
+    repo: UserRepository
+    user: User
+
+
 @pytest_asyncio.fixture(scope="function")
 async def get_created_user(
-    create_database_and_apply_migrations: str, test_user: dict
-) -> dict:
+    create_database_and_apply_migrations: str, test_user_create: CreateUser
+) -> AsyncGenerator[UserFixtureData, None]:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 
-    user = await repo.create_user(CreateUser(**test_user))
+    user = await repo.create_user(test_user_create)
 
-    return {
-        "engine": engine,
-        "repo": repo,
-        "user": user,
-    }
+    yield UserFixtureData(engine=engine, repo=repo, user=user)
 
 
 @pytest.mark.asyncio
@@ -48,19 +53,21 @@ async def test_create_user_and_organization(
 
     created_user = await repo.create_user(user)
     fetched_user = await repo.get_user(user.email)
+    assert fetched_user
     fetched_org = (await repo.get_user_organizations(fetched_user.id))[0]
+    assert fetched_org
     fetched_org_member = (await repo.get_organization_users(fetched_org.id))[0]
 
     assert fetched_org.name == "Test's organization"
-    # assert fetched_org_member.user_id == fetched_user.id
+    assert fetched_org_member
     assert fetched_org_member.organization_id == fetched_org.id
     assert created_user == fetched_user
 
 
 @pytest.mark.asyncio
-async def test_get_user(get_created_user: dict) -> None:
+async def test_get_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
-    repo, user = data["repo"], data["user"]
+    repo, user = data.repo, data.user
 
     fetched_user = await repo.get_user(user.email)
 
@@ -69,9 +76,9 @@ async def test_get_user(get_created_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_public_user(get_created_user: dict) -> None:
+async def test_get_public_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
-    repo, user = data["repo"], data["user"]
+    repo, user = data.repo, data.user
 
     fetched_user = await repo.get_public_user(user.email)
 
@@ -86,35 +93,34 @@ async def test_get_public_user(get_created_user: dict) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_user(get_created_user: dict) -> None:
+async def test_delete_user(get_created_user: UserFixtureData) -> None:
     data = get_created_user
-    repo, user = data["repo"], data["user"]
+    repo, user = data.repo, data.user
 
-    deleted_user = await repo.delete_user(user.email)
+    await repo.delete_user(user.email)
     fetch_deleted_user = await repo.get_user(user.email)
 
-    assert deleted_user is None
     assert fetch_deleted_user is None
 
 
 @pytest.mark.asyncio
-async def test_update_user(get_created_user: dict) -> None:
-    repo = get_created_user["repo"]
-    original_user = get_created_user["user"]
+async def test_update_user(get_created_user: UserFixtureData) -> None:
+    data = get_created_user
+    repo, user = data.repo, data.user
 
-    user_update_data = UpdateUser(email=original_user.email, email_verified=True)
+    user_update_data = UpdateUser(email=user.email, email_verified=True)
 
     await repo.update_user(user_update_data)
     fetched_user = await repo.get_user(user_update_data.email)
 
+    assert fetched_user
     assert fetched_user.email == user_update_data.email
     assert fetched_user.email_verified == user_update_data.email_verified
 
 
 @pytest.mark.asyncio
-async def test_update_user_not_found(get_created_user: dict) -> None:
-    data = get_created_user
-    repo = data["repo"]
+async def test_update_user_not_found(get_created_user: UserFixtureData) -> None:
+    repo = get_created_user.repo
     user_update_data = {"email": "user_not_found@example.com", "email_verified": True}
 
     updated_user = await repo.update_user(UpdateUser.model_validate(user_update_data))

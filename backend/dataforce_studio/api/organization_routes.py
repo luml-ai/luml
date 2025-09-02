@@ -1,7 +1,12 @@
 from fastapi import APIRouter
 
 from dataforce_studio.api.orbits.orbit_collections import collections_router
+from dataforce_studio.api.orbits.orbit_deployments import deployments_router
 from dataforce_studio.api.orbits.orbit_model_artifacts import model_artifacts_router
+from dataforce_studio.api.orbits.orbit_satellites import (
+    organization_orbit_satellites_router,
+)
+from dataforce_studio.api.orbits.orbit_secrets import orbit_secrets_router
 from dataforce_studio.api.orbits.orbits import organization_orbits_router
 from dataforce_studio.api.orbits.orbits_members import orbit_members_router
 from dataforce_studio.api.organization.organization_bucket_secrets import (
@@ -21,3 +26,6 @@ organization_all_routers.include_router(orbit_members_router)
 organization_all_routers.include_router(bucket_secrets_router)
 organization_all_routers.include_router(collections_router)
 organization_all_routers.include_router(model_artifacts_router)
+organization_all_routers.include_router(organization_orbit_satellites_router)
+organization_all_routers.include_router(orbit_secrets_router)
+organization_all_routers.include_router(deployments_router)

@@ -37,6 +37,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
     collection: Mapped["CollectionOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "CollectionOrm", back_populates="models", lazy="selectin"
     )
+    deployments = relationship("DeploymentOrm", back_populates="models")
 
     def __repr__(self) -> str:
         return f"ModelArtifact(id={self.id!r}, identifier={self.unique_identifier!r})"

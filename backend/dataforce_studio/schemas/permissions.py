@@ -17,6 +17,9 @@ class Resource(StrEnum):
     BUCKET_SECRET = "bucket_secret"
     MODEL = "model"
     COLLECTION = "collection"
+    SATELLITE = "satellite"
+    ORBIT_SECRET = "orbit_secret"
+    DEPLOYMENT = "deployment"
 
 
 class Action(StrEnum):
@@ -75,6 +78,27 @@ organization_permissions = {
             Action.DELETE,
             Action.READ,
         ],
+        Resource.SATELLITE: [
+            Action.CREATE,
+            Action.LIST,
+            Action.READ,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.DEPLOYMENT: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.ORBIT_SECRET: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
         Resource.BUCKET_SECRET: [
             Action.LIST,
             Action.READ,
@@ -124,6 +148,27 @@ organization_permissions = {
             Action.UPDATE,
             Action.DELETE,
             Action.READ,
+        ],
+        Resource.SATELLITE: [
+            Action.CREATE,
+            Action.LIST,
+            Action.READ,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.DEPLOYMENT: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.ORBIT_SECRET: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
         ],
         Resource.BUCKET_SECRET: [
             Action.LIST,
@@ -202,6 +247,27 @@ orbit_permissions = {
             Action.UPDATE,
             Action.DELETE,
         ],
+        Resource.SATELLITE: [
+            Action.CREATE,
+            Action.LIST,
+            Action.READ,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.DEPLOYMENT: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
+        Resource.ORBIT_SECRET: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
     },
     OrbitRole.MEMBER: {
         Resource.ORBIT: [Action.LIST, Action.READ],
@@ -217,5 +283,13 @@ orbit_permissions = {
             Action.CREATE,
             Action.UPDATE,
         ],
+        Resource.DEPLOYMENT: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+        ],
+        Resource.SATELLITE: [Action.CREATE, Action.LIST, Action.READ],
+        Resource.ORBIT_SECRET: [Action.LIST, Action.CREATE],
     },
 }

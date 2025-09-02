@@ -10,10 +10,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
-from dataforce_studio.models import CollectionOrm
 from dataforce_studio.models.base import Base, TimestampMixin
 from dataforce_studio.models.bucket_secrets import BucketSecretOrm
+from dataforce_studio.models.collection import CollectionOrm
+from dataforce_studio.models.orbit_secret import OrbitSecretOrm
 from dataforce_studio.models.organization import OrganizationOrm
+from dataforce_studio.models.satellite import SatelliteOrm
 from dataforce_studio.models.user import UserOrm
 from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
 
@@ -73,6 +75,18 @@ class OrbitOrm(TimestampMixin, Base):
     )
 
     collections: Mapped[list["CollectionOrm"]] = relationship(  # noqa: F821
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    satellites: Mapped[list["SatelliteOrm"]] = relationship(
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    deployments: Mapped[list["DeploymentOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    secrets: Mapped[list["OrbitSecretOrm"]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 

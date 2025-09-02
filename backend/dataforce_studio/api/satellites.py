@@ -1,0 +1,131 @@
+from fastapi import APIRouter, Depends, Request
+
+from dataforce_studio.handlers.deployments import DeploymentHandler
+from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
+from dataforce_studio.handlers.satellites import SatelliteHandler
+from dataforce_studio.infra.dependencies import UserAuthentication
+from dataforce_studio.infra.endpoint_responses import endpoint_responses
+from dataforce_studio.schemas.deployment import (
+    Deployment,
+    DeploymentUpdateIn,
+    InferenceAccessIn,
+    InferenceAccessOut,
+)
+from dataforce_studio.schemas.orbit_secret import OrbitSecret
+from dataforce_studio.schemas.satellite import (
+    Satellite,
+    SatellitePairIn,
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+    SatelliteTaskUpdateIn,
+)
+
+satellite_worker_router = APIRouter(
+    prefix="/satellites",
+    dependencies=[Depends(UserAuthentication(["satellite"]))],
+    tags=["satellites"],
+)
+
+satellite_handler = SatelliteHandler()
+deployment_handler = DeploymentHandler()
+orbit_secret_handler = OrbitSecretHandler()
+
+
+@satellite_worker_router.post(
+    "/pair", responses=endpoint_responses, response_model=Satellite
+)
+async def pair_satellite(request: Request, data: SatellitePairIn) -> Satellite:
+    return await satellite_handler.pair_satellite(
+        request.user.id,
+        str(data.base_url),
+        data.capabilities,
+    )
+
+
+@satellite_worker_router.get(
+    "/secrets", responses=endpoint_responses, response_model=list[OrbitSecret]
+)
+async def list_orbit_secrets(request: Request) -> list[OrbitSecret]:
+    return await orbit_secret_handler.get_worker_orbit_secrets(request.user.orbit_id)
+
+
+@satellite_worker_router.get(
+    "/secrets/{secret_id}",
+    responses=endpoint_responses,
+    response_model=OrbitSecret,
+)
+async def get_orbit_secret(request: Request, secret_id: int) -> OrbitSecret:
+    return await orbit_secret_handler.get_worker_orbit_secret(
+        request.user.orbit_id,
+        secret_id,
+    )
+
+
+@satellite_worker_router.get(
+    "/tasks",
+    responses=endpoint_responses,
+    response_model=list[SatelliteQueueTask],
+)
+async def list_tasks(
+    request: Request, status: SatelliteTaskStatus | None = None
+) -> list[SatelliteQueueTask]:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await satellite_handler.list_tasks(request.user.id, status)
+
+
+@satellite_worker_router.post(
+    "/tasks/{task_id}/status",
+    responses=endpoint_responses,
+    response_model=SatelliteQueueTask,
+)
+async def update_task_status(
+    request: Request, task_id: int, data: SatelliteTaskUpdateIn
+) -> SatelliteQueueTask:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await satellite_handler.update_task_status(
+        request.user.id,
+        task_id,
+        data.status,
+        data.result,
+    )
+
+
+@satellite_worker_router.get(
+    "/deployments",
+    responses=endpoint_responses,
+    response_model=list[Deployment],
+)
+async def list_deployments(request: Request) -> list[Deployment]:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await deployment_handler.list_worker_deployments(request.user.id)
+
+
+@satellite_worker_router.patch(
+    "/deployments/{deployment_id}",
+    responses=endpoint_responses,
+    response_model=Deployment,
+)
+async def update_deployment(
+    request: Request, deployment_id: int, data: DeploymentUpdateIn
+) -> Deployment:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await deployment_handler.update_worker_deployment(
+        request.user.id,
+        deployment_id,
+        data.inference_url,
+    )
+
+
+@satellite_worker_router.post(
+    "/deployments/inference-access",
+    responses=endpoint_responses,
+    response_model=InferenceAccessOut,
+)
+async def authorize_inference_access(
+    request: Request, data: InferenceAccessIn
+) -> InferenceAccessOut:
+    await satellite_handler.touch_last_seen(request.user.id)
+    authorized = await deployment_handler.verify_user_inference_access(
+        request.user.orbit_id, data.api_key
+    )
+    return InferenceAccessOut(authorized=authorized)

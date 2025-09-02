@@ -4,9 +4,12 @@ from starlette.requests import HTTPConnection
 
 from dataforce_studio.handlers.api_keys import APIKeyHandler
 from dataforce_studio.handlers.auth import AuthHandler
+from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.exceptions import AuthError
-from dataforce_studio.models.auth import AuthUser
+from dataforce_studio.models.auth import AuthSatellite, AuthUser
 from dataforce_studio.settings import config
+
+type AuthPrincipal = AuthUser | AuthSatellite
 
 
 class JWTAuthenticationBackend(AuthenticationBackend):
@@ -16,10 +19,11 @@ class JWTAuthenticationBackend(AuthenticationBackend):
             pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto"),
         )
         self.api_key_handler = APIKeyHandler()
+        self.satellite_handler = SatelliteHandler()
 
     async def _authenticate_with_api_key(
         self, token: str
-    ) -> tuple[AuthCredentials, AuthUser] | None:
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         user = await self.api_key_handler.authenticate_api_key(token)
         if user:
             auth_user = AuthUser(
@@ -31,12 +35,21 @@ class JWTAuthenticationBackend(AuthenticationBackend):
             return AuthCredentials(["authenticated", "api_key"]), auth_user
         return None
 
+    async def _authenticate_with_satellite_key(
+        self, token: str
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- widened
+        sat = await self.satellite_handler.authenticate_api_key(token)
+        if sat:
+            await self.satellite_handler.touch_last_seen(sat.id)
+            auth_sat = AuthSatellite(satellite_id=sat.id, orbit_id=sat.orbit_id)
+            return AuthCredentials(["authenticated", "satellite"]), auth_sat
+        return None
+
     async def _authenticate_with_jwt_token(
         self, token: str
-    ) -> tuple[AuthCredentials, AuthUser] | None:
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- widened (ok to be broader)
         if await self.auth_handler.is_token_blacklisted(token):
             return None
-
         try:
             email = self.auth_handler._verify_token(token)
             user = await self.auth_handler.handle_get_current_user(email)
@@ -53,20 +66,18 @@ class JWTAuthenticationBackend(AuthenticationBackend):
     async def authenticate(
         self,
         conn: HTTPConnection,
-    ) -> tuple[AuthCredentials, AuthUser] | None:
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- key fix
         authorization: str | None = conn.headers.get("Authorization")
-
         if authorization:
             try:
                 scheme, token = authorization.split()
                 if scheme.lower() != "bearer":
                     return None
-
                 if token.startswith("dfs_"):
                     return await self._authenticate_with_api_key(token)
+                if token.startswith("dfssat_"):
+                    return await self._authenticate_with_satellite_key(token)
                 return await self._authenticate_with_jwt_token(token)
-
             except ValueError:
                 return None
-
         return None

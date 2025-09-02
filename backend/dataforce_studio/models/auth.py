@@ -28,3 +28,17 @@ class AuthUser(BaseUser):
     @property
     def display_name(self) -> EmailStr:
         return self.email
+
+
+class AuthSatellite(BaseUser):
+    def __init__(self, satellite_id: int, orbit_id: int) -> None:
+        self.id = satellite_id
+        self.orbit_id = orbit_id
+
+    @property
+    def is_authenticated(self) -> bool:
+        return True
+
+    @property
+    def display_name(self) -> str:
+        return f"satellite-{self.id}"

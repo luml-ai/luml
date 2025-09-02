@@ -1,0 +1,64 @@
+from datetime import datetime
+from enum import StrEnum
+
+from pydantic import BaseModel, Field
+
+from dataforce_studio.schemas.base import BaseOrmConfig
+
+
+class DeploymentStatus(StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    FAILED = "failed"
+    DELETED = "deleted"
+
+
+class Deployment(BaseModel, BaseOrmConfig):
+    id: int
+    orbit_id: int
+    satellite_id: int
+    model_id: int
+    inference_url: str | None = None
+    status: DeploymentStatus
+    secrets: dict[str, int] = Field(default_factory=dict)
+    created_by_user: str | None = None
+    tags: list[str] | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
+class DeploymentCreate(BaseModel, BaseOrmConfig):
+    orbit_id: int
+    satellite_id: int
+    model_id: int
+    secrets: dict[str, int] = Field(default_factory=dict)
+    status: DeploymentStatus = DeploymentStatus.PENDING
+    created_by_user: str | None = None
+    tags: list[str] | None = None
+
+
+class DeploymentCreateIn(BaseModel):
+    satellite_id: int
+    model_artifact_id: int
+    secrets: dict[str, int] = Field(default_factory=dict)
+    tags: list[str] | None = None
+
+
+class DeploymentUpdate(BaseModel, BaseOrmConfig):
+    id: int
+    inference_url: str | None = None
+    status: DeploymentStatus | None = None
+    tags: list[str] | None = None
+
+
+class DeploymentUpdateIn(BaseModel):
+    inference_url: str
+    tags: list[str] | None = None
+
+
+class InferenceAccessIn(BaseModel):
+    api_key: str
+
+
+class InferenceAccessOut(BaseModel):
+    authorized: bool
