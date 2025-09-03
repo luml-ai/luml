@@ -19,7 +19,9 @@ from dataforce_studio.schemas.satellite import (
     SatelliteCreateIn,
     SatelliteCreateOut,
     SatelliteQueueTask,
+    SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
+    SatelliteUpdate,
 )
 from dataforce_studio.settings import config
 
@@ -76,6 +78,27 @@ class SatelliteHandler:
             raise NotFoundError("Satellite not found")
         return satellite
 
+    async def regenerate_satellite_api_key(
+        self, user_id: int, organization_id: int, orbit_id: int, satellite_id: int
+    ) -> str:
+        await self.__permissions_handler.check_orbit_action_access(
+            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+        )
+
+        satellite = await self.__sat_repo.get_satellite(satellite_id)
+        if not satellite:
+            raise NotFoundError("Satellite not found")
+
+        api_key = self._generate_api_key()
+
+        await self.__sat_repo.update_satellite(
+            SatelliteRegenerateApiKey(
+                id=satellite_id,
+                api_key_hash=self._get_key_hash(api_key),
+            )
+        )
+        return api_key
+
     async def create_satellite(
         self,
         user_id: int,
@@ -107,6 +130,28 @@ class SatelliteHandler:
         )
         return SatelliteCreateOut(satellite=satellite, api_key=api_key, task=task)
 
+    async def update_satellite(
+        self,
+        user_id: int,
+        organization_id: int,
+        orbit_id: int,
+        satellite_update: SatelliteUpdate,
+    ) -> Satellite:
+        await self.__permissions_handler.check_orbit_action_access(
+            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+        )
+
+        satellite = await self.__sat_repo.get_satellite(satellite_update.id)
+        if not satellite:
+            raise NotFoundError("Satellite not found")
+
+        updated_satellite = await self.__sat_repo.update_satellite(satellite_update)
+
+        if not updated_satellite:
+            raise NotFoundError("Satellite not found")
+
+        return updated_satellite
+
     async def pair_satellite(
         self,
         satellite_id: int,
@@ -127,14 +172,14 @@ class SatelliteHandler:
                 )
             return satellite
 
-        updated_sat = await self.__sat_repo.pair_satellite(
+        updated_satellite = await self.__sat_repo.pair_satellite(
             satellite_id, base_url, capabilities
         )
 
-        if not updated_sat:
+        if not updated_satellite:
             raise NotFoundError("Satellite not found")
 
-        return updated_sat
+        return updated_satellite
 
     async def touch_last_seen(self, satellite_id: int) -> None:
         await self.__sat_repo.touch_last_seen(satellite_id)

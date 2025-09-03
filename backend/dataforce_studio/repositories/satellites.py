@@ -10,8 +10,10 @@ from dataforce_studio.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreate,
     SatelliteQueueTask,
+    SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
     SatelliteTaskType,
+    SatelliteUpdate,
 )
 
 
@@ -47,6 +49,13 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             )
             return db_sat.to_satellite() if db_sat else None
 
+    async def update_satellite(
+        self, satellite: SatelliteUpdate | SatelliteRegenerateApiKey
+    ) -> Satellite | None:
+        async with self._get_session() as session:
+            db_satellite = await self.update_model(session, SatelliteOrm, satellite)
+            return db_satellite.to_satellite() if db_satellite else None
+
     async def list_satellites(
         self, orbit_id: int, paired: bool | None = None
     ) -> list[Satellite]:
@@ -55,8 +64,8 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             if paired is not None:
                 query = query.where(SatelliteOrm.paired == paired)
             result = await session.execute(query.order_by(SatelliteOrm.id))
-            sats = result.scalars().all()
-            return [s.to_satellite() for s in sats]
+            satellites = result.scalars().all()
+            return [s.to_satellite() for s in satellites]
 
     async def pair_satellite(
         self,

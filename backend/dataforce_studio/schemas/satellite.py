@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel, HttpUrl, computed_field
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 
@@ -23,16 +23,37 @@ class SatelliteTaskStatus(StrEnum):
     FAILED = "failed"
 
 
+class SatelliteStatus(StrEnum):
+    ACTIVE = "active"  # green
+    INACTIVE = "inactive"  # red
+    ERROR = "error"  # orange
+
+
 class Satellite(BaseModel, BaseOrmConfig):
     id: int
     orbit_id: int
     name: str | None = None
+    description: str | None = None
     base_url: str | None = None
     paired: bool
     capabilities: dict[SatelliteCapability, dict[str, Any] | None]
     created_at: datetime
     updated_at: datetime | None = None
     last_seen_at: datetime | None = None
+
+    @computed_field
+    def status(self) -> SatelliteStatus:
+        if not self.paired or self.last_seen_at is None:
+            return SatelliteStatus.INACTIVE
+
+        if self.last_seen_at is None:
+            return SatelliteStatus.ERROR
+
+        time_diff = datetime.now(UTC) - self.last_seen_at
+        if time_diff > timedelta(minutes=20):
+            return SatelliteStatus.ERROR
+
+        return SatelliteStatus.ACTIVE
 
 
 class SatelliteCreateIn(BaseModel, BaseOrmConfig):
@@ -48,6 +69,17 @@ class SatelliteCreate(BaseModel, BaseOrmConfig):
 class SatellitePairIn(BaseModel):
     base_url: HttpUrl
     capabilities: dict[SatelliteCapability, dict[str, Any] | None]
+
+
+class SatelliteUpdate(BaseModel, BaseOrmConfig):
+    id: int
+    name: str | None = None
+    description: str | None = None
+
+
+class SatelliteRegenerateApiKey(BaseModel, BaseOrmConfig):
+    id: int
+    api_key_hash: str
 
 
 class SatelliteQueueTask(BaseModel, BaseOrmConfig):

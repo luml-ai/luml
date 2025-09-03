@@ -17,7 +17,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
     )
     file_name: Mapped[str] = mapped_column(String, nullable=False)
     model_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    description: Mapped[str] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)

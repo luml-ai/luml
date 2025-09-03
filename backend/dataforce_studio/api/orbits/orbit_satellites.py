@@ -7,7 +7,9 @@ from dataforce_studio.schemas.satellite import (
     Satellite,
     SatelliteCreateIn,
     SatelliteCreateOut,
+    SatelliteUpdate,
 )
+from dataforce_studio.schemas.user import APIKeyCreateOut
 
 organization_orbit_satellites_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/satellites",
@@ -58,3 +60,34 @@ async def get_satellite(
     return await satellite_handler.get_satellite(
         request.user.id, organization_id, orbit_id, satellite_id
     )
+
+
+@organization_orbit_satellites_router.patch(
+    "/{satellite_id}", responses=endpoint_responses, response_model=Satellite
+)
+async def update_satellite(
+    request: Request,
+    organization_id: int,
+    orbit_id: int,
+    satellite: SatelliteUpdate,
+) -> Satellite:
+    return await satellite_handler.update_satellite(
+        request.user.id, organization_id, orbit_id, satellite
+    )
+
+
+@organization_orbit_satellites_router.post(
+    "/{satellite_id}/api-key",
+    responses=endpoint_responses,
+    response_model=APIKeyCreateOut,
+)
+async def regenerate_satellite_api_key(
+    request: Request,
+    organization_id: int,
+    orbit_id: int,
+    satellite_id: int,
+) -> APIKeyCreateOut:
+    api_key = await satellite_handler.regenerate_satellite_api_key(
+        request.user.id, organization_id, orbit_id, satellite_id
+    )
+    return APIKeyCreateOut(key=api_key)

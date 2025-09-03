@@ -41,6 +41,7 @@ class SatelliteOrm(TimestampMixin, Base):
         )
     )
     name: Mapped[str | None] = mapped_column(String, nullable=True)
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
     base_url: Mapped[str | None] = mapped_column(String, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(
         postgresql.TIMESTAMP(timezone=True), nullable=True
