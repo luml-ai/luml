@@ -8,6 +8,7 @@ from dataforce_studio.schemas.base import BaseOrmConfig
 class _OrbitSecretBase(BaseModel):
     name: str
     value: str
+    tags: list[str] | None = None
 
 
 class OrbitSecretCreateIn(_OrbitSecretBase): ...
@@ -29,6 +30,7 @@ class OrbitSecretOut(BaseModel, BaseOrmConfig):
     name: str
     value: str
     orbit_id: int
+    tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -36,3 +38,4 @@ class OrbitSecretOut(BaseModel, BaseOrmConfig):
 class OrbitSecretUpdate(BaseModel):
     name: str | None = None
     value: str | None = None
+    tags: list[str] | None = None
