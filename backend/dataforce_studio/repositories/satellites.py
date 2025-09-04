@@ -143,3 +143,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             if sat:
                 sat.last_seen_at = datetime.now(UTC)
                 await session.commit()
+
+    async def delete_satellite(self, satellite_id: int) -> None:
+        async with self._get_session() as session:
+            return await self.delete_model(session, SatelliteOrm, satellite_id)

@@ -58,17 +58,24 @@ class Satellite(BaseModel, BaseOrmConfig):
 
 class SatelliteCreateIn(BaseModel, BaseOrmConfig):
     name: str | None = None
+    description: str | None = None
 
 
 class SatelliteCreate(BaseModel, BaseOrmConfig):
     orbit_id: int
     api_key_hash: str
     name: str | None = None
+    description: str | None = None
 
 
 class SatellitePairIn(BaseModel):
     base_url: HttpUrl
     capabilities: dict[SatelliteCapability, dict[str, Any] | None]
+
+
+class SatelliteUpdateIn(BaseModel, BaseOrmConfig):
+    name: str | None = None
+    description: str | None = None
 
 
 class SatelliteUpdate(BaseModel, BaseOrmConfig):

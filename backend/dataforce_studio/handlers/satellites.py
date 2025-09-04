@@ -22,6 +22,7 @@ from dataforce_studio.schemas.satellite import (
     SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
     SatelliteUpdate,
+    SatelliteUpdateIn,
 )
 from dataforce_studio.settings import config
 
@@ -125,6 +126,7 @@ class SatelliteHandler:
                 orbit_id=orbit_id,
                 api_key_hash=self._get_key_hash(api_key),
                 name=data.name,
+                description=data.description,
             ),
             {"created_by_user": user.full_name},
         )
@@ -135,17 +137,24 @@ class SatelliteHandler:
         user_id: int,
         organization_id: int,
         orbit_id: int,
-        satellite_update: SatelliteUpdate,
+        satellite_id: int,
+        satellite_update_in: SatelliteUpdateIn,
     ) -> Satellite:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
         )
 
-        satellite = await self.__sat_repo.get_satellite(satellite_update.id)
+        satellite = await self.__sat_repo.get_satellite(satellite_id)
         if not satellite:
             raise NotFoundError("Satellite not found")
 
-        updated_satellite = await self.__sat_repo.update_satellite(satellite_update)
+        updated_satellite = await self.__sat_repo.update_satellite(
+            SatelliteUpdate(
+                id=satellite_id,
+                name=satellite_update_in.name,
+                description=satellite_update_in.description,
+            )
+        )
 
         if not updated_satellite:
             raise NotFoundError("Satellite not found")
@@ -202,3 +211,17 @@ class SatelliteHandler:
         if not task:
             raise NotFoundError("Task not found")
         return task
+
+    async def delete_satellite(
+        self, organization_id: int, orbit_id: int, user_id: int, satellite_id: int
+    ) -> None:
+        await self.__permissions_handler.check_orbit_action_access(
+            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+        )
+
+        satellite = await self.__sat_repo.get_satellite(satellite_id)
+
+        if not satellite:
+            raise NotFoundError("Satellite not found")
+
+        return await self.__sat_repo.delete_satellite(satellite_id)

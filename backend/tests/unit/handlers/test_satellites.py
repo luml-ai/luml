@@ -16,6 +16,7 @@ from dataforce_studio.schemas.satellite import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
+    SatelliteUpdateIn,
 )
 
 handler = SatelliteHandler()
@@ -46,6 +47,7 @@ async def test_list_satellites(
             id=1,
             orbit_id=orbit_id,
             name="test",
+            description=None,
             base_url="https://url.com",
             paired=False,
             capabilities=capabilities,
@@ -87,6 +89,7 @@ async def test_get_satellite(
         id=1,
         orbit_id=orbit_id,
         name="test",
+        description=None,
         base_url="https://url.com",
         paired=False,
         capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
@@ -314,6 +317,7 @@ async def test_pair_satellite(
         id=satellite_id,
         orbit_id=orbit_id,
         name="test-satellite",
+        description=None,
         base_url=None,
         paired=False,
         capabilities=capabilities,
@@ -325,6 +329,7 @@ async def test_pair_satellite(
         id=satellite_id,
         orbit_id=orbit_id,
         name="test-satellite",
+        description=None,
         base_url=base_url,
         paired=True,
         capabilities=capabilities,
@@ -441,6 +446,7 @@ async def test_pair_satellite_already_paired(
         id=satellite_id,
         orbit_id=orbit_id,
         name="test-satellite",
+        description=None,
         base_url=base_url,
         paired=True,
         capabilities=capabilities,
@@ -482,6 +488,7 @@ async def test_pair_satellite_update_error(
         id=satellite_id,
         orbit_id=orbit_id,
         name="test-satellite",
+        description=None,
         base_url=None,
         paired=False,
         capabilities=capabilities,
@@ -624,3 +631,318 @@ async def test_update_task_status_not_found(mock_update_task_status: AsyncMock) 
     mock_update_task_status.assert_awaited_once_with(
         satellite_id, task_id, status, None
     )
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteHandler._get_key_hash",
+)
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_regenerate_satellite_api_key(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+    mock_get_key_hash: Mock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    mock_satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        name="test-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    mock_get_satellite.return_value = mock_satellite
+    mock_get_key_hash.return_value = "hashed_key"
+
+    api_key = await handler.regenerate_satellite_api_key(
+        user_id, organization_id, orbit_id, satellite_id
+    )
+
+    assert api_key.startswith("dfssat_")
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_update_satellite.assert_awaited_once()
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_regenerate_satellite_api_key_not_found(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    mock_get_satellite.return_value = None
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.regenerate_satellite_api_key(
+            user_id, organization_id, orbit_id, satellite_id
+        )
+
+    assert error.value.status_code == 404
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    satellite_update_in = SatelliteUpdateIn(
+        name="updated-name", description="updated-desc"
+    )
+
+    mock_satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        name="test-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    updated_satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        name="updated-name",
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=datetime.datetime.now(),
+        last_seen_at=None,
+    )
+
+    mock_get_satellite.return_value = mock_satellite
+    mock_update_satellite.return_value = updated_satellite
+
+    result = await handler.update_satellite(
+        user_id, organization_id, orbit_id, satellite_id, satellite_update_in
+    )
+
+    assert result == updated_satellite
+    assert result.name == "updated-name"
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_update_satellite.assert_awaited_once()
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite_not_found(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    satellite_update_in = SatelliteUpdateIn(name="updated-name")
+    mock_get_satellite.return_value = None
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.update_satellite(
+            user_id, organization_id, orbit_id, satellite_id, satellite_update_in
+        )
+
+    assert error.value.status_code == 404
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite_update_failed(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    satellite_update_in = SatelliteUpdateIn(name="updated-name")
+
+    mock_satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        name="test-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    mock_get_satellite.return_value = mock_satellite
+    mock_update_satellite.return_value = None
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.update_satellite(
+            user_id, organization_id, orbit_id, satellite_id, satellite_update_in
+        )
+
+    assert error.value.status_code == 404
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.delete_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_satellite(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_delete_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    mock_satellite = Satellite(
+        id=satellite_id,
+        orbit_id=orbit_id,
+        name="test-satellite",
+        description=None,
+        base_url="https://url.com",
+        paired=True,
+        capabilities={SatelliteCapability.DEPLOY: {"key": "test"}},
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+        last_seen_at=None,
+    )
+
+    mock_get_satellite.return_value = mock_satellite
+    mock_delete_satellite.return_value = None
+
+    await handler.delete_satellite(organization_id, orbit_id, user_id, satellite_id)
+
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_delete_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_satellite_not_found(
+    mock_check_orbit_action_access: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+    satellite_id = 456
+
+    mock_get_satellite.return_value = None
+
+    with pytest.raises(NotFoundError, match="Satellite not found") as error:
+        await handler.delete_satellite(organization_id, orbit_id, user_id, satellite_id)
+
+    assert error.value.status_code == 404
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+    )
+    mock_get_satellite.assert_awaited_once_with(satellite_id)
