@@ -39,11 +39,11 @@
 | Feature Description | Planned Release | Done |
 |---------|:----------------:|:------:|
 | Post-Deployment Monitoring | ![Q1 2026](https://img.shields.io/badge/Q1%202026-yellow) | ❌ |
-| Model Deployment | ![Q4 2025](https://img.shields.io/badge/Q4%202025-yellow) | ❌ |
-| Data Science Agent | ![Q4 2025](https://img.shields.io/badge/Q4%202025-yellow) | ❌ |
-| Experiment Snapshots | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ❌ |
-| Model Cards | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ❌ |
-| Python SDK | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ❌ |
+| Model Deployment | ![Q4 2025](https://img.shields.io/badge/Q4%202025-yellow) | 🚧 |
+| Data Science Agent | ![Q4 2025](https://img.shields.io/badge/Q4%202025-yellow) | 🚧 |
+| Experiment Snapshots | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ✅ |
+| Model Cards | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ✅ |
+| Python SDK | ![Q3 2025](https://img.shields.io/badge/Q3%202025-yellow) | ✅ |
 | Model Registry | ![Q3 2025](https://img.shields.io/badge/Q3%202025-green) | ✅ |
 | Notebooks | ![Q2 2025](https://img.shields.io/badge/Q2%202025-green) | ✅ |
 | In-Browser Runtime | ![Q2 2025](https://img.shields.io/badge/Q2%202025-green) | ✅ |
