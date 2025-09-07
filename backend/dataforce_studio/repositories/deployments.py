@@ -22,10 +22,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 satellite_id=deployment.satellite_id,
                 orbit_id=deployment.orbit_id,
                 type=SatelliteTaskType.DEPLOY,
-                payload={
-                    "deployment_id": db_dep.id,
-                    "model_id": deployment.model_id,
-                },
+                payload={"deployment_id": db_dep.id},
             )
             session.add(task)
             await session.commit()

@@ -1,6 +1,9 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, Request
 
 from dataforce_studio.handlers.deployments import DeploymentHandler
+from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
 from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
 from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
@@ -29,6 +32,7 @@ satellite_worker_router = APIRouter(
 satellite_handler = SatelliteHandler()
 deployment_handler = DeploymentHandler()
 orbit_secret_handler = OrbitSecretHandler()
+model_artifacts_handler = ModelArtifactHandler()
 
 
 @satellite_worker_router.post(
@@ -129,3 +133,17 @@ async def authorize_inference_access(
         request.user.orbit_id, data.api_key
     )
     return InferenceAccessOut(authorized=authorized)
+
+
+@satellite_worker_router.get(
+    "/model_artifacts/{model_artifact_id}/download-url",
+    responses=endpoint_responses,
+)
+async def get_model_artifact_download_url(
+    request: Request, model_artifact_id: int
+) -> dict[str, Any]:
+    await satellite_handler.touch_last_seen(request.user.id)
+    url = await model_artifacts_handler.request_satellite_download_url(
+        request.user.orbit_id, model_artifact_id
+    )
+    return {"url": url}

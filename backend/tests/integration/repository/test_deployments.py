@@ -48,7 +48,6 @@ async def test_create_deployment(create_satellite: SatelliteFixtureData) -> None
     assert task.orbit_id == deployment_data.orbit_id
     assert task.type == SatelliteTaskType.DEPLOY
     assert task.payload["deployment_id"] == deployment.id
-    assert task.payload["model_id"] == deployment_data.model_id
 
 
 @pytest.mark.asyncio

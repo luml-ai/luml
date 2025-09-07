@@ -231,6 +231,28 @@ class ModelArtifactHandler:
         )
         return url
 
+    async def request_satellite_download_url(
+        self,
+        orbit_id: int,
+        model_artifact_id: int,
+    ) -> str:
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
+
+        collection = await self.__collection_repository.get_collection(
+            model_artifact.collection_id
+        )
+        if not collection or collection.orbit_id != orbit_id:
+            raise ModelArtifactNotFoundError()
+
+        orbit = await self.__orbit_repository.get_orbit_by_id(orbit_id)
+        if not orbit:
+            raise OrbitNotFoundError()
+
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        return await s3_service.get_download_url(model_artifact.bucket_location)
+
     async def confirm_deletion(
         self,
         user_id: int,
