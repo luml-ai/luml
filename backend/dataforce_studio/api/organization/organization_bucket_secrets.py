@@ -71,16 +71,3 @@ async def delete_bucket_secret(
     await bucket_secret_handler.delete_bucket_secret(
         request.user.id, organization_id, secret_id
     )
-
-
-# @bucket_secrets_router.post(
-#     "/{secret_id}/urls", responses=endpoint_responses, response_model=BucketSecretUrls
-# )
-# async def get_existing_bucket_secret_connection_urls(
-#     request: Request,
-#     organization_id: int,
-#     secret: BucketSecretUpdate,
-# ) -> BucketSecretUrls:
-#     return await bucket_secret_handler.get_updated_bucket_urls(
-#         organization_id, request.user.id, secret
-#     )

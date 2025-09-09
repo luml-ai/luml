@@ -8,6 +8,7 @@ from dataforce_studio.infra.exceptions import (
     ApplicationError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
+    InvalidStatusTransitionError,
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
@@ -208,19 +209,11 @@ async def test_get_collection_model_artifact(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
     "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.create_model_artifact",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
@@ -230,10 +223,8 @@ async def test_get_collection_model_artifact(
 @pytest.mark.asyncio
 async def test_create_model_artifact(
     mock_get_s3_service: AsyncMock,
-    mock_get_secret_or_raise: AsyncMock,
     mock_create_model_artifact: AsyncMock,
-    mock_get_collection: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
     test_bucket: BucketSecret,
     manifest_example: Manifest,
@@ -261,14 +252,11 @@ async def test_create_model_artifact(
         updated_at=None,
     )
 
-    mock_secret = test_bucket
-
     mock_create_model_artifact.return_value = model_artifact
-    mock_get_orbit_simple.return_value = Mock(
-        bucket_secret_id=1, organization_id=organization_id
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(bucket_secret_id=1, organization_id=organization_id),
+        Mock(orbit_id=orbit_id),
     )
-    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
-    mock_get_secret_or_raise.return_value = mock_secret
     mock_s3_service = AsyncMock()
     mock_upload_data = UploadDetails(
         upload_id=None,
@@ -901,3 +889,291 @@ async def test_update_model_artifact_not_found(
         )
 
     mock_update_model_artifact.assert_not_awaited()
+
+
+@patch("dataforce_studio.handlers.model_artifacts.S3Service")
+@patch(
+    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_s3_service(
+    mock_get_bucket_secret: AsyncMock, mock_s3_service: Mock, test_bucket: BucketSecret
+) -> None:
+    secret_id = 123
+    mock_get_bucket_secret.return_value = test_bucket
+
+    result = await handler._get_s3_service(secret_id)
+
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_s3_service.assert_called_once_with(test_bucket)
+    assert result == mock_s3_service.return_value
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_model_artifact_invalid_status_transition(
+    mock_check_permission: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_update_model_artifact: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
+    model_artifact_id = 1
+
+    existing_artifact = ModelArtifact(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        file_name="test.tar.gz",
+        model_name="test",
+        metrics={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        bucket_location="test.tar.gz",
+        size=100,
+        unique_identifier="uid",
+        tags=None,
+        status=ModelArtifactStatus.UPLOADED,
+        created_at=datetime.now(),
+        updated_at=None,
+    )
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id),
+        Mock(id=collection_id),
+    )
+    mock_get_model_artifact.return_value = existing_artifact
+
+    with pytest.raises(InvalidStatusTransitionError):
+        await handler.update_model_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            model_artifact_id,
+            ModelArtifactUpdateIn(status=ModelArtifactStatus.UPLOAD_FAILED),
+        )
+
+    mock_update_model_artifact.assert_not_awaited()
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_model_artifact_update_failed(
+    mock_check_permission: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_update_model_artifact: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
+    model_artifact_id = 1
+
+    existing_artifact = ModelArtifact(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        file_name="test.tar.gz",
+        model_name="test",
+        metrics={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        bucket_location="test.tar.gz",
+        size=100,
+        unique_identifier="uid",
+        tags=None,
+        status=ModelArtifactStatus.UPLOADED,
+        created_at=datetime.now(),
+        updated_at=None,
+    )
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id),
+        Mock(id=collection_id),
+    )
+    mock_get_model_artifact.return_value = existing_artifact
+    mock_update_model_artifact.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError):
+        await handler.update_model_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            model_artifact_id,
+            ModelArtifactUpdateIn(tags=["new_tag"]),
+        )
+
+    mock_update_model_artifact.assert_awaited_once()
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_download_url_model_artifact_not_found(
+    mock_check_permission: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
+    model_artifact_id = 1
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id),
+        Mock(id=collection_id),
+    )
+    mock_get_model_artifact.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError):
+        await handler.request_download_url(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_model_artifact_not_found(
+    mock_check_permission: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
+    model_artifact_id = 1
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id),
+        Mock(id=collection_id),
+    )
+    mock_get_model_artifact.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError):
+        await handler.request_delete_url(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_orbit_not_found(
+    mock_check_permission: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 1
+    collection_id = 1
+    model_artifact_id = 1
+
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        file_name="test.tar.gz",
+        model_name="test",
+        metrics={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        bucket_location="test.tar.gz",
+        size=100,
+        unique_identifier="uid",
+        tags=None,
+        status=ModelArtifactStatus.UPLOADED,
+        created_at=datetime.now(),
+        updated_at=None,
+    )
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id),
+        Mock(id=collection_id),
+    )
+    mock_get_model_artifact.return_value = model_artifact
+    mock_get_orbit.return_value = None
+
+    with pytest.raises(OrbitNotFoundError):
+        await handler.request_delete_url(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
