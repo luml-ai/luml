@@ -120,3 +120,19 @@ export const satellitesResolver = zodResolver(
     description: z.string().optional(),
   }),
 )
+
+export const createSecretResolver = zodResolver(
+  z.object({
+    name: z.string().trim().min(1, 'Name is required'),
+    value: z.string().trim().min(1, 'Secret value is required'),
+    tags: z.array(z.string()).optional().default([]),
+  }),
+)
+
+export const updateSecretResolver = zodResolver(
+  z.object({
+    name: z.string().optional(),
+    value: z.string().trim().optional(),
+    tags: z.array(z.string()).optional().default([]),
+  }),
+)

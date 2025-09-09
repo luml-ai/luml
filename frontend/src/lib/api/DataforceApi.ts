@@ -42,6 +42,7 @@ import { OrbitCollectionsApi } from './orbit-collections'
 import { MlModelsApi } from './orbit-ml-models'
 import { ApiKeysApi } from './api-keys'
 import { SatellitesApi } from './satellites'
+import { OrbitSecretsApi } from './orbit-secrets'
 
 export class DataforceApiClass {
   private api: AxiosInstance
@@ -50,6 +51,7 @@ export class DataforceApiClass {
   public mlModels: MlModelsApi
   public apiKeys: ApiKeysApi
   public satellites: SatellitesApi
+  public orbitSecrets: OrbitSecretsApi 
 
   constructor() {
     this.api = axios.create({
@@ -64,6 +66,7 @@ export class DataforceApiClass {
     this.mlModels = new MlModelsApi(this.api)
     this.apiKeys = new ApiKeysApi(this.api)
     this.satellites = new SatellitesApi(this.api)
+    this.orbitSecrets = new OrbitSecretsApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {

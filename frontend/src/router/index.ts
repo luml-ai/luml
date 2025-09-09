@@ -123,6 +123,11 @@ const router = createRouter({
           path: 'satellites',
           name: 'orbit-satellites',
           component: () => import('../pages/orbits/OrbitSatellitesView.vue'),
+        },
+        {
+          path: 'secrets',
+          name: 'orbit-secrets',
+          component: () => import('../pages/orbits/OrbitSecretsView.vue'),
         }
       ],
     },

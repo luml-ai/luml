@@ -158,3 +158,14 @@ export const deleteAPIKeyConfirmOptions = (accept: () => void): ConfirmationOpti
   },
   accept,
 })
+
+export const deleteSecretConfirmation: ConfirmationOptions = {
+  message: 'This action is permanent and cannot be undone.',
+  header: 'Delete key?',
+  acceptLabel: 'delete key',
+  rejectLabel: 'cancel',
+  acceptProps: {
+    severity: 'warn',
+    variant: 'outlined',
+  },
+};
