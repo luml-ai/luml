@@ -6,6 +6,7 @@ from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretUrls,
+    BucketValidationUrls,
 )
 
 bucket_secret_urls_router = APIRouter(
@@ -21,6 +22,6 @@ bucket_secret_handler = BucketSecretHandler()
     "/urls", responses=endpoint_responses, response_model=BucketSecretUrls
 )
 async def get_bucket_secret_connection_urls(
-    secret: BucketSecretCreateIn,
+    secret: BucketSecretCreateIn | BucketValidationUrls,
 ) -> BucketSecretUrls:
-    return await bucket_secret_handler.get_new_bucket_urls(secret)
+    return await bucket_secret_handler.get_bucket_urls(secret)

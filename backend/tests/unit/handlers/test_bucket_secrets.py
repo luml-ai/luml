@@ -15,6 +15,7 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
+    BucketValidationUrls,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 
@@ -346,7 +347,7 @@ async def test_get_new_bucket_urls(
     mock_get_download_url.return_value = download_url
     mock_get_delete_url.return_value = delete_url
 
-    urls = await handler.get_new_bucket_urls(secret)
+    urls = await handler.get_bucket_urls(secret)
 
     assert urls == expected
     mock_get_upload_url.assert_awaited_once_with(object_name)
@@ -386,8 +387,10 @@ async def test_get_updated_bucket_urls(
         region="us-east-1",
         cert_check=None,
     )
-    secret = BucketSecretUpdate(
+    secret = BucketValidationUrls(
         id=secret_id,
+        organization_id=organization_id,
+        user_id=user_id,
         bucket_name="new-bucket-name",
         access_key="new-access_key",
     )
@@ -425,7 +428,7 @@ async def test_get_updated_bucket_urls(
     mock_s3_service.return_value = mock_s3_instance
     mock_get_bucket_secret.return_value = original_secret
 
-    urls = await handler.get_updated_bucket_urls(organization_id, user_id, secret)
+    urls = await handler.get_bucket_urls(secret)
 
     assert urls == expected
     mock_s3_service.assert_called_once_with(updated_secret)
@@ -449,11 +452,14 @@ async def test_get_updated_bucket_urls(
 async def test_get_updated_bucket_urls_secret_not_found(
     mock_get_bucket_secret: AsyncMock, mock_check_organization_permission: AsyncMock
 ) -> None:
+    secret_id = 847658
     organization_id = 8868
     user_id = 5656
 
-    secret = BucketSecretUpdate(
-        id=847658,
+    secret = BucketValidationUrls(
+        id=secret_id,
+        organization_id=organization_id,
+        user_id=user_id,
         bucket_name="new-bucket-name",
         access_key="new-access_key",
     )
@@ -461,7 +467,7 @@ async def test_get_updated_bucket_urls_secret_not_found(
     mock_get_bucket_secret.return_value = None
 
     with pytest.raises(NotFoundError) as error:
-        await handler.get_updated_bucket_urls(organization_id, user_id, secret)
+        await handler.get_bucket_urls(secret)
 
     assert error.value.status_code == 404
     mock_check_organization_permission.assert_awaited_once_with(

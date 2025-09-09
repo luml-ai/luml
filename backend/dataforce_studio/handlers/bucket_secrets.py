@@ -13,6 +13,7 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
+    BucketValidationUrls,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.services.s3_service import S3Service
@@ -21,6 +22,17 @@ from dataforce_studio.services.s3_service import S3Service
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
     __permissions_handler = PermissionsHandler()
+
+    async def _select_bucket_secret(
+        self, user_id: int, organization_id: int, secret_id: int
+    ) -> BucketSecret:
+        await self.__permissions_handler.check_organization_permission(
+            organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
+        secret = await self.__secret_repository.get_bucket_secret(secret_id)
+        if not secret:
+            raise NotFoundError("Secret not found")
+        return secret
 
     async def create_bucket_secret(
         self, user_id: int, organization_id: int, secret: BucketSecretCreateIn
@@ -48,12 +60,7 @@ class BucketSecretHandler:
     async def get_bucket_secret(
         self, user_id: int, organization_id: int, secret_id: int
     ) -> BucketSecretOut:
-        await self.__permissions_handler.check_organization_permission(
-            organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
-        )
-        secret = await self.__secret_repository.get_bucket_secret(secret_id)
-        if not secret:
-            raise NotFoundError("Secret not found")
+        secret = await self._select_bucket_secret(user_id, organization_id, secret_id)
         return BucketSecretOut.model_validate(secret)
 
     async def update_bucket_secret(
@@ -83,48 +90,22 @@ class BucketSecretHandler:
         except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e
 
-    @staticmethod
-    async def get_new_bucket_urls(secret: BucketSecretCreateIn) -> BucketSecretUrls:
-        object_name = "test_file"
-
-        s3_service = S3Service(secret)
-
-        return BucketSecretUrls(
-            presigned_url=await s3_service.get_upload_url(object_name),
-            download_url=await s3_service.get_download_url(object_name),
-            delete_url=await s3_service.get_delete_url(object_name),
-        )
-
-    async def get_updated_bucket_urls(
-        self, organization_id: int, user_id: int, secret: BucketSecretUpdate
+    async def get_bucket_urls(
+        self, secret: BucketSecretCreateIn | BucketValidationUrls
     ) -> BucketSecretUrls:
-        await self.__permissions_handler.check_organization_permission(
-            organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
-        )
+        s3_secret: BucketSecretCreateIn | BucketSecret
 
-        original_secret = await self.__secret_repository.get_bucket_secret(secret.id)
-
-        if not original_secret:
-            raise NotFoundError("Secret not found")
-
-        updated_secret = BucketSecret(
-            id=original_secret.id,
-            organization_id=original_secret.organization_id,
-            created_at=original_secret.created_at,
-            updated_at=original_secret.updated_at,
-            endpoint=secret.endpoint or original_secret.endpoint,
-            bucket_name=secret.bucket_name or original_secret.bucket_name,
-            access_key=secret.access_key or original_secret.access_key,
-            secret_key=secret.secret_key or original_secret.secret_key,
-            session_token=secret.session_token or original_secret.session_token,
-            secure=secret.secure or original_secret.secure,
-            region=secret.region or original_secret.region,
-            cert_check=secret.cert_check or original_secret.cert_check,
-        )
-
-        s3_service = S3Service(updated_secret)
+        if isinstance(secret, BucketValidationUrls):
+            original_secret = await self._select_bucket_secret(
+                secret.user_id, secret.organization_id, secret.id
+            )
+            s3_secret = original_secret.update_from_partial(secret)
+        else:
+            s3_secret = secret
 
         object_name = "test_file"
+        s3_service = S3Service(s3_secret)
+
         return BucketSecretUrls(
             presigned_url=await s3_service.get_upload_url(object_name),
             download_url=await s3_service.get_download_url(object_name),

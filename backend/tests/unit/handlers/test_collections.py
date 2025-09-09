@@ -1,5 +1,5 @@
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -674,3 +674,50 @@ async def test_delete_collection_orbit_wrong_org(
     assert error.value.status_code == 404
     mock_delete.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+
+
+@patch(
+    "dataforce_studio.handlers.collections.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.collections.CollectionRepository.get_orbit_collections",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_collections_success(
+    mock_get_collections: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_orbit_action_access: AsyncMock,
+) -> None:
+    user_id = 1
+    organization_id = 1
+    orbit_id = 123
+
+    expected_collections = [
+        Collection(
+            id=1,
+            orbit_id=orbit_id,
+            description="Test collection 1",
+            name="Collection 1",
+            collection_type=CollectionType.MODEL,
+            tags=None,
+            total_models=5,
+            created_at=datetime.now(),
+            updated_at=None,
+        )
+    ]
+
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
+    mock_get_collections.return_value = expected_collections
+
+    result = await handler.get_orbit_collections(user_id, organization_id, orbit_id)
+
+    assert result == expected_collections
+
+    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_get_collections.assert_awaited_once_with(orbit_id)

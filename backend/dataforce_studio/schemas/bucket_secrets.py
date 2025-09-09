@@ -29,6 +29,13 @@ class BucketSecret(_BucketSecretBase, BaseOrmConfig):
     created_at: datetime
     updated_at: datetime | None = None
 
+    def update_from_partial(
+        self, update_data: "BucketSecretUpdateIn | BucketValidationUrls"
+    ) -> "BucketSecret":
+        return self.model_copy(
+            update=update_data.model_dump(exclude_unset=True, exclude_none=True)
+        )
+
 
 class BucketSecretOut(BaseModel, BaseOrmConfig):
     id: int
@@ -55,6 +62,12 @@ class BucketSecretUpdateIn(BaseModel):
 
 class BucketSecretUpdate(BucketSecretUpdateIn):
     id: int
+
+
+class BucketValidationUrls(BucketSecretUpdateIn):
+    id: int
+    organization_id: int
+    user_id: int
 
 
 class BucketSecretUrls(BaseModel, BaseOrmConfig):
