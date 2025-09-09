@@ -307,7 +307,7 @@ async def test_delete_bucket_secret_in_use(
 
 @patch("dataforce_studio.handlers.bucket_secrets.S3Service")
 @pytest.mark.asyncio
-async def test_get_new_bucket_urls(
+async def test_get_bucket_urls(
     mock_s3_service: Mock,
 ) -> None:
     secret = BucketSecretCreateIn(
@@ -350,7 +350,7 @@ async def test_get_new_bucket_urls(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_updated_bucket_urls(
+async def test_get_existing_bucket_urls(
     mock_get_bucket_secret: AsyncMock,
     mock_s3_service: Mock,
 ) -> None:
@@ -395,7 +395,7 @@ async def test_get_updated_bucket_urls(
     mock_s3_service.return_value = mock_s3_instance
     mock_get_bucket_secret.return_value = original_secret
 
-    urls = await handler.get_bucket_urls(secret)
+    urls = await handler.get_existing_bucket_urls(secret)
 
     assert urls == expected
     mock_get_bucket_secret.assert_awaited_once_with(secret_id)
@@ -410,7 +410,7 @@ async def test_get_updated_bucket_urls(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_updated_bucket_urls_secret_not_found(
+async def test_get_existing_bucket_urls_secret_not_found(
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
     secret_id = 847658
@@ -424,6 +424,6 @@ async def test_get_updated_bucket_urls_secret_not_found(
     mock_get_bucket_secret.return_value = None
 
     with pytest.raises(NotFoundError) as error:
-        await handler.get_bucket_urls(secret)
+        await handler.get_existing_bucket_urls(secret)
 
     assert error.value.status_code == 404

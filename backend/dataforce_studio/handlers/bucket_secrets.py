@@ -98,19 +98,16 @@ class BucketSecretHandler:
         except DatabaseConstraintError as e:
             raise BucketSecretInUseError() from e
 
-    async def get_bucket_urls(
-        self, secret: BucketSecretCreateIn | BucketSecretUpdate
-    ) -> BucketSecretUrls:
-        s3_secret: BucketSecretCreateIn | BucketSecret
+    async def get_bucket_urls(self, secret: BucketSecretCreateIn) -> BucketSecretUrls:
+        return await self._generate_bucket_urls(secret)
 
-        if isinstance(secret, BucketSecretUpdate):
-            original_secret = await self.__secret_repository.get_bucket_secret(
-                secret.id
-            )
-            if not original_secret:
-                raise NotFoundError("Secret not found")
-            s3_secret = original_secret.update_from_partial(secret)
-        else:
-            s3_secret = secret
+    async def get_existing_bucket_urls(
+        self, secret: BucketSecretUpdate
+    ) -> BucketSecretUrls:
+        original_secret = await self.__secret_repository.get_bucket_secret(secret.id)
+        if not original_secret:
+            raise NotFoundError("Secret not found")
+
+        s3_secret = original_secret.update_from_partial(secret)
 
         return await self._generate_bucket_urls(s3_secret)
