@@ -9,24 +9,22 @@
     </template>
     <Form id="secret-edit-form" :initial-values="formData" :resolver="updateSecretResolver" @submit="onSubmit"
       class="form" validate-on-submit>
-      <div class="inputs">
-        <div class="field">
+        <div class="form-item">
           <label for="name" class="label">Name</label>
           <InputText v-model="formData.name" id="name" name="name" fluid />
         </div>
 
-        <div class="field">
-          <label for="value" class="label">Secret value</label>
+        <div class="form-item">
+          <label for="value" class="label">Secret key</label>
           <Password v-model="formData.value" id="value" name="value" :feedback="false" toggleMask fluid
             :key="props.secret?.id" />
         </div>
 
-        <div class="field">
+        <div class="form-item">
           <label for="tags" class="label">Tags</label>
           <AutoComplete v-model="formData.tags" id="tags" name="tags" placeholder="Type to add tags" fluid multiple
             :suggestions="autocompleteItems" @complete="searchTags" />
         </div>
-      </div>
     </Form>
     <template #footer>
       <div class="footer-actions">
@@ -221,31 +219,21 @@ async function onDelete() {
 </script>
 
 <style scoped>
-.dialog-title {
-  font-weight: 500;
-  font-size: 16px;
-  text-transform: uppercase;
+.form {
   display: flex;
+  flex-direction: column;
+  gap: 20px; 
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  align-items: center;
-}
-
-.inputs {
-  margin-bottom: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
 }
 
 .label {
+  font-weight: 400;
   align-self: flex-start;
-  font-size: 14px;
 }
 
 .footer-actions {

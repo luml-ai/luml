@@ -114,21 +114,27 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 </script>
 
 <style scoped>
-.inputs {
-  margin-bottom: 28px;
+
+.form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 29px;
 }
 
-.field {
+.form-item {
   display: flex;
   flex-direction: column;
-  gap: 7px;
 }
 
 .label {
+  font-weight: 400;
   align-self: flex-start;
-  font-size: 14px;
 }
+
+.form-item:last-of-type input,
+.form-item:last-of-type .p-password,
+.form-item:last-of-type .p-autocomplete {
+  margin-bottom: 15px;
+}
+
 </style>
