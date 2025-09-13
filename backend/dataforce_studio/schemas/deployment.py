@@ -21,6 +21,10 @@ class Deployment(BaseModel, BaseOrmConfig):
     inference_url: str | None = None
     status: DeploymentStatus
     secrets: dict[str, int] = Field(default_factory=dict)
+    description: str | None = None
+    dynamic_attributes_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables: dict[str, str] = Field(default_factory=dict)
     created_by_user: str | None = None
     tags: list[str] | None = None
     created_at: datetime
@@ -32,6 +36,10 @@ class DeploymentCreate(BaseModel, BaseOrmConfig):
     satellite_id: int
     model_id: int
     secrets: dict[str, int] = Field(default_factory=dict)
+    description: str | None = None
+    dynamic_attributes_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables: dict[str, str] = Field(default_factory=dict)
     status: DeploymentStatus = DeploymentStatus.PENDING
     created_by_user: str | None = None
     tags: list[str] | None = None
@@ -41,6 +49,10 @@ class DeploymentCreateIn(BaseModel):
     satellite_id: int
     model_artifact_id: int
     secrets: dict[str, int] = Field(default_factory=dict)
+    description: str | None = None
+    dynamic_attributes_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables_secrets: dict[str, int] = Field(default_factory=dict)
+    env_variables: dict[str, str] = Field(default_factory=dict)
     tags: list[str] | None = None
 
 

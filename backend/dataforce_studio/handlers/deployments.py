@@ -74,6 +74,10 @@ class DeploymentHandler:
                 satellite_id=data.satellite_id,
                 model_id=data.model_artifact_id,
                 secrets=data.secrets,
+                description=data.description,
+                dynamic_attributes_secrets=data.dynamic_attributes_secrets,
+                env_variables_secrets=data.env_variables_secrets,
+                env_variables=data.env_variables,
                 created_by_user=user.full_name,
             )
         )
