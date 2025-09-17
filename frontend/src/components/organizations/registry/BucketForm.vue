@@ -5,7 +5,7 @@
         <label for="endpoint" :class="{
           'label required': !update,
           'label--medium': update,
-          }">Endpoint</label>
+        }">Endpoint</label>
         <InputText
           v-model="initialValues.endpoint"
           id="endpoint"
@@ -20,7 +20,7 @@
         <label for="bucket_name" :class="{
           'label required': !update,
           'label--medium': update,
-          }">Bucket name</label>
+        }">Bucket name</label>
         <InputText
           v-model="initialValues.bucket_name"
           id="bucket_name"
@@ -33,9 +33,9 @@
       </div>
       <div class="field">
         <label for="access_key" :class="{
-          'label required': !update,
+          'label': !update,
           'label--medium': update,
-          }">Access key</label>
+        }">Access key</label>
         <InputText
           v-model="initialValues.access_key"
           id="access_key"
@@ -47,9 +47,9 @@
       </div>
       <div class="field">
         <label for="secret_key" :class="{
-          'label required': !update,
+          'label': !update,
           'label--medium': update,
-          }">Secret key</label>
+        }">Secret key</label>
         <InputText
           v-model="initialValues.secret_key"
           id="secret_key"
@@ -63,7 +63,7 @@
         <label for="region" :class="{
           'label': !update,
           'label--medium': update,
-          }">Region</label>
+        }">Region</label>
         <InputText
           v-model="initialValues.region"
           id="region"
@@ -79,7 +79,7 @@
       <label :class="{
         'label': !update,
         'label--medium': update,
-        }">Secure (http/https)</label>
+      }">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
@@ -89,7 +89,7 @@
 
 <script setup lang="ts">
 import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { ref, watch, withDefaults } from 'vue'
+import { ref, watch, withDefaults, computed } from 'vue'
 import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
@@ -133,7 +133,7 @@ watch(() => props.initialData, (data) => {
   }
 })
 
-const resolver = zodResolver(
+const createBucketResolver = zodResolver(
   z.object({
     endpoint: z.string().min(1),
     bucket_name: z.string().min(1),
@@ -144,10 +144,45 @@ const resolver = zodResolver(
   }),
 )
 
+const updateBucketResolver = zodResolver(
+  z.object({
+    endpoint: z.string().optional(),
+    bucket_name: z.string().optional(),
+    access_key: z.string().optional(),
+    secret_key: z.string().optional(),
+    session_token: z.string().optional(),
+    region: z.string().optional(),
+  }),
+)
+
+const resolver = computed(() =>
+  props.update ? updateBucketResolver : createBucketResolver
+)
+
 function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
 
-  emits('submit', { ...initialValues.value })
+  if (props.update) {
+    const formData: BucketSecretCreator = {
+      endpoint: initialValues.value.endpoint || props.initialData?.endpoint || '',
+      bucket_name: initialValues.value.bucket_name || props.initialData?.bucket_name || '',
+      region: initialValues.value.region || props.initialData?.region || '',
+      secure: initialValues.value.secure,
+    }
+    if (initialValues.value.access_key && initialValues.value.access_key.trim() !== '') {
+      formData.access_key = initialValues.value.access_key
+    }
+    if (initialValues.value.secret_key && initialValues.value.secret_key.trim() !== '') {
+      formData.secret_key = initialValues.value.secret_key
+    }
+    if (initialValues.value.session_token && initialValues.value.session_token.trim() !== '') {
+      formData.session_token = initialValues.value.session_token
+    }
+
+    emits('submit', formData)
+  } else {
+    emits('submit', { ...initialValues.value })
+  }
 }
 
 </script>

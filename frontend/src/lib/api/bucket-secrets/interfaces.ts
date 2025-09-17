@@ -26,3 +26,8 @@ export interface BucketConnectionUrls {
   download_url: string
   delete_url: string
 }
+
+export interface BucketSecretValidator extends BucketSecretCreator {
+  id: number
+}
+

@@ -50,6 +50,26 @@ export const useBucketsStore = defineStore('buckets', () => {
     await axios.delete(connectionUrls.delete_url)
   }
 
+  async function checkExistingBucket(
+    organizationId: number,
+    bucketId: number,
+    data: BucketSecretCreator,
+  ) {
+    const connectionUrls = await dataforceApi.bucketSecrets.getExistingBucketSecretConnectionUrls(
+      organizationId,
+      bucketId,
+      { ...data, id: bucketId },
+    )
+    const text = 'Connection test...'
+    const blob = new Blob([text], { type: 'text/plain' })
+    const buffer = await blob.arrayBuffer()
+    await axios.put(connectionUrls.presigned_url, buffer, {
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })
+    await axios.get(connectionUrls.download_url)
+    await axios.delete(connectionUrls.delete_url)
+  }
+
   return {
     buckets,
     getBuckets,
@@ -57,5 +77,6 @@ export const useBucketsStore = defineStore('buckets', () => {
     updateBucket,
     deleteBucket,
     checkBucket,
+    checkExistingBucket,
   }
 })
