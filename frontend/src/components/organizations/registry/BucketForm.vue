@@ -33,7 +33,7 @@
       </div>
       <div class="field">
         <label for="access_key" :class="{
-          'label required': !update,
+          'label': !update,
           'label--medium': update,
         }">Access key</label>
         <InputText
@@ -47,7 +47,7 @@
       </div>
       <div class="field">
         <label for="secret_key" :class="{
-          'label required': !update,
+          'label': !update,
           'label--medium': update,
         }">Secret key</label>
         <InputText
