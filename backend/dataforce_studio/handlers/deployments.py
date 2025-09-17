@@ -74,12 +74,14 @@ class DeploymentHandler:
                 orbit_id=orbit_id,
                 satellite_id=data.satellite_id,
                 model_id=data.model_artifact_id,
+                name=data.name,
                 satellite_parameters=data.satellite_parameters,
                 description=data.description,
                 dynamic_attributes_secrets=data.dynamic_attributes_secrets,
                 env_variables_secrets=data.env_variables_secrets,
                 env_variables=data.env_variables,
                 created_by_user=user.full_name,
+                tags=data.tags,
             )
         )
         return deployment

@@ -40,6 +40,7 @@ async def test_create_deployment(create_satellite: SatelliteFixtureData) -> None
     assert deployment.orbit_id == deployment_data.orbit_id
     assert deployment.satellite_id == deployment_data.satellite_id
     assert deployment.model_id == deployment_data.model_id
+    assert deployment.collection_id == model.collection_id
     assert deployment.status == DeploymentStatus.PENDING
 
     assert task
@@ -76,6 +77,7 @@ async def test_get_deployment(create_satellite: SatelliteFixtureData) -> None:
     assert fetched_deployment.id == deployment.id
     assert fetched_deployment.orbit_id == deployment_data.orbit_id
     assert fetched_deployment.satellite_id == deployment_data.satellite_id
+    assert fetched_deployment.collection_id == model.collection_id
 
 
 @pytest.mark.asyncio
@@ -109,6 +111,8 @@ async def test_list_deployments(create_satellite: SatelliteFixtureData) -> None:
     deployment_ids = [d.id for d in deployments]
     assert created_dep1.id in deployment_ids
     assert created_dep2.id in deployment_ids
+    for d in deployments:
+        assert d.collection_id == model.collection_id
 
 
 @pytest.mark.asyncio
@@ -141,6 +145,7 @@ async def test_list_satellite_deployments(
     ids = [d.id for d in all_deployments]
     assert len(all_deployments) == deployments_num
     assert all(dep.id in ids for dep in deployments)
+    assert all(d.collection_id == model.collection_id for d in all_deployments)
 
 
 @pytest.mark.asyncio
@@ -178,6 +183,7 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
     assert updated_deployment.inference_url == update_data.inference_url
     assert updated_deployment.status == update_data.status
     assert updated_deployment.tags == update_data.tags
+    assert updated_deployment.collection_id == model.collection_id
 
 
 @pytest.mark.asyncio
@@ -220,6 +226,7 @@ async def test_update_deployment_details(
     assert updated.description == details.description
     assert updated.dynamic_attributes_secrets == details.dynamic_attributes_secrets
     assert updated.tags == details.tags
+    assert updated.collection_id == model.collection_id
 
 
 @pytest.mark.asyncio
@@ -246,6 +253,7 @@ async def test_request_deployment_deletion(
 
     dep, task = await repo.request_deployment_deletion(orbit.id, created.id)
     assert dep.status == DeploymentStatus.DELETION_PENDING
+    assert dep.collection_id == model.collection_id
     assert task is not None
     assert task.type == SatelliteTaskType.UNDEPLOY
     assert task.payload["deployment_id"] == created.id
