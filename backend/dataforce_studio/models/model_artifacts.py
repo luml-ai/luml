@@ -16,7 +16,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
         Integer, ForeignKey("collections.id", ondelete="CASCADE"), nullable=False
     )
     file_name: Mapped[str] = mapped_column(String, nullable=False)
-    model_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    model_name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)

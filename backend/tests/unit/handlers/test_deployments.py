@@ -68,11 +68,13 @@ async def test_create_deployment(
     user_name = "User Full Name"
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         model_id=model_artifact_id,
@@ -83,7 +85,11 @@ async def test_create_deployment(
         id=1,
         orbit_id=orbit_id,
         satellite_id=satellite_id,
+        satellite_name="Satellite 1",
+        name="my-deployment",
         model_id=model_artifact_id,
+        model_artifact_name="Model Artifact 1",
+        collection_id=collection_id,
         inference_url=None,
         status=DeploymentStatus.PENDING,
         created_by_user=user_name,
@@ -138,6 +144,7 @@ async def test_create_deployment_orbit_not_found(
     orbit_id = 1
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
@@ -185,6 +192,7 @@ async def test_create_deployment_satellite_not_found(
     satellite_id = 1
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
@@ -240,6 +248,7 @@ async def test_create_deployment_model_artifact_not_found(
     model_artifact_id = 1
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
@@ -303,6 +312,7 @@ async def test_create_deployment_collection_not_found(
     model_artifact_id = 1
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
@@ -372,6 +382,7 @@ async def test_create_deployment_user_not_found(
     model_artifact_id = 1
 
     deployment_create_data_in = DeploymentCreateIn(
+        name="my-deployment",
         satellite_id=1,
         model_artifact_id=1,
         tags=["tag"],
@@ -425,7 +436,11 @@ async def test_list_deployments(
             id=1,
             orbit_id=orbit_id,
             satellite_id=1,
+            satellite_name="Satellite 1",
+            name="deployment-1",
             model_id=1,
+            model_artifact_name="Model Artifact 1",
+            collection_id=1,
             status=DeploymentStatus.ACTIVE,
             created_by_user="John Doe",
             created_at=datetime.datetime.now(),
@@ -466,7 +481,11 @@ async def test_get_deployment(
         id=deployment_id,
         orbit_id=orbit_id,
         satellite_id=1,
+        satellite_name="Satellite 1",
+        name="deployment",
         model_id=1,
+        model_artifact_name="Model Artifact 1",
+        collection_id=1,
         status=DeploymentStatus.ACTIVE,
         created_by_user="John Doe",
         created_at=datetime.datetime.now(),
@@ -532,7 +551,11 @@ async def test_list_worker_deployments(
             id=1,
             orbit_id=1,
             satellite_id=satellite_id,
+            satellite_name="Satellite 1",
+            name="worker-deployment",
             model_id=1,
+            model_artifact_name="Model Artifact 1",
+            collection_id=1,
             status=DeploymentStatus.ACTIVE,
             created_by_user="Worker",
             created_at=datetime.datetime.now(),
@@ -577,7 +600,10 @@ async def test_update_deployment_details(
         id=deployment_id,
         orbit_id=orbit_id,
         satellite_id=5,
+        satellite_name="Satellite 5",
         model_id=10,
+        model_artifact_name="Model Artifact 10",
+        collection_id=2,
         status=DeploymentStatus.ACTIVE,
         name=details.name,
         description=details.description,
@@ -624,7 +650,11 @@ async def test_request_deployment_deletion(
         id=deployment_id,
         orbit_id=orbit_id,
         satellite_id=1,
+        satellite_name="Satellite 1",
+        name="deployment",
         model_id=1,
+        model_artifact_name="Model Artifact 1",
+        collection_id=1,
         status=DeploymentStatus.DELETION_PENDING,
         created_by_user="User",
         created_at=datetime.datetime.now(),
@@ -660,7 +690,11 @@ async def test_update_worker_deployment_status(
         id=deployment_id,
         orbit_id=1,
         satellite_id=satellite_id,
+        satellite_name="Satellite 1",
+        name="worker-deployment",
         model_id=1,
+        model_artifact_name="Model Artifact 1",
+        collection_id=1,
         status=status,
         created_by_user="Worker",
         created_at=datetime.datetime.now(),
@@ -699,7 +733,11 @@ async def test_update_worker_deployment(
         id=deployment_id,
         orbit_id=1,
         satellite_id=satellite_id,
+        satellite_name="Satellite 1",
+        name="worker-deployment",
         model_id=1,
+        model_artifact_name="Model Artifact 1",
+        collection_id=1,
         inference_url=inference_url,
         status=DeploymentStatus.ACTIVE,
         created_by_user="User Name",

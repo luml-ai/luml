@@ -27,6 +27,7 @@ async def test_create_deployment(create_satellite: SatelliteFixtureData) -> None
     repo = DeploymentRepository(engine)
 
     deployment_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
         model_id=model.id,
@@ -62,6 +63,7 @@ async def test_get_deployment(create_satellite: SatelliteFixtureData) -> None:
     repo = DeploymentRepository(engine)
 
     deployment_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
         model_id=model.id,
@@ -92,6 +94,7 @@ async def test_list_deployments(create_satellite: SatelliteFixtureData) -> None:
     repo = DeploymentRepository(engine)
 
     deployment_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
         model_id=model.id,
@@ -133,6 +136,7 @@ async def test_list_satellite_deployments(
     for _ in range(deployments_num):
         deployment, _ = await repo.create_deployment(
             DeploymentCreate(
+                name="my-deployment",
                 orbit_id=orbit.id,
                 satellite_id=satellite.id,
                 model_id=model.id,
@@ -160,6 +164,7 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
     repo = DeploymentRepository(engine)
 
     deployment_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
         model_id=model.id,
@@ -201,6 +206,7 @@ async def test_update_deployment_details(
 
     created_deployment, _ = await repo.create_deployment(
         DeploymentCreate(
+            name="my-deployment",
             orbit_id=orbit.id,
             satellite_id=satellite.id,
             model_id=model.id,
@@ -244,6 +250,7 @@ async def test_request_deployment_deletion(
 
     created, _ = await repo.create_deployment(
         DeploymentCreate(
+            name="my-deployment",
             orbit_id=orbit.id,
             satellite_id=satellite.id,
             model_id=model.id,

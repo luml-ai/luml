@@ -197,6 +197,7 @@ async def test_delete_model_artifact_with_deployment_constraint(
     )
 
     deployment_data = DeploymentCreate(
+        name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
         model_id=created_model.id,

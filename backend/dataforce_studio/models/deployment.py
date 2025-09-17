@@ -21,17 +21,22 @@ class DeploymentOrm(TimestampMixin, Base):
     orbit_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
-    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     satellite_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("satellites.id", ondelete="CASCADE"), nullable=False
     )
-    satellite_name: Mapped[str | None] = column_property(
+    satellite_name: Mapped[str] = column_property(
         select(SatelliteOrm.name)
         .where(SatelliteOrm.id == satellite_id)
         .scalar_subquery()
     )
     model_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("model_artifacts.id", ondelete="RESTRICT"), nullable=False
+    )
+    model_artifact_name: Mapped[str] = column_property(
+        select(ModelArtifactOrm.model_name)
+        .where(ModelArtifactOrm.id == model_id)
+        .scalar_subquery()
     )
     collection_id: Mapped[int] = column_property(
         select(ModelArtifactOrm.collection_id)

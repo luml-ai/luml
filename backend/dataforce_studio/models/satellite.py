@@ -40,7 +40,7 @@ class SatelliteOrm(TimestampMixin, Base):
             postgresql.JSONB, nullable=False, default=dict, server_default="{}"
         )
     )
-    name: Mapped[str | None] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     base_url: Mapped[str | None] = mapped_column(String, nullable=True)
     last_seen_at: Mapped[datetime | None] = mapped_column(
