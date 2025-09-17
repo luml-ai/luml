@@ -39,7 +39,8 @@
           variant="text"
           severity="secondary"
           v-tooltip="'Deploy'"
-          @click="$router.push({ name: 'orbit-deployments' })"
+          :disabled="selectedModels.length !== 1"
+          @click="initDeploy"
         >
           <template #icon>
             <Rocket :size="14" />
@@ -169,6 +170,13 @@
         </DataTable>
       </div>
     </div>
+    <DeploymentsCreateModal
+      v-if="modelForDeployment"
+      :visible="!!modelForDeployment"
+      :initial-collection-id="collectionsStore.currentCollection?.id"
+      :initial-model-id="modelForDeployment"
+      @update:visible="onUpdateModelDeploymentVisible"
+    ></DeploymentsCreateModal>
     <CollectionModelEditor
       v-if="modelForEdit"
       :visible="!!modelForEdit"
@@ -191,6 +199,8 @@ import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 import { useRouter } from 'vue-router'
+import { useCollectionsStore } from '@/stores/collections'
+import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from './model/CollectionModelEditor.vue'
 
 export interface SelectedModel
@@ -208,9 +218,11 @@ const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
 const router = useRouter()
+const collectionsStore = useCollectionsStore()
 
 const selectedModels = ref<SelectedModel[]>([])
 const loading = ref(false)
+const modelForDeployment = ref<number | null>(null)
 const modelForEdit = ref<SelectedModel | null>(null)
 
 const tableData = computed<SelectedModel[]>(() => {
@@ -304,6 +316,16 @@ function compareClick() {
   router.push({ name: 'compare', query: { models: selectedModelsIds } })
 }
 
+function initDeploy() {
+  const modelId = selectedModels.value[0].id
+  modelForDeployment.value = modelId
+}
+
+function onUpdateModelDeploymentVisible(val?: boolean) {
+  if (val) return
+  modelForDeployment.value = null
+}
+
 function openModelEditor() {
   if (!selectedModels.value[0]) return
   modelForEdit.value = selectedModels.value[0]
@@ -318,7 +340,8 @@ watch(tableData, (data) => {
 
 onBeforeMount(async () => {
   try {
-    await modelsStore.loadModelsList()
+    const modelsList = await modelsStore.getModelsList()
+    modelsStore.setModelsList(modelsList)
   } catch {
     toast.add(simpleErrorToast('Failed to load models'))
   }

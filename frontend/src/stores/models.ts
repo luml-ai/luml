@@ -99,12 +99,16 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     }
   })
 
-  async function loadModelsList(organizationId?: number, orbitId?: number, collectionId?: number) {
-    modelsList.value = await dataforceApi.mlModels.getModelsList(
+  function getModelsList(organizationId?: number, orbitId?: number, collectionId?: number) {
+    return dataforceApi.mlModels.getModelsList(
       organizationId ?? requestInfo.value.organizationId,
       orbitId ?? requestInfo.value.orbitId,
       collectionId ?? requestInfo.value.collectionId,
     )
+  }
+
+  function setModelsList(list: MlModel[]) {
+    modelsList.value = list
   }
 
   function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
@@ -254,7 +258,8 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     experimentSnapshotProvider,
     initiateCreateModel,
     confirmModelUpload,
-    loadModelsList,
+    getModelsList,
+    setModelsList,
     cancelModelUpload,
     resetList,
     deleteModels,

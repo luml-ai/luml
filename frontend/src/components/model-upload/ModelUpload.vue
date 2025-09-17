@@ -185,7 +185,12 @@ async function onOrbitChange(orbitId: number | null) {
 async function onCollectionChange(collectionId: number | null) {
   if (collectionId) {
     if (!formData.value.orbit) throw new Error('Orbit was not found')
-    await modelsStore.loadModelsList(organizationId.value, formData.value.orbit, collectionId)
+    const modelsList = await modelsStore.getModelsList(
+      organizationId.value,
+      formData.value.orbit,
+      collectionId,
+    )
+    modelsStore.setModelsList(modelsList)
   } else {
     modelsStore.resetList()
   }

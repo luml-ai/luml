@@ -33,12 +33,14 @@ import { Plus } from 'lucide-vue-next'
 import { useSatellitesStore } from '@/stores/satellites'
 import { useCollectionsStore } from '@/stores/collections'
 import { useSecretsStore } from '@/stores/orbit-secrets'
+import { useDeploymentsStore } from '@/stores/deployments'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const satellitesStore = useSatellitesStore()
 const secretsStore = useSecretsStore()
 const collectionsStore = useCollectionsStore()
+const deploymentsStore = useDeploymentsStore()
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
@@ -81,6 +83,13 @@ const buttonInfo = computed(() => {
       label: 'Create secrets',
       action: () => {
         secretsStore.showCreator()
+      },
+    }
+  } else if (route.name === 'orbit-deployments') {
+    return {
+      label: 'Create deployment',
+      action: () => {
+        deploymentsStore.showCreator()
       },
     }
   } else {

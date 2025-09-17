@@ -5,8 +5,8 @@
         <Plus :size="14" />
       </template>
     </Button>
-    <h3 class="title">Add new Satellite</h3>
-    <p class="text">Keep checkpoints and configs in one place.</p>
+    <h3 class="title">{{ title }}</h3>
+    <p class="text">{{ text }}</p>
   </div>
 </template>
 
@@ -14,10 +14,16 @@
 import { Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 
+type Props = {
+  title: string
+  text: string
+}
+
 type Emits = {
   add: []
 }
 
+defineProps<Props>()
 defineEmits<Emits>()
 </script>
 

@@ -151,3 +151,12 @@ export const getLastUpdateText = (date: string | number | Date) => {
 
   return `Last updated ${diffYear} year${diffYear === 1 ? '' : 's'} ago`
 }
+
+export const getErrorMessage = (error: any, message = 'Something went wrong') => {
+  return error?.response?.detail?.message || error?.message || message
+}
+
+export const getNumberOrString = (string: string | number) => {
+  const isNumber = !isNaN(+string)
+  return isNumber ? +string : string
+}

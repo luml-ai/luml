@@ -61,6 +61,10 @@ export const useSatellitesStore = defineStore('satellites', () => {
     creatorVisible.value = false
   }
 
+  function reset() {
+    satellitesList.value = []
+  }
+
   return {
     satellitesList,
     creatorVisible,
@@ -72,5 +76,6 @@ export const useSatellitesStore = defineStore('satellites', () => {
     regenerateApiKey,
     showCreator,
     hideCreator,
+    reset,
   }
 })

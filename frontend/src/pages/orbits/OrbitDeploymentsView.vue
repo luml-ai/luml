@@ -1,50 +1,92 @@
 <template>
-  <div class="content">
-    <h2 class="sub-title">Coming Soon</h2>
-    <h1 class="title">Deployments <Rocket :size="42" color="var(--p-primary-color)" /></h1>
-    <p class="text">
-      Deploy and serve your machine learning models in minutes — directly from your orbit.
-    </p>
-    <ui-email-form class="form" />
+  <div v-if="!loading">
+    <template v-if="deploymentsStore.deployments.length">
+      <div class="message">
+        <BellRing :size="14" /> In order to use the inference URL,please authorize with your API key
+      </div>
+      <DeploymentsTable :data="deploymentsStore.deployments"></DeploymentsTable>
+    </template>
+    <div v-else class="list">
+      <UiCardAdd
+        title="Add new Deployment"
+        text="Keep versions and configs organized."
+        @add="onAddClick"
+      ></UiCardAdd>
+    </div>
   </div>
+  <DeploymentsCreateModal
+    v-if="deploymentsStore.creatorVisible"
+    :visible="deploymentsStore.creatorVisible"
+    @update:visible="
+      (val) => (val ? deploymentsStore.showCreator() : deploymentsStore.hideCreator())
+    "
+  ></DeploymentsCreateModal>
 </template>
 
 <script setup lang="ts">
-import { Rocket } from 'lucide-vue-next'
-import UiEmailForm from '@/components/ui/UiEmailForm.vue'
+import { onBeforeMount, onUnmounted, ref } from 'vue'
+import { useDeploymentsStore } from '@/stores/deployments'
+import { useRoute } from 'vue-router'
+import { useToast } from 'primevue'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
+import { BellRing } from 'lucide-vue-next'
+import UiCardAdd from '@/components/ui/UiCardAdd.vue'
+import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
+import DeploymentsTable from '@/components/deployments/table/DeploymentsTable.vue'
+
+const deploymentsStore = useDeploymentsStore()
+const route = useRoute()
+const toast = useToast()
+
+const loading = ref(true)
+
+function onAddClick() {
+  deploymentsStore.showCreator()
+}
+
+onBeforeMount(async () => {
+  try {
+    loading.value = true
+    const organizationId = +route.params.organizationId
+    const orbitId = +route.params.id
+    if (!organizationId) {
+      throw new Error('Current organization was not found')
+    }
+    if (!orbitId) {
+      throw new Error('Current orbit was not found')
+    }
+    const deployments = await deploymentsStore.getDeployments(organizationId, orbitId)
+    deploymentsStore.setDeployments(deployments)
+  } catch (e: any) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load satellites list')))
+  } finally {
+    loading.value = false
+  }
+})
+
+onUnmounted(() => {
+  deploymentsStore.reset()
+})
 </script>
 
 <style scoped>
-.content {
-  min-height: calc(100vh - 300px);
-  max-width: 512px;
-  margin: 0 auto;
+.list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.message {
   display: flex;
-  flex-direction: column;
   justify-content: center;
   align-items: center;
-  text-align: center;
-}
-
-.sub-title {
-  margin-bottom: 12px;
-  font-size: 20px;
-  color: var(--p-text-muted-color);
-}
-
-.title {
-  margin-bottom: 24px;
-  font-size: 48px;
+  gap: 8px;
+  border-radius: 8px;
+  padding: 8px;
+  font-size: 12px;
   font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.text {
-  margin-bottom: 44px;
-  font-size: 16px;
-  line-height: 1.5;
-  margin-bottom: 44px;
+  color: var(--p-tag-primary-color);
+  background-color: var(--p-tag-primary-background);
+  margin-bottom: 20px;
 }
 </style>

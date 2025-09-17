@@ -1,9 +1,11 @@
 <template>
   <div v-if="!loading" class="list">
-    <SatellitesCardAdd
+    <UiCardAdd
+      title="Add new Satellite"
+      text="Keep checkpoints and configs in one place."
       v-if="!satellitesStore.satellitesList.length"
       @add="satellitesStore.showCreator"
-    ></SatellitesCardAdd>
+    ></UiCardAdd>
     <template v-else>
       <SatellitesCard
         v-for="card in satellitesStore.satellitesList"
@@ -34,7 +36,7 @@ import { useRoute } from 'vue-router'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import SatellitesCreateModal from '@/components/satellites/SatellitesCreateModal.vue'
-import SatellitesCardAdd from '@/components/satellites/SatellitesCardAdd.vue'
+import UiCardAdd from '@/components/ui/UiCardAdd.vue'
 import SatellitesApiKeyModal from '@/components/satellites/SatellitesApiKeyModal.vue'
 import SatellitesCard from '@/components/satellites/SatellitesCard.vue'
 

@@ -93,6 +93,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     collectionsList,
     currentCollection,
     creatorVisible,
+    requestInfo,
     loadCollections,
     createCollection,
     updateCollection,

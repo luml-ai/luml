@@ -45,7 +45,8 @@ async function init(organizationId: number) {
       orbitsStore.setCurrentOrbitDetails(details)
     }
     await collectionsStore.loadCollections()
-    await modelsStore.loadModelsList()
+    const modelsList = await modelsStore.getModelsList()
+    modelsStore.setModelsList(modelsList)
     collectionsStore.setCurrentCollection(+route.params.collectionId)
   } catch {
     toast.add(simpleErrorToast('Failed to load collection data'))
