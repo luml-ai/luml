@@ -4,19 +4,77 @@ import type {
   TabularModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
 import type {
+  CreateModelResponse,
   MlModel,
   MlModelCreator,
   UpdateMlModelPayload,
 } from '@/lib/api/orbit-ml-models/interfaces'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { dataforceApi } from '@/lib/api'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
 import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
 
-export const useModelsStore = defineStore('models', () => {
+// TODO: Separate interfaces
+interface RequestInfo {
+  organizationId: number
+  orbitId: number
+  collectionId: number
+}
+
+interface ModelStore {
+  modelsList: Ref<MlModel[]>
+  requestInfo: Ref<RequestInfo>
+  currentModelTag: Ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>
+  currentModelMetadata: Ref<
+    TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload | null
+  >
+  currentModelHtmlBlobUrl: Ref<string | null>
+  experimentSnapshotProvider: Ref<ExperimentSnapshotProvider | null>
+  initiateCreateModel: (
+    data: MlModelCreator,
+    requestData?: {
+      organizationId: number
+      orbitId: number
+      collectionId: number
+    },
+  ) => Promise<CreateModelResponse>
+  confirmModelUpload: (payload: UpdateMlModelPayload, requestData?: RequestInfo) => Promise<void>
+  loadModelsList: (
+    organizationId?: number,
+    orbitId?: number,
+    collectionId?: number,
+  ) => Promise<void>
+  cancelModelUpload: (
+    payload: UpdateMlModelPayload,
+    requestData?: {
+      organizationId: number
+      orbitId: number
+      collectionId: number
+    },
+  ) => Promise<void>
+  resetList: () => void
+  deleteModels: (modelsIds: number[]) => Promise<{
+    deleted: number[]
+    failed: number[]
+  }>
+  downloadModel: (modelId: number, name: string) => Promise<void>
+  getDownloadUrl: (modelId: number) => Promise<string>
+  setCurrentModelTag: (tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) => void
+  resetCurrentModelTag: () => void
+  setCurrentModelMetadata: (
+    metadata: TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload,
+  ) => void
+  resetCurrentModelMetadata: () => void
+  setCurrentModelHtmlBlobUrl: (htmlFile: string) => void
+  resetCurrentModelHtmlBlobUrl: () => void
+  setExperimentSnapshotProvider: (provider: ExperimentSnapshotProvider) => void
+  resetExperimentSnapshotProvider: () => void
+}
+
+export const useModelsStore = defineStore('models', (): ModelStore => {
   const route = useRoute()
 
   const modelsList = ref<MlModel[]>([])
