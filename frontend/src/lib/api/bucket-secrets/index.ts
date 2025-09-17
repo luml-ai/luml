@@ -1,5 +1,10 @@
 import type { AxiosInstance } from 'axios'
-import type { BucketConnectionUrls, BucketSecret, BucketSecretCreator, BucketSecretValidator } from './interfaces'
+import type {
+  BucketConnectionUrls,
+  BucketSecret,
+  BucketSecretCreator,
+  BucketSecretValidator,
+} from './interfaces'
 import type { BaseDetailResponse } from '../DataforceApi.interfaces'
 
 export class BucketSecretsApi {
@@ -58,7 +63,11 @@ export class BucketSecretsApi {
     return responseData
   }
 
-  async getExistingBucketSecretConnectionUrls( organizationId: number, secretId: number, data: BucketSecretValidator, ) {
+  async getExistingBucketSecretConnectionUrls(
+    organizationId: number,
+    secretId: number,
+    data: BucketSecretValidator,
+  ) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
       `/organizations/${organizationId}/bucket-secrets/${secretId}/urls`,
       data,
