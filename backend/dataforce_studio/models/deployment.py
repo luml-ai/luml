@@ -3,6 +3,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
+from dataforce_studio.models.model_artifacts import ModelArtifactOrm
 from dataforce_studio.models.satellite import SatelliteOrm
 from dataforce_studio.schemas.deployment import Deployment
 
@@ -31,6 +32,11 @@ class DeploymentOrm(TimestampMixin, Base):
     )
     model_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("model_artifacts.id", ondelete="RESTRICT"), nullable=False
+    )
+    collection_id: Mapped[int] = column_property(
+        select(ModelArtifactOrm.collection_id)
+        .where(ModelArtifactOrm.id == model_id)
+        .scalar_subquery()
     )
     inference_url: Mapped[str | None] = mapped_column(
         String, nullable=True, unique=True

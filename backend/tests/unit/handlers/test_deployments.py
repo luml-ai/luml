@@ -76,6 +76,7 @@ async def test_create_deployment(
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         model_id=model_artifact_id,
+        tags=deployment_create_data_in.tags,
         created_by_user=user_name,
     )
     expected = Deployment(
