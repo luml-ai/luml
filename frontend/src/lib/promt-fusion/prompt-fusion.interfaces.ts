@@ -3,6 +3,7 @@ import type {
   NodeTypeEnum,
   PromptFieldTypeEnum,
 } from '@/components/express-tasks/prompt-fusion/interfaces'
+import type { Node } from '@vue-flow/core'
 
 export interface BaseProviderInfo {
   id: ProvidersEnum
@@ -89,7 +90,7 @@ export interface PayloadEdge {
   targetField: string
 }
 
-export interface PayloadNode {
+export interface PayloadNode extends Node {
   id: string
   data: PayloadNodeData
 }

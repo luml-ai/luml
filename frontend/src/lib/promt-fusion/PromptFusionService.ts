@@ -250,7 +250,7 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   createFlowFromMetadata(metadata: PayloadData) {
     const nodes = metadata.nodes.map<PromptNode>((node, index) => ({
-      id: node.id,
+      ...node,
       type: 'custom',
       data: {
         ...node.data,
@@ -262,7 +262,6 @@ class PromptFusionServiceClass extends Observable<Events> {
           handlePosition: this.getFieldHandlePosition(node.data.type, field.variant),
         })),
       },
-      position: { x: index * 260 + 20, y: 20 },
       selected: false,
     }))
     const edges: any = metadata.edges.map<Edge>((edge) => ({
@@ -293,7 +292,7 @@ class PromptFusionServiceClass extends Observable<Events> {
         type: nodeData.type,
         label: nodeData.label,
       }
-      return { id: node.id, data }
+      return { ...node, data }
     })
     this.nodesData = { edges, nodes }
   }
