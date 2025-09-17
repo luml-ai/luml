@@ -21,6 +21,7 @@ class Deployment(BaseModel, BaseOrmConfig):
     satellite_name: str | None = None
     name: str | None = None
     model_id: int
+    model_artifact_name: str | None = None
     collection_id: int | None = None
     inference_url: str | None = None
     status: DeploymentStatus

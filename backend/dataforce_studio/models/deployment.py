@@ -33,6 +33,11 @@ class DeploymentOrm(TimestampMixin, Base):
     model_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("model_artifacts.id", ondelete="RESTRICT"), nullable=False
     )
+    model_artifact_name: Mapped[str | None] = column_property(
+        select(ModelArtifactOrm.model_name)
+        .where(ModelArtifactOrm.id == model_id)
+        .scalar_subquery()
+    )
     collection_id: Mapped[int] = column_property(
         select(ModelArtifactOrm.collection_id)
         .where(ModelArtifactOrm.id == model_id)
