@@ -1,11 +1,12 @@
 from typing import Any
-from pydantic import Field, create_model
-from .model_handler import ModelHandler
 
-model_handler = ModelHandler()
+from handers.model_handler import ModelHandler
 
 
 class OpenAPIGenerator:
+    def __init__(self, model_handler: ModelHandler):
+        self.model_handler = model_handler
+
     @staticmethod
     def _response_401():
         return {
@@ -389,20 +390,10 @@ class OpenAPIGenerator:
             }
 
     def generate_schema(self, title: str, version: str, description: str) -> dict[str, Any]:
-        manifest = model_handler.get_manifest()
-        dtypes_schemas = model_handler.load_dtypes_schemas()
+        manifest = self.model_handler.get_manifest()
+        dtypes_schemas = self.model_handler.load_dtypes_schemas()
 
-        input_model = model_handler.create_input_model(manifest)
-        dynamic_attrs_model = model_handler.create_dynamic_attributes_model(manifest)
-
-        request_model = create_model(
-            "ComputeRequest",
-            inputs=(input_model, Field(..., description="Input data for the model")),
-            dynamic_attributes=(
-                dynamic_attrs_model,
-                Field(..., description="Dynamic attributes"),
-            ),
-        )
+        request_model = self.model_handler.get_request_model()
 
         openapi_schema = {
             "openapi": "3.0.0",

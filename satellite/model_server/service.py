@@ -1,13 +1,13 @@
 import json
 import inspect
+import logging
 from typing import Any, Callable, Type
 from handers.model_handler import ModelHandler
 from handers.openapi_generator import OpenAPIGenerator
 from auth import HTTPException
 
-
-model_handler = ModelHandler()
-openapi = OpenAPIGenerator()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 class UvicornService:
@@ -21,6 +21,20 @@ class UvicornService:
         self.title = title
         self.description = description
         self.version = version
+
+        logger.info("Initializing UvicornService")
+
+        try:
+            logger.info("Creating ModelHandler...")
+            self.model_handler = ModelHandler()
+            self.openapi = OpenAPIGenerator(self.model_handler)
+            logger.info("ModelHandler created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create ModelHandler: {e}")
+            # Create a dummy handler that always returns errors
+            self.model_handler = None
+            self.openapi = None
+
         self.routes: dict[tuple, Callable] = {}
         self.route_metadata: dict[tuple, dict[str, Any]] = {}
         self._add_builtin_endpoints()
@@ -128,7 +142,7 @@ class UvicornService:
         return decorator
 
     def generate_openapi_schema(self) -> dict[str, Any]:
-        return openapi.get_openapi_schema(
+        return self.openapi.get_openapi_schema(
             title=self.title,
             version=self.version,
             description=self.description,
@@ -190,9 +204,27 @@ class UvicornService:
 
     def _add_builtin_endpoints(self):
         async def docs_handler(service, scope, receive, send):
-            await service._send_html(send, openapi.openapi_html())
+            if service.openapi is None:
+                await service._send_json(
+                    send,
+                    {
+                        "error": "ModelHandler initialization failed. Check logs and environment variables."
+                    },
+                    500,
+                )
+                return
+            await service._send_html(send, service.openapi.openapi_html())
 
         async def openapi_handler(service, scope, receive, send):
+            if service.openapi is None:
+                await service._send_json(
+                    send,
+                    {
+                        "error": "ModelHandler initialization failed. Check logs and environment variables."
+                    },
+                    500,
+                )
+                return
             schema = service.generate_openapi_schema()
             await service._send_json(send, schema)
 

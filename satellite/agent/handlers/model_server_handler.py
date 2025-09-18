@@ -1,46 +1,23 @@
 import json
 from pathlib import Path
 
-import httpx
-
 from agent.clients import PlatformClient
+from agent.handlers.http_client import HttpClient
 from agent.settings import config
 
 
-class ServerClient:
-    def __init__(self):
-        self.headers = {
-            "Content-Type": "application/json",
-            # "X-Agent-Request": "true"
-        }
-
-    async def post(self, url: str, request_data: dict, timeout: int = 45):
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                url, json=request_data, headers=self.headers, timeout=timeout
-            )
-            response.raise_for_status()
-            return response.json()
-
-    async def get(self, url: str, timeout: int = 45):
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=self.headers, timeout=timeout)
-            response.raise_for_status()
-            return response.json()
 
 
 class ModelServerHandler:
-    def __init__(self, state_file="deployments.json"):
+    def __init__(self, state_file: str = "deployments.json") -> None:
         self.state_file = Path(state_file)
-        self._client = ServerClient()
+        self._client = HttpClient()
 
     @staticmethod
-    def _to_local_deployment(deployment_id: int, container_id: str, model_url: str) -> dict:
+    def _to_local_deployment(deployment_id: int, model_url: str) -> dict:
         return {
             "deployment_id": deployment_id,
-            "container_id": container_id,
             "model_url": model_url,
-            # "port": port,
         }
 
     async def _read_deployments(self) -> dict[str, dict]:
@@ -53,7 +30,7 @@ class ModelServerHandler:
         except (json.JSONDecodeError, FileNotFoundError):
             return {}
 
-    async def _write_deployments(self, deployments: dict[str, dict]):
+    async def _write_deployments(self, deployments: dict[str, dict]) -> None:
         data = {str(k): v for k, v in deployments.items()}
 
         temp_file = self.state_file.with_suffix(".tmp")
@@ -64,18 +41,11 @@ class ModelServerHandler:
     async def add_deployment(
         self,
         deployment_id: int,
-        container_id: str,
         model_url: str,
-        port: int,
-    ):
-        print("add_deployment")
+    ) -> None:
         deployments = await self._read_deployments()
 
-        deployments[str(deployment_id)] = self._to_local_deployment(
-            deployment_id, container_id, model_url
-        )
-        print(deployments)
-
+        deployments[str(deployment_id)] = self._to_local_deployment(deployment_id, model_url)
         await self._write_deployments(deployments)
 
     async def get_deployment(self, deployment_id: str) -> dict | None:
@@ -84,69 +54,61 @@ class ModelServerHandler:
 
     async def list_active_deployments(self) -> list[dict]:
         deployments = await self._read_deployments()
-        return [info for info in deployments.values()]
+        active_deployments = {}
+        updated = False
 
-    async def sync_deployments(self):
+        for deployment_id, info in deployments.items():
+            try:
+                health_ok = await self._client.get(f"{info['model_url']}/healthz")
+                if health_ok:
+                    active_deployments[deployment_id] = info
+                else:
+                    updated = True
+            except Exception:
+                updated = True
+
+        if updated:
+            await self._write_deployments(active_deployments)
+
+        return list(active_deployments.values())
+
+    async def sync_deployments(self) -> None:
         async with PlatformClient(
             str(config.PLATFORM_URL), config.SATELLITE_TOKEN
         ) as platform_client:
             deployments_db = await platform_client.list_deployments()
         deployments_db = [dep for dep in deployments_db if dep.get("status", "") == "active"]
         deployments = await self._read_deployments()
-        print(deployments)
 
         for dep in deployments_db:
             try:
                 health_ok = await self._client.get(f"{dep["inference_url"]}/healthz")
             except Exception:
                 health_ok = False
-            print(dep)
-            print(health_ok)
             if health_ok:
                 deployments[str(dep["id"])] = self._to_local_deployment(
-                    dep["id"], "None", dep["inference_url"]
+                    dep["id"], dep["inference_url"]
                 )
 
         await self._write_deployments(deployments)
 
-    async def model_compute(self, deployment_id: int, request_data: dict):
+    async def model_compute(self, deployment_id: int, body: dict) -> dict:
+        deployment = await self.get_deployment(str(deployment_id))
+        if not deployment:
+            raise ValueError(f"Deployment {deployment_id} not found")
+
+
+        try:
+            return await self._client.post(f"{deployment['model_url']}/compute", body)
+        except Exception as e:
+            raise ValueError(f"Model server request failed: {str(e)}") from e
+
+    async def model_manifest(self, deployment_id: int) -> dict:
         deployment = await self.get_deployment(str(deployment_id))
         if not deployment:
             raise ValueError(f"Deployment {deployment_id} not found")
 
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{deployment["model_url"]}/compute", json=request_data, timeout=45
-                )
-                response.raise_for_status()
-                return response.json()
-        except httpx.HTTPStatusError as e:
-            raise ValueError(f"Model server error: {e.response.status_code} - {e.response.text}")
-        except httpx.RequestError as e:
-            raise ValueError(f"Connection error to model server: {str(e)}")
-
-    async def model_manifest(self, deployment_id: int):
-        deployment = await self.get_deployment(str(deployment_id))
-        if not deployment:
-            raise ValueError(f"Deployment {deployment_id} not found")
-
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(f"{deployment["model_url"]}/manifest", timeout=45)
-                response.raise_for_status()
-                return response.json()
-        except httpx.HTTPStatusError as e:
-            raise ValueError(f"Model server error: {e.response.status_code} - {e.response.text}")
-        except httpx.RequestError as e:
-            raise ValueError(f"Connection error to model server: {str(e)}")
-
-    # async def shutdown(self):
-    #     print("Stopping all model servers...")
-    #     for deployment_id, server_info in self.model_servers.items():
-    #         try:
-    #             await self._stop_container(server_info.container_id)
-    #             server_info.status = "stopped"
-    #             print(f"Stopped deployment {deployment_id}")
-    #         except Exception as e:
-    #             print(f"Error stopping {deployment_id}: {e}")
+            return await self._client.get(f"{deployment['model_url']}/manifest")
+        except Exception as e:
+            raise ValueError(f"Model server request failed: {str(e)}") from e

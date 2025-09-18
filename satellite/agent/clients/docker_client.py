@@ -5,9 +5,8 @@ from typing import Self
 
 import aiodocker
 import httpx
-from aiodocker.containers import DockerContainer
-
 from agent.settings import config as sat_config
+from aiodocker.containers import DockerContainer
 
 
 def get_ephemeral_host_port() -> int:

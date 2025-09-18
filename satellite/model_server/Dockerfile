@@ -1,5 +1,10 @@
 FROM python:3.13-slim-bookworm
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    bzip2 \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1

@@ -2,7 +2,6 @@ import asyncio
 from contextlib import suppress
 
 import uvicorn
-
 from agent.agent_api import create_agent_app
 from agent.clients import DockerService, PlatformClient
 from agent.controllers import PeriodicController

@@ -1,10 +1,9 @@
 from typing import Any
 
-from pydantic import ValidationError
-
 from agent.clients import DockerService, PlatformClient
 from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 from agent.tasks import DeployTask, PairingTask, Task
+from pydantic import ValidationError
 
 
 class TaskHandler:

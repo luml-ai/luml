@@ -1,15 +1,23 @@
+import json
+import os
+import logging
+import asyncio
 from pathlib import Path
 from typing import Any, Union
 from urllib.parse import urlparse
 import tempfile
 from fnnx.handlers._common import unpack_model
+from fnnx.runtime import Runtime
 from pydantic import Field, create_model
-import json
-import os
 from fnnx.device import DeviceMap
-from fnnx.handlers.local import LocalHandler, LocalHandlerConfig
+from fnnx.handlers.local import LocalHandlerConfig
 
+# from fnnx.envs.conda import install_micromamba, CondaLikeEnvManager
+from .conda_custom import install_micromamba, CondaLikeEnvManager
+from .conda_worker import ComputeWorker
 from .file_handler import FileHandler
+
+logger = logging.getLogger(__name__)
 
 try:
     import numpy as _np  # optional
@@ -28,10 +36,21 @@ class ModelHandler:
         )
         self._file_handler = FileHandler()
         self._cached_models = {}  # url -> local_path mapping
+        self._request_model_schema = None
+        self._model_envs = None
+        self._conda_worker = None
         try:
             self.model_path = self.get_model_path()
+            self.extracted_path = self.unpacked_model_path()
+            self._model_envs = self.create_model_env()
+
+            if self._model_envs:
+                self._conda_worker = ComputeWorker(self._model_envs, self.extracted_path)
+                self._conda_worker.start()
+            else:
+                logger.warning("No model envs created, skipping worker startup")
         except Exception as e:
-            print(f"Warning: Failed to download model during init: {e}")
+            logger.error(str(e))
             self.model_path = None
 
     def _download_model(self, url: str) -> str:
@@ -44,7 +63,14 @@ class ModelHandler:
         return self._file_handler.download_file(url, str(local_path))
 
     def get_model_path(self) -> str:
+        if not self._model_url:
+            raise ValueError(
+                "Model URL is empty! Set MODEL_ARTIFACT_PATH or MODEL_ARTIFACT_URL environment variable"
+            )
+
         if not self._model_url.startswith(("http://", "https://")):
+            if not Path(self._model_url).exists():
+                raise FileNotFoundError(f"Local model file does not exist: {self._model_url}")
             return self._model_url
 
         if self._model_url in self._cached_models:
@@ -142,7 +168,7 @@ class ModelHandler:
 
     def unpacked_model_path(self):
         if self.model_path is None:
-            raise ValueError("Model not available - failed to download during initialization")
+            raise ValueError("Model not available - failed to download")
         extracted_path, *_ = unpack_model(self.model_path)
         return extracted_path
 
@@ -163,15 +189,74 @@ class ModelHandler:
                 return json.load(f)
         return {}
 
+    def get_request_model(self):
+        if self._request_model_schema is None:
+            manifest = self.get_manifest()
+            input_model = self.create_input_model(manifest)
+            dynamic_attrs_model = self.create_dynamic_attributes_model(manifest)
+
+            self._request_model_schema = create_model(
+                "ComputeRequest",
+                inputs=(input_model, Field(..., description="Input data for the model")),
+                dynamic_attributes=(
+                    dynamic_attrs_model,
+                    Field(..., description="Dynamic attributes"),
+                ),
+            )
+        return self._request_model_schema
+
     async def compute_result(self, inputs, dynamic_attributes):
-        extracted_path = self.unpacked_model_path()
+        if self._conda_worker and self._conda_worker.is_alive():
+            return await self._conda_worker.compute(
+                inputs.model_dump(), dynamic_attributes.model_dump()
+            )
+        else:
+            handler = Runtime(
+                bundle_path=self.extracted_path,
+                device_map=DeviceMap(accelerator="cpu", node_device_map={}),
+                handler_config=LocalHandlerConfig(auto_cleanup=False),
+            )
+            try:
+                result = await handler.compute_async(
+                    inputs.model_dump(), dynamic_attributes.model_dump()
+                )
+            except NotImplementedError:
+                result = await asyncio.to_thread(
+                    handler.compute,
+                    inputs.model_dump(),
+                    dynamic_attributes.model_dump()
+                )
+            return self.to_jsonable(result)
 
-        device_map = DeviceMap(accelerator="cpu", node_device_map={})
-        handler = LocalHandler(
-            model_path=extracted_path,
-            device_map=device_map,
-            handler_config=LocalHandlerConfig(auto_cleanup=False),
-        )
+    def create_model_env(self):
+        try:
+            env_spec = self.get_env()
+            if not env_spec:
+                return None
 
-        result = await handler.compute_async(inputs, dynamic_attributes)
-        return self.to_jsonable(result)
+            install_micromamba()
+
+            env_name, env_config = next(iter(env_spec.items()))
+
+            if "dependencies" not in env_config:
+                env_config["dependencies"] = []
+
+            existing_packages = set()
+            for dep in env_config["dependencies"]:
+                if isinstance(dep, dict) and "package" in dep:
+                    existing_packages.add(
+                        dep["package"].split("==")[0].split(">=")[0].split("<=")[0].strip()
+                    )
+
+            for pkg_name in ["uvicorn"]:
+                if pkg_name not in existing_packages:
+                    env_config["dependencies"].append({"package": pkg_name})
+
+            env_manager = CondaLikeEnvManager(env_config)
+            env_path = env_manager.ensure()
+
+            return {"name": env_name, "path": env_path, "manager": env_manager}
+
+        except Exception as e:
+            logger.error(f"Failed to create model environment: {e}")
+            return None

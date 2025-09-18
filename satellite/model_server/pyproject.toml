@@ -7,9 +7,10 @@ dependencies = [
     "uvicorn==0.30.6",
     "httpx==0.27.2",
     "fnnx",
+    "cloudpickle",
     "numpy",
-    "pydantic",
     "onnxruntime",
+    "pydantic",
 ]
 
 [tool.ruff]

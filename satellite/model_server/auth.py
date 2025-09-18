@@ -21,14 +21,11 @@ def require_api_key(scope: dict) -> None:
     api_key = auth.split()[1]
 
     try:
-        print(f"Checking API key with AGENT_URL: {SATELLITE_AGENT_URL}")
         r = httpx.post(
             f"{SATELLITE_AGENT_URL}/satellites/deployments/inference-access",
             json={"api_key": api_key},
             timeout=5.0,
         )
-        print(f"Response status: {r.status_code}")
-        print(f"Response body: {r.text}")
         r.raise_for_status()
         data = r.json()
         if not bool(data.get("authorized")):
