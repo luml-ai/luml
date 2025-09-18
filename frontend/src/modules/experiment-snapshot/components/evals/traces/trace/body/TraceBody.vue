@@ -18,9 +18,9 @@
       </TabList>
       <TabPanels class="tabs-panels">
         <TabPanel :value="0">
-          <div v-if="data.attributes" class="items">
+          <div v-if="sortedAttributes" class="items">
             <UiMultiTypeText
-              v-for="[key, value] in Object.entries(data.attributes)"
+              v-for="[key, value] in sortedAttributes"
               :key="key"
               :title="key"
               :text="value"
@@ -29,9 +29,9 @@
           <div v-else>Attributes not found.</div>
         </TabPanel>
         <TabPanel :value="1">
-          <div v-if="data.events" class="items">
+          <div v-if="sortedEvents" class="items">
             <UiMultiTypeText
-              v-for="[key, value] in Object.entries(data.events)"
+              v-for="[key, value] in sortedEvents"
               :key="key"
               :title="key"
               :text="value"
@@ -71,6 +71,20 @@ const spanTypeData = computed(() => {
 
 const time = computed(() => {
   return getFormattedTime(props.data.start_time_unix_nano, props.data.end_time_unix_nano)
+})
+
+const sortedAttributes = computed(() => {
+  if (!props.data.attributes) return null
+  return Object.entries(props.data.attributes).sort((a, b) => {
+    return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
+  })
+})
+
+const sortedEvents = computed(() => {
+  if (!props.data.events) return null
+  return Object.entries(props.data.events).sort((a, b) => {
+    return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
+  })
 })
 </script>
 

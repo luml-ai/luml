@@ -8,6 +8,7 @@
           :options="CONTENT_TYPES"
           option-label="label"
           option-value="value"
+          option-disabled="disabled"
           size="small"
           class="select"
         ></Select>
@@ -55,10 +56,12 @@ const CONTENT_TYPES = [
   {
     label: 'YAML',
     value: ContentTypeEnum.yaml,
+    disabled: true,
   },
   {
     label: 'Markdown',
     value: ContentTypeEnum.markdown,
+    disabled: true,
   },
   {
     label: 'Raw',

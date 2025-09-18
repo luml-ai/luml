@@ -2,6 +2,10 @@
   <div v-if="currentModel" class="details">
     <div class="details__part">
       <div class="details__item">
+        <div class="details__label">Model ID</div>
+        <div class="details__value">{{ currentModel.id }}</div>
+      </div>
+      <div class="details__item">
         <div class="details__label">Model name</div>
         <div class="details__value">{{ currentModel.model_name }}</div>
       </div>

@@ -8,7 +8,6 @@
           variant="text"
           severity="secondary"
           :disabled="!selectedModels.length"
-          rounded
           @click="onDeleteClick"
         >
           <template #icon>
@@ -16,9 +15,19 @@
           </template>
         </Button>
         <Button
+          v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.update)"
           variant="text"
           severity="secondary"
-          rounded
+          :disabled="selectedModels.length !== 1"
+          @click="openModelEditor"
+        >
+          <template #icon>
+            <Bolt :size="14" />
+          </template>
+        </Button>
+        <Button
+          variant="text"
+          severity="secondary"
           :disabled="downloadButtonDisabled"
           @click="downloadClick"
         >
@@ -29,7 +38,6 @@
         <Button
           variant="text"
           severity="secondary"
-          rounded
           v-tooltip="'Deploy'"
           @click="$router.push({ name: 'orbit-deployments' })"
         >
@@ -40,7 +48,6 @@
         <Button
           variant="text"
           severity="secondary"
-          rounded
           v-tooltip="'Compare'"
           :disabled="compareButtonDisabled"
           @click="compareClick"
@@ -50,7 +57,7 @@
           </template>
         </Button>
       </div>
-      <div class="table-wrapper">
+      <div>
         <DataTable
           v-model:selection="selectedModels"
           :value="tableData"
@@ -63,23 +70,25 @@
           data-key="id"
           style="font-size: 14px"
           class="table-white"
+          scrollable
+          scrollHeight="calc(100vh - 330px)"
           @row-click="onRowClick"
         >
           <template #empty>
             <div class="placeholder">No models to show. Add model to the table.</div>
           </template>
           <Column selectionMode="multiple"></Column>
-          <Column field="modelName" header="Model name">
+          <Column field="model_name" header="Model name">
             <template #body="{ data }">
-              <div v-tooltip="data.modelName" :style="columnBodyStyle + 'width: 180px'">
-                {{ data.modelName }}
+              <div v-tooltip="data.model_name" :style="columnBodyStyle + 'width: 180px'">
+                {{ data.model_name }}
               </div>
             </template>
           </Column>
-          <Column field="createdTime" header="Creation time">
+          <Column field="created_at" header="Creation time">
             <template #body="{ data }">
               <div :style="columnBodyStyle + 'width: 180px'">
-                {{ data.createdTime }}
+                {{ data.created_at }}
               </div>
             </template>
           </Column>
@@ -160,15 +169,21 @@
         </DataTable>
       </div>
     </div>
+    <CollectionModelEditor
+      v-if="modelForEdit"
+      :visible="!!modelForEdit"
+      @update:visible="modelForEdit = null"
+      :data="modelForEdit"
+    ></CollectionModelEditor>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Button, useToast, Tag, useConfirm, type DataTableRowClickEvent } from 'primevue'
-import { Trash2, Download, Rocket, Repeat } from 'lucide-vue-next'
+import { Trash2, Download, Rocket, Repeat, Bolt } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
-import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
-import { computed, onBeforeMount, ref } from 'vue'
+import { MlModelStatusEnum, type MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getSizeText } from '@/helpers/helpers'
@@ -176,6 +191,15 @@ import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 import { useRouter } from 'vue-router'
+import CollectionModelEditor from './model/CollectionModelEditor.vue'
+
+export interface SelectedModel
+  extends Pick<
+    MlModel,
+    'id' | 'model_name' | 'file_name' | 'status' | 'description' | 'tags' | 'created_at' | 'metrics'
+  > {
+  size: string
+}
 
 const columnBodyStyle = 'white-space: nowrap; overflow:hidden; text-overflow: ellipsis;'
 
@@ -185,24 +209,25 @@ const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
 const router = useRouter()
 
-const selectedModels = ref<{ id: number; modelName: string; fileName: string }[]>([])
+const selectedModels = ref<SelectedModel[]>([])
 const loading = ref(false)
+const modelForEdit = ref<SelectedModel | null>(null)
 
-const tableData = computed(() =>
-  modelsStore.modelsList.map((item) => {
+const tableData = computed<SelectedModel[]>(() => {
+  return modelsStore.modelsList.map((item) => {
     return {
       id: item.id,
-      modelName: item.model_name,
-      fileName: item.file_name,
-      createdTime: new Date(item.created_at).toLocaleString(),
+      model_name: item.model_name,
+      file_name: item.file_name,
+      created_at: new Date(item.created_at).toLocaleString(),
       description: item.description,
       tags: item.tags,
       size: getSizeText(item.size),
       status: item.status,
       metrics: item.metrics,
     }
-  }),
-)
+  })
+})
 
 const metricsKeys = computed(() => {
   return tableData.value.reduce((acc: Set<string>, item) => {
@@ -215,7 +240,10 @@ const metricsKeys = computed(() => {
 
 const downloadButtonDisabled = computed(() => !selectedModels.value.length)
 
-const compareButtonDisabled = computed(() => selectedModels.value.length < 2)
+const compareButtonDisabled = computed(() => {
+  if (selectedModels.value.length < 2) return true
+  return selectedModels.value.some((model) => model.status !== MlModelStatusEnum.uploaded)
+})
 
 async function confirmDelete() {
   const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
@@ -251,7 +279,7 @@ async function downloadClick() {
   loading.value = true
   try {
     const model = selectedModels.value[0]
-    await modelsStore.downloadModel(model.id, model.fileName)
+    await modelsStore.downloadModel(model.id, model.file_name)
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load models'))
   } finally {
@@ -263,7 +291,8 @@ async function downloadClick() {
 function onRowClick(event: DataTableRowClickEvent) {
   const target: any = event.originalEvent.target
   const modelId = event.data.id
-  if (!target || !modelId) return
+  const isModelUploaded = event.data.status === MlModelStatusEnum.uploaded
+  if (!target || !modelId || !isModelUploaded) return
   const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
   if (rowIncludeCheckbox) return
   router.push({ name: 'model', params: { modelId } })
@@ -274,6 +303,18 @@ function compareClick() {
   const selectedModelsIds = selectedModels.value.map((model) => model.id)
   router.push({ name: 'compare', query: { models: selectedModelsIds } })
 }
+
+function openModelEditor() {
+  if (!selectedModels.value[0]) return
+  modelForEdit.value = selectedModels.value[0]
+}
+
+watch(tableData, (data) => {
+  if (!selectedModels.value.length) return
+  selectedModels.value = selectedModels.value
+    .map((model) => data.find((updatedModel) => model.id === updatedModel.id))
+    .filter((model) => !!model)
+})
 
 onBeforeMount(async () => {
   try {
@@ -299,11 +340,6 @@ onBeforeMount(async () => {
   gap: 12px;
   font-weight: 500;
   margin-bottom: 10px;
-}
-
-.table-wrapper {
-  overflow: auto;
-  max-height: calc(100vh - 330px);
 }
 
 .tags {

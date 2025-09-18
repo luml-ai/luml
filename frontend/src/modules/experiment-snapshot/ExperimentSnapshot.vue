@@ -1,6 +1,6 @@
 <template>
   <div class="content">
-    <template v-if="staticParams?.length">
+    <template v-if="staticParams?.length && showStaticParams">
       <StaticParameters
         v-if="modelsIds.length === 1"
         :parameters="staticParams[0]"
@@ -32,7 +32,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type {
   ExperimentSnapshotDynamicMetrics,
   ExperimentSnapshotProvider,
@@ -61,6 +61,11 @@ const evalsStore = useEvalsStore()
 
 const staticParams = ref<ExperimentSnapshotStaticParams[] | null>(null)
 const dynamicMetrics = ref<ExperimentSnapshotDynamicMetrics[] | null>()
+
+const showStaticParams = computed(() => {
+  if (!staticParams.value) return false
+  return staticParams.value.find((params) => Object.keys(params).find((key) => key !== 'modelId'))
+})
 
 async function setStaticParams() {
   try {

@@ -9,10 +9,16 @@
     <template #header>
       <h2 class="dialog-title">
         <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>Collection settings</span>
+        <span>Model settings</span>
       </h2>
     </template>
-    <Form id="orbit-edit-form" :initialValues :resolver="collectionEditorResolver" class="form" @submit="saveChanges">
+    <Form
+      id="orbit-edit-form"
+      :initialValues
+      :resolver="modelEditorResolver"
+      class="form"
+      @submit="saveChanges"
+    >
       <div class="form-item">
         <label for="name" class="label">Name</label>
         <InputText v-model="initialValues.name" name="name" id="name" />
@@ -23,7 +29,7 @@
           v-model="initialValues.description"
           name="description"
           id="description"
-          placeholder="Describe your collection"
+          placeholder="Describe your model"
           style="height: 72px; resize: none"
         ></Textarea>
       </div>
@@ -43,8 +49,14 @@
     </Form>
     <template #footer>
       <div>
-        <Button v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.delete)" variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
-          delete collection
+        <Button
+          v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.delete)"
+          variant="outlined"
+          severity="warn"
+          :disabled="loading"
+          @click="onDeleteClick"
+        >
+          delete model
         </Button>
       </div>
       <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
@@ -53,7 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
+import type { UpdateMlModelPayload } from '@/lib/api/orbit-ml-models/interfaces'
+import type { SelectedModel } from '../CollectionModelsTable.vue'
 import { computed, ref } from 'vue'
 import {
   type DialogPassThroughOptions,
@@ -69,11 +82,11 @@ import {
 import { Bolt } from 'lucide-vue-next'
 import { Form } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { deleteCollectionConfirmOptions } from '@/lib/primevue/data/confirm'
-import { useCollectionsStore } from '@/stores/collections'
-import { collectionEditorResolver } from '@/utils/forms/resolvers'
+import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
+import { modelEditorResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { useModelsStore } from '@/stores/models'
 
 const dialogPT: DialogPassThroughOptions = {
   footer: {
@@ -82,7 +95,7 @@ const dialogPT: DialogPassThroughOptions = {
 }
 
 type Props = {
-  data: OrbitCollection
+  data: SelectedModel
 }
 
 const props = defineProps<Props>()
@@ -91,17 +104,17 @@ const visible = defineModel<boolean>('visible')
 
 const toast = useToast()
 const confirm = useConfirm()
-const collectionsStore = useCollectionsStore()
 const orbitsStore = useOrbitsStore()
+const modelsStore = useModelsStore()
 
 const initialValues = ref({
-  name: props.data.name,
+  name: props.data.model_name,
   description: props.data.description,
   tags: [...props.data.tags],
 })
 const loading = ref(false)
 const existingTags = computed(() => {
-  const tagsSet = collectionsStore.collectionsList.reduce((acc: Set<string>, item) => {
+  const tagsSet = modelsStore.modelsList.reduce((acc: Set<string>, item) => {
     item.tags.map((tag) => {
       acc.add(tag)
     })
@@ -121,26 +134,37 @@ function searchTags(event: AutoCompleteCompleteEvent) {
 async function saveChanges() {
   try {
     loading.value = true
-    await collectionsStore.updateCollection(props.data.id, { ...initialValues.value })
-    toast.add(simpleSuccessToast('Collection successfully updated'))
+    const payload: UpdateMlModelPayload = {
+      id: props.data.id,
+      file_name: props.data.file_name,
+      model_name: initialValues.value.name,
+      description: initialValues.value.description,
+      tags: initialValues.value.tags,
+    }
+    await modelsStore.updateModel(payload)
+    toast.add(simpleSuccessToast('Model successfully updated'))
     visible.value = false
   } catch (e) {
-    toast.add(simpleErrorToast('Failed to update collection'))
+    toast.add(simpleErrorToast('Failed to update model'))
   } finally {
     loading.value = false
   }
 }
+
 function onDeleteClick() {
-  confirm.require(deleteCollectionConfirmOptions(deleteCollection))
+  confirm.require(deleteModelConfirmOptions(deleteModel, 1))
 }
-async function deleteCollection() {
+
+async function deleteModel() {
   try {
     loading.value = true
-    await collectionsStore.deleteCollection(props.data.id)
-    toast.add(simpleSuccessToast(`Collection “${props.data.name}” was removed from the Registry.`))
+    await modelsStore.deleteModels([props.data.id])
+    toast.add(
+      simpleSuccessToast(`Model “${props.data.model_name}” was removed from the collection.`),
+    )
     visible.value = false
   } catch (e) {
-    toast.add(simpleErrorToast('Failed to delete collection'))
+    toast.add(simpleErrorToast('Failed to delete model'))
   } finally {
     loading.value = false
   }

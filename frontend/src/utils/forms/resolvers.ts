@@ -104,6 +104,14 @@ export const modelCreatorResolver = zodResolver(
   }),
 )
 
+export const modelEditorResolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
+    description: z.string(),
+    tags: z.array(z.string()),
+  }),
+)
+
 export const modelUploadResolver = zodResolver(
   z.object({
     orbit: z.number(),

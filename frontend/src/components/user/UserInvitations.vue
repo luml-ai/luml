@@ -48,7 +48,7 @@
                   <Trash2 :size="12" />
                 </template>
               </d-button>
-              <d-button :disabled="loading" @click="accept(invitation.id)">
+              <d-button :disabled="loading" @click="accept(invitation.id, invitation.organization_id)">
                 <template #icon>
                   <Check :size="12" />
                 </template>
@@ -75,11 +75,11 @@ const toast = useToast()
 const visible = ref(false)
 const loading = ref(false)
 
-async function accept(inviteId: number) {
+async function accept(inviteId: number, organizationId: number) {
   loading.value = true
 
   try {
-    await invitationsStore.acceptInvitation(inviteId)
+    await invitationsStore.acceptInvitation(inviteId, organizationId)
     toast.add(simpleSuccessToast('You’ve joined the organization successfully.'))
   } catch (e) {
     toast.add(simpleErrorToast('Failed to accept the invitation'))

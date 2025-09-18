@@ -13,10 +13,11 @@ export const useInvitationsStore = defineStore('invitations', () => {
     invitations.value = await dataforceApi.getInvitations()
   }
 
-  async function acceptInvitation(inviteId: number) {
+  async function acceptInvitation(inviteId: number, organizationId: number) {
     await dataforceApi.acceptInvitation(inviteId)
     invitations.value = invitations.value.filter((invitation) => invitation.id !== inviteId)
-    organizationStore.getAvailableOrganizations()
+    await organizationStore.getAvailableOrganizations()
+    organizationStore.setCurrentOrganizationId(organizationId)
   }
 
   async function rejectInvitation(inviteId: number) {

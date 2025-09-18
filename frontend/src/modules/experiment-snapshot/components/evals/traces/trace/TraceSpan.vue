@@ -39,7 +39,7 @@
           }"
         ></div>
         <ProgressBar
-          :value="value"
+          :value="endProgress"
           :show-value="false"
           class="progress"
           :pt="{
@@ -91,8 +91,6 @@ const props = defineProps<Props>()
 const evalsStore = useEvalsStore()
 
 const spanOpened = ref(true)
-
-const value = computed(() => 100)
 
 const spanTypeData = computed(() => {
   return getSpanTypeData(props.data.dfs_span_type)

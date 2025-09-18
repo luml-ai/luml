@@ -72,6 +72,7 @@ interface ModelStore {
   resetCurrentModelHtmlBlobUrl: () => void
   setExperimentSnapshotProvider: (provider: ExperimentSnapshotProvider) => void
   resetExperimentSnapshotProvider: () => void
+  updateModel: (payload: UpdateMlModelPayload) => Promise<void>
 }
 
 export const useModelsStore = defineStore('models', (): ModelStore => {
@@ -231,6 +232,19 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     experimentSnapshotProvider.value = null
   }
 
+  async function updateModel(payload: UpdateMlModelPayload) {
+    const result = await dataforceApi.mlModels.updateModel(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+      requestInfo.value.collectionId,
+      payload.id,
+      payload,
+    )
+    modelsList.value = modelsList.value.map(model => {
+      return model.id === result.id ? result : model
+    })
+  }
+
   return {
     modelsList,
     requestInfo,
@@ -254,5 +268,6 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     resetCurrentModelHtmlBlobUrl,
     setExperimentSnapshotProvider,
     resetExperimentSnapshotProvider,
+    updateModel,
   }
 })

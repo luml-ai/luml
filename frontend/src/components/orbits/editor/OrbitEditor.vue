@@ -29,13 +29,20 @@
           id="bucket"
         ></Select>
         <p class="message">
-          Please contact <a href="#" class="link">Support</a> to change the bucket
+          Please contact <a href="mailto:contact@dataforce.solutions" class="link">Support</a> to
+          change the bucket
         </p>
       </div>
     </Form>
     <template #footer>
       <div>
-        <Button v-if="orbit.permissions.orbit.includes(PermissionEnum.delete)" variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
+        <Button
+          v-if="orbit.permissions.orbit.includes(PermissionEnum.delete)"
+          variant="outlined"
+          severity="warn"
+          :disabled="loading"
+          @click="onDeleteClick"
+        >
           delete Orbit
         </Button>
       </div>
@@ -45,8 +52,12 @@
 </template>
 
 <script setup lang="ts">
-import { PermissionEnum, type Orbit as OrbitType, type UpdateOrbitPayload } from '@/lib/api/DataforceApi.interfaces'
-import { ref } from 'vue'
+import {
+  PermissionEnum,
+  type Orbit as OrbitType,
+  type UpdateOrbitPayload,
+} from '@/lib/api/DataforceApi.interfaces'
+import { ref, watch } from 'vue'
 import {
   Dialog,
   Button,
@@ -114,9 +125,11 @@ async function saveChanges() {
     loading.value = false
   }
 }
+
 function onDeleteClick() {
   confirm.require(deleteOrbitConfirmOptions(deleteOrbit))
 }
+
 async function deleteOrbit() {
   try {
     loading.value = true
@@ -129,6 +142,10 @@ async function deleteOrbit() {
     loading.value = false
   }
 }
+
+watch(visible, (val) => {
+  val && bucketsStore.getBuckets(props.orbit.organization_id)
+})
 </script>
 
 <style scoped>

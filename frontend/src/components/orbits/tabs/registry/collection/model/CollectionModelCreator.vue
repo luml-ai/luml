@@ -46,7 +46,7 @@
         id="model-file"
         :file="fileInfo"
         :error="fileError"
-        accept-text="Accepts .dfs file type"
+        accept-text="Accepts .dfs, .fnnx, .pyfnx file type"
         upload-text="upload model file"
         class="file-field"
         @select-file="onSelectFile"
@@ -128,14 +128,21 @@ function onSelectFile(event: File) {
   fileError.value = false
   const regex = /^[^\s<>:\"/\\|?*{}\[\]~#%;'^)+!(]+$/
   const isFileNameCorrect = regex.test(event.name)
-  const isDfsFile = event.name.endsWith('.dfs')
+  const isCorrectFileFormat = checkFileFormat(event.name)
   const fileSizeCorrect = checkFileSize(event.size)
-  if (isDfsFile && isFileNameCorrect && fileSizeCorrect) {
+  if (isCorrectFileFormat && isFileNameCorrect && fileSizeCorrect) {
     formData.value.file = event
   } else {
     fileError.value = true
     !isFileNameCorrect && toast.add(simpleErrorToast('Incorrect file name'))
   }
+}
+
+function checkFileFormat(fileName: string) {
+  const isDfs = fileName.endsWith('.dfs')
+  const isFnnx = fileName.endsWith('.fnnx')
+  const isPyfnx = fileName.endsWith('.pyfnx')
+  return isDfs || isFnnx || isPyfnx
 }
 
 function onRemoveFile() {

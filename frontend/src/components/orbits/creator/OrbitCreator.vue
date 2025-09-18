@@ -6,7 +6,12 @@
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="initialValues" :resolver="resolver" :validate-on-value-update="false" @submit="onSubmit">
+    <Form
+      :initial-values="initialValues"
+      :resolver="resolver"
+      :validate-on-value-update="false"
+      @submit="onSubmit"
+    >
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Orbit name </label>
@@ -62,7 +67,10 @@
               <div v-if="!bucketsStore.buckets.length" class="select-footer">
                 <d-button variant="text" as-child v-slot="slotProps" size="small">
                   <RouterLink
-                    :to="{ name: 'organization-buckets', params: { id: +route.params.organizationId } }"
+                    :to="{
+                      name: 'organization-buckets',
+                      params: { id: +route.params.organizationId },
+                    }"
                     :class="slotProps.class"
                   >
                     <Plus :size="14" />
@@ -90,7 +98,7 @@ import type { CreateOrbitPayload, IGetUserResponse } from '@/lib/api/DataforceAp
 import type { DialogPassThroughOptions, MultiSelectPassThroughOptions } from 'primevue'
 import { Dialog, Button, InputText, Checkbox, MultiSelect, Select, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useOrganizationStore } from '@/stores/organization'
 import { OrbitRoleEnum } from '../orbits.interfaces'
 import { useBucketsStore } from '@/stores/buckets'
@@ -123,8 +131,8 @@ const multiSelectPt: MultiSelectPassThroughOptions = {
     style: 'max-width: 442px; overflow: hidden;',
   },
   optionLabel: {
-    style: 'overflow: hidden; text-overflow: ellipsis;'
-  }
+    style: 'overflow: hidden; text-overflow: ellipsis;',
+  },
 }
 
 const memberRoleOptions = [OrbitRoleEnum.admin, OrbitRoleEnum.member]
@@ -187,8 +195,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   }
 }
 
-onBeforeMount(() => {
-  bucketsStore.getBuckets(+route.params.organizationId)
+watch(visible, (val) => {
+  val && bucketsStore.getBuckets(+route.params.organizationId)
 })
 </script>
 

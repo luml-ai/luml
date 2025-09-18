@@ -3,6 +3,7 @@
     <div class="simple-table__header">
       <div class="simple-table__row">
         <div>Name</div>
+        <div>Endpoint</div>
         <div>Created</div>
         <div></div>
       </div>
@@ -12,7 +13,12 @@
         No buckets created for this organization.
       </div>
       <div v-for="bucket in bucketsStore.buckets" class="simple-table__row">
-        <div style="overflow: hidden; text-overflow: ellipsis;">{{ bucket.bucket_name }}</div>
+        <div class="cell">
+          {{ bucket.bucket_name }}
+        </div>
+        <div class="cell">
+          {{ bucket.endpoint }}
+        </div>
         <div>{{ new Date(bucket.created_at).toLocaleDateString() }}</div>
         <div>
           <BucketSettings :bucket="bucket" />
@@ -33,7 +39,6 @@ const organizationStore = useOrganizationStore()
 
 const loading = ref()
 
-
 onMounted(async () => {
   try {
     const organizationId = organizationStore.currentOrganization?.id
@@ -50,6 +55,11 @@ onMounted(async () => {
 @import '@/assets/tables.css';
 
 .simple-table__row {
-  grid-template-columns: 1fr 120px 35px;
+  grid-template-columns: 300px 1fr 120px 35px;
+}
+
+.cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

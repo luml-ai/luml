@@ -71,11 +71,11 @@ watch(
 )
 
 onBeforeMount(async () => {
-  await loadOrbits(+route.params.organizationId, true)
   try {
+    await loadOrbits(+route.params.organizationId, true)
     await organizationStore.getOrganizationDetails(+route.params.organizationId)
   } catch (e: any) {
-    toast.add(simpleErrorToast(e?.message || 'Failed to load organization details'))
+    console.error(e?.response?.data?.detail, e?.message)
   } finally {
     loading.value = false
   }

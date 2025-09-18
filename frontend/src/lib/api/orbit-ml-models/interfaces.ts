@@ -37,8 +37,8 @@ export interface MlModel {
   unique_identifier: string
   tags: string[]
   status: MlModelStatusEnum
-  created_at: Date
-  updated_at: Date
+  created_at: string
+  updated_at: string
 }
 
 export interface UpdateMlModelPayload {
@@ -47,7 +47,7 @@ export interface UpdateMlModelPayload {
   model_name: string
   description: string
   tags: string[]
-  status: MlModelStatusEnum
+  status?: MlModelStatusEnum
 }
 
 export interface CreateModelResponse {

@@ -122,6 +122,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 .form-item {
   display: flex;
   flex-direction: column;
+  gap: 7px;
 }
 
 .label {

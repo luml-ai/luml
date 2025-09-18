@@ -139,12 +139,17 @@ const allColumns = computed(() => {
     }
     return acc
   }, new Set<string>())
-  return Array.from(columnsSet)
+  return Array.from(columnsSet).filter((column) => {
+    if (column === 'dataset_id') return false
+    if (column === 'modelId') {
+      return Object.keys(props.modelsInfo).length > 1
+    }
+    return true
+  })
 })
 
 const visibleColumns = computed(() => {
-  const result = selectedColumns.value.length ? selectedColumns.value : allColumns.value
-  return result.filter((columnName) => columnName !== 'dataset_id')
+  return selectedColumns.value.length ? selectedColumns.value : allColumns.value
 })
 
 const visibleTree = computed(() => {

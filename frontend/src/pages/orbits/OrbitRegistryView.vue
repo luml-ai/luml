@@ -71,7 +71,7 @@ onUnmounted(() => {
   border-radius: 8px;
   box-shadow: var(--card-shadow);
   border: 1px solid var(--p-content-border-color);
-  background-color: var(--p-content-background);
+  background-color: var(--p-card-background);
 }
 .label {
   font-weight: 500;

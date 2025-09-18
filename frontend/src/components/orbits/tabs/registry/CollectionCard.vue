@@ -58,7 +58,7 @@ const router = useRouter()
 const isEditorVisible = ref(false)
 
 const updatedText = computed(() => {
-  return getLastUpdateText(props.data.updated_at || props.data.created_at);
+  return getLastUpdateText(props.data.updated_at || props.data.created_at)
 })
 
 function goToCollection() {
@@ -124,5 +124,6 @@ function goToCollection() {
 .right {
   flex: 0 0 auto;
   align-self: center;
+  padding-bottom: 10px;
 }
 </style>

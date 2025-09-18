@@ -195,7 +195,7 @@ const router = createRouter({
           component: () => import('../components/organizations/OrganizationMembers.vue'),
         },
         {
-          path: 'orbits',
+          path: 'orbits-list',
           name: 'organization-orbits',
           component: () => import('../components/organizations/OrganizationOrbits.vue'),
         },
