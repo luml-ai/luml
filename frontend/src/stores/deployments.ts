@@ -1,0 +1,83 @@
+import type {
+  CreateDeploymentPayload,
+  Deployment,
+  UpdateDeploymentPayload,
+} from '@/lib/api/deployments/interfaces'
+import { dataforceApi } from '@/lib/api'
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+
+export const useDeploymentsStore = defineStore('deployments', () => {
+  const deployments = ref<Deployment[]>([])
+  const creatorVisible = ref(false)
+
+  async function createDeployment(
+    organizationId: number,
+    orbitId: number,
+    payload: CreateDeploymentPayload,
+  ) {
+    const newDeployment = await dataforceApi.deployments.create(organizationId, orbitId, payload)
+    deployments.value.push(newDeployment)
+  }
+
+  function getDeployments(organizationId: number, orbitId: number) {
+    return dataforceApi.deployments.getList(organizationId, orbitId)
+  }
+
+  function setDeployments(data: Deployment[]) {
+    deployments.value = data
+  }
+
+  function reset() {
+    deployments.value = []
+  }
+
+  function showCreator() {
+    creatorVisible.value = true
+  }
+
+  function hideCreator() {
+    creatorVisible.value = false
+  }
+
+  async function deleteDeployment(organizationId: number, orbitId: number, deploymentId: number) {
+    const updatedDeployment = await dataforceApi.deployments.deleteDeployment(
+      organizationId,
+      orbitId,
+      deploymentId,
+    )
+    deployments.value = deployments.value.map((deployment) =>
+      deployment.id === updatedDeployment.id ? updatedDeployment : deployment,
+    )
+  }
+
+  async function update(
+    organizationId: number,
+    orbitId: number,
+    deploymentId: number,
+    payload: UpdateDeploymentPayload,
+  ) {
+    const newDeployment = await dataforceApi.deployments.update(
+      organizationId,
+      orbitId,
+      deploymentId,
+      payload,
+    )
+    deployments.value = deployments.value.map((deployment) => {
+      return deployment.id === newDeployment.id ? newDeployment : deployment
+    })
+  }
+
+  return {
+    deployments,
+    creatorVisible,
+    createDeployment,
+    getDeployments,
+    setDeployments,
+    reset,
+    showCreator,
+    hideCreator,
+    deleteDeployment,
+    update,
+  }
+})

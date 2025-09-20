@@ -42,7 +42,12 @@ export interface Satellite {
 }
 
 export interface SatelliteCapabilities {
-  deploy: any
+  deploy?: CapabilitiesDeploy
+}
+
+export interface CapabilitiesDeploy {
+  inputs: string[]
+  max_concurrency: number
 }
 
 export interface SatelliteTask {

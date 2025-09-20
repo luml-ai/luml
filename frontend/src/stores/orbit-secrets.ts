@@ -24,22 +24,10 @@ export const useSecretsStore = defineStore("secrets", () => {
 	}
 
 	async function loadSecrets(organizationId: number, orbitId: number) {
-		const initialList = await dataforceApi.orbitSecrets.getSecrets(
+		secretsList.value = await dataforceApi.orbitSecrets.getSecrets(
 			organizationId,
 			orbitId,
 		);
-
-		if (initialList.length === 0) {
-			secretsList.value = [];
-			return;
-		}
-
-		const secretDetailPromises = initialList.map((secret) =>
-			dataforceApi.orbitSecrets.getSecretById(organizationId, orbitId, secret.id),
-		);
-
-		const fullSecrets = await Promise.all(secretDetailPromises);
-		secretsList.value = fullSecrets;
 	}
 
 	async function addSecret(

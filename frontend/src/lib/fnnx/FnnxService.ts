@@ -4,7 +4,7 @@ import {
   type RegressionMetrics,
   type TabularMetrics,
 } from '../data-processing/interfaces'
-import type { Manifest, MetaEntry } from '@fnnx/common/dist/interfaces'
+import type { Manifest, MetaEntry, Var } from '@fnnx/common/dist/interfaces'
 import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
 import type { FileIndex } from '../api/orbit-ml-models/interfaces'
 
@@ -20,6 +20,12 @@ export enum FNNX_PRODUCER_TAGS_MANIFEST_ENUM {
   tabular_regression_v1 = 'dataforce.studio::tabular_regression:v1',
   prompt_optimization_v1 = 'dataforce.studio::prompt_optimization:v1',
 }
+
+export enum FNNX_VARIABLES_TAGS_ENUM {
+  runtime_secret_v1 = 'dataforce.studio::runtime_secret:v1',
+}
+
+export const SECRET_TAGS = [FNNX_VARIABLES_TAGS_ENUM.runtime_secret_v1]
 
 class FnnxServiceClass {
   async createModelFromFile(file: File) {
@@ -165,6 +171,38 @@ class FnnxServiceClass {
     const regex =
       /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/exp\.db\.zip$/
     return Object.keys(fileIndex).find((file) => regex.test(file))
+  }
+
+  getDynamicAttributes(manifest: Manifest) {
+    const secrets: Var[] = []
+    const notSecrets: Var[] = []
+    manifest.dynamic_attributes.forEach((attribute) => {
+      const isSecret = attribute.tags?.find((tag) =>
+        SECRET_TAGS.includes(tag as FNNX_VARIABLES_TAGS_ENUM),
+      )
+      if (isSecret) {
+        secrets.push(attribute)
+      } else {
+        notSecrets.push(attribute)
+      }
+    })
+    return { secrets, notSecrets }
+  }
+
+  getEnvVars(manifest: Manifest) {
+    const secrets: Var[] = []
+    const notSecrets: Var[] = []
+    manifest.env_vars.forEach((attribute) => {
+      const isSecret = attribute.tags?.find((tag) =>
+        SECRET_TAGS.includes(tag as FNNX_VARIABLES_TAGS_ENUM),
+      )
+      if (isSecret) {
+        secrets.push(attribute)
+      } else {
+        notSecrets.push(attribute)
+      }
+    })
+    return { secrets, notSecrets }
   }
 }
 

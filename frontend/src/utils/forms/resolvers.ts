@@ -144,3 +144,29 @@ export const updateSecretResolver = zodResolver(
     tags: z.array(z.string()).optional().default([]),
   }),
 )
+
+
+const keyValueSchema = z.object({
+  key: z.string().min(1),
+  value: z.string().min(1),
+})
+
+const valueSchema = z.object({
+  value: z.union([z.string().min(1), z.number().min(1)]),
+})
+
+export const createDeploymentResolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
+    description: z.string().optional(),
+    tags: z.array(z.string()).optional().default([]),
+    collectionId: z.number(),
+    modelId: z.number(),
+    satelliteId: z.number(),
+    secretDynamicAttributes: z.array(valueSchema).optional(),
+    secretEnvs: z.array(valueSchema).optional(),
+    notSecretEnvs: z.array(valueSchema).optional(),
+    customVariables: z.array(keyValueSchema).optional(),
+    satelliteFields: z.array(valueSchema).optional(),
+  }),
+)
