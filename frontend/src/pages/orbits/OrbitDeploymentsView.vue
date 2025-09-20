@@ -59,7 +59,7 @@ onBeforeMount(async () => {
     const deployments = await deploymentsStore.getDeployments(organizationId, orbitId)
     deploymentsStore.setDeployments(deployments)
   } catch (e: any) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load satellites list')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load deployments list')))
   } finally {
     loading.value = false
   }

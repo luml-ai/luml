@@ -120,7 +120,7 @@
 
       <div v-if="customVariables.length" class="custom-variables">
         <div class="accordion-title">
-          custom Env variables
+          custom env variables
           <HelpCircle :size="12" color="var(--p-button-text-secondary-color)"></HelpCircle>
         </div>
         <div class="custom-variables__content">
