@@ -23,6 +23,7 @@ from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
+    SatelliteModelArtifactResponse,
 )
 from dataforce_studio.schemas.orbit import Orbit
 from dataforce_studio.schemas.permissions import Action, Resource
@@ -324,3 +325,20 @@ class ModelArtifactHandler:
         s3_service = await self._get_s3_service(orbit.bucket_secret_id)
         url = await s3_service.get_download_url(model_artifact.bucket_location)
         return model_artifact, url
+
+    async def get_satellite_model_artifact(
+        self,
+        orbit_id: int,
+        model_artifact_id: int,
+    ) -> SatelliteModelArtifactResponse:
+        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
+
+        orbit = await self.__orbit_repository.get_orbit_by_id(orbit_id)
+        if not orbit:
+            raise OrbitNotFoundError()
+
+        s3_service = await self._get_s3_service(orbit.bucket_secret_id)
+        url = await s3_service.get_download_url(model_artifact.bucket_location)
+        return SatelliteModelArtifactResponse(model=model_artifact, url=url)

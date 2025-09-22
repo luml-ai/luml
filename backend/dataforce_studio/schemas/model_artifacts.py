@@ -218,3 +218,8 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
 class CreateModelArtifactResponse(BaseModel):
     model: ModelArtifact
     url: UploadDetails
+
+
+class SatelliteModelArtifactResponse(BaseModel):
+    model: ModelArtifact
+    url: str

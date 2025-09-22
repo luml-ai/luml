@@ -116,6 +116,14 @@ class DeploymentHandler:
     async def list_worker_deployments(self, satellite_id: int) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
 
+    async def get_worker_deployment(
+        self, orbit_id: int, deployment_id: int
+    ) -> Deployment:
+        deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
+        if not deployment:
+            raise NotFoundError("Deployment not found")
+        return deployment
+
     async def update_worker_deployment(
         self, satellite_id: int, deployment_id: int, inference_url: str
     ) -> Deployment:

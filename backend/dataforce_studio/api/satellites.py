@@ -15,6 +15,7 @@ from dataforce_studio.schemas.deployment import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from dataforce_studio.schemas.model_artifacts import SatelliteModelArtifactResponse
 from dataforce_studio.schemas.orbit_secret import OrbitSecret
 from dataforce_studio.schemas.satellite import (
     Satellite,
@@ -135,6 +136,19 @@ async def update_deployment_status(
     )
 
 
+@satellite_worker_router.get(
+    "/deployments/{deployment_id}",
+    responses=endpoint_responses,
+    response_model=Deployment,
+)
+async def get_satellite_deployment(request: Request, deployment_id: int) -> Deployment:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await deployment_handler.get_worker_deployment(
+        request.user.orbit_id,
+        deployment_id,
+    )
+
+
 @satellite_worker_router.post(
     "/deployments/inference-access",
     responses=endpoint_responses,
@@ -162,3 +176,16 @@ async def get_model_artifact_download_url(
         request.user.orbit_id, model_artifact_id
     )
     return {"url": url}
+
+
+@satellite_worker_router.get(
+    "/model_artifacts/{model_artifact_id}",
+    responses=endpoint_responses,
+)
+async def get_model_artifact(
+    request: Request, model_artifact_id: int
+) -> SatelliteModelArtifactResponse:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await model_artifacts_handler.get_satellite_model_artifact(
+        request.user.orbit_id, model_artifact_id
+    )

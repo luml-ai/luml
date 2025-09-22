@@ -42,6 +42,7 @@ class OrbitSecretHandler:
                 id=s.id,
                 name=s.name,
                 value="",
+                tags=s.tags,
                 orbit_id=s.orbit_id,
                 created_at=s.created_at,
                 updated_at=s.updated_at,
