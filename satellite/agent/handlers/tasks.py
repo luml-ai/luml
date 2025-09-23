@@ -1,11 +1,13 @@
 from typing import Any
 
+from pydantic import ValidationError
+
 from agent.clients import DockerService, PlatformClient
 from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 from agent.tasks import DeployTask, PairingTask, Task
-from pydantic import ValidationError
 
 
+# TODO add task undeploy
 class TaskHandler:
     def __init__(self, platform: PlatformClient, docker: DockerService) -> None:
         self.platform = platform

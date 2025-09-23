@@ -1,7 +1,9 @@
 from typing import Any, Self
 
 import httpx
+
 from agent.schemas import SatelliteTaskStatus
+from agent.schemas.deployments import Deployment
 
 
 class PlatformClient:
@@ -92,9 +94,7 @@ class PlatformClient:
 
     async def get_model_artifact(self, model_artifact_id: int) -> tuple[dict, str]:
         assert self._session is not None
-        r = await self._session.get(
-            self._url(f"/satellites/model_artifacts/{model_artifact_id}")
-        )
+        r = await self._session.get(self._url(f"/satellites/model_artifacts/{model_artifact_id}"))
         r.raise_for_status()
         data = r.json()
         return data.get("model"), str(data.get("url", ""))
@@ -105,14 +105,20 @@ class PlatformClient:
         r.raise_for_status()
         return r.json()
 
+    async def get_orbit_secrets(self) -> list[dict[str, Any]]:
+        assert self._session is not None
+        r = await self._session.get(self._url("/satellites/secrets"))
+        r.raise_for_status()
+        return r.json()
+
     async def list_deployments(self) -> list[dict[str, Any]]:
         assert self._session is not None
         r = await self._session.get(self._url("/satellites/deployments"))
         r.raise_for_status()
         return r.json()
 
-    async def get_deployment(self, deployment_id) -> dict[str, Any]:
+    async def get_deployment(self, deployment_id: int) -> Deployment:
         assert self._session is not None
-        r = await self._session.get(self._url(f"/deployments/{deployment_id}"))
+        r = await self._session.get(self._url(f"/satellites/deployments/{deployment_id}"))
         r.raise_for_status()
-        return r.json()
+        return Deployment.model_validate(r.json())

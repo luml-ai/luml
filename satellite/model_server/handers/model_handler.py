@@ -222,9 +222,7 @@ class ModelHandler:
                 )
             except NotImplementedError:
                 result = await asyncio.to_thread(
-                    handler.compute,
-                    inputs.model_dump(),
-                    dynamic_attributes.model_dump()
+                    handler.compute, inputs.model_dump(), dynamic_attributes.model_dump()
                 )
             return self.to_jsonable(result)
 

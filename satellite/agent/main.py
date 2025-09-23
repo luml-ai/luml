@@ -2,11 +2,13 @@ import asyncio
 from contextlib import suppress
 
 import uvicorn
-from agent.agent_api import create_agent_app
-from agent.clients import DockerService, PlatformClient
-from agent.controllers import PeriodicController
-from agent.handlers import TaskHandler
-from agent.settings import config
+
+from agent.handlers.tasks import TaskHandler
+
+from .agent_api import create_agent_app
+from .clients import DockerService, PlatformClient
+from .controllers import PeriodicController
+from .settings import config
 
 
 async def run_async() -> None:

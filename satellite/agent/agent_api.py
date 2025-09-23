@@ -2,23 +2,21 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from agent.handlers.model_server_handler import ModelServerHandler, HttpClient
-from agent.schemas.endpoints import (
+from fastapi import FastAPI, HTTPException
+
+from agent.handlers.handler_instances import ms_handler, secrets_handler
+from agent.schemas.deployments import (
     DeploymentInfo,
-    DocsUrl,
     Healthz,
     InferenceAccessIn,
     InferenceAccessOut,
 )
-from fastapi import FastAPI, HTTPException
-
-model_server_handler = ModelServerHandler()
-httpx_client = HttpClient()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
-    await model_server_handler.sync_deployments()
+    await ms_handler.sync_deployments()
+    await secrets_handler.initialize()
 
     yield
 
@@ -42,45 +40,29 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
 
     @app.get("/deployments", response_model=list[DeploymentInfo])
     async def deployments() -> list[dict]:
-        return await model_server_handler.list_active_deployments()
+        local_deployments = await ms_handler.list_active_deployments()
+        return [{"deployment_id": deployment.deployment_id} for deployment in local_deployments]
 
     @app.post("/deployments/{deployment_id}/compute", response_model=dict)
     async def compute(deployment_id: int, body: dict) -> dict:
         try:
-            return await model_server_handler.model_compute(deployment_id, body)
+            return await ms_handler.model_compute(deployment_id, body)
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(e)}") from e
 
     @app.get("/deployments/{deployment_id}/manifest", response_model=dict)
     async def manifest(deployment_id: int) -> dict:
         try:
-            return await model_server_handler.model_manifest(deployment_id)
+            return await ms_handler.model_manifest(deployment_id)
         except Exception as e:
             raise HTTPException(
                 status_code=500, detail=f"Manifest retrieval failed: {str(e)}"
             ) from e
 
-    @app.get("/deployments/{deployment_id}/docs-url", response_model=DocsUrl)
-    async def model_docs_url(deployment_id: int) -> dict:
-        try:
-            deployment = await model_server_handler.get_deployment(str(deployment_id))
-            if not deployment:
-                raise HTTPException(status_code=404, detail=f"Deployment {deployment_id} not found")
-            return {"url": f"{deployment['model_url']}/docs"}
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get docs URL: {str(e)}") from e
-
     @app.get("/deployments/{deployment_id}/healthz", response_model=Healthz)
     async def model_healthz(deployment_id: int) -> dict:
         try:
-            deployment = await model_server_handler.get_deployment(str(deployment_id))
-            if not deployment:
-                raise HTTPException(status_code=404, detail=f"Deployment {deployment_id} not found")
-            return await httpx_client.get(f"{deployment['model_url']}/healthz")
-        except HTTPException:
-            raise
+            return await ms_handler.model_healthz(deployment_id)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e)) from e
 

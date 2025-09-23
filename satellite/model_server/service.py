@@ -1,13 +1,9 @@
 import json
 import inspect
-import logging
 from typing import Any, Callable, Type
 from handers.model_handler import ModelHandler
 from handers.openapi_generator import OpenAPIGenerator
 from auth import HTTPException
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
 
 
 class UvicornService:
@@ -22,16 +18,10 @@ class UvicornService:
         self.description = description
         self.version = version
 
-        logger.info("Initializing UvicornService")
-
         try:
-            logger.info("Creating ModelHandler...")
             self.model_handler = ModelHandler()
             self.openapi = OpenAPIGenerator(self.model_handler)
-            logger.info("ModelHandler created successfully")
-        except Exception as e:
-            logger.error(f"Failed to create ModelHandler: {e}")
-            # Create a dummy handler that always returns errors
+        except Exception:
             self.model_handler = None
             self.openapi = None
 

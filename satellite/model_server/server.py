@@ -1,12 +1,8 @@
 from typing import Any
 from pydantic import ValidationError
-import logging
 
 from service import UvicornService
 from auth import HTTPException
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
 
 app = UvicornService()
 
@@ -57,3 +53,9 @@ async def compute(request_data):
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Model computation failed: {e}")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=6005)
