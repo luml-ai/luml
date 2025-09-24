@@ -38,7 +38,6 @@ const orbitsStore = useOrbitsStore()
 const visible = ref(props.modelValue)
 const secretValue = ref('')
 const loading = ref(false)
-const isCopied = ref(false)
 
 watch(
   () => props.modelValue,
@@ -94,8 +93,6 @@ async function copySecret() {
   try {
     await navigator.clipboard.writeText(secretValue.value)
     toast.add(simpleSuccessToast('Secret copied to clipboard'))
-    isCopied.value = true
-    setTimeout(() => (isCopied.value = false), 1000)
   } catch (e) {
     toast.add(simpleErrorToast('Failed to copy secret'))
     console.error('Copy secret error:', e)
