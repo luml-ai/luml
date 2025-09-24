@@ -119,7 +119,7 @@ const tableHeight = ref(0)
 const currentColumns = computed(() => (props.value.length ? Object.keys(props.value[0]) : []))
 const dataForFilters = computed(() => {
   const row = props.value[0]
-  let data: FilterDataItem[] = []
+  const data: FilterDataItem[] = []
   for (const key in row) {
     data.push({
       name: key,

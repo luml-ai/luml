@@ -10,7 +10,7 @@ import { dataforceApi } from '@/lib/api'
 import { ref } from 'vue'
 import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
-import { computed } from '@vue/reactivity'
+import { computed } from 'vue'
 
 export const useOrganizationStore = defineStore('organization', () => {
   const availableOrganizations = ref<Organization[]>([])
