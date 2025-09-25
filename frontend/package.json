@@ -48,7 +48,7 @@
     "@types/file-saver": "^2.0.7",
     "@types/node": "^22.9.0",
     "@types/sql.js": "^1.4.9",
-    "@vitejs/plugin-vue": "^5.1.4",
+    "@vitejs/plugin-vue": "^5.2.4",
     "@vitest/ui": "^3.2.4",
     "@vue/eslint-config-prettier": "^10.1.0",
     "@vue/eslint-config-typescript": "^14.1.3",
