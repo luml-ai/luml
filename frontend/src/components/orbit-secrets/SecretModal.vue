@@ -24,33 +24,19 @@ import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useOrbitsStore } from '@/stores/orbits'
 
 interface Props {
-  modelValue: boolean
   secret: OrbitSecret | null
 }
-
 const props = defineProps<Props>()
-const emit = defineEmits(['update:modelValue'])
+const visible = defineModel<boolean>('visible')
 
 const toast = useToast()
 const secretsStore = useSecretsStore()
 const orbitsStore = useOrbitsStore()
-
-const visible = ref(props.modelValue)
 const secretValue = ref('')
 const loading = ref(false)
 
-watch(
-  () => props.modelValue,
-  (val) => {
-    visible.value = val
-    if (val && props.secret) {
-      loadSecretValue(props.secret.id)
-    }
-  }
-)
-
 watch(visible, (val) => {
-  emit('update:modelValue', val)
+  if (val && props.secret) loadSecretValue(props.secret.id)
 })
 
 const dialogPt: DialogPassThroughOptions = {

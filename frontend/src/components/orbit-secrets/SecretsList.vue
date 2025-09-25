@@ -51,7 +51,7 @@
     </div>
   </div>
 
-  <SecretModal v-model="secretModalVisible" :secret="currentSecret" />
+  <SecretModal v-model:visible="secretModalVisible" :secret="currentSecret" />
 
   <SecretEditor v-model:visible="editDialogVisible" :secret="secretToEdit" />
 </template>
@@ -80,9 +80,9 @@ const editSecret = (secret: OrbitSecret) => {
   editDialogVisible.value = true
 }
 
-const showSecretModal = (secret: OrbitSecret) => {
+function showSecretModal(secret: OrbitSecret) {
   currentSecret.value = secret
-  secretModalVisible.value = true
+  secretModalVisible.value = true 
 }
 
 function maskSecret(value?: string): string {
