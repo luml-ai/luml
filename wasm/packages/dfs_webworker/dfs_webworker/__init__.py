@@ -3,6 +3,7 @@ from dfs_webworker.prompt_optimization import (
     prompt_optimization_train,
     prompt_optimization_predict,
 )
+from dfs_webworker.pyfunc import pyfunc_init, pyfunc_compute, pyfunc_deinit
 from dfs_webworker.types import FakeJsProxy
 from dfs_webworker.store import Store
 import traceback
@@ -28,6 +29,9 @@ Router.add_route(
     "/prompt_optimization/predict", prompt_optimization_predict, sync=False
 )
 Router.add_route("/store/deallocate", Store.delete, sync=True)
+Router.add_route("/pyfunc/init", pyfunc_init, sync=True)
+Router.add_route("/pyfunc/compute", pyfunc_compute, sync=True)
+Router.add_route("/pyfunc/deinit", pyfunc_deinit, sync=True)
 
 
 async def invoke(route: str, payload: FakeJsProxy, debug: bool = False):
