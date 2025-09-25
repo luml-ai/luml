@@ -2,7 +2,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from service import UvicornService
-from auth import HTTPException
+from _exceptions import HTTPException
 
 app = UvicornService()
 
