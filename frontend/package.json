@@ -12,7 +12,8 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "style": "npx style-dictionary build --config style-dictionary.config.mjs",
-    "test": "vitest run",
+    "test": "vitest",
+    "test:ci": "vitest run --environment jsdom",
     "test:ui": "vitest --ui"
   },
   "dependencies": {

@@ -30,7 +30,7 @@ jobs:
       
       - name: Run tests
         working-directory: frontend
-        run: npm run test
+        run: npm run test:ci
 
   build_and_deploy:
     runs-on: ubuntu-latest
