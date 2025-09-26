@@ -6,7 +6,6 @@ import { OrbitRoleEnum } from '../orbits.interfaces'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 import { shallowMount } from '@vue/test-utils'
 
-
 vi.mock('@/stores/buckets', () => ({
   useBucketsStore: () => ({
     buckets: [{ id: 'bucket1', bucket_name: 'Bucket One' }],
