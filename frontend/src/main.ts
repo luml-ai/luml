@@ -17,6 +17,6 @@ app.use(router)
 
 initPrimeVue(app)
 
-app.use(VueApexCharts);
+app.component('apexchart', VueApexCharts)
 
 app.mount('#app')
