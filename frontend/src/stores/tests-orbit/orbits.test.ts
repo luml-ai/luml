@@ -242,7 +242,7 @@ describe('OrbitsStore', () => {
     })
 
     it('deleteMember calls API', async () => {
-      mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
+      mockApi.deleteOrbitMember.mockResolvedValueOnce({ detail: 'success' })
       await store.deleteMember(123, 1, 42)
       expect(mockApi.deleteOrbitMember).toHaveBeenCalledWith(123, 1, 42)
     })
