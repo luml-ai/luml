@@ -36,6 +36,7 @@ jobs:
       - name: Run Prettier (non-blocking)
         working-directory: frontend
         run: npm run format:check
+        continue-on-error: true
       
   test:
     runs-on: ubuntu-latest
