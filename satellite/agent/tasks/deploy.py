@@ -87,7 +87,7 @@ class DeployTask(Task):
             env=env,
         )
 
-        inference_url = f"{config.BASE_URL}/deployments/{int(dep_id)}/compute"
+        inference_url = f"{config.BASE_URL}:{int(config.AUTH_PORT)}/deployments/{int(dep_id)}/compute"
         async with ModelServerClient() as client:
             health_ok = await client.is_healthy(int(dep_id))
 

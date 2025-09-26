@@ -1,9 +1,12 @@
 import json
 import inspect
+import logging
 from typing import Any, Callable, Type
 from handlers.model_handler import ModelHandler
-from handlers.openapi_generator import OpenAPIGenerator
 from _exceptions import HTTPException
+from openapi_generator import OpenAPIGenerator
+
+logger = logging.getLogger(__name__)
 
 
 class UvicornService:
@@ -18,10 +21,13 @@ class UvicornService:
         self.description = description
         self.version = version
 
+        logger.info("Initializing ModelHandler...")
         try:
             self.model_handler = ModelHandler()
             self.openapi = OpenAPIGenerator(self.model_handler)
-        except Exception:
+            logger.info("ModelHandler initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize ModelHandler: {e}", exc_info=True)
             self.model_handler = None
             self.openapi = None
 
@@ -131,13 +137,6 @@ class UvicornService:
 
         return decorator
 
-    def generate_openapi_schema(self) -> dict[str, Any]:
-        return self.openapi.get_openapi_schema(
-            title=self.title,
-            version=self.version,
-            description=self.description,
-        )
-
     @staticmethod
     async def _send_html(send, html: str, status: int = 200):
         body = html.encode()
@@ -191,6 +190,13 @@ class UvicornService:
 
     async def _send_404(self, send):
         await self._send_json(send, {"error": "Not found"}, 404)
+
+    def generate_openapi_schema(self) -> dict[str, Any]:
+        return self.openapi.get_openapi_schema(
+            title=self.title,
+            version=self.version,
+            description=self.description,
+        )
 
     def _add_builtin_endpoints(self):
         async def docs_handler(service, scope, receive, send):

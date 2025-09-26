@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.openapi.utils import get_openapi
 
 from agent.handlers.handler_instances import ms_handler, secrets_handler
 from agent.schemas.deployments import (
@@ -13,6 +14,37 @@ from agent.schemas.deployments import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from .handlers.openapi_handler import OpenAPIHandler
+
+openapi_handler = OpenAPIHandler(ms_handler)
+
+
+class OpenAPISchemaBuilder:
+    @staticmethod
+    def generate_base_schema(app: FastAPI) -> dict[str, Any]:
+        return get_openapi(
+            title="Satellite Agent API",
+            version="1.0.0",
+            description="API for managing model deployments and inference",
+            routes=app.routes,
+        )
+    
+    @staticmethod
+    def add_security_to_schema(openapi_schema: dict[str, Any]) -> None:
+        for path_data in openapi_schema.get("paths", {}).values():
+            for method_data in path_data.values():
+                if isinstance(method_data, dict):
+                    method_data["security"] = [{"HTTPBearer": []}]
+
+        if "components" not in openapi_schema:
+            openapi_schema["components"] = {}
+
+        openapi_schema["components"]["securitySchemes"] = {
+            "HTTPBearer": {
+                "type": "http",
+                "scheme": "bearer"
+            }
+        }
 
 
 @asynccontextmanager
@@ -70,4 +102,21 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(e)}") from e
 
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+
+        builder = OpenAPISchemaBuilder()
+        openapi_schema = builder.generate_base_schema(app)
+        builder.add_security_to_schema(openapi_schema)
+
+        app.openapi_schema = openapi_handler.merge_deployment_schemas(openapi_schema)
+        return app.openapi_schema
+
+    def invalidate_openapi_cache():
+        app.openapi_schema = None
+    
+    ms_handler.register_openapi_cache_invalidation_callback(invalidate_openapi_cache)
+    
+    app.openapi = custom_openapi
     return app

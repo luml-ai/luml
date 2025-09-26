@@ -26,6 +26,8 @@ class Deployment(BaseModel):
 class LocalDeployment(BaseModel):
     deployment_id: int
     dynamic_attributes_secrets: dict[str, int] | None = {}
+    manifest: dict | None = None
+    openapi_schema: dict | None = None
 
 
 class Secret(BaseModel):

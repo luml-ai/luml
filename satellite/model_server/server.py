@@ -6,6 +6,11 @@ from _exceptions import HTTPException
 
 app = UvicornService()
 
+import logging
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+logger = logging.getLogger("satellite")
 
 @app.get(
     "/healthz",
@@ -30,6 +35,7 @@ async def get_manifest():
         return {"error": f"Failed to get manifest: {str(e)}"}
 
 
+
 @app.post(
     "/compute",
     summary="Run Model Inference",
@@ -42,16 +48,20 @@ async def compute(request_data):
     try:
         validated_request = ComputeRequest(**request_data)
     except ValidationError as e:
+        logger.error(f"Input validation failed: {e}")
         raise HTTPException(status_code=422, detail=f"Input validation failed: {e}")
     except Exception as e:
+        logger.error(f"Validation error: {e}")
         raise HTTPException(status_code=422, detail=f"Validation error: {e}")
 
     try:
         result = await app.model_handler.compute_result(
             validated_request.inputs, validated_request.dynamic_attributes
         )
+        logger.info("Model computation successful")
         return result
     except Exception as e:
+        logger.error(f"Model computation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Model computation failed: {e}")
 
 

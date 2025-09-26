@@ -48,3 +48,23 @@ class ModelServerClient:
                 pass
             await asyncio.sleep(1)
         return False
+
+    async def get_openapi_schema(self, deployment_id: int) -> dict | None:
+        assert self._session is not None
+        try:
+            response = await self._session.get(f"{self._url(deployment_id)}/openapi.json")
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            pass
+        return None
+
+    async def get_manifest(self, deployment_id: int) -> dict | None:
+        assert self._session is not None
+        try:
+            response = await self._session.get(f"{self._url(deployment_id)}/manifest")
+            if response.status_code == 200:
+                return response.json()
+        except Exception:
+            pass
+        return None
