@@ -32,6 +32,27 @@ jobs:
         working-directory: frontend
         run: npm run lint
         continue-on-error: true
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+      
+      - name: Run tests
+        working-directory: frontend
+        run: npm run test:ci
+
 
   build_and_deploy:
     runs-on: ubuntu-latest

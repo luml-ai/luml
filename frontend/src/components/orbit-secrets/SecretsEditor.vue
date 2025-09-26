@@ -9,22 +9,22 @@
     </template>
     <Form id="secret-edit-form" :initial-values="formData" :resolver="updateSecretResolver" @submit="onSubmit"
       class="form" validate-on-submit>
-        <div class="form-item">
-          <label for="name" class="label">Name</label>
-          <InputText v-model="formData.name" id="name" name="name" fluid />
-        </div>
+      <div class="form-item">
+        <label for="name" class="label">Name</label>
+        <InputText v-model="formData.name" id="name" name="name" fluid />
+      </div>
 
-        <div class="form-item">
-          <label for="value" class="label">Secret key</label>
-          <Password v-model="formData.value" id="value" name="value" :feedback="false" toggleMask fluid
-            :key="props.secret?.id" />
-        </div>
+      <div class="form-item">
+        <label for="value" class="label">Secret key</label>
+        <Password v-model="formData.value" id="value" name="value" :feedback="false" toggleMask fluid
+          :key="props.secret?.id" />
+      </div>
 
-        <div class="form-item">
-          <label for="tags" class="label">Tags</label>
-          <AutoComplete v-model="formData.tags" id="tags" name="tags" placeholder="Type to add tags" fluid multiple
-            :suggestions="autocompleteItems" @complete="searchTags" />
-        </div>
+      <div class="form-item">
+        <label for="tags" class="label">Tags</label>
+        <AutoComplete v-model="formData.tags" id="tags" name="tags" placeholder="Type to add tags" fluid multiple
+          :suggestions="autocompleteItems" @complete="searchTags" />
+      </div>
     </Form>
     <template #footer>
       <div class="footer-actions">
@@ -207,11 +207,13 @@ async function onDelete() {
     toast.add(simpleSuccessToast('Secret deleted successfully'))
     emit('update:visible', false)
   } catch (e: any) {
-    toast.add(
-      simpleErrorToast(
-        e?.response?.data?.detail || e.message || 'Failed to delete secret'
-      )
-    )
+    const errorMessage = e?.response?.data?.detail || e.message || 'Failed to delete secret'
+    
+    if (errorMessage.includes('used') || errorMessage.includes('deployment') || errorMessage.includes('active')) {
+      toast.add(simpleErrorToast('The secret is currently used by active deployments'))
+    } else {
+      toast.add(simpleErrorToast(errorMessage))
+    }
   } finally {
     deleteLoading.value = false
   }
@@ -222,13 +224,13 @@ async function onDelete() {
 .form {
   display: flex;
   flex-direction: column;
-  gap: 20px; 
+  gap: 12px;
 }
 
 .form-item {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
 }
 
 .label {
@@ -240,5 +242,14 @@ async function onDelete() {
   display: flex;
   justify-content: space-between;
   width: 100%;
+}
+
+.dialog-title {
+  text-transform: uppercase;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 500;
 }
 </style>
