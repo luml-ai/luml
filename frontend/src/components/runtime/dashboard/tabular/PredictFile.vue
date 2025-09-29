@@ -55,7 +55,7 @@ const isLoading = ref(false)
 const downloadPredictBlob = ref<Blob | null>(null)
 
 const isPredictReadyForDownload = computed(() => !!downloadPredictBlob.value)
-const isPredictButtonDisabled = computed(() => !fileData.value.name || !isUploadWithErrors || !isLoading.value)
+const isPredictButtonDisabled = computed(() => !fileData.value.name || !isUploadWithErrors || isLoading.value)
 
 async function submit() {
   isLoading.value = true
