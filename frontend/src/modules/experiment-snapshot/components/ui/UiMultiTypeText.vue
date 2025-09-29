@@ -26,21 +26,27 @@
       </div>
     </header>
     <div class="content">
-      <div v-if="contentType === ContentTypeEnum.yaml">
+      <div v-if="contentType === ContentTypeEnum.yaml" class="yaml-body">
         <pre>{{ yamlText }}</pre>
       </div>
-      <div v-else-if="contentType === ContentTypeEnum.markdown" v-html="markdownText"></div>
+      <div
+        v-else-if="contentType === ContentTypeEnum.markdown"
+        v-html="markdownText"
+        class="markdown-body"
+      ></div>
       <div v-else>{{ text }}</div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import 'github-markdown-css/github-markdown.css';
 import { computed, ref } from 'vue'
 import { Select, Button } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { marked } from 'marked'
 import { isYamlLike, jsonToYaml } from '../../helpers/texts'
+import DOMPurify from 'dompurify'
 
 type Props = {
   title: string
@@ -67,7 +73,6 @@ const contentTypes = computed(() => [
   {
     label: 'Markdown',
     value: ContentTypeEnum.markdown,
-    disabled: true,
   },
   {
     label: 'Raw',
@@ -75,9 +80,12 @@ const contentTypes = computed(() => [
   },
 ])
 
-const markdownText = computed(() =>
-  marked.parse(typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`),
-)
+const markdownText = computed(() => {
+  const result = marked.parse(
+    typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`,
+  )
+  return DOMPurify.sanitize(result as string)
+})
 
 const yamlText = computed(() => jsonToYaml(props.text))
 
@@ -99,6 +107,7 @@ function copy() {
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-content-background);
 }
+
 .header {
   margin-bottom: 18px;
   padding-bottom: 4px;
@@ -109,6 +118,7 @@ function copy() {
   overflow: hidden;
   border-bottom: 1px solid var(--p-divider-border-color);
 }
+
 .title {
   font-size: 16px;
   font-weight: 500;
@@ -116,18 +126,28 @@ function copy() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .right {
   display: flex;
   align-items: center;
   gap: 4px;
   flex: 0 0 auto;
 }
+
 .select {
   width: 120px;
 }
+
 .content {
   font-size: 14px;
-  white-space: pre;
   overflow-x: auto;
+}
+
+.yaml-body {
+  white-space: pre;
+}
+
+.markdown-body {
+  background-color: transparent;
 }
 </style>
