@@ -12,6 +12,15 @@ from promptopt.optimizers._eval import BaseMetric, ExactMatch, LLMJudge
 SMALL_SIZE_THRESHOLD = 64
 
 
+def will_use_jedi_optimizer(
+    dataset_size: int, evaluation_mode: EvaluationModes
+) -> bool:
+    return (
+        dataset_size >= SMALL_SIZE_THRESHOLD
+        and evaluation_mode != EvaluationModes.none_
+    )
+
+
 async def _optimize_zero_shot(
     student: LLM,
     teacher: LLM,

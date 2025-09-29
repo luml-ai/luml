@@ -75,7 +75,6 @@ class JsonModel:
 
             if field.is_variadic:
                 field_schema = {"type": "array", "items": field_schema}
-            
 
             properties[field.name] = field_schema
             required.append(field.name)

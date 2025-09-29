@@ -42,7 +42,7 @@ def init_llm(provider: Provider) -> LLM:
             model=provider.model_id,
         )
     if provider.provider_id == "ollama":
-        base_url = provider.provider_settings.api_base or 'http://localhost:11434'
+        base_url = provider.provider_settings.api_base or "http://localhost:11434"
         return OllamaProvider(
             base_url=base_url,
             model=provider.model_id,
