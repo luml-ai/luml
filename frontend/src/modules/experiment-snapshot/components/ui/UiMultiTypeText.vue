@@ -5,7 +5,7 @@
       <div class="right">
         <Select
           v-model="contentType"
-          :options="CONTENT_TYPES"
+          :options="contentTypes"
           option-label="label"
           option-value="value"
           option-disabled="disabled"
@@ -27,7 +27,7 @@
     </header>
     <div class="content">
       <div v-if="contentType === ContentTypeEnum.yaml">
-        <pre>{{ text }}</pre>
+        <pre>{{ yamlText }}</pre>
       </div>
       <div v-else-if="contentType === ContentTypeEnum.markdown" v-html="markdownText"></div>
       <div v-else>{{ text }}</div>
@@ -40,6 +40,7 @@ import { computed, ref } from 'vue'
 import { Select, Button } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { marked } from 'marked'
+import { isYamlLike, jsonToYaml } from '../../helpers/texts'
 
 type Props = {
   title: string
@@ -52,11 +53,16 @@ enum ContentTypeEnum {
   raw = 'raw',
 }
 
-const CONTENT_TYPES = [
+const props = defineProps<Props>()
+
+const contentType = ref<ContentTypeEnum>(ContentTypeEnum.raw)
+const copied = ref(false)
+
+const contentTypes = computed(() => [
   {
     label: 'YAML',
     value: ContentTypeEnum.yaml,
-    disabled: true,
+    disabled: !isYamlLike(props.text),
   },
   {
     label: 'Markdown',
@@ -67,16 +73,13 @@ const CONTENT_TYPES = [
     label: 'Raw',
     value: ContentTypeEnum.raw,
   },
-]
-
-const props = defineProps<Props>()
-
-const contentType = ref<ContentTypeEnum>(ContentTypeEnum.raw)
-const copied = ref(false)
+])
 
 const markdownText = computed(() =>
   marked.parse(typeof props.text === 'object' ? JSON.stringify(props.text) : `${props.text}`),
 )
+
+const yamlText = computed(() => jsonToYaml(props.text))
 
 function copy() {
   navigator.clipboard.writeText(
@@ -124,5 +127,7 @@ function copy() {
 }
 .content {
   font-size: 14px;
+  white-space: pre;
+  overflow-x: auto;
 }
 </style>
