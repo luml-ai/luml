@@ -54,6 +54,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm install
+
+      - name: Ensure rollup binaries
+        working-directory: frontend
+        run: npm install rollup --force
       
       - name: Run tests
         working-directory: frontend
