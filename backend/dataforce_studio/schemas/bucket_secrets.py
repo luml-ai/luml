@@ -2,7 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 
 
 class _BucketSecretBase(BaseModel):
@@ -20,29 +20,31 @@ class BucketSecretCreateIn(_BucketSecretBase): ...
 
 
 class BucketSecretCreate(_BucketSecretBase):
-    organization_id: int
+    organization_id: ShortUUID
 
 
 class BucketSecret(_BucketSecretBase, BaseOrmConfig):
-    id: int
-    organization_id: int
+    id: ShortUUID
+    organization_id: ShortUUID
     created_at: datetime
     updated_at: datetime | None = None
 
     def update_from_partial(
         self, update_data: "BucketSecretUpdateIn"
     ) -> "BucketSecret":
-        return self.model_copy(update=update_data.model_dump(exclude_unset=True))
+        return self.model_copy(
+            update=update_data.model_dump(exclude_unset=True, mode="python")
+        )
 
 
 class BucketSecretOut(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     endpoint: str
     bucket_name: str
     secure: bool | None = None
     region: str | None = None
     cert_check: bool | None = None
-    organization_id: int
+    organization_id: ShortUUID
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -59,7 +61,7 @@ class BucketSecretUpdateIn(BaseModel):
 
 
 class BucketSecretUpdate(BucketSecretUpdateIn):
-    id: int
+    id: ShortUUID
 
 
 class BucketSecretUrls(BaseModel, BaseOrmConfig):

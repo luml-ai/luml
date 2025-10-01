@@ -3,20 +3,21 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
+from dataforce_studio.handlers import BucketSecretHandler
 from dataforce_studio.infra.exceptions import (
     BucketSecretInUseError,
     DatabaseConstraintError,
     NotFoundError,
 )
-from dataforce_studio.schemas.bucket_secrets import (
+from dataforce_studio.schemas import (
+    Action,
     BucketSecret,
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
+    Resource,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
 
 handler = BucketSecretHandler()
 
@@ -34,8 +35,8 @@ async def test_create_bucket_secret(
     mock_check_organization_permission: AsyncMock,
     mock_create_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
     secret_create_in = BucketSecretCreateIn(
         endpoint="s3.amazonaws.com",
         bucket_name="test-bucket",
@@ -44,7 +45,7 @@ async def test_create_bucket_secret(
         region="us-east-1",
     )
     expected = BucketSecretOut(
-        id=1,
+        id="MbB5SVQKbqNMHhB2CT6oNs",
         organization_id=organization_id,
         endpoint=secret_create_in.endpoint,
         bucket_name=secret_create_in.bucket_name,
@@ -79,11 +80,11 @@ async def test_get_organization_bucket_secrets(
     mock_check_organization_permission: AsyncMock,
     mock_get_organization_bucket_secrets: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
     expected = [
         BucketSecretOut(
-            id=1,
+            id="MbB5SVQKbqNMHhB2CT6oNs",
             organization_id=organization_id,
             endpoint="s3.amazonaws.com",
             bucket_name="test-bucket-1",
@@ -117,9 +118,9 @@ async def test_get_bucket_secret(
     mock_check_organization_permission: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
     expected = BucketSecretOut(
         id=secret_id,
         organization_id=organization_id,
@@ -154,9 +155,9 @@ async def test_get_bucket_secret_not_found(
     mock_check_organization_permission: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
 
     mock_get_bucket_secret.return_value = None
 
@@ -183,9 +184,9 @@ async def test_update_bucket_secret(
     mock_check_organization_permission: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
     secret_update = BucketSecretUpdate(
         id=secret_id,
         endpoint="s3.amazonaws.com",
@@ -227,9 +228,9 @@ async def test_update_bucket_secret_not_found(
     mock_check_organization_permission: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
     secret_update = BucketSecretUpdate(
         id=secret_id,
         endpoint="s3.amazonaws.com",
@@ -264,9 +265,9 @@ async def test_delete_bucket_secret(
     mock_check_organization_permission: AsyncMock,
     mock_delete_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
 
     await handler.delete_bucket_secret(user_id, organization_id, secret_id)
 
@@ -289,9 +290,9 @@ async def test_delete_bucket_secret_in_use(
     mock_check_organization_permission: AsyncMock,
     mock_delete_bucket_secret: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    secret_id = 1
+    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
 
     mock_delete_bucket_secret.side_effect = DatabaseConstraintError()
 
@@ -354,8 +355,8 @@ async def test_get_existing_bucket_urls(
     mock_get_bucket_secret: AsyncMock,
     mock_s3_service: Mock,
 ) -> None:
-    secret_id = 847658
-    organization_id = 8868
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
+    organization_id = "k3vQLigRVfjA4maDMkeTow"
     original_secret = BucketSecret(
         id=secret_id,
         organization_id=organization_id,
@@ -398,7 +399,8 @@ async def test_get_existing_bucket_urls(
     urls = await handler.get_existing_bucket_urls(secret)
 
     assert urls == expected
-    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    # The secret.id is now converted to full UUID, so we expect that
+    mock_get_bucket_secret.assert_awaited_once_with(secret.id)
     mock_s3_service.assert_called_once()
     mock_s3_instance.get_upload_url.assert_awaited_once_with(object_name)
     mock_s3_instance.get_download_url.assert_awaited_once_with(object_name)
@@ -413,7 +415,7 @@ async def test_get_existing_bucket_urls(
 async def test_get_existing_bucket_urls_secret_not_found(
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
-    secret_id = 847658
+    secret_id = "MbB5SVQKbqNMHhB2CT6oNs"
 
     secret = BucketSecretUpdate(
         id=secret_id,

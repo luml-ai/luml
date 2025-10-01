@@ -1,15 +1,17 @@
+import uuid
+
 from pydantic import EmailStr
-from sqlalchemy import Integer, String
+from sqlalchemy import UUID, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.stats import StatsEmailSendOut
+from dataforce_studio.schemas import StatsEmailSendOut
 
 
 class StatsEmailSendOrm(TimestampMixin, Base):
     __tablename__ = "stats_emails"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)
 

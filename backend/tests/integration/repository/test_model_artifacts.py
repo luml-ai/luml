@@ -3,16 +3,19 @@ import uuid
 import pytest
 
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
-from dataforce_studio.repositories.deployments import DeploymentRepository
-from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.schemas.deployment import DeploymentCreate, DeploymentStatus
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.repositories import (
+    DeploymentRepository,
+    ModelArtifactRepository,
+    SatelliteRepository,
+)
+from dataforce_studio.schemas import (
+    DeploymentCreate,
+    DeploymentStatus,
     ModelArtifactCreate,
     ModelArtifactStatus,
     ModelArtifactUpdate,
+    SatelliteCreate,
 )
-from dataforce_studio.schemas.satellite import SatelliteCreate
 from tests.conftest import CollectionFixtureData
 
 

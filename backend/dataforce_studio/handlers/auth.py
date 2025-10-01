@@ -10,12 +10,11 @@ from pydantic import EmailStr
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import AuthError, EmailDeliveryError
-from dataforce_studio.models.auth import (
+from dataforce_studio.models import (
     Token,
 )
-from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import (
+from dataforce_studio.repositories import TokenBlackListRepository, UserRepository
+from dataforce_studio.schemas import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
@@ -180,7 +179,7 @@ class AuthHandler:
             else None
         )
         update_user = UpdateUser(
-            **update_user.model_dump(exclude_unset=True), email=email
+            **update_user.model_dump(exclude_unset=True, mode="python"), email=email
         )
         if hashed_password:
             update_user.hashed_password = hashed_password

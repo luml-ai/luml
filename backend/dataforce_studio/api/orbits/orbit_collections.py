@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers.collections import CollectionHandler
+from dataforce_studio.handlers import CollectionHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.schemas import (
     Collection,
     CollectionCreateIn,
     CollectionUpdateIn,
+    ShortUUID,
 )
 
 collections_router = APIRouter(
@@ -25,8 +26,8 @@ collection_handler = CollectionHandler()
 )
 async def create_collection(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
     collection: CollectionCreateIn,
 ) -> Collection:
     return await collection_handler.create_collection(
@@ -40,7 +41,7 @@ async def create_collection(
     response_model=list[Collection],
 )
 async def get_orbit_collections(
-    request: Request, organization_id: int, orbit_id: int
+    request: Request, organization_id: ShortUUID, orbit_id: ShortUUID
 ) -> list[Collection]:
     return await collection_handler.get_orbit_collections(
         request.user.id, organization_id, orbit_id
@@ -54,9 +55,9 @@ async def get_orbit_collections(
 )
 async def update_collection(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
-    collection_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    collection_id: ShortUUID,
     collection: CollectionUpdateIn,
 ) -> Collection:
     return await collection_handler.update_collection(
@@ -74,7 +75,10 @@ async def update_collection(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_collection(
-    request: Request, organization_id: int, orbit_id: int, collection_id: int
+    request: Request,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    collection_id: ShortUUID,
 ) -> None:
     await collection_handler.delete_collection(
         request.user.id, organization_id, orbit_id, collection_id

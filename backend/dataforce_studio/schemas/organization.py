@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, EmailStr, Field, HttpUrl, field_validator
 
-from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 from dataforce_studio.schemas.orbit import Orbit
 from dataforce_studio.schemas.user import UserOut
 
@@ -26,13 +26,13 @@ class OrganizationCreate(BaseModel):
 
 
 class OrganizationUpdate(BaseModel):
-    id: int | None = None
+    id: ShortUUID | None = None
     name: str | None = None
     logo: HttpUrl | str | None = None
 
 
 class Organization(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     name: str
     logo: HttpUrl | None = None
     created_at: datetime
@@ -47,7 +47,7 @@ class OrganizationSwitcher(Organization):
 class CreateOrganizationInviteIn(BaseModel):
     email: EmailStr
     role: OrgRole
-    organization_id: int
+    organization_id: ShortUUID
 
     @field_validator("role")
     @classmethod
@@ -60,25 +60,25 @@ class CreateOrganizationInviteIn(BaseModel):
 class CreateOrganizationInvite(BaseModel):
     email: EmailStr
     role: OrgRole
-    organization_id: int
-    invited_by: int
+    organization_id: ShortUUID
+    invited_by: ShortUUID
 
 
 class OrganizationInvite(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     email: EmailStr
     role: OrgRole
-    organization_id: int
+    organization_id: ShortUUID
     invited_by_user: UserOut | None = None
     organization: Organization | None = None
     created_at: datetime
 
 
 class OrganizationInviteSimple(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     email: EmailStr
     role: OrgRole
-    organization_id: int
+    organization_id: ShortUUID
     created_at: datetime
 
 
@@ -87,7 +87,7 @@ class UserInvite(OrganizationInvite):
 
 
 class UpdateOrganizationMember(BaseModel):
-    id: int | None = None
+    id: ShortUUID | None = None
     role: OrgRole
 
     @field_validator("role")
@@ -99,15 +99,15 @@ class UpdateOrganizationMember(BaseModel):
 
 
 class OrganizationMember(BaseModel, BaseOrmConfig):
-    id: int
-    organization_id: int
+    id: ShortUUID
+    organization_id: ShortUUID
     role: OrgRole
     user: UserOut
 
 
 class OrganizationMemberCreate(BaseModel):
-    user_id: int
-    organization_id: int
+    user_id: ShortUUID
+    organization_id: ShortUUID
     role: OrgRole
 
     @field_validator("role")
@@ -119,8 +119,8 @@ class OrganizationMemberCreate(BaseModel):
 
 
 class OrganizationOwnerCreate(BaseModel):
-    user_id: int
-    organization_id: int
+    user_id: ShortUUID
+    organization_id: ShortUUID
     role: OrgRole
 
     @field_validator("role")

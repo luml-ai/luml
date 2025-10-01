@@ -1,15 +1,16 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers.satellites import SatelliteHandler
+from dataforce_studio.handlers import SatelliteHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.satellite import (
+from dataforce_studio.schemas import (
+    APIKeyCreateOut,
     Satellite,
     SatelliteCreateIn,
     SatelliteCreateOut,
     SatelliteUpdateIn,
+    ShortUUID,
 )
-from dataforce_studio.schemas.user import APIKeyCreateOut
 
 organization_orbit_satellites_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/satellites",
@@ -25,8 +26,8 @@ satellite_handler = SatelliteHandler()
 )
 async def create_satellite(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
     satellite: SatelliteCreateIn,
 ) -> SatelliteCreateOut:
     return await satellite_handler.create_satellite(
@@ -39,8 +40,8 @@ async def create_satellite(
 )
 async def list_satellites(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
     paired: bool | None = None,
 ) -> list[Satellite]:
     return await satellite_handler.list_satellites(
@@ -53,9 +54,9 @@ async def list_satellites(
 )
 async def get_satellite(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
-    satellite_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    satellite_id: ShortUUID,
 ) -> Satellite:
     return await satellite_handler.get_satellite(
         request.user.id, organization_id, orbit_id, satellite_id
@@ -67,9 +68,9 @@ async def get_satellite(
 )
 async def update_satellite(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
-    satellite_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    satellite_id: ShortUUID,
     satellite: SatelliteUpdateIn,
 ) -> Satellite:
     return await satellite_handler.update_satellite(
@@ -84,9 +85,9 @@ async def update_satellite(
 )
 async def regenerate_satellite_api_key(
     request: Request,
-    organization_id: int,
-    orbit_id: int,
-    satellite_id: int,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    satellite_id: ShortUUID,
 ) -> APIKeyCreateOut:
     api_key = await satellite_handler.regenerate_satellite_api_key(
         request.user.id, organization_id, orbit_id, satellite_id
@@ -100,7 +101,10 @@ async def regenerate_satellite_api_key(
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_satellite(
-    request: Request, organization_id: int, orbit_id: int, satellite_id: int
+    request: Request,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    satellite_id: ShortUUID,
 ) -> None:
     return await satellite_handler.delete_satellite(
         organization_id, orbit_id, request.user.id, satellite_id

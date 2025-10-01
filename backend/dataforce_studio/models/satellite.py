@@ -1,14 +1,15 @@
+import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, String
+from sqlalchemy import UUID, Boolean, CheckConstraint, ForeignKey, String
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects.postgresql.json import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import text
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.satellite import (
+from dataforce_studio.schemas import (
     Satellite,
     SatelliteCapability,
     SatelliteQueueTask,
@@ -27,9 +28,9 @@ class SatelliteOrm(TimestampMixin, Base):
         ),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    orbit_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     api_key_hash: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     paired: Mapped[bool] = mapped_column(
@@ -67,12 +68,12 @@ class SatelliteQueueOrm(TimestampMixin, Base):
     __tablename__ = "satellite_queue"
     __table_args__ = ()
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    satellite_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("satellites.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    satellite_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("satellites.id", ondelete="CASCADE"), nullable=False
     )
-    orbit_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     type: Mapped[SatelliteTaskType] = mapped_column(String, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(

@@ -11,7 +11,7 @@ class Token(BaseModel):
 class AuthUser(BaseUser):
     def __init__(
         self,
-        user_id: int,
+        user_id: str,
         email: EmailStr,
         full_name: str | None = None,
         disabled: bool | None = None,
@@ -31,7 +31,7 @@ class AuthUser(BaseUser):
 
 
 class AuthSatellite(BaseUser):
-    def __init__(self, satellite_id: int, orbit_id: int) -> None:
+    def __init__(self, satellite_id: str, orbit_id: str) -> None:
         self.id = satellite_id
         self.orbit_id = orbit_id
 

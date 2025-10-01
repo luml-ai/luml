@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers.api_keys import APIKeyHandler
+from dataforce_studio.handlers import APIKeyHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas.user import APIKeyCreateOut
+from dataforce_studio.schemas import APIKeyCreateOut
 
 api_keys_router = APIRouter(
     prefix="/api-keys",

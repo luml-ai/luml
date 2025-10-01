@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, HttpUrl, computed_field
 
-from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas import BaseOrmConfig, ShortUUID
 
 
 class SatelliteCapability(StrEnum):
@@ -31,8 +31,8 @@ class SatelliteStatus(StrEnum):
 
 
 class Satellite(BaseModel, BaseOrmConfig):
-    id: int
-    orbit_id: int
+    id: ShortUUID
+    orbit_id: ShortUUID
     name: str | None = None
     description: str | None = None
     base_url: str | None = None
@@ -63,7 +63,7 @@ class SatelliteCreateIn(BaseModel, BaseOrmConfig):
 
 
 class SatelliteCreate(BaseModel, BaseOrmConfig):
-    orbit_id: int
+    orbit_id: ShortUUID
     api_key_hash: str
     name: str | None = None
     description: str | None = None
@@ -80,20 +80,20 @@ class SatelliteUpdateIn(BaseModel, BaseOrmConfig):
 
 
 class SatelliteUpdate(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     name: str | None = None
     description: str | None = None
 
 
 class SatelliteRegenerateApiKey(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     api_key_hash: str
 
 
 class SatelliteQueueTask(BaseModel, BaseOrmConfig):
-    id: int
-    satellite_id: int
-    orbit_id: int
+    id: ShortUUID
+    satellite_id: ShortUUID
+    orbit_id: ShortUUID
     type: SatelliteTaskType
     payload: dict[str, Any]
     status: SatelliteTaskStatus

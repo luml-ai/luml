@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
+from dataforce_studio.handlers import ModelArtifactHandler
 from dataforce_studio.infra.exceptions import (
     ApplicationError,
     BucketSecretNotFoundError,
@@ -12,17 +12,19 @@ from dataforce_studio.infra.exceptions import (
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.schemas.bucket_secrets import BucketSecret
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.schemas import (
+    Action,
+    BucketSecret,
     Manifest,
     ModelArtifact,
     ModelArtifactIn,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
+    PartDetails,
+    Resource,
+    UploadDetails,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
-from dataforce_studio.schemas.s3 import PartDetails, UploadDetails
 
 handler = ModelArtifactHandler()
 
@@ -51,7 +53,7 @@ async def test_get_secret_or_raise(
 )
 @pytest.mark.asyncio
 async def test_get_secret_or_raise_not_found(mock_get_bucket_secret: AsyncMock) -> None:
-    secret_id = 1
+    secret_id = "6JCyzSABJtgY5q4WwkJ6Yz"
     mock_get_bucket_secret.return_value = None
 
     with pytest.raises(BucketSecretNotFoundError) as error:
@@ -73,9 +75,9 @@ async def test_get_secret_or_raise_not_found(mock_get_bucket_secret: AsyncMock) 
 async def test_check_orbit_and_collection_access(
     mock_get_orbit_simple: AsyncMock, mock_get_collection: AsyncMock
 ) -> None:
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
     orbit = Mock(organization_id=organization_id)
     collection = Mock(orbit_id=orbit_id)
 
@@ -99,9 +101,9 @@ async def test_check_orbit_and_collection_access(
 async def test_check_orbit_and_collection_access_orbit_not_found(
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     mock_get_orbit_simple.return_value = None
 
@@ -126,9 +128,9 @@ async def test_check_orbit_and_collection_access_orbit_not_found(
 async def test_check_orbit_and_collection_access_collection_not_found(
     mock_get_orbit_simple: AsyncMock, mock_get_collection: AsyncMock
 ) -> None:
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
     orbit = Mock(organization_id=organization_id)
 
     mock_get_orbit_simple.return_value = orbit
@@ -163,14 +165,15 @@ async def test_get_collection_model_artifact(
     mock_get_collection_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     expected = [
         ModelArtifact(
-            id=1,
+            id=model_artifact_id,
             collection_id=collection_id,
             file_name="model1.pkl",
             model_name="model1",
@@ -229,13 +232,14 @@ async def test_create_model_artifact(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
-        id=1,
+        id=model_artifact_id,
         collection_id=collection_id,
         file_name="model",
         model_name=None,
@@ -293,6 +297,9 @@ async def test_create_model_artifact(
 
     assert result.model == model_artifact
     assert result.url is not None
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.CREATE
+    )
     mock_create_model_artifact.assert_awaited_once()
     mock_get_s3_service.assert_awaited_once()
     mock_s3_service.create_upload.assert_awaited_once()
@@ -333,15 +340,15 @@ async def test_get_model_artifact(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -375,6 +382,9 @@ async def test_get_model_artifact(
 
     assert result_model_artifact == model_artifact
     assert url == "url"
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.READ
+    )
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_s3_service.assert_awaited_once()
@@ -411,11 +421,11 @@ async def test_get_model_artifact_not_found(
     mock_get_collection: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     mock_get_model_artifact.return_value = None
     mock_get_orbit_simple.return_value = Mock(
@@ -429,6 +439,9 @@ async def test_get_model_artifact_not_found(
         )
 
     assert error.value.status_code == 404
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.READ
+    )
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_s3_service.assert_not_awaited()
@@ -469,15 +482,15 @@ async def test_request_download_url(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -509,6 +522,9 @@ async def test_request_download_url(
     )
 
     assert url == "url"
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.READ
+    )
     mock_get_s3_service.assert_awaited_once()
     mock_s3_service.get_download_url.assert_awaited_once_with(
         model_artifact.bucket_location
@@ -555,15 +571,15 @@ async def test_request_delete_url(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -595,6 +611,9 @@ async def test_request_delete_url(
     )
 
     assert url == "url"
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
     mock_update_status.assert_awaited_once_with(
         model_artifact_id, ModelArtifactStatus.PENDING_DELETION
     )
@@ -633,15 +652,15 @@ async def test_confirm_deletion_pending(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -666,6 +685,9 @@ async def test_confirm_deletion_pending(
         user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
+    )
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_delete_model_artifact.assert_awaited_once_with(model_artifact_id)
 
@@ -699,15 +721,15 @@ async def test_confirm_deletion_not_pending(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -737,6 +759,9 @@ async def test_confirm_deletion_not_pending(
             model_artifact_id,
         )
 
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
+    )
     mock_get_model.assert_awaited_once_with(model_artifact_id)
     mock_delete.assert_not_called()
 
@@ -770,15 +795,15 @@ async def test_update_model_artifact(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -798,7 +823,7 @@ async def test_update_model_artifact(
     tags = ["t1", "t2"]
     expected = ModelArtifact(
         id=model_artifact_id,
-        collection_id=1,
+        collection_id=collection_id,
         file_name="model",
         model_name=None,
         metrics={},
@@ -826,6 +851,9 @@ async def test_update_model_artifact(
     )
 
     assert result == expected
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
     expected_update = ModelArtifactUpdate(
         id=model_artifact_id, model_name=None, tags=tags
     )
@@ -864,11 +892,11 @@ async def test_update_model_artifact_not_found(
     mock_get_model_artifact: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    model_artifact_id = 1
-    collection_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     mock_update_model_artifact.return_value = None
     mock_get_orbit_simple.return_value = Mock(
@@ -888,6 +916,9 @@ async def test_update_model_artifact_not_found(
             update_in,
         )
 
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
     mock_update_model_artifact.assert_not_awaited()
 
 
@@ -900,7 +931,7 @@ async def test_update_model_artifact_not_found(
 async def test_get_s3_service(
     mock_get_bucket_secret: AsyncMock, mock_s3_service: Mock, test_bucket: BucketSecret
 ) -> None:
-    secret_id = 123
+    secret_id = "6JCyzSABJtgY5q4WwkJ6Yz"
     mock_get_bucket_secret.return_value = test_bucket
 
     result = await handler._get_s3_service(secret_id)
@@ -934,11 +965,11 @@ async def test_update_model_artifact_invalid_status_transition(
     mock_update_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     existing_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -974,6 +1005,9 @@ async def test_update_model_artifact_invalid_status_transition(
             ModelArtifactUpdateIn(status=ModelArtifactStatus.UPLOAD_FAILED),
         )
 
+    mock_check_permission.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
     mock_update_model_artifact.assert_not_awaited()
 
 
@@ -1001,11 +1035,11 @@ async def test_update_model_artifact_update_failed(
     mock_update_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     existing_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -1042,6 +1076,9 @@ async def test_update_model_artifact_update_failed(
             ModelArtifactUpdateIn(tags=["new_tag"]),
         )
 
+    mock_check_permission.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
     mock_update_model_artifact.assert_awaited_once()
 
 
@@ -1063,11 +1100,11 @@ async def test_request_download_url_model_artifact_not_found(
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(id=orbit_id),
@@ -1079,6 +1116,10 @@ async def test_request_download_url_model_artifact_not_found(
         await handler.request_download_url(
             user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
+
+    mock_check_permission.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.READ
+    )
 
 
 @patch(
@@ -1099,11 +1140,11 @@ async def test_request_delete_url_model_artifact_not_found(
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(id=orbit_id),
@@ -1115,6 +1156,10 @@ async def test_request_delete_url_model_artifact_not_found(
         await handler.request_delete_url(
             user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
+
+    mock_check_permission.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )
 
 
 @patch(
@@ -1142,11 +1187,11 @@ async def test_request_delete_url_orbit_not_found(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -1177,3 +1222,7 @@ async def test_request_delete_url_orbit_not_found(
         await handler.request_delete_url(
             user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
+
+    mock_check_permission.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+    )

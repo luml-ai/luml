@@ -1,12 +1,9 @@
 from fastapi import APIRouter, Depends
 
-from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
+from dataforce_studio.handlers import BucketSecretHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.bucket_secrets import (
-    BucketSecretCreateIn,
-    BucketSecretUrls,
-)
+from dataforce_studio.schemas import BucketSecretCreateIn, BucketSecretUrls
 
 bucket_secret_urls_router = APIRouter(
     prefix="/bucket-secrets",

@@ -4,9 +4,8 @@ from dataforce_studio.models.permissions import (
     OrbitRolePermissionsOrm,
     OrganizationRolePermissionsOrm,
 )
-from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
-from dataforce_studio.schemas.organization import OrgRole
-from dataforce_studio.schemas.permissions import OrbitPermission, OrgPermission
+from dataforce_studio.repositories import CrudMixin, RepositoryBase
+from dataforce_studio.schemas import OrbitPermission, OrgPermission, OrgRole
 
 
 class PermissionsRepository(RepositoryBase, CrudMixin):

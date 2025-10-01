@@ -1,13 +1,7 @@
+import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import (
-    ForeignKey,
-    Integer,
-    String,
-    UniqueConstraint,
-    func,
-    select,
-)
+from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
@@ -17,28 +11,24 @@ from dataforce_studio.models.orbit_secret import OrbitSecretOrm
 from dataforce_studio.models.organization import OrganizationOrm
 from dataforce_studio.models.satellite import SatelliteOrm
 from dataforce_studio.models.user import UserOrm
-from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
+from dataforce_studio.schemas import Orbit, OrbitDetails, OrbitMember
 
 
 class OrbitMembersOrm(TimestampMixin, Base):
     __tablename__ = "orbit_members"
     __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    orbit_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
-
     role: Mapped[str] = mapped_column(String, nullable=False)
-
     user: Mapped["UserOrm"] = relationship(
         "UserOrm", back_populates="orbit_memberships", lazy="selectin"
     )
-
     orbit: Mapped["OrbitOrm"] = relationship(
         "OrbitOrm", back_populates="members", lazy="selectin"
     )
@@ -59,13 +49,13 @@ class OrbitMembersOrm(TimestampMixin, Base):
 class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[int] = mapped_column(
-        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    bucket_secret_id: Mapped[int] = mapped_column(
-        Integer,
+    bucket_secret_id: Mapped[uuid.UUID] = mapped_column(
+        UUID,
         ForeignKey("bucket_secrets.id", ondelete="CASCADE"),
         nullable=False,
     )

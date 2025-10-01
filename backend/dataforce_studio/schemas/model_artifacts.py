@@ -5,7 +5,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES
-from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 from dataforce_studio.schemas.s3 import UploadDetails
 
 
@@ -15,7 +15,7 @@ class CollectionType(StrEnum):
 
 
 class CollectionCreate(BaseModel):
-    orbit_id: int
+    orbit_id: ShortUUID
     description: str
     name: str
     collection_type: CollectionType
@@ -30,8 +30,8 @@ class CollectionCreateIn(BaseModel):
 
 
 class Collection(BaseModel, BaseOrmConfig):
-    id: int
-    orbit_id: int
+    id: ShortUUID
+    orbit_id: ShortUUID
     description: str
     name: str
     collection_type: CollectionType
@@ -42,7 +42,7 @@ class Collection(BaseModel, BaseOrmConfig):
 
 
 class CollectionUpdate(BaseModel):
-    id: int | None = None
+    id: ShortUUID | None = None
     description: str | None = None
     name: str | None = None
     tags: list[str] | None = None
@@ -118,7 +118,7 @@ class Manifest(BaseModel):
 
 
 class ModelArtifactCreate(BaseModel):
-    collection_id: int
+    collection_id: ShortUUID
     file_name: str
     model_name: str | None = None
     description: str | None = None
@@ -164,7 +164,7 @@ class ModelArtifactIn(BaseModel):
 
 
 class ModelArtifactUpdate(BaseModel):
-    id: int
+    id: ShortUUID
     file_name: str | None = None
     model_name: str | None = None
     description: str | None = None
@@ -188,8 +188,8 @@ class ModelArtifactUpdateIn(BaseModel):
 
 
 class ModelArtifact(BaseModel, BaseOrmConfig):
-    id: int
-    collection_id: int
+    id: ShortUUID
+    collection_id: ShortUUID
     file_name: str
     model_name: str | None = None
     description: str | None = None

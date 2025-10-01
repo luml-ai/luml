@@ -1,9 +1,8 @@
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
-from dataforce_studio.schemas.user import CreateUser
+from dataforce_studio.repositories import UserRepository
+from dataforce_studio.schemas import CreateUser, Organization, OrganizationCreateIn
 from tests.conftest import OrganizationWithMembersFixtureData
 
 

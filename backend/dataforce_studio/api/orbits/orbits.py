@@ -1,13 +1,14 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 
-from dataforce_studio.handlers.orbits import OrbitHandler
+from dataforce_studio.handlers import OrbitHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas.orbit import (
+from dataforce_studio.schemas import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
     OrbitUpdate,
+    ShortUUID,
 )
 
 organization_orbits_router = APIRouter(
@@ -21,7 +22,7 @@ orbit_handler = OrbitHandler()
 
 @organization_orbits_router.get("", responses=endpoint_responses)
 async def get_organization_orbits(
-    request: Request, organization_id: int
+    request: Request, organization_id: ShortUUID
 ) -> list[Orbit]:
     return await orbit_handler.get_organization_orbits(request.user.id, organization_id)
 
@@ -31,7 +32,7 @@ async def get_organization_orbits(
 )
 async def create_orbit(
     request: Request,
-    organization_id: int,
+    organization_id: ShortUUID,
     orbit: OrbitCreateIn,
     background_tasks: BackgroundTasks,
 ) -> OrbitDetails:
@@ -47,7 +48,7 @@ async def create_orbit(
     "/{orbit_id}", responses=endpoint_responses, response_model=OrbitDetails
 )
 async def get_orbit_details(
-    request: Request, organization_id: int, orbit_id: int
+    request: Request, organization_id: ShortUUID, orbit_id: ShortUUID
 ) -> OrbitDetails:
     return await orbit_handler.get_orbit(request.user.id, organization_id, orbit_id)
 
@@ -56,7 +57,10 @@ async def get_orbit_details(
     "/{orbit_id}", responses=endpoint_responses, response_model=Orbit
 )
 async def update_orbit(
-    request: Request, organization_id: int, orbit_id: int, orbit: OrbitUpdate
+    request: Request,
+    organization_id: ShortUUID,
+    orbit_id: ShortUUID,
+    orbit: OrbitUpdate,
 ) -> Orbit:
     return await orbit_handler.update_orbit(
         request.user.id, organization_id, orbit_id, orbit
@@ -66,5 +70,7 @@ async def update_orbit(
 @organization_orbits_router.delete(
     "/{orbit_id}", responses=endpoint_responses, status_code=status.HTTP_204_NO_CONTENT
 )
-async def delete_orbit(request: Request, organization_id: int, orbit_id: int) -> None:
+async def delete_orbit(
+    request: Request, organization_id: ShortUUID, orbit_id: ShortUUID
+) -> None:
     return await orbit_handler.delete_orbit(request.user.id, organization_id, orbit_id)

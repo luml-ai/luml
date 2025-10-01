@@ -5,8 +5,9 @@ from minio import Minio
 
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES, USE_MULTIPART_BYTES
 from dataforce_studio.infra.exceptions import BucketConnectionError
-from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreateIn
-from dataforce_studio.schemas.s3 import (
+from dataforce_studio.schemas import (
+    BucketSecret,
+    BucketSecretCreateIn,
     MultipartUploadInfo,
     PartDetails,
     UploadDetails,
@@ -19,9 +20,8 @@ class S3Service:
         self._client = self._create_minio_client(secret)
         self._url_expire = 12  # hours
 
-    def _create_minio_client(
-        self, secret: BucketSecret | BucketSecretCreateIn
-    ) -> Minio:
+    @staticmethod
+    def _create_minio_client(secret: BucketSecret | BucketSecretCreateIn) -> Minio:
         return Minio(
             secret.endpoint,
             access_key=secret.access_key,

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from dataforce_studio.models.base import Base
+from dataforce_studio.models import Base
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -20,22 +20,23 @@ class RepositoryBase:
 
 
 class CrudMixin:
+    @staticmethod
     async def create_model(
-        self, session: AsyncSession, orm_class: type[TOrm], data: TPydantic
+        session: AsyncSession, orm_class: type[TOrm], data: TPydantic
     ) -> TOrm:
-        db_obj = orm_class(**data.model_dump())
+        db_obj = orm_class(**data.model_dump(mode="python"))
         session.add(db_obj)
         await session.commit()
         await session.refresh(db_obj)
         return db_obj
 
+    @staticmethod
     async def create_models(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         data_list: list[TPydantic],
     ) -> list[TOrm]:
-        db_objects = [orm_class(**item.model_dump()) for item in data_list]
+        db_objects = [orm_class(**item.model_dump(mode="python")) for item in data_list]
         session.add_all(db_objects)
         await session.flush()
         await session.commit()
@@ -43,8 +44,8 @@ class CrudMixin:
             await session.refresh(obj)
         return db_objects
 
+    @staticmethod
     async def update_model_where(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         data: TPydantic,
@@ -56,7 +57,9 @@ class CrudMixin:
         if not db_obj:
             return None
 
-        fields_to_update = data.model_dump(exclude_unset=True)
+        fields_to_update = data.model_dump(
+            exclude_unset=True, exclude={"id"}, mode="python"
+        )
         if not fields_to_update:
             return db_obj
 
@@ -81,11 +84,11 @@ class CrudMixin:
             orm_class.id == data.id,  # type: ignore[attr-defined]
         )
 
+    @staticmethod
     async def delete_model(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        obj_id: int,
+        obj_id: str,
     ) -> None:
         result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # type: ignore[attr-defined]
         db_obj = result.scalar_one_or_none()
@@ -94,8 +97,8 @@ class CrudMixin:
             await session.delete(db_obj)
             await session.commit()
 
+    @staticmethod
     async def delete_model_where(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401
@@ -107,8 +110,8 @@ class CrudMixin:
             await session.delete(obj)
             await session.commit()
 
+    @staticmethod
     async def delete_models_where(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401
@@ -116,8 +119,8 @@ class CrudMixin:
         await session.execute(delete(orm_class).where(*where_conditions))
         await session.commit()
 
+    @staticmethod
     async def get_model_where(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401
@@ -129,11 +132,11 @@ class CrudMixin:
 
         return result.scalar_one_or_none()
 
+    @staticmethod
     async def get_model(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        obj_id: int,
+        obj_id: str,
         options: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
     ) -> TOrm | None:
@@ -147,8 +150,8 @@ class CrudMixin:
             return result.unique().scalar_one_or_none()
         return result.scalar_one_or_none()
 
+    @staticmethod
     async def get_models_where(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401
@@ -175,8 +178,8 @@ class CrudMixin:
             return result.unique().all()
         return result.scalars().all()
 
+    @staticmethod
     async def get_model_count(
-        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401

@@ -2,13 +2,13 @@ import uuid
 
 import pytest
 
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.organization import (
+from dataforce_studio.repositories import UserRepository
+from dataforce_studio.schemas import (
+    CreateUser,
     OrganizationMemberCreate,
     OrgRole,
     UpdateOrganizationMember,
 )
-from dataforce_studio.schemas.user import CreateUser
 from tests.conftest import OrganizationFixtureData, OrganizationWithMembersFixtureData
 
 

@@ -1,19 +1,20 @@
-from sqlalchemy import ForeignKey, Integer, String, func, select
+import uuid
+
+from sqlalchemy import UUID, ForeignKey, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
-from dataforce_studio.models import Base
-from dataforce_studio.models.base import TimestampMixin
+from dataforce_studio.models.base import Base, TimestampMixin
 from dataforce_studio.models.model_artifacts import ModelArtifactOrm
-from dataforce_studio.schemas.model_artifacts import Collection
+from dataforce_studio.schemas import Collection
 
 
 class CollectionOrm(TimestampMixin, Base):
     __tablename__ = "collections"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    orbit_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     description: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers.organizations import OrganizationHandler
+from dataforce_studio.handlers import OrganizationHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas.organization import UserInvite
+from dataforce_studio.schemas import ShortUUID, UserInvite
 
 user_invites_router = APIRouter(
     prefix="/invitations",
@@ -19,10 +19,10 @@ async def get_user_invites(request: Request) -> list[UserInvite]:
 
 
 @user_invites_router.post("/{invite_id}/accept")
-async def accept_invite_to_organization(request: Request, invite_id: int) -> None:
+async def accept_invite_to_organization(request: Request, invite_id: ShortUUID) -> None:
     return await organization_handler.accept_invite(invite_id, request.user.id)
 
 
 @user_invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
-async def reject_invite_to_organization(request: Request, invite_id: int) -> None:
+async def reject_invite_to_organization(request: Request, invite_id: ShortUUID) -> None:
     return await organization_handler.reject_invite(invite_id)

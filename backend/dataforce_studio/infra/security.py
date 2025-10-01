@@ -2,11 +2,9 @@ from passlib.context import CryptContext
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
-from dataforce_studio.handlers.api_keys import APIKeyHandler
-from dataforce_studio.handlers.auth import AuthHandler
-from dataforce_studio.handlers.satellites import SatelliteHandler
+from dataforce_studio.handlers import APIKeyHandler, AuthHandler, SatelliteHandler
 from dataforce_studio.infra.exceptions import AuthError
-from dataforce_studio.models.auth import AuthSatellite, AuthUser
+from dataforce_studio.models import AuthSatellite, AuthUser
 from dataforce_studio.settings import config
 
 type AuthPrincipal = AuthUser | AuthSatellite
@@ -37,7 +35,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
 
     async def _authenticate_with_satellite_key(
         self, token: str
-    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- widened
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         sat = await self.satellite_handler.authenticate_api_key(token)
         if sat:
             await self.satellite_handler.touch_last_seen(sat.id)
@@ -47,7 +45,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
 
     async def _authenticate_with_jwt_token(
         self, token: str
-    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- widened (ok to be broader)
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         if await self.auth_handler.is_token_blacklisted(token):
             return None
         try:
@@ -66,7 +64,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
     async def authenticate(
         self,
         conn: HTTPConnection,
-    ) -> tuple[AuthCredentials, AuthPrincipal] | None:  # <- key fix
+    ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         authorization: str | None = conn.headers.get("Authorization")
         if authorization:
             try:

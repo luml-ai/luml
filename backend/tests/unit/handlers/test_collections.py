@@ -3,18 +3,18 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.collections import CollectionHandler
+from dataforce_studio.handlers import CollectionHandler
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.schemas import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
     CollectionType,
     CollectionUpdate,
     CollectionUpdateIn,
+    OrbitRole,
+    OrgRole,
 )
-from dataforce_studio.schemas.orbit import OrbitRole
-from dataforce_studio.schemas.organization import OrgRole
 
 handler = CollectionHandler()
 
@@ -42,9 +42,9 @@ async def test_create_collection(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -52,19 +52,15 @@ async def test_create_collection(
         tags=["t1"],
     )
     expected = Collection(
-        id=1,
+        id="iAQ56YpR2n2KyQ6xc49Zcb",
         created_at=datetime.now(),
         orbit_id=orbit_id,
         total_models=0,
         **data.model_dump(),
     )
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
     mock_create.return_value = expected
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -102,9 +98,9 @@ async def test_create_collection_orbit_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -147,9 +143,9 @@ async def test_get_orbit_collections_orbit_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     mock_get_orbit_simple.return_value = None
     mock_get_org_role.return_value = OrgRole.OWNER
@@ -186,15 +182,11 @@ async def test_get_orbit_collections_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 257
-    organization_id = 1
-    orbit_id = 765
+    user_id = "hLYTU8qrDjXFCEEFwV26WG"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "VavAeC4uPqFYgyDf9PjZHM"
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
-    mock_get_orbit_simple.return_value = Orbit(organization_id + 1)
+    mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -229,9 +221,9 @@ async def test_create_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 2446
-    organization_id = 1
-    orbit_id = 1
+    user_id = "LnYZunR6VryWbC2yijxxPk"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
     data = CollectionCreateIn(
         description="d",
         name="n",
@@ -239,11 +231,7 @@ async def test_create_collection_orbit_wrong_org(
         tags=["t1"],
     )
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
-    mock_get_orbit_simple.return_value = Orbit(organization_id + 1)
+    mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -278,10 +266,10 @@ async def test_update_collection(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 24567
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "MoPjabjncfhuPzY8bR2JQs"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     data_in = CollectionUpdateIn(name="new")
     expected = Collection(
@@ -296,12 +284,8 @@ async def test_update_collection(
         updated_at=None,
     )
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
     mock_update.return_value = expected
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -342,19 +326,14 @@ async def test_update_collection_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 86874
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-
+    user_id = "YTXv7GRmhu7m6MT8aaACxz"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
     data_in = CollectionUpdateIn(name="new")
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
     mock_update.return_value = None
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -395,18 +374,14 @@ async def test_update_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 2367
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "mhXWzDTmHcd5dba2AWQnhf"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     data_in = CollectionUpdateIn(name="new")
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
-    mock_get_orbit_simple.return_value = Orbit(organization_id + 1)
+    mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -453,10 +428,10 @@ async def test_delete_collection_empty(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -470,12 +445,8 @@ async def test_delete_collection_empty(
         updated_at=None,
     )
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
     mock_get_count.return_value = 0
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -517,10 +488,10 @@ async def test_delete_collection_not_empty(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -533,10 +504,6 @@ async def test_delete_collection_not_empty(
         created_at=datetime.now(),
         updated_at=None,
     )
-
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -550,7 +517,7 @@ async def test_delete_collection_not_empty(
         updated_at=None,
     )
     mock_get_count.return_value = 1
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -585,17 +552,13 @@ async def test_delete_collection_not_found(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     mock_get_collection.return_value = None
-    mock_get_orbit_simple.return_value = Orbit(organization_id)
+    mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -640,10 +603,10 @@ async def test_delete_collection_orbit_wrong_org(
     mock_get_orbit_role: AsyncMock,
     mock_get_org_role: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    collection_id = "iAQ56YpR2n2KyQ6xc49Zcb"
 
     mock_get_collection.return_value = Collection(
         id=collection_id,
@@ -658,11 +621,7 @@ async def test_delete_collection_orbit_wrong_org(
     )
     mock_get_count.return_value = 0
 
-    class Orbit:
-        def __init__(self, organization_id: int) -> None:
-            self.organization_id = organization_id
-
-    mock_get_orbit_simple.return_value = Orbit(organization_id + 1)
+    mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
     mock_get_org_role.return_value = OrgRole.OWNER
     mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
@@ -694,13 +653,13 @@ async def test_get_orbit_collections_success(
     mock_get_orbit_simple: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 123
+    user_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    organization_id = "iAQ56YpR2n2KyQ6xc49Zcb"
+    orbit_id = "THQgUS3sMRd4WZhSdeCVyR"
 
     expected_collections = [
         Collection(
-            id=1,
+            id="iAQ56YpR2n2KyQ6xc49Zcb",
             orbit_id=orbit_id,
             description="Test collection 1",
             name="Collection 1",

@@ -3,20 +3,21 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.deployments import DeploymentHandler
+from dataforce_studio.handlers import DeploymentHandler
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from dataforce_studio.schemas.deployment import (
+from dataforce_studio.schemas import (
+    Action,
     Deployment,
     DeploymentCreate,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
+    Resource,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
 
 handler = DeploymentHandler()
 
@@ -59,18 +60,18 @@ async def test_create_deployment(
     mock_get_public_user_by_id: AsyncMock,
     mock_create_deployment: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    satellite_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
+    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
+    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
     user_name = "User Full Name"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id=satellite_id,
+        model_artifact_id=model_artifact_id,
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
@@ -79,10 +80,10 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         model_id=model_artifact_id,
         tags=deployment_create_data_in.tags,
-        created_by_user=user_name,
+        created_by_user=user_id,
     )
     expected = Deployment(
-        id=1,
+        id="ademTGgGq5oBtDi6tdTR8f",
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
@@ -92,7 +93,7 @@ async def test_create_deployment(
         collection_id=collection_id,
         inference_url=None,
         status=DeploymentStatus.PENDING,
-        created_by_user=user_name,
+        created_by_user=user_id,
         tags=deployment_create_data_in.tags,
         created_at=datetime.datetime.now(),
         updated_at=None,
@@ -113,8 +114,10 @@ async def test_create_deployment(
 
     mock_create_deployment.assert_awaited_once_with(deployment_create_data)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
+    mock_get_model_artifact.assert_awaited_once_with(
+        deployment_create_data_in.model_artifact_id
+    )
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
@@ -139,14 +142,14 @@ async def test_create_deployment_orbit_not_found(
     mock_check_orbit_action_access: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id="cfXC5ZYxt4RDGfzq2DsYj4",
+        model_artifact_id="kLmDeyGeuw7TAubSSqqqyf",
         tags=["tag"],
     )
 
@@ -186,15 +189,15 @@ async def test_create_deployment_satellite_not_found(
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    satellite_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id=satellite_id,
+        model_artifact_id="QHeaAJwEdnD7Kma8K8Zhzd",
         tags=["tag"],
     )
 
@@ -208,7 +211,7 @@ async def test_create_deployment_satellite_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
         orbit_id,
@@ -241,16 +244,16 @@ async def test_create_deployment_model_artifact_not_found(
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    satellite_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
+    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id=satellite_id,
+        model_artifact_id=model_artifact_id,
         tags=["tag"],
     )
 
@@ -265,7 +268,7 @@ async def test_create_deployment_model_artifact_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
@@ -304,17 +307,17 @@ async def test_create_deployment_collection_not_found(
     mock_get_model_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    satellite_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
+    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
+    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id=satellite_id,
+        model_artifact_id=model_artifact_id,
         tags=["tag"],
     )
     mock_get_orbit_simple.return_value = Mock()
@@ -329,7 +332,7 @@ async def test_create_deployment_collection_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
@@ -374,17 +377,17 @@ async def test_create_deployment_user_not_found(
     mock_get_collection: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    collection_id = 1
-    satellite_id = 1
-    model_artifact_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
+    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
+    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id=1,
-        model_artifact_id=1,
+        satellite_id=satellite_id,
+        model_artifact_id=model_artifact_id,
         tags=["tag"],
     )
 
@@ -401,7 +404,7 @@ async def test_create_deployment_user_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
+    mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
@@ -427,20 +430,24 @@ async def test_list_deployments(
     mock_check_orbit_action_access: AsyncMock,
     mock_list_deployments: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     expected = [
         Deployment(
-            id=1,
+            id=deployment_id,
             orbit_id=orbit_id,
-            satellite_id=1,
+            satellite_id=satellite_id,
             satellite_name="Satellite 1",
             name="deployment-1",
-            model_id=1,
+            model_id=model_id,
             model_artifact_name="Model Artifact 1",
-            collection_id=1,
+            collection_id=collection_id,
             status=DeploymentStatus.ACTIVE,
             created_by_user="John Doe",
             created_at=datetime.datetime.now(),
@@ -472,20 +479,23 @@ async def test_get_deployment(
     mock_check_orbit_action_access: AsyncMock,
     mock_get_deployment: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    deployment_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     expected = Deployment(
         id=deployment_id,
         orbit_id=orbit_id,
-        satellite_id=1,
+        satellite_id=satellite_id,
         satellite_name="Satellite 1",
-        name="deployment",
-        model_id=1,
+        name="deployment-1",
+        model_id=model_id,
         model_artifact_name="Model Artifact 1",
-        collection_id=1,
+        collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         created_by_user="John Doe",
         created_at=datetime.datetime.now(),
@@ -519,10 +529,10 @@ async def test_get_deployment_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_deployment: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    deployment_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "c4C9eUmeLqmiC4fp3RkRab"
 
     mock_check_permissions.return_value = None
     mock_get_deployment.return_value = None
@@ -544,18 +554,22 @@ async def test_get_deployment_not_found(
 async def test_list_worker_deployments(
     mock_list_satellite_deployments: AsyncMock,
 ) -> None:
-    satellite_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     expected_deployments = [
         Deployment(
-            id=1,
-            orbit_id=1,
+            id=deployment_id,
+            orbit_id=orbit_id,
             satellite_id=satellite_id,
             satellite_name="Satellite 1",
             name="worker-deployment",
-            model_id=1,
+            model_id=model_id,
             model_artifact_name="Model Artifact 1",
-            collection_id=1,
+            collection_id=collection_id,
             status=DeploymentStatus.ACTIVE,
             created_by_user="Worker",
             created_at=datetime.datetime.now(),
@@ -584,10 +598,13 @@ async def test_update_deployment_details(
     mock_check_orbit_action_access: AsyncMock,
     mock_update_deployment_details: AsyncMock,
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    deployment_id = 99
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     details = DeploymentDetailsUpdateIn(
         name="new-name",
@@ -599,11 +616,11 @@ async def test_update_deployment_details(
     expected = Deployment(
         id=deployment_id,
         orbit_id=orbit_id,
-        satellite_id=5,
+        satellite_id=satellite_id,
         satellite_name="Satellite 5",
-        model_id=10,
+        model_id=model_id,
         model_artifact_name="Model Artifact 10",
-        collection_id=2,
+        collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         name=details.name,
         description=details.description,
@@ -641,20 +658,23 @@ async def test_update_deployment_details(
 async def test_request_deployment_deletion(
     mock_check_orbit_action_access: AsyncMock, mock_request_delete: AsyncMock
 ) -> None:
-    user_id = 1
-    organization_id = 1
-    orbit_id = 1
-    deployment_id = 2
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
 
     expected = Deployment(
         id=deployment_id,
         orbit_id=orbit_id,
-        satellite_id=1,
+        satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="deployment",
-        model_id=1,
+        model_id=model_id,
         model_artifact_name="Model Artifact 1",
-        collection_id=1,
+        collection_id=collection_id,
         status=DeploymentStatus.DELETION_PENDING,
         created_by_user="User",
         created_at=datetime.datetime.now(),
@@ -682,19 +702,23 @@ async def test_request_deployment_deletion(
 async def test_update_worker_deployment_status(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    satellite_id = 1
-    deployment_id = 10
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+
     status = DeploymentStatus.DELETED
 
     expected = Deployment(
         id=deployment_id,
-        orbit_id=1,
+        orbit_id=orbit_id,
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="worker-deployment",
-        model_id=1,
+        model_id=model_id,
         model_artifact_name="Model Artifact 1",
-        collection_id=1,
+        collection_id=collection_id,
         status=status,
         created_by_user="Worker",
         created_at=datetime.datetime.now(),
@@ -719,8 +743,12 @@ async def test_update_worker_deployment_status(
 async def test_update_worker_deployment(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    satellite_id = 1
-    deployment_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    model_id = "WLkE88PLapVKEem6Rpt5MF"
+    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+
     inference_url = "https://inference.example.com"
 
     update_deployment_data = DeploymentUpdate(
@@ -731,13 +759,13 @@ async def test_update_worker_deployment(
 
     expected = Deployment(
         id=deployment_id,
-        orbit_id=1,
+        orbit_id=orbit_id,
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="worker-deployment",
-        model_id=1,
+        model_id=model_id,
         model_artifact_name="Model Artifact 1",
-        collection_id=1,
+        collection_id=collection_id,
         inference_url=inference_url,
         status=DeploymentStatus.ACTIVE,
         created_by_user="User Name",
@@ -766,8 +794,9 @@ async def test_update_worker_deployment(
 async def test_update_worker_deployment_not_found(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    satellite_id = 1
-    deployment_id = 1
+    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
+    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+
     inference_url = "https://inference.example.com"
     update_deployment_data = DeploymentUpdate(
         id=deployment_id,
@@ -806,10 +835,10 @@ async def test_verify_user_inference_access(
     mock_get_orbit_by_id: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    orbit_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
     api_key = "test_api_key"
-    user_id = 1
-    organization_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
 
     mock_authenticate_api_key.return_value = Mock(id=user_id)
     mock_get_orbit_by_id.return_value = Mock(
@@ -834,7 +863,7 @@ async def test_verify_user_inference_access(
 async def test_verify_user_inference_access_invalid_api_key(
     mock_authenticate_api_key: AsyncMock,
 ) -> None:
-    orbit_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
     api_key = "invalid_api_key"
 
     mock_authenticate_api_key.return_value = None
@@ -858,9 +887,9 @@ async def test_verify_user_inference_access_orbit_not_found(
     mock_authenticate_api_key: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
 ) -> None:
-    orbit_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
     api_key = "test_api_key"
-    user_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
 
     mock_authenticate_api_key.return_value = Mock(id=user_id)
     mock_get_orbit_by_id.return_value = None
@@ -890,10 +919,10 @@ async def test_verify_user_inference_access_insufficient_permissions(
     mock_get_orbit_by_id: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    orbit_id = 1
+    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
     api_key = "test_api_key"
-    user_id = 1
-    organization_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
 
     mock_user = Mock(id=user_id)
     mock_orbit = Mock(id=orbit_id, organization_id=organization_id)

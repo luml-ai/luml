@@ -9,12 +9,15 @@ from dataforce_studio.infra.exceptions import (
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
-from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
-from dataforce_studio.repositories.orbits import OrbitRepository
-from dataforce_studio.schemas.bucket_secrets import BucketSecret
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.repositories import (
+    BucketSecretRepository,
+    CollectionRepository,
+    ModelArtifactRepository,
+    OrbitRepository,
+)
+from dataforce_studio.schemas import (
+    Action,
+    BucketSecret,
     Collection,
     CreateModelArtifactResponse,
     ModelArtifact,
@@ -23,10 +26,11 @@ from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
+    Orbit,
+    Resource,
     SatelliteModelArtifactResponse,
+    ShortUUID,
 )
-from dataforce_studio.schemas.orbit import Orbit
-from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.services.s3_service import S3Service
 
 
@@ -45,18 +49,18 @@ class ModelArtifactHandler:
         ModelArtifactStatus.PENDING_DELETION: {ModelArtifactStatus.DELETION_FAILED},
     }
 
-    async def _get_secret_or_raise(self, secret_id: int) -> BucketSecret:
+    async def _get_secret_or_raise(self, secret_id: ShortUUID) -> BucketSecret:
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
         if not secret:
             raise BucketSecretNotFoundError()
         return secret
 
-    async def _get_s3_service(self, secret_id: int) -> S3Service:
+    async def _get_s3_service(self, secret_id: ShortUUID) -> S3Service:
         secret = await self._get_secret_or_raise(secret_id)
         return S3Service(secret)
 
     async def _check_orbit_and_collection_access(
-        self, organization_id: int, orbit_id: int, collection_id: int
+        self, organization_id: ShortUUID, orbit_id: ShortUUID, collection_id: ShortUUID
     ) -> tuple[Orbit, Collection]:
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -70,10 +74,10 @@ class ModelArtifactHandler:
 
     async def create_model_artifact(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
         model_artifact: ModelArtifactIn,
     ) -> CreateModelArtifactResponse:
         await self.__permissions_handler.check_orbit_action_access(
@@ -121,11 +125,11 @@ class ModelArtifactHandler:
 
     async def update_model_artifact(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_artifact_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
+        model_artifact_id: ShortUUID,
         model_artifact: ModelArtifactUpdateIn,
     ) -> ModelArtifact:
         await self.__permissions_handler.check_orbit_action_access(
@@ -158,7 +162,7 @@ class ModelArtifactHandler:
                 f"{model_artifact_obj.status} to {model_artifact.status}"
             )
 
-        update_data = model_artifact.model_dump(exclude_unset=True)
+        update_data = model_artifact.model_dump(exclude_unset=True, mode="python")
         update_data["id"] = model_artifact_id
         updated = await self.__repository.update_model_artifact(
             model_artifact_id,
@@ -173,11 +177,11 @@ class ModelArtifactHandler:
 
     async def request_download_url(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_artifact_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> str:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -199,11 +203,11 @@ class ModelArtifactHandler:
 
     async def request_delete_url(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_artifact_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> str:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -234,8 +238,8 @@ class ModelArtifactHandler:
 
     async def request_satellite_download_url(
         self,
-        orbit_id: int,
-        model_artifact_id: int,
+        orbit_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> str:
         model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:
@@ -256,11 +260,11 @@ class ModelArtifactHandler:
 
     async def confirm_deletion(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_artifact_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> None:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -283,10 +287,10 @@ class ModelArtifactHandler:
 
     async def get_collection_model_artifact(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
     ) -> list[ModelArtifact]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -302,11 +306,11 @@ class ModelArtifactHandler:
 
     async def get_model_artifact(
         self,
-        user_id: int,
-        organization_id: int,
-        orbit_id: int,
-        collection_id: int,
-        model_artifact_id: int,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> tuple[ModelArtifact, str]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -328,8 +332,8 @@ class ModelArtifactHandler:
 
     async def get_satellite_model_artifact(
         self,
-        orbit_id: int,
-        model_artifact_id: int,
+        orbit_id: ShortUUID,
+        model_artifact_id: ShortUUID,
     ) -> SatelliteModelArtifactResponse:
         model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact:

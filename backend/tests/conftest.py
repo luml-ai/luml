@@ -9,34 +9,36 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
-from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.repositories.invites import InviteRepository
-from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
-from dataforce_studio.repositories.orbits import OrbitRepository
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreate
-from dataforce_studio.schemas.model_artifacts import (
+from dataforce_studio.repositories import (
+    BucketSecretRepository,
+    CollectionRepository,
+    InviteRepository,
+    ModelArtifactRepository,
+    OrbitRepository,
+    SatelliteRepository,
+    UserRepository,
+)
+from dataforce_studio.schemas import (
     NDJSON,
+    AuthProvider,
+    BucketSecret,
+    BucketSecretCreate,
     Collection,
     CollectionCreate,
     CollectionType,
+    CreateOrganizationInvite,
+    CreateUser,
+    CreateUserIn,
     Manifest,
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactStatus,
-)
-from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
     OrbitRole,
-)
-from dataforce_studio.schemas.organization import (
-    CreateOrganizationInvite,
     Organization,
     OrganizationCreateIn,
     OrganizationDetails,
@@ -45,14 +47,10 @@ from dataforce_studio.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrgRole,
-    UserInvite,
-)
-from dataforce_studio.schemas.satellite import Satellite, SatelliteCreate
-from dataforce_studio.schemas.user import (
-    AuthProvider,
-    CreateUser,
-    CreateUserIn,
+    Satellite,
+    SatelliteCreate,
     User,
+    UserInvite,
     UserOut,
 )
 from dataforce_studio.settings import config
@@ -148,20 +146,20 @@ async def invite_data() -> AsyncGenerator[CreateOrganizationInvite, None]:
     yield CreateOrganizationInvite(
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id=1,
-        invited_by=1,
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        invited_by="Z7DNLnRbA2Qjh63ckyixgY",
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def invite_get_data() -> AsyncGenerator[OrganizationInvite, None]:
     yield OrganizationInvite(
-        id=1,
+        id="5rP34PtMkQQQ7FRESfS7zB",
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id=1,
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
         invited_by_user=UserOut(
-            id=66,
+            id="Z7DNLnRbA2Qjh63ckyixgY",
             email="robertstimothy@example.org",
             full_name="Terry Lewis",
             disabled=False,
@@ -174,12 +172,12 @@ async def invite_get_data() -> AsyncGenerator[OrganizationInvite, None]:
 @pytest_asyncio.fixture(scope="function")
 async def invite_user_get_data() -> AsyncGenerator[UserInvite, None]:
     yield UserInvite(
-        id=1,
+        id="5rP34PtMkQQQ7FRESfS7zB",
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id=1,
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
         invited_by_user=UserOut(
-            id=66,
+            id="Z7DNLnRbA2Qjh63ckyixgY",
             email="robertstimothy@example.org",
             full_name="Terry Lewis",
             disabled=False,
@@ -187,7 +185,7 @@ async def invite_user_get_data() -> AsyncGenerator[UserInvite, None]:
         ),
         created_at=datetime.datetime.now(),
         organization=Organization(
-            id=1,
+            id="Qhsh2FdDuRiwcdLxaBZGpi",
             name="test",
             logo=None,
             created_at=datetime.datetime.now(),
@@ -201,19 +199,19 @@ async def invite_accept_data() -> AsyncGenerator[CreateOrganizationInvite, None]
     yield CreateOrganizationInvite(
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id=1,
-        invited_by=1,
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        invited_by="Z7DNLnRbA2Qjh63ckyixgY",
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def member_data() -> AsyncGenerator[OrganizationMember, None]:
     yield OrganizationMember(
-        id=987887,
-        organization_id=1,
+        id="5rP34PtMkQQQ7FRESfS7zB",
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
         role=OrgRole.ADMIN,
         user=UserOut(
-            id=1,
+            id="Z7DNLnRbA2Qjh63ckyixgY",
             email="test@gmail.com",
             full_name="Full Name",
             disabled=False,
@@ -252,7 +250,7 @@ async def test_user_create_in(
 async def test_user(test_user_create: CreateUser) -> AsyncGenerator[User, None]:
     user = test_user_create.model_copy()
     yield User(
-        id=986345,
+        id="Xz4x3ALKUnnYQrnSCdhrhs",
         email=user.email,
         full_name=user.full_name,
         disabled=user.disabled,
@@ -279,7 +277,7 @@ async def test_user_out(test_user: User) -> AsyncGenerator[UserOut, None]:
 @pytest_asyncio.fixture(scope="function")
 async def test_org() -> AsyncGenerator[Organization, None]:
     yield Organization(
-        id=1,
+        id="Qhsh2FdDuRiwcdLxaBZGpi",
         name="Test organization",
         logo=None,
         created_at=datetime.datetime.now(),
@@ -291,7 +289,7 @@ async def test_org() -> AsyncGenerator[Organization, None]:
 async def test_org_details(
     invite_get_data: OrganizationInvite, member_data: OrganizationMember
 ) -> AsyncGenerator[OrganizationDetails, None]:
-    test_org_details_id = 8888
+    test_org_details_id = "Qhsh2FdDuRiwcdLxaBZGpi"
 
     yield OrganizationDetails(
         id=test_org_details_id,
@@ -303,14 +301,14 @@ async def test_org_details(
         members=[member_data],
         orbits=[
             Orbit(
-                id=1,
+                id="ZKXFcWnNz3Pgx5r4guxQuP",
                 name="test orbit",
                 organization_id=test_org_details_id,
                 total_members=0,
                 role=None,
                 created_at=datetime.datetime.now(),
                 updated_at=None,
-                bucket_secret_id=1,
+                bucket_secret_id="bgpdDYVRNdYVTXPw357CVf",
             )
         ],
     )
@@ -352,8 +350,8 @@ async def manifest_example() -> AsyncGenerator[Manifest, None]:
 @pytest_asyncio.fixture
 async def test_bucket() -> AsyncGenerator[BucketSecret, None]:
     yield BucketSecret(
-        id=1,
-        organization_id=1,
+        id="bgpdDYVRNdYVTXPw357CVf",
+        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
         endpoint="url",
         bucket_name="name",
         access_key="access_key",
@@ -371,7 +369,7 @@ async def test_model_artifact(
     manifest_example: Manifest,
 ) -> AsyncGenerator[ModelArtifactCreate, None]:
     yield ModelArtifactCreate(
-        collection_id=1,
+        collection_id="TYV8Uq8E25miY6WfwJWHyi",
         file_name="model.dfs",
         model_name="Test Model",
         metrics={"accuracy": 0.95, "precision": 0.92},

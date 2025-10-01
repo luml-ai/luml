@@ -3,18 +3,19 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.organizations import OrganizationHandler
+from dataforce_studio.handlers import OrganizationHandler
 from dataforce_studio.infra.exceptions import ApplicationError
 from dataforce_studio.models import OrganizationInviteOrm
-from dataforce_studio.schemas.organization import (
+from dataforce_studio.schemas import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
+    CreateUser,
     OrganizationInvite,
     OrganizationMemberCreate,
     OrgRole,
     UserInvite,
+    UserOut,
 )
-from dataforce_studio.schemas.user import CreateUser, UserOut
 
 handler = OrganizationHandler()
 
@@ -69,7 +70,7 @@ async def test_send_invite(
     invite_data: CreateOrganizationInvite,
     test_user_out: UserOut,
 ) -> None:
-    invite_id = 1
+    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
 
     invite = CreateOrganizationInviteIn(
         email=invite_data.email,
@@ -143,9 +144,9 @@ async def test_cancel_invite(
     mock_delete_organization_invite: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    organization_id = 1
-    user_id = 764
-    invite_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
 
     mock_delete_organization_invite.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -188,7 +189,7 @@ async def test_accept_invite(
     mock_get_user_organizations_membership_count: AsyncMock,
     invite_accept_data: CreateOrganizationInvite,
 ) -> None:
-    user_id = 24
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
     invite = OrganizationInviteOrm(**invite_accept_data.model_dump())
 
     mock_get_invite.return_value = invite
@@ -219,7 +220,7 @@ async def test_accept_invite(
 async def test_reject_invite(
     mock_delete_organization_invite: AsyncMock,
 ) -> None:
-    invite_id = 1
+    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
 
     mock_delete_organization_invite.return_value = None
 
@@ -241,8 +242,8 @@ async def test_get_organization_invites(
     mock_get_organization_member_role: AsyncMock,
     invite_get_data: OrganizationInvite,
 ) -> None:
-    user_id = 43
-    organization_id = 1
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
     expected = [invite_get_data]
 
     mock_get_organization_invites.return_value = expected

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 from dataforce_studio.schemas.user import UserOut
 
 
@@ -15,10 +15,10 @@ class OrbitRole(StrEnum):
 
 
 class Orbit(BaseModel, BaseOrmConfig):
-    id: int
+    id: ShortUUID
     name: str
-    organization_id: int
-    bucket_secret_id: int
+    organization_id: ShortUUID
+    bucket_secret_id: ShortUUID
     total_members: int | None = None
     total_collections: int | None = None
     role: OrbitRole | None = None
@@ -32,41 +32,41 @@ class OrbitDetails(Orbit):
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
-    id: int | None = None
+    id: ShortUUID | None = None
     name: str | None = None
-    bucket_secret_id: int | None = None
+    bucket_secret_id: ShortUUID | None = None
 
 
 class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str
-    bucket_secret_id: int
+    bucket_secret_id: ShortUUID
     members: list["OrbitMemberCreateSimple"] | None = None
     notify_by_email: bool = False
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
     name: str
-    bucket_secret_id: int
-    organization_id: int | None = None
+    bucket_secret_id: ShortUUID
+    organization_id: ShortUUID | None = None
 
 
 class OrbitMemberCreateSimple(BaseModel):
-    user_id: int
+    user_id: ShortUUID
     role: OrbitRole
 
 
 class OrbitMemberCreate(OrbitMemberCreateSimple):
-    orbit_id: int
+    orbit_id: ShortUUID
 
 
 class UpdateOrbitMember(BaseModel):
-    id: int
+    id: ShortUUID
     role: OrbitRole
 
 
 class OrbitMember(BaseModel, BaseOrmConfig):
-    id: int
-    orbit_id: int
+    id: ShortUUID
+    orbit_id: ShortUUID
     role: OrbitRole
     user: UserOut
     created_at: datetime

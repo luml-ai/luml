@@ -4,8 +4,8 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.schemas.satellite import (
+from dataforce_studio.repositories import SatelliteRepository
+from dataforce_studio.schemas import (
     SatelliteCapability,
     SatelliteCreate,
     SatelliteTaskStatus,
@@ -58,7 +58,7 @@ async def test_get_satellite_not_found(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    fetched_satellite = await repo.get_satellite(9999999)
+    fetched_satellite = await repo.get_satellite("testNonExistentId1234")
 
     assert fetched_satellite is None
 
@@ -163,7 +163,7 @@ async def test_list_tasks_empty(create_database_and_apply_migrations: str) -> No
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    tasks = await repo.list_tasks(9999999)
+    tasks = await repo.list_tasks("testNonExistentId5678")
 
     assert len(tasks) == 0
 

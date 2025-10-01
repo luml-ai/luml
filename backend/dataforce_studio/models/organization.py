@@ -1,12 +1,13 @@
+import uuid
 from collections.abc import Sequence
 
 from pydantic import EmailStr
-from sqlalchemy import ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import UUID, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from dataforce_studio.models import BucketSecretOrm
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.models.bucket_secrets import BucketSecretOrm
-from dataforce_studio.schemas.organization import (
+from dataforce_studio.schemas import (
     Organization,
     OrganizationDetails,
     OrganizationInvite,
@@ -19,9 +20,8 @@ from dataforce_studio.schemas.organization import (
 class OrganizationOrm(TimestampMixin, Base):
     __tablename__ = "organizations"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    name: Mapped[str | None] = mapped_column(String, nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     logo: Mapped[str | None] = mapped_column(String, nullable=True)
     members_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="3"
@@ -33,15 +33,12 @@ class OrganizationOrm(TimestampMixin, Base):
     members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
-
     invites: Mapped[list["OrganizationInviteOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
-
     orbits: Mapped[list["OrbitOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
-
     bucket_secrets: Mapped[list["BucketSecretOrm"]] = relationship(  # noqa: F821
         back_populates="organization", cascade="all, delete, delete-orphan"
     )
@@ -62,15 +59,13 @@ class OrganizationMemberOrm(TimestampMixin, Base):
         UniqueConstraint("organization_id", "user_id", name="org_member"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-
-    user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    organization_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-
     role: Mapped[str] = mapped_column(String, nullable=False)
 
     user: Mapped["UserOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
@@ -94,18 +89,17 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
-    invited_by: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    invited_by: Mapped[uuid.UUID] = mapped_column(
+        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")
-
     invited_by_user: Mapped["UserOrm"] = relationship("UserOrm", lazy="selectin")  # type: ignore[name-defined]  # noqa: F821
 
     def __repr__(self) -> str:

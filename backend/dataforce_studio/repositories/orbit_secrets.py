@@ -1,10 +1,11 @@
 from dataforce_studio.infra.encryption import encrypt
 from dataforce_studio.models import OrbitSecretOrm
-from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
-from dataforce_studio.schemas.orbit_secret import (
+from dataforce_studio.repositories import CrudMixin, RepositoryBase
+from dataforce_studio.schemas import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretUpdate,
+    ShortUUID,
 )
 
 
@@ -17,30 +18,30 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
             await session.refresh(orm_secret)
             return orm_secret.to_orbit_secret()
 
-    async def get_orbit_secret(self, secret_id: int) -> OrbitSecret | None:
+    async def get_orbit_secret(self, secret_id: ShortUUID) -> OrbitSecret | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
             return db_secret.to_orbit_secret() if db_secret else None
 
-    async def get_orbit_secrets(self, orbit_id: int) -> list[OrbitSecret]:
+    async def get_orbit_secrets(self, orbit_id: ShortUUID) -> list[OrbitSecret]:
         async with self._get_session() as session:
             db_secrets = await self.get_models_where(
                 session, OrbitSecretOrm, OrbitSecretOrm.orbit_id == orbit_id
             )
             return [s.to_orbit_secret() for s in db_secrets]
 
-    async def delete_orbit_secret(self, secret_id: int) -> None:
+    async def delete_orbit_secret(self, secret_id: ShortUUID) -> None:
         async with self._get_session() as session:
             await self.delete_model(session, OrbitSecretOrm, secret_id)
 
     async def update_orbit_secret(
-        self, secret_id: int, secret: OrbitSecretUpdate
+        self, secret_id: ShortUUID, secret: OrbitSecretUpdate
     ) -> OrbitSecret | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
             if not db_secret:
                 return None
-            update_data = secret.model_dump(exclude_unset=True)
+            update_data = secret.model_dump(exclude_unset=True, mode="python")
             if "value" in update_data:
                 update_data["value"] = encrypt(update_data["value"])
             for field, value in update_data.items():

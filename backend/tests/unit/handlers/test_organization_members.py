@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.schemas.organization import (
+from dataforce_studio.handlers import OrganizationHandler
+from dataforce_studio.schemas import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrgRole,
@@ -27,8 +27,7 @@ async def test_get_organization_members_data(
     mock_get_organization_member_role: AsyncMock,
     member_data: OrganizationMember,
 ) -> None:
-    user_id = 1
-
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
     expected = [member_data]
     mock_get_organization_members.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -60,8 +59,7 @@ async def test_update_organization_member_by_id(
     mock_get_organization_member_by_id: AsyncMock,
     member_data: OrganizationMember,
 ) -> None:
-    user_id = 8765
-
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
     mock_update_organization_member.return_value = member_data
     mock_get_organization_member_by_id.return_value = member_data
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -94,8 +92,7 @@ async def test_delete_organization_member_by_id(
     mock_get_organization_member_by_id: AsyncMock,
     member_data: OrganizationMember,
 ) -> None:
-    user_id = 346
-
+    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
     mock_delete_organization_member.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
     mock_get_organization_member_by_id.return_value = member_data

@@ -1,6 +1,6 @@
 from dataforce_studio.infra.db import engine
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
+from dataforce_studio.repositories import UserRepository
+from dataforce_studio.schemas import StatsEmailSendCreate, StatsEmailSendOut
 
 
 class StatsHandler:

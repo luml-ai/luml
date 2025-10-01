@@ -14,6 +14,7 @@ dependencies = [
     "passlib[bcrypt]==1.7.4",
     "pyjwt==2.9.0",
     "sendgrid==6.11.0",
+    "shortuuid>=1.0.13",
     "sqlalchemy[asyncio]==2.0.36",
     "uvicorn==0.32.0",
 ]
@@ -76,6 +77,6 @@ known-first-party = ["dataforce_studio"]
 split-on-trailing-comma = true
 
 [tool.mypy]
-files = ["dataforce_studio", "utils"]
+files = ["dataforce_studio", "utils", "tests"]
 python_version = "3.12"
 strict = true

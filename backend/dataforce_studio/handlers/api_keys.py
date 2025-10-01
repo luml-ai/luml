@@ -5,8 +5,13 @@ from typing import Any
 
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import UserAPIKeyCreateError
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import APIKeyCreateOut, UpdateUserAPIKey, UserOut
+from dataforce_studio.repositories import UserRepository
+from dataforce_studio.schemas import (
+    APIKeyCreateOut,
+    ShortUUID,
+    UpdateUserAPIKey,
+    UserOut,
+)
 from dataforce_studio.settings import config
 
 
@@ -37,7 +42,7 @@ class APIKeyHandler:
             self._get_key_hash(api_key)
         )
 
-    async def create_user_api_key(self, user_id: int) -> APIKeyCreateOut:
+    async def create_user_api_key(self, user_id: ShortUUID) -> APIKeyCreateOut:
         key = self._generate_api_key()
 
         created_key = await self.__user_repository.create_user_api_key(
@@ -49,5 +54,5 @@ class APIKeyHandler:
 
         return APIKeyCreateOut(key=key)
 
-    async def delete_user_api_key(self, user_id: int) -> None:
+    async def delete_user_api_key(self, user_id: ShortUUID) -> None:
         await self.__user_repository.delete_api_key_by_user_id(user_id)
