@@ -195,8 +195,8 @@ async def test_update_bucket_secret(
     expected = BucketSecretOut(
         id=secret_id,
         organization_id=organization_id,
-        endpoint=secret_update.endpoint,
-        bucket_name=secret_update.bucket_name,
+        endpoint=secret_update.endpoint or "default-endpoint",
+        bucket_name=secret_update.bucket_name or "default-bucket",
         created_at=datetime.datetime.now(),
         updated_at=datetime.datetime.now(),
     )

@@ -16,9 +16,9 @@ class OrbitSecretOrm(TimestampMixin, Base):
     __tablename__ = "orbit_secrets"
     __table_args__ = (UniqueConstraint("orbit_id", "name", name="orbit_secret_name"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     orbit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     value: Mapped[str] = mapped_column(String, nullable=False)

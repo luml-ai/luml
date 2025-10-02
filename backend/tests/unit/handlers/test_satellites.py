@@ -88,7 +88,7 @@ async def test_get_satellite(
     satellite_id = "bWpD6n3MLNQBgez5FTkvqW"
     expected = Satellite(
         id=satellite_id,
-        orbit_id=orbit_id,
+        orbit_id="889e9c67-8ad5-4737-962f-ccbafdd46f69",  # full UUID as returned by repository
         name="test",
         description=None,
         base_url="https://url.com",

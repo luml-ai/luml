@@ -1,11 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import EmailStr
 from starlette.authentication import BaseUser
 
-
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    refresh_token: str | None = None
+from dataforce_studio.schemas.base import ShortUUID
 
 
 class AuthUser(BaseUser):

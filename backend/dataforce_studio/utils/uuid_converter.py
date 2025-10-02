@@ -1,4 +1,3 @@
-from typing import Any
 from uuid import UUID, uuid4
 
 import shortuuid
@@ -11,19 +10,23 @@ class UUIDConverter:
         return full_uuid, shortuuid.encode(UUID(full_uuid))
 
     @staticmethod
-    def uuid_to_short(full_uuid: Any) -> str:
-        if hasattr(full_uuid, "__str__") and not isinstance(full_uuid, str):
+    def uuid_to_short(full_uuid: str | UUID) -> str:
+        if isinstance(full_uuid, UUID):
             full_uuid = str(full_uuid)
         return shortuuid.encode(UUID(full_uuid))
 
     @staticmethod
-    def short_to_uuid(short_uuid: str) -> str:
+    def short_to_uuid(short_uuid: str | UUID) -> str:
+        if isinstance(short_uuid, UUID):
+            return str(short_uuid)
+        if UUIDConverter.is_valid_uuid(short_uuid):
+            return short_uuid
         return str(shortuuid.decode(short_uuid))
 
     @staticmethod
-    def is_valid_short_uuid(value: Any) -> bool:
+    def is_valid_short_uuid(value: str | UUID) -> bool:
         try:
-            if hasattr(value, "__str__") and not isinstance(value, str):
+            if isinstance(value, UUID):
                 value = str(value)
             if isinstance(value, str):
                 shortuuid.decode(value)
@@ -33,10 +36,10 @@ class UUIDConverter:
             return False
 
     @staticmethod
-    def is_valid_uuid(value: Any) -> bool:
+    def is_valid_uuid(value: str | UUID) -> bool:
         try:
-            if hasattr(value, "__str__") and not isinstance(value, str):
-                value = str(value)
+            if isinstance(value, UUID):
+                return True
             if isinstance(value, str):
                 UUID(value)
                 return True

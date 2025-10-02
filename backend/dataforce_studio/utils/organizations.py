@@ -7,7 +7,6 @@ from dataforce_studio.schemas import (
     OrbitMemberCreateSimple,
     OrganizationInvite,
     OrgRole,
-    ShortUUID,
 )
 
 
@@ -32,7 +31,7 @@ def get_members_roles_count(members: list[Any]) -> dict[str, int]:
 
 
 def convert_orbit_simple_members(
-    orbit_id: ShortUUID, members: list[OrbitMemberCreateSimple]
+    orbit_id: str, members: list[OrbitMemberCreateSimple]
 ) -> list[OrbitMemberCreate]:
     return [
         OrbitMemberCreate(orbit_id=orbit_id, user_id=m.user_id, role=m.role)

@@ -1,3 +1,4 @@
+from dataforce_studio.schemas.auth import Token
 from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecret,
@@ -117,6 +118,7 @@ from dataforce_studio.services.s3_service import S3Service
 __all__ = [
     "ShortUUID",
     "BaseOrmConfig",
+    "Token",
     "APIKeyCreateOut",
     "User",
     "AuthProvider",

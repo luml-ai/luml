@@ -216,7 +216,7 @@ async def test_update_deployment_details(
     details = DeploymentDetailsUpdateIn(
         name="my-deployment",
         description="some desc",
-        dynamic_attributes_secrets={"token": 123},
+        dynamic_attributes_secrets={"token": "f9vuZHPxtVaQeAeCZYjdDv"},
         tags=["one", "two"],
     )
 
@@ -256,14 +256,17 @@ async def test_request_deployment_deletion(
         )
     )
 
-    dep, task = await repo.request_deployment_deletion(orbit.id, created.id)
+    result = await repo.request_deployment_deletion(orbit.id, created.id)
+    assert result is not None
+    dep, task = result
     assert dep.status == DeploymentStatus.DELETION_PENDING
     assert dep.collection_id == model.collection_id
     assert task is not None
     assert task.type == SatelliteTaskType.UNDEPLOY
     assert task.payload["deployment_id"] == created.id
 
-    # Idempotent second call — no new task
-    dep2, task2 = await repo.request_deployment_deletion(orbit.id, created.id)
+    result2 = await repo.request_deployment_deletion(orbit.id, created.id)
+    assert result2 is not None
+    dep2, task2 = result2
     assert dep2.status == DeploymentStatus.DELETION_PENDING
     assert task2 is None

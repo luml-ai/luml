@@ -14,7 +14,6 @@ from dataforce_studio.schemas import (
     CollectionUpdate,
     CollectionUpdateIn,
     Resource,
-    ShortUUID,
 )
 
 
@@ -26,9 +25,9 @@ class CollectionHandler:
 
     async def create_collection(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
         collection: CollectionCreateIn,
     ) -> Collection:
         await self.__permissions_handler.check_orbit_action_access(
@@ -49,7 +48,7 @@ class CollectionHandler:
         return await self.__repository.create_collection(collection_create)
 
     async def get_orbit_collections(
-        self, user_id: ShortUUID, organization_id: ShortUUID, orbit_id: ShortUUID
+        self, user_id: str, organization_id: str, orbit_id: str
     ) -> list[Collection]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -67,10 +66,10 @@ class CollectionHandler:
 
     async def update_collection(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        collection_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
+        collection_id: str,
         collection: CollectionUpdateIn,
     ) -> Collection:
         await self.__permissions_handler.check_orbit_action_access(
@@ -100,10 +99,10 @@ class CollectionHandler:
 
     async def delete_collection(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        collection_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
+        collection_id: str,
     ) -> None:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,

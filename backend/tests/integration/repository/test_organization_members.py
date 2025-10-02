@@ -30,7 +30,7 @@ async def test_create_organization_member(
     )
 
     assert created_member.id
-    assert created_member.organization_id == created_organization.id
+    assert created_member.organization_id == str(created_organization.id)
     assert created_member.user.id == user.id
     assert created_member.role == OrgRole.MEMBER
 
@@ -92,5 +92,5 @@ async def test_get_organization_members(
     assert db_members
     assert len(members) == len(db_members)
     assert db_members[0].id
-    assert db_members[0].organization_id == organization.id
+    assert db_members[0].organization_id == str(organization.id)
     assert db_members[0].user.id

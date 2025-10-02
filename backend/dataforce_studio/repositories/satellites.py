@@ -14,7 +14,6 @@ from dataforce_studio.schemas import (
     SatelliteTaskStatus,
     SatelliteTaskType,
     SatelliteUpdate,
-    ShortUUID,
 )
 
 
@@ -38,7 +37,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return db_sat.to_satellite(), task.to_queue_task()
 
-    async def get_satellite(self, satellite_id: ShortUUID) -> Satellite | None:
+    async def get_satellite(self, satellite_id: str) -> Satellite | None:
         async with self._get_session() as session:
             db_sat = await self.get_model(session, SatelliteOrm, satellite_id)
             return db_sat.to_satellite() if db_sat else None
@@ -58,7 +57,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             return db_satellite.to_satellite() if db_satellite else None
 
     async def list_satellites(
-        self, orbit_id: ShortUUID, paired: bool | None = None
+        self, orbit_id: str, paired: bool | None = None
     ) -> list[Satellite]:
         async with self._get_session() as session:
             query = select(SatelliteOrm).where(SatelliteOrm.orbit_id == orbit_id)
@@ -71,7 +70,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
     # TODO check capabilities
     async def pair_satellite(
         self,
-        satellite_id: ShortUUID,
+        satellite_id: str,
         base_url: str,
         capabilities: dict[SatelliteCapability, dict[str, str | int] | None],
     ) -> Satellite | None:
@@ -92,7 +91,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
 
     async def list_tasks(
         self,
-        satellite_id: ShortUUID,
+        satellite_id: str,
         status: SatelliteTaskStatus | None = None,
     ) -> list[SatelliteQueueTask]:
         async with self._get_session() as session:
@@ -109,8 +108,8 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
 
     async def update_task_status(
         self,
-        satellite_id: ShortUUID,
-        task_id: ShortUUID,
+        satellite_id: str,
+        task_id: str,
         status: SatelliteTaskStatus,
         result_payload: dict[str, Any] | None = None,
     ) -> SatelliteQueueTask | None:
@@ -136,7 +135,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return task.to_queue_task()
 
-    async def touch_last_seen(self, satellite_id: ShortUUID) -> None:
+    async def touch_last_seen(self, satellite_id: str) -> None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(SatelliteOrm).where(SatelliteOrm.id == satellite_id)
@@ -146,6 +145,6 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
                 sat.last_seen_at = datetime.now(UTC)
                 await session.commit()
 
-    async def delete_satellite(self, satellite_id: ShortUUID) -> None:
+    async def delete_satellite(self, satellite_id: str) -> None:
         async with self._get_session() as session:
             return await self.delete_model(session, SatelliteOrm, satellite_id)

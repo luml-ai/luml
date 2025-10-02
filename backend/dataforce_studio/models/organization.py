@@ -20,7 +20,7 @@ from dataforce_studio.schemas import (
 class OrganizationOrm(TimestampMixin, Base):
     __tablename__ = "organizations"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
     logo: Mapped[str | None] = mapped_column(String, nullable=True)
     members_limit: Mapped[int] = mapped_column(
@@ -59,12 +59,12 @@ class OrganizationMemberOrm(TimestampMixin, Base):
         UniqueConstraint("organization_id", "user_id", name="org_member"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -89,14 +89,14 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     invited_by: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 
     organization: Mapped["OrganizationOrm"] = relationship(back_populates="invites")

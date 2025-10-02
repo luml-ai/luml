@@ -58,7 +58,7 @@ async def test_get_satellite_not_found(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    fetched_satellite = await repo.get_satellite("testNonExistentId1234")
+    fetched_satellite = await repo.get_satellite("12345678-1234-1234-1234-123456789abc")
 
     assert fetched_satellite is None
 
@@ -163,7 +163,7 @@ async def test_list_tasks_empty(create_database_and_apply_migrations: str) -> No
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    tasks = await repo.list_tasks("testNonExistentId5678")
+    tasks = await repo.list_tasks("12345678-1234-1234-1234-123456789def")
 
     assert len(tasks) == 0
 

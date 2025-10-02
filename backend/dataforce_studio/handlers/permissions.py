@@ -11,7 +11,6 @@ from dataforce_studio.schemas import (
     OrbitRole,
     OrgRole,
     Resource,
-    ShortUUID,
     orbit_permissions,
     organization_permissions,
 )
@@ -37,8 +36,8 @@ class PermissionsHandler:
 
     async def check_organization_permission(
         self,
-        organization_id: ShortUUID,
-        user_id: ShortUUID,
+        organization_id: str,
+        user_id: str,
         resource: Resource,
         action: Action,
     ) -> str:
@@ -56,8 +55,8 @@ class PermissionsHandler:
 
     async def check_orbit_permission(
         self,
-        orbit_id: ShortUUID,
-        user_id: ShortUUID,
+        orbit_id: str,
+        user_id: str,
         resource: Resource,
         action: Action,
     ) -> str:
@@ -75,9 +74,9 @@ class PermissionsHandler:
 
     async def check_orbit_action_access(
         self,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        user_id: ShortUUID,
+        organization_id: str,
+        orbit_id: str,
+        user_id: str,
         resource: Resource,
         action: Action,
     ) -> tuple[None, str] | tuple[str, None]:

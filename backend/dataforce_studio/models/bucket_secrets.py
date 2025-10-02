@@ -11,9 +11,9 @@ from dataforce_studio.schemas import BucketSecret, BucketSecretCreate
 class BucketSecretOrm(TimestampMixin, Base):
     __tablename__ = "bucket_secrets"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     endpoint: Mapped[str] = mapped_column(String, nullable=False)
     bucket_name: Mapped[str] = mapped_column(String, nullable=False)

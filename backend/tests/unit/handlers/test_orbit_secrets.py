@@ -303,7 +303,7 @@ async def test_get_worker_orbit_secret(mock_get_orbit_secret: AsyncMock) -> None
     secret_id = "fFAPQpUihD2mAKcyAS2VxY"
     expected_secret = OrbitSecret(
         id=secret_id,
-        orbit_id=orbit_id,
+        orbit_id="889e9c67-8ad5-4737-962f-ccbafdd46f69",
         name="test-secret",
         value="secret-value",
         created_at=datetime.datetime.now(),

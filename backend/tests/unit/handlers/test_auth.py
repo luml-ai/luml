@@ -12,13 +12,13 @@ from passlib.context import CryptContext
 
 from dataforce_studio.handlers import AuthHandler
 from dataforce_studio.infra.exceptions import AuthError
-from dataforce_studio.models import Token
 from dataforce_studio.schemas import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
     SignInResponse,
     SignInUser,
+    Token,
     UpdateUser,
     UpdateUserIn,
     User,

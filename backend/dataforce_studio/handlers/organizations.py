@@ -30,7 +30,6 @@ from dataforce_studio.schemas import (
     OrganizationUpdate,
     OrgRole,
     Resource,
-    ShortUUID,
     UpdateOrganizationMember,
     UserInvite,
 )
@@ -60,7 +59,7 @@ class OrganizationHandler:
             )
         return organizations
 
-    async def _organization_membership_limit_check(self, user_id: ShortUUID) -> None:
+    async def _organization_membership_limit_check(self, user_id: str) -> None:
         membership_num = (
             await self.__user_repository.get_user_organizations_membership_count(
                 user_id
@@ -72,7 +71,7 @@ class OrganizationHandler:
                 "You’ve reached the limit of organizations you can join or create"
             )
 
-    async def _check_org_members_limit(self, organization_id: ShortUUID) -> None:
+    async def _check_org_members_limit(self, organization_id: str) -> None:
         organization = await self.__user_repository.get_organization_details(
             organization_id
         )
@@ -85,7 +84,7 @@ class OrganizationHandler:
             )
 
     async def create_organization(
-        self, user_id: ShortUUID, organization: OrganizationCreateIn
+        self, user_id: str, organization: OrganizationCreateIn
     ) -> Organization:
         await self._organization_membership_limit_check(user_id)
 
@@ -94,8 +93,8 @@ class OrganizationHandler:
 
     async def update_organization(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
         organization: OrganizationUpdate,
     ) -> OrganizationDetails:
         await self.__permissions_handler.check_organization_permission(
@@ -120,7 +119,7 @@ class OrganizationHandler:
         return organization_details
 
     async def delete_organization(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -143,7 +142,7 @@ class OrganizationHandler:
         return await self.__user_repository.delete_organization(organization_id)
 
     async def leave_from_organization(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -157,13 +156,13 @@ class OrganizationHandler:
         )
 
     async def get_user_organizations(
-        self, user_id: ShortUUID
+        self, user_id: str
     ) -> list[OrganizationSwitcher]:
         organizations = await self.__user_repository.get_user_organizations(user_id)
         return self._set_organizations_permissions(organizations)
 
     async def get_organization(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> OrganizationDetails:
         role = await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.ORGANIZATION, Action.READ
@@ -181,7 +180,7 @@ class OrganizationHandler:
         return organization
 
     async def send_invite(
-        self, user_id: ShortUUID, invite_: CreateOrganizationInviteIn
+        self, user_id: str, invite_: CreateOrganizationInviteIn
     ) -> OrganizationInvite:
         await self.__permissions_handler.check_organization_permission(
             invite_.organization_id,
@@ -240,7 +239,7 @@ class OrganizationHandler:
         return invite
 
     async def cancel_invite(
-        self, user_id: ShortUUID, organization_id: ShortUUID, invite_id: ShortUUID
+        self, user_id: str, organization_id: str, invite_id: str
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -251,7 +250,7 @@ class OrganizationHandler:
 
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
-    async def accept_invite(self, invite_id: ShortUUID, user_id: ShortUUID) -> None:
+    async def accept_invite(self, invite_id: str, user_id: str) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
         if not invite:
@@ -275,11 +274,11 @@ class OrganizationHandler:
             invite.organization_id, invite.email
         )
 
-    async def reject_invite(self, invite_id: ShortUUID) -> None:
+    async def reject_invite(self, invite_id: str) -> None:
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def get_organization_invites(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> list[OrganizationInvite]:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -296,7 +295,7 @@ class OrganizationHandler:
         return await self.__invites_repository.get_invites_by_user_email(email)
 
     async def get_organization_members_data(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> list[OrganizationMember]:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -309,9 +308,9 @@ class OrganizationHandler:
 
     async def update_organization_member_by_id(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        member_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        member_id: str,
         member: UpdateOrganizationMember,
     ) -> OrganizationMember | None:
         user_role = await self.__permissions_handler.check_organization_permission(
@@ -341,7 +340,7 @@ class OrganizationHandler:
         )
 
     async def delete_organization_member_by_id(
-        self, user_id: ShortUUID, organization_id: ShortUUID, member_id: ShortUUID
+        self, user_id: str, organization_id: str, member_id: str
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id,
@@ -369,8 +368,8 @@ class OrganizationHandler:
 
     async def add_organization_member(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
         member: OrganizationMemberCreate,
     ) -> OrganizationMember:
         user_role = await self.__permissions_handler.check_organization_permission(

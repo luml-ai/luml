@@ -18,12 +18,12 @@ class OrbitMembersOrm(TimestampMixin, Base):
     __tablename__ = "orbit_members"
     __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     orbit_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
     user: Mapped["UserOrm"] = relationship(
@@ -49,13 +49,13 @@ class OrbitMembersOrm(TimestampMixin, Base):
 class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
-        UUID, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=False), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False
     )
     bucket_secret_id: Mapped[uuid.UUID] = mapped_column(
-        UUID,
+        UUID(as_uuid=False),
         ForeignKey("bucket_secrets.id", ondelete="CASCADE"),
         nullable=False,
     )

@@ -15,7 +15,6 @@ from dataforce_studio.schemas import (
     BucketSecretUpdate,
     BucketSecretUrls,
     Resource,
-    ShortUUID,
 )
 from dataforce_studio.services.s3_service import S3Service
 
@@ -26,8 +25,8 @@ class BucketSecretHandler:
 
     async def create_bucket_secret(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
         secret: BucketSecretCreateIn,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
@@ -40,7 +39,7 @@ class BucketSecretHandler:
         return BucketSecretOut.model_validate(created)
 
     async def get_organization_bucket_secrets(
-        self, user_id: ShortUUID, organization_id: ShortUUID
+        self, user_id: str, organization_id: str
     ) -> list[BucketSecretOut]:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
@@ -51,7 +50,7 @@ class BucketSecretHandler:
         return [BucketSecretOut.model_validate(s) for s in secrets]
 
     async def get_bucket_secret(
-        self, user_id: ShortUUID, organization_id: ShortUUID, secret_id: ShortUUID
+        self, user_id: str, organization_id: str, secret_id: str
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
@@ -65,9 +64,9 @@ class BucketSecretHandler:
 
     async def update_bucket_secret(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        secret_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        secret_id: str,
         secret: BucketSecretUpdate,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
@@ -80,7 +79,7 @@ class BucketSecretHandler:
         return BucketSecretOut.model_validate(db_secret)
 
     async def delete_bucket_secret(
-        self, user_id: ShortUUID, organization_id: ShortUUID, secret_id: ShortUUID
+        self, user_id: str, organization_id: str, secret_id: str
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE

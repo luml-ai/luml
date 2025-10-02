@@ -10,7 +10,6 @@ from dataforce_studio.schemas import (
     DeploymentUpdate,
     SatelliteQueueTask,
     SatelliteTaskType,
-    ShortUUID,
 )
 
 
@@ -34,7 +33,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             await session.refresh(task)
             return db_dep.to_deployment(), task.to_queue_task()
 
-    async def list_deployments(self, orbit_id: ShortUUID) -> list[Deployment]:
+    async def list_deployments(self, orbit_id: str) -> list[Deployment]:
         async with self._get_session() as session:
             result = await session.execute(
                 select(DeploymentOrm).where(DeploymentOrm.orbit_id == orbit_id)
@@ -43,7 +42,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             return [d.to_deployment() for d in deployments]
 
     async def get_deployment(
-        self, deployment_id: ShortUUID, orbit_id: ShortUUID | None = None
+        self, deployment_id: str, orbit_id: str | None = None
     ) -> Deployment | None:
         async with self._get_session() as session:
             query = select(DeploymentOrm).where(DeploymentOrm.id == deployment_id)
@@ -54,7 +53,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             return dep.to_deployment() if dep else None
 
     async def list_satellite_deployments(
-        self, satellite_id: ShortUUID
+        self, satellite_id: str
     ) -> list[Deployment]:
         async with self._get_session() as session:
             result = await session.execute(
@@ -65,8 +64,8 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
 
     async def update_deployment(
         self,
-        deployment_id: ShortUUID,
-        satellite_id: ShortUUID,
+        deployment_id: str,
+        satellite_id: str,
         update: DeploymentUpdate,
     ) -> Deployment | None:
         async with self._get_session() as session:
@@ -88,7 +87,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             return dep.to_deployment()
 
     async def request_deployment_deletion(
-        self, orbit_id: ShortUUID, deployment_id: ShortUUID
+        self, orbit_id: str, deployment_id: str
     ) -> tuple[Deployment, SatelliteQueueTask | None] | None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -125,8 +124,8 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
 
     async def update_deployment_details(
         self,
-        orbit_id: ShortUUID,
-        deployment_id: ShortUUID,
+        orbit_id: str,
+        deployment_id: str,
         update: DeploymentDetailsUpdateIn,
     ) -> Deployment | None:
         async with self._get_session() as session:

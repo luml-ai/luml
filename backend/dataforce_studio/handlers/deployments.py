@@ -23,7 +23,6 @@ from dataforce_studio.schemas import (
     DeploymentStatus,
     DeploymentUpdate,
     Resource,
-    ShortUUID,
 )
 
 
@@ -40,9 +39,9 @@ class DeploymentHandler:
 
     async def create_deployment(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
         data: DeploymentCreateIn,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
@@ -91,7 +90,7 @@ class DeploymentHandler:
         return deployment
 
     async def list_deployments(
-        self, user_id: ShortUUID, organization_id: ShortUUID, orbit_id: ShortUUID
+        self, user_id: str, organization_id: str, orbit_id: str
     ) -> list[Deployment]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -104,10 +103,10 @@ class DeploymentHandler:
 
     async def get_deployment(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        deployment_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
+        deployment_id: str,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -122,12 +121,12 @@ class DeploymentHandler:
         return deployment
 
     async def list_worker_deployments(
-        self, satellite_id: ShortUUID
+        self, satellite_id: str
     ) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
 
     async def get_worker_deployment(
-        self, orbit_id: ShortUUID, deployment_id: ShortUUID
+        self, orbit_id: str, deployment_id: str
     ) -> Deployment:
         deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
         if not deployment:
@@ -135,7 +134,7 @@ class DeploymentHandler:
         return deployment
 
     async def update_worker_deployment(
-        self, satellite_id: ShortUUID, deployment_id: ShortUUID, inference_url: str
+        self, satellite_id: str, deployment_id: str, inference_url: str
     ) -> Deployment:
         deployment = await self.__repo.update_deployment(
             deployment_id,
@@ -152,10 +151,10 @@ class DeploymentHandler:
 
     async def update_deployment_details(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        deployment_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
+        deployment_id: str,
         data: DeploymentDetailsUpdateIn,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
@@ -173,7 +172,7 @@ class DeploymentHandler:
         return updated
 
     async def verify_user_inference_access(
-        self, orbit_id: ShortUUID, api_key: str
+        self, orbit_id: str, api_key: str
     ) -> bool:
         user = await self.__api_key_handler.authenticate_api_key(api_key)
         if not user:
@@ -195,10 +194,10 @@ class DeploymentHandler:
 
     async def request_deployment_deletion(
         self,
-        user_id: ShortUUID,
-        organization_id: ShortUUID,
-        orbit_id: ShortUUID,
-        deployment_id: ShortUUID,
+        user_id: str,
+        organization_id: str,
+        orbit_id: str,
+        deployment_id: str,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -215,8 +214,8 @@ class DeploymentHandler:
 
     async def update_worker_deployment_status(
         self,
-        satellite_id: ShortUUID,
-        deployment_id: ShortUUID,
+        satellite_id: str,
+        deployment_id: str,
         status: DeploymentStatus,
     ) -> Deployment:
         deployment = await self.__repo.update_deployment(

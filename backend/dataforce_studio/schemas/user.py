@@ -2,7 +2,7 @@ from enum import Enum
 
 from pydantic import BaseModel, EmailStr, field_validator
 
-from dataforce_studio.models.auth import Token
+from dataforce_studio.schemas.auth import Token
 from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 
 

@@ -11,7 +11,7 @@ from dataforce_studio.schemas import StatsEmailSendOut
 class StatsEmailSendOrm(TimestampMixin, Base):
     __tablename__ = "stats_emails"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)
 

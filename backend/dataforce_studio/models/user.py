@@ -11,7 +11,7 @@ from dataforce_studio.schemas import CreateUser, User, UserOut
 class UserOrm(TimestampMixin, Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID, primary_key=True, default=uuid.uuid4)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=False), primary_key=True, default=uuid.uuid4)
     email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
     disabled: Mapped[bool] = mapped_column(Boolean, default=False)

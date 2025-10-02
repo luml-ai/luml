@@ -80,7 +80,7 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         model_id=model_artifact_id,
         tags=deployment_create_data_in.tags,
-        created_by_user=user_id,
+        created_by_user=user_name,
     )
     expected = Deployment(
         id="ademTGgGq5oBtDi6tdTR8f",
@@ -93,7 +93,7 @@ async def test_create_deployment(
         collection_id=collection_id,
         inference_url=None,
         status=DeploymentStatus.PENDING,
-        created_by_user=user_id,
+        created_by_user=user_name,
         tags=deployment_create_data_in.tags,
         created_at=datetime.datetime.now(),
         updated_at=None,
@@ -269,7 +269,9 @@ async def test_create_deployment_model_artifact_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_model_artifact.assert_awaited_once_with(
+        "97352d97-df24-467f-b953-073c91e6965a"
+    )
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
         orbit_id,
@@ -333,7 +335,9 @@ async def test_create_deployment_collection_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_model_artifact.assert_awaited_once_with(
+        "97352d97-df24-467f-b953-073c91e6965a"
+    )
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
@@ -405,7 +409,9 @@ async def test_create_deployment_user_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_model_artifact.assert_awaited_once_with(
+        "97352d97-df24-467f-b953-073c91e6965a"
+    )
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
@@ -609,7 +615,7 @@ async def test_update_deployment_details(
     details = DeploymentDetailsUpdateIn(
         name="new-name",
         description="desc",
-        dynamic_attributes_secrets={"key": 1},
+        dynamic_attributes_secrets={"key": "xyz789abc"},
         tags=["a", "b"],
     )
 
@@ -622,7 +628,7 @@ async def test_update_deployment_details(
         model_artifact_name="Model Artifact 10",
         collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
-        name=details.name,
+        name=details.name or "default-name",
         description=details.description,
         dynamic_attributes_secrets=details.dynamic_attributes_secrets or {},
         tags=details.tags,
