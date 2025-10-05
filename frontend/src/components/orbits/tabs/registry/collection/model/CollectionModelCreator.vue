@@ -64,7 +64,7 @@
 <script setup lang="ts">
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { FormSubmitEvent } from '@primevue/forms'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { modelCreatorResolver } from '@/utils/forms/resolvers'
 import FileInput from '@/components/ui/FileInput.vue'
 import { Form } from '@primevue/forms'
@@ -176,6 +176,19 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     loading.value = false
   }
 }
+
+watch(visible, (val) => {
+  if (!val) {
+    formData.value = {
+      name: '',
+      description: '',
+      file: null,
+      tags: [],
+    }
+    fileError.value = false 
+  }
+})
+
 </script>
 
 <style scoped>
