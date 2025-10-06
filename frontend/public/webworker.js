@@ -63,6 +63,7 @@ async function initPyWorker() {
     await micropip.install("sqlite3");
     await micropip.install("pyfnx-utils==0.0.1");
     await micropip.install("fnnx");
+    await micropip.install("numpy");
 
     self.pyodide = pyodide;
     return true;

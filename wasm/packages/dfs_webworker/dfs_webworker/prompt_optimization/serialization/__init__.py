@@ -3,10 +3,13 @@ from promptopt import __version__ as promptopt_version
 from pyfnx_utils.builder import PyfuncBuilder, PyFuncSpec, File
 from pyfnx_utils.models.meta import MetaEntry
 from pyfnx_utils.models import JSON, Var
+from dfs_webworker.prompt_optimization.optimization import will_use_jedi_optimizer
+from dfs_webworker.prompt_optimization.jsdata import EvaluationModes
 import os
 import uuid
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 import json
+from importlib import metadata as importlib_metadata
 
 cdir = os.path.dirname(__file__)
 
@@ -15,6 +18,11 @@ spec = PyFuncSpec(
 )
 
 PRODUCER = "dataforce.studio/prompt-fusion"
+
+@dataclass
+class PromptOptMetaEntry(MetaEntry):
+    provider: str
+    model: str
 
 
 def _add_openai_dynattrs(builder: PyfuncBuilder):
@@ -43,22 +51,31 @@ def _add_ollama_dynattrs(builder: PyfuncBuilder):
     )
 
 
-def _create_meta_callback(f: File, fe_graph_def: dict):
-    entry = MetaEntry(
+def _create_meta_callback(f: File, fe_graph_def: dict, provider: str, model: str):
+    entry = PromptOptMetaEntry(
         id="prompt_optimization_fe_graph_def",
         producer=PRODUCER,
         producer_version=promptopt_version,
         producer_tags=[f"{PRODUCER}::graph_fe_def:v1"],
+        provider=provider,
+        model=model,
         payload=fe_graph_def,
     )
 
     f.create_file("meta.json", json.dumps([asdict(entry)]))
 
 
-def serialize(graph: Graph, provider: str, model: str, fe_graph_def: dict) -> bytes:
+def serialize(
+    graph: Graph,
+    provider: str,
+    model: str,
+    fe_graph_def: dict,
+    dataset_size: int = 0,
+    evaluation_mode: EvaluationModes = EvaluationModes.none_,
+) -> bytes:
     builder = PyfuncBuilder(
         pyfunc=spec,
-        create_meta_callback=lambda f: _create_meta_callback(f, fe_graph_def),
+        create_meta_callback=lambda f: _create_meta_callback(f, fe_graph_def, provider, model),
     )
 
     if graph.input_node is None:
@@ -89,6 +106,12 @@ def serialize(graph: Graph, provider: str, model: str, fe_graph_def: dict) -> by
         version=promptopt_version,
         tags=["dataforce.studio::prompt_optimization:v1"],
     )
+
+    builder.add_fnnx_runtime_dependency()
+    builder.add_runtime_dependency(f"fnnx[core]=={importlib_metadata.version('fnnx')}")
+    builder.add_runtime_dependency(f"pyfnx_utils=={importlib_metadata.version('pyfnx_utils')}")
+    builder.add_runtime_dependency(f"httpx=={importlib_metadata.version('httpx')}")
+
     tmpname = f"dfs-tmp-{uuid.uuid4()}.pyfnx"
     builder.save(tmpname)
     with open(tmpname, "rb") as f:

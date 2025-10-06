@@ -126,8 +126,10 @@ class OpenAIProvider(LLM):
 
 class OllamaProvider(LLM):
     provider_name = "ollama"
-    
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "llama3.2:1b"):
+
+    def __init__(
+        self, base_url: str = "http://localhost:11434", model: str = "llama3.2:1b"
+    ):
         self.base_url = base_url
         self.model = model
 
@@ -160,29 +162,26 @@ class OllamaProvider(LLM):
             return response.json()
 
     async def generate(self, messages: list, out_schema) -> str:
-
         out = await self.chat(
-            model=self.model, messages=messages, response_format=out_schema.model_json_schema()
+            model=self.model,
+            messages=messages,
+            response_format=out_schema.model_json_schema(),
         )
-        
+
         return out["message"]["content"]  # type: ignore
 
     async def batch_generate(
-            self,
-            messages: list,
-            temperature: float = 0.0,
-            n_responses: int = 1,
+        self,
+        messages: list,
+        temperature: float = 0.0,
+        n_responses: int = 1,
     ) -> list[str]:
         tasks = []
         for _ in range(n_responses):
             task = self.chat(
-                model=self.model,
-                messages=messages,
-                temperature=temperature
+                model=self.model, messages=messages, temperature=temperature
             )
             tasks.append(task)
-        
+
         responses = await asyncio.gather(*tasks)
         return [resp["message"]["content"] for resp in responses]
-
-
