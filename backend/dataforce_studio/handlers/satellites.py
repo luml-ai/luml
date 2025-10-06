@@ -5,17 +5,14 @@ from typing import Any
 
 from fastapi import status
 
-from dataforce_studio.handlers import PermissionsHandler
+from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import ApplicationError, NotFoundError
-from dataforce_studio.repositories import (
-    OrbitRepository,
-    SatelliteRepository,
-    UserRepository,
-)
-from dataforce_studio.schemas import (
-    Action,
-    Resource,
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.satellites import SatelliteRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.schemas.satellite import (
     Satellite,
     SatelliteCapability,
     SatelliteCreate,

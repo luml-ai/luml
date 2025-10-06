@@ -14,13 +14,10 @@ from dataforce_studio.infra.exceptions import (
     OrbitNotFoundError,
     OrganizationLimitReachedError,
 )
-from dataforce_studio.repositories import (
-    BucketSecretRepository,
-    OrbitRepository,
-    UserRepository,
-)
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
@@ -28,10 +25,10 @@ from dataforce_studio.schemas import (
     OrbitMemberCreate,
     OrbitMemberCreateSimple,
     OrbitUpdate,
-    OrgRole,
-    Resource,
     UpdateOrbitMember,
 )
+from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
 
 

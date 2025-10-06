@@ -2,12 +2,9 @@ from typing import Any
 
 from pydantic import EmailStr
 
-from dataforce_studio.schemas import (
-    OrbitMemberCreate,
-    OrbitMemberCreateSimple,
-    OrganizationInvite,
-    OrgRole,
-)
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.orbit import OrbitMemberCreateSimple, OrbitMemberCreate
+from dataforce_studio.schemas.organization import OrgRole, OrganizationInvite
 
 
 def generate_organization_name(email: EmailStr, full_name: str | None = None) -> str:
@@ -31,7 +28,7 @@ def get_members_roles_count(members: list[Any]) -> dict[str, int]:
 
 
 def convert_orbit_simple_members(
-    orbit_id: str, members: list[OrbitMemberCreateSimple]
+    orbit_id: ShortUUID, members: list[OrbitMemberCreateSimple]
 ) -> list[OrbitMemberCreate]:
     return [
         OrbitMemberCreate(orbit_id=orbit_id, user_id=m.user_id, role=m.role)

@@ -15,9 +15,9 @@ from dataforce_studio.infra.exceptions import (
     OrganizationMemberAlreadyExistsError,
     OrganizationMemberNotFoundError,
 )
-from dataforce_studio.repositories import InviteRepository, UserRepository
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.invites import InviteRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
     Organization,
@@ -29,10 +29,10 @@ from dataforce_studio.schemas import (
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
-    Resource,
     UpdateOrganizationMember,
     UserInvite,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.settings import config
 from dataforce_studio.utils.organizations import (
     get_invited_by_name,

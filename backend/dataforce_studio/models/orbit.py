@@ -11,7 +11,7 @@ from dataforce_studio.models.orbit_secret import OrbitSecretOrm
 from dataforce_studio.models.organization import OrganizationOrm
 from dataforce_studio.models.satellite import SatelliteOrm
 from dataforce_studio.models.user import UserOrm
-from dataforce_studio.schemas import Orbit, OrbitDetails, OrbitMember
+from dataforce_studio.schemas.orbit import Orbit, OrbitDetails, OrbitMember
 
 
 class OrbitMembersOrm(TimestampMixin, Base):

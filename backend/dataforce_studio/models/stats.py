@@ -4,7 +4,7 @@ from sqlalchemy import UUID, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import StatsEmailSendOut
+from dataforce_studio.schemas.stats import StatsEmailSendOut
 
 
 class StatsEmailSendOrm(TimestampMixin, Base):

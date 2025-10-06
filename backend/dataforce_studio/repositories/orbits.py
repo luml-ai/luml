@@ -6,8 +6,8 @@ from sqlalchemy.orm import selectinload
 
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import OrbitMembersOrm, OrbitOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreate,
     OrbitCreateIn,
@@ -114,7 +114,7 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                     organization_id=organization_id,
                 ),
             )
-
+            # TODO chexk
             if orbit.members:
                 await self.create_models(
                     session,

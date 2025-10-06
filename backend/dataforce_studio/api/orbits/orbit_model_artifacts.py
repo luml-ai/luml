@@ -2,15 +2,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers import ModelArtifactHandler
+from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.model_artifacts import (
     CreateModelArtifactResponse,
     ModelArtifact,
     ModelArtifactIn,
     ModelArtifactUpdateIn,
-    ShortUUID,
 )
 
 model_artifacts_router = APIRouter(

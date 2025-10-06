@@ -2,8 +2,8 @@ from pydantic import EmailStr
 from sqlalchemy.orm import joinedload
 
 from dataforce_studio.models import OrganizationInviteOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationInvite,
     OrganizationInviteSimple,

@@ -4,7 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.infra.encryption import decrypt, encrypt
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import BucketSecret, BucketSecretCreate
+from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreate
 
 
 class BucketSecretOrm(TimestampMixin, Base):

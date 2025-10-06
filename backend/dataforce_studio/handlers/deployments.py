@@ -5,25 +5,22 @@ from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from dataforce_studio.repositories import (
-    BucketSecretRepository,
-    CollectionRepository,
-    DeploymentRepository,
-    ModelArtifactRepository,
-    OrbitRepository,
-    SatelliteRepository,
-    UserRepository,
-)
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.repositories.deployments import DeploymentRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.satellites import SatelliteRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.deployment import (
     Deployment,
     DeploymentCreate,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
-    Resource,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class DeploymentHandler:

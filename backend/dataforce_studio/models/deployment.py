@@ -6,7 +6,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from dataforce_studio.models.base import Base, TimestampMixin
 from dataforce_studio.models.model_artifacts import ModelArtifactOrm
 from dataforce_studio.models.satellite import SatelliteOrm
-from dataforce_studio.schemas import Deployment
+from dataforce_studio.schemas.deployment import Deployment
 
 
 class DeploymentOrm(TimestampMixin, Base):

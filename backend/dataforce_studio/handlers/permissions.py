@@ -5,11 +5,12 @@ from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from dataforce_studio.repositories import OrbitRepository, UserRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.orbit import OrbitRole
+from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.permissions import (
     Action,
-    OrbitRole,
-    OrgRole,
     Resource,
     orbit_permissions,
     organization_permissions,

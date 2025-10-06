@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, HttpUrl, computed_field
 
-from dataforce_studio.schemas import BaseOrmConfig, ShortUUID
+from dataforce_studio.schemas.base import BaseOrmConfig, ShortUUID
 
 
 class SatelliteCapability(StrEnum):

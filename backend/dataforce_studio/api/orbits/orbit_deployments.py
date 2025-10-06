@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, Request
 
-from dataforce_studio.handlers import DeploymentHandler
+from dataforce_studio.handlers.deployments import DeploymentHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.deployment import (
     Deployment,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
-    ShortUUID,
 )
 
 deployments_router = APIRouter(

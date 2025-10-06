@@ -9,15 +9,12 @@ from dataforce_studio.infra.exceptions import (
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.repositories import (
-    BucketSecretRepository,
-    CollectionRepository,
-    ModelArtifactRepository,
-    OrbitRepository,
-)
-from dataforce_studio.schemas import (
-    Action,
-    BucketSecret,
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.bucket_secrets import BucketSecret
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CreateModelArtifactResponse,
     ModelArtifact,
@@ -26,10 +23,10 @@ from dataforce_studio.schemas import (
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
-    Orbit,
-    Resource,
     SatelliteModelArtifactResponse,
 )
+from dataforce_studio.schemas.orbit import Orbit
+from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.services.s3_service import S3Service
 from dataforce_studio.utils.uuid_converter import UUIDConverter
 

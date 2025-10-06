@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
-from dataforce_studio.handlers import StatsHandler
-from dataforce_studio.schemas import StatsEmailSendCreate, StatsEmailSendOut
+from dataforce_studio.handlers.stats import StatsHandler
+from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
 
 email_routers = APIRouter(prefix="/stats", tags=["stats"])
 

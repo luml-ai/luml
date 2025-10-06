@@ -12,9 +12,8 @@ from dataforce_studio.models import (
     StatsEmailSendOrm,
     UserOrm,
 )
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
-    CreateUser,
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationCreate,
     OrganizationCreateIn,
@@ -25,9 +24,11 @@ from dataforce_studio.schemas import (
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
-    StatsEmailSendCreate,
-    StatsEmailSendOut,
     UpdateOrganizationMember,
+)
+from dataforce_studio.schemas.stats import StatsEmailSendCreate, StatsEmailSendOut
+from dataforce_studio.schemas.user import (
+    CreateUser,
     UpdateUser,
     UpdateUserAPIKey,
     User,

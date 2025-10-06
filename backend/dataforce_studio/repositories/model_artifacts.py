@@ -3,8 +3,8 @@ from sqlalchemy.exc import IntegrityError
 
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import ModelArtifactOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactStatus,

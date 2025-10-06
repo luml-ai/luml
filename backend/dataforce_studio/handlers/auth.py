@@ -10,14 +10,15 @@ from pydantic import EmailStr
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import AuthError, EmailDeliveryError
-from dataforce_studio.repositories import TokenBlackListRepository, UserRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.auth import Token
+from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
     SignInResponse,
     SignInUser,
-    Token,
     UpdateUser,
     UpdateUserIn,
     User,

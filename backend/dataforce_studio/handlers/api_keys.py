@@ -5,12 +5,8 @@ from typing import Any
 
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import UserAPIKeyCreateError
-from dataforce_studio.repositories import UserRepository
-from dataforce_studio.schemas import (
-    APIKeyCreateOut,
-    UpdateUserAPIKey,
-    UserOut,
-)
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.user import UpdateUserAPIKey, APIKeyCreateOut, UserOut
 from dataforce_studio.settings import config
 
 

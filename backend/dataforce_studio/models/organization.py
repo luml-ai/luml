@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models import BucketSecretOrm
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationDetails,
     OrganizationInvite,

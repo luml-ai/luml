@@ -5,17 +5,16 @@ from dataforce_studio.infra.exceptions import (
     DatabaseConstraintError,
     NotFoundError,
 )
-from dataforce_studio.repositories import BucketSecretRepository
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
-    Resource,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.services.s3_service import S3Service
 
 

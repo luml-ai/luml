@@ -5,13 +5,8 @@ from minio import Minio
 
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES, USE_MULTIPART_BYTES
 from dataforce_studio.infra.exceptions import BucketConnectionError
-from dataforce_studio.schemas import (
-    BucketSecret,
-    BucketSecretCreateIn,
-    MultipartUploadInfo,
-    PartDetails,
-    UploadDetails,
-)
+from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreateIn
+from dataforce_studio.schemas.s3 import MultipartUploadInfo, PartDetails, UploadDetails
 
 
 class S3Service:

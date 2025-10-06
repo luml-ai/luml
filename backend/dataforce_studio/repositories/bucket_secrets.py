@@ -4,8 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from dataforce_studio.infra.encryption import encrypt
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import BucketSecretOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
     BucketSecretUpdate,

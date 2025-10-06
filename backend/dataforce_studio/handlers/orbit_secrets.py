@@ -1,16 +1,15 @@
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import NotFoundError
-from dataforce_studio.repositories import OrbitSecretRepository
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.orbit_secrets import OrbitSecretRepository
+from dataforce_studio.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretCreateIn,
     OrbitSecretOut,
     OrbitSecretUpdate,
-    Resource,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.utils.uuid_converter import UUIDConverter
 
 

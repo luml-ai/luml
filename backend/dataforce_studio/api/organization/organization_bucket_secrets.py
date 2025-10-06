@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers import BucketSecretHandler
+from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
-    ShortUUID,
 )
 
 bucket_secrets_router = APIRouter(

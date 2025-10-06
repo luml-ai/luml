@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import text
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.satellite import (
     Satellite,
     SatelliteCapability,
     SatelliteQueueTask,

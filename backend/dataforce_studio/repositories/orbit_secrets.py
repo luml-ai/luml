@@ -1,7 +1,7 @@
 from dataforce_studio.infra.encryption import encrypt
 from dataforce_studio.models import OrbitSecretOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretUpdate,

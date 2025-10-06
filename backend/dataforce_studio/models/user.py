@@ -4,7 +4,7 @@ from sqlalchemy import UUID, Boolean, String, case
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import CreateUser, User, UserOut
+from dataforce_studio.schemas.user import CreateUser, User, UserOut
 
 
 class UserOrm(TimestampMixin, Base):

@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers import OrganizationHandler
+from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas import ShortUUID, UserInvite
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.organization import UserInvite
 
 user_invites_router = APIRouter(
     prefix="/invitations",

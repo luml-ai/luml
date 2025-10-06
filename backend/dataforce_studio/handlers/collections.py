@@ -1,20 +1,17 @@
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
-from dataforce_studio.repositories import (
-    CollectionRepository,
-    ModelArtifactRepository,
-    OrbitRepository,
-)
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
     CollectionUpdate,
     CollectionUpdateIn,
-    Resource,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class CollectionHandler:

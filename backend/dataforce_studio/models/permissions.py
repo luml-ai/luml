@@ -2,7 +2,8 @@ from sqlalchemy import Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas import Action, OrbitRole, Resource
+from dataforce_studio.schemas.orbit import OrbitRole
+from dataforce_studio.schemas.permissions import Action, Resource
 
 
 class OrganizationRolePermissionsOrm(TimestampMixin, Base):

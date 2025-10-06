@@ -1,16 +1,16 @@
 from fastapi import APIRouter, Depends, Request, status
 
-from dataforce_studio.handlers import SatelliteHandler
+from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas import (
-    APIKeyCreateOut,
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.satellite import (
     Satellite,
     SatelliteCreateIn,
     SatelliteCreateOut,
     SatelliteUpdateIn,
-    ShortUUID,
 )
+from dataforce_studio.schemas.user import APIKeyCreateOut
 
 organization_orbit_satellites_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/satellites",

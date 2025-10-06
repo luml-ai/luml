@@ -6,13 +6,13 @@ from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
-from dataforce_studio.handlers import AuthHandler
+from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.auth import Token
+from dataforce_studio.schemas.user import (
     CreateUserIn,
     SignInResponse,
     SignInUser,
-    Token,
     UpdateUserIn,
     UserOut,
 )

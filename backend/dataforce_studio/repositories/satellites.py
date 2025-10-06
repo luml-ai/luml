@@ -4,8 +4,8 @@ from typing import Any
 from sqlalchemy import select
 
 from dataforce_studio.models import SatelliteOrm, SatelliteQueueOrm
-from dataforce_studio.repositories import CrudMixin, RepositoryBase
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.satellite import (
     Satellite,
     SatelliteCapability,
     SatelliteCreate,

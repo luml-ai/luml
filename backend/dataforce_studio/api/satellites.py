@@ -2,28 +2,28 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Request
 
-from dataforce_studio.handlers import (
-    DeploymentHandler,
-    ModelArtifactHandler,
-    OrbitSecretHandler,
-    SatelliteHandler,
-)
+from dataforce_studio.handlers.deployments import DeploymentHandler
+from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
+from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
+from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.deployment import (
     Deployment,
     DeploymentStatusUpdateIn,
     DeploymentUpdateIn,
     InferenceAccessIn,
     InferenceAccessOut,
-    OrbitSecret,
+)
+from dataforce_studio.schemas.model_artifacts import SatelliteModelArtifactResponse
+from dataforce_studio.schemas.orbit_secret import OrbitSecret
+from dataforce_studio.schemas.satellite import (
     Satellite,
-    SatelliteModelArtifactResponse,
     SatellitePairIn,
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskUpdateIn,
-    ShortUUID,
 )
 
 satellite_worker_router = APIRouter(
