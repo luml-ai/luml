@@ -64,7 +64,6 @@ export const useBucketsStore = defineStore('buckets', () => {
         )
       }
 
-      await rangeResponse.arrayBuffer()
     } catch (err) {
       throw err instanceof Error ? err : new Error('Bucket validation failed')
     }
