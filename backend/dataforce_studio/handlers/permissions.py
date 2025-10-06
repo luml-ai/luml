@@ -7,6 +7,7 @@ from dataforce_studio.infra.exceptions import (
 )
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.orbit import OrbitRole
 from dataforce_studio.schemas.organization import OrgRole
 from dataforce_studio.schemas.permissions import (
@@ -37,8 +38,8 @@ class PermissionsHandler:
 
     async def check_organization_permission(
         self,
-        organization_id: str,
-        user_id: str,
+        organization_id: ShortUUID,
+        user_id: ShortUUID,
         resource: Resource,
         action: Action,
     ) -> str:
@@ -56,8 +57,8 @@ class PermissionsHandler:
 
     async def check_orbit_permission(
         self,
-        orbit_id: str,
-        user_id: str,
+        orbit_id: ShortUUID,
+        user_id: ShortUUID,
         resource: Resource,
         action: Action,
     ) -> str:
@@ -75,9 +76,9 @@ class PermissionsHandler:
 
     async def check_orbit_action_access(
         self,
-        organization_id: str,
-        orbit_id: str,
-        user_id: str,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        user_id: ShortUUID,
         resource: Resource,
         action: Action,
     ) -> tuple[None, str] | tuple[str, None]:

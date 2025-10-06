@@ -5,6 +5,7 @@ from dataforce_studio.infra.encryption import encrypt
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import BucketSecretOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
@@ -21,19 +22,19 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             await session.refresh(orm_secret)
             return orm_secret.to_bucket_secret()
 
-    async def get_bucket_secret(self, secret_id: str) -> BucketSecret | None:
+    async def get_bucket_secret(self, secret_id: ShortUUID) -> BucketSecret | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, BucketSecretOrm, secret_id)
             return db_secret.to_bucket_secret() if db_secret else None
 
     async def get_organization_bucket_secrets(
-        self, organization_id: str
+        self, organization_id: ShortUUID
     ) -> list[BucketSecret]:
         async with self._get_session() as session:
             db_secrets = await self.get_models_where(
                 session,
                 BucketSecretOrm,
-                BucketSecretOrm.organization_id == organization_id,
+                BucketSecretOrm.organization_id == ShortUUID(organization_id).to_uuid(),
             )
             return [secret.to_bucket_secret() for secret in db_secrets]
 
@@ -42,7 +43,9 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
     ) -> BucketSecret | None:
         async with self._get_session() as session:
             result = await session.execute(
-                select(BucketSecretOrm).where(BucketSecretOrm.id == secret.id)
+                select(BucketSecretOrm).where(
+                    BucketSecretOrm.id == ShortUUID(secret.id).to_uuid()
+                )
             )
             db_secret = result.scalar_one_or_none()
             if not db_secret:
@@ -60,7 +63,7 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             await session.refresh(db_secret)
             return db_secret.to_bucket_secret()
 
-    async def delete_bucket_secret(self, secret_id: str) -> None:
+    async def delete_bucket_secret(self, secret_id: ShortUUID) -> None:
         async with self._get_session() as session:
             try:
                 return await self.delete_model(session, BucketSecretOrm, secret_id)

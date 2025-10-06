@@ -3,8 +3,8 @@ from typing import Any
 from pydantic import EmailStr
 
 from dataforce_studio.schemas.base import ShortUUID
-from dataforce_studio.schemas.orbit import OrbitMemberCreateSimple, OrbitMemberCreate
-from dataforce_studio.schemas.organization import OrgRole, OrganizationInvite
+from dataforce_studio.schemas.orbit import OrbitMemberCreate, OrbitMemberCreateSimple
+from dataforce_studio.schemas.organization import OrganizationInvite, OrgRole
 
 
 def generate_organization_name(email: EmailStr, full_name: str | None = None) -> str:

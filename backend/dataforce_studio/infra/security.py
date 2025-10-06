@@ -2,7 +2,9 @@ from passlib.context import CryptContext
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
-from dataforce_studio.handlers import APIKeyHandler, AuthHandler, SatelliteHandler
+from dataforce_studio.handlers.api_keys import APIKeyHandler
+from dataforce_studio.handlers.auth import AuthHandler
+from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models import AuthSatellite, AuthUser
 from dataforce_studio.settings import config

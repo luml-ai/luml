@@ -6,6 +6,7 @@ from dataforce_studio.infra.exceptions import (
     NotFoundError,
 )
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
@@ -24,13 +25,14 @@ class BucketSecretHandler:
 
     async def create_bucket_secret(
         self,
-        user_id: str,
-        organization_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
         secret: BucketSecretCreateIn,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.CREATE
         )
+        # todo model_dump(mode="python")
         secret_create = BucketSecretCreate(
             **secret.model_dump(mode="python"), organization_id=organization_id
         )
@@ -38,7 +40,7 @@ class BucketSecretHandler:
         return BucketSecretOut.model_validate(created)
 
     async def get_organization_bucket_secrets(
-        self, user_id: str, organization_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID
     ) -> list[BucketSecretOut]:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
@@ -49,7 +51,7 @@ class BucketSecretHandler:
         return [BucketSecretOut.model_validate(s) for s in secrets]
 
     async def get_bucket_secret(
-        self, user_id: str, organization_id: str, secret_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID, secret_id: ShortUUID
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
@@ -63,9 +65,9 @@ class BucketSecretHandler:
 
     async def update_bucket_secret(
         self,
-        user_id: str,
-        organization_id: str,
-        secret_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        secret_id: ShortUUID,
         secret: BucketSecretUpdate,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_organization_permission(
@@ -78,7 +80,7 @@ class BucketSecretHandler:
         return BucketSecretOut.model_validate(db_secret)
 
     async def delete_bucket_secret(
-        self, user_id: str, organization_id: str, secret_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID, secret_id: ShortUUID
     ) -> None:
         await self.__permissions_handler.check_organization_permission(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE

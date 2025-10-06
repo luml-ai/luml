@@ -4,6 +4,7 @@ from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundErr
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
@@ -22,9 +23,9 @@ class CollectionHandler:
 
     async def create_collection(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
         collection: CollectionCreateIn,
     ) -> Collection:
         await self.__permissions_handler.check_orbit_action_access(
@@ -45,7 +46,7 @@ class CollectionHandler:
         return await self.__repository.create_collection(collection_create)
 
     async def get_orbit_collections(
-        self, user_id: str, organization_id: str, orbit_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID, orbit_id: ShortUUID
     ) -> list[Collection]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -63,10 +64,10 @@ class CollectionHandler:
 
     async def update_collection(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
-        collection_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
         collection: CollectionUpdateIn,
     ) -> Collection:
         await self.__permissions_handler.check_orbit_action_access(
@@ -96,10 +97,10 @@ class CollectionHandler:
 
     async def delete_collection(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
-        collection_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        collection_id: ShortUUID,
     ) -> None:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,

@@ -12,6 +12,7 @@ from dataforce_studio.repositories.model_artifacts import ModelArtifactRepositor
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.satellites import SatelliteRepository
 from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -36,9 +37,9 @@ class DeploymentHandler:
 
     async def create_deployment(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
         data: DeploymentCreateIn,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
@@ -87,7 +88,7 @@ class DeploymentHandler:
         return deployment
 
     async def list_deployments(
-        self, user_id: str, organization_id: str, orbit_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID, orbit_id: ShortUUID
     ) -> list[Deployment]:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -100,10 +101,10 @@ class DeploymentHandler:
 
     async def get_deployment(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
-        deployment_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        deployment_id: ShortUUID,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -117,11 +118,13 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return deployment
 
-    async def list_worker_deployments(self, satellite_id: str) -> list[Deployment]:
+    async def list_worker_deployments(
+        self, satellite_id: ShortUUID
+    ) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
 
     async def get_worker_deployment(
-        self, orbit_id: str, deployment_id: str
+        self, orbit_id: ShortUUID, deployment_id: ShortUUID
     ) -> Deployment:
         deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
         if not deployment:
@@ -129,7 +132,10 @@ class DeploymentHandler:
         return deployment
 
     async def update_worker_deployment(
-        self, satellite_id: str, deployment_id: str, inference_url: str
+        self,
+        satellite_id: ShortUUID,
+        deployment_id: ShortUUID,
+        inference_url: str,
     ) -> Deployment:
         deployment = await self.__repo.update_deployment(
             deployment_id,
@@ -146,10 +152,10 @@ class DeploymentHandler:
 
     async def update_deployment_details(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
-        deployment_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        deployment_id: ShortUUID,
         data: DeploymentDetailsUpdateIn,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
@@ -166,7 +172,7 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return updated
 
-    async def verify_user_inference_access(self, orbit_id: str, api_key: str) -> bool:
+    async def verify_user_inference_access(self, orbit_id: ShortUUID, api_key: str) -> bool:
         user = await self.__api_key_handler.authenticate_api_key(api_key)
         if not user:
             return False
@@ -187,10 +193,10 @@ class DeploymentHandler:
 
     async def request_deployment_deletion(
         self,
-        user_id: str,
-        organization_id: str,
-        orbit_id: str,
-        deployment_id: str,
+        user_id: ShortUUID,
+        organization_id: ShortUUID,
+        orbit_id: ShortUUID,
+        deployment_id: ShortUUID,
     ) -> Deployment:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id,
@@ -207,8 +213,8 @@ class DeploymentHandler:
 
     async def update_worker_deployment_status(
         self,
-        satellite_id: str,
-        deployment_id: str,
+        satellite_id: ShortUUID,
+        deployment_id: ShortUUID,
         status: DeploymentStatus,
     ) -> Deployment:
         deployment = await self.__repo.update_deployment(

@@ -1,11 +1,13 @@
 from pydantic import EmailStr
 from starlette.authentication import BaseUser
 
+from dataforce_studio.schemas.base import ShortUUID
+
 
 class AuthUser(BaseUser):
     def __init__(
         self,
-        user_id: str,
+        user_id: ShortUUID,
         email: EmailStr,
         full_name: str | None = None,
         disabled: bool | None = None,
@@ -25,7 +27,7 @@ class AuthUser(BaseUser):
 
 
 class AuthSatellite(BaseUser):
-    def __init__(self, satellite_id: str, orbit_id: str) -> None:
+    def __init__(self, satellite_id: ShortUUID, orbit_id: ShortUUID) -> None:
         self.id = satellite_id
         self.orbit_id = orbit_id
 

@@ -6,6 +6,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from dataforce_studio.models import Base
+from dataforce_studio.schemas.base import ShortUUID
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -21,22 +22,46 @@ class RepositoryBase:
 
 class CrudMixin:
     @staticmethod
+    def _convert_shortuuid_value(value: Any) -> Any:  # noqa: ANN401
+        if type(value) is ShortUUID:
+            return value.to_uuid()
+        if isinstance(value, str) and ShortUUID._is_valid_short_uuid(value):
+            return ShortUUID(value).to_uuid()
+        return value
+
+    def _convert_ids(self, model_data: TPydantic) -> dict[str, Any]:  # noqa: ANN401
+        data_dict = model_data.model_dump(mode="python")
+        for key, value in data_dict.items():
+            data_dict[key] = self._convert_shortuuid_value(value)
+        return data_dict
+
+    def _convert_ids_list(
+        self, orm_class: type[TOrm], data_list: list[TPydantic]
+    ) -> list[TOrm]:  # noqa: ANN401
+        db_objects = []
+        for item in data_list:
+            model_data = self._convert_ids(item)
+            db_objects.append(orm_class(**model_data))
+        return db_objects
+
     async def create_model(
-        session: AsyncSession, orm_class: type[TOrm], data: TPydantic
+        self, session: AsyncSession, orm_class: type[TOrm], data: TPydantic
     ) -> TOrm:
-        db_obj = orm_class(**data.model_dump(mode="python"))
+        model_data = self._convert_ids(data)
+        db_obj = orm_class(**model_data)
         session.add(db_obj)
         await session.commit()
         await session.refresh(db_obj)
         return db_obj
 
-    @staticmethod
     async def create_models(
+        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         data_list: list[TPydantic],
     ) -> list[TOrm]:
-        db_objects = [orm_class(**item.model_dump(mode="python")) for item in data_list]
+        db_objects = self._convert_ids_list(orm_class, data_list)
+
         session.add_all(db_objects)
         await session.flush()
         await session.commit()
@@ -44,8 +69,8 @@ class CrudMixin:
             await session.refresh(obj)
         return db_objects
 
-    @staticmethod
     async def update_model_where(
+        self,
         session: AsyncSession,
         orm_class: type[TOrm],
         data: TPydantic,
@@ -64,7 +89,7 @@ class CrudMixin:
             return db_obj
 
         for field, value in fields_to_update.items():
-            setattr(db_obj, field, value)
+            setattr(db_obj, field, self._convert_shortuuid_value(value))
 
         await session.commit()
         await session.refresh(db_obj)
@@ -77,20 +102,26 @@ class CrudMixin:
         orm_class: type[TOrm],
         data: TPydantic,
     ) -> TOrm | None:
+        data_id = data.id  # type: ignore[attr-defined]
+
         return await self.update_model_where(
             session,
             orm_class,
             data,
-            orm_class.id == data.id,  # type: ignore[attr-defined]
+            orm_class.id == self._convert_shortuuid_value(data_id),  # type: ignore[attr-defined]
         )
 
-    @staticmethod
     async def delete_model(
+        self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        obj_id: str,
+        obj_id: ShortUUID,
     ) -> None:
-        result = await session.execute(select(orm_class).where(orm_class.id == obj_id))  # type: ignore[attr-defined]
+        result = await session.execute(
+            select(orm_class).where(
+                orm_class.id == self._convert_shortuuid_value(obj_id)  # type: ignore[attr-defined]
+            )
+        )
         db_obj = result.scalar_one_or_none()
 
         if db_obj:
@@ -132,17 +163,17 @@ class CrudMixin:
 
         return result.scalar_one_or_none()
 
-    @staticmethod
     async def get_model(
+        self,
         session: AsyncSession,
         orm_class: type[TOrm],
-        obj_id: str,
+        obj_id: ShortUUID,
         options: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
     ) -> TOrm | None:
         result = await session.execute(
             select(orm_class)
-            .where(orm_class.id == obj_id)  # type: ignore[attr-defined]
+            .where(orm_class.id == self._convert_shortuuid_value(obj_id))  # type: ignore[attr-defined]
             .options(*(options or []))
         )
 

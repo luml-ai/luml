@@ -13,6 +13,7 @@ from dataforce_studio.models import (
     UserOrm,
 )
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.organization import (
     Organization,
     OrganizationCreate,
@@ -85,7 +86,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_user.to_public_user() if db_user else None
 
-    async def get_public_user_by_id(self, user_id: str) -> UserOut | None:
+    async def get_public_user_by_id(self, user_id: ShortUUID) -> UserOut | None:
         async with self._get_session() as session:
             db_user = await self.get_model(session, UserOrm, user_id)
             return db_user.to_public_user() if db_user else None
@@ -120,7 +121,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         return changed
 
     async def create_organization(
-        self, user_id: str, organization: OrganizationCreateIn
+        self, user_id: ShortUUID, organization: OrganizationCreateIn
     ) -> OrganizationOrm:
         async with self._get_session() as session:
             org_logo = str(organization.logo) if organization.logo else None
@@ -129,13 +130,13 @@ class UserRepository(RepositoryBase, CrudMixin):
                 OrganizationOrm,
                 OrganizationCreate(name=organization.name, logo=org_logo),
             )
-            await self.create_owner(user_id, str(db_organization.id))
+            await self.create_owner(user_id, ShortUUID(db_organization.id))
 
             return db_organization
 
     async def update_organization(
         self,
-        organization_id: str,
+        organization_id: ShortUUID,
         organization: OrganizationUpdate,
     ) -> Organization | None:
         organization.id = organization_id
@@ -147,16 +148,19 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_organization.to_organization() if db_organization else None
 
-    async def delete_organization(self, organization_id: str) -> None:
+    async def delete_organization(self, organization_id: ShortUUID) -> None:
         async with self._get_session() as session:
             return await self.delete_model(session, OrganizationOrm, organization_id)
 
-    async def get_organization_members_count(self, organization_id: str) -> int:
+    async def get_organization_members_count(self, organization_id: ShortUUID) -> int:
         async with self._get_session() as session:
             result = await session.execute(
                 select(func.count())
                 .select_from(OrganizationMemberOrm)
-                .where(OrganizationMemberOrm.organization_id == organization_id)
+                .where(
+                    OrganizationMemberOrm.organization_id
+                    == ShortUUID(organization_id).to_uuid()
+                )
             )
         return result.scalar() or 0
 
@@ -173,7 +177,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             return db_member.to_organization_member()
 
     async def create_owner(
-        self, user_id: str, organization_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID
     ) -> OrganizationMember:
         async with self._get_session() as session:
             db_member = await self.create_model(
@@ -185,12 +189,14 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_member.to_organization_member()
 
-    async def get_user_organizations(self, user_id: str) -> list[OrganizationSwitcher]:
+    async def get_user_organizations(
+        self, user_id: ShortUUID
+    ) -> list[OrganizationSwitcher]:
         async with self._get_session() as session:
             db_organizations = await self.get_models_where(
                 session,
                 OrganizationOrm,
-                OrganizationMemberOrm.user_id == user_id,
+                OrganizationMemberOrm.user_id == user_id.to_uuid(),
                 order_by=[OrganizationOrm.name],
                 join_condition=(
                     OrganizationMemberOrm,
@@ -213,7 +219,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             ]
 
     async def get_organization_details(
-        self, organization_id: str
+        self, organization_id: ShortUUID
     ) -> OrganizationDetails | None:
         async with self._get_session() as session:
             result = await session.execute(
@@ -225,7 +231,7 @@ class UserRepository(RepositoryBase, CrudMixin):
                     joinedload(OrganizationOrm.invites),
                     joinedload(OrganizationOrm.orbits),
                 )
-                .where(OrganizationOrm.id == organization_id)
+                .where(OrganizationOrm.id == ShortUUID(organization_id).to_uuid())
             )
             db_organization = result.unique().scalar_one_or_none()
 
@@ -240,25 +246,26 @@ class UserRepository(RepositoryBase, CrudMixin):
             return details
 
     async def get_organization_users(
-        self, organization_id: str
+        self, organization_id: ShortUUID
     ) -> list[OrganizationMember]:
         async with self._get_session() as session:
             db_members = await self.get_models_where(
                 session,
                 OrganizationMemberOrm,
-                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
             )
             return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def update_organization_member(
-        self, member_id: str, member: UpdateOrganizationMember
+        self, member_id: ShortUUID, member: UpdateOrganizationMember
     ) -> OrganizationMember | None:
         member.id = member_id
         async with self._get_session() as session:
             db_member = await self.update_model(session, OrganizationMemberOrm, member)
             return db_member.to_organization_member() if db_member else None
 
-    async def delete_organization_member(self, member_id: str) -> None:
+    async def delete_organization_member(self, member_id: ShortUUID) -> None:
         async with self._get_session() as session:
             return await self.delete_model(session, OrganizationMemberOrm, member_id)
 
@@ -274,21 +281,25 @@ class UserRepository(RepositoryBase, CrudMixin):
                 await session.commit()
 
     async def delete_organization_member_by_user_id(
-        self, user_id: str, organization_id: str
+        self, user_id: ShortUUID, organization_id: ShortUUID
     ) -> None:
         return await self.delete_organization_member_where(
-            OrganizationMemberOrm.user_id == user_id,
-            OrganizationMemberOrm.organization_id == organization_id,
+            OrganizationMemberOrm.user_id == user_id.to_uuid(),
+            OrganizationMemberOrm.organization_id
+            == ShortUUID(organization_id).to_uuid(),
         )
 
     async def get_organization_members(
-        self, organization_id: str
+        self, organization_id: ShortUUID
     ) -> list[OrganizationMember]:
         async with self._get_session() as session, session.begin():
             db_members = await self.get_models_where(
                 session,
                 OrganizationMemberOrm,
-                (OrganizationMemberOrm.organization_id == organization_id),
+                (
+                    OrganizationMemberOrm.organization_id
+                    == ShortUUID(organization_id).to_uuid()
+                ),
                 options=[joinedload(OrganizationMemberOrm.user)],
                 order_by=[
                     case(
@@ -304,32 +315,39 @@ class UserRepository(RepositoryBase, CrudMixin):
             return OrganizationMemberOrm.to_organization_members(db_members)
 
     async def get_organization_member(
-        self, organization_id: str, user_id: str
+        self, organization_id: ShortUUID, user_id: ShortUUID
     ) -> OrganizationMemberOrm | None:
+        # Convert to ShortUUID objects if strings are passed
+        if isinstance(organization_id, str):
+            organization_id = ShortUUID(organization_id)
+        if isinstance(user_id, str):
+            user_id = ShortUUID(user_id)
         async with self._get_session() as session:
             return await self.get_model_where(
                 session,
                 OrganizationMemberOrm,
-                OrganizationMemberOrm.user_id == user_id,
-                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.user_id == user_id.to_uuid(),
+                OrganizationMemberOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
             )
 
     async def get_organization_member_by_id(
-        self, member_id: str
+        self, member_id: ShortUUID
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
             db_member = await self.get_model(session, OrganizationMemberOrm, member_id)
             return db_member.to_organization_member() if db_member else None
 
     async def get_organization_member_by_email(
-        self, organization_id: str, email: EmailStr
+        self, organization_id: ShortUUID, email: EmailStr
     ) -> OrganizationMember | None:
         async with self._get_session() as session:
             result = await session.execute(
                 select(OrganizationMemberOrm)
                 .join(OrganizationMemberOrm.user)
                 .where(
-                    OrganizationMemberOrm.organization_id == organization_id,
+                    OrganizationMemberOrm.organization_id
+                    == ShortUUID(organization_id).to_uuid(),
                     UserOrm.email == email,
                 )
                 .options(selectinload(OrganizationMemberOrm.user))
@@ -338,27 +356,30 @@ class UserRepository(RepositoryBase, CrudMixin):
             return db_member.to_organization_member() if db_member else None
 
     async def get_organization_member_role(
-        self, organization_id: str, user_id: str
+        self, organization_id: ShortUUID, user_id: ShortUUID
     ) -> str | None:
         member = await self.get_organization_member(organization_id, user_id)
         return str(member.role) if member else None
 
     async def get_organization_members_by_user_ids(
-        self, organization_id: str, user_ids: list[str]
+        self, organization_id: ShortUUID, user_ids: list[ShortUUID]
     ) -> list[OrganizationMember]:
         async with self._get_session() as session:
             db_members = await self.get_models_where(
                 session,
                 OrganizationMemberOrm,
-                OrganizationMemberOrm.organization_id == organization_id,
+                OrganizationMemberOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
                 OrganizationMemberOrm.user_id.in_(user_ids),
             )
             return [member.to_organization_member() for member in db_members]
 
-    async def get_user_organizations_membership_count(self, user_id: str) -> int:
+    async def get_user_organizations_membership_count(self, user_id: ShortUUID) -> int:
         async with self._get_session() as session:
             return await self.get_model_count(
-                session, OrganizationMemberOrm, OrganizationMemberOrm.user_id == user_id
+                session,
+                OrganizationMemberOrm,
+                OrganizationMemberOrm.user_id == user_id.to_uuid(),
             )
 
     async def create_stats_email_send_obj(
@@ -380,7 +401,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             return db_user.to_public_user() if db_user else None
 
-    async def delete_api_key_by_user_id(self, user_id: str) -> None:
+    async def delete_api_key_by_user_id(self, user_id: ShortUUID) -> None:
         async with self._get_session() as session:
             await self.update_model(
                 session, UserOrm, UpdateUserAPIKey(id=user_id, hashed_api_key=None)

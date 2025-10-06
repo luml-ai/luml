@@ -1,6 +1,7 @@
 from dataforce_studio.infra.encryption import encrypt
 from dataforce_studio.models import OrbitSecretOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
@@ -17,24 +18,26 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
             await session.refresh(orm_secret)
             return orm_secret.to_orbit_secret()
 
-    async def get_orbit_secret(self, secret_id: str) -> OrbitSecret | None:
+    async def get_orbit_secret(self, secret_id: ShortUUID) -> OrbitSecret | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
             return db_secret.to_orbit_secret() if db_secret else None
 
-    async def get_orbit_secrets(self, orbit_id: str) -> list[OrbitSecret]:
+    async def get_orbit_secrets(self, orbit_id: ShortUUID) -> list[OrbitSecret]:
         async with self._get_session() as session:
             db_secrets = await self.get_models_where(
-                session, OrbitSecretOrm, OrbitSecretOrm.orbit_id == orbit_id
+                session,
+                OrbitSecretOrm,
+                OrbitSecretOrm.orbit_id == ShortUUID(orbit_id).to_uuid(),
             )
             return [s.to_orbit_secret() for s in db_secrets]
 
-    async def delete_orbit_secret(self, secret_id: str) -> None:
+    async def delete_orbit_secret(self, secret_id: ShortUUID) -> None:
         async with self._get_session() as session:
             await self.delete_model(session, OrbitSecretOrm, secret_id)
 
     async def update_orbit_secret(
-        self, secret_id: str, secret: OrbitSecretUpdate
+        self, secret_id: ShortUUID, secret: OrbitSecretUpdate
     ) -> OrbitSecret | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
