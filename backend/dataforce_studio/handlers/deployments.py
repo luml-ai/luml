@@ -53,9 +53,11 @@ class DeploymentHandler:
         orbit = await self.__orbit_repo.get_orbit_simple(orbit_id, organization_id)
         if not orbit:
             raise NotFoundError("Orbit not found")
-
         satellite = await self.__sat_repo.get_satellite(data.satellite_id)
-        if not satellite or satellite.orbit_id != orbit_id:
+        if not satellite:
+            raise NotFoundError("Satellite not found")
+
+        if ShortUUID(satellite.orbit_id) != orbit_id:
             raise NotFoundError("Satellite not found")
 
         artifact = await self.__artifact_repo.get_model_artifact(data.model_artifact_id)
@@ -63,7 +65,9 @@ class DeploymentHandler:
             raise NotFoundError("Model artifact not found")
 
         collection = await self.__collection_repo.get_collection(artifact.collection_id)
-        if not collection or collection.orbit_id != orbit_id:
+        if not collection:
+            raise NotFoundError("Collection not found")
+        if ShortUUID(collection.orbit_id) != orbit_id:
             raise NotFoundError("Collection not found")
 
         user = await self.__user_repo.get_public_user_by_id(user_id)
@@ -172,7 +176,9 @@ class DeploymentHandler:
             raise NotFoundError("Deployment not found")
         return updated
 
-    async def verify_user_inference_access(self, orbit_id: ShortUUID, api_key: str) -> bool:
+    async def verify_user_inference_access(
+        self, orbit_id: ShortUUID, api_key: str
+    ) -> bool:
         user = await self.__api_key_handler.authenticate_api_key(api_key)
         if not user:
             return False

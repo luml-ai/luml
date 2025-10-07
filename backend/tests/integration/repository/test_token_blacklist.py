@@ -4,7 +4,7 @@ import uuid
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.repositories import TokenBlackListRepository
+from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 
 
 @pytest.mark.asyncio

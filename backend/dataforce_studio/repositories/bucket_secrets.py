@@ -16,7 +16,11 @@ from dataforce_studio.schemas.bucket_secrets import (
 class BucketSecretRepository(RepositoryBase, CrudMixin):
     async def create_bucket_secret(self, secret: BucketSecretCreate) -> BucketSecret:
         async with self._get_session() as session:
-            orm_secret = BucketSecretOrm.from_bucket_secret(secret)
+            converted_data = self._convert_ids(secret)
+
+            orm_secret = BucketSecretOrm.from_bucket_secret(
+                BucketSecretCreate(**converted_data)
+            )
             session.add(orm_secret)
             await session.commit()
             await session.refresh(orm_secret)

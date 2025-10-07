@@ -1,8 +1,10 @@
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.repositories import UserRepository
-from dataforce_studio.schemas import CreateUser, Organization, OrganizationCreateIn
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.organization import Organization, OrganizationCreateIn
+from dataforce_studio.schemas.user import CreateUser
 from tests.conftest import OrganizationWithMembersFixtureData
 
 
@@ -39,7 +41,7 @@ async def test_get_user_organizations(
         data.user,
     )
 
-    organizations = await repo.get_user_organizations(user.id)
+    organizations = await repo.get_user_organizations(ShortUUID(user.id))
 
     assert organizations
     assert hasattr(organizations[0], "id")
@@ -56,7 +58,7 @@ async def test_get_organization_details(
     repo = UserRepository(data.engine)
     org = data.organization
 
-    organization = await repo.get_organization_details(org.id)
+    organization = await repo.get_organization_details(ShortUUID(org.id))
 
     assert organization
     assert hasattr(organization, "id")

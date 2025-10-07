@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import select
 
@@ -23,12 +24,13 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
         self, satellite: SatelliteCreate, payload: dict[str, Any] | None = None
     ) -> tuple[Satellite, SatelliteQueueTask]:
         async with self._get_session() as session:
-            db_sat = SatelliteOrm(**satellite.model_dump(mode="python"))
+            converted_data = self._convert_ids(satellite)
+            db_sat = SatelliteOrm(**converted_data)
             session.add(db_sat)
             await session.flush()
             task = SatelliteQueueOrm(
                 satellite_id=db_sat.id,
-                orbit_id=satellite.orbit_id,
+                orbit_id=UUID(ShortUUID(satellite.orbit_id).to_uuid()),
                 type=SatelliteTaskType.PAIRING,
                 payload=payload or {},
             )
@@ -62,7 +64,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
     ) -> list[Satellite]:
         async with self._get_session() as session:
             query = select(SatelliteOrm).where(
-                SatelliteOrm.orbit_id == orbit_id.to_uuid()
+                SatelliteOrm.orbit_id == ShortUUID(orbit_id).to_uuid()
             )
             if paired is not None:
                 query = query.where(SatelliteOrm.paired == paired)

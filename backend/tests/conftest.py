@@ -9,36 +9,35 @@ import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.repositories import (
-    BucketSecretRepository,
-    CollectionRepository,
-    InviteRepository,
-    ModelArtifactRepository,
-    OrbitRepository,
-    SatelliteRepository,
-    UserRepository,
-)
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.repositories.invites import InviteRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.satellites import SatelliteRepository
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreate
+from dataforce_studio.schemas.model_artifacts import (
     NDJSON,
-    AuthProvider,
-    BucketSecret,
-    BucketSecretCreate,
     Collection,
     CollectionCreate,
     CollectionType,
-    CreateOrganizationInvite,
-    CreateUser,
-    CreateUserIn,
     Manifest,
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactStatus,
+)
+from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
     OrbitMember,
     OrbitMemberCreate,
     OrbitRole,
+)
+from dataforce_studio.schemas.organization import (
+    CreateOrganizationInvite,
     Organization,
     OrganizationCreateIn,
     OrganizationDetails,
@@ -47,10 +46,14 @@ from dataforce_studio.schemas import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrgRole,
-    Satellite,
-    SatelliteCreate,
-    User,
     UserInvite,
+)
+from dataforce_studio.schemas.satellite import Satellite, SatelliteCreate
+from dataforce_studio.schemas.user import (
+    AuthProvider,
+    CreateUser,
+    CreateUserIn,
+    User,
     UserOut,
 )
 from dataforce_studio.settings import config
@@ -146,20 +149,20 @@ async def invite_data() -> AsyncGenerator[CreateOrganizationInvite, None]:
     yield CreateOrganizationInvite(
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
-        invited_by="Z7DNLnRbA2Qjh63ckyixgY",
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
+        invited_by=ShortUUID("Z7DNLnRbA2Qjh63ckyixgY"),
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def invite_get_data() -> AsyncGenerator[OrganizationInvite, None]:
     yield OrganizationInvite(
-        id="5rP34PtMkQQQ7FRESfS7zB",
+        id=ShortUUID("5rP34PtMkQQQ7FRESfS7zB"),
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
         invited_by_user=UserOut(
-            id="Z7DNLnRbA2Qjh63ckyixgY",
+            id=ShortUUID("Z7DNLnRbA2Qjh63ckyixgY"),
             email="robertstimothy@example.org",
             full_name="Terry Lewis",
             disabled=False,
@@ -172,12 +175,12 @@ async def invite_get_data() -> AsyncGenerator[OrganizationInvite, None]:
 @pytest_asyncio.fixture(scope="function")
 async def invite_user_get_data() -> AsyncGenerator[UserInvite, None]:
     yield UserInvite(
-        id="5rP34PtMkQQQ7FRESfS7zB",
+        id=ShortUUID("5rP34PtMkQQQ7FRESfS7zB"),
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
         invited_by_user=UserOut(
-            id="Z7DNLnRbA2Qjh63ckyixgY",
+            id=ShortUUID("Z7DNLnRbA2Qjh63ckyixgY"),
             email="robertstimothy@example.org",
             full_name="Terry Lewis",
             disabled=False,
@@ -185,7 +188,7 @@ async def invite_user_get_data() -> AsyncGenerator[UserInvite, None]:
         ),
         created_at=datetime.datetime.now(),
         organization=Organization(
-            id="Qhsh2FdDuRiwcdLxaBZGpi",
+            id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
             name="test",
             logo=None,
             created_at=datetime.datetime.now(),
@@ -199,19 +202,19 @@ async def invite_accept_data() -> AsyncGenerator[CreateOrganizationInvite, None]
     yield CreateOrganizationInvite(
         email="test@example.com",
         role=OrgRole.MEMBER,
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
-        invited_by="Z7DNLnRbA2Qjh63ckyixgY",
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
+        invited_by=ShortUUID("Z7DNLnRbA2Qjh63ckyixgY"),
     )
 
 
 @pytest_asyncio.fixture(scope="function")
 async def member_data() -> AsyncGenerator[OrganizationMember, None]:
     yield OrganizationMember(
-        id="5rP34PtMkQQQ7FRESfS7zB",
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        id=ShortUUID("5rP34PtMkQQQ7FRESfS7zB"),
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
         role=OrgRole.ADMIN,
         user=UserOut(
-            id="Z7DNLnRbA2Qjh63ckyixgY",
+            id=ShortUUID("Z7DNLnRbA2Qjh63ckyixgY"),
             email="test@gmail.com",
             full_name="Full Name",
             disabled=False,
@@ -250,7 +253,7 @@ async def test_user_create_in(
 async def test_user(test_user_create: CreateUser) -> AsyncGenerator[User, None]:
     user = test_user_create.model_copy()
     yield User(
-        id="Xz4x3ALKUnnYQrnSCdhrhs",
+        id=ShortUUID("Xz4x3ALKUnnYQrnSCdhrhs"),
         email=user.email,
         full_name=user.full_name,
         disabled=user.disabled,
@@ -277,7 +280,7 @@ async def test_user_out(test_user: User) -> AsyncGenerator[UserOut, None]:
 @pytest_asyncio.fixture(scope="function")
 async def test_org() -> AsyncGenerator[Organization, None]:
     yield Organization(
-        id="Qhsh2FdDuRiwcdLxaBZGpi",
+        id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
         name="Test organization",
         logo=None,
         created_at=datetime.datetime.now(),
@@ -289,7 +292,7 @@ async def test_org() -> AsyncGenerator[Organization, None]:
 async def test_org_details(
     invite_get_data: OrganizationInvite, member_data: OrganizationMember
 ) -> AsyncGenerator[OrganizationDetails, None]:
-    test_org_details_id = "Qhsh2FdDuRiwcdLxaBZGpi"
+    test_org_details_id = ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi")
 
     yield OrganizationDetails(
         id=test_org_details_id,
@@ -301,14 +304,14 @@ async def test_org_details(
         members=[member_data],
         orbits=[
             Orbit(
-                id="ZKXFcWnNz3Pgx5r4guxQuP",
+                id=ShortUUID("ZKXFcWnNz3Pgx5r4guxQuP"),
                 name="test orbit",
                 organization_id=test_org_details_id,
                 total_members=0,
                 role=None,
                 created_at=datetime.datetime.now(),
                 updated_at=None,
-                bucket_secret_id="bgpdDYVRNdYVTXPw357CVf",
+                bucket_secret_id=ShortUUID("bgpdDYVRNdYVTXPw357CVf"),
             )
         ],
     )
@@ -350,8 +353,8 @@ async def manifest_example() -> AsyncGenerator[Manifest, None]:
 @pytest_asyncio.fixture
 async def test_bucket() -> AsyncGenerator[BucketSecret, None]:
     yield BucketSecret(
-        id="bgpdDYVRNdYVTXPw357CVf",
-        organization_id="Qhsh2FdDuRiwcdLxaBZGpi",
+        id=ShortUUID("bgpdDYVRNdYVTXPw357CVf"),
+        organization_id=ShortUUID("Qhsh2FdDuRiwcdLxaBZGpi"),
         endpoint="url",
         bucket_name="name",
         access_key="access_key",
@@ -369,7 +372,7 @@ async def test_model_artifact(
     manifest_example: Manifest,
 ) -> AsyncGenerator[ModelArtifactCreate, None]:
     yield ModelArtifactCreate(
-        collection_id="TYV8Uq8E25miY6WfwJWHyi",
+        collection_id=ShortUUID("TYV8Uq8E25miY6WfwJWHyi"),
         file_name="model.dfs",
         model_name="Test Model",
         metrics={"accuracy": 0.95, "precision": 0.92},
@@ -406,7 +409,9 @@ async def create_organization_with_user(
         "Organization should not be None in create_organization_with_user fixture"
     )
 
-    member_orm = await repo.get_organization_member(created_organization.id, user.id)
+    member_orm = await repo.get_organization_member(
+        ShortUUID(created_organization.id), user.id
+    )
     member = member_orm.to_organization_member() if member_orm else None
 
     assert member is not None, (
@@ -416,7 +421,7 @@ async def create_organization_with_user(
 
     secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(
-            organization_id=created_organization.id,
+            organization_id=ShortUUID(created_organization.id),
             endpoint="s3",
             bucket_name="test-bucket",
         )
@@ -455,7 +460,7 @@ async def create_organization_with_members(
         member = await repo.create_organization_member(
             OrganizationMemberCreate(
                 user_id=user.id,
-                organization_id=data.organization.id,
+                organization_id=ShortUUID(data.organization.id),
                 role=OrgRole.MEMBER,
             )
         )
@@ -468,7 +473,7 @@ async def create_organization_with_members(
             CreateOrganizationInvite(
                 email=f"invited_{uuid.uuid4()}_@gmail.com",
                 role=OrgRole.MEMBER,
-                organization_id=data.organization.id,
+                organization_id=ShortUUID(data.organization.id),
                 invited_by=invited_by_user.id,
             )
         )
@@ -507,7 +512,7 @@ async def create_orbit(
 
     bucket_secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(
-            organization_id=organization.id,
+            organization_id=ShortUUID(organization.id),
             endpoint="s3",
             bucket_name="test-bucket",
         )
@@ -517,7 +522,7 @@ async def create_orbit(
     )
 
     orbit = await repo.create_orbit(
-        organization.id,
+        ShortUUID(organization.id),
         OrbitCreateIn(name="test orbit", bucket_secret_id=bucket_secret.id),
     )
     assert orbit is not None, "Orbit should not be None in create_orbit fixture"

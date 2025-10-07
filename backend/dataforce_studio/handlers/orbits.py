@@ -126,7 +126,7 @@ class OrbitHandler:
         secret = await self.__secret_repository.get_bucket_secret(
             orbit.bucket_secret_id
         )
-        if not secret or secret.organization_id != ShortUUID(organization_id).to_uuid():
+        if not secret or secret.organization_id != organization_id:
             raise NotFoundError("Bucket secret not found")
 
         if orbit.members:

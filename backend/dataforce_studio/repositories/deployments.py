@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from sqlalchemy import select
 
 from dataforce_studio.models import DeploymentOrm, SatelliteQueueOrm
@@ -20,12 +18,13 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         self, deployment: DeploymentCreate
     ) -> tuple[Deployment, SatelliteQueueTask]:
         async with self._get_session() as session:
-            db_dep = DeploymentOrm(**deployment.model_dump(mode="python"))
+            converted_data = self._convert_ids(deployment)
+            db_dep = DeploymentOrm(**converted_data)
             session.add(db_dep)
             await session.flush()
             task = SatelliteQueueOrm(
-                satellite_id=UUID(ShortUUID(deployment.satellite_id).to_uuid()),
-                orbit_id=UUID(ShortUUID(deployment.orbit_id).to_uuid()),
+                satellite_id=self._convert_shortuuid_value(deployment.satellite_id),
+                orbit_id=self._convert_shortuuid_value(deployment.orbit_id),
                 type=SatelliteTaskType.DEPLOY,
                 payload={"deployment_id": str(db_dep.id)},
             )

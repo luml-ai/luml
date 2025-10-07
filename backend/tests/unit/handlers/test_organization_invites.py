@@ -3,19 +3,19 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers import OrganizationHandler
+from dataforce_studio.handlers.organizations import OrganizationHandler
 from dataforce_studio.infra.exceptions import ApplicationError
 from dataforce_studio.models import OrganizationInviteOrm
-from dataforce_studio.schemas import (
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
-    CreateUser,
     OrganizationInvite,
     OrganizationMemberCreate,
     OrgRole,
     UserInvite,
-    UserOut,
 )
+from dataforce_studio.schemas.user import CreateUser, UserOut
 
 handler = OrganizationHandler()
 
@@ -70,7 +70,7 @@ async def test_send_invite(
     invite_data: CreateOrganizationInvite,
     test_user_out: UserOut,
 ) -> None:
-    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
+    invite_id = ShortUUID("MkLxxN2ZWHxW4VJWp8kk6w")
 
     invite = CreateOrganizationInviteIn(
         email=invite_data.email,
@@ -144,9 +144,9 @@ async def test_cancel_invite(
     mock_delete_organization_invite: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    invite_id = ShortUUID("MkLxxN2ZWHxW4VJWp8kk6w")
 
     mock_delete_organization_invite.return_value = None
     mock_get_organization_member_role.return_value = OrgRole.OWNER
@@ -189,21 +189,23 @@ async def test_accept_invite(
     mock_get_user_organizations_membership_count: AsyncMock,
     invite_accept_data: CreateOrganizationInvite,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    invite = OrganizationInviteOrm(**invite_accept_data.model_dump())
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    invite_data = invite_accept_data.model_dump()
+    invite_data["id"] = "12345678-1234-1234-1234-123456789abc"
+    invite = OrganizationInviteOrm(**invite_data)
 
     mock_get_invite.return_value = invite
     mock_get_organization_members_count.return_value = 0
     mock_get_user_organizations_membership_count.return_value = 0
     mock_get_organization_details.return_value = Mock(members_limit=50, total_members=0)
 
-    await handler.accept_invite(invite.id, user_id)
-    mock_get_invite.assert_awaited_once_with(invite.id)
+    await handler.accept_invite(ShortUUID(invite.id), user_id)
+    mock_get_invite.assert_awaited_once_with(ShortUUID(invite.id))
     mock_get_organization_details.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
         OrganizationMemberCreate(
             user_id=user_id,
-            organization_id=invite.organization_id,
+            organization_id=ShortUUID(invite.organization_id),
             role=OrgRole(invite.role),
         )
     )
@@ -220,7 +222,7 @@ async def test_accept_invite(
 async def test_reject_invite(
     mock_delete_organization_invite: AsyncMock,
 ) -> None:
-    invite_id = "MkLxxN2ZWHxW4VJWp8kk6w"
+    invite_id = ShortUUID("MkLxxN2ZWHxW4VJWp8kk6w")
 
     mock_delete_organization_invite.return_value = None
 
@@ -242,8 +244,8 @@ async def test_get_organization_invites(
     mock_get_organization_member_role: AsyncMock,
     invite_get_data: OrganizationInvite,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
     expected = [invite_get_data]
 
     mock_get_organization_invites.return_value = expected

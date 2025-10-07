@@ -4,8 +4,9 @@ from typing import Any
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from dataforce_studio.repositories import SatelliteRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.satellites import SatelliteRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreate,
     SatelliteTaskStatus,
@@ -21,7 +22,7 @@ async def test_create_satellite(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
@@ -41,11 +42,11 @@ async def test_get_satellite(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
-    fetched_satellite = await repo.get_satellite(satellite.id)
+    fetched_satellite = await repo.get_satellite(ShortUUID(satellite.id))
 
     assert fetched_satellite
     assert fetched_satellite.id == satellite.id
@@ -58,7 +59,9 @@ async def test_get_satellite_not_found(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    fetched_satellite = await repo.get_satellite("12345678-1234-1234-1234-123456789abc")
+    fetched_satellite = await repo.get_satellite(
+        ShortUUID("12345678-1234-1234-1234-123456789abc")
+    )
 
     assert fetched_satellite is None
 
@@ -72,7 +75,7 @@ async def test_get_satellite_get_satellite_by_hash(
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
@@ -89,11 +92,11 @@ async def test_list_satellites(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
-    fetched_satellites = await repo.list_satellites(orbit.id)
+    fetched_satellites = await repo.list_satellites(ShortUUID(orbit.id))
 
     assert len(fetched_satellites) == 1
     assert fetched_satellites[0].id == satellite.id
@@ -106,7 +109,7 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
@@ -115,7 +118,9 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
         SatelliteCapability.DEPLOY: {"config": "value"}
     }
 
-    paired_satellite = await repo.pair_satellite(satellite.id, base_url, capabilities)
+    paired_satellite = await repo.pair_satellite(
+        ShortUUID(satellite.id), base_url, capabilities
+    )
 
     assert paired_satellite
     assert paired_satellite.id == satellite.id
@@ -131,10 +136,10 @@ async def test_list_tasks(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
-    all_tasks = await repo.list_tasks(satellite.id)
+    all_tasks = await repo.list_tasks(ShortUUID(satellite.id))
 
     assert len(all_tasks) == 1
     assert all_tasks[0].id == task.id
@@ -150,10 +155,12 @@ async def test_list_tasks_with_status(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
-    pending_tasks = await repo.list_tasks(satellite.id, SatelliteTaskStatus.PENDING)
+    pending_tasks = await repo.list_tasks(
+        ShortUUID(satellite.id), SatelliteTaskStatus.PENDING
+    )
 
     assert len(pending_tasks) == 1
 
@@ -163,7 +170,7 @@ async def test_list_tasks_empty(create_database_and_apply_migrations: str) -> No
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = SatelliteRepository(engine)
 
-    tasks = await repo.list_tasks("12345678-1234-1234-1234-123456789def")
+    tasks = await repo.list_tasks(ShortUUID("12345678-1234-1234-1234-123456789def"))
 
     assert len(tasks) == 0
 
@@ -175,12 +182,15 @@ async def test_update_task_status(create_orbit: OrbitFixtureData) -> None:
     repo = SatelliteRepository(engine)
 
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, initial_task = await repo.create_satellite(satellite_data)
 
     updated_task = await repo.update_task_status(
-        satellite.id, initial_task.id, SatelliteTaskStatus.DONE, {"status": 200}
+        ShortUUID(satellite.id),
+        ShortUUID(initial_task.id),
+        SatelliteTaskStatus.DONE,
+        {"status": 200},
     )
 
     assert updated_task
@@ -195,15 +205,15 @@ async def test_touch_last_seen(create_orbit: OrbitFixtureData) -> None:
 
     repo = SatelliteRepository(engine)
     satellite_data = SatelliteCreate(
-        orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
+        orbit_id=ShortUUID(orbit.id), api_key_hash=str(uuid.uuid4()), name="test"
     )
     satellite, task = await repo.create_satellite(satellite_data)
 
     original_last_seen = satellite.last_seen_at
     assert original_last_seen is None
 
-    await repo.touch_last_seen(satellite.id)
-    seen_satellite = await repo.get_satellite(satellite.id)
+    await repo.touch_last_seen(ShortUUID(satellite.id))
+    seen_satellite = await repo.get_satellite(ShortUUID(satellite.id))
 
     assert seen_satellite
     assert seen_satellite.last_seen_at is not None

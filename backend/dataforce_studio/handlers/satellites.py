@@ -77,7 +77,7 @@ class SatelliteHandler:
         )
         satellite = await self.__sat_repo.get_satellite(satellite_id)
 
-        if not satellite or satellite.orbit_id != ShortUUID(orbit_id).to_uuid():
+        if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
         return satellite
 

@@ -2,19 +2,17 @@ import uuid
 
 import pytest
 
-from dataforce_studio.repositories import (
-    DeploymentRepository,
-    ModelArtifactRepository,
-    SatelliteRepository,
-)
-from dataforce_studio.schemas import (
-    DeploymentCreate,
-    DeploymentStatus,
+from dataforce_studio.repositories.deployments import DeploymentRepository
+from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
+from dataforce_studio.repositories.satellites import SatelliteRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.deployment import DeploymentCreate, DeploymentStatus
+from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactCreate,
     ModelArtifactStatus,
     ModelArtifactUpdate,
-    SatelliteCreate,
 )
+from dataforce_studio.schemas.satellite import SatelliteCreate
 from tests.conftest import CollectionFixtureData
 
 
@@ -82,7 +80,7 @@ async def test_get_collection_model_artifact(
     created_model1 = await repo.create_model_artifact(model_data1)
     created_model2 = await repo.create_model_artifact(model_data2)
 
-    models = await repo.get_collection_model_artifact(collection.id)
+    models = await repo.get_collection_model_artifact(ShortUUID(collection.id))
 
     assert len(models) == 2
     model_ids = [m.id for m in models]
@@ -98,14 +96,14 @@ async def test_get_collection_model_artifacts_count(
     engine, collection = data.engine, data.collection
     repo = ModelArtifactRepository(engine)
 
-    count = await repo.get_collection_model_artifacts_count(collection.id)
+    count = await repo.get_collection_model_artifacts_count(ShortUUID(collection.id))
     assert count == 0
 
     model = test_model_artifact.model_copy()
     model.collection_id = collection.id
     await repo.create_model_artifact(model)
 
-    count = await repo.get_collection_model_artifacts_count(collection.id)
+    count = await repo.get_collection_model_artifacts_count(ShortUUID(collection.id))
     assert count == 1
 
 
@@ -124,7 +122,7 @@ async def test_update_status(
     assert created_model.status == ModelArtifactStatus.PENDING_UPLOAD
 
     updated_model = await repo.update_status(
-        created_model.id, ModelArtifactStatus.UPLOADED
+        ShortUUID(created_model.id), ModelArtifactStatus.UPLOADED
     )
 
     assert updated_model
@@ -149,7 +147,7 @@ async def test_update_model_artifact(
         id=created_model.id, model_name="Updated Model Name", tags=["updated"]
     )
     updated_model = await repo.update_model_artifact(
-        created_model.id, collection.id, update_data
+        ShortUUID(created_model.id), ShortUUID(collection.id), update_data
     )
 
     assert updated_model
@@ -207,11 +205,7 @@ async def test_delete_model_artifact_with_deployment_constraint(
     )
     await deployment_repo.create_deployment(deployment_data)
 
-    # TODO: Fix foreign key constraint - currently not working after UUID migration
-    # For now, just test that the model artifact can be deleted
-    # In the future, this should raise DatabaseConstraintError
     await repo.delete_model_artifact(created_model.id)
 
-    # Verify the model artifact was deleted
     deleted_model = await repo.get_model_artifact(created_model.id)
     assert deleted_model is None

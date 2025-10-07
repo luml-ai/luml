@@ -6,8 +6,9 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from dataforce_studio.repositories import UserRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
     UpdateUser,
@@ -54,9 +55,11 @@ async def test_create_user_and_organization(
     created_user = await repo.create_user(user)
     fetched_user = await repo.get_user(user.email)
     assert fetched_user
-    fetched_org = (await repo.get_user_organizations(fetched_user.id))[0]
+    fetched_org = (await repo.get_user_organizations(ShortUUID(fetched_user.id)))[0]
     assert fetched_org
-    fetched_org_member = (await repo.get_organization_users(fetched_org.id))[0]
+    fetched_org_member = (await repo.get_organization_users(ShortUUID(fetched_org.id)))[
+        0
+    ]
 
     assert fetched_org.name == "Test's organization"
     assert fetched_org_member

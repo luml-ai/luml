@@ -7,6 +7,7 @@ from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.handlers.satellites import SatelliteHandler
 from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.models import AuthSatellite, AuthUser
+from dataforce_studio.schemas.base import ShortUUID
 from dataforce_studio.settings import config
 
 type AuthPrincipal = AuthUser | AuthSatellite
@@ -27,7 +28,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         user = await self.api_key_handler.authenticate_api_key(token)
         if user:
             auth_user = AuthUser(
-                user_id=user.id,
+                user_id=ShortUUID(user.id),
                 email=user.email,
                 full_name=user.full_name,
                 disabled=user.disabled,
@@ -54,7 +55,7 @@ class JWTAuthenticationBackend(AuthenticationBackend):
             email = self.auth_handler._verify_token(token)
             user = await self.auth_handler.handle_get_current_user(email)
             auth_user = AuthUser(
-                user_id=user.id,
+                user_id=ShortUUID(user.id),
                 email=user.email,
                 full_name=user.full_name,
                 disabled=user.disabled,

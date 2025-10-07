@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers import ModelArtifactHandler
+from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
 from dataforce_studio.infra.exceptions import (
     ApplicationError,
     BucketSecretNotFoundError,
@@ -12,19 +12,18 @@ from dataforce_studio.infra.exceptions import (
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.schemas import (
-    Action,
-    BucketSecret,
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.bucket_secrets import BucketSecret
+from dataforce_studio.schemas.model_artifacts import (
     Manifest,
     ModelArtifact,
     ModelArtifactIn,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
-    PartDetails,
-    Resource,
-    UploadDetails,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.schemas.s3 import PartDetails, UploadDetails
 
 handler = ModelArtifactHandler()
 
@@ -53,7 +52,7 @@ async def test_get_secret_or_raise(
 )
 @pytest.mark.asyncio
 async def test_get_secret_or_raise_not_found(mock_get_bucket_secret: AsyncMock) -> None:
-    secret_id = "6JCyzSABJtgY5q4WwkJ6Yz"
+    secret_id = ShortUUID("6JCyzSABJtgY5q4WwkJ6Yz")
     mock_get_bucket_secret.return_value = None
 
     with pytest.raises(BucketSecretNotFoundError) as error:
@@ -75,9 +74,9 @@ async def test_get_secret_or_raise_not_found(mock_get_bucket_secret: AsyncMock) 
 async def test_check_orbit_and_collection_access(
     mock_get_orbit_simple: AsyncMock, mock_get_collection: AsyncMock
 ) -> None:
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
     orbit = Mock(organization_id=organization_id)
     collection = Mock(orbit_id=orbit_id)
 
@@ -101,9 +100,9 @@ async def test_check_orbit_and_collection_access(
 async def test_check_orbit_and_collection_access_orbit_not_found(
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     mock_get_orbit_simple.return_value = None
 
@@ -128,9 +127,9 @@ async def test_check_orbit_and_collection_access_orbit_not_found(
 async def test_check_orbit_and_collection_access_collection_not_found(
     mock_get_orbit_simple: AsyncMock, mock_get_collection: AsyncMock
 ) -> None:
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
     orbit = Mock(organization_id=organization_id)
 
     mock_get_orbit_simple.return_value = orbit
@@ -165,11 +164,11 @@ async def test_get_collection_model_artifact(
     mock_get_collection_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     expected = [
         ModelArtifact(
@@ -232,11 +231,11 @@ async def test_create_model_artifact(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -340,11 +339,11 @@ async def test_get_model_artifact(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -421,11 +420,11 @@ async def test_get_model_artifact_not_found(
     mock_get_collection: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     mock_get_model_artifact.return_value = None
     mock_get_orbit_simple.return_value = Mock(
@@ -482,11 +481,11 @@ async def test_request_download_url(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -571,11 +570,11 @@ async def test_request_delete_url(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -652,11 +651,11 @@ async def test_confirm_deletion_pending(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -721,11 +720,11 @@ async def test_confirm_deletion_not_pending(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -795,11 +794,11 @@ async def test_update_model_artifact(
     mock_check_orbit_action_access: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -892,11 +891,11 @@ async def test_update_model_artifact_not_found(
     mock_get_model_artifact: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     mock_update_model_artifact.return_value = None
     mock_get_orbit_simple.return_value = Mock(
@@ -931,7 +930,7 @@ async def test_update_model_artifact_not_found(
 async def test_get_s3_service(
     mock_get_bucket_secret: AsyncMock, mock_s3_service: Mock, test_bucket: BucketSecret
 ) -> None:
-    secret_id = "6JCyzSABJtgY5q4WwkJ6Yz"
+    secret_id = ShortUUID("6JCyzSABJtgY5q4WwkJ6Yz")
     mock_get_bucket_secret.return_value = test_bucket
 
     result = await handler._get_s3_service(secret_id)
@@ -965,11 +964,11 @@ async def test_update_model_artifact_invalid_status_transition(
     mock_update_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     existing_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -1035,11 +1034,11 @@ async def test_update_model_artifact_update_failed(
     mock_update_model_artifact: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     existing_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -1100,11 +1099,11 @@ async def test_request_download_url_model_artifact_not_found(
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(id=orbit_id),
@@ -1140,11 +1139,11 @@ async def test_request_delete_url_model_artifact_not_found(
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(id=orbit_id),
@@ -1187,11 +1186,11 @@ async def test_request_delete_url_orbit_not_found(
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
-    model_artifact_id = "FugvnKxyMVwEX3Ho7c5Z7o"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
+    model_artifact_id = ShortUUID("FugvnKxyMVwEX3Ho7c5Z7o")
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,

@@ -1,3 +1,4 @@
+from enum import Enum
 from typing import Any, Union
 from uuid import UUID
 
@@ -56,6 +57,10 @@ class ShortUUIDMeta(type):
             if isinstance(value, UUID):
                 value = str(value)
             if isinstance(value, str):
+                if isinstance(value, Enum):
+                    return False
+                if len(value) != 22:
+                    return False
                 shortuuid.decode(value)
                 return True
             return False
@@ -84,9 +89,9 @@ class ShortUUID(metaclass=ShortUUIDMeta):
             self._value = value._value
         elif isinstance(value, str):
             if self._is_valid_short_uuid(value):
-                self._value = value  # Короткий UUID - сохраняем как есть
+                self._value = value
             elif self._is_valid_uuid(value):
-                self._value = shortuuid.encode(UUID(value))  # Полный UUID -> короткий
+                self._value = shortuuid.encode(UUID(value))
             else:
                 raise ValueError(f"Invalid UUID format: {value}")
         elif isinstance(value, UUID):
@@ -122,6 +127,13 @@ class ShortUUID(metaclass=ShortUUIDMeta):
     def to_uuid(self) -> str:
         return self._short_to_uuid(self._value)
 
+    def to_uuid_obj(self) -> UUID:
+        if isinstance(self._value, UUID):
+            return self._value
+        if isinstance(self._value, str) and ShortUUID._is_valid_uuid(self._value):
+            return UUID(self._value)
+        return shortuuid.decode(str(self._value))
+
     @staticmethod
     def _uuid_to_short(full_uuid: Union[str, UUID, "ShortUUID"]) -> str:
         if type(full_uuid) is ShortUUID:
@@ -146,6 +158,10 @@ class ShortUUID(metaclass=ShortUUIDMeta):
             if isinstance(value, UUID):
                 value = str(value)
             if isinstance(value, str):
+                if isinstance(value, Enum):
+                    return False
+                if len(value) != 22:
+                    return False
                 shortuuid.decode(value)
                 return True
             return False

@@ -2,14 +2,15 @@ import uuid
 
 import pytest
 
-from dataforce_studio.repositories import DeploymentRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.deployments import DeploymentRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.deployment import (
     DeploymentCreate,
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
-    SatelliteTaskType,
 )
+from dataforce_studio.schemas.satellite import SatelliteTaskType
 from tests.conftest import SatelliteFixtureData
 
 
@@ -216,12 +217,12 @@ async def test_update_deployment_details(
     details = DeploymentDetailsUpdateIn(
         name="my-deployment",
         description="some desc",
-        dynamic_attributes_secrets={"token": "f9vuZHPxtVaQeAeCZYjdDv"},
+        dynamic_attributes_secrets={"token": str(ShortUUID("f9vuZHPxtVaQeAeCZYjdDv"))},
         tags=["one", "two"],
     )
 
     updated = await repo.update_deployment_details(
-        orbit.id, created_deployment.id, details
+        ShortUUID(orbit.id), ShortUUID(created_deployment.id), details
     )
 
     assert updated is not None

@@ -104,6 +104,6 @@ class OrbitSecretHandler:
         self, orbit_id: ShortUUID, secret_id: ShortUUID
     ) -> OrbitSecret:
         secret = await self.__secret_repository.get_orbit_secret(secret_id)
-        if not secret or secret.orbit_id != ShortUUID(orbit_id).to_uuid():
+        if not secret or secret.orbit_id != orbit_id:
             raise NotFoundError("Orbit secret not found")
         return secret

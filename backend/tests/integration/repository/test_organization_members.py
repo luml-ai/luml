@@ -2,13 +2,14 @@ import uuid
 
 import pytest
 
-from dataforce_studio.repositories import UserRepository
-from dataforce_studio.schemas import (
-    CreateUser,
+from dataforce_studio.repositories.users import UserRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.organization import (
     OrganizationMemberCreate,
     OrgRole,
     UpdateOrganizationMember,
 )
+from dataforce_studio.schemas.user import CreateUser
 from tests.conftest import OrganizationFixtureData, OrganizationWithMembersFixtureData
 
 
@@ -24,13 +25,13 @@ async def test_create_organization_member(
     created_member = await repo.create_organization_member(
         OrganizationMemberCreate(
             user_id=user.id,
-            organization_id=created_organization.id,
+            organization_id=ShortUUID(created_organization.id),
             role=OrgRole.MEMBER,
         )
     )
 
     assert created_member.id
-    assert created_member.organization_id == str(created_organization.id)
+    assert created_member.organization_id == created_organization.id
     assert created_member.user.id == user.id
     assert created_member.role == OrgRole.MEMBER
 
@@ -74,7 +75,7 @@ async def test_get_organization_members_count(
     repo = UserRepository(data.engine)
     organization, members = (data.organization, data.members)
 
-    count = await repo.get_organization_members_count(organization.id)
+    count = await repo.get_organization_members_count(ShortUUID(organization.id))
 
     assert len(members) == count
 
@@ -87,7 +88,7 @@ async def test_get_organization_members(
     repo = UserRepository(data.engine)
     organization, members = (data.organization, data.members)
 
-    db_members = await repo.get_organization_members(organization.id)
+    db_members = await repo.get_organization_members(ShortUUID(organization.id))
 
     assert db_members
     assert len(members) == len(db_members)

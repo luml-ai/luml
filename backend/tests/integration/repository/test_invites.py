@@ -3,8 +3,10 @@ import uuid
 import pytest
 
 from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.repositories import InviteRepository
-from dataforce_studio.schemas import CreateOrganizationInvite, OrgRole, User
+from dataforce_studio.repositories.invites import InviteRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
+from dataforce_studio.schemas.user import User
 from tests.conftest import OrganizationFixtureData
 
 
@@ -14,8 +16,8 @@ def get_invite_obj(
     return CreateOrganizationInvite(
         email=f"invite_{uuid.uuid4()}@gmail.com",
         role=OrgRole.MEMBER,
-        organization_id=organization.id,
-        invited_by=user.id,
+        organization_id=ShortUUID(organization.id),
+        invited_by=ShortUUID(user.id),
     )
 
 
@@ -32,7 +34,7 @@ async def test_create_organization_invite(
     created_invite = await repo.create_organization_invite(invite)
 
     assert created_invite.email == invite.email
-    assert created_invite.organization_id == invite.organization_id
+    assert ShortUUID(created_invite.organization_id) == invite.organization_id
 
 
 @pytest.mark.asyncio
@@ -87,7 +89,7 @@ async def test_get_invite_where(
     for _ in range(4):
         await repo.create_organization_invite(get_invite_obj(organization, user))
 
-    invites = await repo.get_invites_by_organization_id(organization.id)
+    invites = await repo.get_invites_by_organization_id(ShortUUID(organization.id))
 
     assert invites
     assert isinstance(invites, list)
@@ -106,8 +108,8 @@ async def test_delete_invite_where(
     for _ in range(4):
         await repo.create_organization_invite(get_invite_obj(organization, user))
 
-    await repo.delete_all_organization_invites(organization.id)
+    await repo.delete_all_organization_invites(ShortUUID(organization.id))
 
-    invites = await repo.get_invites_by_organization_id(organization.id)
+    invites = await repo.get_invites_by_organization_id(ShortUUID(organization.id))
 
     assert len(invites) == 0

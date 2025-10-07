@@ -3,21 +3,21 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from dataforce_studio.handlers import DeploymentHandler
+from dataforce_studio.handlers.deployments import DeploymentHandler
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
 )
-from dataforce_studio.schemas import (
-    Action,
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.deployment import (
     Deployment,
     DeploymentCreate,
     DeploymentCreateIn,
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
-    Resource,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 
 handler = DeploymentHandler()
 
@@ -60,12 +60,12 @@ async def test_create_deployment(
     mock_get_public_user_by_id: AsyncMock,
     mock_create_deployment: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
-    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
-    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("GK3UQatFM6uAZ5qbEqBbay")
+    satellite_id = ShortUUID("ScFuV4SbmateuvjTDbg6wP")
+    model_artifact_id = ShortUUID("UuV2HRs3YVjSZ8neL26Qqr")
     user_name = "User Full Name"
 
     deployment_create_data_in = DeploymentCreateIn(
@@ -83,7 +83,7 @@ async def test_create_deployment(
         created_by_user=user_name,
     )
     expected = Deployment(
-        id="ademTGgGq5oBtDi6tdTR8f",
+        id=ShortUUID("ademTGgGq5oBtDi6tdTR8f"),
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
@@ -142,14 +142,14 @@ async def test_create_deployment_orbit_not_found(
     mock_check_orbit_action_access: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
-        satellite_id="cfXC5ZYxt4RDGfzq2DsYj4",
-        model_artifact_id="kLmDeyGeuw7TAubSSqqqyf",
+        satellite_id=ShortUUID("cfXC5ZYxt4RDGfzq2DsYj4"),
+        model_artifact_id=ShortUUID("kLmDeyGeuw7TAubSSqqqyf"),
         tags=["tag"],
     )
 
@@ -189,15 +189,15 @@ async def test_create_deployment_satellite_not_found(
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    satellite_id = ShortUUID("ScFuV4SbmateuvjTDbg6wP")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id="QHeaAJwEdnD7Kma8K8Zhzd",
+        model_artifact_id=ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd"),
         tags=["tag"],
     )
 
@@ -244,11 +244,11 @@ async def test_create_deployment_model_artifact_not_found(
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
-    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    satellite_id = ShortUUID("ScFuV4SbmateuvjTDbg6wP")
+    model_artifact_id = ShortUUID("UuV2HRs3YVjSZ8neL26Qqr")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
@@ -269,9 +269,7 @@ async def test_create_deployment_model_artifact_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(
-        "97352d97-df24-467f-b953-073c91e6965a"
-    )
+    mock_get_model_artifact.assert_awaited_once_with(ShortUUID(model_artifact_id))
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
         orbit_id,
@@ -309,12 +307,12 @@ async def test_create_deployment_collection_not_found(
     mock_get_model_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
-    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
-    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("GK3UQatFM6uAZ5qbEqBbay")
+    satellite_id = ShortUUID("ScFuV4SbmateuvjTDbg6wP")
+    model_artifact_id = ShortUUID("UuV2HRs3YVjSZ8neL26Qqr")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
@@ -335,9 +333,7 @@ async def test_create_deployment_collection_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(
-        "97352d97-df24-467f-b953-073c91e6965a"
-    )
+    mock_get_model_artifact.assert_awaited_once_with(ShortUUID(model_artifact_id))
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
         organization_id,
@@ -381,12 +377,12 @@ async def test_create_deployment_user_not_found(
     mock_get_collection: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    collection_id = "GK3UQatFM6uAZ5qbEqBbay"
-    satellite_id = "ScFuV4SbmateuvjTDbg6wP"
-    model_artifact_id = "UuV2HRs3YVjSZ8neL26Qqr"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    collection_id = ShortUUID("GK3UQatFM6uAZ5qbEqBbay")
+    satellite_id = ShortUUID("ScFuV4SbmateuvjTDbg6wP")
+    model_artifact_id = ShortUUID("UuV2HRs3YVjSZ8neL26Qqr")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
@@ -409,9 +405,7 @@ async def test_create_deployment_user_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(
-        "97352d97-df24-467f-b953-073c91e6965a"
-    )
+    mock_get_model_artifact.assert_awaited_once_with(ShortUUID(model_artifact_id))
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
@@ -436,13 +430,13 @@ async def test_list_deployments(
     mock_check_orbit_action_access: AsyncMock,
     mock_list_deployments: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     expected = [
         Deployment(
@@ -485,13 +479,13 @@ async def test_get_deployment(
     mock_check_orbit_action_access: AsyncMock,
     mock_get_deployment: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     expected = Deployment(
         id=deployment_id,
@@ -535,10 +529,10 @@ async def test_get_deployment_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_deployment: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "c4C9eUmeLqmiC4fp3RkRab"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("c4C9eUmeLqmiC4fp3RkRab")
 
     mock_check_permissions.return_value = None
     mock_get_deployment.return_value = None
@@ -560,11 +554,11 @@ async def test_get_deployment_not_found(
 async def test_list_worker_deployments(
     mock_list_satellite_deployments: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     expected_deployments = [
         Deployment(
@@ -604,18 +598,18 @@ async def test_update_deployment_details(
     mock_check_orbit_action_access: AsyncMock,
     mock_update_deployment_details: AsyncMock,
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     details = DeploymentDetailsUpdateIn(
         name="new-name",
         description="desc",
-        dynamic_attributes_secrets={"key": "xyz789abc"},
+        dynamic_attributes_secrets={"key": ShortUUID("mVE7ff8LgqAa3svKmdjCt6")},
         tags=["a", "b"],
     )
 
@@ -664,13 +658,13 @@ async def test_update_deployment_details(
 async def test_request_deployment_deletion(
     mock_check_orbit_action_access: AsyncMock, mock_request_delete: AsyncMock
 ) -> None:
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     expected = Deployment(
         id=deployment_id,
@@ -708,11 +702,11 @@ async def test_request_deployment_deletion(
 async def test_update_worker_deployment_status(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     status = DeploymentStatus.DELETED
 
@@ -749,11 +743,11 @@ async def test_update_worker_deployment_status(
 async def test_update_worker_deployment(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
-    model_id = "WLkE88PLapVKEem6Rpt5MF"
-    collection_id = "mVE7ff8LgqAa3svKmdjCt6"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
+    model_id = ShortUUID("WLkE88PLapVKEem6Rpt5MF")
+    collection_id = ShortUUID("mVE7ff8LgqAa3svKmdjCt6")
 
     inference_url = "https://inference.example.com"
 
@@ -800,8 +794,8 @@ async def test_update_worker_deployment(
 async def test_update_worker_deployment_not_found(
     mock_update_deployment: AsyncMock,
 ) -> None:
-    deployment_id = "QHeaAJwEdnD7Kma8K8Zhzd"
-    satellite_id = "i9AZcCXomFAnUsstWrYcUG"
+    deployment_id = ShortUUID("QHeaAJwEdnD7Kma8K8Zhzd")
+    satellite_id = ShortUUID("i9AZcCXomFAnUsstWrYcUG")
 
     inference_url = "https://inference.example.com"
     update_deployment_data = DeploymentUpdate(
@@ -841,10 +835,10 @@ async def test_verify_user_inference_access(
     mock_get_orbit_by_id: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
     api_key = "test_api_key"
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
 
     mock_authenticate_api_key.return_value = Mock(id=user_id)
     mock_get_orbit_by_id.return_value = Mock(
@@ -869,7 +863,7 @@ async def test_verify_user_inference_access(
 async def test_verify_user_inference_access_invalid_api_key(
     mock_authenticate_api_key: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
     api_key = "invalid_api_key"
 
     mock_authenticate_api_key.return_value = None
@@ -893,9 +887,9 @@ async def test_verify_user_inference_access_orbit_not_found(
     mock_authenticate_api_key: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
     api_key = "test_api_key"
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
 
     mock_authenticate_api_key.return_value = Mock(id=user_id)
     mock_get_orbit_by_id.return_value = None
@@ -925,10 +919,10 @@ async def test_verify_user_inference_access_insufficient_permissions(
     mock_get_orbit_by_id: AsyncMock,
     mock_check_orbit_action_access: AsyncMock,
 ) -> None:
-    orbit_id = "SKY7Lqo6oiewTcU8DKFJmY"
+    orbit_id = ShortUUID("SKY7Lqo6oiewTcU8DKFJmY")
     api_key = "test_api_key"
-    user_id = "hHXb8bTcAvoY5gMtzj3zeW"
-    organization_id = "UoAqoUkAaZQsra6KGoDMmy"
+    user_id = ShortUUID("hHXb8bTcAvoY5gMtzj3zeW")
+    organization_id = ShortUUID("UoAqoUkAaZQsra6KGoDMmy")
 
     mock_user = Mock(id=user_id)
     mock_orbit = Mock(id=orbit_id, organization_id=organization_id)

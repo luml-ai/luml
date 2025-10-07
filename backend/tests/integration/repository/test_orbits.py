@@ -1,8 +1,10 @@
 import pytest
 
-from dataforce_studio.repositories import BucketSecretRepository, OrbitRepository
-from dataforce_studio.schemas import (
-    BucketSecretCreate,
+from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
+from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.bucket_secrets import BucketSecretCreate
+from dataforce_studio.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
@@ -32,7 +34,7 @@ async def test_create_orbit(
     repo = OrbitRepository(engine)
 
     orbit = OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id)
-    created_orbit = await repo.create_orbit(organization.id, orbit)
+    created_orbit = await repo.create_orbit(ShortUUID(organization.id), orbit)
 
     assert created_orbit
     assert created_orbit.id
@@ -52,7 +54,7 @@ async def test_update_orbit(
     repo = OrbitRepository(engine)
 
     orbit = OrbitCreateIn(name="test orbit", bucket_secret_id=secret.id)
-    created_orbit = await repo.create_orbit(organization.id, orbit)
+    created_orbit = await repo.create_orbit(ShortUUID(organization.id), orbit)
 
     assert created_orbit
 
@@ -80,13 +82,16 @@ async def test_attach_bucket_secret(
     secret_repo = BucketSecretRepository(engine)
 
     orbit = await repo.create_orbit(
-        organization.id, OrbitCreateIn(name="test", bucket_secret_id=secret.id)
+        ShortUUID(organization.id),
+        OrbitCreateIn(name="test", bucket_secret_id=secret.id),
     )
     assert orbit
 
     secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(
-            organization_id=organization.id, endpoint="s3", bucket_name="test-bucket"
+            organization_id=ShortUUID(organization.id),
+            endpoint="s3",
+            bucket_name="test-bucket",
         )
     )
     assert secret
@@ -140,11 +145,11 @@ async def test_get_organization_orbits(
 
     for i in range(5):
         await repo.create_orbit(
-            organization.id,
+            ShortUUID(organization.id),
             OrbitCreateIn(name=f"orbit #{i}", bucket_secret_id=secret.id),
         )
 
-    orbits = await repo.get_organization_orbits(organization.id)
+    orbits = await repo.get_organization_orbits(ShortUUID(organization.id))
 
     assert orbits
     assert isinstance(orbits, list)

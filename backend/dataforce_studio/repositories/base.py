@@ -27,6 +27,10 @@ class CrudMixin:
             return value.to_uuid()
         if isinstance(value, str) and ShortUUID._is_valid_short_uuid(value):
             return ShortUUID(value).to_uuid()
+        if isinstance(value, dict):
+            return {k: CrudMixin._convert_shortuuid_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [CrudMixin._convert_shortuuid_value(item) for item in value]
         return value
 
     def _convert_ids(self, model_data: TPydantic) -> dict[str, Any]:  # noqa: ANN401
@@ -89,7 +93,10 @@ class CrudMixin:
             return db_obj
 
         for field, value in fields_to_update.items():
-            setattr(db_obj, field, self._convert_shortuuid_value(value))
+            if type(value) is ShortUUID:
+                setattr(db_obj, field, self._convert_shortuuid_value(value))
+            else:
+                setattr(db_obj, field, value)
 
         await session.commit()
         await session.refresh(db_obj)

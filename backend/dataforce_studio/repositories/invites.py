@@ -31,7 +31,8 @@ class InviteRepository(RepositoryBase, CrudMixin):
             invite = await self.get_model_where(
                 session,
                 OrganizationInviteOrm,
-                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
                 OrganizationInviteOrm.email == email,
                 options=[
                     joinedload(OrganizationInviteOrm.invited_by_user),
@@ -47,7 +48,8 @@ class InviteRepository(RepositoryBase, CrudMixin):
             invites = await self.get_models_where(
                 session,
                 OrganizationInviteOrm,
-                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
                 options=[
                     joinedload(OrganizationInviteOrm.invited_by_user),
                     joinedload(OrganizationInviteOrm.organization),
@@ -88,7 +90,8 @@ class InviteRepository(RepositoryBase, CrudMixin):
             return await self.delete_models_where(
                 session,
                 OrganizationInviteOrm,
-                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
                 OrganizationInviteOrm.email == email,
             )
 
@@ -97,5 +100,6 @@ class InviteRepository(RepositoryBase, CrudMixin):
             return await self.delete_models_where(
                 session,
                 OrganizationInviteOrm,
-                OrganizationInviteOrm.organization_id == organization_id,
+                OrganizationInviteOrm.organization_id
+                == ShortUUID(organization_id).to_uuid(),
             )

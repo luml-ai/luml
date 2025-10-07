@@ -1,7 +1,8 @@
 import pytest
 
-from dataforce_studio.repositories import CollectionRepository
-from dataforce_studio.schemas import (
+from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionType,
@@ -17,7 +18,7 @@ async def test_create_collection(create_orbit: OrbitFixtureData) -> None:
     repo = CollectionRepository(engine)
 
     collection = CollectionCreate(
-        orbit_id=orbit.id,
+        orbit_id=ShortUUID(orbit.id),
         description="desc",
         name="model-1",
         collection_type=CollectionType.MODEL,
@@ -35,7 +36,7 @@ async def test_get_collection(create_collection: CollectionFixtureData) -> None:
     engine, collection = data.engine, data.collection
     repo = CollectionRepository(engine)
 
-    fetched_collection = await repo.get_collection(collection.id)
+    fetched_collection = await repo.get_collection(ShortUUID(collection.id))
 
     assert fetched_collection
     assert isinstance(fetched_collection, Collection)
@@ -97,10 +98,10 @@ async def test_delete_collection(create_collection: CollectionFixtureData) -> No
     engine, collection = data.engine, data.collection
     repo = CollectionRepository(engine)
 
-    fetched = await repo.get_collection(collection.id)
+    fetched = await repo.get_collection(ShortUUID(collection.id))
     assert fetched is not None
 
-    await repo.delete_collection(collection.id)
+    await repo.delete_collection(ShortUUID(collection.id))
 
-    fetched_after_delete = await repo.get_collection(collection.id)
+    fetched_after_delete = await repo.get_collection(ShortUUID(collection.id))
     assert fetched_after_delete is None

@@ -2,9 +2,10 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from dataforce_studio.handlers import APIKeyHandler
+from dataforce_studio.handlers.api_keys import APIKeyHandler
 from dataforce_studio.infra.exceptions import UserAPIKeyCreateError
-from dataforce_studio.schemas import APIKeyCreateOut, UserOut
+from dataforce_studio.schemas.base import ShortUUID
+from dataforce_studio.schemas.user import APIKeyCreateOut, UserOut
 
 handler = APIKeyHandler()
 
@@ -17,7 +18,7 @@ handler = APIKeyHandler()
 async def test_create_user_api_key(
     mock_create_user_api_key: AsyncMock,
 ) -> None:
-    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    user_id = ShortUUID("cLZHBYAXuzDCWTTQ9ouoXa")
     mock_create_user_api_key.return_value = True
 
     result = await handler.create_user_api_key(user_id)
@@ -36,7 +37,7 @@ async def test_create_user_api_key(
 async def test_create_user_api_key_failed(
     mock_create_user_api_key: AsyncMock,
 ) -> None:
-    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    user_id = ShortUUID("cLZHBYAXuzDCWTTQ9ouoXa")
     mock_create_user_api_key.return_value = False
 
     with pytest.raises(UserAPIKeyCreateError):
@@ -52,7 +53,7 @@ async def test_authenticate_api_key(
     mock_get_user_by_api_key_hash: AsyncMock,
 ) -> None:
     expected_user = UserOut(
-        id="cLZHBYAXuzDCWTTQ9ouoXa",
+        id=ShortUUID("cLZHBYAXuzDCWTTQ9ouoXa"),
         email="test@example.com",
         full_name="Test User",
         disabled=False,
@@ -91,7 +92,7 @@ async def test_authenticate_api_key_not_found(
 async def test_delete_user_api_key(
     mock_delete_api_key_by_user_id: AsyncMock,
 ) -> None:
-    user_id = "cLZHBYAXuzDCWTTQ9ouoXa"
+    user_id = ShortUUID("cLZHBYAXuzDCWTTQ9ouoXa")
 
     await handler.delete_user_api_key(user_id)
 
