@@ -123,6 +123,7 @@ def upgrade() -> None:
     ]
 
     for table in tables_with_ids:
+        connection.execute(sa.text(f"ALTER TABLE {table} ALTER COLUMN id DROP DEFAULT"))
         op.alter_column(
             table,
             "id",
