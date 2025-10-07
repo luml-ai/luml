@@ -2,6 +2,7 @@ import uuid
 
 import pytest
 
+from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.repositories.deployments import DeploymentRepository
 from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.satellites import SatelliteRepository
@@ -205,7 +206,5 @@ async def test_delete_model_artifact_with_deployment_constraint(
     )
     await deployment_repo.create_deployment(deployment_data)
 
-    await repo.delete_model_artifact(created_model.id)
-
-    deleted_model = await repo.get_model_artifact(created_model.id)
-    assert deleted_model is None
+    with pytest.raises(DatabaseConstraintError):
+        await repo.delete_model_artifact(created_model.id)

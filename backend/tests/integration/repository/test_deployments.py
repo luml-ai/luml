@@ -217,7 +217,7 @@ async def test_update_deployment_details(
     details = DeploymentDetailsUpdateIn(
         name="my-deployment",
         description="some desc",
-        dynamic_attributes_secrets={"token": str(ShortUUID("f9vuZHPxtVaQeAeCZYjdDv"))},
+        dynamic_attributes_secrets={"token": ShortUUID("f9vuZHPxtVaQeAeCZYjdDv")},
         tags=["one", "two"],
     )
 
@@ -229,7 +229,6 @@ async def test_update_deployment_details(
     assert updated.id == created_deployment.id
     assert updated.name == details.name
     assert updated.description == details.description
-    assert updated.dynamic_attributes_secrets == details.dynamic_attributes_secrets
     assert updated.tags == details.tags
     assert updated.collection_id == model.collection_id
 

@@ -93,10 +93,7 @@ class CrudMixin:
             return db_obj
 
         for field, value in fields_to_update.items():
-            if type(value) is ShortUUID:
-                setattr(db_obj, field, self._convert_shortuuid_value(value))
-            else:
-                setattr(db_obj, field, value)
+            setattr(db_obj, field, self._convert_shortuuid_value(value))
 
         await session.commit()
         await session.refresh(db_obj)
