@@ -13,7 +13,6 @@ from ._exceptions import (
     OrbitResourceNotFoundError,
     OrganizationResourceNotFoundError,
 )
-from ._types import ShortUUID
 
 if TYPE_CHECKING:
     from .resources.bucket_secrets import (
@@ -50,20 +49,20 @@ class DataForceClientBase(ABC):
             )
         self._api_key = api_key
 
-        self._organization: ShortUUID | None = None
-        self._orbit: ShortUUID | None = None
-        self._collection: ShortUUID | None = None
+        self._organization: str | None = None
+        self._orbit: str | None = None
+        self._collection: str | None = None
 
     @staticmethod
     def _validate_default_resource(
-        entity_value: ShortUUID | str | None,
+        entity_value: str | None,
         entities: list,
         exception_class: type[Exception],
-    ) -> ShortUUID | None:
+    ) -> str | None:
         if not entity_value:
             return entities[0].id if len(entities) == 1 else None
 
-        if isinstance(entity_value, ShortUUID):
+        if isinstance(entity_value, str):
             entity = next((e for e in entities if e.id == entity_value), None)
         elif isinstance(entity_value, str):
             entity = next((e for e in entities if e.name == entity_value), None)
@@ -75,43 +74,39 @@ class DataForceClientBase(ABC):
         return entity.id
 
     @abstractmethod
-    def _validate_organization(
-        self, org_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    def _validate_organization(self, org_value: str | None) -> str | None:
         raise NotImplementedError()
 
     @abstractmethod
-    def _validate_orbit(self, orbit_value: ShortUUID | str | None) -> ShortUUID | None:
+    def _validate_orbit(self, orbit_value: str | None) -> str | None:
         raise NotImplementedError()
 
     @abstractmethod
-    def _validate_collection(
-        self, collection_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    def _validate_collection(self, collection_value: str | None) -> str | None:
         raise NotImplementedError()
 
     @property
-    def organization(self) -> ShortUUID | None:
+    def organization(self) -> str | None:
         return self._organization
 
     @organization.setter
-    def organization(self, organization: ShortUUID | None) -> None:
+    def organization(self, organization: str | None) -> None:
         self._organization = organization
 
     @property
-    def orbit(self) -> ShortUUID | None:
+    def orbit(self) -> str | None:
         return self._orbit
 
     @orbit.setter
-    def orbit(self, orbit: ShortUUID | None) -> None:
+    def orbit(self, orbit: str | None) -> None:
         self._orbit = orbit
 
     @property
-    def collection(self) -> ShortUUID | None:
+    def collection(self) -> str | None:
         return self._collection
 
     @collection.setter
-    def collection(self, collection: ShortUUID | None) -> None:
+    def collection(self, collection: str | None) -> None:
         self._collection = collection
 
     @property
@@ -179,8 +174,8 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
         Example:
             >>> dfs = DataForceClient(
             ...     api_key="dfs_your_api_key",
-            ...     organization="ReEb5Dw4ojVbhft9tn3BMr",
-            ...     orbit="h2xJWKKcKEdY3ub3Hmhq2g"
+            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
             >>> dfs = DataForceClient(
@@ -210,9 +205,10 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
 
     async def setup_config(
         self,
-        organization: ShortUUID | str | None = None,
-        orbit: ShortUUID | str | None = None,
-        collection: ShortUUID | str | None = None,
+        *,
+        organization: str | None = None,
+        orbit: str | None = None,
+        collection: str | None = None,
     ) -> None:
         """
         Method for setting default values for AsyncDataForceClient
@@ -229,9 +225,9 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
             >>> dfs = AsyncDataForceClient(api_key="dfs_api_key")
             >>> async def main():
             ...     await dfs.setup_config(
-            ...         "ReEb5Dw4ojVbhft9tn3BMr",
-            ...         "h2xJWKKcKEdY3ub3Hmhq2g",
-            ...         "e3Wy3wMa8gwBodrvcFSB8m"
+            ...         "0199c455-21ec-7c74-8efe-41470e29bae5",
+            ...         "0199c455-21ed-7aba-9fe5-5231611220de",
+            ...         "0199c455-21ee-74c6-b747-19a82f1a1e75"
             ...     )
 
         """
@@ -239,17 +235,13 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
         self._orbit = await self._validate_orbit(orbit)
         self._collection = await self._validate_collection(collection)
 
-    async def _validate_organization(
-        self, org_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    async def _validate_organization(self, org_value: str | None) -> str | None:  # type: ignore[override]
         all_organizations = await self.organizations.list()
         return self._validate_default_resource(
             org_value, all_organizations, OrganizationResourceNotFoundError
         )
 
-    async def _validate_orbit(
-        self, orbit_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    async def _validate_orbit(self, orbit_value: str | None) -> str | None:  # type: ignore[override]
         if not orbit_value and not self._organization:
             return None
 
@@ -265,9 +257,7 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
 
-    async def _validate_collection(
-        self, collection_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    async def _validate_collection(self, collection_value: str | None) -> str | None:  # type: ignore[override]
         if not collection_value and (not self._organization or not self._orbit):
             return None
 
@@ -324,9 +314,9 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         self,
         base_url: str | None = None,
         api_key: str | None = None,
-        organization: ShortUUID | str | None = None,
-        orbit: ShortUUID | str | None = None,
-        collection: ShortUUID | str | None = None,
+        organization: str | None = None,
+        orbit: str | None = None,
+        collection: str | None = None,
     ) -> None:
         """Client for interacting with the DataForce platform API.
 
@@ -363,8 +353,8 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         Example:
             >>> dfs = DataForceClient(
             ...     api_key="dfs_your_api_key",
-            ...     organization="ReEb5Dw4ojVbhft9tn3BMr",
-            ...     orbit="h2xJWKKcKEdY3ub3Hmhq2g"
+            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
             >>> dfs = DataForceClient(
@@ -389,7 +379,7 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
             - Default collection must belong to the default orbit
 
             You can change default resource after client inizialization
-                ``dfs.organization="ig7DNwMa8gwBodrvcFSB8m"``.
+                ``dfs.organization="0199c455-21ec-7c74-8efe-41470e29bae5"``.
         """
 
         DataForceClientBase.__init__(self, base_url=base_url, api_key=api_key)
@@ -404,15 +394,13 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         validated_collection = self._validate_collection(collection)
         self._collection = validated_collection
 
-    def _validate_organization(
-        self, org_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    def _validate_organization(self, org_value: str | None) -> str | None:
         all_organizations = self.organizations.list()
         return self._validate_default_resource(
             org_value, all_organizations, OrganizationResourceNotFoundError
         )
 
-    def _validate_orbit(self, orbit_value: ShortUUID | str | None) -> ShortUUID | None:
+    def _validate_orbit(self, orbit_value: str | None) -> str | None:
         if not orbit_value and not self._organization:
             return None
 
@@ -428,9 +416,7 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
 
-    def _validate_collection(
-        self, collection_value: ShortUUID | str | None
-    ) -> ShortUUID | None:
+    def _validate_collection(self, collection_value: str | None) -> str | None:
         if not collection_value and (not self._organization or not self._orbit):
             return None
         all_collections = self.collections.list()

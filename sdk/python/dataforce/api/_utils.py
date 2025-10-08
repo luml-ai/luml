@@ -2,13 +2,12 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from ._exceptions import MultipleResourcesFoundError
-from ._types import ShortUUID
 
 T = TypeVar("T")
 
 
 def find_by_value(
-    items: list[T], value: str | ShortUUID, condition: Callable[[T], bool] | None = None
+    items: list[T], value: str, condition: Callable[[T], bool] | None = None
 ) -> T | None:
     condition = condition or (lambda item: getattr(item, "name", None) == value)
 

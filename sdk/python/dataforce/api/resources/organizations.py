@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from .._types import Organization, ShortUUID
+from .._types import Organization, is_uuid
 from .._utils import find_by_value
 from ._validators import validate_organization
 
@@ -15,7 +15,7 @@ class OrganizationResourceBase(ABC):
 
     @abstractmethod
     def get(
-        self, organization_value: str | ShortUUID | None = None
+        self, organization_value: str | None = None
     ) -> Organization | None | Coroutine[Any, Any, Organization | None]:
         raise NotImplementedError()
 
@@ -37,9 +37,7 @@ class OrganizationResource(OrganizationResourceBase):
         self._client = client
 
     @validate_organization
-    def get(
-        self, organization_value: str | ShortUUID | None = None
-    ) -> Organization | None:
+    def get(self, organization_value: str | None = None) -> Organization | None:
         """
         Get organization by name or ID.
 
@@ -59,24 +57,26 @@ class OrganizationResource(OrganizationResourceBase):
 
         Example:
             >>> dfs = DataForceClient(api_key="dfs_your_key")
-            >>> org_by_name = dfs.organizations.get("My Personal Company")
-            >>> org_by_id = dfs.organizations.get("ReEb5Dw4ojVbhft9tn3BMr")
+            ... org_by_name = dfs.organizations.get("My Personal Company")
+            ... org_by_id = dfs.organizations.get(
+            ...     "0199c455-21ec-7c74-8efe-41470e29bae5"
+            ... )
 
         Example response:
             >>> Organization(
-            ...    id="ReEb5Dw4ojVbhft9tn3BMr",
+            ...    id="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...    name="My Personal Company",
             ...    logo='https://example.com/',
             ...    created_at='2025-05-21T19:35:17.340408Z',
             ...    updated_at=None
             ...)
         """
-        if isinstance(organization_value, ShortUUID):
-            return self._get_by_id(organization_value)
         if organization_value is None:
             if self._client.organization:
                 return self._get_by_id(self._client.organization)
             return None
+        if is_uuid(organization_value):
+            return self._get_by_id(organization_value)
         return self._get_by_name(organization_value)
 
     def list(self) -> list[Organization]:
@@ -95,7 +95,7 @@ class OrganizationResource(OrganizationResourceBase):
         Example response:
             >>> [
             ...     Organization(
-            ...         id="ReEb5Dw4ojVbhft9tn3BMr",
+            ...         id="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...         name="My Personal Company",
             ...         logo='https://example.com/',
             ...         created_at='2025-05-21T19:35:17.340408Z',
@@ -112,7 +112,7 @@ class OrganizationResource(OrganizationResourceBase):
     def _get_by_name(self, name: str) -> Organization | None:
         return find_by_value(self.list(), name)
 
-    def _get_by_id(self, organization_id: ShortUUID) -> Organization | None:
+    def _get_by_id(self, organization_id: str) -> Organization | None:
         return find_by_value(
             self.list(), organization_id, lambda c: c.id == organization_id
         )
@@ -125,9 +125,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
         self._client = client
 
     @validate_organization
-    async def get(
-        self, organization_value: str | ShortUUID | None = None
-    ) -> Organization | None:
+    async def get(self, organization_value: str | None = None) -> Organization | None:
         """
         Get organization by name or ID.
 
@@ -153,19 +151,19 @@ class AsyncOrganizationResource(OrganizationResourceBase):
 
         Example response:
             >>> Organization(
-            ...    id="ReEb5Dw4ojVbhft9tn3BMr",
+            ...    id="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...    name="My Personal Company",
             ...    logo='https://example.com/',
             ...    created_at='2025-05-21T19:35:17.340408Z',
             ...    updated_at=None
             ...)
         """
-        if isinstance(organization_value, ShortUUID):
-            return await self._get_by_id(organization_value)
         if organization_value is None:
             if self._client.organization:
                 return await self._get_by_id(self._client.organization)
             return None
+        if is_uuid(organization_value):
+            return await self._get_by_id(organization_value)
         return await self._get_by_name(organization_value)
 
     async def list(self) -> list[Organization]:
@@ -185,7 +183,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
         Example response:
             >>> [
             ...     Organization(
-            ...         id="ReEb5Dw4ojVbhft9tn3BMr",
+            ...         id="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...         name="My Personal Company",
             ...         logo='https://example.com/',
             ...         created_at='2025-05-21T19:35:17.340408Z',
@@ -201,7 +199,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
     async def _get_by_name(self, name: str) -> Organization | None:
         return find_by_value(await self.list(), name)
 
-    async def _get_by_id(self, organization_id: ShortUUID) -> Organization | None:
+    async def _get_by_id(self, organization_id: str) -> Organization | None:
         return find_by_value(
             await self.list(), organization_id, lambda c: c.id == organization_id
         )
