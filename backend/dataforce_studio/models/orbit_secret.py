@@ -1,3 +1,5 @@
+import uuid
+
 import uuid6
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
@@ -12,10 +14,10 @@ class OrbitSecretOrm(TimestampMixin, Base):
     __tablename__ = "orbit_secrets"
     __table_args__ = (UniqueConstraint("orbit_id", "name", name="orbit_secret_name"),)
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    orbit_id: Mapped[uuid6.UUID] = mapped_column(
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -33,6 +35,6 @@ class OrbitSecretOrm(TimestampMixin, Base):
 
     @classmethod
     def from_orbit_secret(cls, secret: OrbitSecretCreate) -> "OrbitSecretOrm":
-        data = secret.model_dump(mode="python")
+        data = secret.model_dump()
         data["value"] = encrypt(secret.value)
         return cls(**data)

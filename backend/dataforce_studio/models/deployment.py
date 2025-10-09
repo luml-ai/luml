@@ -1,3 +1,5 @@
+import uuid
+
 import uuid6
 from sqlalchemy import UUID, CheckConstraint, ForeignKey, String, select
 from sqlalchemy.dialects import postgresql
@@ -18,14 +20,14 @@ class DeploymentOrm(TimestampMixin, Base):
         ),
     )
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    orbit_id: Mapped[uuid6.UUID] = mapped_column(
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
-    satellite_id: Mapped[uuid6.UUID] = mapped_column(
+    satellite_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("satellites.id", ondelete="CASCADE"),
         nullable=False,
@@ -35,7 +37,7 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(SatelliteOrm.id == satellite_id)
         .scalar_subquery()
     )
-    model_id: Mapped[uuid6.UUID] = mapped_column(
+    model_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("model_artifacts.id", ondelete="RESTRICT"),
         nullable=False,
@@ -45,7 +47,7 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(ModelArtifactOrm.id == model_id)
         .scalar_subquery()
     )
-    collection_id: Mapped[uuid6.UUID] = column_property(
+    collection_id: Mapped[uuid.UUID] = column_property(
         select(ModelArtifactOrm.collection_id)
         .where(ModelArtifactOrm.id == model_id)
         .scalar_subquery()

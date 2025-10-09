@@ -13,6 +13,7 @@ from ._exceptions import (
     OrbitResourceNotFoundError,
     OrganizationResourceNotFoundError,
 )
+from ._types import is_uuid
 
 if TYPE_CHECKING:
     from .resources.bucket_secrets import (
@@ -62,7 +63,7 @@ class DataForceClientBase(ABC):
         if not entity_value:
             return entities[0].id if len(entities) == 1 else None
 
-        if isinstance(entity_value, str):
+        if is_uuid(entity_value):
             entity = next((e for e in entities if e.id == entity_value), None)
         elif isinstance(entity_value, str):
             entity = next((e for e in entities if e.name == entity_value), None)

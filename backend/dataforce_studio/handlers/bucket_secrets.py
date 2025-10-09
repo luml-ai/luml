@@ -34,7 +34,7 @@ class BucketSecretHandler:
             organization_id, user_id, Resource.BUCKET_SECRET, Action.CREATE
         )
         secret_create = BucketSecretCreate(
-            **secret.model_dump(mode="python"), organization_id=organization_id
+            **secret.model_dump(), organization_id=organization_id
         )
         created = await self.__secret_repository.create_bucket_secret(secret_create)
         return BucketSecretOut.model_validate(created)

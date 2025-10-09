@@ -33,9 +33,7 @@ class BucketSecret(_BucketSecretBase, BaseOrmConfig):
     def update_from_partial(
         self, update_data: "BucketSecretUpdateIn"
     ) -> "BucketSecret":
-        return self.model_copy(
-            update=update_data.model_dump(exclude_unset=True, mode="python")
-        )
+        return self.model_copy(update=update_data.model_dump(exclude_unset=True))
 
 
 class BucketSecretOut(BaseModel, BaseOrmConfig):

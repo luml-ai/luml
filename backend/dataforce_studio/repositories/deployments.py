@@ -19,7 +19,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         self, deployment: DeploymentCreate
     ) -> tuple[Deployment, SatelliteQueueTask]:
         async with self._get_session() as session:
-            db_dep = DeploymentOrm(**deployment.model_dump(mode="python"))
+            db_dep = DeploymentOrm(**deployment.model_dump())
             session.add(db_dep)
             await session.flush()
             task = SatelliteQueueOrm(
@@ -77,9 +77,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             dep = result.scalar_one_or_none()
             if not dep:
                 return None
-            for field, value in update.model_dump(
-                exclude_unset=True, mode="python"
-            ).items():
+            for field, value in update.model_dump(exclude_unset=True).items():
                 setattr(dep, field, value)
             await session.commit()
             await session.refresh(dep)

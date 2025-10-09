@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Sequence
 
 import uuid6
@@ -18,13 +19,13 @@ class OrbitMembersOrm(TimestampMixin, Base):
     __tablename__ = "orbit_members"
     __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    user_id: Mapped[uuid6.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    orbit_id: Mapped[uuid6.UUID] = mapped_column(
+    orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
@@ -51,16 +52,16 @@ class OrbitMembersOrm(TimestampMixin, Base):
 class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[uuid6.UUID] = mapped_column(
+    organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    bucket_secret_id: Mapped[uuid6.UUID] = mapped_column(
+    bucket_secret_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("bucket_secrets.id", ondelete="CASCADE"),
         nullable=False,

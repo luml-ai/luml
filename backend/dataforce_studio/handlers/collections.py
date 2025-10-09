@@ -42,7 +42,7 @@ class CollectionHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
         collection_create = CollectionCreate(
-            **collection.model_dump(mode="python"), orbit_id=orbit_id
+            **collection.model_dump(), orbit_id=orbit_id
         )
         return await self.__repository.create_collection(collection_create)
 

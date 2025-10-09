@@ -2,7 +2,11 @@ from uuid import UUID
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.infra.exceptions import (
+    ApplicationError,
+    DatabaseConstraintError,
+    NotFoundError,
+)
 from dataforce_studio.repositories.orbit_secrets import OrbitSecretRepository
 from dataforce_studio.schemas.orbit_secret import (
     OrbitSecret,
@@ -28,10 +32,13 @@ class OrbitSecretHandler:
         await self.__permissions_handler.check_orbit_action_access(
             organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.CREATE
         )
-        secret_create = OrbitSecretCreate(
-            **secret.model_dump(mode="python"), orbit_id=orbit_id
-        )
-        created = await self.__secret_repository.create_orbit_secret(secret_create)
+        secret_create = OrbitSecretCreate(**secret.model_dump(), orbit_id=orbit_id)
+        try:
+            created = await self.__secret_repository.create_orbit_secret(secret_create)
+        except DatabaseConstraintError as error:
+            raise ApplicationError(
+                f"Secret with name {secret.name} already exist in orbit."
+            ) from error
         return OrbitSecretOut.model_validate(created)
 
     async def get_orbit_secrets(

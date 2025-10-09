@@ -178,7 +178,7 @@ class AuthHandler:
             else None
         )
         update_user = UpdateUser(
-            **update_user.model_dump(exclude_unset=True, mode="python"), email=email
+            **update_user.model_dump(exclude_unset=True), email=email
         )
         if hashed_password:
             update_user.hashed_password = hashed_password

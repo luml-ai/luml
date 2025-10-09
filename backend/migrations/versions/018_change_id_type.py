@@ -10,7 +10,7 @@ Create Date: 2025-10-03 22:41:37.498397
 import contextlib
 import secrets
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 
 import sqlalchemy as sa
 import uuid6
@@ -24,7 +24,7 @@ depends_on: str | Sequence[str] | None = None
 
 def uuid7_from_datetime(dt: datetime | None = None) -> uuid6.UUID:
     if dt is None:
-        dt = datetime.now()
+        dt = datetime.now(UTC)
 
     timestamp_ms = int(dt.timestamp() * 1000)
     uuid_int = (timestamp_ms & 0xFFFFFFFFFFFF) << 80

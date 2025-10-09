@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Sequence
 
 import uuid6
@@ -20,7 +21,7 @@ from dataforce_studio.schemas.organization import (
 class OrganizationOrm(TimestampMixin, Base):
     __tablename__ = "organizations"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
@@ -61,13 +62,13 @@ class OrganizationMemberOrm(TimestampMixin, Base):
         UniqueConstraint("organization_id", "user_id", name="org_member"),
     )
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    user_id: Mapped[uuid6.UUID] = mapped_column(
+    user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    organization_id: Mapped[uuid6.UUID] = mapped_column(
+    organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
@@ -95,17 +96,17 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=uuid6.uuid7
     )
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
-    organization_id: Mapped[uuid6.UUID] = mapped_column(
+    organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=False),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
     )
-    invited_by: Mapped[uuid6.UUID] = mapped_column(
+    invited_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=False), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
 

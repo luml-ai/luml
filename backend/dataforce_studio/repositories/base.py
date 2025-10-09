@@ -25,7 +25,7 @@ class CrudMixin:
     async def create_model(
         session: AsyncSession, orm_class: type[TOrm], data: TPydantic
     ) -> TOrm:
-        db_obj = orm_class(**data.model_dump(mode="python"))
+        db_obj = orm_class(**data.model_dump())
         session.add(db_obj)
         await session.commit()
         await session.refresh(db_obj)
@@ -37,7 +37,7 @@ class CrudMixin:
         orm_class: type[TOrm],
         data_list: list[TPydantic],
     ) -> list[TOrm]:
-        db_objects = [orm_class(**item.model_dump(mode="python")) for item in data_list]
+        db_objects = [orm_class(**item.model_dump()) for item in data_list]
         session.add_all(db_objects)
         await session.flush()
         await session.commit()
@@ -58,9 +58,7 @@ class CrudMixin:
         if not db_obj:
             return None
 
-        fields_to_update = data.model_dump(
-            exclude_unset=True, exclude={"id"}, mode="python"
-        )
+        fields_to_update = data.model_dump(exclude_unset=True, exclude={"id"})
         if not fields_to_update:
             return db_obj
 

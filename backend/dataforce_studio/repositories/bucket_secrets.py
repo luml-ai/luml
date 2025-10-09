@@ -49,7 +49,7 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             db_secret = result.scalar_one_or_none()
             if not db_secret:
                 return None
-            update_data = secret.model_dump(exclude_unset=True, mode="python")
+            update_data = secret.model_dump(exclude_unset=True)
             if secret.access_key is not None:
                 update_data["access_key"] = encrypt(secret.access_key)
             if secret.secret_key is not None:

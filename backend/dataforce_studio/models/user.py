@@ -1,3 +1,5 @@
+import uuid
+
 import uuid6
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import UUID, Boolean, String, case
@@ -10,7 +12,7 @@ from dataforce_studio.schemas.user import CreateUser, User, UserOut
 class UserOrm(TimestampMixin, Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
     email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
@@ -52,5 +54,5 @@ class UserOrm(TimestampMixin, Base):
     @classmethod
     def from_user(cls, user: CreateUser) -> "UserOrm":
         return UserOrm(
-            **user.model_dump(mode="python"),
+            **user.model_dump(),
         )

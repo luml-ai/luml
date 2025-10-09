@@ -1,3 +1,4 @@
+import uuid
 from typing import Any
 
 import uuid6
@@ -12,10 +13,10 @@ from dataforce_studio.schemas.model_artifacts import ModelArtifact, ModelArtifac
 class ModelArtifactOrm(TimestampMixin, Base):
     __tablename__ = "model_artifacts"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    collection_id: Mapped[uuid6.UUID] = mapped_column(
+    collection_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("collections.id", ondelete="CASCADE"),
         nullable=False,

@@ -23,7 +23,7 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
         self, satellite: SatelliteCreate, payload: dict[str, Any] | None = None
     ) -> tuple[Satellite, SatelliteQueueTask]:
         async with self._get_session() as session:
-            db_sat = SatelliteOrm(**satellite.model_dump(mode="python"))
+            db_sat = SatelliteOrm(**satellite.model_dump())
             session.add(db_sat)
             await session.flush()
             task = SatelliteQueueOrm(

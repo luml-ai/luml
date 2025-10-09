@@ -1,6 +1,9 @@
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from dataforce_studio.infra.encryption import encrypt
+from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import OrbitSecretOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.orbit_secret import (
@@ -14,9 +17,12 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
     async def create_orbit_secret(self, secret: OrbitSecretCreate) -> OrbitSecret:
         async with self._get_session() as session:
             orm_secret = OrbitSecretOrm.from_orbit_secret(secret)
-            session.add(orm_secret)
-            await session.commit()
-            await session.refresh(orm_secret)
+            try:
+                session.add(orm_secret)
+                await session.commit()
+                await session.refresh(orm_secret)
+            except IntegrityError as error:
+                raise DatabaseConstraintError() from error
             return orm_secret.to_orbit_secret()
 
     async def get_orbit_secret(self, secret_id: UUID) -> OrbitSecret | None:
@@ -42,7 +48,7 @@ class OrbitSecretRepository(RepositoryBase, CrudMixin):
             db_secret = await self.get_model(session, OrbitSecretOrm, secret_id)
             if not db_secret:
                 return None
-            update_data = secret.model_dump(exclude_unset=True, mode="python")
+            update_data = secret.model_dump(exclude_unset=True)
             if "value" in update_data:
                 update_data["value"] = encrypt(update_data["value"])
             for field, value in update_data.items():

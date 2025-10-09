@@ -111,7 +111,7 @@ class UserRepository(RepositoryBase, CrudMixin):
             if not (db_user := result.scalars().first()):
                 return False
 
-            fields_to_update = update_user.model_dump(exclude_unset=True, mode="python")
+            fields_to_update = update_user.model_dump(exclude_unset=True)
 
             for field, value in fields_to_update.items():
                 setattr(db_user, field, value)

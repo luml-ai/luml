@@ -1,3 +1,5 @@
+import uuid
+
 import uuid6
 from sqlalchemy import UUID, Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -10,10 +12,10 @@ from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCr
 class BucketSecretOrm(TimestampMixin, Base):
     __tablename__ = "bucket_secrets"
 
-    id: Mapped[uuid6.UUID] = mapped_column(
+    id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
     )
-    organization_id: Mapped[uuid6.UUID] = mapped_column(
+    organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("organizations.id", ondelete="CASCADE"),
         nullable=False,
@@ -51,7 +53,7 @@ class BucketSecretOrm(TimestampMixin, Base):
 
     @classmethod
     def from_bucket_secret(cls, secret: BucketSecretCreate) -> "BucketSecretOrm":
-        data = secret.model_dump(mode="python")
+        data = secret.model_dump()
         if secret.access_key:
             data["access_key"] = encrypt(secret.access_key)
         if secret.secret_key:

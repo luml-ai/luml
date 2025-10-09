@@ -159,7 +159,7 @@ class ModelArtifactHandler:
                 f"{model_artifact_obj.status} to {model_artifact.status}"
             )
 
-        update_data = model_artifact.model_dump(exclude_unset=True, mode="python")
+        update_data = model_artifact.model_dump(exclude_unset=True)
         update_data["id"] = model_artifact_id
         updated = await self.__repository.update_model_artifact(
             model_artifact_id,

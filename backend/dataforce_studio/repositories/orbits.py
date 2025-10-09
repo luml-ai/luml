@@ -115,7 +115,6 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                     organization_id=organization_id,
                 ),
             )
-            # TODO chexk
             if orbit.members:
                 await self.create_models(
                     session,
