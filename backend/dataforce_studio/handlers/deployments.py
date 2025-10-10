@@ -166,6 +166,8 @@ class DeploymentHandler:
     async def list_worker_deployments(self, satellite_id: UUID) -> list[Deployment]:
         return await self.__repo.list_satellite_deployments(satellite_id)
 
+    async def get_worker_deployment(self, satellite_id: UUID, deployment_id: UUID) -> Deployment:
+        deployment = await self.__repo.get_satellite_deployment(deployment_id, satellite_id)
     async def get_worker_deployment(
         self, satellite_id: UUID, deployment_id: UUID
     ) -> Deployment:
