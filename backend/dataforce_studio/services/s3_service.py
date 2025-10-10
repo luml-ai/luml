@@ -32,7 +32,7 @@ class S3Service:
             cert_check=secret.cert_check if secret.cert_check is not None else True,
         )
 
-    async def bucket_exists(self) -> bool:
+    def bucket_exists(self) -> bool:
         try:
             return self._client.bucket_exists(self._bucket_name)
         except Exception as error:

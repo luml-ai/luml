@@ -58,7 +58,9 @@ ModelArtifactNamesField = Annotated[
     str,
     Field(
         pattern=r"^[^:\"*\`~#%;'^]+\.[^\s:\"*\`~#%;'^]+$",
-        description="mustn't contain characters: \" * ` ~ # % ; ' ^ ",
+        description="Must be in the format '<filename>.<extension>'. "
+        "Whitespace is forbidden in the extension."
+        "filename mustn't contain characters: \" * ` ~ # % ; ' ^ ",
     ),
 ]
 

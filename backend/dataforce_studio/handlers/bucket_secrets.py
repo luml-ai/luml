@@ -96,7 +96,7 @@ class BucketSecretHandler:
         object_name = "test_file"
         s3_service = S3Service(secret_data)
 
-        if not await s3_service.bucket_exists():
+        if not s3_service.bucket_exists():
             raise BucketConnectionError("No such bucket.")
 
         return BucketSecretUrls(
