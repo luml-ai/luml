@@ -24,7 +24,7 @@ import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
 import { ref } from 'vue'
 import { Button, Dialog, useToast, type DialogPassThroughOptions } from 'primevue'
 import { Plus } from 'lucide-vue-next'
-import { useBucketsStore } from '@/stores/buckets'
+import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import BucketForm from './BucketForm.vue'
@@ -58,7 +58,13 @@ async function create(data: BucketSecretCreator) {
     visible.value = false
     toast.add(simpleSuccessToast('New bucket has been added.'))
   } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || 'Failed to create bucket'))
+    if (e instanceof BucketValidationError) {
+      toast.add(simpleErrorToast(e.getMessage()))
+    } else {
+      toast.add(simpleErrorToast(
+        e?.response?.data?.detail || e.message || 'Failed to create bucket'
+      ))
+    }
   } finally {
     loading.value = false
   }

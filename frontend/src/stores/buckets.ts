@@ -4,6 +4,32 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
 
+export enum BucketValidationErrorCode {
+  INVALID_STATUS = 'INVALID_STATUS',
+  RANGE_NOT_SUPPORTED = 'RANGE_NOT_SUPPORTED',
+  UNKNOWN = 'UNKNOWN',
+}
+
+export class BucketValidationError extends Error {
+  constructor(public code: BucketValidationErrorCode) {
+    super(code)
+    this.name = 'BucketValidationError'
+  }
+
+  getMessage(): string {
+    switch (this.code) {
+      case BucketValidationErrorCode.RANGE_NOT_SUPPORTED:
+        return 'Range requests are not supported. Please ensure "Range" is added to "AllowedHeaders" in your bucket\'s CORS configuration.'
+      case BucketValidationErrorCode.INVALID_STATUS:
+        return 'Bucket validation failed: invalid status'
+      case BucketValidationErrorCode.UNKNOWN:
+        return 'Bucket validation failed'
+      default:
+        return 'Bucket validation failed'
+    }
+  }
+}
+
 export const useBucketsStore = defineStore('buckets', () => {
   const buckets = ref<BucketSecret[]>([])
 
@@ -38,6 +64,35 @@ export const useBucketsStore = defineStore('buckets', () => {
     buckets.value = buckets.value.filter((bucket) => bucket.id !== bucketId)
   }
 
+  async function validateRangeSupport(downloadUrl: string): Promise<void> {
+    try {
+      const fullResponse = await axios.get(downloadUrl, { validateStatus: () => true })
+      if (fullResponse.status !== 200) {
+        throw new BucketValidationError(BucketValidationErrorCode.INVALID_STATUS)
+      }
+
+      let rangeResponse: Response
+      try {
+        rangeResponse = await fetch(downloadUrl, {
+          method: 'GET',
+          headers: { Range: 'bytes=0-10,20-30' },
+          mode: 'cors',
+        })
+      } catch (fetchErr) {
+        throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
+      }
+
+      if (rangeResponse.status !== 206) {
+        throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
+      }
+    } catch (err) {
+      if (err instanceof BucketValidationError) {
+        throw err
+      }
+      throw new BucketValidationError(BucketValidationErrorCode.UNKNOWN)
+    }
+  }
+
   async function checkBucket(data: BucketSecretCreator) {
     const connectionUrls = await dataforceApi.bucketSecrets.getBucketSecretConnectionUrls(data)
     const text = 'Connection test...'
@@ -46,7 +101,14 @@ export const useBucketsStore = defineStore('buckets', () => {
     await axios.put(connectionUrls.presigned_url, buffer, {
       headers: { 'Content-Type': 'application/octet-stream' },
     })
-    await axios.get(connectionUrls.download_url)
+
+    try {
+      await validateRangeSupport(connectionUrls.download_url)
+    } catch (err) {
+      await axios.delete(connectionUrls.delete_url).catch(() => {})
+      throw err
+    }
+
     await axios.delete(connectionUrls.delete_url)
   }
 
@@ -66,7 +128,12 @@ export const useBucketsStore = defineStore('buckets', () => {
     await axios.put(connectionUrls.presigned_url, buffer, {
       headers: { 'Content-Type': 'application/octet-stream' },
     })
-    await axios.get(connectionUrls.download_url)
+    try {
+      await validateRangeSupport(connectionUrls.download_url)
+    } catch (err) {
+      await axios.delete(connectionUrls.delete_url).catch(() => {})
+      throw err
+    }
     await axios.delete(connectionUrls.delete_url)
   }
 

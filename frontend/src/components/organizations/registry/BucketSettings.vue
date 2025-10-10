@@ -40,7 +40,7 @@
 import type { BucketSecret, BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
 import { computed, ref } from 'vue'
 import { Button, Dialog, useConfirm, useToast } from 'primevue'
-import { useBucketsStore } from '@/stores/buckets'
+import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteBucketConfirmOptions } from '@/lib/primevue/data/confirm'
@@ -76,13 +76,6 @@ const initialData = computed<BucketSecretCreator>(() => ({
 async function onFormSubmit(formData: BucketSecretCreator) {
   try {
     loading.value = true
-    const exists = bucketsStore.buckets.some(
-      (bucket) => bucket.bucket_name === formData.bucket_name && bucket.id !== props.bucket.id,
-    )
-    if (exists) {
-      toast.add(simpleErrorToast(`Bucket with name "${formData.bucket_name}" already exists.`))
-      return
-    }
     await bucketsStore.checkExistingBucket(props.bucket.organization_id, props.bucket.id, formData)
     await bucketsStore.updateBucket(props.bucket.organization_id, props.bucket.id, {
       ...formData,
@@ -91,8 +84,16 @@ async function onFormSubmit(formData: BucketSecretCreator) {
 
     toast.add(simpleSuccessToast('Bucket has been updated.'))
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to update bucket'))
+  } catch (err: any) {
+    if (err instanceof BucketValidationError) {
+      toast.add(simpleErrorToast(err.getMessage()))
+    } else {
+      toast.add(
+        simpleErrorToast(
+          err?.response?.data?.detail || err.message || 'Failed to update bucket',
+        ),
+      )
+    }
   } finally {
     loading.value = false
   }
