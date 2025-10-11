@@ -16,7 +16,7 @@
           placeholder="Model name"
           class="select"
         ></Select>
-        <HelpCircle :size="16" color="var(--p-button-text-secondary-color)"></HelpCircle>
+        <!--<HelpCircle :size="16" color="var(--p-button-text-secondary-color)"></HelpCircle>-->
       </div>
     </header>
     <div class="list">
