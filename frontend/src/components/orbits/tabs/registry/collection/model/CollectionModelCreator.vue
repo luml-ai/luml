@@ -126,7 +126,7 @@ function checkFileSize(size: number) {
 
 function onSelectFile(event: File) {
   fileError.value = false
-  const regex = /^[^\s<>:\"/\\|?*{}\[\]~#%;'^)+!(]+$/
+  const regex = /^[^:\"*\`~#%;'^]+\.[^\s:\"*\`~#%;'^]+$/
   const isFileNameCorrect = regex.test(event.name)
   const isCorrectFileFormat = checkFileFormat(event.name)
   const fileSizeCorrect = checkFileSize(event.size)
@@ -185,7 +185,7 @@ watch(visible, (val) => {
       file: null,
       tags: [],
     }
-    fileError.value = false 
+    fileError.value = false
   }
 })
 
