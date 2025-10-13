@@ -30,7 +30,7 @@ Router.add_route(
 )
 Router.add_route("/store/deallocate", Store.delete, sync=True)
 Router.add_route("/pyfunc/init", pyfunc_init, sync=True)
-Router.add_route("/pyfunc/compute", pyfunc_compute, sync=True)
+Router.add_route("/pyfunc/compute", pyfunc_compute, sync=False)
 Router.add_route("/pyfunc/deinit", pyfunc_deinit, sync=True)
 
 

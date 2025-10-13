@@ -19,6 +19,7 @@ spec = PyFuncSpec(
 
 PRODUCER = "dataforce.studio/prompt-fusion"
 
+
 @dataclass
 class PromptOptMetaEntry(MetaEntry):
     provider: str
@@ -75,7 +76,9 @@ def serialize(
 ) -> bytes:
     builder = PyfuncBuilder(
         pyfunc=spec,
-        create_meta_callback=lambda f: _create_meta_callback(f, fe_graph_def, provider, model),
+        create_meta_callback=lambda f: _create_meta_callback(
+            f, fe_graph_def, provider, model
+        ),
     )
 
     if graph.input_node is None:
@@ -109,7 +112,9 @@ def serialize(
 
     builder.add_fnnx_runtime_dependency()
     builder.add_runtime_dependency(f"fnnx[core]=={importlib_metadata.version('fnnx')}")
-    builder.add_runtime_dependency(f"pyfnx_utils=={importlib_metadata.version('pyfnx_utils')}")
+    builder.add_runtime_dependency(
+        f"pyfnx_utils=={importlib_metadata.version('pyfnx_utils')}"
+    )
     builder.add_runtime_dependency(f"httpx=={importlib_metadata.version('httpx')}")
 
     tmpname = f"dfs-tmp-{uuid.uuid4()}.pyfnx"

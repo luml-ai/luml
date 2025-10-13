@@ -1,5 +1,3 @@
-import asyncio
-import json
 import numpy as np
 import tempfile
 import os
@@ -30,18 +28,12 @@ class FnnxPyFunc:
             )
         return self._runtime
 
-    # TODO add typing
-    def compute(self, inputs, dynamic_attributes) -> Any:
+    async def compute(self, inputs: dict, dynamic_attributes: dict) -> Any:
         runtime = self._ensure_runtime()
         try:
-            return asyncio.run(
-                runtime.compute_async(inputs or {}, dynamic_attributes or {})
-            )
+            return await runtime.compute_async(inputs or {}, dynamic_attributes or {})
         except NotImplementedError:
             return runtime.compute(inputs or {}, dynamic_attributes or {})
-
-    def __call__(self, payload) -> Any:
-        return self.compute(payload, dynamic_attributes=None)
 
     @property
     def runtime(self) -> Runtime:
@@ -74,15 +66,11 @@ def pyfunc_init(model: bytes):
         raise RuntimeError(f"Failed to initialize pyfunc model: {str(e)}")
 
 
-def pyfunc_compute(model_id: str, inputs: dict, dyn_attrs: str = "{}") -> dict:
+async def pyfunc_compute(model_id: str, inputs: dict, dynamic_attributes: dict) -> dict:
     try:
         fnnx_pyfunc = Store.get(model_id)
-
-        dynamic_attributes = json.loads(dyn_attrs) if dyn_attrs else {}
-        outputs = fnnx_pyfunc.compute(inputs, dynamic_attributes)
-
-        serialized_outputs = _to_jsonable(outputs)
-        return success(predictions=serialized_outputs)
+        outputs = await fnnx_pyfunc.compute(inputs, dynamic_attributes or {})
+        return success(predictions=_to_jsonable(outputs))
     except KeyError:
         raise ValueError(f"Model with ID {model_id} not found")
     except Exception as e:
