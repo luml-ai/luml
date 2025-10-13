@@ -6,20 +6,24 @@
       :error="isUploadWithErrors || filePredictWithError"
       :loading="isLoading"
       loading-message="Loading prediction..."
-      :success-message-only="isPredictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''"
+      :success-message-only="
+        isPredictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''
+      "
       success-remove-text="Upload new dataset"
       :accept="['text/csv']"
       accept-text="Supports CSV file format"
       upload-text="upload CSV"
       @select-file="onSelectFile"
-      @remove-file="onRemoveFile"/>
+      @remove-file="onRemoveFile"
+    />
     <d-button
       v-if="isPredictReadyForDownload"
       label="Download"
       type="submit"
       fluid
       rounded
-      @click="downloadPredict"/>
+      @click="downloadPredict"
+    />
     <d-button
       v-else
       label="Predict"
@@ -27,7 +31,8 @@
       fluid
       :disabled="isPredictButtonDisabled"
       rounded
-      @click="submit"/>
+      @click="submit"
+    />
   </div>
 </template>
 
@@ -47,15 +52,22 @@ type Props = {
 
 const props = defineProps<Props>()
 
-const tableValidator = (size?: number, columns?: number, rows?: number) => ({})
-const {isUploadWithErrors, fileData, onSelectFile, getDataForTraining, onRemoveFile} = useDataTable(tableValidator)
+const tableValidator = () => ({
+  size: false,
+  columns: false,
+  rows: false,
+})
+const { isUploadWithErrors, fileData, onSelectFile, getDataForTraining, onRemoveFile } =
+  useDataTable(tableValidator)
 
 const filePredictWithError = ref(false)
 const isLoading = ref(false)
 const downloadPredictBlob = ref<Blob | null>(null)
 
 const isPredictReadyForDownload = computed(() => !!downloadPredictBlob.value)
-const isPredictButtonDisabled = computed(() => !fileData.value.name || !isUploadWithErrors || isLoading.value)
+const isPredictButtonDisabled = computed(
+  () => !fileData.value.name || !isUploadWithErrors || isLoading.value,
+)
 
 async function submit() {
   isLoading.value = true
@@ -63,7 +75,7 @@ async function submit() {
   try {
     const result = await props.predictCallback(data)
     downloadPredictBlob.value = convertObjectToCsvBlob(result)
-  } catch(e) {
+  } catch (e) {
     toast.add(predictErrorToast(e as string))
     filePredictWithError.value = true
   } finally {
@@ -82,10 +94,14 @@ function downloadPredict() {
   URL.revokeObjectURL(url)
 }
 
-watch(fileData, () => {
-  filePredictWithError.value = false;
-  downloadPredictBlob.value = null;
-}, { deep: true })
+watch(
+  fileData,
+  () => {
+    filePredictWithError.value = false
+    downloadPredictBlob.value = null
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>

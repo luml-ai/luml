@@ -1,26 +1,35 @@
 <template>
   <div class="runtime">
-    <upload-data v-if="currentStep === 1"
+    <upload-data
+      v-if="currentStep === 1"
       :remove-callback="removeModel"
       :upload-callback="createModelFromFile"
-      @continue="currentStep = 2"/>
-    <runtime-dashboard v-else-if="getModel && currentTag"
+      @continue="currentStep = 2"
+    />
+    <RuntimeDashboard
+      v-else-if="getModel && currentTag"
       :current-tag="currentTag"
       :model="(getModel as Model)"
-      @exit="currentStep = 1" />
+      :model-id="modelId"
+      @exit="currentStep = 1"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Model } from '@fnnx/web'
-import { ref } from 'vue'
+import { onUnmounted, ref } from 'vue'
 import UploadData from '@/components/runtime/UploadData.vue'
-import RuntimeDashboard from '@/components/runtime/dashboard/index.vue'
+import RuntimeDashboard from '@/components/runtime/dashboard/RuntimeDashboard.vue'
 import { useFnnxModel } from '@/hooks/useFnnxModel'
 
-const { currentTag, getModel, createModelFromFile, removeModel } = useFnnxModel()
+const { currentTag, getModel, modelId, createModelFromFile, removeModel, deinit } = useFnnxModel()
 
 const currentStep = ref(1)
+
+onUnmounted(() => {
+  deinit()
+})
 </script>
 
 <style scoped></style>

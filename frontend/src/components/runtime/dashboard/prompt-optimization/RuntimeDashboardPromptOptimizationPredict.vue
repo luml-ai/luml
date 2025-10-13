@@ -1,24 +1,21 @@
 <template>
-  <div class="content" :class="{ disabled: isLoading }">
-    <p class="text">
-      Generate predictions by entering feature values manually or uploading a dataset — ensure that
-      the columns match the features used during training.
-    </p>
+  <div class="content" :class="{ disabled: loading }">
+    <p class="text">Get predictions by entering data manually or uploading a dataset</p>
     <SelectButton v-model="selectValue" :options="selectOptions" />
     <div v-if="selectValue === 'Manual'" class="manual">
       <div class="inputs">
         <div v-for="field in Object.keys(manualValues)" :key="field" class="input-wrapper">
-          <d-float-label variant="on">
-            <d-input-text
+          <FloatLabel variant="on">
+            <InputText
               v-model="manualValues[field as keyof typeof manualValues]"
               :id="field"
               fluid
             />
             <label class="label" :for="field">{{ cutStringOnMiddle(field, 24) }}</label>
-          </d-float-label>
+          </FloatLabel>
         </div>
       </div>
-      <d-button
+      <Button
         label="Predict"
         type="submit"
         fluid
@@ -37,11 +34,11 @@
       ></Textarea>
     </div>
     <div v-else class="upload">
-      <file-input
+      <FileInput
         id="predict"
         :file="fileData"
         :error="isUploadWithErrors || filePredictWithError"
-        :loading="isLoading"
+        :loading="loading"
         loading-message="Loading prediction..."
         :success-message-only="
           predictReadyForDownload ? 'Success! Your predictions are ready—download the file.' : ''
@@ -53,10 +50,14 @@
         @select-file="onSelectFile"
         @remove-file="onRemoveFile"
       />
-      <template v-if="predictReadyForDownload">
-        <d-button label="Download" type="submit" fluid @click="downloadPredict" />
-      </template>
-      <d-button
+      <Button
+        v-if="predictReadyForDownload"
+        label="Download"
+        type="submit"
+        fluid
+        @click="downloadPredict"
+      />
+      <Button
         v-else
         label="Predict"
         type="submit"
@@ -69,27 +70,21 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useDataTable } from '@/hooks/useDataTable'
-import { useModelTraining } from '@/hooks/useModelTraining'
-import { convertObjectToCsvBlob, downloadFileFromBlob } from '@/helpers/helpers'
-import { cutStringOnMiddle } from '@/helpers/helpers'
-import { Textarea } from 'primevue'
-import SelectButton from 'primevue/selectbutton'
+import { SelectButton, FloatLabel, InputText, Button, Textarea, useToast } from 'primevue'
 import FileInput from '@/components/ui/FileInput.vue'
+import { computed, ref } from 'vue'
+import { convertObjectToCsvBlob, cutStringOnMiddle, downloadFileFromBlob } from '@/helpers/helpers'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
+import { useDataTable } from '@/hooks/useDataTable'
+import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 
 type Props = {
   manualFields: string[]
   modelId: string
-  task: 'classification' | 'regression' | 'prompt_optimization'
+  dynamicAttributes: Record<string, string | number>
+  providerConnected: boolean
 }
-
-const props = defineProps<Props>()
-
-const { startPredict, isLoading } = useModelTraining(
-  props.task === 'prompt_optimization' ? 'prompt_optimization' : 'tabular',
-)
 
 const tableValidator = () => {
   return { size: false, columns: false, rows: false }
@@ -97,79 +92,106 @@ const tableValidator = () => {
 const { isUploadWithErrors, fileData, onSelectFile, getDataForTraining, onRemoveFile } =
   useDataTable(tableValidator)
 
-const selectValue = ref<'Manual' | 'Upload file'>('Manual')
-const selectOptions = ref(['Manual', 'Upload file'])
-const manualValues = ref(
-  props.manualFields.reduce(
-    (acc, field) => {
-      acc[field] = ''
+const toast = useToast()
 
-      return acc
-    },
-    {} as Record<string, string>,
-  ),
-)
+const props = defineProps<Props>()
+
+const loading = ref(false)
+
+const selectOptions = ref(['Manual', 'Upload file'])
+const selectValue = ref<'Manual' | 'Upload file'>('Manual')
+const manualValues = ref(Object.fromEntries(props.manualFields.map((field) => [field, ''])))
 const predictionText = ref('')
 const filePredictWithError = ref(false)
 const downloadPredictBlob = ref<Blob | null>(null)
 
-const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
-const isPredictButtonDisabled = computed(() => !fileData.value.name || isUploadWithErrors.value)
 const isManualPredictButtonDisabled = computed(() => {
-  for (const input in manualValues.value) {
-    if (!manualValues.value[input]) return true
-  }
-  return false
+  return Object.values(manualValues.value).some((value) => !value) || !props.providerConnected
 })
+const predictReadyForDownload = computed(() => !!downloadPredictBlob.value)
+const isPredictButtonDisabled = computed(
+  () => !fileData.value.name || isUploadWithErrors.value || !props.providerConnected,
+)
 
 async function onManualSubmit() {
-  AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: props.task })
-  predictionText.value = ''
-  const data = prepareManualData()
-  const predictRequest = { data, model_id: props.modelId }
-  const result = await startPredict(predictRequest)
-  if (!result?.predictions) return
-  if (typeof result.predictions[0] === 'string' || typeof result.predictions[0] === 'number') {
-    predictionText.value = result.predictions.join(', ')
-  } else if (typeof result.predictions[0] === 'object') {
-    predictionText.value = JSON.stringify(result.predictions)
+  loading.value = true
+  try {
+    sendAnalytics()
+    predictionText.value = ''
+    const data = prepareManualData()
+    const payload = getPredictPayload(data)
+    const result = await DataProcessingWorker.computePythonModel(payload)
+    if (result?.status === 'success') {
+      predictionText.value = JSON.stringify(result.predictions?.out)
+    } else if (result.status === 'error') {
+      throw new Error(result.error_message)
+    }
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown Error'
+    toast.add(simpleErrorToast(message))
+  } finally {
+    loading.value = false
   }
 }
+
 async function onFileSubmit() {
-  AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: props.task })
-  const data = getDataForTraining()
-  const predictRequest = { data, model_id: props.modelId }
-  const result = await startPredict(predictRequest)
-  if (result) {
-    data.prediction = result.predictions
-    downloadPredictBlob.value = convertObjectToCsvBlob(data)
-  } else {
+  loading.value = true
+  filePredictWithError.value = false
+  try {
+    sendAnalytics()
+    const data = getDataForTraining()
+    const formattedData = Object.fromEntries(
+      Object.entries(data).map(([key, value]) => {
+        return [key, value[0]]
+      }),
+    )
+    const payload = getPredictPayload(formattedData)
+    const result = await DataProcessingWorker.computePythonModel(payload)
+    if (result?.status === 'success') {
+      const object: Record<string, string | number | object> = {
+        inputs: [formattedData],
+        prediction: [result.predictions?.out],
+      }
+      downloadPredictBlob.value = convertObjectToCsvBlob(object)
+    } else if (result.status === 'error') {
+      throw new Error(result.error_message)
+    }
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : 'Unknown Error'
+    toast.add(simpleErrorToast(message))
     filePredictWithError.value = true
+  } finally {
+    loading.value = false
   }
 }
+
 function prepareManualData() {
-  const data: Record<string, (string | number)[]> = {}
+  const data: Record<string, string | number> = {}
   for (const key in manualValues.value) {
     const value = manualValues.value[key].trim()
     if (!value) continue
     const formattedValue = isNaN(Number(value)) ? value : Number(value)
-    data[key] = [formattedValue]
+    data[key] = formattedValue
   }
   return data
 }
+
+function getPredictPayload(data: Record<string, string | number>) {
+  return {
+    inputs: { in: data },
+    model_id: props.modelId,
+    dynamic_attributes: props.dynamicAttributes,
+  }
+}
+
 function downloadPredict() {
   if (!downloadPredictBlob.value) return
   downloadFileFromBlob(downloadPredictBlob.value, 'dfs-predictions')
 }
 
-watch(
-  fileData,
-  () => {
-    filePredictWithError.value = false
-    downloadPredictBlob.value = null
-  },
-  { deep: true },
-)
+function sendAnalytics() {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.predict, { task: 'prompt_optimization_runtime' })
+}
 </script>
 
 <style scoped>

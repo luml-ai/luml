@@ -16,6 +16,9 @@ export enum WEBWORKER_ROUTES_ENUM {
   PROMPT_OPTIMIZATION_TRAIN = '/prompt_optimization/train',
   PROMPT_OPTIMIZATION_PREDICT = '/prompt_optimization/predict',
   STORE_DEALLOCATE = '/store/deallocate',
+  PYFUNC_INIT = '/pyfunc/init',
+  PYFUNC_COMPUTE = '/pyfunc/compute',
+  PYFUNC_DEINIT = '/pyfunc/deinit',
 }
 
 export enum Tasks {
@@ -75,7 +78,7 @@ export interface PredictRequestData {
 export interface TabularMetrics {
   performance: {
     eval_cv?: ClassificationMetrics | RegressionMetrics
-    eval_holdout?: ClassificationMetrics | RegressionMetrics 
+    eval_holdout?: ClassificationMetrics | RegressionMetrics
     train: ClassificationMetrics | RegressionMetrics
   }
   permutation_feature_importance_train: {

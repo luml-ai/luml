@@ -120,7 +120,7 @@ function onDragleave(e: DragEvent) {
     dropzoneActive.value = false
   }
 }
-function onDragover(e: DragEvent) {}
+function onDragover() {}
 function onDrop(e: DragEvent) {
   dropzoneActive.value = false
   const file = e.dataTransfer?.files?.[0]

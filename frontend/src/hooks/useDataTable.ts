@@ -15,6 +15,8 @@ type InitialTableData = {
 export type ColumnType = 'number' | 'string' | 'date'
 export type PromptFusionColumn = { name: string; variant: 'input' | 'output' }
 
+export type ValidatorFunction = (size?: number, columns?: number, rows?: number) => { size: boolean, columns: boolean, rows: boolean }
+
 const initialState = {
   startedTableData: null,
   columnsCount: undefined,
@@ -28,7 +30,7 @@ const initialState = {
   inputsOutputsColumns: [],
 }
 
-export const useDataTable = (validator: Function) => {
+export const useDataTable = (validator: ValidatorFunction) => {
   const toast = useToast()
 
   const dataTable = new DataTableArquero()
@@ -132,9 +134,12 @@ export const useDataTable = (validator: Function) => {
       toast.add(incorrectGroupWarning)
       return
     }
-    group.value.includes(column)
-      ? (group.value = group.value.filter((item) => item !== column))
-      : group.value.push(column)
+    const columnExist = group.value.includes(column);
+    if (columnExist) {
+      group.value = group.value.filter((item) => item !== column)
+    } else {
+      group.value.push(column)
+    }
   }
   function downloadCSV() {
     dataTable.downloadCSV(`dfs-${startedTableData.value?.fileName}`)

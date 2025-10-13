@@ -123,3 +123,13 @@ export interface PayloadProviderData {
   modelId: ProviderModelsEnum
   providerSettings: Record<string, string>
 }
+
+export enum ProviderDynamicAttributesTagsEnum {
+  'dataforce.studio/prompt-fusion::provider_api_key:v1' = 'apiKey',
+  'dataforce.studio/prompt-fusion::provider_base_url:v1' = 'apiBase',
+}
+
+export enum ProviderAttributesMap {
+  'apiKey' = 'api_key',
+  'apiBase' = 'api_base',
+}

@@ -111,15 +111,19 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
     return this.filters
   }
 
-  getDataForTraining(): object {
-    const data = this.getObjects().reduce((acc, object) => {
+  getDataForTraining() {
+    const data = this.getObjects().reduce((acc: Record<string, (string | number)[]>, object) => {
       for (const key in object) {
         const value = object[key as keyof typeof object]
-        acc[key] ? acc[key].push(value) : (acc[key] = [value])
+        if (acc[key]) {
+          acc[key].push(value)
+        } else {
+          acc[key] = [value]
+        }
       }
 
       return acc
-    }, {} as any)
+    }, {})
     return data
   }
 

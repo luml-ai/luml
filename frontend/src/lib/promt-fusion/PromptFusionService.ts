@@ -264,7 +264,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       },
       selected: false,
     }))
-    const edges: any = metadata.edges.map<Edge>((edge) => ({
+    const edges = metadata.edges.map<Edge>((edge) => ({
       id: edge.id,
       source: edge.sourceNode,
       target: edge.targetNode,
