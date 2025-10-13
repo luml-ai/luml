@@ -1,3 +1,4 @@
+import contextlib
 import logging
 from typing import Any
 
@@ -21,19 +22,22 @@ class TaskHandler:
         }
 
     async def dispatch(self, raw_task: dict[str, Any]) -> None:
-        logger.info(f"[dispatch] Processing task: {raw_task.get('id', 'unknown')} type: {raw_task.get('type', 'unknown')}")
-        
+        logger.info(
+            f"[dispatch] Processing task: {raw_task.get('id', 'unknown')}"
+            f" type: {raw_task.get('type', 'unknown')}"
+        )
+
         try:
             task = SatelliteQueueTask.model_validate(raw_task)
 
         except ValidationError as e:
             logger.error(f"[dispatch] Task validation failed: {e}")
-            try:
+            with contextlib.suppress(Exception):
                 await self.platform.update_task_status(
-                    raw_task.get("id"), SatelliteTaskStatus.FAILED, {"reason": "invalid task payload"}
+                    raw_task.get("id"),
+                    SatelliteTaskStatus.FAILED,
+                    {"reason": "invalid task payload"},
                 )
-            except Exception:
-                pass
             return
 
         handler = self._handlers.get(task.type)

@@ -1,10 +1,13 @@
 import asyncio
+import logging
+from contextlib import suppress
 from typing import Self
 
 import httpx
 
 from agent.settings import config
 
+logger = logging.getLogger(__name__)
 
 class ModelServerClient:
     def __init__(self, timeout: float = 45.0) -> None:
@@ -37,26 +40,31 @@ class ModelServerClient:
         response.raise_for_status()
         return response.json()
 
-    async def is_healthy(self, deployment_id: str, timeout: int = 45) -> bool:
+    async def is_healthy(self, deployment_id: str, timeout: int = 120) -> bool:
         assert self._session is not None
+        url = f"{self._url(deployment_id)}/healthz"
+        logger.info(
+            f"[HEALTH_CHECK] Starting health check for {deployment_id},"
+            f" URL: {url}, timeout: {timeout}s"
+        )
+
         for _ in range(timeout):
-            try:
-                response = await self._session.get(f"{self._url(deployment_id)}/healthz")
+            with suppress(Exception):
+                response = await self._session.get(url, timeout=5.0)
                 if response.status_code == 200:
                     return True
-            except Exception:
-                pass
             await asyncio.sleep(1)
+
+        logger.error(f"[HEALTH_CHECK] Failed after {timeout} attempts for {deployment_id}")
         return False
 
     async def get_openapi_schema(self, deployment_id: str) -> dict | None:
         assert self._session is not None
-        try:
+        with suppress(Exception):
             response = await self._session.get(f"{self._url(deployment_id)}/openapi.json")
             if response.status_code == 200:
                 return response.json()
-        except Exception:
-            pass
+
         return None
 
     async def get_manifest(self, deployment_id: str) -> dict | None:
@@ -65,6 +73,8 @@ class ModelServerClient:
             response = await self._session.get(f"{self._url(deployment_id)}/manifest")
             if response.status_code == 200:
                 return response.json()
-        except Exception:
-            pass
+        except Exception as error:
+            logger.info(
+                f"[ModelServerClient] Error getting manifest {error}."
+            )
         return None

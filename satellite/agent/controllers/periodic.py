@@ -9,6 +9,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 logger = logging.getLogger("satellite")
 
+
 class PeriodicController:
     def __init__(self, *, handler: TaskHandler, poll_interval_s: float) -> None:
         self.handler = handler
@@ -20,7 +21,9 @@ class PeriodicController:
 
     async def tick(self) -> None:
         tasks = await self.handler.platform.list_tasks(SatelliteTaskStatus.PENDING)
-        logger.info(f"[tasks] Found {len(tasks)} pending tasks: {[t.get('id', 'unknown') for t in tasks]}")
+        logger.info(
+            f"[tasks] Found {len(tasks)} pending tasks: {[t.get('id', 'unknown') for t in tasks]}"
+        )
         for t in tasks:
             try:
                 await self.handler.dispatch(t)

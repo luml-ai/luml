@@ -25,20 +25,20 @@ class FileHandler:
             with httpx.stream("GET", url, timeout=timeout) as response:
                 if response.status_code == 403:
                     raise ValueError(
-                        f"Access denied to model artifact. "
-                        f"The download URL may have expired or access is restricted. "
-                        f"Please regenerate the deployment or check permissions."
+                        "Access denied to model artifact. "
+                        "The download URL may have expired or access is restricted. "
+                        "Please regenerate the deployment or check permissions."
                     )
                 elif response.status_code == 404:
                     raise ValueError(
-                        f"Model artifact not found at URL. The file may have been moved or deleted."
+                        "Model artifact not found at URL. The file may have been moved or deleted."
                     )
                 elif response.status_code >= 400:
                     raise ValueError(
                         f"HTTP {response.status_code} error downloading model artifact: "
                         f"{response.reason_phrase}"
                     )
-                
+
                 response.raise_for_status()
 
                 total_size = int(response.headers.get("content-length", 0))

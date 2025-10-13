@@ -1,39 +1,34 @@
-import json
 import inspect
-import logging
-from typing import Any, Callable, Type
-from handlers.model_handler import ModelHandler
-from _exceptions import HTTPException
-from openapi_generator import OpenAPIGenerator
-
-logger = logging.getLogger(__name__)
+import json
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 
-class UvicornService:
+class HTTPException(Exception):
+    def __init__(
+        self,
+        status_code: int = 500,
+        detail: str = "Model API error.",
+    ) -> None:
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(self.detail)
+
+
+class UvicornBaseService:
     def __init__(
         self,
         *,
-        title: str = "Model API",
-        description: str = "API for running inference on FNNX / DFS models",
+        title: str = "Uvicorn Service",
+        description: str = "Uvicorn Service",
         version: str = "1.0.0",
     ) -> None:
         self.title = title
         self.description = description
         self.version = version
 
-        logger.info("Initializing ModelHandler...")
-        try:
-            self.model_handler = ModelHandler()
-            self.openapi = OpenAPIGenerator(self.model_handler)
-            logger.info("ModelHandler initialized successfully")
-        except Exception as e:
-            logger.error(f"Failed to initialize ModelHandler: {e}", exc_info=True)
-            self.model_handler = None
-            self.openapi = None
-
         self.routes: dict[tuple, Callable] = {}
-        self.route_metadata: dict[tuple, dict[str, Any]] = {}
-        self._add_builtin_endpoints()
+        self.route_metadata: dict[tuple, dict[str, Any]] = {}  # noqa: ANN401
 
     def get(
         self,
@@ -41,11 +36,16 @@ class UvicornService:
         *,
         summary: str = None,
         description: str = None,
-        response_model: Type = None,
+        response_model: type = None,
         tags: list = None,
-    ):
-        def decorator(func):
-            async def wrapper(service, scope, receive, send):
+    ) -> Any:  # noqa: ANN401
+        def decorator(func: Callable) -> Callable:
+            async def wrapper(
+                service: "UvicornBaseService",
+                scope: dict[str, Any],  # noqa: ANN401
+                receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
+                send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
+            ) -> None:
                 try:
                     sig = inspect.signature(func)
                     param_names = list(sig.parameters.keys())
@@ -61,11 +61,11 @@ class UvicornService:
                         result = await func(service, send)
                         return
                     if result is not None:
-                        await service._send_json(send, result)
+                        await service.send_json(send, result)
                 except HTTPException as e:
-                    await service._send_json(send, {"error": e.detail}, e.status_code)
+                    await service.send_json(send, {"error": e.detail}, e.status_code)
                 except Exception as e:
-                    await service._send_json(send, {"error": str(e)}, 500)
+                    await service.send_json(send, {"error": str(e)}, 500)
 
             self.routes[(path, "GET")] = wrapper
 
@@ -86,12 +86,17 @@ class UvicornService:
         *,
         summary: str = None,
         description: str = None,
-        request_model: Type = None,
-        response_model: Type = None,
+        request_model: type = None,
+        response_model: type = None,
         tags: list = None,
-    ):
-        def decorator(func):
-            async def wrapper(service, scope, receive, send):
+    ) -> Any:  # noqa: ANN401
+        def decorator(func: Callable) -> Callable:
+            async def wrapper(
+                service: "UvicornBaseService",
+                scope: dict[str, Any],  # noqa: ANN401
+                receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
+                send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
+            ) -> None:
                 try:
                     body = await service._read_body(receive)
                     request_data = json.loads(body) if body else {}
@@ -117,11 +122,12 @@ class UvicornService:
                         result = await func(service, request_data)
 
                     if result is not None:
-                        await service._send_json(send, result)
+                        await service.send_json(send, result)
+
                 except HTTPException as e:
-                    await service._send_json(send, {"error": e.detail}, e.status_code)
+                    await service.send_json(send, {"error": e.detail}, e.status_code)
                 except Exception as e:
-                    await service._send_json(send, {"error": str(e)}, 500)
+                    await service.send_json(send, {"error": str(e)}, 500)
 
             self.routes[(path, "POST")] = wrapper
 
@@ -138,7 +144,11 @@ class UvicornService:
         return decorator
 
     @staticmethod
-    async def _send_html(send, html: str, status: int = 200):
+    async def send_html(
+        send: Callable[[dict[str, Any]], Awaitable[None]],
+        html: str,
+        status: int = 200,  # noqa: ANN401
+    ) -> None:
         body = html.encode()
         await send(
             {
@@ -158,7 +168,7 @@ class UvicornService:
         )
 
     @staticmethod
-    async def _read_body(receive) -> str:
+    async def _read_body(receive: Callable[[], Awaitable[dict[str, Any]]]) -> str:  # noqa: ANN401
         body = b""
         while True:
             message = await receive()
@@ -169,7 +179,11 @@ class UvicornService:
         return body.decode()
 
     @staticmethod
-    async def _send_json(send, data: dict[str, Any], status: int = 200):
+    async def send_json(
+        send: Callable[[dict[str, Any]], Awaitable[None]],
+        data: dict[str, Any],
+        status: int = 200,  # noqa: ANN401
+    ) -> None:
         body = json.dumps(data).encode()
         await send(
             {
@@ -188,60 +202,15 @@ class UvicornService:
             }
         )
 
-    async def _send_404(self, send):
-        await self._send_json(send, {"error": "Not found"}, 404)
+    async def _send_404(self, send: Callable[[dict[str, Any]], Awaitable[None]]) -> None:  # noqa: ANN401
+        await self.send_json(send, {"error": "Not found"}, 404)
 
-    def generate_openapi_schema(self) -> dict[str, Any]:
-        return self.openapi.get_openapi_schema(
-            title=self.title,
-            version=self.version,
-            description=self.description,
-        )
-
-    def _add_builtin_endpoints(self):
-        async def docs_handler(service, scope, receive, send):
-            if service.openapi is None:
-                await service._send_json(
-                    send,
-                    {
-                        "error": "ModelHandler initialization failed. Check logs and environment variables."
-                    },
-                    500,
-                )
-                return
-            await service._send_html(send, service.openapi.openapi_html())
-
-        async def openapi_handler(service, scope, receive, send):
-            if service.openapi is None:
-                await service._send_json(
-                    send,
-                    {
-                        "error": "ModelHandler initialization failed. Check logs and environment variables."
-                    },
-                    500,
-                )
-                return
-            schema = service.generate_openapi_schema()
-            await service._send_json(send, schema)
-
-        self.routes[("/docs", "GET")] = docs_handler
-        self.routes[("/openapi.json", "GET")] = openapi_handler
-
-        self.route_metadata[("/docs", "GET")] = {
-            "summary": "Swagger UI Documentation",
-            "description": "Interactive API documentation",
-            "tags": ["documentation"],
-            "function": docs_handler,
-        }
-
-        self.route_metadata[("/openapi.json", "GET")] = {
-            "summary": "OpenAPI Schema",
-            "description": "Returns the OpenAPI specification",
-            "tags": ["documentation"],
-            "function": openapi_handler,
-        }
-
-    async def __call__(self, scope: dict[str, Any], receive, send):
+    async def __call__(
+        self,
+        scope: dict[str, Any],  # noqa: ANN401
+        receive: Callable[[], Awaitable[dict[str, Any]]],  # noqa: ANN401
+        send: Callable[[dict[str, Any]], Awaitable[None]],  # noqa: ANN401
+    ) -> None:
         assert scope["type"] == "http"
 
         path = scope["path"]
@@ -253,8 +222,8 @@ class UvicornService:
             try:
                 await handler(self, scope, receive, send)
             except HTTPException as e:
-                await self._send_json(send, {"error": e.detail}, e.status_code)
+                await self.send_json(send, {"error": e.detail}, e.status_code)
             except Exception as e:
-                await self._send_json(send, {"error": str(e)}, 500)
+                await self.send_json(send, {"error": str(e)}, 500)
         else:
             await self._send_404(send)

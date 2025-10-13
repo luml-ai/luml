@@ -4,7 +4,7 @@ from handlers.model_handler import ModelHandler
 
 
 class OpenAPIGenerator:
-    def __init__(self, model_handler: ModelHandler):
+    def __init__(self, model_handler: ModelHandler) -> None:
         self.model_handler = model_handler
 
     @staticmethod
@@ -14,7 +14,7 @@ class OpenAPIGenerator:
 
     @staticmethod
     def _update_input_references(
-            openapi_schema: dict, manifest: dict, dtypes_schemas: dict
+        openapi_schema: dict, manifest: dict, dtypes_schemas: dict
     ) -> None:
         inputs_schema = openapi_schema["components"]["schemas"].get("InputsModel")
         if inputs_schema and "properties" in inputs_schema:
@@ -43,7 +43,7 @@ class OpenAPIGenerator:
         }
         openapi_schema["security"] = [{"BearerAuth": []}]
 
-    def _inject_pydantic_schemas(self, openapi_schema: dict, request_model) -> None:
+    def _inject_pydantic_schemas(self, openapi_schema: dict, request_model: Any) -> None:  # noqa: ANN401
         request_schema = request_model.model_json_schema()
 
         if "components" not in openapi_schema:
@@ -65,7 +65,7 @@ class OpenAPIGenerator:
         transformed_main = self._transform_refs(main_schema)
         openapi_schema["components"]["schemas"]["ComputeRequest"] = transformed_main
 
-    def _transform_refs(self, obj: Any) -> Any:
+    def _transform_refs(self, obj: Any) -> Any:  # noqa: ANN401
         if isinstance(obj, dict):
             if "$ref" in obj and obj["$ref"].startswith("#/$defs/"):
                 ref_name = obj["$ref"].replace("#/$defs/", "")
@@ -105,7 +105,7 @@ class OpenAPIGenerator:
                             "properties": resp_properties or {"result": {"type": "object"}},
                         }
                     }
-                }
+                },
             }
         }
 
@@ -113,14 +113,13 @@ class OpenAPIGenerator:
         openapi_schema["paths"]["/compute"]["post"]["description"] = """
         The inputs should conform to the model's input specification as defined in the manifest.
         Dynamic attributes are optional key-value pairs for model configuration.
-        For JSON inputs/outputs, shapes in Swagger UI will reflect any custom schemas found in dtypes.json.
+        For JSON inputs/outputs, shapes in Swagger UI
+        will reflect any custom schemas found in dtypes.json.
         """
         openapi_schema["paths"]["/compute"]["post"]["tags"] = ["model"]
         openapi_schema["paths"]["/compute"]["post"]["security"] = [{"BearerAuth": []}]
 
-    def get_openapi_schema(
-            self, title, version, description, routes=None, route_metadata=None
-    ) -> dict[str, Any]:
+    def get_openapi_schema(self, title: str, version: str, description: str) -> dict[str, Any]:
         try:
             return self.generate_schema(
                 title=title,
@@ -140,7 +139,7 @@ class OpenAPIGenerator:
             }
 
     def generate_schema(
-            self, title: str = "Model API", version: str = "0.1.0", description: str = "model api"
+        self, title: str = "Model API", version: str = "0.1.0", description: str = "model api"
     ) -> dict[str, Any]:
         manifest = self.model_handler.get_manifest()
         dtypes_schemas = self.model_handler.load_dtypes_schemas()

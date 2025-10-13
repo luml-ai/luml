@@ -1,3 +1,4 @@
+import contextlib
 import copy
 from typing import Any
 
@@ -5,19 +6,21 @@ from agent.handlers.model_server_handler import ModelServerHandler
 
 
 class OpenAPIHandler:
-    def __init__(self, model_server_handler: ModelServerHandler):
+    def __init__(self, model_server_handler: ModelServerHandler) -> None:
         self.ms_handler = model_server_handler
 
     def _update_schema_refs(
-        self, schema_obj: Any, deployment_id: str, original_schemas: set
-    ) -> Any:
+        self, schema_obj: Any, deployment_id: str, original_schemas: set   # noqa: ANN401
+    ) -> Any:   # noqa: ANN401
         if isinstance(schema_obj, dict):
             if "$ref" in schema_obj:
                 ref_path = schema_obj["$ref"]
                 if ref_path.startswith("#/components/schemas/"):
                     ref_name = ref_path.replace("#/components/schemas/", "")
                     if ref_name in original_schemas:
-                        schema_obj["$ref"] = f"#/components/schemas/Deployment{deployment_id}_{ref_name}"
+                        schema_obj["$ref"] = (
+                            f"#/components/schemas/Deployment{deployment_id}_{ref_name}"
+                        )
             else:
                 for key, value in schema_obj.items():
                     schema_obj[key] = self._update_schema_refs(
@@ -29,7 +32,7 @@ class OpenAPIHandler:
         return schema_obj
 
     def _process_deployment_schemas(
-        self, deployment, openapi_schema: dict[str, Any]
+        self, deployment, openapi_schema: dict[str, Any]  # noqa: ANN401
     ) -> dict[str, str] | None:
         if not deployment.openapi_schema or "components" not in deployment.openapi_schema:
             return None
@@ -49,17 +52,18 @@ class OpenAPIHandler:
         if "ComputeRequest" in model_schema["components"]["schemas"]:
             return {
                 "deployment_id": deployment.deployment_id,
-                "schema_ref": f"#/components/schemas/Deployment{deployment.deployment_id}_ComputeRequest",
+                "schema_ref": f"#/components/schemas/"
+                              f"Deployment{deployment.deployment_id}_ComputeRequest",
             }
         return None
 
     def _add_prefixed_schema(
         self,
-        openapi_schema: dict[str, Any],
+        openapi_schema: dict[str, Any],  # noqa: ANN401
         deployment_id: str,
         schema_name: str,
-        schema_def: dict[str, Any],
-        model_schema: dict[str, Any],
+        schema_def: dict[str, Any],  # noqa: ANN401
+        model_schema: dict[str, Any],  # noqa: ANN401
     ) -> None:
         prefixed_name = f"Deployment{deployment_id}_{schema_name}"
 
@@ -80,7 +84,7 @@ class OpenAPIHandler:
 
     @staticmethod
     def _update_compute_endpoint(
-        openapi_schema: dict[str, Any], compute_schemas: list[dict[str, str]]
+        openapi_schema: dict[str, Any], compute_schemas: list[dict[str, str]]  # noqa: ANN401
     ) -> None:
         compute_path = "/deployments/{deployment_id}/compute"
         if compute_path not in openapi_schema["paths"]:
@@ -111,16 +115,14 @@ class OpenAPIHandler:
         )
         openapi_schema["paths"][compute_path]["post"]["description"] = description
 
-    def merge_deployment_schemas(self, openapi_schema: dict[str, Any]) -> dict[str, Any]:
+    def merge_deployment_schemas(self, openapi_schema: dict[str, Any]) -> dict[str, Any]:   # noqa: ANN401
         compute_schemas = []
 
-        try:
+        with contextlib.suppress(Exception):
             for deployment in self.ms_handler.deployments.values():
                 compute_schema_info = self._process_deployment_schemas(deployment, openapi_schema)
                 if compute_schema_info:
                     compute_schemas.append(compute_schema_info)
-        except Exception:
-            pass
 
         if compute_schemas:
             self._update_compute_endpoint(openapi_schema, compute_schemas)

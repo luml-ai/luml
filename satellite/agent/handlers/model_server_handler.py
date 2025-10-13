@@ -1,4 +1,5 @@
 import logging
+from contextlib import suppress
 
 from agent.clients import ModelServerClient, PlatformClient
 from agent.schemas import Deployment, LocalDeployment
@@ -13,15 +14,12 @@ class ModelServerHandler:
         self._openapi_cache_invalidation_callbacks = []
 
     async def add_deployment(self, deployment: Deployment) -> None:
-        manifest = None
-        openapi_schema = None
-        try:
+        manifest, openapi_schema = None, None
+        with suppress(Exception):
             async with ModelServerClient() as client:
                 manifest = await client.get_manifest(deployment.id)
                 openapi_schema = await client.get_openapi_schema(deployment.id)
-        except Exception:
-            pass
-        
+
         self.deployments[str(deployment.id)] = LocalDeployment(
             deployment_id=deployment.id,
             dynamic_attributes_secrets=deployment.dynamic_attributes_secrets,
@@ -38,46 +36,38 @@ class ModelServerHandler:
 
         for dep_id, info in self.deployments.items():
             async with ModelServerClient() as client:
-                try:
+                with suppress(Exception):
                     health_ok = await client.is_healthy(dep_id)
                     if health_ok:
                         active_deployments[dep_id] = info
-                except Exception:
-                    pass
 
         self.deployments = active_deployments
         return list(active_deployments.values())
 
     async def sync_deployments(self) -> None:
-        logger.info('sync_deployments')
+        logger.info("[ModelServerHandler] sync_deployments")
         async with PlatformClient(
-            str(config.PLATFORM_URL), config.SATELLITE_TOKEN
+                str(config.PLATFORM_URL), config.SATELLITE_TOKEN
         ) as platform_client:
             deployments_db = await platform_client.list_deployments()
             deployments_db = [dep for dep in deployments_db if dep.get("status", "") == "active"]
 
-            logger.info(f'[deployments_db] {deployments_db}')
+            logger.info(f"[deployments_db] {"\n".join([d.get("id", "") for d in deployments_db])}")
             for dep in deployments_db:
                 try:
                     async with ModelServerClient() as client:
                         health_ok = await client.is_healthy(dep["id"])
                 except Exception:
                     health_ok = False
-                logger.info(f'[dep] {dep["id"]} health_ok - {health_ok}')
+                logger.info(f"[dep] {dep['id']} health_ok - {health_ok}")
                 if health_ok:
-                    manifest = None
-                    openapi_schema = None
-                    try:
+                    manifest, openapi_schema = None, None
+                    with suppress(Exception):
                         async with ModelServerClient() as client:
                             manifest = await client.get_manifest(dep["id"])
                             openapi_schema = await client.get_openapi_schema(dep["id"])
-                            logger.info(f"[manifest] {manifest}")
-                            logger.info(f"[openapi_schema] {openapi_schema}")
 
-                    except Exception:
-                        pass
-                    
-                    self.deployments[str(dep["id"])] = LocalDeployment(
+                    self.deployments[dep["id"]] = LocalDeployment(
                         deployment_id=dep["id"],
                         dynamic_attributes_secrets=dep.get("dynamic_attributes_secrets"),
                         manifest=manifest,
@@ -85,12 +75,12 @@ class ModelServerHandler:
                     )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
-        
+
         self._invalidate_openapi_cache()
 
     @staticmethod
     async def get_compute_missing_secrets(
-        deployment: LocalDeployment, compute_dynamic_atr: dict
+            deployment: LocalDeployment, compute_dynamic_atr: dict
     ) -> dict:
         from agent.handlers.handler_instances import secrets_handler
 
@@ -121,12 +111,10 @@ class ModelServerHandler:
         except Exception as e:
             raise RuntimeError(f"Model server request failed: {str(e)}") from e
 
-    def register_openapi_cache_invalidation_callback(self, callback):
+    def register_openapi_cache_invalidation_callback(self, callback) -> None:
         self._openapi_cache_invalidation_callbacks.append(callback)
 
-    def _invalidate_openapi_cache(self):
+    def _invalidate_openapi_cache(self) -> None:
         for callback in self._openapi_cache_invalidation_callbacks:
-            try:
+            with suppress(Exception):
                 callback()
-            except Exception:
-                pass

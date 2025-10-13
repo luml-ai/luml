@@ -16,3 +16,26 @@ dependencies = [
 [tool.ruff]
 target-version = "py313"
 line-length = 100
+indent-width = 4
+src = ["model_server"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"
+]
+ignore = [
+    "ANN002", # *args
+    "ANN003", # **kwargs
+    "ANN101", # missing type annotation for self
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["agent"]
+split-on-trailing-comma = true

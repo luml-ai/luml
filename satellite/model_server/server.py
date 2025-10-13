@@ -1,16 +1,17 @@
+import logging
 from typing import Any
-from pydantic import ValidationError
 
-from service import UvicornService
-from _exceptions import HTTPException
+from pydantic import ValidationError
+from services.base_service import HTTPException
+from services.service import UvicornService
 
 app = UvicornService()
 
-import logging
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 logger = logging.getLogger("satellite")
+
 
 @app.get(
     "/healthz",
@@ -18,7 +19,7 @@ logger = logging.getLogger("satellite")
     description="Returns the health status of the service",
     tags=["model"],
 )
-async def healthz():
+async def healthz() -> dict[str, str]:
     return {"status": "healthy"}
 
 
@@ -28,41 +29,39 @@ async def healthz():
     description="Returns the FNNX model manifest with input/output specifications",
     tags=["model"],
 )
-async def get_manifest():
+async def get_manifest() -> dict[str, Any]:  # noqa: ANN401
     try:
         return app.model_handler.get_manifest()
-    except Exception as e:
-        return {"error": f"Failed to get manifest: {str(e)}"}
-
+    except Exception as error:
+        return {"error": f"Failed to get manifest: {str(error)}"}
 
 
 @app.post(
     "/compute",
     summary="Run Model Inference",
     description="Execute inference on the loaded model",
-    response_model=dict[str, Any],
+    response_model=dict[str, Any],  # noqa: ANN401
     tags=["model"],
 )
-async def compute(request_data):
+async def compute(request_data: dict[str, Any]) -> dict[str, Any]:  # noqa: ANN401
     ComputeRequest = app.model_handler.get_request_model()
     try:
         validated_request = ComputeRequest(**request_data)
-    except ValidationError as e:
-        logger.error(f"Input validation failed: {e}")
-        raise HTTPException(status_code=422, detail=f"Input validation failed: {e}")
-    except Exception as e:
-        logger.error(f"Validation error: {e}")
-        raise HTTPException(status_code=422, detail=f"Validation error: {e}")
+    except ValidationError as error:
+        logger.error(f"Input validation failed: {error}")
+        raise HTTPException(status_code=422, detail=f"Input validation failed: {error}") from error
+    except Exception as error:
+        logger.error(f"Validation error: {error}")
+        raise HTTPException(status_code=422, detail=f"Validation error: {error}") from error
 
     try:
         result = await app.model_handler.compute_result(
             validated_request.inputs, validated_request.dynamic_attributes
         )
-        logger.info("Model computation successful")
         return result
-    except Exception as e:
-        logger.error(f"Model computation failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Model computation failed: {e}")
+    except Exception as error:
+        logger.error(f"Model computation failed: {error}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Model computation failed: {error}") from error
 
 
 if __name__ == "__main__":

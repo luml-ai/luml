@@ -39,8 +39,6 @@ class PlatformClient:
         r = await self._session.get(self._url("/satellites/tasks"), params=params)
         r.raise_for_status()
         tasks = r.json()
-        logger.info(f"[platform_client] Retrieved {len(tasks)} tasks with status {status}")
-        logger.info(f"[platform_client] Tasks: {tasks}")
         return tasks
 
     async def update_task_status(

@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.openapi.utils import get_openapi
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agent.handlers.handler_instances import ms_handler, secrets_handler
 from agent.schemas.deployments import (
@@ -14,6 +14,7 @@ from agent.schemas.deployments import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+
 from .handlers.openapi_handler import OpenAPIHandler
 
 openapi_handler = OpenAPIHandler(ms_handler)
@@ -28,7 +29,7 @@ class OpenAPISchemaBuilder:
             description="API for managing model deployments and inference",
             routes=app.routes,
         )
-    
+
     @staticmethod
     def add_security_to_schema(openapi_schema: dict[str, Any]) -> None:
         for path_data in openapi_schema.get("paths", {}).values():
@@ -40,10 +41,7 @@ class OpenAPISchemaBuilder:
             openapi_schema["components"] = {}
 
         openapi_schema["components"]["securitySchemes"] = {
-            "HTTPBearer": {
-                "type": "http",
-                "scheme": "bearer"
-            }
+            "HTTPBearer": {"type": "http", "scheme": "bearer"}
         }
 
 
@@ -95,7 +93,9 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
 
     @app.post("/deployments/{deployment_id}/compute", response_model=dict)
     async def compute(
-        deployment_id: int, body: dict, authorized: bool = Depends(verify_token)  # noqa: B008
+        deployment_id: str,
+        body: dict,
+        authorized: bool = Depends(verify_token),  # noqa: B008
     ) -> dict:
         try:
             return await ms_handler.model_compute(deployment_id, body)
@@ -113,10 +113,10 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
         app.openapi_schema = openapi_handler.merge_deployment_schemas(openapi_schema)
         return app.openapi_schema
 
-    def invalidate_openapi_cache():
+    def invalidate_openapi_cache() -> None:
         app.openapi_schema = None
-    
+
     ms_handler.register_openapi_cache_invalidation_callback(invalidate_openapi_cache)
-    
+
     app.openapi = custom_openapi
     return app

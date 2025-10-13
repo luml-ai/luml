@@ -1,20 +1,20 @@
+import contextlib
 import hashlib
 import json
 import os
-import shlex
-from fnnx.envs._common import run_cmd
-from fnnx.envs._common import select_pip_deps
-from fnnx.console import console
-from fnnx.utils import get_python_version
-from fnnx.envs._common import which
-import shutil
 import platform
+import shlex
+import shutil
 import subprocess
 import tempfile
 
+from fnnx.console import console
+from fnnx.envs._common import run_cmd, select_pip_deps, which
+from fnnx.utils import get_python_version
+
 
 class CondaLikeEnvManager:
-    def __init__(self, env_spec: dict, accelerator: str | None = None):
+    def __init__(self, env_spec: dict, accelerator: str | None = None) -> None:
         self._exe = self._get_exe()
         self.env_spec = env_spec
         self.accelerator = (accelerator or "cpu").lower()
@@ -109,7 +109,7 @@ class CondaLikeEnvManager:
         python_version: str,
         build_deps: list[str],
         deps: list[dict],
-    ):
+    ) -> None:
         cmd = [
             self._exe,
             "create",
@@ -171,10 +171,8 @@ class CondaLikeEnvManager:
                 run_cmd(pip_cmd)
         finally:
             if req_file:
-                try:
+                with contextlib.suppress(OSError):
                     os.unlink(req_file)
-                except OSError:
-                    pass
 
     def python_cmd(self, argv: list[str]) -> list[str]:
         if self._env_path is None:
@@ -210,7 +208,7 @@ class CondaLikeEnvManager:
         except Exception:
             return None
 
-    def ensure(self):
+    def ensure(self) -> str:
         env_name = f"fnnx-{self.env_id}"
         console.info(f"Using conda-like environment: {env_name}")
         env_path = self._env_exists(env_name)
