@@ -60,8 +60,7 @@ import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { getErrorMessage, getNumberOrString } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
 import { useDeploymentsStore } from '@/stores/deployments'
-import { useRouter } from 'vue-router'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsFormModelSettings from '../form/DeploymentsFormModelSettings.vue'
 import DeploymentsFormSatelliteSettings from '../form/DeploymentsFormSatelliteSettings.vue'
@@ -76,7 +75,6 @@ const props = defineProps<Props>()
 const collectionsStore = useCollectionsStore()
 const deploymentsStore = useDeploymentsStore()
 const toast = useToast()
-const router = useRouter()
 
 const visible = defineModel<boolean>('visible')
 
@@ -111,23 +109,14 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       severity: 'success',
       summary: 'Success',
       detail: `Deployment ${payload.name} was successfully created`,
-      life: 6000,
-    })
-    
-    setTimeout(() => {
-      const toastElement = document.querySelector('.p-toast-message:last-child .p-toast-detail')
-      if (toastElement) {
-        const link = document.createElement('a')
-        link.href = '#'
-        link.textContent = 'Go to Deployment'
-        link.style.cssText = 'text-decoration: underline; margin-left: 4px; cursor: pointer;'
-        link.onclick = (e) => {
-          e.preventDefault()
-          router.push({ name: 'orbit-deployments' })
-        }
-        toastElement.appendChild(link)
-      }
-    }, 0)
+      data: {
+        linkText: 'Go to Deployment',
+        routeName: 'orbit-deployments',
+        routeParams: {},
+      },
+      life: 5000,
+      group: 'toast-link'
+    } as any)
   } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create deployment')))
   } finally {
