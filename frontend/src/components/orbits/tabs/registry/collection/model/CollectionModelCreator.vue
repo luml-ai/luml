@@ -168,23 +168,14 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       severity: 'success',
       summary: 'Success',
       detail: `${formData.value.name} has been added to the collection successfully.`,
-      life: 6000,
-    })
-    
-    setTimeout(() => {
-      const toastElement = document.querySelector('.p-toast-message:last-child .p-toast-detail')
-      if (toastElement) {
-        const link = document.createElement('a')
-        link.href = '#'
-        link.textContent = 'Go to Collections'
-        link.style.cssText = 'text-decoration: underline; margin-left: 4px; cursor: pointer;'
-        link.onclick = (e) => {
-          e.preventDefault()
-          router.push({ name: 'orbit-registry' })
-        }
-        toastElement.appendChild(link)
-      }
-    }, 0)
+      data: {
+        linkText: 'Go to Collection',
+        routeName: 'orbit-registry',
+        routeParams: {},
+      },
+      life: 5000,
+      group: 'toast-link'
+    } as any)
 
     formData.value.description = ''
     formData.value.file = null
