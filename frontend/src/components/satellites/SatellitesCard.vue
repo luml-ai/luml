@@ -1,5 +1,5 @@
 <template>
-  <router-link to="/" class="card">
+  <div class="card">
     <div class="content">
       <div class="header">
         <h3 class="title">
@@ -34,7 +34,7 @@
         </div>
       </div>
     </div>
-  </router-link>
+  </div>
   <SatellitesEditModal v-model:visible="showEditModal" :data="data"></SatellitesEditModal>
   <SatellitesApiKeyModal
     v-model:visible="showApiKey"
