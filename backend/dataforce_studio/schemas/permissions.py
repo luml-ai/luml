@@ -213,6 +213,9 @@ organization_permissions = {
             Action.DELETE,
             Action.DEPLOY,
         ],
+        Resource.SATELLITE: [Action.CREATE, Action.LIST, Action.READ],
+        Resource.DEPLOYMENT: [Action.LIST, Action.READ, Action.CREATE, Action.UPDATE],
+        Resource.ORBIT_SECRET: [Action.LIST, Action.READ, Action.CREATE],
     },
 }
 
