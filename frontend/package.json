@@ -16,7 +16,9 @@
     "style": "npx style-dictionary build --config style-dictionary.config.mjs",
     "test": "vitest",
     "test:ci": "vitest run --environment jsdom",
-    "test:ui": "vitest --ui"
+    "test:ui": "vitest --ui",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@fnnx/common": "file:./fnnx-common-0.1.0.tgz",
@@ -49,6 +51,11 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@chromatic-com/storybook": "^4.1.1",
+    "@storybook/addon-a11y": "^9.1.10",
+    "@storybook/addon-docs": "^9.1.10",
+    "@storybook/addon-vitest": "^9.1.10",
+    "@storybook/vue3-vite": "^9.1.10",
     "@testing-library/vue": "^8.1.0",
     "@tsconfig/node22": "^22.0.0",
     "@types/file-saver": "^2.0.7",
@@ -61,15 +68,20 @@
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.5.1",
     "eslint": "^9.14.0",
+    "eslint-plugin-storybook": "^9.1.10",
     "eslint-plugin-vue": "^9.30.0",
     "jsdom": "^27.0.0",
     "npm-run-all2": "^7.0.1",
     "prettier": "^3.3.3",
+    "storybook": "^9.1.10",
     "style-dictionary": "^5.0.4",
     "typescript": "^5.9.2",
     "vite": "^6.3.6",
     "vite-plugin-vue-devtools": "^7.5.4",
     "vitest": "^3.2.4",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^2.1.10",
+    "@vitest/browser": "3.2.4",
+    "playwright": "^1.56.0",
+    "@vitest/coverage-v8": "3.2.4"
   }
 }
