@@ -51,5 +51,4 @@ function handleLink(slotProps: any) {
 .p-toast-message-text {
     margin: 0;
 }
-
 </style>
