@@ -174,7 +174,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
         routeParams: {},
       },
       life: 5000,
-      group: 'toast-link'
+      group: 'toast-link',
     } as any)
 
     formData.value.description = ''
@@ -200,7 +200,6 @@ watch(visible, (val) => {
     fileError.value = false
   }
 })
-
 </script>
 
 <style scoped>
