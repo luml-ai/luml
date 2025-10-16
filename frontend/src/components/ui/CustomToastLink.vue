@@ -35,6 +35,8 @@ function handleLink(slotProps: any) {
 
 <style scoped>
 .toast-action-link {
+    display: inline-block;
+    margin-top: 0.6rem;
     color: var(--primary-color);
     text-decoration: underline;
     cursor: pointer;

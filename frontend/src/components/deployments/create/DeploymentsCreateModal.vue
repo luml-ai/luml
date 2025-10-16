@@ -110,7 +110,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       summary: 'Success',
       detail: `Deployment ${payload.name} was successfully created`,
       data: {
-        linkText: 'Go to Deployment',
+        linkText: 'Go to Deployments',
         routeName: 'orbit-deployments',
         routeParams: {},
       },
