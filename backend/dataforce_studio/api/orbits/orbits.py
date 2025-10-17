@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Request, status
 
+from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
@@ -19,6 +20,7 @@ organization_orbits_router = APIRouter(
 )
 
 orbit_handler = OrbitHandler()
+email_handler = EmailHandler()
 
 
 @organization_orbits_router.get("", responses=endpoint_responses)
@@ -40,8 +42,10 @@ async def create_orbit(
     created_orbit = await orbit_handler.create_organization_orbit(
         request.user.id, organization_id, orbit
     )
-    if orbit.notify_by_email:
-        orbit_handler.notify_members(created_orbit, background_tasks)
+    if orbit.notify and created_orbit.members:
+        notifications = orbit_handler.get_members_notification_data(created_orbit)
+        for notif in notifications:
+            background_tasks.add_task(email_handler.send_added_to_orbit_email, **notif)
     return created_orbit
 
 

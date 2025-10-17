@@ -1,7 +1,5 @@
 from uuid import UUID
 
-from fastapi import BackgroundTasks
-
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
@@ -40,19 +38,6 @@ class OrbitHandler:
     __orbits_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
     __secret_repository = BucketSecretRepository(engine)
-
-    def notify_members(
-        self, orbit: OrbitDetails, background_tasks: BackgroundTasks
-    ) -> None:
-        if orbit.members:
-            for member in orbit.members:
-                background_tasks.add_task(
-                    self.__email_handler.send_added_to_orbit_email,
-                    member.user.full_name or "",
-                    member.user.email or "",
-                    orbit.name or "",
-                    config.APP_EMAIL_URL,
-                )
 
     def _set_user_orbits_permissions(self, orbits: list[Orbit]) -> list[Orbit]:
         for orbit in orbits:
@@ -110,6 +95,21 @@ class OrbitHandler:
             raise OrbitMemberNotAllowedError(
                 f"Users {invalid_user_ids} are not in the organization."
             )
+
+    @staticmethod
+    def get_members_notification_data(orbit: OrbitDetails) -> list[dict[str, str]]:
+        if not orbit.members:
+            return []
+
+        return [
+            {
+                "name": member.user.full_name or "",
+                "email": member.user.email or "",
+                "orbit": orbit.name or "",
+                "link": config.APP_EMAIL_URL,
+            }
+            for member in orbit.members
+        ]
 
     async def create_organization_orbit(
         self, user_id: UUID, organization_id: UUID, orbit: OrbitCreateIn
