@@ -107,6 +107,18 @@ async def list_deployments(request: Request) -> list[Deployment]:
     return await deployment_handler.list_worker_deployments(request.user.id)
 
 
+@satellite_worker_router.get(
+    "/deployments/{deployment_id}",
+    responses=endpoint_responses,
+    response_model=Deployment,
+)
+async def get_deployment(request: Request, deployment_id: UUID) -> Deployment:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await deployment_handler.get_worker_deployment(
+        request.user.id, deployment_id
+    )
+
+
 @satellite_worker_router.patch(
     "/deployments/{deployment_id}",
     responses=endpoint_responses,
