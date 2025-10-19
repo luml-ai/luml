@@ -16,6 +16,10 @@
           <span>{{ data.total_models }}</span>
         </div>
       </div>
+      <div class="id-row">
+        <span class="id-text">Id: </span>
+        <UiId :id="data.id" class="id-value"></UiId>
+      </div>
       <div class="tags">
         <Tag v-for="tag in data.tags" class="tag">
           <TagIcon :size="12" class="tag-icon" />
@@ -45,6 +49,7 @@ import { computed, ref } from 'vue'
 import CollectionEditor from './CollectionEditor.vue'
 import { useRouter } from 'vue-router'
 import { getLastUpdateText } from '@/helpers/helpers'
+import UiId from '@/components/ui/UiId.vue'
 
 type Props = {
   data: OrbitCollection
@@ -99,7 +104,7 @@ function goToCollection() {
 .info {
   display: flex;
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 8px;
 }
 .info-item {
   display: flex;
@@ -125,5 +130,12 @@ function goToCollection() {
   flex: 0 0 auto;
   align-self: center;
   padding-bottom: 10px;
+}
+.id-row {
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+.id-text {
+  color: var(--p-text-muted-color);
 }
 </style>

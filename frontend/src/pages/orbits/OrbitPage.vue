@@ -5,7 +5,10 @@
     <Ui404 v-else-if="!orbitsStore.currentOrbitDetails"></Ui404>
     <div v-else class="orbit-page">
       <header class="header">
-        <h2 class="title">{{ orbitsStore.currentOrbitDetails?.name }}</h2>
+        <h2 class="title">
+          {{ orbitsStore.currentOrbitDetails?.name }}
+          <UiId :id="orbitsStore.currentOrbitDetails.id" variant="button"></UiId>
+        </h2>
         <Button v-if="buttonInfo" class="button" @click="buttonInfo.action">
           <Plus :size="14" />
           <span>{{ buttonInfo.label }}</span>
@@ -34,6 +37,7 @@ import { useSatellitesStore } from '@/stores/satellites'
 import { useCollectionsStore } from '@/stores/collections'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useDeploymentsStore } from '@/stores/deployments'
+import UiId from '@/components/ui/UiId.vue'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
@@ -126,5 +130,11 @@ onBeforeMount(async () => {
   align-items: center;
   gap: 40px;
   margin-bottom: 20px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

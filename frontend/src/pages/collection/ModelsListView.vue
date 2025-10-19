@@ -2,6 +2,7 @@
   <div>
     <CollectionHeader
       v-if="collectionsStore.currentCollection"
+      :id="collectionsStore.currentCollection.id"
       :title="collectionsStore.currentCollection.name"
       :add-available="
         !!orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.create)

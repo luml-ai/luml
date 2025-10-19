@@ -19,6 +19,10 @@
 
       <ul class="list">
         <li class="item">
+          <span class="text">Id: </span>
+          <UiId :id="data.id"></UiId>
+        </li>
+        <li class="item">
           <span class="text">Number of collections: </span>
           <span class="value"> {{ data.total_collections }}</span>
         </li>
@@ -59,6 +63,7 @@ import { ref } from 'vue'
 import { Plus, Lock, Orbit, EllipsisVertical } from 'lucide-vue-next'
 import { Button } from 'primevue'
 import OrbitEditor from '../editor/OrbitEditor.vue'
+import UiId from '@/components/ui/UiId.vue'
 
 type Props = {
   type: 'default' | 'create'
@@ -82,7 +87,7 @@ function openEdit() {
 
 <style scoped>
 .card {
-  height: 153px;
+  height: 177px;
   padding: 16px 20px;
   border-radius: 8px;
   border: 1px solid var(--p-content-border-color);

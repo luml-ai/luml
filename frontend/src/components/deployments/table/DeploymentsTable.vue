@@ -14,6 +14,10 @@
       <Column header="Deployment name" field="name">
         <template #body="{ data }">
           <div class="cell cell--name">{{ data.name }}</div>
+          <div class="id-row">
+            <span class="id-text">Id: </span>
+            <UiId :id="data.id" class="id-value"></UiId>
+          </div>
         </template>
       </Column>
       <Column header="Model" sortable field="model_artifact_name">
@@ -109,6 +113,7 @@ import { ref } from 'vue'
 import { Search, Bolt } from 'lucide-vue-next'
 import { DeploymentStatusEnum, type Deployment } from '@/lib/api/deployments/interfaces'
 import DeploymentsEditor from '../edit/DeploymentsEditor.vue'
+import UiId from '@/components/ui/UiId.vue'
 
 type Props = {
   data: Deployment[]
@@ -194,5 +199,13 @@ initFilters()
 
 .link {
   text-decoration: underline;
+}
+
+.id-row {
+  font-size: 12px;
+}
+
+.id-text {
+  color: var(--p-text-muted-color);
 }
 </style>

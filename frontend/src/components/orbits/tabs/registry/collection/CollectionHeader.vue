@@ -1,6 +1,9 @@
 <template>
   <header class="header">
-    <h3 class="title">{{ title }}</h3>
+    <h3 class="title">
+      {{ title }}
+      <UiId :id="id" variant="button"></UiId>
+    </h3>
     <div class="buttons">
       <Button @click="$emit('add')">
         <Plus :size="14" />
@@ -13,10 +16,12 @@
 <script setup lang="ts">
 import { Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
+import UiId from '@/components/ui/UiId.vue'
 
 type Props = {
   title: string
   addAvailable: boolean
+  id: string
 }
 
 type Emits = {
@@ -38,5 +43,11 @@ defineEmits<Emits>()
 .buttons {
   display: flex;
   gap: 8px;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 </style>

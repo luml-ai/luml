@@ -84,6 +84,10 @@
               <div v-tooltip="data.model_name" :style="columnBodyStyle + 'width: 180px'">
                 {{ data.model_name }}
               </div>
+              <div class="id-row">
+                <span class="id-text">Id: </span>
+                <UiId :id="data.id" class="id-value"></UiId>
+              </div>
             </template>
           </Column>
           <Column field="created_at" header="Creation time">
@@ -202,6 +206,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from './model/CollectionModelEditor.vue'
+import UiId from '@/components/ui/UiId.vue'
 
 export interface SelectedModel
   extends Pick<
@@ -394,6 +399,14 @@ onBeforeMount(async () => {
 
 .counter {
   font-variant-numeric: tabular-nums;
+}
+
+.id-row {
+  font-size: 12px;
+}
+
+.id-text {
+  color: var(--p-text-muted-color);
 }
 
 @media (min-width: 768px) {

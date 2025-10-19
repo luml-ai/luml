@@ -23,6 +23,10 @@
         ></Menu>
       </div>
       <div class="body">
+        <div class="id-row">
+          <span class="id-text">Id: </span>
+          <UiId :id="data.id" class="id-value"></UiId>
+        </div>
         <div class="description">
           <p v-if="data.description" class="text">
             {{ data.description }}
@@ -51,6 +55,7 @@ import { Button, Menu } from 'primevue'
 import { computed, ref } from 'vue'
 import SatellitesEditModal from './SatellitesEditModal.vue'
 import SatellitesApiKeyModal from './SatellitesApiKeyModal.vue'
+import UiId from '../ui/UiId.vue'
 
 type Props = {
   data: Satellite
@@ -205,5 +210,13 @@ const toggle = (event: MouseEvent) => {
   display: flex;
   gap: 12px;
   color: var(--p-icon-muted-color);
+}
+
+.id-row {
+  font-size: 12px;
+}
+
+.id-text {
+  color: var(--p-text-muted-color);
 }
 </style>
