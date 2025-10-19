@@ -22,12 +22,19 @@ const mockData = {
   },
 }
 
+vi.mock('@/components/ui/UiId.vue', () => ({
+  default: {
+    name: 'UiId',
+    template: '<span />',
+  },
+}))
+
 describe('OrbitCard', () => {
   it('renders default card with data', () => {
     const wrapper = mount(OrbitCard, {
       props: { type: 'default', data: mockData, manageAvailable: true },
       global: {
-        stubs: ['Orbit', 'EllipsisVertical', 'Button', 'OrbitEditor'],
+        stubs: ['Orbit', 'EllipsisVertical', 'Button', 'OrbitEditor', 'UiId'],
         mocks: {
           $router: { push: vi.fn() },
         },
