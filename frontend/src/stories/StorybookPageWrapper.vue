@@ -81,7 +81,6 @@ const items = computed(() => [
 </script>
 
 <style scoped>
-
 .main-container {
   display: flex;
   flex-grow: 1;
@@ -121,5 +120,4 @@ const items = computed(() => [
   margin-bottom: 8px;
   color: #6b7280;
 }
-
 </style>
