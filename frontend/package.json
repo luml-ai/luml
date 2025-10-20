@@ -74,6 +74,7 @@
     "npm-run-all2": "^7.0.1",
     "prettier": "^3.3.3",
     "storybook": "^9.1.10",
+    "storybook-vue3-router": "^6.0.2",
     "style-dictionary": "^5.0.4",
     "typescript": "^5.9.2",
     "vite": "^6.3.6",
