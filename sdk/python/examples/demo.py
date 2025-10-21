@@ -22,9 +22,9 @@ dfs_with_defaults_names = DataForceClient(
 # Resources initialized by their ids
 dfs = DataForceClient(
     api_key="dfs_your_api_key_here",
-    organization="ReEb5Dw4ojVbhft9tn3BMr",
-    orbit="h2xJWKKcKEdY3ub3Hmhq2g",
-    collection="e3Wy3wMa8gwBodrvcFSB8m",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75",
 )
 
 
@@ -37,9 +37,9 @@ def demo_client_defaults() -> None:
     print(default_organization_id, default_orbit_id, default_collection_id)
 
     # Set default resources
-    dfs.organization = "ReEb5Dw4ojVbhft9tn3BMr"
-    dfs.orbit = "h2xJWKKcKEdY3ub3Hmhq2g"
-    dfs.collection = "e3Wy3wMa8gwBodrvcFSB8m"
+    dfs.organization = "0199c455-21ec-7c74-8efe-41470e29bae5"
+    dfs.orbit = "0199c455-21ed-7aba-9fe5-5231611220de"
+    dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
 
     print(dfs.organization, dfs.orbit, dfs.collection)
 
@@ -58,7 +58,7 @@ def demo_organizations() -> None:
     print(f"Organization by name: {organization_by_name}")
 
     # Get organization by id
-    organization_by_id = dfs.organizations.get("ReEb5Dw4ojVbhft9tn3BMr")
+    organization_by_id = dfs.organizations.get("0199c455-21ec-7c74-8efe-41470e29bae5")
     print(f"Organization by id: {organization_by_id}")
 
 
@@ -83,7 +83,7 @@ def demo_bucket_secrets() -> None:
     print(f"Bucket secret by name: {secret}")
 
     # Get bucket secret by id
-    secret = dfs.bucket_secrets.get("h2xJWKKcKEdY3ub3Hmhq2g")
+    secret = dfs.bucket_secrets.get("0199c455-21ed-7aba-9fe5-5231611220de")
     print(f"Bucket secret by id: {secret}")
 
     # Update bucket secret
@@ -93,13 +93,14 @@ def demo_bucket_secrets() -> None:
     print(f"Updated bucket secret: {updated_secret}")
 
     # Delete bucket secret
-    dfs.bucket_secrets.delete("h2xJWKKcKEdY3ub3Hmhq2g")
+    dfs.bucket_secrets.delete("0199c455-21ed-7aba-9fe5-5231611220de")
 
 
 def demo_orbits() -> None:
     # Create a new orbit
     orbit = dfs.orbits.create(
-        name="ML Production Orbit", bucket_secret_id="h2xJWKKcKEdY3ub3Hmhq2g"
+        name="ML Production Orbit",
+        bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de",
     )
     print(f"Created orbit: {orbit}")
 
@@ -108,7 +109,7 @@ def demo_orbits() -> None:
     print(f"Orbit by name: {orbit_by_name}")
 
     # Get Orbit by id
-    orbit_by_id = dfs.orbits.get("h2xJWKKcKEdY3ub3Hmhq2g")
+    orbit_by_id = dfs.orbits.get("0199c455-21ed-7aba-9fe5-5231611220de")
     print(f"Orbit by id: {orbit_by_id}")
 
     # List all orbits
@@ -120,7 +121,7 @@ def demo_orbits() -> None:
     print(f"Updated orbit: {updated_orbit}")
 
     # Delete Orbit
-    dfs.orbits.delete("h2xJWKKcKEdY3ub3Hmhq2g")
+    dfs.orbits.delete("0199c455-21ed-7aba-9fe5-5231611220de")
 
 
 def demo_collections() -> None:
@@ -142,7 +143,7 @@ def demo_collections() -> None:
     print(f"Collection by name: {collection_by_name}")
 
     # Get collection by id
-    collection_by_id = dfs.collections.get("e3Wy3wMa8gwBodrvcFSB8m")
+    collection_by_id = dfs.collections.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
     print(f"Collection by id: {collection_by_id}")
 
     # List all collections in the orbit
@@ -151,13 +152,13 @@ def demo_collections() -> None:
 
     # Update collection with new tags
     updated_collection = dfs.collections.update(
-        collection_id="e3Wy3wMa8gwBodrvcFSB8m",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
         description="Updated: Production-ready ML models",
     )
     print(f"Updated collection: {updated_collection}")
 
     # Delete collection
-    dfs.collections.delete("e3Wy3wMa8gwBodrvcFSB8m")
+    dfs.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
 def demo_model_artifacts() -> None:
@@ -180,7 +181,7 @@ def demo_model_artifacts() -> None:
     print(f"All models in collection: {models}")
 
     # Get model by ID
-    model_by_id = dfs.model_artifacts.get("e3Wy3wMa8gwBodrvcFSB8m")
+    model_by_id = dfs.model_artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
     print(f"Model by id: {model_by_id}")
 
     # Get model by name
@@ -189,13 +190,14 @@ def demo_model_artifacts() -> None:
 
     # Get model from specific collection
     model_by_id_collection = dfs.model_artifacts.get(
-        "e3Wy3wMa8gwBodrvcFSB8m", collection_id="e3Wy3wMa8gwBodrvcFSB8m"
+        "0199c455-21ee-74c6-b747-19a82f1a1e75",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     )
     print(f"Model by id: {model_by_id_collection}")
 
     # Update model metadata
     updated_model = dfs.model_artifacts.update(
-        model_id="e3Wy3wMa8gwBodrvcFSB8m",
+        model_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
         description="Updated: Advanced churn prediction model",
         tags=["xgboost", "churn", "production", "v2.1"],
         status=ModelArtifactStatus.UPLOADED,
@@ -203,11 +205,13 @@ def demo_model_artifacts() -> None:
     print(f"Updated model: {updated_model}")
 
     # Get download URL
-    download_url = dfs.model_artifacts.download_url("e3Wy3wMa8gwBodrvcFSB8m")
+    download_url = dfs.model_artifacts.download_url(
+        "0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
     print(f"Model Download URL: {download_url}")
 
     # Get delete URL
-    delete_url = dfs.model_artifacts.delete_url("e3Wy3wMa8gwBodrvcFSB8m")
+    delete_url = dfs.model_artifacts.delete_url("0199c455-21ee-74c6-b747-19a82f1a1e75")
     print(f"Model Delete URL: {delete_url}")
 
     # Upload a model file (example - file should exist)
@@ -220,10 +224,10 @@ def demo_model_artifacts() -> None:
     print(f"Uploaded model: {uploaded_model}")
 
     # Download model
-    dfs.model_artifacts.download("e3Wy3wMa8gwBodrvcFSB8m", "output.dfs")
+    dfs.model_artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e75", "output.dfs")
 
     # Delete model permanently
-    dfs.model_artifacts.delete("e3Wy3wMa8gwBodrvcFSB8m")
+    dfs.model_artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
 if __name__ == "__main__":

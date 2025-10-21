@@ -1,7 +1,7 @@
 from enum import StrEnum
+from uuid import UUID
 
 from pydantic import BaseModel
-from uuid6 import UUID
 
 
 def is_uuid(value: str | None) -> bool:
