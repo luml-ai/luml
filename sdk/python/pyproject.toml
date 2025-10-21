@@ -6,13 +6,13 @@ readme = "README.md"
 
 requires-python = ">=3.12"
 dependencies = [
-    "httpx>=0.28.1,<1.0.0",
     "uuid6>=2025.0.1",
     "pyfnx-utils>=0.0.1,<1.0.0",
 ]
 
 [project.optional-dependencies]
-core = [
+api = [
+    "httpx>=0.28.1,<1.0.0",
     "pydantic>=2.11.7,<3.0.0",
 ]
 
