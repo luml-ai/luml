@@ -164,19 +164,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       formData.value.description,
       formData.value.tags,
     )
-    toast.add({
+      toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${formData.value.name} has been added to the collection successfully.`,
-      data: {
-        linkText: 'Go to Collection',
-        routeName: 'orbit-registry',
-        routeParams: {},
-      },
+      detail: `${formData.value.name}has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
       life: 5000,
-      group: 'toast-link',
-    } as any)
-
+    })
     formData.value.description = ''
     formData.value.file = null
     formData.value.name = ''
