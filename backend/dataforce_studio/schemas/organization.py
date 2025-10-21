@@ -104,6 +104,8 @@ class OrganizationMember(BaseModel, BaseOrmConfig):
     organization_id: UUID
     role: OrgRole
     user: UserOut
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 class OrganizationMemberCreate(BaseModel):

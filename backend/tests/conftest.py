@@ -220,6 +220,8 @@ async def member_data() -> AsyncGenerator[OrganizationMember, None]:
             disabled=False,
             photo=None,
         ),
+        created_at=datetime.datetime.now(),
+        updated_at=datetime.datetime.now(),
     )
 
 

@@ -150,6 +150,8 @@ export interface Member {
   organization_id: string
   role: OrganizationRoleEnum
   user: Omit<IGetUserResponse, 'auth_method'>
+  created_at: Date
+  updated_at: Date | null
 }
 
 export interface AddMemberPayload {
