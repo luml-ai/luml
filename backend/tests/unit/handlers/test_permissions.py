@@ -167,35 +167,6 @@ async def test_check_orbit_action_access_orbit_member(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    mock_get_organization_member_role.side_effect = InsufficientPermissionsError
-    mock_get_orbit_member_role.return_value = "member"
-
-    result = await handler.check_orbit_action_access(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.LIST
-    )
-
-    assert result == (None, "member")
-    mock_get_organization_member_role.assert_awaited_once_with(organization_id, user_id)
-    mock_get_orbit_member_role.assert_awaited_once_with(orbit_id, user_id)
-
-
-@patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_check_orbit_action_access_no_org_permissions(
-    mock_get_orbit_member_role: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
-) -> None:
-    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
-    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-
     mock_get_organization_member_role.side_effect = InsufficientPermissionsError()
     mock_get_orbit_member_role.return_value = "member"
 
