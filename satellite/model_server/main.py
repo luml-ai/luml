@@ -12,7 +12,7 @@ async def main() -> None:
 
     process = model_handler.conda_worker.process
     if process:
-        logger.info("[main] waiting for conda_manager...")
+        logger.info("[main] conda_manager working...")
         exit_code = await asyncio.to_thread(process.wait)
         logger.error(f"[main] conda_manager exited with code {exit_code}")
         sys.exit(exit_code)

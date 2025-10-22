@@ -9,9 +9,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from conda_manager import ModelCondaManager
+from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
 from fnnx.handlers._common import unpack_model
-from handlers.conda_custom import CondaLikeEnvManager, install_micromamba
 from pydantic import BaseModel, Field, create_model
+from utils.logging import log_success
 
 from .file_handler import FileHandler
 
@@ -28,26 +29,31 @@ class ModelHandler:
         self.conda_worker = None
 
         try:
-            self.model_path = self.get_model_path()
-            self.extracted_path = self.unpacked_model_path()
-            self.model_envs = self.create_model_env()
+            self.model_path = self._get_model_path()
+            self.extracted_path = self._unpacked_model_path()
+            self._remove_model_archive()
+            self.model_envs = self._create_model_env()
 
             if self.model_envs:
                 model_data = {
-                    "manifest": self.get_manifest(),
-                    "dtypes_schemas": self.load_dtypes_schemas(),
-                    "request_schema": self.get_request_model(),
+                    "manifest": self._get_manifest(),
+                    "dtypes_schemas": self._load_dtypes_schemas(),
+                    "request_schema": self._get_request_model(),
                     "model_path": self.extracted_path,
                 }
 
                 self.conda_worker = ModelCondaManager(
-                    self.get_env_name(), self.model_envs["manager"], self.extracted_path, model_data
+                    self._get_env_name(),
+                    self.model_envs["manager"],
+                    self.extracted_path,
+                    model_data,
                 )
                 self.conda_worker.start()
         except Exception as error:
             logger.error(
                 f"Model handler initialization failed: {error}\nTraceback: {traceback.format_exc()}"
             )
+            self._file_handler.remove_file(self.model_path)
             self.model_path = None
 
     def _download_model(self, url: str) -> str:
@@ -59,7 +65,7 @@ class ModelHandler:
 
         return self._file_handler.download_file(url, str(local_path))
 
-    def get_model_path(self) -> str:
+    def _get_model_path(self) -> str:
         if not self._model_url:
             raise ValueError("Model URL is empty!")
 
@@ -79,8 +85,12 @@ class ModelHandler:
 
         return local_path
 
+    @log_success("Model archive removed successfully.")
+    def _remove_model_archive(self) -> None:
+        self._file_handler.remove_file(self.model_path)
+
     @staticmethod
-    def get_base_type(dtype_inner: str) -> type:
+    def _get_base_type(dtype_inner: str) -> type:
         return {
             "string": str,
             "integer": int,
@@ -94,18 +104,18 @@ class ModelHandler:
         }.get(dtype_inner, Any)
 
     @staticmethod
-    def create_nested_list_type(base_type: type, shape: list[int | str]) -> type:
+    def _create_nested_list_type(base_type: type, shape: list[int | str]) -> type:
         for _ in range(len(shape)):
             base_type = list[base_type]
         return base_type
 
-    def get_field_type(
+    def _get_field_type(
         self, content_type: str, dtype: str, shape: list[int | str] | None = None
     ) -> type:
         if content_type == "NDJSON":
             if dtype.startswith("Array["):
                 inner = dtype[6:-1]
-                base_type = self.get_base_type(inner)
+                base_type = self._get_base_type(inner)
             elif dtype.startswith("NDContainer["):
                 inner = dtype[12:-1]
                 base_type = dict[str, Any]
@@ -113,7 +123,7 @@ class ModelHandler:
                 raise ValueError(f"Unsupported dtype for NDJSON: {dtype}")
 
             if shape:
-                return self.create_nested_list_type(base_type, shape)
+                return self._create_nested_list_type(base_type, shape)
             else:
                 return list[base_type]
 
@@ -122,14 +132,14 @@ class ModelHandler:
 
         return Any
 
-    def create_input_model(self, manifest: dict) -> type[BaseModel]:
+    def _create_input_model(self, manifest: dict) -> type[BaseModel]:
         fields = {}
 
         for input_spec in manifest["inputs"]:
             name = input_spec["name"]
             dtype = input_spec["dtype"]
             content_type = input_spec["content_type"]
-            field_type = self.get_field_type(
+            field_type = self._get_field_type(
                 content_type, dtype, shape=input_spec.get("shape", None)
             )
 
@@ -139,7 +149,7 @@ class ModelHandler:
         return create_model("InputsModel", **fields)
 
     @staticmethod
-    def create_dynamic_attributes_model(manifest: dict) -> type[BaseModel]:
+    def _create_dynamic_attributes_model(manifest: dict) -> type[BaseModel]:
         fields = {}
         for attr in manifest.get("dynamic_attributes", []):
             name = attr["name"]
@@ -147,38 +157,42 @@ class ModelHandler:
             fields[name] = (str | None, Field(default=f"<<<{name}>>>", description=desc))
         return create_model("DynamicAttributesModel", **fields)
 
-    def unpacked_model_path(self) -> str:
+    @log_success("Model unpacked successfully.")
+    def _unpacked_model_path(self) -> str:
         if self.model_path is None:
             raise ValueError("Model not available - failed to download")
         extracted_path, *_ = unpack_model(self.model_path)
         return extracted_path
 
-    def get_manifest(self) -> dict[str, Any]:
-        manifest_path = Path(self.unpacked_model_path()) / "manifest.json"
+    @log_success("Model manifest.json loaded successfully.")
+    def _get_manifest(self) -> dict[str, Any]:
+        manifest_path = Path(self.extracted_path) / "manifest.json"
         if manifest_path.exists():
             with open(manifest_path) as f:
                 return json.load(f)
         return {}
 
-    def get_env(self) -> dict[str, Any] | None:
-        env_path = Path(self.unpacked_model_path()) / "env.json"
+    def _get_env(self) -> dict[str, Any] | None:
+        env_path = Path(self.extracted_path) / "env.json"
         if env_path.exists():
             with open(env_path) as f:
                 return json.load(f)
         return None
 
-    def load_dtypes_schemas(self) -> dict[str, Any]:
-        dtypes_path = Path(self.unpacked_model_path()) / "dtypes.json"
+    @log_success("Model dtypes.json loaded successfully.")
+    def _load_dtypes_schemas(self) -> dict[str, Any]:
+        dtypes_path = Path(self.extracted_path) / "dtypes.json"
         if dtypes_path.exists():
             with open(dtypes_path) as f:
                 return json.load(f)
         return {}
 
-    def get_request_model(self) -> dict[str, Any]:
+    @log_success("Request Model generated successfully.")
+    def _get_request_model(self) -> dict[str, Any]:
         if self._request_model_schema is None:
-            manifest = self.get_manifest()
-            input_model = self.create_input_model(manifest)
-            dynamic_attrs_model = self.create_dynamic_attributes_model(manifest)
+            manifest = self._get_manifest()
+            input_model = self._create_input_model(manifest)
+            dynamic_attrs_model = self._create_dynamic_attributes_model(manifest)
 
             self._request_model_schema = create_model(
                 "ComputeRequest",
@@ -190,14 +204,14 @@ class ModelHandler:
             )
         return self._request_model_schema.model_json_schema()
 
-    def get_env_name(self) -> str:
+    def _get_env_name(self) -> str:
         if self.model_envs["path"]:
             return self.model_envs["path"].split("/")[-1]
         else:
             return self.model_envs["name"]
 
     @staticmethod
-    def get_default_env_spec() -> dict[str, Any]:
+    def _get_default_env_spec() -> dict[str, Any]:
         return {
             "python3::conda_pip": {
                 "python_version": "3.12.6",
@@ -217,14 +231,15 @@ class ModelHandler:
             }
         }
 
-    def create_model_env(self) -> dict[str, Any] | None:
-        env_spec = self.get_env()
+    @log_success("Model env created successfully.")
+    def _create_model_env(self) -> dict[str, Any] | None:
+        env_spec = self._get_env()
         if not env_spec:
-            env_spec = self.get_default_env_spec()
+            env_spec = self._get_default_env_spec()
 
         try:
             install_micromamba()
-            env_name, env_config = next(iter(env_spec.items()))
+            env_type, env_config = next(iter(env_spec.items()))
 
             if "dependencies" not in env_config:
                 env_config["dependencies"] = []
@@ -242,7 +257,7 @@ class ModelHandler:
 
             env_manager = CondaLikeEnvManager(env_config)
             env_path = env_manager.ensure()
-            logger.info("[CREATE_ENV] Env created successfully.")
+            env_name = f"fnnx-{env_manager.env_id}"
 
             return {"name": env_name, "path": env_path, "manager": env_manager}
 

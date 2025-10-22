@@ -36,7 +36,7 @@ class PeriodicController:
                     )
 
     async def run_forever(self) -> None:
-        print("[satellite] starting periodic controller...", flush=True)
+        logger.info("[satellite] starting periodic controller...")
         while not self._stopped:
             try:
                 await self.tick()
@@ -44,5 +44,5 @@ class PeriodicController:
                 self._stopped = True
                 break
             except Exception as e:
-                print(f"[satellite] tick error: {e}", flush=True)
+                logger.info(f"[satellite] tick error: {e}")
             await asyncio.sleep(self.poll_interval_s)

@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y \
     bzip2 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-aarch64/latest | tar -xvj \
+    -C /usr/local bin/micromamba && chmod +x /usr/local/bin/micromamba
+
 WORKDIR /app
 
 ENV UV_COMPILE_BYTECODE=1
