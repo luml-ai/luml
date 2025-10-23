@@ -2,7 +2,8 @@
   <div v-if="!loading">
     <template v-if="deploymentsStore.deployments.length">
       <div class="message">
-        <BellRing :size="14" /> In order to use the inference URL,please authorize with your API key
+        <BellRing :size="14" /> In order to use the inference URL, please authorize with your API
+        key
       </div>
       <DeploymentsTable :data="deploymentsStore.deployments"></DeploymentsTable>
     </template>
