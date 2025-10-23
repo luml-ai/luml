@@ -53,9 +53,9 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
     ) -> list[ModelArtifact]:
         async with self._get_session() as session:
             result = await session.execute(
-                select(ModelArtifactOrm).where(
-                    ModelArtifactOrm.collection_id == collection_id
-                )
+                select(ModelArtifactOrm)
+                .where(ModelArtifactOrm.collection_id == collection_id)
+                .order_by(ModelArtifactOrm.created_at)
             )
             db_versions = result.scalars().all()
             return [v.to_model_artifact() for v in db_versions]
