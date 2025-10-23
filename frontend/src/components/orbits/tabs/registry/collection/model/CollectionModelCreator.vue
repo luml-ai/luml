@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
+import { useRouter } from 'vue-router'
 import type { FormSubmitEvent } from '@primevue/forms'
 import { computed, ref, watch } from 'vue'
 import { modelCreatorResolver } from '@/utils/forms/resolvers'
@@ -95,6 +96,7 @@ const dialogPt: DialogPassThroughOptions = {
 const { upload, progress } = useModelUpload()
 const toast = useToast()
 const { getTagsByQuery } = useModelsTags()
+const router = useRouter()
 
 const visible = defineModel<boolean>('visible')
 const loading = ref(false)
@@ -162,9 +164,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       formData.value.description,
       formData.value.tags,
     )
-    toast.add(
-      simpleSuccessToast(`${formData.value.name} has been added to the collection successfully.`),
-    )
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: `${formData.value.name}has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
+      life: 5000,
+    })
     formData.value.description = ''
     formData.value.file = null
     formData.value.name = ''
