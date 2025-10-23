@@ -60,7 +60,7 @@ import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { getErrorMessage, getNumberOrString } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
 import { useDeploymentsStore } from '@/stores/deployments'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsFormModelSettings from '../form/DeploymentsFormModelSettings.vue'
 import DeploymentsFormSatelliteSettings from '../form/DeploymentsFormSatelliteSettings.vue'
@@ -105,7 +105,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       payload,
     )
     visible.value = false
-    toast.add(simpleSuccessToast(`Deployment ${payload.name} was successfully created`))
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: `Deployment ${payload.name} was successfully created.<br><a href="#" class="toast-action-link" data-route="orbit-deployments" data-params="{}">Go to Deployments</a>`,
+      life: 5000,
+    })
   } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create deployment')))
   } finally {
