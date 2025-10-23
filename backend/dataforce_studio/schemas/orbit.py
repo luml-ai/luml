@@ -42,7 +42,7 @@ class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str
     bucket_secret_id: UUID
     members: list["OrbitMemberCreateSimple"] | None = None
-    notify_by_email: bool = False
+    notify: bool = False
 
 
 class OrbitCreate(BaseModel, BaseOrmConfig):
