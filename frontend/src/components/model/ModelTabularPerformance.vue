@@ -12,7 +12,7 @@
       />
     </header>
     <div class="radialbar-wrapper">
-      <VueApexCharts
+      <apexchart
         type="radialBar"
         :series="[totalScore]"
         :options="options"
@@ -36,7 +36,6 @@ import { Info } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { getMetricsCards } from '@/helpers/helpers'
 import MetricCard from '../ui/MetricCard.vue'
-import VueApexCharts from 'vue3-apexcharts'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 
 type Props = {

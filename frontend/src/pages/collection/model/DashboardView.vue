@@ -44,6 +44,14 @@
           </div>
         </div>
       </div>
+      <div v-if="currentModel?.manifest" class="details__item" style="align-items: center">
+        <div class="details__label">Manifest</div>
+        <div class="details__value">
+          <Button variant="text" size="small" severity="secondary" @click="showManifest">
+            Show
+          </Button>
+        </div>
+      </div>
     </div>
     <div class="details__part">
       <div class="details__item">
@@ -56,18 +64,27 @@
       </div>
     </div>
   </div>
+  <ModelManifestModal
+    v-if="currentModel?.manifest"
+    v-model:visible="manifestVisible"
+    :manifest="currentModel?.manifest"
+  ></ModelManifestModal>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useRoute } from 'vue-router'
-import { Tag } from 'primevue'
+import { Tag, Button } from 'primevue'
 import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
 import { getSizeText } from '@/helpers/helpers'
+import { ref } from 'vue'
+import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
 
 const modelsStore = useModelsStore()
 const route = useRoute()
+
+const manifestVisible = ref(false)
 
 const currentModel = computed(() => {
   if (typeof route.params.modelId !== 'string') return undefined
@@ -89,6 +106,10 @@ const statusSeverity = computed(() => {
     return 'warn'
   else if (currentModel.value.status === MlModelStatusEnum.uploaded) return 'success'
 })
+
+function showManifest() {
+  manifestVisible.value = true
+}
 </script>
 
 <style scoped>

@@ -14,7 +14,17 @@ export function jsonToYaml(obj: any, indent = 0): string {
     return obj.map((v) => `${spaces}- ${jsonToYaml(v, indent + 1).trimStart()}`).join('\n')
   } else if (obj && typeof obj === 'object') {
     return Object.entries(obj)
-      .map(([k, v]) => `${spaces}${k}: ${jsonToYaml(v, indent + 1).trimStart()}`)
+      .map(([k, v]) => {
+        if (Array.isArray(v)) {
+          const arrayYaml = jsonToYaml(v, indent + 1)
+          return `${spaces}${k}:\n${arrayYaml}`
+        } else if (v && typeof v === 'object') {
+          const nested = jsonToYaml(v, indent + 1)
+          return `${spaces}${k}:\n${nested}`
+        } else {
+          return `${spaces}${k}: ${v}`
+        }
+      })
       .join('\n')
   }
   return String(obj)

@@ -45,30 +45,22 @@ import { computed, ref } from 'vue'
 import { Select, Button } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { marked } from 'marked'
-import { isYamlLike, jsonToYaml } from '../../helpers/texts'
+import { isYamlLike, jsonToYaml } from '@/helpers/helpers'
 import DOMPurify from 'dompurify'
+import { ContentTypeEnum, type Props } from './interfaces'
 
-type Props = {
-  title: string
-  text: any
-}
+const props = withDefaults(defineProps<Props>(), {
+  initialType: ContentTypeEnum.raw,
+})
 
-enum ContentTypeEnum {
-  yaml = 'yaml',
-  markdown = 'markdown',
-  raw = 'raw',
-}
-
-const props = defineProps<Props>()
-
-const contentType = ref<ContentTypeEnum>(ContentTypeEnum.raw)
+const contentType = ref<ContentTypeEnum>(props.initialType)
 const copied = ref(false)
 
 const contentTypes = computed(() => [
   {
     label: 'YAML',
     value: ContentTypeEnum.yaml,
-    disabled: !isYamlLike(props.text),
+    disabled: !isYamlLike(JSON.stringify(props.text)),
   },
   {
     label: 'Markdown',
