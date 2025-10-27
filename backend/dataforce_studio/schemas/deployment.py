@@ -13,6 +13,7 @@ class DeploymentStatus(StrEnum):
     FAILED = "failed"
     DELETED = "deleted"
     DELETION_PENDING = "deletion_pending"
+    NOT_RESPONDING = "not_responding"
 
 
 class Deployment(BaseModel, BaseOrmConfig):

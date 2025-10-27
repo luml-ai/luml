@@ -77,6 +77,8 @@ class ModelServerHandler:
                     await self.add_single_deployment(
                         dep["id"], dep.get("dynamic_attributes_secrets")
                     )
+                else:
+                    await platform_client.update_deployment_status(dep["id"], "not_responding")
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

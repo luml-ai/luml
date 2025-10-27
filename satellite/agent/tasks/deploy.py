@@ -1,3 +1,7 @@
+import hashlib
+from urllib.parse import urlparse
+from uuid import UUID
+
 from aiodocker.containers import DockerContainer
 
 from agent.clients import ModelServerClient
@@ -26,10 +30,12 @@ class DeployTask(Task):
 
     async def _get_deployment_artifacts(self, dep_id: str, task_id: str) -> tuple[Deployment, str]:
         try:
-            deployment = await self.platform.get_deployment(dep_id)
+            deployment = await self.platform.get_deployment(UUID(dep_id))
             if not deployment:
                 raise ValueError("deployment not found")
-            presigned_url = await self.platform.get_model_artifact_download_url(deployment.model_id)
+            presigned_url = await self.platform.get_model_artifact_download_url(
+                UUID(deployment.model_id)
+            )
             return deployment, presigned_url
         except Exception as e:
             await self.platform.update_task_status(
@@ -44,7 +50,7 @@ class DeployTask(Task):
         if isinstance(secrets_payload, dict):
             for key, secret_id in secrets_payload.items():
                 try:
-                    secret = await self.platform.get_orbit_secret(secret_id)
+                    secret = await self.platform.get_orbit_secret(UUID(secret_id))
                     secrets_env[str(key)] = str(secret.get("value", ""))
                 except Exception:
                     continue
@@ -69,9 +75,6 @@ class DeployTask(Task):
 
     @staticmethod
     def _get_model_id_from_url(url: str) -> str:
-        """Generate model_id from URL for cache directory naming and cleanup tracking"""
-        import hashlib
-        from urllib.parse import urlparse
         parsed_url = urlparse(url)
         url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
@@ -98,7 +101,7 @@ class DeployTask(Task):
             container_port=int(config.CONTAINER_PORT),
             labels={
                 "df.deployment_id": dep_id,
-                "df.model_id": model_id,  # For cleanup: track which deployments use which models
+                "df.model_id": model_id,
             },
             env=env,
         )

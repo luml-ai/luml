@@ -15,7 +15,8 @@ class DeploymentOrm(TimestampMixin, Base):
     __tablename__ = "deployments"
     __table_args__ = (
         CheckConstraint(
-            "status in ('pending','active','failed','deleted','deletion_pending')",
+            "status in ('pending','active','failed','deleted',"
+            "'deletion_pending', 'not_responding')",
             name="deployments_status_check",
         ),
     )
