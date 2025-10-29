@@ -143,6 +143,11 @@ class ModelServerHandler:
         if not schemas:
             return None
 
+        schemas.base_url = config.BASE_URL.rstrip("/")
+        schemas.headers = {
+            "Authorization": "Bearer your_api_key_here",
+        }
+
         local_dep = await self.get_deployment(deployment_id)
         if not local_dep or not local_dep.dynamic_attributes_secrets:
             return schemas.model_dump(mode="json")
@@ -151,6 +156,7 @@ class ModelServerHandler:
 
         for endpoint in schemas.endpoints:
             if endpoint.route == "/compute":
+                endpoint.url = f"{schemas.base_url}/deployments/{deployment_id}/compute"
                 dyna_props = (
                     endpoint.request.get("$defs", {})
                     .get("DynamicAttributesModel", {})

@@ -32,7 +32,6 @@ select = [
 ignore = [
     "ANN002", # *args
     "ANN003", # **kwargs
-    "ANN101", # missing type annotation for self
 ]
 
 [tool.ruff.format]

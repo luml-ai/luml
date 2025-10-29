@@ -55,10 +55,13 @@ class Healthz(BaseModel):
 
 
 class EndpointSchema(BaseModel):
+    url: str | None = None
     route: str
     request: dict[str, Any]
     response: dict[str, Any]
 
 
 class Schemas(BaseModel):
+    base_url: str | None = None
+    headers: dict[str, str] | None = None
     endpoints: list[EndpointSchema]

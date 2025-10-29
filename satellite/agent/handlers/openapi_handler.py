@@ -62,7 +62,6 @@ class OpenAPIHandler:
                 f"Deployment{deployment.deployment_id}_ComputeRequest",
             }
 
-            # Add response schema ref if ComputeResponse exists
             if "ComputeResponse" in model_schema["components"]["schemas"]:
                 result["response_schema_ref"] = (
                     f"#/components/schemas/Deployment{deployment.deployment_id}_ComputeResponse"
@@ -123,7 +122,6 @@ class OpenAPIHandler:
             "required": True,
         }
 
-        # Add response schemas if available
         response_schemas = [s for s in compute_schemas if "response_schema_ref" in s]
         if response_schemas:
             openapi_schema["paths"][compute_path]["post"]["responses"] = {
