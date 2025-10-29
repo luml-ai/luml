@@ -5,8 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from agent.clients import ModelServerClient, PlatformClient
-from agent.schemas import Deployment, LocalDeployment
-from agent.schemas.deployments import Secret
+from agent.schemas import Deployment, DeploymentStatus, LocalDeployment, Secret
 from agent.settings import config
 
 logger = logging.getLogger(__name__)
@@ -79,7 +78,9 @@ class ModelServerHandler:
                         dep["id"], dep.get("dynamic_attributes_secrets")
                     )
                 else:
-                    await platform_client.update_deployment_status(dep["id"], "not_responding")
+                    await platform_client.update_deployment_status(
+                        dep["id"], DeploymentStatus.NOT_RESPONDING
+                    )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
 

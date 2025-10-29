@@ -25,6 +25,7 @@ from dataforce_studio.schemas.deployment import (
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
+    DeploymentUpdateIn,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.schemas.satellite import SatelliteQueueTask
@@ -177,17 +178,21 @@ class DeploymentHandler:
         return deployment
 
     async def update_worker_deployment(
-        self, satellite_id: UUID, deployment_id: UUID, inference_url: str, schemas: dict | None = None
+        self,
+        satellite_id: UUID,
+        deployment_id: UUID,
+        data: DeploymentUpdateIn,
     ) -> Deployment:
+        update_data = DeploymentUpdate(
+            id=deployment_id,
+            inference_url=data.inference_url,
+            status=data.status,
+            schemas=data.schemas,
+            error_message=data.error_message,
+            tags=data.tags,
+        )
         deployment = await self.__repo.update_deployment(
-            deployment_id,
-            satellite_id,
-            DeploymentUpdate(
-                id=deployment_id,
-                inference_url=inference_url,
-                status=DeploymentStatus.ACTIVE,
-                schemas=schemas,
-            ),
+            deployment_id, satellite_id, update_data,
         )
         if not deployment:
             raise NotFoundError("Deployment not found")

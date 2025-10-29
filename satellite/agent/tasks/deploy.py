@@ -7,8 +7,13 @@ from aiodocker.containers import DockerContainer
 
 from agent.clients import ModelServerClient
 from agent.handlers.handler_instances import ms_handler
-from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus
-from agent.schemas.deployments import Deployment
+from agent.schemas import (
+    Deployment,
+    DeploymentStatus,
+    DeploymentUpdate,
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+)
 from agent.settings import config
 from agent.tasks.base import Task
 
@@ -16,7 +21,9 @@ logger = logging.getLogger(__name__)
 
 
 class DeployTask(Task):
-    async def _handle_healthcheck_timeout(self, container: DockerContainer, task_id: str) -> None:
+    async def _handle_healthcheck_timeout(
+        self, container: DockerContainer, task_id: str, dep_id: str
+    ) -> None:
         try:
             logs = await container.log(stdout=True, stderr=True, follow=False, tail=80)
             if isinstance(logs, list):
@@ -25,10 +32,10 @@ class DeployTask(Task):
                 logs = str(logs) if logs is not None else ""
         except Exception:
             logs = ""
-        await self.platform.update_task_status(
-            task_id,
-            SatelliteTaskStatus.FAILED,
-            {"reason": "healthcheck timeout", "tail": str(logs)[-1000:]},
+        error_message = {"reason": "healthcheck timeout", "error": str(logs)[-1000:]}
+        await self.platform.update_task_status(task_id, SatelliteTaskStatus.FAILED, error_message)
+        await self.platform.update_deployment(
+            dep_id, DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message)
         )
 
     async def _get_deployment_artifacts(self, dep_id: str, task_id: str) -> tuple[Deployment, str]:
@@ -41,10 +48,13 @@ class DeployTask(Task):
             )
             return deployment, presigned_url
         except Exception as e:
+            error_message = {"reason": "failed to get model artifact details", "error": str(e)}
             await self.platform.update_task_status(
-                task_id,
-                SatelliteTaskStatus.FAILED,
-                {"reason": "failed to get model artifact details", "error": str(e)},
+                task_id, SatelliteTaskStatus.FAILED, error_message
+            )
+            await self.platform.update_deployment(
+                dep_id,
+                DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
             )
             raise
 
@@ -116,10 +126,12 @@ class DeployTask(Task):
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
         if not health_ok:
-            await self._handle_healthcheck_timeout(container, task.id)
+            await self._handle_healthcheck_timeout(container, task.id, dep_id)
             return
 
-        await self.platform.update_deployment(dep_id, inference_url, schemas)
+        await self.platform.update_deployment(
+            dep_id, DeploymentUpdate(inference_url=inference_url, schemas=schemas)
+        )
         await self.platform.update_task_status(
             task.id,
             SatelliteTaskStatus.DONE,

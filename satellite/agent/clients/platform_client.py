@@ -5,8 +5,7 @@ from uuid import UUID
 import httpx
 from cashews import cache
 
-from agent.schemas import SatelliteTaskStatus
-from agent.schemas.deployments import Deployment
+from agent.schemas import Deployment, DeploymentUpdate, SatelliteTaskStatus
 
 logger = logging.getLogger("satellite")
 
@@ -145,11 +144,11 @@ class PlatformClient:
         return Deployment.model_validate(r.json())
 
     async def update_deployment(
-        self, deployment_id: str, inference_url: str, schemas: dict[str, Any] | None
+        self, deployment_id: str, deployment: DeploymentUpdate
     ) -> Deployment:
         r = await self._session.patch(
             self._url(f"/satellites/deployments/{deployment_id}"),
-            json={"inference_url": inference_url, "schemas": schemas},
+            json=deployment.model_dump(exclude_none=True),
         )
         r.raise_for_status()
         return Deployment.model_validate(r.json())

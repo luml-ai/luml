@@ -1,6 +1,23 @@
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel
+
+
+class DeploymentStatus(StrEnum):
+    PENDING = "pending"
+    ACTIVE = "active"
+    FAILED = "failed"
+    DELETED = "deleted"
+    DELETION_PENDING = "deletion_pending"
+    NOT_RESPONDING = "not_responding"
+
+
+class DeploymentUpdate(BaseModel):
+    status: DeploymentStatus | None = None
+    inference_url: str | None = None
+    schemas: dict[str, Any] | None = None
+    error_message: dict[str, Any] | None = None
 
 
 class Deployment(BaseModel):
@@ -19,7 +36,8 @@ class Deployment(BaseModel):
     dynamic_attributes_secrets: dict[str, str] | None = {}
     env_variables_secrets: dict[str, str] | None = {}
     env_variables: dict[str, str] | None = {}
-    schemas: dict[str, str] | None = {}
+    schemas: dict[str, Any] | None = None
+    error_message: dict[str, Any] | None = None
     created_by_user: str | None = None
     tags: list[str] | None = None
     created_at: str

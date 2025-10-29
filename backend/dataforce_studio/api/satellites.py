@@ -129,10 +129,7 @@ async def update_deployment(
 ) -> Deployment:
     await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.update_worker_deployment(
-        request.user.id,
-        deployment_id,
-        data.inference_url,
-        data.schemas,
+        request.user.id, deployment_id, data
     )
 
 
