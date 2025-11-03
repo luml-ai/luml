@@ -62,7 +62,7 @@
     <template #footer>
       <div>
         <Button variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
-          stop Deployment
+          stop deployment
         </Button>
       </div>
       <Button type="submit" :loading="loading" form="createDeploymentForm">save changes</Button>

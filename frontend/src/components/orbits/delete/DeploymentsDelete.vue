@@ -24,7 +24,7 @@
         :loading="loading"
         @click="deleteDeployment"
       >
-        delete
+        stop
       </Button>
     </template>
   </Dialog>
