@@ -190,7 +190,7 @@ async def test_delete_model_artifact_with_deployment_constraint(
 
     created_model = await repo.create_model_artifact(model)
 
-    satellite, _ = await satellite_repo.create_satellite(
+    satellite = await satellite_repo.create_satellite(
         SatelliteCreate(
             orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test_satellite"
         )

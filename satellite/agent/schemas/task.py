@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 
 class SatelliteTaskType(StrEnum):
-    PAIRING = "pairing"
     DEPLOY = "deploy"
     UNDEPLOY = "undeploy"
 

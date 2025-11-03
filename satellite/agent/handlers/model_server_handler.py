@@ -144,7 +144,6 @@ class ModelServerHandler:
         if not schemas:
             return None
 
-        schemas.base_url = config.BASE_URL.rstrip("/")
         schemas.headers = {
             "Authorization": "Bearer your_api_key_here",
         }
@@ -157,7 +156,7 @@ class ModelServerHandler:
 
         for endpoint in schemas.endpoints:
             if endpoint.route == "/compute":
-                endpoint.url = f"{schemas.base_url}/deployments/{deployment_id}/compute"
+                endpoint.url = f"{{base_url}}/deployments/{deployment_id}/compute"
                 dyna_props = (
                     endpoint.request.get("$defs", {})
                     .get("DynamicAttributesModel", {})

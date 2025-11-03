@@ -6,6 +6,7 @@ import uvicorn
 from agent.handlers.tasks import TaskHandler
 
 from .agent_api import create_agent_app
+from .agent_manager import SatelliteManager
 from .clients import DockerService, PlatformClient
 from .controllers import PeriodicController
 from .settings import config
@@ -27,8 +28,12 @@ async def run_async() -> None:
             controller = PeriodicController(
                 handler=handler, poll_interval_s=float(config.POLL_INTERVAL_SEC)
             )
+            satellite_manager = SatelliteManager(platform)
             try:
                 await asyncio.sleep(0.1)
+
+                await satellite_manager.pair()
+
                 await controller.run_forever()
             finally:
                 uv_server.should_exit = True

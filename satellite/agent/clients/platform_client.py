@@ -43,7 +43,7 @@ class PlatformClient:
     async def list_tasks(self, status: SatelliteTaskStatus | None = None) -> list[dict[str, Any]]:
         assert self._session is not None
         params = {"status": status.value if status else None}
-        r = await self._session.get(self._url("/satellites/tasks"), params=params)
+        r = await self._session.get(self._url("/satellites/v1/tasks"), params=params)
         r.raise_for_status()
         tasks = r.json()
         return tasks
@@ -58,7 +58,7 @@ class PlatformClient:
         body: dict[str, Any] = {"status": status.value}
         if result is not None:
             body["result"] = result
-        r = await self._session.post(self._url(f"/satellites/tasks/{task_id}/status"), json=body)
+        r = await self._session.post(self._url(f"/satellites/v1/tasks/{task_id}/status"), json=body)
         r.raise_for_status()
         return r.json()
 
@@ -69,7 +69,7 @@ class PlatformClient:
     ) -> dict[str, Any]:
         assert self._session is not None
         r = await self._session.patch(
-            self._url(f"/satellites/deployments/{deployment_id}/status"),
+            self._url(f"/satellites/v1/deployments/{deployment_id}/status"),
             json={"status": status},
         )
         r.raise_for_status()
@@ -77,14 +77,14 @@ class PlatformClient:
 
     async def delete_deployment(self, deployment_id: UUID) -> dict[str, Any]:
         assert self._session is not None
-        r = await self._session.delete(self._url(f"/satellites/deployments/{deployment_id}"))
+        r = await self._session.delete(self._url(f"/satellites/v1/deployments/{deployment_id}"))
         r.raise_for_status()
         return r.json()
 
     async def pair_satellite(self, base_url: str, capabilities: dict[str, Any]) -> dict[str, Any]:
         assert self._session is not None
         r = await self._session.post(
-            self._url("/satellites/pair"),
+            self._url("/satellites/v1/pair"),
             json={"base_url": base_url, "capabilities": capabilities},
         )
         r.raise_for_status()
@@ -94,7 +94,7 @@ class PlatformClient:
     async def authorize_inference_access(self, api_key: str) -> bool:
         assert self._session is not None
         r = await self._session.post(
-            self._url("/satellites/deployments/inference-access"),
+            self._url("/satellites/v1/deployments/inference-access"),
             json={"api_key": api_key},
         )
         r.raise_for_status()
@@ -104,7 +104,7 @@ class PlatformClient:
     async def get_model_artifact_download_url(self, model_artifact_id: UUID) -> str:
         assert self._session is not None
         r = await self._session.get(
-            self._url(f"/satellites/model_artifacts/{model_artifact_id}/download-url")
+            self._url(f"/satellites/v1/model_artifacts/{model_artifact_id}/download-url")
         )
         r.raise_for_status()
         data = r.json()
@@ -112,7 +112,9 @@ class PlatformClient:
 
     async def get_model_artifact(self, model_artifact_id: UUID) -> tuple[dict, str]:
         assert self._session is not None
-        r = await self._session.get(self._url(f"/satellites/model_artifacts/{model_artifact_id}"))
+        r = await self._session.get(
+            self._url(f"/satellites/v1/model_artifacts/{model_artifact_id}")
+        )
         r.raise_for_status()
         data = r.json()
         return data.get("model"), str(data.get("url", ""))
@@ -120,26 +122,26 @@ class PlatformClient:
     @cache(ttl=_SECRETS_CACHE_TTL_SECONDS, key="get_orbit_secret:{secret_id}")
     async def get_orbit_secret(self, secret_id: UUID) -> dict[str, Any]:
         assert self._session is not None
-        r = await self._session.get(self._url(f"/satellites/secrets/{secret_id}"))
+        r = await self._session.get(self._url(f"/satellites/v1/secrets/{secret_id}"))
         r.raise_for_status()
         return r.json()
 
     @cache(ttl=_SECRETS_CACHE_TTL_SECONDS, key="get_orbit_secrets")
     async def get_orbit_secrets(self) -> list[dict[str, Any]]:
         assert self._session is not None
-        r = await self._session.get(self._url("/satellites/secrets"))
+        r = await self._session.get(self._url("/satellites/v1/secrets"))
         r.raise_for_status()
         return r.json()
 
     async def list_deployments(self) -> list[dict[str, Any]]:
         assert self._session is not None
-        r = await self._session.get(self._url("/satellites/deployments"))
+        r = await self._session.get(self._url("/satellites/v1/deployments"))
         r.raise_for_status()
         return r.json()
 
     async def get_deployment(self, deployment_id: UUID) -> Deployment:
         assert self._session is not None
-        r = await self._session.get(self._url(f"/satellites/deployments/{deployment_id}"))
+        r = await self._session.get(self._url(f"/satellites/v1/deployments/{deployment_id}"))
         r.raise_for_status()
         return Deployment.model_validate(r.json())
 
@@ -147,8 +149,8 @@ class PlatformClient:
         self, deployment_id: str, deployment: DeploymentUpdate
     ) -> Deployment:
         r = await self._session.patch(
-            self._url(f"/satellites/deployments/{deployment_id}"),
-            json=deployment.model_dump(exclude_none=True),
+            self._url(f"/satellites/v1/deployments/{deployment_id}"),
+            json=deployment.model_dump(exclude_unset=True),
         )
         r.raise_for_status()
         return Deployment.model_validate(r.json())

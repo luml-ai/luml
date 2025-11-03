@@ -192,7 +192,9 @@ class DeploymentHandler:
             tags=data.tags,
         )
         deployment = await self.__repo.update_deployment(
-            deployment_id, satellite_id, update_data,
+            deployment_id,
+            satellite_id,
+            update_data,
         )
         if not deployment:
             raise NotFoundError("Deployment not found")

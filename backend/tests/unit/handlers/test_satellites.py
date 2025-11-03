@@ -174,9 +174,7 @@ async def test_create_satellite(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
-    task_id = UUID("0199c419-b7c1-71d6-8382-5697010cee46")
 
-    payload = {"created_by_user": user_name}
     satellite_create_in = SatelliteCreateIn(name="test-satellite")
     mock_satellite = Satellite(
         id=satellite_id,
@@ -189,24 +187,10 @@ async def test_create_satellite(
         updated_at=None,
         last_seen_at=None,
     )
-    mock_task = SatelliteQueueTask(
-        id=task_id,
-        satellite_id=mock_satellite.id,
-        orbit_id=orbit_id,
-        type=SatelliteTaskType.PAIRING,
-        payload=payload,
-        status=SatelliteTaskStatus.PENDING,
-        scheduled_at=datetime.datetime.now(),
-        started_at=datetime.datetime.now(),
-        finished_at=None,
-        result=None,
-        created_at=datetime.datetime.now(),
-        updated_at=None,
-    )
 
     mock_get_orbit_simple.return_value = Mock()
     mock_get_public_user.return_value = Mock(full_name=user_name)
-    mock_create_satellite.return_value = mock_satellite, mock_task
+    mock_create_satellite.return_value = mock_satellite
     mock_get_key_hash.return_value = str(uuid4())
 
     result = await handler.create_satellite(
@@ -215,8 +199,6 @@ async def test_create_satellite(
 
     assert isinstance(result, SatelliteCreateOut)
     assert result.satellite == mock_satellite
-    assert result.task == mock_task
-    assert result.task.payload == payload
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_public_user.assert_awaited_once_with(user_id)
     mock_check_orbit_action_access.assert_awaited_once_with(
@@ -546,7 +528,7 @@ async def test_list_tasks(mock_list_tasks: AsyncMock) -> None:
             id=task_id,
             satellite_id=satellite_id,
             orbit_id=orbit_id,
-            type=SatelliteTaskType.PAIRING,
+            type=SatelliteTaskType.DEPLOY,
             payload={"created_by_user": "Full Name"},
             status=SatelliteTaskStatus.PENDING,
             scheduled_at=datetime.datetime.now(),
@@ -604,7 +586,7 @@ async def test_update_task_status_success(mock_update_task_status: AsyncMock) ->
         id=task_id,
         satellite_id=satellite_id,
         orbit_id=orbit_id,
-        type=SatelliteTaskType.PAIRING,
+        type=SatelliteTaskType.DEPLOY,
         payload={"created_by_user": "Full Name"},
         status=status,
         scheduled_at=datetime.datetime.now(),

@@ -27,7 +27,7 @@ from dataforce_studio.schemas.satellite import (
 )
 
 satellite_worker_router = APIRouter(
-    prefix="/satellites",
+    prefix="/satellites/v1",
     dependencies=[Depends(UserAuthentication(["satellite"]))],
     tags=["satellites"],
 )

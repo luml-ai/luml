@@ -19,6 +19,7 @@ from dataforce_studio.schemas.deployment import (
     DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
+    DeploymentUpdateIn,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.schemas.satellite import (
@@ -1310,9 +1311,10 @@ async def test_update_worker_deployment(
     )
 
     mock_update_deployment.return_value = expected
-
     result = await handler.update_worker_deployment(
-        satellite_id, deployment_id, inference_url
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(inference_url=inference_url, status=DeploymentStatus.ACTIVE),
     )
 
     assert result == expected
@@ -1343,7 +1345,11 @@ async def test_update_worker_deployment_not_found(
 
     with pytest.raises(NotFoundError, match="Deployment not found") as error:
         await handler.update_worker_deployment(
-            satellite_id, deployment_id, inference_url
+            satellite_id,
+            deployment_id,
+            DeploymentUpdateIn(
+                inference_url=inference_url, status=DeploymentStatus.ACTIVE
+            ),
         )
 
     assert error.value.status_code == 404

@@ -80,6 +80,5 @@ class EndpointSchema(BaseModel):
 
 
 class Schemas(BaseModel):
-    base_url: str | None = None
     headers: dict[str, str] | None = None
     endpoints: list[EndpointSchema]
