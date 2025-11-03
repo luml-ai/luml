@@ -55,6 +55,7 @@ import { getMetricsCards } from '@/helpers/helpers'
 import { Model } from '@fnnx/web'
 import { ArrayDType, NDArray } from '@fnnx/common'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
+import '@/lib/onnx/onnx' 
 
 type Props = {
   model: Model
