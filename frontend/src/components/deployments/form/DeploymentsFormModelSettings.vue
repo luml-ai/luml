@@ -14,7 +14,11 @@
           option-label="name"
           option-value="id"
           :disabled="!!initialCollectionId"
-        />
+        >
+          <template #header>
+            <div class="dropdown-title">Available collection</div>
+          </template>
+        </Select>
       </div>
       <div class="field" style="margin-bottom: 12px">
         <label for="modelId" class="label required">Model</label>
@@ -28,7 +32,11 @@
           option-label="model_name"
           option-value="id"
           :disabled="!!initialModelId"
-        />
+        >
+          <template #header>
+            <div class="dropdown-title">Available mdodel</div>
+          </template>
+        </Select>
       </div>
       <Accordion
         v-if="secretDynamicAttributes.length || secretEnvs.length"
@@ -446,5 +454,11 @@ onBeforeMount(async () => {
   font-size: var(--p-tag-font-size);
   color: var(--p-tag-secondary-color);
   background-color: var(--p-tag-secondary-background);
+}
+.dropdown-title {
+  padding: 12px 16px 8px;
+  font-size: 14px;
+  font-weight: var(--p-select-option-group-font-weight);
+  color: var(--p-select-option-group-color);
 }
 </style>
