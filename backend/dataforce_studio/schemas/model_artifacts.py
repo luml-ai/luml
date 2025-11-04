@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES
 from dataforce_studio.schemas.base import BaseOrmConfig
+from dataforce_studio.schemas.deployment import Deployment
 from dataforce_studio.schemas.s3 import UploadDetails
 
 
@@ -215,6 +216,11 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
                 f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
             )
         return value
+
+
+class ModelArtifactDetails(ModelArtifact):
+    deployments: list[Deployment] | None = None
+    collection: Collection
 
 
 class CreateModelArtifactResponse(BaseModel):

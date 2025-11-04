@@ -8,7 +8,7 @@ class DeploymentStatus(StrEnum):
     PENDING = "pending"
     ACTIVE = "active"
     FAILED = "failed"
-    DELETED = "deleted"
+    DELETION_FAILED = "deletion_failed"
     DELETION_PENDING = "deletion_pending"
     NOT_RESPONDING = "not_responding"
 

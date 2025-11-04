@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.deployments import DeploymentHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
@@ -76,13 +76,33 @@ async def update_deployment_details(
     responses=endpoint_responses,
     response_model=SatelliteQueueTask,
 )
-async def delete_deployment(
+async def request_deployment_deletion(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
     deployment_id: UUID,
 ) -> SatelliteQueueTask:
-    return await handler.delete_deployment(
+    """ "Deployment delete" - old name."""
+    return await handler.request_deployment_deletion(
+        request.user.id,
+        organization_id,
+        orbit_id,
+        deployment_id,
+    )
+
+
+@deployments_router.delete(
+    "/{deployment_id}/force",
+    responses=endpoint_responses,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def force_deployment_delete(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    deployment_id: UUID,
+) -> None:
+    return await handler.force_delete_deployment(
         request.user.id,
         organization_id,
         orbit_id,

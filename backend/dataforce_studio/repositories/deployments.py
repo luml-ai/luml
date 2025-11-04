@@ -41,10 +41,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
     async def list_deployments(self, orbit_id: UUID) -> list[Deployment]:
         async with self._get_session() as session:
             result = await session.execute(
-                select(DeploymentOrm).where(
-                    DeploymentOrm.orbit_id == orbit_id,
-                    DeploymentOrm.status != DeploymentStatus.DELETED.value,
-                )
+                select(DeploymentOrm).where(DeploymentOrm.orbit_id == orbit_id)
             )
             deployments = result.scalars().all()
             return [d.to_deployment() for d in deployments]
@@ -119,13 +116,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             if not dep:
                 return None
 
-            if dep.status in (
-                DeploymentStatus.DELETION_PENDING.value,
-                DeploymentStatus.DELETED.value,
-            ):
+            if dep.status == DeploymentStatus.DELETION_PENDING.value:
                 return dep.to_deployment(), None
 
-            dep.status = DeploymentStatus.DELETION_PENDING
+            dep.status = DeploymentStatus.DELETION_PENDING.value
 
             task = SatelliteQueueOrm(
                 satellite_id=dep.satellite_id,
@@ -138,6 +132,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
             await session.refresh(dep)
             await session.refresh(task)
             return dep.to_deployment(), task.to_queue_task()
+
+    async def delete_deployment(self, deployment_id: UUID) -> None:
+        async with self._get_session() as session:
+            await self.delete_model(session, DeploymentOrm, deployment_id)
 
     async def update_deployment_details(
         self,
@@ -163,7 +161,7 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
                 select(DeploymentOrm).where(DeploymentOrm.id == deployment_id)
             )
             deployment = result.scalar_one_or_none()
-            if not deployment or deployment.status == DeploymentStatus.DELETED:
+            if not deployment:
                 return None
 
             existing_task_result = await session.execute(

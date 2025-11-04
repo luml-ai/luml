@@ -7,7 +7,11 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.models.base import Base, TimestampMixin
-from dataforce_studio.schemas.model_artifacts import ModelArtifact, ModelArtifactStatus
+from dataforce_studio.schemas.model_artifacts import (
+    ModelArtifact,
+    ModelArtifactDetails,
+    ModelArtifactStatus,
+)
 
 
 class ModelArtifactOrm(TimestampMixin, Base):
@@ -50,3 +54,6 @@ class ModelArtifactOrm(TimestampMixin, Base):
 
     def to_model_artifact(self) -> ModelArtifact:
         return ModelArtifact.model_validate(self)
+
+    def to_model_artifact_details(self) -> ModelArtifactDetails:
+        return ModelArtifactDetails.model_validate(self)

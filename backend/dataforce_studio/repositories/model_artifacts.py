@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import selectinload
 
 from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import ModelArtifactOrm
@@ -9,6 +10,7 @@ from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
+    ModelArtifactDetails,
     ModelArtifactStatus,
     ModelArtifactUpdate,
 )
@@ -66,6 +68,18 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
                 session, ModelArtifactOrm, model_artifact_id
             )
             return db_model.to_model_artifact() if db_model else None
+
+    async def get_model_artifact_details(
+        self, model_artifact_id: UUID
+    ) -> ModelArtifactDetails | None:
+        async with self._get_session() as session:
+            db_model = await self.get_model(
+                session,
+                ModelArtifactOrm,
+                model_artifact_id,
+                options=[selectinload(ModelArtifactOrm.deployments)],
+            )
+            return db_model.to_model_artifact_details() if db_model else None
 
     async def update_model_artifact(
         self,

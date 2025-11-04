@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    ApplicationError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     InvalidStatusTransitionError,
@@ -216,9 +217,16 @@ class ModelArtifactHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
+        model_artifact = await self.__repository.get_model_artifact_details(
+            model_artifact_id
+        )
         if not model_artifact:
             raise ModelArtifactNotFoundError()
+
+        if model_artifact.deployments:
+            raise ApplicationError(
+                "Cannot delete model artifact because it is used in deployments.", 409
+            )
 
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import asyncpg  # type: ignore[import-untyped]
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
-from utils.db import migrate_db
 from uuid6 import uuid7
 
 from dataforce_studio.models import OrganizationOrm
@@ -58,6 +57,7 @@ from dataforce_studio.schemas.user import (
     UserOut,
 )
 from dataforce_studio.settings import config
+from utils.db import migrate_db
 
 TEST_DB_NAME = "df_studio_test"
 

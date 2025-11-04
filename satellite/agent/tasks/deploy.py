@@ -130,7 +130,10 @@ class DeployTask(Task):
             return
 
         await self.platform.update_deployment(
-            dep_id, DeploymentUpdate(inference_url=inference_url, schemas=schemas)
+            dep_id,
+            DeploymentUpdate(
+                inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
+            ),
         )
         await self.platform.update_task_status(
             task.id,

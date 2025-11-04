@@ -3,7 +3,9 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
+from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import SatelliteOrm, SatelliteQueueOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.satellite import (
@@ -131,5 +133,13 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
                 await session.commit()
 
     async def delete_satellite(self, satellite_id: UUID) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model(session, SatelliteOrm, satellite_id)
+        try:
+            async with self._get_session() as session:
+                return await self.delete_model(session, SatelliteOrm, satellite_id)
+        except IntegrityError as error:
+            error_mess = "Cannot delete satellite."
+            raise DatabaseConstraintError(
+                error_mess + " It is used in deployments."
+                if "deployments" in str(error)
+                else error_mess
+            ) from error

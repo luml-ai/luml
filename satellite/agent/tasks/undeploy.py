@@ -1,7 +1,12 @@
 import logging
 
 from agent.handlers.handler_instances import ms_handler
-from agent.schemas import DeploymentUpdate, SatelliteQueueTask, SatelliteTaskStatus
+from agent.schemas import (
+    DeploymentStatus,
+    DeploymentUpdate,
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+)
 from agent.tasks.base import Task
 
 logger = logging.getLogger(__name__)
@@ -20,27 +25,32 @@ class UndeployTask(Task):
             )
         except Exception as error:
             error_message = {
-                "reason": "failed to remove container",
+                "reason": "Failed to remove container.",
                 "error": str(error),
             }
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
             await self.platform.update_deployment(
-                deployment_id, DeploymentUpdate(error_message=error_message)
+                deployment_id,
+                DeploymentUpdate(
+                    error_message=error_message, status=DeploymentStatus.DELETION_FAILED
+                ),
             )
             return
 
         try:
             await self.platform.delete_deployment(deployment_id)
         except Exception as error:
+            error_message = {"reason": "Failed to delete deployment.", "error": str(error)}
             await self.platform.update_task_status(
-                task.id,
-                SatelliteTaskStatus.FAILED,
-                {
-                    "reason": "failed to mark deployment deleted",
-                    "error": str(error),
-                },
+                task.id, SatelliteTaskStatus.FAILED, error_message
+            )
+            await self.platform.update_deployment(
+                deployment_id,
+                DeploymentUpdate(
+                    error_message=error_message, status=DeploymentStatus.DELETION_FAILED
+                ),
             )
             return
 

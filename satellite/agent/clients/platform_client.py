@@ -75,11 +75,10 @@ class PlatformClient:
         r.raise_for_status()
         return r.json()
 
-    async def delete_deployment(self, deployment_id: UUID) -> dict[str, Any]:
+    async def delete_deployment(self, deployment_id: UUID) -> None:
         assert self._session is not None
         r = await self._session.delete(self._url(f"/satellites/v1/deployments/{deployment_id}"))
         r.raise_for_status()
-        return r.json()
 
     async def pair_satellite(self, base_url: str, capabilities: dict[str, Any]) -> dict[str, Any]:
         assert self._session is not None
