@@ -55,5 +55,6 @@ function setSelectedSpan(span: TraceSpan) {
 }
 .body {
   flex: 1 1 auto;
+  overflow: hidden;
 }
 </style>

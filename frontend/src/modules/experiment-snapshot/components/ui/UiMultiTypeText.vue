@@ -68,7 +68,7 @@ const contentTypes = computed(() => [
   {
     label: 'YAML',
     value: ContentTypeEnum.yaml,
-    disabled: !isYamlLike(props.text),
+    disabled: !isYamlLike(JSON.stringify(props.text)),
   },
   {
     label: 'Markdown',
