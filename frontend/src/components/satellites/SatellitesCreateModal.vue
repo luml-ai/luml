@@ -6,7 +6,7 @@
     modal
     :draggable="false"
   >
-    <Form :resolver="satellitesResolver" @submit="onSubmit">
+    <Form :resolver="satellitesResolver" :initialValues="initialValues" @submit="onSubmit">
       <div class="fields">
         <div class="field">
           <label for="name" class="label required">Name</label>
