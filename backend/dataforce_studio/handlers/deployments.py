@@ -53,12 +53,12 @@ class DeploymentHandler:
         orbit_id: UUID,
         data: DeploymentCreateIn,
     ) -> Deployment:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.CREATE,
+            orbit_id,
         )
 
         orbit = await self.__orbit_repo.get_orbit_simple(orbit_id, organization_id)
@@ -105,12 +105,12 @@ class DeploymentHandler:
     async def list_deployments(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> list[Deployment]:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.LIST,
+            orbit_id,
         )
         return await self.__repo.list_deployments(orbit_id)
 
@@ -121,12 +121,12 @@ class DeploymentHandler:
         orbit_id: UUID,
         deployment_id: UUID,
     ) -> Deployment:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.READ,
+            orbit_id,
         )
         deployment = await self.__repo.get_deployment(deployment_id, orbit_id)
         if not deployment:
@@ -136,12 +136,12 @@ class DeploymentHandler:
     async def request_deployment_deletion(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID, deployment_id: UUID
     ) -> SatelliteQueueTask:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.DELETE,
+            orbit_id,
         )
         result = await self.__repo.request_deployment_deletion(orbit_id, deployment_id)
 
@@ -161,12 +161,12 @@ class DeploymentHandler:
     async def force_delete_deployment(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID, deployment_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.DELETE,
+            orbit_id,
         )
         dep = await self.__repo.get_deployment(deployment_id)
 
@@ -230,12 +230,12 @@ class DeploymentHandler:
         deployment_id: UUID,
         data: DeploymentDetailsUpdateIn,
     ) -> Deployment:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.DEPLOYMENT,
             Action.UPDATE,
+            orbit_id,
         )
         updated = await self.__repo.update_deployment_details(
             orbit_id,
@@ -254,12 +254,12 @@ class DeploymentHandler:
         if not orbit:
             return False
         try:
-            await self.__permissions_handler.check_orbit_action_access(
+            await self.__permissions_handler.check_permissions(
                 orbit.organization_id,
-                orbit.id,
                 user.id,
                 Resource.DEPLOYMENT,
                 Action.READ,
+                orbit.id,
             )
         except (NotFoundError, InsufficientPermissionsError):
             return False

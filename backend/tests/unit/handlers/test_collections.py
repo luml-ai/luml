@@ -643,7 +643,7 @@ async def test_delete_collection_orbit_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.collections.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.collections.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -658,7 +658,7 @@ async def test_delete_collection_orbit_wrong_org(
 async def test_get_orbit_collections_success(
     mock_get_collections: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -679,6 +679,7 @@ async def test_get_orbit_collections_success(
         )
     ]
 
+    mock_check_permissions.return_value = None
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_collections.return_value = expected_collections
 

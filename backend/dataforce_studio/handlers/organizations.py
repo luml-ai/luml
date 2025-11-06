@@ -99,7 +99,7 @@ class OrganizationHandler:
         organization_id: UUID,
         organization: OrganizationUpdate,
     ) -> OrganizationDetails:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION,
@@ -121,7 +121,7 @@ class OrganizationHandler:
         return organization_details
 
     async def delete_organization(self, user_id: UUID, organization_id: UUID) -> None:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION,
@@ -144,7 +144,7 @@ class OrganizationHandler:
     async def leave_from_organization(
         self, user_id: UUID, organization_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION,
@@ -162,8 +162,11 @@ class OrganizationHandler:
     async def get_organization(
         self, user_id: UUID, organization_id: UUID
     ) -> OrganizationDetails:
-        role = await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.ORGANIZATION, Action.READ
+        )
+        role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
         )
 
         organization = await self.__user_repository.get_organization_details(
@@ -180,7 +183,7 @@ class OrganizationHandler:
     async def send_invite(
         self, user_id: UUID, invite_: CreateOrganizationInviteIn
     ) -> OrganizationInvite:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             invite_.organization_id,
             user_id,
             Resource.ORGANIZATION_INVITE,
@@ -237,7 +240,7 @@ class OrganizationHandler:
     async def cancel_invite(
         self, user_id: UUID, organization_id: UUID, invite_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_INVITE,
@@ -276,7 +279,7 @@ class OrganizationHandler:
     async def get_organization_invites(
         self, user_id: UUID, organization_id: UUID
     ) -> list[OrganizationInvite]:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_INVITE,
@@ -293,7 +296,7 @@ class OrganizationHandler:
     async def get_organization_members_data(
         self, user_id: UUID, organization_id: UUID
     ) -> list[OrganizationMember]:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_USER,
@@ -309,11 +312,14 @@ class OrganizationHandler:
         member_id: UUID,
         member: UpdateOrganizationMember,
     ) -> OrganizationMember | None:
-        user_role = await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_USER,
             Action.CREATE,
+        )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
         )
 
         member_to_update = await self.__user_repository.get_organization_member_by_id(
@@ -338,7 +344,7 @@ class OrganizationHandler:
     async def delete_organization_member_by_id(
         self, user_id: UUID, organization_id: UUID, member_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_USER,
@@ -368,12 +374,16 @@ class OrganizationHandler:
         organization_id: UUID,
         member: OrganizationMemberCreate,
     ) -> OrganizationMember:
-        user_role = await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORGANIZATION_USER,
             Action.CREATE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+
         await self._check_org_members_limit(organization_id)
 
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:

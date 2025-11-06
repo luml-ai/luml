@@ -29,12 +29,12 @@ class CollectionHandler:
         orbit_id: UUID,
         collection: CollectionCreateIn,
     ) -> Collection:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.COLLECTION,
             Action.CREATE,
+            orbit_id,
         )
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -49,12 +49,12 @@ class CollectionHandler:
     async def get_orbit_collections(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> list[Collection]:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.COLLECTION,
             Action.LIST,
+            orbit_id,
         )
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -71,12 +71,12 @@ class CollectionHandler:
         collection_id: UUID,
         collection: CollectionUpdateIn,
     ) -> Collection:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.COLLECTION,
             Action.UPDATE,
+            orbit_id,
         )
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -103,12 +103,12 @@ class CollectionHandler:
         orbit_id: UUID,
         collection_id: UUID,
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.COLLECTION,
             Action.DELETE,
+            orbit_id,
         )
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id

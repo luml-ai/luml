@@ -29,8 +29,12 @@ class OrbitSecretHandler:
         orbit_id: UUID,
         secret: OrbitSecretCreateIn,
     ) -> OrbitSecretOut:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.CREATE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ORBIT_SECRET,
+            Action.CREATE,
+            orbit_id,
         )
         secret_create = OrbitSecretCreate(**secret.model_dump(), orbit_id=orbit_id)
         try:
@@ -44,8 +48,12 @@ class OrbitSecretHandler:
     async def get_orbit_secrets(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> list[OrbitSecretOut]:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.LIST
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ORBIT_SECRET,
+            Action.LIST,
+            orbit_id,
         )
         secrets = await self.__secret_repository.get_orbit_secrets(orbit_id)
 
@@ -69,8 +77,12 @@ class OrbitSecretHandler:
         orbit_id: UUID,
         secret_id: UUID,
     ) -> OrbitSecretOut:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.READ
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ORBIT_SECRET,
+            Action.READ,
+            orbit_id,
         )
         secret = await self.__secret_repository.get_orbit_secret(secret_id)
         if not secret:
@@ -85,8 +97,12 @@ class OrbitSecretHandler:
         secret_id: UUID,
         secret: OrbitSecretUpdate,
     ) -> OrbitSecretOut:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.UPDATE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ORBIT_SECRET,
+            Action.UPDATE,
+            orbit_id,
         )
         updated = await self.__secret_repository.update_orbit_secret(secret_id, secret)
         if not updated:
@@ -100,8 +116,12 @@ class OrbitSecretHandler:
         orbit_id: UUID,
         secret_id: UUID,
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.ORBIT_SECRET, Action.DELETE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ORBIT_SECRET,
+            Action.DELETE,
+            orbit_id,
         )
         await self.__secret_repository.delete_orbit_secret(secret_id)
 

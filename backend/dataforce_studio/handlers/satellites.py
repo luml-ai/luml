@@ -60,8 +60,12 @@ class SatelliteHandler:
         orbit_id: UUID,
         paired: bool | None = None,
     ) -> list[Satellite]:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.LIST
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.LIST,
+            orbit_id,
         )
         return await self.__sat_repo.list_satellites(orbit_id, paired)
 
@@ -72,8 +76,12 @@ class SatelliteHandler:
         orbit_id: UUID,
         satellite_id: UUID,
     ) -> Satellite:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.READ
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.READ,
+            orbit_id,
         )
         satellite = await self.__sat_repo.get_satellite(satellite_id)
         if not satellite or satellite.orbit_id != orbit_id:
@@ -87,8 +95,12 @@ class SatelliteHandler:
         orbit_id: UUID,
         satellite_id: UUID,
     ) -> str:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.UPDATE,
+            orbit_id,
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
@@ -112,8 +124,12 @@ class SatelliteHandler:
         orbit_id: UUID,
         data: SatelliteCreateIn,
     ) -> SatelliteCreateOut:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.CREATE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.CREATE,
+            orbit_id,
         )
 
         orbit = await self.__orbit_repo.get_orbit_simple(orbit_id, organization_id)
@@ -144,8 +160,12 @@ class SatelliteHandler:
         satellite_id: UUID,
         satellite_update_in: SatelliteUpdateIn,
     ) -> Satellite:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.UPDATE,
+            orbit_id,
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
@@ -223,8 +243,12 @@ class SatelliteHandler:
         user_id: UUID,
         satellite_id: UUID,
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.SATELLITE,
+            Action.DELETE,
+            orbit_id,
         )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
