@@ -3,7 +3,9 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
+from dataforce_studio.infra.exceptions import DatabaseConstraintError
 from dataforce_studio.models import SatelliteOrm, SatelliteQueueOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.satellite import (
@@ -13,30 +15,15 @@ from dataforce_studio.schemas.satellite import (
     SatelliteQueueTask,
     SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
-    SatelliteTaskType,
     SatelliteUpdate,
 )
 
 
 class SatelliteRepository(RepositoryBase, CrudMixin):
-    async def create_satellite(
-        self, satellite: SatelliteCreate, payload: dict[str, Any] | None = None
-    ) -> tuple[Satellite, SatelliteQueueTask]:
+    async def create_satellite(self, satellite: SatelliteCreate) -> Satellite:
         async with self._get_session() as session:
-            db_sat = SatelliteOrm(**satellite.model_dump())
-            session.add(db_sat)
-            await session.flush()
-            task = SatelliteQueueOrm(
-                satellite_id=db_sat.id,
-                orbit_id=satellite.orbit_id,
-                type=SatelliteTaskType.PAIRING,
-                payload=payload or {},
-            )
-            session.add(task)
-            await session.commit()
-            await session.refresh(db_sat)
-            await session.refresh(task)
-            return db_sat.to_satellite(), task.to_queue_task()
+            db_sat = await self.create_model(session, SatelliteOrm, satellite)
+            return db_sat.to_satellite()
 
     async def get_satellite(self, satellite_id: UUID) -> Satellite | None:
         async with self._get_session() as session:
@@ -68,7 +55,6 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             satellites = result.scalars().all()
             return [s.to_satellite() for s in satellites]
 
-    # TODO check capabilities
     async def pair_satellite(
         self,
         satellite_id: UUID,
@@ -147,5 +133,13 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
                 await session.commit()
 
     async def delete_satellite(self, satellite_id: UUID) -> None:
-        async with self._get_session() as session:
-            return await self.delete_model(session, SatelliteOrm, satellite_id)
+        try:
+            async with self._get_session() as session:
+                return await self.delete_model(session, SatelliteOrm, satellite_id)
+        except IntegrityError as error:
+            error_mess = "Cannot delete satellite."
+            raise DatabaseConstraintError(
+                error_mess + " It is used in deployments."
+                if "deployments" in str(error)
+                else error_mess
+            ) from error

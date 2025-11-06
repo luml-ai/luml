@@ -126,16 +126,15 @@ class SatelliteHandler:
 
         api_key = self._generate_api_key()
 
-        satellite, task = await self.__sat_repo.create_satellite(
+        satellite = await self.__sat_repo.create_satellite(
             SatelliteCreate(
                 orbit_id=orbit_id,
                 api_key_hash=self._get_key_hash(api_key),
                 name=data.name,
                 description=data.description,
-            ),
-            {"created_by_user": user.full_name},
+            )
         )
-        return SatelliteCreateOut(satellite=satellite, api_key=api_key, task=task)
+        return SatelliteCreateOut(satellite=satellite, api_key=api_key)
 
     async def update_satellite(
         self,

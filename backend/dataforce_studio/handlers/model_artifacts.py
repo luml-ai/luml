@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    ApplicationError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     InvalidStatusTransitionError,
@@ -11,6 +12,7 @@ from dataforce_studio.infra.exceptions import (
 )
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
+from dataforce_studio.repositories.deployments import DeploymentRepository
 from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
@@ -19,6 +21,7 @@ from dataforce_studio.schemas.model_artifacts import (
     CreateModelArtifactResponse,
     ModelArtifact,
     ModelArtifactCreate,
+    ModelArtifactDetails,
     ModelArtifactIn,
     ModelArtifactStatus,
     ModelArtifactUpdate,
@@ -35,6 +38,7 @@ class ModelArtifactHandler:
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
+    __deployment_repository = DeploymentRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     __model_artifact_transitions = {
@@ -67,6 +71,34 @@ class ModelArtifactHandler:
         if not collection or collection.orbit_id != orbit_id:
             raise CollectionNotFoundError()
         return orbit, collection
+
+    async def _model_artifact_deletion_checks(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_id: UUID,
+        model_artifact_id: UUID,
+    ) -> ModelArtifactDetails:
+        await self.__permissions_handler.check_orbit_action_access(
+            organization_id,
+            orbit_id,
+            user_id,
+            Resource.MODEL,
+            Action.DELETE,
+        )
+        await self._check_orbit_and_collection_access(
+            organization_id, orbit_id, collection_id
+        )
+
+        model_artifact = await self.__repository.get_model_artifact_details(
+            model_artifact_id
+        )
+
+        if not model_artifact:
+            raise ModelArtifactNotFoundError()
+
+        return model_artifact
 
     async def create_model_artifact(
         self,
@@ -211,14 +243,21 @@ class ModelArtifactHandler:
             orbit_id,
             user_id,
             Resource.MODEL,
-            Action.UPDATE,
+            Action.DELETE,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
+        model_artifact = await self.__repository.get_model_artifact_details(
+            model_artifact_id
+        )
         if not model_artifact:
             raise ModelArtifactNotFoundError()
+
+        if model_artifact.deployments:
+            raise ApplicationError(
+                "Cannot delete model artifact because it is used in deployments.", 409
+            )
 
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -263,23 +302,33 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact_id: UUID,
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
-            organization_id,
-            orbit_id,
-            user_id,
-            Resource.MODEL,
-            Action.DELETE,
+        model_artifact = await self._model_artifact_deletion_checks(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
-        await self._check_orbit_and_collection_access(
-            organization_id, orbit_id, collection_id
-        )
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+
         if model_artifact.status != ModelArtifactStatus.PENDING_DELETION:
             raise InvalidStatusTransitionError(
                 f"Unable to confirm deletion with status '{model_artifact.status}'"
             )
+        await self.__repository.delete_model_artifact(model_artifact_id)
+
+    async def force_delete_model_artifact(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_id: UUID,
+        model_artifact_id: UUID,
+    ) -> None:
+        model_artifact = await self._model_artifact_deletion_checks(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
+
+        if model_artifact.deployments:
+            await self.__deployment_repository.delete_deployments_by_model_id(
+                model_artifact_id
+            )
+
         await self.__repository.delete_model_artifact(model_artifact_id)
 
     async def get_collection_model_artifact(

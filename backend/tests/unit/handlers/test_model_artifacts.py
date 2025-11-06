@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
 
 import pytest
+import uuid6
 
 from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
 from dataforce_studio.infra.exceptions import (
@@ -14,9 +15,13 @@ from dataforce_studio.infra.exceptions import (
     OrbitNotFoundError,
 )
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
+from dataforce_studio.schemas.deployment import Deployment, DeploymentStatus
 from dataforce_studio.schemas.model_artifacts import (
+    Collection,
+    CollectionType,
     Manifest,
     ModelArtifact,
+    ModelArtifactDetails,
     ModelArtifactIn,
     ModelArtifactStatus,
     ModelArtifactUpdate,
@@ -546,7 +551,7 @@ async def test_request_download_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -578,8 +583,11 @@ async def test_request_delete_url(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8621")
 
-    model_artifact = ModelArtifact(
+    now = datetime.now()
+
+    model_artifact = ModelArtifactDetails(
         id=model_artifact_id,
         collection_id=collection_id,
         file_name="model",
@@ -592,15 +600,27 @@ async def test_request_delete_url(
         size=1,
         unique_identifier="uid",
         status=ModelArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
+        created_at=now,
         updated_at=None,
+        deployments=None,
+        collection=Collection(
+            id=collection_id,
+            orbit_id=orbit_id,
+            name="Test Collection",
+            description="Test Description",
+            collection_type=CollectionType.MODEL,
+            tags=[],
+            total_models=1,
+            created_at=now,
+            updated_at=None,
+        ),
     )
 
     mock_secret = test_bucket
 
     mock_get_model_artifact.return_value = model_artifact
     mock_get_orbit_simple.return_value = Mock(
-        bucket_secret_id=1, organization_id=organization_id
+        bucket_secret_id=bucket_secret_id, organization_id=organization_id
     )
     mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
     mock_get_secret_or_raise.return_value = mock_secret
@@ -614,7 +634,7 @@ async def test_request_delete_url(
 
     assert url == "url"
     mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
     )
     mock_update_status.assert_awaited_once_with(
         model_artifact_id, ModelArtifactStatus.PENDING_DELETION
@@ -638,7 +658,121 @@ async def test_request_delete_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_s3_service",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_with_deployments(
+    mock_get_s3_service: AsyncMock,
+    mock_get_secret_or_raise: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_check_orbit_action_access: AsyncMock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8621")
+
+    deployment1_id = uuid6.uuid7()
+    satellite_id = uuid6.uuid7()
+    now = datetime.now()
+
+    model_artifact = ModelArtifactDetails(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        file_name="model",
+        model_name=None,
+        metrics={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        bucket_location="loc",
+        size=1,
+        unique_identifier="uid",
+        status=ModelArtifactStatus.UPLOADED,
+        created_at=now,
+        updated_at=None,
+        deployments=[
+            Deployment(
+                id=deployment1_id,
+                orbit_id=orbit_id,
+                satellite_id=satellite_id,
+                satellite_name="Test Satellite",
+                name="deployment-1",
+                model_id=model_artifact_id,
+                model_artifact_name="model",
+                collection_id=collection_id,
+                status=DeploymentStatus.ACTIVE,
+                created_by_user="Test User",
+                created_at=now,
+                updated_at=None,
+            )
+        ],
+        collection=Collection(
+            id=collection_id,
+            orbit_id=orbit_id,
+            name="Test Collection",
+            description="Test Description",
+            collection_type=CollectionType.MODEL,
+            tags=[],
+            total_models=1,
+            created_at=now,
+            updated_at=None,
+        ),
+    )
+
+    mock_secret = test_bucket
+
+    mock_get_model_artifact.return_value = model_artifact
+    mock_get_orbit_simple.return_value = Mock(
+        bucket_secret_id=bucket_secret_id, organization_id=organization_id
+    )
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
+    mock_get_secret_or_raise.return_value = mock_secret
+    mock_s3_service = AsyncMock()
+    mock_s3_service.get_delete_url.return_value = "url"
+    mock_get_s3_service.return_value = mock_s3_service
+
+    with pytest.raises(ApplicationError) as error:
+        await handler.request_delete_url(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
+
+    assert error.value.status_code == 409
+    mock_check_orbit_action_access.assert_awaited_once_with(
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
+    )
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_orbit_action_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -707,7 +841,7 @@ async def test_confirm_deletion_pending(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1128,7 +1262,7 @@ async def test_request_download_url_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1164,7 +1298,7 @@ async def test_request_delete_url_model_artifact_not_found(
         )
 
     mock_check_permission.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
     )
 
 
@@ -1173,7 +1307,7 @@ async def test_request_delete_url_model_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1197,10 +1331,10 @@ async def test_request_delete_url_orbit_not_found(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    now = datetime.now()
 
-    model_artifact = ModelArtifact(
+    model_artifact = ModelArtifactDetails(
         id=model_artifact_id,
         collection_id=collection_id,
         file_name="test.tar.gz",
@@ -1214,8 +1348,20 @@ async def test_request_delete_url_orbit_not_found(
         unique_identifier="uid",
         tags=None,
         status=ModelArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
+        created_at=now,
         updated_at=None,
+        deployments=None,
+        collection=Collection(
+            id=collection_id,
+            orbit_id=orbit_id,
+            name="Test Collection",
+            description="Test Description",
+            collection_type=CollectionType.MODEL,
+            tags=[],
+            total_models=1,
+            created_at=now,
+            updated_at=None,
+        ),
     )
 
     mock_check_orbit_and_collection_access.return_value = (
@@ -1231,5 +1377,5 @@ async def test_request_delete_url_orbit_not_found(
         )
 
     mock_check_permission.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.MODEL, Action.UPDATE
+        organization_id, orbit_id, user_id, Resource.MODEL, Action.DELETE
     )

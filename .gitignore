@@ -10,3 +10,4 @@ __pycache__/
 .DS_Store
 /sdk/python/venv/
 /.idea/
+/satellite/.env

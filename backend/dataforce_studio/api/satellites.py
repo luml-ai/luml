@@ -1,7 +1,7 @@
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, status
 
 from dataforce_studio.handlers.deployments import DeploymentHandler
 from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
@@ -27,7 +27,7 @@ from dataforce_studio.schemas.satellite import (
 )
 
 satellite_worker_router = APIRouter(
-    prefix="/satellites",
+    prefix="/satellites/v1",
     dependencies=[Depends(UserAuthentication(["satellite"]))],
     tags=["satellites"],
 )
@@ -129,9 +129,7 @@ async def update_deployment(
 ) -> Deployment:
     await satellite_handler.touch_last_seen(request.user.id)
     return await deployment_handler.update_worker_deployment(
-        request.user.id,
-        deployment_id,
-        data.inference_url,
+        request.user.id, deployment_id, data
     )
 
 
@@ -165,14 +163,11 @@ async def get_satellite_deployment(request: Request, deployment_id: UUID) -> Dep
 @satellite_worker_router.delete(
     "/deployments/{deployment_id}",
     responses=endpoint_responses,
-    response_model=Deployment,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
-async def delete_deployment(request: Request, deployment_id: UUID) -> Deployment:
+async def delete_deployment(request: Request, deployment_id: UUID) -> None:
     await satellite_handler.touch_last_seen(request.user.id)
-    return await deployment_handler.delete_worker_deployment(
-        request.user.id,
-        deployment_id,
-    )
+    await deployment_handler.delete_worker_deployment(deployment_id)
 
 
 @satellite_worker_router.post(

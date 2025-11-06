@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 import uuid6
 from sqlalchemy import UUID, CheckConstraint, ForeignKey, String, select
@@ -15,7 +16,8 @@ class DeploymentOrm(TimestampMixin, Base):
     __tablename__ = "deployments"
     __table_args__ = (
         CheckConstraint(
-            "status in ('pending','active','failed','deleted','deletion_pending')",
+            "status in ('pending','active','failed',"
+            "'deletion_pending', 'not_responding', 'deletion_failed')",
             name="deployments_status_check",
         ),
     )
@@ -29,7 +31,7 @@ class DeploymentOrm(TimestampMixin, Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     satellite_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("satellites.id", ondelete="CASCADE"),
+        ForeignKey("satellites.id", ondelete="RESTRICT"),
         nullable=False,
     )
     satellite_name: Mapped[str] = column_property(
@@ -70,6 +72,12 @@ class DeploymentOrm(TimestampMixin, Base):
     )
     satellite_parameters: Mapped[dict[str, int | str]] = mapped_column(
         postgresql.JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    schemas: Mapped[dict[str, Any]] = mapped_column(
+        postgresql.JSONB, nullable=False, default=dict, server_default="{}"
+    )
+    error_message: Mapped[dict[str, Any]] = mapped_column(
+        postgresql.JSONB, nullable=True, default=None
     )
     created_by_user: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(

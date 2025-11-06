@@ -13,7 +13,6 @@ class SatelliteCapability(StrEnum):
 
 
 class SatelliteTaskType(StrEnum):
-    PAIRING = "pairing"
     DEPLOY = "deploy"
     UNDEPLOY = "undeploy"
 
@@ -109,7 +108,6 @@ class SatelliteQueueTask(BaseModel, BaseOrmConfig):
 class SatelliteCreateOut(BaseModel, BaseOrmConfig):
     satellite: Satellite
     api_key: str
-    task: SatelliteQueueTask
 
 
 class SatelliteTaskUpdateIn(BaseModel):

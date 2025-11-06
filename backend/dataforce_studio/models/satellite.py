@@ -57,11 +57,7 @@ class SatelliteOrm(TimestampMixin, Base):
         back_populates="satellite",
         cascade="all, delete, delete-orphan",
     )
-    deployments = relationship(
-        "DeploymentOrm",
-        back_populates="satellite",
-        cascade="all, delete, delete-orphan",
-    )
+    deployments = relationship("DeploymentOrm", back_populates="satellite")
 
     def to_satellite(self) -> Satellite:
         return Satellite.model_validate(self)

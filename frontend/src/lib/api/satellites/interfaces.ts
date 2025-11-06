@@ -1,6 +1,7 @@
 export enum SatelliteTaskTypeEnum {
   pairing = 'pairing',
   deploy = 'deploy',
+  undeploy = 'undeploy',
 }
 
 export enum SatelliteTaskStatusEnum {

@@ -626,7 +626,7 @@ async def create_satellite(
     satellite_data = SatelliteCreate(
         orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test"
     )
-    satellite, _ = await repo.create_satellite(satellite_data)
+    satellite = await repo.create_satellite(satellite_data)
 
     assert satellite is not None, (
         "Satellite should not be None in create_satellite fixture"

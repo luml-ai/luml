@@ -142,3 +142,24 @@ async def confirm_model_artifact_delete(
         collection_id,
         model_artifact_id,
     )
+
+
+@model_artifacts_router.delete(
+    "/{model_artifact_id}/force",
+    responses=endpoint_responses,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def force_delete_model_artifact(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    collection_id: UUID,
+    model_artifact_id: UUID,
+) -> None:
+    await model_artifacts_handler.force_delete_model_artifact(
+        request.user.id,
+        organization_id,
+        orbit_id,
+        collection_id,
+        model_artifact_id,
+    )
