@@ -25,7 +25,10 @@
           @click="onDownloadClick"
           :model="EXPORT_ITEMS"
         />
-        <d-button label="finish" @click="finishConfirm" />
+        <d-button @click="finishConfirm">
+          <span>exit</span>
+          <log-out width="14" height="14" />
+        </d-button>
       </div>
     </header>
     <div class="body">
@@ -76,7 +79,7 @@
 <script setup lang="ts">
 import { Tasks, type TrainingImportance } from '@/lib/data-processing/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
-import { WandSparkles, Info } from 'lucide-vue-next'
+import { WandSparkles, Info, LogOut } from 'lucide-vue-next'
 import { getBarOptions } from '@/lib/apex-charts/apex-charts'
 import { table } from 'arquero'
 import { useConfirm } from 'primevue/useconfirm'
