@@ -45,6 +45,14 @@
             <span>{{ item.label }}</span>
             <UiThemeToggle v-model="theme" />
           </div>
+          <a
+            v-else-if="item.link"
+            :href="item.link.href"
+            :target="item.link.target"
+            class="menu-item"
+          >
+            <span>{{ item.label }}</span>
+          </a>
           <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
             <span>{{ item.label }}</span>
           </button>
@@ -116,15 +124,17 @@ const menuItems = ref([
   },
   {
     label: 'Feedback',
-    action: () => {},
+    link: {
+      target: '_blank',
+      href: 'https://discord.com/invite/qVPPstSv9R',
+    },
   },
   {
     label: 'Community',
-    action: () => {},
-  },
-  {
-    label: 'About',
-    action: () => {},
+    link: {
+      target: '_blank',
+      href: 'https://discord.com/invite/qVPPstSv9R',
+    },
   },
   {
     label: 'API key',
@@ -238,6 +248,9 @@ watch(theme, () => {
 .menu-item {
   padding: 7px;
   text-align: left;
+  display: block;
+  color: inherit;
+  text-decoration: none;
 }
 
 .appearance {
