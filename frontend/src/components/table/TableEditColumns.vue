@@ -37,7 +37,12 @@
       <Divider class="divider" />
       <div class="popover-footer">
         <div class="flex items-center gap-2">
-          <Checkbox v-model="isShowAll" inputId="showAll" binary />
+          <Checkbox
+            :modelValue="isShowAll"
+            inputId="showAll"
+            binary
+            @update:modelValue="onShowAllUpdate($event)"
+          />
           <label for="showAll"> show all </label>
         </div>
         <Button label="apply" severity="secondary" @click="apply" />
@@ -48,7 +53,7 @@
 
 <script setup lang="ts">
 import { Target, type LucideIcon } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { cutStringOnMiddle } from '@/helpers/helpers'
 import { OverlayBadge, Button, Popover, InputText, ToggleSwitch, Divider, Checkbox } from 'primevue'
 
@@ -72,11 +77,13 @@ const emit = defineEmits<Emits>()
 
 const popover = ref()
 const searchValue = ref('')
-const isShowAll = ref(true)
 const selectedColumnsCurrent = ref<Column[]>(
   fillSelectedColumns(props.columns, props.selectedColumns),
 )
 
+const isShowAll = computed(() => {
+  return selectedColumnsCurrent.value.every((column) => column.selected)
+})
 const visibleColumns = computed(() => {
   if (searchValue.value)
     return selectedColumnsCurrent.value.filter((column) =>
@@ -109,14 +116,14 @@ function apply() {
   popover.value.toggle()
 }
 
-watch(isShowAll, (value) => {
+function onShowAllUpdate(value: boolean) {
   if (value) selectedColumnsCurrent.value = fillSelectedColumns(props.columns, [])
   else
     selectedColumnsCurrent.value = fillSelectedColumns(
       props.columns,
       props.columns.filter((column) => column === props.target),
     )
-})
+}
 </script>
 
 <style scoped>
