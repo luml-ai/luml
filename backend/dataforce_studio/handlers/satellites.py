@@ -8,7 +8,11 @@ from fastapi import status
 
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import ApplicationError, NotFoundError
+from dataforce_studio.infra.exceptions import (
+    ApplicationError,
+    NotFoundError,
+    OrganizationLimitReachedError,
+)
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.satellites import SatelliteRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -42,13 +46,24 @@ class SatelliteHandler:
         self.secret_key = secret_key
         self.algorithm = algorithm
 
-    def _generate_api_key(self) -> str:
+    @staticmethod
+    def _generate_api_key() -> str:
         return f"dfssat_{secrets.token_urlsafe(32)}"
 
     def _get_key_hash(self, key: str) -> str:
         return hmac.new(
             self.secret_key.encode(), key.encode(), self.algorithm
         ).hexdigest()
+
+    async def _check_organization_satellites_limit(self, organization_id: UUID) -> None:
+        organization = await self.__user_repo.get_organization_details(organization_id)
+        if not organization:
+            raise NotFoundError("Organization not found")
+
+        if organization.total_satellites >= organization.satellites_limit:
+            raise OrganizationLimitReachedError(
+                "Organization reached maximum number of satellite"
+            )
 
     async def authenticate_api_key(self, api_key: str) -> Satellite | None:
         return await self.__sat_repo.get_satellite_by_hash(self._get_key_hash(api_key))
@@ -131,6 +146,8 @@ class SatelliteHandler:
             Action.CREATE,
             orbit_id,
         )
+
+        await self._check_organization_satellites_limit(organization_id)
 
         orbit = await self.__orbit_repo.get_orbit_simple(orbit_id, organization_id)
         if not orbit:

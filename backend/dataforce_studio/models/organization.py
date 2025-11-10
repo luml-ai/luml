@@ -32,6 +32,12 @@ class OrganizationOrm(TimestampMixin, Base):
     orbits_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="1"
     )
+    satellites_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="2"
+    )
+    model_artifacts_limit: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="200"
+    )
 
     members: Mapped[list["OrganizationMemberOrm"]] = relationship(
         back_populates="organization", cascade="all, delete, delete-orphan"

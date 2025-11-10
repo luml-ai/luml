@@ -140,7 +140,11 @@ class OrganizationDetails(Organization):
     orbits: list[Orbit]
     members_limit: int = 0
     orbits_limit: int = 0
+    satellites_limit: int = 0
+    model_artifacts_limit: int = 0
     total_orbits: int = 0
     total_members: int = 0
+    total_satellites: int = 0
+    total_model_artifacts: int = 0
     members_by_role: dict[str, int] = Field(default_factory=dict)
     permissions: dict[str, Any] | None = None

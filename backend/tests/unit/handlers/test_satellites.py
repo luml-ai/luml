@@ -143,6 +143,9 @@ async def test_get_satellite_not_found(
 
 
 @patch(
+    "dataforce_studio.handlers.satellites.SatelliteHandler._check_organization_satellites_limit",
+)
+@patch(
     "dataforce_studio.handlers.satellites.SatelliteHandler._get_key_hash",
 )
 @patch(
@@ -168,6 +171,7 @@ async def test_create_satellite(
     mock_get_public_user: AsyncMock,
     mock_create_satellite: AsyncMock,
     mock_get_key_hash: Mock,
+    mock_check_organization_satellites_limit: AsyncMock,
 ) -> None:
     user_name = "John Doe"
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -204,8 +208,12 @@ async def test_create_satellite(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
+    mock_check_organization_satellites_limit.assert_awaited_once_with(organization_id)
 
 
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteHandler._check_organization_satellites_limit",
+)
 @patch(
     "dataforce_studio.handlers.satellites.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
@@ -218,6 +226,7 @@ async def test_create_satellite(
 async def test_create_satellite_orbit_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
+    mock_check_organization_satellites_limit: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -237,8 +246,12 @@ async def test_create_satellite_orbit_not_found(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
+    mock_check_organization_satellites_limit.assert_awaited_once_with(organization_id)
 
 
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteHandler._check_organization_satellites_limit",
+)
 @patch(
     "dataforce_studio.handlers.satellites.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
@@ -256,6 +269,7 @@ async def test_create_satellite_user_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_public_user: AsyncMock,
+    mock_check_organization_satellites_limit: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -277,6 +291,7 @@ async def test_create_satellite_user_not_found(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
+    mock_check_organization_satellites_limit.assert_awaited_once_with(organization_id)
 
 
 @patch(

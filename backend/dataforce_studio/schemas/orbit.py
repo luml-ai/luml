@@ -22,6 +22,8 @@ class Orbit(BaseModel, BaseOrmConfig):
     bucket_secret_id: UUID
     total_members: int | None = None
     total_collections: int | None = None
+    total_satellites: int | None = None
+    total_model_artifacts: int | None = None
     role: OrbitRole | None = None
     created_at: datetime
     updated_at: datetime | None = None

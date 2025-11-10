@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from dataforce_studio.models.base import Base, TimestampMixin
 from dataforce_studio.models.bucket_secrets import BucketSecretOrm
 from dataforce_studio.models.collection import CollectionOrm
+from dataforce_studio.models.model_artifacts import ModelArtifactOrm
 from dataforce_studio.models.orbit_secret import OrbitSecretOrm
 from dataforce_studio.models.organization import OrganizationOrm
 from dataforce_studio.models.satellite import SatelliteOrm
@@ -110,6 +111,21 @@ class OrbitOrm(TimestampMixin, Base):
         select(func.count(CollectionOrm.id))
         .where(CollectionOrm.orbit_id == id)
         .correlate_except(CollectionOrm)
+        .scalar_subquery()
+    )
+
+    total_satellites = column_property(
+        select(func.count(SatelliteOrm.id))
+        .where(SatelliteOrm.orbit_id == id)
+        .correlate_except(SatelliteOrm)
+        .scalar_subquery()
+    )
+
+    total_model_artifacts = column_property(
+        select(func.count(ModelArtifactOrm.id))
+        .join(CollectionOrm, ModelArtifactOrm.collection_id == CollectionOrm.id)
+        .where(CollectionOrm.orbit_id == id)
+        .correlate_except(ModelArtifactOrm, CollectionOrm)
         .scalar_subquery()
     )
 

@@ -8,13 +8,16 @@ from dataforce_studio.infra.exceptions import (
     CollectionNotFoundError,
     InvalidStatusTransitionError,
     ModelArtifactNotFoundError,
+    NotFoundError,
     OrbitNotFoundError,
+    OrganizationLimitReachedError,
 )
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.repositories.collections import CollectionRepository
 from dataforce_studio.repositories.deployments import DeploymentRepository
 from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
 from dataforce_studio.repositories.orbits import OrbitRepository
+from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.bucket_secrets import BucketSecret
 from dataforce_studio.schemas.model_artifacts import (
     Collection,
@@ -39,6 +42,7 @@ class ModelArtifactHandler:
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
     __deployment_repository = DeploymentRepository(engine)
+    __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     __model_artifact_transitions = {
@@ -100,6 +104,18 @@ class ModelArtifactHandler:
 
         return model_artifact
 
+    async def _check_organization_models_limit(self, organization_id: UUID) -> None:
+        organization = await self.__user_repository.get_organization_details(
+            organization_id
+        )
+        if not organization:
+            raise NotFoundError("Organization not found")
+
+        if organization.total_satellites >= organization.satellites_limit:
+            raise OrganizationLimitReachedError(
+                "Organization reached maximum number of model artifacts"
+            )
+
     async def create_model_artifact(
         self,
         user_id: UUID,
@@ -119,6 +135,9 @@ class ModelArtifactHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
+
+        await self._check_organization_models_limit(organization_id)
+
         unique_id = uuid4().hex
         object_name = f"{unique_id}-{model_artifact.file_name}"
 

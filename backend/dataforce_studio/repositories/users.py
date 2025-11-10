@@ -239,6 +239,12 @@ class UserRepository(RepositoryBase, CrudMixin):
             details = OrganizationDetails.model_validate(db_organization)
             details.total_orbits = len(db_organization.orbits)
             details.total_members = len(db_organization.members)
+            details.total_satellites = sum(
+                orbit.total_satellites for orbit in db_organization.orbits
+            )
+            details.total_model_artifacts = sum(
+                orbit.total_model_artifacts for orbit in db_organization.orbits
+            )
             details.members_by_role = get_members_roles_count(db_organization.members)
 
             return details

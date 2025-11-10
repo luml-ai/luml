@@ -24,6 +24,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
         UUID(as_uuid=True),
         ForeignKey("collections.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
     )
     file_name: Mapped[str] = mapped_column(String, nullable=False)
     model_name: Mapped[str] = mapped_column(String, nullable=False)
