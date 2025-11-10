@@ -63,7 +63,6 @@
     :orbit-id="orbitId"
     :satellite-id="props.data.id"
     :name="props.data.name"
-    @delete="handleSatelliteDeleted"
   />
 </template>
 
@@ -113,11 +112,6 @@ const orbitId = computed(() => {
   if (!id || Array.isArray(id)) throw new Error('Current orbit was not found')
   return id
 })
-
-function handleSatelliteDeleted() {
-  deleteDialogVisible.value = false
-  visible.value = false
-}
 
 async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
