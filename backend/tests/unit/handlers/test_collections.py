@@ -15,18 +15,13 @@ from dataforce_studio.schemas.model_artifacts import (
     CollectionUpdate,
     CollectionUpdateIn,
 )
-from dataforce_studio.schemas.orbit import OrbitRole
-from dataforce_studio.schemas.organization import OrgRole
+from dataforce_studio.schemas.permissions import Action, Resource
 
 handler = CollectionHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -41,8 +36,7 @@ handler = CollectionHandler()
 async def test_create_collection(
     mock_create: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -65,8 +59,6 @@ async def test_create_collection(
 
     mock_create.return_value = expected
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     result = await handler.create_collection(user_id, organization_id, orbit_id, data)
 
@@ -77,14 +69,17 @@ async def test_create_collection(
     )
     mock_create.assert_awaited_once_with(expected_db)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.CREATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -99,8 +94,7 @@ async def test_create_collection(
 async def test_create_collection_orbit_not_found(
     mock_create: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -114,8 +108,6 @@ async def test_create_collection_orbit_not_found(
     )
 
     mock_get_orbit_simple.return_value = None
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.create_collection(user_id, organization_id, orbit_id, data)
@@ -123,14 +115,17 @@ async def test_create_collection_orbit_not_found(
     assert error.value.status_code == 404
     mock_create.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.CREATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -145,16 +140,13 @@ async def test_create_collection_orbit_not_found(
 async def test_get_orbit_collections_orbit_not_found(
     mock_get_collections: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
     mock_get_orbit_simple.return_value = None
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.get_orbit_collections(user_id, organization_id, orbit_id)
@@ -162,14 +154,17 @@ async def test_get_orbit_collections_orbit_not_found(
     assert error.value.status_code == 404
     mock_get_collections.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.LIST,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -184,16 +179,13 @@ async def test_get_orbit_collections_orbit_not_found(
 async def test_get_orbit_collections_orbit_wrong_org(
     mock_get_collections: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
     mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.get_orbit_collections(user_id, organization_id, orbit_id)
@@ -201,14 +193,17 @@ async def test_get_orbit_collections_orbit_wrong_org(
     assert error.value.status_code == 404
     mock_get_collections.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.LIST,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -223,8 +218,7 @@ async def test_get_orbit_collections_orbit_wrong_org(
 async def test_create_collection_orbit_wrong_org(
     mock_create: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -238,8 +232,6 @@ async def test_create_collection_orbit_wrong_org(
     )
 
     mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.create_collection(user_id, organization_id, orbit_id, data)
@@ -247,14 +239,17 @@ async def test_create_collection_orbit_wrong_org(
     assert error.value.status_code == 404
     mock_create.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.CREATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -269,8 +264,7 @@ async def test_create_collection_orbit_wrong_org(
 async def test_update_collection(
     mock_update: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -292,8 +286,6 @@ async def test_update_collection(
 
     mock_update.return_value = expected
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     result = await handler.update_collection(
         user_id, organization_id, orbit_id, collection_id, data_in
@@ -307,14 +299,17 @@ async def test_update_collection(
         tags=data_in.tags,
     )
     mock_update.assert_awaited_once_with(collection_id, expected_update)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.UPDATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -329,8 +324,7 @@ async def test_update_collection(
 async def test_update_collection_not_found(
     mock_update: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -341,8 +335,6 @@ async def test_update_collection_not_found(
 
     mock_update.return_value = None
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Collection not found"):
         await handler.update_collection(
@@ -356,14 +348,17 @@ async def test_update_collection_not_found(
         tags=data_in.tags,
     )
     mock_update.assert_awaited_once_with(collection_id, expected_update)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.UPDATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -378,8 +373,7 @@ async def test_update_collection_not_found(
 async def test_update_collection_orbit_wrong_org(
     mock_update: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -389,8 +383,6 @@ async def test_update_collection_orbit_wrong_org(
     data_in = CollectionUpdateIn(name="new")
 
     mock_get_orbit_simple.return_value = Mock(organization_id="ATHXk3sZjCWvrFYwGzb6ZY")
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.update_collection(
@@ -400,14 +392,17 @@ async def test_update_collection_orbit_wrong_org(
     assert error.value.status_code == 404
     mock_update.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.UPDATE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -432,8 +427,7 @@ async def test_delete_collection_empty(
     mock_get_count: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -454,20 +448,21 @@ async def test_delete_collection_empty(
 
     mock_get_count.return_value = 0
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     await handler.delete_collection(user_id, organization_id, orbit_id, collection_id)
 
     mock_delete.assert_awaited_once_with(collection_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.DELETE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -492,8 +487,7 @@ async def test_delete_collection_not_empty(
     mock_get_count: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -525,8 +519,6 @@ async def test_delete_collection_not_empty(
     )
     mock_get_count.return_value = 1
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(CollectionDeleteError, match="cant be deleted"):
         await handler.delete_collection(
@@ -534,14 +526,17 @@ async def test_delete_collection_not_empty(
         )
 
     mock_delete.assert_not_called()
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.DELETE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -556,8 +551,7 @@ async def test_delete_collection_not_empty(
 async def test_delete_collection_not_found(
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -566,8 +560,6 @@ async def test_delete_collection_not_found(
 
     mock_get_collection.return_value = None
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Collection not found"):
         await handler.delete_collection(
@@ -575,14 +567,17 @@ async def test_delete_collection_not_found(
         )
 
     mock_get_collection.assert_awaited_once_with(collection_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.DELETE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
-    new_callable=AsyncMock,
-)
-@patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -607,8 +602,7 @@ async def test_delete_collection_orbit_wrong_org(
     mock_get_count: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_get_orbit_role: AsyncMock,
-    mock_get_org_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -629,8 +623,6 @@ async def test_delete_collection_orbit_wrong_org(
     mock_get_count.return_value = 0
 
     mock_get_orbit_simple.return_value = Mock(organization_id=uuid6.uuid7())
-    mock_get_org_role.return_value = OrgRole.OWNER
-    mock_get_orbit_role.return_value = OrbitRole.MEMBER
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.delete_collection(
@@ -640,10 +632,17 @@ async def test_delete_collection_orbit_wrong_org(
     assert error.value.status_code == 404
     mock_delete.assert_not_called()
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.DELETE,
+        orbit_id,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.collections.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.collections.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -658,7 +657,7 @@ async def test_delete_collection_orbit_wrong_org(
 async def test_get_orbit_collections_success(
     mock_get_collections: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -688,3 +687,10 @@ async def test_get_orbit_collections_success(
 
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_collections.assert_awaited_once_with(orbit_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.COLLECTION,
+        Action.LIST,
+        orbit_id,
+    )

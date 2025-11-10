@@ -114,11 +114,14 @@ class OrbitHandler:
     async def create_organization_orbit(
         self, user_id: UUID, organization_id: UUID, orbit: OrbitCreateIn
     ) -> OrbitDetails:
-        org_role = await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORBIT,
             Action.CREATE,
+        )
+        org_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
         )
 
         await self._check_organization_orbits_limit(organization_id)
@@ -147,12 +150,16 @@ class OrbitHandler:
     async def get_organization_orbits(
         self, user_id: UUID, organization_id: UUID
     ) -> list[Orbit]:
-        org_role = await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
             Resource.ORBIT,
             Action.LIST,
         )
+        org_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+
         if org_role in (OrgRole.OWNER, OrgRole.ADMIN):
             orbits = await self.__orbits_repository.get_organization_orbits(
                 organization_id
@@ -167,17 +174,19 @@ class OrbitHandler:
     async def get_orbit(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> OrbitDetails:
-        (
-            org_role,
-            orbit_role,
-        ) = await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT,
             Action.READ,
+            orbit_id,
         )
-
+        org_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
+        orbit_role = await self.__orbits_repository.get_orbit_member_role(
+            orbit_id, user_id
+        )
         orbit = await self.__orbits_repository.get_orbit(orbit_id, organization_id)
 
         if not orbit:
@@ -196,12 +205,12 @@ class OrbitHandler:
         orbit_id: UUID,
         orbit: OrbitUpdate,
     ) -> Orbit:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT,
             Action.UPDATE,
+            orbit_id,
         )
 
         orbit_obj = await self.__orbits_repository.update_orbit(orbit_id, orbit)
@@ -214,12 +223,12 @@ class OrbitHandler:
     async def delete_orbit(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT,
             Action.DELETE,
+            orbit_id,
         )
 
         return await self.__orbits_repository.delete_orbit(orbit_id)
@@ -227,24 +236,24 @@ class OrbitHandler:
     async def get_orbit_members(
         self, user_id: UUID, organization_id: UUID, orbit_id: UUID
     ) -> list[OrbitMember]:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT_USER,
             Action.LIST,
+            orbit_id,
         )
         return await self.__orbits_repository.get_orbit_members(orbit_id)
 
     async def create_orbit_member(
         self, user_id: UUID, organization_id: UUID, member: OrbitMemberCreate
     ) -> OrbitMember:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            member.orbit_id,
             user_id,
             Resource.ORBIT_USER,
             Action.CREATE,
+            member.orbit_id,
         )
 
         org_member = await self.__user_repository.get_organization_member(
@@ -295,12 +304,12 @@ class OrbitHandler:
         if user_id == member_obj.user.id:
             raise OrbitMemberNotAllowedError("You can not update your own data.")
 
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT_USER,
             Action.UPDATE,
+            orbit_id,
         )
         updated = await self.__orbits_repository.update_orbit_member(member)
 
@@ -324,11 +333,11 @@ class OrbitHandler:
         if user_id == member_obj.user.id:
             raise OrbitMemberNotAllowedError("You can not remove yourself from orbit.")
 
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.ORBIT_USER,
             Action.DELETE,
+            orbit_id,
         )
         return await self.__orbits_repository.delete_orbit_member(member_id)

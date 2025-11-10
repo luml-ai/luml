@@ -18,6 +18,7 @@ from dataforce_studio.schemas.organization import (
     OrganizationUpdate,
     OrgRole,
 )
+from dataforce_studio.schemas.permissions import Action, Resource
 
 handler = OrganizationHandler()
 
@@ -75,12 +76,17 @@ async def test_get_user_organizations(
     new_callable=AsyncMock,
 )
 @patch(
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_organization(
     mock_get_organization_details: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
     test_org_details: OrganizationDetails,
 ) -> None:
@@ -89,17 +95,24 @@ async def test_get_organization(
 
     expected = test_org_details
 
-    mock_get_organization_details.return_value = expected
     mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_get_organization_details.return_value = expected
 
     actual = await handler.get_organization(user_id, organization_id)
 
     assert actual
     mock_get_organization_details.assert_awaited_once_with(organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORGANIZATION, Action.READ
+    )
 
 
 @patch(
     "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -109,13 +122,14 @@ async def test_get_organization(
 @pytest.mark.asyncio
 async def test_get_organization_not_found(
     mock_get_organization_details: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_organization_member_role: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 
+    mock_get_organization_member_role.return_value = Mock()
     mock_get_organization_details.return_value = None
-    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     with pytest.raises(
         NotFoundError,
@@ -124,6 +138,9 @@ async def test_get_organization_not_found(
         await handler.get_organization(user_id, organization_id)
 
     mock_get_organization_details.assert_awaited_once_with(organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORGANIZATION, Action.READ
+    )
 
 
 @patch(
@@ -162,7 +179,7 @@ async def test_create_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -177,25 +194,31 @@ async def test_create_organization(
 async def test_update_organization(
     mock_get_organization_details: AsyncMock,
     mock_update_organization: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
     test_org_details: OrganizationDetails,
 ) -> None:
     expected = test_org_details
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = test_org_details.id
 
     mock_get_organization_details.return_value = expected
     mock_update_organization.return_value = expected
-    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     update_org = OrganizationUpdate(name=expected.name, logo=expected.logo)
     actual = await handler.update_organization(user_id, expected.id, update_org)
 
     assert actual == expected
     mock_update_organization.assert_awaited_once()
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.ORGANIZATION,
+        Action.UPDATE,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -205,7 +228,7 @@ async def test_update_organization(
 @pytest.mark.asyncio
 async def test_update_organization_not_found(
     mock_update_organization: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -213,7 +236,6 @@ async def test_update_organization_not_found(
     organization_to_update = OrganizationUpdate(name="test", logo=None)
 
     mock_update_organization.return_value = None
-    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     with pytest.raises(
         NotFoundError,
@@ -226,10 +248,13 @@ async def test_update_organization_not_found(
     mock_update_organization.assert_awaited_once_with(
         organization_id, organization_to_update
     )
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORGANIZATION, Action.UPDATE
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -244,7 +269,7 @@ async def test_update_organization_not_found(
 async def test_delete_organization(
     mock_get_organization_details: AsyncMock,
     mock_delete_organization: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
     test_org_details: OrganizationDetails,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -252,15 +277,17 @@ async def test_delete_organization(
 
     mock_delete_organization.return_value = None
     mock_get_organization_details.return_value = test_org_details
-    mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     await handler.delete_organization(user_id, organization_id)
 
     mock_delete_organization.assert_awaited_once_with(organization_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -270,23 +297,28 @@ async def test_delete_organization(
 @pytest.mark.asyncio
 async def test_leave_from_organization(
     mock_delete_organization_member_by_user_id: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 
     mock_delete_organization_member_by_user_id.return_value = None
-    mock_get_organization_member_role.return_value = OrgRole.MEMBER
 
     await handler.leave_from_organization(user_id, organization_id)
 
     mock_delete_organization_member_by_user_id.assert_awaited_once_with(
         user_id, organization_id
     )
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.ORGANIZATION,
+        Action.LEAVE,
+    )
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -296,13 +328,17 @@ async def test_leave_from_organization(
 @pytest.mark.asyncio
 async def test_leave_from_organization_owner(
     mock_delete_organization_member_by_user_id: AsyncMock,
-    mock_get_organization_member_role: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 
     mock_delete_organization_member_by_user_id.return_value = None
-    mock_get_organization_member_role.return_value = OrgRole.OWNER
+    mock_check_permissions.side_effect = InsufficientPermissionsError
 
     with pytest.raises(InsufficientPermissionsError):
         await handler.leave_from_organization(user_id, organization_id)
+
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORGANIZATION, Action.LEAVE
+    )

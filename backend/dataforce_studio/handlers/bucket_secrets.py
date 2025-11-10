@@ -31,7 +31,7 @@ class BucketSecretHandler:
         organization_id: UUID,
         secret: BucketSecretCreateIn,
     ) -> BucketSecretOut:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.CREATE
         )
         secret_create = BucketSecretCreate(
@@ -43,7 +43,7 @@ class BucketSecretHandler:
     async def get_organization_bucket_secrets(
         self, user_id: UUID, organization_id: UUID
     ) -> list[BucketSecretOut]:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
         )
         secrets = await self.__secret_repository.get_organization_bucket_secrets(
@@ -54,7 +54,7 @@ class BucketSecretHandler:
     async def get_bucket_secret(
         self, user_id: UUID, organization_id: UUID, secret_id: UUID
     ) -> BucketSecretOut:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
         )
         secret = await self.__secret_repository.get_bucket_secret(secret_id)
@@ -71,7 +71,7 @@ class BucketSecretHandler:
         secret_id: UUID,
         secret: BucketSecretUpdate,
     ) -> BucketSecretOut:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
         )
         secret.id = secret_id
@@ -83,7 +83,7 @@ class BucketSecretHandler:
     async def delete_bucket_secret(
         self, user_id: UUID, organization_id: UUID, secret_id: UUID
     ) -> None:
-        await self.__permissions_handler.check_organization_permission(
+        await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE
         )
         try:

@@ -27,12 +27,12 @@ handler = SatelliteHandler()
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_list_satellites(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_list_satellites: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -63,8 +63,8 @@ async def test_list_satellites(
     result = await handler.list_satellites(user_id, organization_id, orbit_id)
 
     assert result == expected
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.LIST
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.LIST, orbit_id
     )
     mock_list_satellites.assert_awaited_once_with(orbit_id, None)
 
@@ -74,12 +74,12 @@ async def test_list_satellites(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_satellite(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -107,8 +107,8 @@ async def test_get_satellite(
 
     assert result == expected
     mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.READ
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.READ, orbit_id
     )
 
 
@@ -117,12 +117,12 @@ async def test_get_satellite(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_satellite_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -137,8 +137,8 @@ async def test_get_satellite_not_found(
 
     assert error.value.status_code == 404
     mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.READ
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.READ, orbit_id
     )
 
 
@@ -158,12 +158,12 @@ async def test_get_satellite_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_satellite(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_public_user: AsyncMock,
     mock_create_satellite: AsyncMock,
@@ -201,8 +201,8 @@ async def test_create_satellite(
     assert result.satellite == mock_satellite
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_public_user.assert_awaited_once_with(user_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.CREATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
 
 
@@ -211,12 +211,12 @@ async def test_create_satellite(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_satellite_orbit_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -234,8 +234,8 @@ async def test_create_satellite_orbit_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.CREATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
 
 
@@ -248,12 +248,12 @@ async def test_create_satellite_orbit_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_satellite_user_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_public_user: AsyncMock,
 ) -> None:
@@ -274,8 +274,8 @@ async def test_create_satellite_user_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_public_user.assert_awaited_once_with(user_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.CREATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.CREATE, orbit_id
     )
 
 
@@ -643,12 +643,12 @@ async def test_update_task_status_not_found(mock_update_task_status: AsyncMock) 
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_regenerate_satellite_api_key(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_update_satellite: AsyncMock,
     mock_get_key_hash: Mock,
@@ -679,8 +679,8 @@ async def test_regenerate_satellite_api_key(
     )
 
     assert api_key.startswith("dfssat_")
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_update_satellite.assert_awaited_once()
@@ -691,12 +691,12 @@ async def test_regenerate_satellite_api_key(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_regenerate_satellite_api_key_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -712,8 +712,8 @@ async def test_regenerate_satellite_api_key_not_found(
         )
 
     assert error.value.status_code == 404
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
 
@@ -727,12 +727,12 @@ async def test_regenerate_satellite_api_key_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_satellite(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_update_satellite: AsyncMock,
 ) -> None:
@@ -779,8 +779,8 @@ async def test_update_satellite(
 
     assert result == updated_satellite
     assert result.name == "updated-name"
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_update_satellite.assert_awaited_once()
@@ -791,12 +791,12 @@ async def test_update_satellite(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_satellite_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -813,8 +813,8 @@ async def test_update_satellite_not_found(
         )
 
     assert error.value.status_code == 404
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.UPDATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.UPDATE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
 
@@ -828,12 +828,12 @@ async def test_update_satellite_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_satellite_update_failed(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_update_satellite: AsyncMock,
 ) -> None:
@@ -877,12 +877,12 @@ async def test_update_satellite_update_failed(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_satellite(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_delete_satellite: AsyncMock,
 ) -> None:
@@ -909,8 +909,8 @@ async def test_delete_satellite(
 
     await handler.delete_satellite(organization_id, orbit_id, user_id, satellite_id)
 
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.DELETE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_delete_satellite.assert_awaited_once_with(satellite_id)
@@ -921,12 +921,12 @@ async def test_delete_satellite(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.satellites.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.satellites.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_satellite_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -940,7 +940,114 @@ async def test_delete_satellite_not_found(
         await handler.delete_satellite(organization_id, orbit_id, user_id, satellite_id)
 
     assert error.value.status_code == 404
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.SATELLITE, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.SATELLITE, Action.DELETE, orbit_id
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.list_satellites",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler._PermissionsHandler__user_repository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_member_role",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_list_satellites_orbit_member_permissions(
+    mock_get_orbit_member_role: AsyncMock,
+    mock_get_org_member_role: AsyncMock,
+    mock_list_satellites: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
+        SatelliteCapability.DEPLOY: {"key": "test"}
+    }
+
+    expected = [
+        Satellite(
+            id=satellite_id,
+            orbit_id=orbit_id,
+            name="test",
+            description=None,
+            base_url="https://url.com",
+            paired=False,
+            capabilities=capabilities,
+            created_at=datetime.datetime.now(),
+            updated_at=None,
+            last_seen_at=None,
+        )
+    ]
+
+    mock_get_org_member_role.return_value = "member"
+    mock_get_orbit_member_role.return_value = "member"
+    mock_list_satellites.return_value = expected
+
+    result = await handler.list_satellites(user_id, organization_id, orbit_id)
+
+    assert result == expected
+    mock_get_org_member_role.assert_awaited_once_with(organization_id, user_id)
+    mock_get_orbit_member_role.assert_awaited_once_with(orbit_id, user_id)
+    mock_list_satellites.assert_awaited_once_with(orbit_id, None)
+
+
+@patch(
+    "dataforce_studio.handlers.satellites.SatelliteRepository.list_satellites",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler._PermissionsHandler__user_repository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.satellites.PermissionsHandler._PermissionsHandler__orbits_repository.get_orbit_member_role",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_list_satellites_organization_admin_permissions(
+    mock_get_orbit_member_role: AsyncMock,
+    mock_get_org_member_role: AsyncMock,
+    mock_list_satellites: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
+        SatelliteCapability.DEPLOY: {"key": "test"}
+    }
+
+    expected = [
+        Satellite(
+            id=satellite_id,
+            orbit_id=orbit_id,
+            name="test",
+            description=None,
+            base_url="https://url.com",
+            paired=False,
+            capabilities=capabilities,
+            created_at=datetime.datetime.now(),
+            updated_at=None,
+            last_seen_at=None,
+        )
+    ]
+
+    mock_get_org_member_role.return_value = "admin"
+    mock_list_satellites.return_value = expected
+
+    result = await handler.list_satellites(user_id, organization_id, orbit_id)
+
+    assert result == expected
+    mock_get_org_member_role.assert_awaited_once_with(organization_id, user_id)
+    mock_get_orbit_member_role.assert_not_awaited()
+    mock_list_satellites.assert_awaited_once_with(orbit_id, None)

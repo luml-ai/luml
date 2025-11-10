@@ -80,12 +80,12 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact_id: UUID,
     ) -> ModelArtifactDetails:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.DELETE,
+            orbit_id,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
@@ -108,12 +108,12 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact: ModelArtifactIn,
     ) -> CreateModelArtifactResponse:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.CREATE,
+            orbit_id,
         )
 
         orbit, collection = await self._check_orbit_and_collection_access(
@@ -161,12 +161,12 @@ class ModelArtifactHandler:
         model_artifact_id: UUID,
         model_artifact: ModelArtifactUpdateIn,
     ) -> ModelArtifact:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.UPDATE,
+            orbit_id,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
@@ -212,12 +212,12 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact_id: UUID,
     ) -> str:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.READ,
+            orbit_id,
         )
 
         orbit, collection = await self._check_orbit_and_collection_access(
@@ -238,12 +238,12 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact_id: UUID,
     ) -> str:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.DELETE,
+            orbit_id,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
@@ -338,12 +338,12 @@ class ModelArtifactHandler:
         orbit_id: UUID,
         collection_id: UUID,
     ) -> list[ModelArtifact]:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.LIST,
+            orbit_id,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
@@ -358,12 +358,12 @@ class ModelArtifactHandler:
         collection_id: UUID,
         model_artifact_id: UUID,
     ) -> tuple[ModelArtifact, str]:
-        await self.__permissions_handler.check_orbit_action_access(
+        await self.__permissions_handler.check_permissions(
             organization_id,
-            orbit_id,
             user_id,
             Resource.MODEL,
             Action.READ,
+            orbit_id,
         )
         orbit, _ = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id

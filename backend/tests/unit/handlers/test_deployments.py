@@ -57,12 +57,12 @@ handler = DeploymentHandler()
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
@@ -132,12 +132,12 @@ async def test_create_deployment(
     )
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -146,12 +146,12 @@ async def test_create_deployment(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment_orbit_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -176,12 +176,12 @@ async def test_create_deployment_orbit_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -194,12 +194,12 @@ async def test_create_deployment_orbit_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment_satellite_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
@@ -227,12 +227,12 @@ async def test_create_deployment_satellite_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -249,12 +249,12 @@ async def test_create_deployment_satellite_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment_model_artifact_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
@@ -285,12 +285,12 @@ async def test_create_deployment_model_artifact_not_found(
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -311,12 +311,12 @@ async def test_create_deployment_model_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment_collection_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
@@ -350,12 +350,12 @@ async def test_create_deployment_collection_not_found(
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -380,12 +380,12 @@ async def test_create_deployment_collection_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_deployment_user_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
     mock_get_model_artifact: AsyncMock,
@@ -423,12 +423,12 @@ async def test_create_deployment_user_not_found(
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id,
-        orbit_id,
         user_id,
         Resource.DEPLOYMENT,
         Action.CREATE,
+        orbit_id,
     )
 
 
@@ -437,12 +437,12 @@ async def test_create_deployment_user_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_list_deployments(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_list_deployments: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -475,8 +475,12 @@ async def test_list_deployments(
     result = await handler.list_deployments(user_id, organization_id, orbit_id)
 
     assert result == expected
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.LIST
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.LIST,
+        orbit_id,
     )
     mock_list_deployments.assert_awaited_once_with(orbit_id)
 
@@ -486,12 +490,12 @@ async def test_list_deployments(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_deployment(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_deployment: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -517,7 +521,7 @@ async def test_get_deployment(
         updated_at=None,
     )
 
-    mock_check_orbit_action_access.return_value = None
+    mock_check_permissions.return_value = None
     mock_get_deployment.return_value = expected
 
     result = await handler.get_deployment(
@@ -525,8 +529,12 @@ async def test_get_deployment(
     )
 
     assert result == expected
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.READ
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.READ,
+        orbit_id,
     )
 
 
@@ -535,12 +543,12 @@ async def test_get_deployment(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_deployment(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_request_deletion: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -589,8 +597,12 @@ async def test_delete_deployment(
     )
 
     assert result == task
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.DELETE,
+        orbit_id,
     )
     mock_request_deletion.assert_awaited_once_with(orbit_id, deployment_id)
 
@@ -600,12 +612,12 @@ async def test_delete_deployment(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_deployment_not_found(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_request_deletion: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -620,8 +632,12 @@ async def test_delete_deployment_not_found(
             user_id, organization_id, orbit_id, deployment_id
         )
 
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.DELETE,
+        orbit_id,
     )
     mock_request_deletion.assert_awaited_once_with(orbit_id, deployment_id)
 
@@ -631,12 +647,12 @@ async def test_delete_deployment_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_deployment_already_pending(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_request_deletion: AsyncMock,
 ) -> None:
     now = datetime.datetime.now()
@@ -671,8 +687,8 @@ async def test_delete_deployment_already_pending(
         )
 
     assert exc.value.status_code == status.HTTP_409_CONFLICT
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
     )
     mock_request_deletion.assert_awaited_once_with(orbit_id, deployment_id)
 
@@ -732,7 +748,7 @@ async def test_delete_worker_deployment_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -752,7 +768,11 @@ async def test_get_deployment_not_found(
         await handler.get_deployment(user_id, organization_id, orbit_id, deployment_id)
 
     mock_check_permissions.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.READ
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.READ,
+        orbit_id,
     )
     mock_get_deployment.assert_awaited_once_with(deployment_id, orbit_id)
 
@@ -801,12 +821,12 @@ async def test_list_worker_deployments(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_deployment_details(
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_update_deployment_details: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -856,8 +876,12 @@ async def test_update_deployment_details(
     )
 
     assert result == expected
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.UPDATE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.UPDATE,
+        orbit_id,
     )
     mock_update_deployment_details.assert_awaited_once_with(
         orbit_id, deployment_id, details_converted
@@ -869,12 +893,12 @@ async def test_update_deployment_details(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_request_deployment_deletion(
-    mock_check_orbit_action_access: AsyncMock, mock_request_delete: AsyncMock
+    mock_check_permissions: AsyncMock, mock_request_delete: AsyncMock
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -917,8 +941,12 @@ async def test_request_deployment_deletion(
     )
 
     assert result == task
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.DELETE
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id,
+        user_id,
+        Resource.DEPLOYMENT,
+        Action.DELETE,
+        orbit_id,
     )
     mock_request_delete.assert_awaited_once_with(orbit_id, deployment_id)
 
@@ -1052,7 +1080,7 @@ async def test_update_worker_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1067,7 +1095,7 @@ async def test_update_worker_deployment_not_found(
 async def test_verify_user_inference_access(
     mock_authenticate_api_key: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     api_key = "test_api_key"
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -1084,8 +1112,8 @@ async def test_verify_user_inference_access(
     assert result is True
     mock_authenticate_api_key.assert_awaited_once_with(api_key)
     mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.READ
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.READ, orbit_id
     )
 
 
@@ -1136,7 +1164,7 @@ async def test_verify_user_inference_access_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_orbit_action_access",
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1151,7 +1179,7 @@ async def test_verify_user_inference_access_orbit_not_found(
 async def test_verify_user_inference_access_insufficient_permissions(
     mock_authenticate_api_key: AsyncMock,
     mock_get_orbit_by_id: AsyncMock,
-    mock_check_orbit_action_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
 ) -> None:
     api_key = "test_api_key"
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -1163,13 +1191,13 @@ async def test_verify_user_inference_access_insufficient_permissions(
 
     mock_authenticate_api_key.return_value = mock_user
     mock_get_orbit_by_id.return_value = mock_orbit
-    mock_check_orbit_action_access.side_effect = InsufficientPermissionsError()
+    mock_check_permissions.side_effect = InsufficientPermissionsError()
 
     result = await handler.verify_user_inference_access(orbit_id, api_key)
 
     assert result is False
     mock_authenticate_api_key.assert_awaited_once_with(api_key)
     mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
-    mock_check_orbit_action_access.assert_awaited_once_with(
-        organization_id, orbit_id, user_id, Resource.DEPLOYMENT, Action.READ
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.READ, orbit_id
     )

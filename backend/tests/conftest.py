@@ -212,7 +212,7 @@ async def member_data() -> AsyncGenerator[OrganizationMember, None]:
     yield OrganizationMember(
         id=uuid7(),
         organization_id=uuid7(),
-        role=OrgRole.ADMIN,
+        role=OrgRole.OWNER,
         user=UserOut(
             id=uuid7(),
             email="test@gmail.com",

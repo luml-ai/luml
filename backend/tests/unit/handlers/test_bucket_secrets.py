@@ -27,12 +27,12 @@ handler = BucketSecretHandler()
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_create_bucket_secret(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_create_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -63,7 +63,7 @@ async def test_create_bucket_secret(
     )
 
     assert secret == expected
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.CREATE
     )
     mock_create_bucket_secret.assert_awaited_once()
@@ -74,12 +74,12 @@ async def test_create_bucket_secret(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_organization_bucket_secrets(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_organization_bucket_secrets: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -103,7 +103,7 @@ async def test_get_organization_bucket_secrets(
     secrets = await handler.get_organization_bucket_secrets(user_id, organization_id)
 
     assert secrets == expected
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
     )
     mock_get_organization_bucket_secrets.assert_awaited_once_with(organization_id)
@@ -114,12 +114,12 @@ async def test_get_organization_bucket_secrets(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_bucket_secret(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -141,7 +141,7 @@ async def test_get_bucket_secret(
     secret = await handler.get_bucket_secret(user_id, organization_id, secret_id)
 
     assert secret == expected
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
     )
     mock_get_bucket_secret.assert_awaited_once_with(secret_id)
@@ -152,12 +152,12 @@ async def test_get_bucket_secret(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_get_bucket_secret_not_found(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -171,7 +171,7 @@ async def test_get_bucket_secret_not_found(
 
     assert error.value.status_code == 404
     mock_get_bucket_secret.assert_awaited_once_with(secret_id)
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
     )
 
@@ -181,12 +181,12 @@ async def test_get_bucket_secret_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_bucket_secret(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -216,7 +216,7 @@ async def test_update_bucket_secret(
     assert secret == expected
     assert secret_update.id == secret_id
     mock_update_bucket_secret.assert_awaited_once_with(secret_update)
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
     )
 
@@ -226,12 +226,12 @@ async def test_update_bucket_secret(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_bucket_secret_not_found(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -254,7 +254,7 @@ async def test_update_bucket_secret_not_found(
     assert error.value.status_code == 404
     assert secret_update.id == secret_id
     mock_update_bucket_secret.assert_awaited_once_with(secret_update)
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
     )
 
@@ -264,12 +264,12 @@ async def test_update_bucket_secret_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_bucket_secret(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_delete_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -279,7 +279,7 @@ async def test_delete_bucket_secret(
     await handler.delete_bucket_secret(user_id, organization_id, secret_id)
 
     mock_delete_bucket_secret.assert_awaited_once_with(secret_id)
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE
     )
 
@@ -289,12 +289,12 @@ async def test_delete_bucket_secret(
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_organization_permission",
+    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_bucket_secret_in_use(
-    mock_check_organization_permission: AsyncMock,
+    mock_check_permissions: AsyncMock,
     mock_delete_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -308,7 +308,7 @@ async def test_delete_bucket_secret_in_use(
 
     assert error.value.status_code == 409
     mock_delete_bucket_secret.assert_awaited_once_with(secret_id)
-    mock_check_organization_permission.assert_awaited_once_with(
+    mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.DELETE
     )
 

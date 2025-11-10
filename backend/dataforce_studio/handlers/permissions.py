@@ -4,7 +4,6 @@ from uuid import UUID
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     InsufficientPermissionsError,
-    NotFoundError,
 )
 from dataforce_studio.repositories.orbits import OrbitRepository
 from dataforce_studio.repositories.users import UserRepository
@@ -36,69 +35,37 @@ class PermissionsHandler:
             resource, []
         )
 
-    async def check_organization_permission(
+    async def check_permissions(
         self,
         organization_id: UUID,
         user_id: UUID,
         resource: Resource,
         action: Action,
-    ) -> str:
+        orbit_id: UUID | None = None,
+    ) -> None:
         org_member_role = await self.__user_repository.get_organization_member_role(
             organization_id, user_id
         )
 
         if not org_member_role:
-            raise NotFoundError("User is not member of the organization")
-
-        if not self.has_organization_permission(org_member_role, resource, action):
             raise InsufficientPermissionsError()
 
-        return org_member_role
-
-    async def check_orbit_permission(
-        self,
-        orbit_id: UUID,
-        user_id: UUID,
-        resource: Resource,
-        action: Action,
-    ) -> str:
-        member_role = await self.__orbits_repository.get_orbit_member_role(
-            orbit_id, user_id
+        has_org_permission = self.has_organization_permission(
+            org_member_role, resource, action
         )
-
-        if not member_role:
-            raise NotFoundError("User is not member of the orbit")
-
-        if not self.has_orbit_permission(member_role, resource, action):
+        if not orbit_id and not has_org_permission:
             raise InsufficientPermissionsError()
 
-        return member_role
-
-    async def check_orbit_action_access(
-        self,
-        organization_id: UUID,
-        orbit_id: UUID,
-        user_id: UUID,
-        resource: Resource,
-        action: Action,
-    ) -> tuple[None, str] | tuple[str, None]:
-        org_role = await self.check_organization_permission(
-            organization_id,
-            user_id,
-            resource,
-            action,
-        )
-
-        if org_role not in (OrgRole.OWNER, OrgRole.ADMIN):
-            orbit_role = await self.check_orbit_permission(
-                orbit_id,
-                user_id,
-                resource,
-                action,
+        if orbit_id and not has_org_permission:  # if org member
+            member_role = await self.__orbits_repository.get_orbit_member_role(
+                orbit_id, user_id
             )
-            return None, orbit_role
 
-        return org_role, None
+            if not member_role:
+                raise InsufficientPermissionsError()
+
+            if not self.has_orbit_permission(member_role, resource, action):
+                raise InsufficientPermissionsError()
 
     @staticmethod
     def _get_organization_permissions_for_role_and_resources(
