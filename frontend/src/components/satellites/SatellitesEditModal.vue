@@ -46,12 +46,24 @@
       </Form>
     </div>
     <template #footer>
-      <Button severity="warn" variant="outlined" :disabled="loading" @click="onDelete">
+      <Button
+        severity="warn"
+        variant="outlined"
+        :disabled="loading"
+        @click="deleteDialogVisible = true"
+      >
         delete satellite
       </Button>
       <Button type="submit" :disabled="loading" form="satellitesEditForm">save changes</Button>
     </template>
   </Dialog>
+  <SatelliteDelete
+    v-model:visible="deleteDialogVisible"
+    :organization-id="organizationId"
+    :orbit-id="orbitId"
+    :satellite-id="props.data.id"
+    :name="props.data.name"
+  />
 </template>
 
 <script setup lang="ts">
@@ -64,6 +76,7 @@ import { satellitesResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
+import SatelliteDelete from './SatelliteDelete.vue'
 
 type Props = {
   data: Satellite
@@ -82,7 +95,7 @@ const dialogPT = {
 }
 
 const visible = defineModel<boolean>('visible')
-
+const deleteDialogVisible = ref(false)
 const loading = ref(false)
 const initialValues = ref({
   name: '',
@@ -99,19 +112,6 @@ const orbitId = computed(() => {
   if (!id || Array.isArray(id)) throw new Error('Current orbit was not found')
   return id
 })
-
-async function onDelete() {
-  try {
-    loading.value = true
-    await satellitesStore.deleteSatellite(organizationId.value, orbitId.value, props.data.id)
-    visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || 'Failed to delete satellite'))
-  } finally {
-    toast.add(simpleSuccessToast(`${props.data.name} deleted successfully.`))
-    loading.value = false
-  }
-}
 
 async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
