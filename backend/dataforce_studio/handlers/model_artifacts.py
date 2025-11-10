@@ -138,6 +138,9 @@ class ModelArtifactHandler:
 
         await self._check_organization_models_limit(organization_id)
 
+        user = await self.__user_repository.get_public_user_by_id(user_id)
+        user_name = user.full_name if user else None
+
         unique_id = uuid4().hex
         object_name = f"{unique_id}-{model_artifact.file_name}"
 
@@ -158,6 +161,7 @@ class ModelArtifactHandler:
                 unique_identifier=unique_id,
                 tags=model_artifact.tags,
                 status=ModelArtifactStatus.PENDING_UPLOAD,
+                created_by_user=user_name,
             )
         )
 

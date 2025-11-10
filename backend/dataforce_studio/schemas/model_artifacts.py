@@ -134,6 +134,7 @@ class ModelArtifactCreate(BaseModel):
     unique_identifier: str
     tags: list[str] | None = None
     status: ModelArtifactStatus = ModelArtifactStatus.PENDING_UPLOAD
+    created_by_user: str | None = None
 
     @field_validator("size")
     @classmethod
@@ -205,6 +206,7 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     unique_identifier: str
     tags: list[str] | None = None
     status: ModelArtifactStatus
+    created_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
 

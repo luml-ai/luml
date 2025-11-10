@@ -218,6 +218,10 @@ async def test_get_collection_model_artifact(
     new_callable=AsyncMock,
 )
 @patch(
+    "dataforce_studio.handlers.model_artifacts.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
     "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
@@ -240,6 +244,7 @@ async def test_create_model_artifact(
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_check_permissions: AsyncMock,
     mock_check_organization_models_limit: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
@@ -288,6 +293,8 @@ async def test_create_model_artifact(
     )
     mock_s3_service.create_upload.return_value = mock_upload_data
     mock_get_s3_service.return_value = mock_s3_service
+    mock_get_public_user_by_id.return_value = Mock(full_name="user_full_name")
+
     model_artifact_in = ModelArtifactIn(
         metrics={},
         manifest=manifest_example,
