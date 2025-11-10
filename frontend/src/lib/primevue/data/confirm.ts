@@ -1,14 +1,14 @@
 import type { ConfirmationOptions } from 'primevue/confirmationoptions'
 
 export const dashboardFinishConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: "Before finishing, please ensure you've downloaded your predictions.",
+  message: "Before exiting, please ensure you've downloaded your predictions.",
   header: 'Are you sure?',
   rejectProps: {
     label: 'cancel',
     outlined: true,
   },
   acceptProps: {
-    label: 'finish',
+    label: 'exit',
   },
   accept,
 })

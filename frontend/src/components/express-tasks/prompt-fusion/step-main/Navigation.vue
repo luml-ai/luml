@@ -4,14 +4,17 @@
       <arrow-left :size="14" />
       <span>Back</span>
     </d-button>
-    <d-button severity="secondary" label="finish" @click="onFinishClick" />
+    <d-button severity="secondary" @click="onFinishClick">
+      <span>exit</span>
+      <log-out width="14" height="14" />
+    </d-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
-import { ArrowLeft } from 'lucide-vue-next'
+import { ArrowLeft, LogOut } from 'lucide-vue-next'
 import { useConfirm } from 'primevue'
 import { useRoute, useRouter } from 'vue-router'
 
