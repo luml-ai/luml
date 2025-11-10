@@ -65,6 +65,15 @@ export const useSatellitesStore = defineStore('satellites', () => {
     satellitesList.value = []
   }
 
+  async function getSatellite(organizationId: string, orbitId: string, satelliteId: string) {
+    const existingSatellite = satellitesList.value.find((satellite) => satellite.id === satelliteId)
+    if (existingSatellite) {
+      return existingSatellite
+    }
+    const satellite = await dataforceApi.satellites.getItem(organizationId, orbitId, satelliteId)
+    return satellite
+  }
+
   return {
     satellitesList,
     creatorVisible,
@@ -77,5 +86,6 @@ export const useSatellitesStore = defineStore('satellites', () => {
     showCreator,
     hideCreator,
     reset,
+    getSatellite,
   }
 })
