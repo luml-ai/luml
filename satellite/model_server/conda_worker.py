@@ -106,18 +106,6 @@ try:
         except Exception as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
 
-    @app.get("/schemas")
-    async def schemas() -> dict[str, Any]:
-        return {
-            "endpoints": [
-                {
-                    "route": "/compute",
-                    "request": model_data.get("request_schema"),
-                    "response": model_data.get("response_schema"),
-                }
-            ]
-        }
-
     if __name__ == "__main__":
         logger.info("[UVICORN] Starting server...")
         uvicorn.run(app, host="0.0.0.0", port=port)

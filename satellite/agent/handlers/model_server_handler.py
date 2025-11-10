@@ -138,36 +138,29 @@ class ModelServerHandler:
     async def get_deployment_schemas(self, deployment_id) -> dict[str, Any] | None:  # noqa ANN101
         logger.info(f"[get_deployment_schemas] Starting for deployment_id='{deployment_id}'...")
 
-        async with ModelServerClient() as client:
-            schemas = await client.get_schemas(deployment_id)
-
-        if not schemas:
-            return None
-
-        schemas.headers = {
-            "Authorization": "Bearer your_api_key_here",
-        }
-
         local_dep = await self.get_deployment(deployment_id)
-        if not local_dep or not local_dep.dynamic_attributes_secrets:
-            return schemas.model_dump(mode="json")
+        schema = local_dep.openapi_schema
 
-        local_dep_da = local_dep.dynamic_attributes_secrets.keys()
+        if "paths" in schema and "/compute" in schema["paths"]:
+            compute_endpoint = schema["paths"].pop("/compute")
+            new_path = f"{{base_url}}/deployments/{deployment_id}/compute"
+            schema["paths"][new_path] = compute_endpoint
 
-        for endpoint in schemas.endpoints:
-            if endpoint.route == "/compute":
-                endpoint.url = f"{{base_url}}/deployments/{deployment_id}/compute"
-                dyna_props = (
-                    endpoint.request.get("$defs", {})
-                    .get("DynamicAttributesModel", {})
-                    .get("properties", {})
-                )
-                props_to_remove = [prop for prop in dyna_props if prop in local_dep_da]
-
+        if local_dep and local_dep.dynamic_attributes_secrets:
+            dyna_props = (
+                schema.get("components", {})
+                .get("schemas", {})
+                .get("DynamicAttributesModel", {})
+                .get("properties", None)
+            )
+            if dyna_props:
+                props_to_remove = [
+                    prop for prop in dyna_props if prop in local_dep.dynamic_attributes_secrets
+                ]
                 for prop in props_to_remove:
                     dyna_props.pop(prop)
 
-        return schemas.model_dump(mode="json")
+        return schema
 
     def register_openapi_cache_invalidation_callback(self, callback: Callable) -> None:
         self._openapi_cache_invalidation_callbacks.append(callback)

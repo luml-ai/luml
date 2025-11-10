@@ -60,9 +60,14 @@ class OpenAPIGenerator:
     @staticmethod
     def _add_security_schemes(openapi_schema: dict) -> None:
         openapi_schema["components"]["securitySchemes"] = {
-            "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+            "ApiKeyAuth": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "Authorization",
+                "description": "Authorization: Bearer your_api_key_here",
+            }
         }
-        openapi_schema["security"] = [{"BearerAuth": []}]
+        openapi_schema["security"] = [{"ApiKeyAuth": []}]
 
     def _inject_compute_request_schema(self, openapi_schema: dict, request_schema: Any) -> None:  # noqa: ANN401
         if "components" not in openapi_schema:
@@ -149,7 +154,7 @@ class OpenAPIGenerator:
         will reflect any custom schemas found in dtypes.json.
         """
         openapi_schema["paths"]["/compute"]["post"]["tags"] = ["model"]
-        openapi_schema["paths"]["/compute"]["post"]["security"] = [{"BearerAuth": []}]
+        openapi_schema["paths"]["/compute"]["post"]["security"] = [{"ApiKeyAuth": []}]
 
     def get_simple_schema(self) -> dict:
         return {
@@ -179,7 +184,12 @@ class OpenAPIGenerator:
                 "components": {
                     "schemas": {},
                     "securitySchemes": {
-                        "BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
+                        "ApiKeyAuth": {
+                            "type": "apiKey",
+                            "in": "header",
+                            "name": "Authorization",
+                            "description": "Authorization: Bearer your_api_key_here",
+                        }
                     },
                 },
             }

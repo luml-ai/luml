@@ -5,7 +5,6 @@ from typing import Self
 
 import httpx
 
-from agent.schemas.deployments import Schemas
 from agent.settings import config as config_settings
 
 logger = logging.getLogger(__name__)
@@ -76,14 +75,4 @@ class ModelServerClient:
                 return response.json()
         except Exception as error:
             logger.info(f"Error getting manifest {error}.")
-        return None
-
-    async def get_schemas(self, deployment_id: str) -> Schemas | None:
-        assert self._session is not None
-        try:
-            response = await self._session.get(f"{self._url(deployment_id)}/schemas")
-            if response.status_code == 200:
-                return Schemas.model_validate(response.json())
-        except Exception as error:
-            logger.info(f"Error getting schemas {error}.")
         return None

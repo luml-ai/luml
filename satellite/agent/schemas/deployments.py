@@ -70,15 +70,3 @@ class DeploymentInfo(BaseModel):
 
 class Healthz(BaseModel):
     status: str = "healthy"
-
-
-class EndpointSchema(BaseModel):
-    url: str | None = None
-    route: str
-    request: dict[str, Any]
-    response: dict[str, Any]
-
-
-class Schemas(BaseModel):
-    headers: dict[str, str] | None = None
-    endpoints: list[EndpointSchema]
