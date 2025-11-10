@@ -20,7 +20,9 @@
       scrollHeight="400px"
       :virtualScrollerOptions="{ itemSize: 45.5 }"
       class="evals-table"
-      :tableStyle="visibleColumns.length < 7 ? 'table-layout: fixed;' : ''"
+      :tableStyle="
+        visibleColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? 'table-layout: fixed;' : ''
+      "
     >
       <ColumnGroup type="header">
         <Row>
@@ -88,7 +90,7 @@
               v-else
               v-tooltip.top="`${slotProps.data[column]}`"
               class="cell"
-              :style="visibleColumns.length < 7 ? '' : 'width: 88px;'"
+              :style="visibleColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? '' : 'width: 88px;'"
             >
               {{ slotProps.data[column] }}
             </div>
@@ -106,6 +108,8 @@ import { CircleArrowDown, CircleArrowUp, FileText, ChartBar } from 'lucide-vue-n
 import EvalsToolbar from './EvalsToolbar.vue'
 import type { ModelsInfo } from '../../interfaces/interfaces'
 import { useEvalsStore } from '../../store/evals'
+
+const MIN_COLUMNS_FOR_FIXED_LAYOUT = 7
 
 export interface EvalsTableColumn {
   title: string
