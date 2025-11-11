@@ -6,7 +6,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from dataforce import AsyncDataForceClient, DataForceClient
+from dataforce.api import AsyncDataForceClient, DataForceClient
 from dataforce.api._types import (
     BucketSecret,
     Collection,
@@ -22,9 +22,9 @@ TEST_API_KEY = "test-api-key"
 @pytest.fixture
 def mock_sync_client() -> Mock:
     client = Mock(spec=DataForceClient)
-    client.organization = 1
-    client.orbit = 1215
-    client.collection = 15
+    client.organization = "0199c337-09f2-7af1-af5e-83fd7a5b51a0"
+    client.orbit = "0199c337-09f3-753e-9def-b27745e69be6"
+    client.collection = "0199c337-09f4-7a01-9f5f-5f68db62cf70"
 
     client.get = Mock()
     client.post = Mock()
@@ -40,9 +40,9 @@ def mock_sync_client() -> Mock:
 @pytest.fixture
 def mock_async_client() -> AsyncMock:
     client = AsyncMock(spec=AsyncDataForceClient)
-    client.organization = 1
-    client.orbit = 1215
-    client.collection = 15
+    client.organization = "0199c337-09f2-7af1-af5e-83fd7a5b51a0"
+    client.orbit = "0199c337-09f3-753e-9def-b27745e69be6"
+    client.collection = "0199c337-09f4-7a01-9f5f-5f68db62cf70"
 
     client.get = AsyncMock()
     client.post = AsyncMock()
@@ -56,56 +56,45 @@ def mock_async_client() -> AsyncMock:
 
 
 @pytest.fixture
-def sample_organization_data() -> dict:
-    return {"id": 1, "name": "Test Organization", "created_at": "2024-01-01T00:00:00Z"}
+def sample_organization() -> Organization:
+    return Organization(
+        id="0199c337-09f2-7af1-af5e-83fd7a5b51a0",
+        name="Test Organization",
+        created_at="2024-01-01T00:00:00Z",
+    )
 
 
 @pytest.fixture
-def sample_orbit_data() -> dict:
-    return {
-        "id": 1215,
-        "name": "Test Orbit",
-        "organization_id": 1,
-        "bucket_secret_id": 75,
-        "created_at": "2024-01-01T00:00:00Z",
-    }
+def sample_orbit() -> Orbit:
+    return Orbit(
+        id="0199c337-09f3-753e-9def-b27745e69be6",
+        name="Test Orbit",
+        organization_id="0199c337-09f2-7af1-af5e-83fd7a5b51a0",
+        bucket_secret_id="0199c337-09f4-7a01-9f5f-5f68a562cf70",
+        created_at="2024-01-01T00:00:00Z",
+    )
 
 
 @pytest.fixture
-def sample_collection_data() -> dict:
-    return {
-        "id": 15,
-        "name": "Test Collection",
-        "description": "Test collection description",
-        "collection_type": "model",
-        "orbit_id": 1215,
-        "total_models": 0,
-        "created_at": "2024-01-01T00:00:00Z",
-    }
-
-
-@pytest.fixture
-def sample_organization(sample_organization_data: dict) -> Organization:
-    return Organization.model_validate(sample_organization_data)
-
-
-@pytest.fixture
-def sample_orbit(sample_orbit_data: dict) -> Orbit:
-    return Orbit.model_validate(sample_orbit_data)
-
-
-@pytest.fixture
-def sample_collection(sample_collection_data: dict) -> Collection:
-    return Collection.model_validate(sample_collection_data)
+def sample_collection() -> Collection:
+    return Collection(
+        id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
+        name="Test Collection",
+        description="Test collection description",
+        collection_type="model",
+        orbit_id="0199c337-09f3-753e-9def-b27745e69be6",
+        total_models=0,
+        created_at="2024-01-01T00:00:00Z",
+    )
 
 
 @pytest.fixture
 def sample_bucket_secret() -> BucketSecret:
     return BucketSecret(
-        id=75,
+        id="0199c337-09f4-7a01-9f5f-5f68a562cf70",
         endpoint="test.endpoint.com",
         bucket_name="test-bucket",
-        organization_id=1,
+        organization_id="0199c337-09f2-7af1-af5e-83fd7a5b51a0",
         created_at=str(datetime.datetime.now()),
     )
 
@@ -113,10 +102,10 @@ def sample_bucket_secret() -> BucketSecret:
 @pytest.fixture
 def sample_model_artifact() -> ModelArtifact:
     return ModelArtifact(
-        id=2,
+        id="0199c337-09f4-7a01-9f5f-5f685t62cf70",
         file_name="model.pkl",
         model_name="test-model",
-        collection_id=15,
+        collection_id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
         size=1024,
         file_hash="abc123",
         created_at=str(datetime.datetime.now()),
@@ -132,27 +121,23 @@ def sample_model_artifact() -> ModelArtifact:
 @pytest.fixture
 def mock_initialization_requests(
     respx_mock: Any,  # noqa: ANN401
-    sample_organization_data: dict,
-    sample_orbit_data: dict,
-    sample_collection_data: dict,
     sample_organization: Organization,
     sample_orbit: Orbit,
     sample_collection: Collection,
 ) -> dict:
-    organization_id = sample_organization_data["id"]
-    orbit_id = sample_orbit_data["id"]
+    organization_id = sample_organization.id
 
     respx_mock.get("/users/me/organizations").mock(
-        return_value=httpx.Response(200, json=[sample_organization_data])
+        return_value=httpx.Response(200, json=[sample_organization.model_dump()])
     )
 
     respx_mock.get(f"/organizations/{organization_id}/orbits").mock(
-        return_value=httpx.Response(200, json=[sample_orbit_data])
+        return_value=httpx.Response(200, json=[sample_orbit.model_dump()])
     )
 
     respx_mock.get(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections"
-    ).mock(return_value=httpx.Response(200, json=[sample_collection_data]))
+        f"/organizations/{organization_id}/orbits/{sample_orbit.id}/collections"
+    ).mock(return_value=httpx.Response(200, json=[sample_collection.model_dump()]))
 
     return {
         "organization": sample_organization,
@@ -169,16 +154,14 @@ def client_with_mocks(mock_initialization_requests: dict) -> DataForceClient:
 @pytest_asyncio.fixture
 async def async_client_with_mocks(
     mock_initialization_requests: dict,
-    sample_organization_data: dict,
-    sample_orbit_data: dict,
-    sample_collection_data: dict,
+    sample_organization: Organization,
+    sample_orbit: Orbit,
+    sample_collection: Collection,
 ) -> AsyncDataForceClient:
-    organization_id = sample_organization_data["id"]
-    orbit_id = sample_orbit_data["id"]
-    collection_id = sample_collection_data["id"]
-
     client = AsyncDataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     await client.setup_config(
-        organization=organization_id, orbit=orbit_id, collection=collection_id
+        organization=sample_organization.id,
+        orbit=sample_orbit.id,
+        collection=sample_collection.id,
     )
     return client

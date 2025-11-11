@@ -66,7 +66,6 @@ class CollectionResource(CollectionResourceBase):
     def __init__(self, client: "DataForceClient") -> None:
         self._client = client
 
-    @validate_collection
     def get(self, collection_value: str | None = None) -> Collection | None:
         """
         Get collection by id or name.
@@ -319,7 +318,6 @@ class AsyncCollectionResource(CollectionResourceBase):
     def __init__(self, client: "AsyncDataForceClient") -> None:
         self._client = client
 
-    @validate_collection
     async def get(self, collection_value: str | None = None) -> Collection | None:
         """
         Get collection by id or name.

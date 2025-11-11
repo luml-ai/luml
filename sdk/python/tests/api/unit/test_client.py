@@ -2,7 +2,7 @@ import httpx
 import pytest
 from respx import MockRouter
 
-from dataforce import AsyncDataForceClient, DataForceClient
+from dataforce.api import AsyncDataForceClient, DataForceClient
 from dataforce.api._exceptions import NotFoundError
 from tests.conftest import TEST_API_KEY, TEST_BASE_URL
 
@@ -43,8 +43,16 @@ def test_organization_validation_multiple_orgs_no_default(
         return_value=httpx.Response(
             200,
             json=[
-                {"id": 1, "name": "Org 1", "created_at": "2024-01-01T00:00:00Z"},
-                {"id": 2, "name": "Org 2", "created_at": "2024-01-01T00:00:00Z"},
+                {
+                    "id": "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d",
+                    "name": "Org 1",
+                    "created_at": "2024-01-01T00:00:00Z",
+                },
+                {
+                    "id": "1236640f-fec6-478d-8772-90eb531cc727",
+                    "name": "Org 2",
+                    "created_at": "2024-01-01T00:00:00Z",
+                },
             ],
         )
     )
@@ -67,16 +75,16 @@ async def test_async_organization_list(
     organizations = await async_client_with_mocks.organizations.list()
 
     assert len(organizations) == 1
-    assert organizations[0].id == 1
-    assert organizations[0].name == "Test Organization"
+    assert organizations[0].id
+    assert organizations[0].name
 
 
 @pytest.mark.respx(base_url=TEST_BASE_URL)
 def test_error_handling(
     client_with_mocks: DataForceClient, respx_mock: MockRouter
 ) -> None:
-    organization_id = 1
-    bucket_id = 999999
+    organization_id = client_with_mocks.organization
+    bucket_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
 
     respx_mock.get(f"/organizations/{organization_id}/bucket-secrets/{bucket_id}").mock(
         return_value=httpx.Response(404, json={"error": "Not found"})

@@ -20,7 +20,7 @@ class OrbitResourceBase(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def _get_by_id(self) -> Orbit | Coroutine[Any, Any, Orbit]:
+    def _get_by_id(self, orbit_id: str) -> Orbit | Coroutine[Any, Any, Orbit]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -97,13 +97,15 @@ class OrbitResource(OrbitResourceBase):
             ...    updated_at='2025-08-13T22:44:58.035731Z'
             ...)
         """
-        if is_uuid(orbit_value) or orbit_value is None:
-            return self._get_by_id()
+        if orbit_value is None:
+            orbit_value = self._client.orbit
+        if is_uuid(orbit_value):
+            return self._get_by_id(orbit_value)
         return self._get_by_name(orbit_value)
 
-    def _get_by_id(self) -> Orbit:
+    def _get_by_id(self, orbit_id: str) -> Orbit:
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
+            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
 
@@ -334,13 +336,15 @@ class AsyncOrbitResource(OrbitResourceBase):
             ...    updated_at='2025-08-13T22:44:58.035731Z'
             ...)
         """
-        if is_uuid(orbit_value) or orbit_value is None:
-            return await self._get_by_id()
+        if orbit_value is None:
+            orbit_value = self._client.orbit
+        if is_uuid(orbit_value):
+            return await self._get_by_id(orbit_value)
         return await self._get_by_name(orbit_value)
 
-    async def _get_by_id(self) -> Orbit:
+    async def _get_by_id(self, orbit_id: str) -> Orbit:
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}"
+            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
 
