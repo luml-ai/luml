@@ -1,23 +1,23 @@
 # ruff: noqa: T201
 import asyncio
 
-from dataforce import AsyncDataForceClient
-from dataforce.api._types import CollectionType, ModelArtifactStatus
+from luml.api import AsyncLumlClient
+from luml.api._types import CollectionType, ModelArtifactStatus
 
-# Will use DataForce API Production url "https://api.dataforce.studio"
+# Will use Luml API Production url "https://api.Luml.studio"
 # And search for DFS_API_KEY in .env
-dfs_simple = AsyncDataForceClient()
+dfs_simple = AsyncLumlClient()
 
 # No default organization, orbit and collection are set
-dfs = AsyncDataForceClient(api_key="dfs_your_api_key_here")
+dfs = AsyncLumlClient(api_key="dfs_your_api_key_here")
 
 
 async def demo_client_defaults() -> None:
     # Set up defaults
     await dfs.setup_config(
-        "0199c455-21ec-7c74-8efe-41470e29bae5",
-        "0199c455-21ed-7aba-9fe5-5231611220de",
-        "0199c455-21ee-74c6-b747-19a82f1a1e75",
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75",
     )
 
     # Get client defaults ids

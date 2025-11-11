@@ -8,7 +8,7 @@ from .._utils import find_by_value
 from ._validators import validate_collection
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 
 class CollectionResourceBase(ABC):
@@ -63,7 +63,7 @@ class CollectionResourceBase(ABC):
 
 
 class CollectionResource(CollectionResourceBase):
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def get(self, collection_value: str | None = None) -> Collection | None:
@@ -87,7 +87,7 @@ class CollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
+            >>> dfs = LumlClient(api_key="dfs_your_key")
             ... collection_by_name = dfs.collections.get("My Collection")
             ... collection_by_id = dfs.collections.get(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e75"
@@ -129,7 +129,7 @@ class CollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
+            >>> dfs = LumlClient(api_key="dfs_your_key")
             >>> collections = dfs.collections.list()
 
         Example response:
@@ -174,7 +174,7 @@ class CollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
+            >>> dfs = LumlClient(api_key="dfs_your_key")
             >>> collection = dfs.collections.create(
             ...     name="Training Dataset",
             ...     description="Dataset for model training",
@@ -232,7 +232,7 @@ class CollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
@@ -291,7 +291,7 @@ class CollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
@@ -315,7 +315,7 @@ class CollectionResource(CollectionResourceBase):
 
 
 class AsyncCollectionResource(CollectionResourceBase):
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     async def get(self, collection_value: str | None = None) -> Collection | None:
@@ -339,7 +339,7 @@ class AsyncCollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
             >>> async def main():
             ...     collection_by_name = await dfs.collections.get(
             ...         "My Collection"
@@ -384,7 +384,7 @@ class AsyncCollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
             >>> async def main():
             ...     collections = await dfs.collections.list()
 
@@ -430,7 +430,7 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
             >>> async def main():
             ...     collection = await dfs.collections.create(
             ...         name="Training Dataset",
@@ -489,7 +489,7 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -551,7 +551,7 @@ class AsyncCollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(

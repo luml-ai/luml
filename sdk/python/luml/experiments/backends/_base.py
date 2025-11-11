@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from dataforce.modelref import _BaseArtifact
+from luml.modelref import _BaseArtifact
 
 
 class Backend(ABC):

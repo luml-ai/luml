@@ -9,7 +9,7 @@ from ._base_client import AsyncBaseClient, SyncBaseClient
 from ._exceptions import (
     CollectionResourceNotFoundError,
     ConfigurationError,
-    DataForceAPIError,
+    LumlAPIError,
     OrbitResourceNotFoundError,
     OrganizationResourceNotFoundError,
 )
@@ -29,21 +29,21 @@ if TYPE_CHECKING:
     from .resources.organizations import AsyncOrganizationResource, OrganizationResource
 
 
-class DataForceClientBase(ABC):
-    """Base class for DataForce API clients."""
+class LumlClientBase(ABC):
+    """Base class for Luml API clients."""
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
         if base_url is None:
             base_url = os.environ.get("DFS_BASE_URL")
         if base_url is None:
-            base_url = "https://api.dataforce.studio"
+            base_url = "https://api.Luml.studio"
 
         self._base_url: URL = URL(base_url)
 
         if api_key is None:
             api_key = os.environ.get("DFS_API_KEY")
         if api_key is None:
-            raise DataForceAPIError(
+            raise LumlAPIError(
                 "The api_key client option must be set either by "
                 "passing api_key to the client or "
                 "by setting the DFS_API_KEY environment variable"
@@ -140,19 +140,19 @@ class DataForceClientBase(ABC):
         raise NotImplementedError()
 
 
-class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
+class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     def __init__(
         self,
         base_url: str | None = None,
         api_key: str | None = None,
     ) -> None:
-        """Async client for interacting with the DataForce platform API.
+        """Async client for interacting with the Luml platform API.
 
         Parameters:
-            base_url: Base URL of the DataForce API.
-                Defaults to production DataForce Api URL: https://api.dataforce.studio.
+            base_url: Base URL of the Luml API.
+                Defaults to production Luml Api URL: https://api.Luml.studio.
                 Can also be set in env with name DFS_BASE_URL
-            api_key: Your DataForce API key for authentication.
+            api_key: Your Luml API key for authentication.
                 Can also be set in env with name DFS_API_KEY
 
         Attributes:
@@ -173,13 +173,13 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
                 name passed for client configuration
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_api_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_api_key",
             ...     organization="My Personal Organization",
             ...     orbit="Default Orbit"
@@ -201,7 +201,7 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
             ``dfs.organization=4``.
         """
 
-        DataForceClientBase.__init__(self, base_url=base_url, api_key=api_key)
+        LumlClientBase.__init__(self, base_url=base_url, api_key=api_key)
         AsyncBaseClient.__init__(self, base_url=self._base_url)
 
     async def setup_config(
@@ -212,7 +212,7 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
         collection: str | None = None,
     ) -> None:
         """
-        Method for setting default values for AsyncDataForceClient
+        Method for setting default values for AsyncLumlClient
 
         Args:
             organization: Default organization to use for operations.
@@ -223,7 +223,7 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
                 Can be set by organization ID or name.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_api_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_api_key")
             >>> async def main():
             ...     await dfs.setup_config(
             ...         "0199c455-21ec-7c74-8efe-41470e29bae5",
@@ -310,7 +310,7 @@ class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient):
         return AsyncModelArtifactResource(self)
 
 
-class DataForceClient(DataForceClientBase, SyncBaseClient):
+class LumlClient(LumlClientBase, SyncBaseClient):
     def __init__(
         self,
         base_url: str | None = None,
@@ -319,13 +319,13 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
         orbit: str | None = None,
         collection: str | None = None,
     ) -> None:
-        """Client for interacting with the DataForce platform API.
+        """Client for interacting with the Luml platform API.
 
         Parameters:
-            base_url: Base URL of the DataForce API.
-                Defaults to production DataForce Api URL: https://api.dataforce.studio.
+            base_url: Base URL of the Luml API.
+                Defaults to production Luml Api URL: https://api.Luml.studio.
                 Can also be set in env with name DFS_BASE_URL
-            api_key: Your DataForce API key for authentication.
+            api_key: Your Luml API key for authentication.
                 Can also be set in env with name DFS_API_KEY
             organization: Default organization to use for operations.
                 Can be set by organization ID or name.
@@ -352,13 +352,13 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
                 by ID or name passed for client configuration
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_api_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_api_key",
             ...     organization="My Personal Organization",
             ...     orbit="Default Orbit"
@@ -366,7 +366,7 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
 
         Note:
             For long-running operations, consider using the async version:
-                AsyncDataForceClient.
+                AsyncLumlClient.
 
             Default resource configuration is optional. If no values are provided during
             client initialization and you have only one organization, orbit,
@@ -383,7 +383,7 @@ class DataForceClient(DataForceClientBase, SyncBaseClient):
                 ``dfs.organization="0199c455-21ec-7c74-8efe-41470e29bae5"``.
         """
 
-        DataForceClientBase.__init__(self, base_url=base_url, api_key=api_key)
+        LumlClientBase.__init__(self, base_url=base_url, api_key=api_key)
         SyncBaseClient.__init__(self, base_url=self._base_url)
 
         validated_org = self._validate_organization(organization)

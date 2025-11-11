@@ -1,9 +1,8 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from dataforce.api._types import ModelArtifact
-from dataforce.api.resources.model_artifacts import (
+from luml.api._types import ModelArtifact
+from luml.api.resources.model_artifacts import (
     AsyncModelArtifactResource,
     ModelArtifactResource,
 )

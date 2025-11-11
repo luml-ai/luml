@@ -5,9 +5,8 @@ from unittest.mock import AsyncMock, Mock
 import httpx
 import pytest
 import pytest_asyncio
-
-from dataforce.api import AsyncDataForceClient, DataForceClient
-from dataforce.api._types import (
+from luml.api import AsyncLumlClient, LumlClient
+from luml.api._types import (
     BucketSecret,
     Collection,
     ModelArtifact,
@@ -21,7 +20,7 @@ TEST_API_KEY = "test-api-key"
 
 @pytest.fixture
 def mock_sync_client() -> Mock:
-    client = Mock(spec=DataForceClient)
+    client = Mock(spec=LumlClient)
     client.organization = "0199c337-09f2-7af1-af5e-83fd7a5b51a0"
     client.orbit = "0199c337-09f3-753e-9def-b27745e69be6"
     client.collection = "0199c337-09f4-7a01-9f5f-5f68db62cf70"
@@ -39,7 +38,7 @@ def mock_sync_client() -> Mock:
 
 @pytest.fixture
 def mock_async_client() -> AsyncMock:
-    client = AsyncMock(spec=AsyncDataForceClient)
+    client = AsyncMock(spec=AsyncLumlClient)
     client.organization = "0199c337-09f2-7af1-af5e-83fd7a5b51a0"
     client.orbit = "0199c337-09f3-753e-9def-b27745e69be6"
     client.collection = "0199c337-09f4-7a01-9f5f-5f68db62cf70"
@@ -147,8 +146,8 @@ def mock_initialization_requests(
 
 
 @pytest.fixture
-def client_with_mocks(mock_initialization_requests: dict) -> DataForceClient:
-    return DataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+def client_with_mocks(mock_initialization_requests: dict) -> LumlClient:
+    return LumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
 
 
 @pytest_asyncio.fixture
@@ -157,8 +156,8 @@ async def async_client_with_mocks(
     sample_organization: Organization,
     sample_orbit: Orbit,
     sample_collection: Collection,
-) -> AsyncDataForceClient:
-    client = AsyncDataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+) -> AsyncLumlClient:
+    client = AsyncLumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     await client.setup_config(
         organization=sample_organization.id,
         orbit=sample_orbit.id,

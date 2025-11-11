@@ -6,7 +6,7 @@ from .._types import BucketSecret, is_uuid
 from .._utils import find_by_value
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 
 class BucketSecretResourceBase(ABC):
@@ -71,7 +71,7 @@ class BucketSecretResourceBase(ABC):
 class BucketSecretResource(BucketSecretResourceBase):
     """Resource for managing Bucket Secrets."""
 
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def get(self, secret_value: str) -> BucketSecret | None:
@@ -94,7 +94,7 @@ class BucketSecretResource(BucketSecretResourceBase):
                 BucketSecret with that bucket name.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -139,7 +139,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             List of BucketSecret objects.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -199,7 +199,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Сreated bucket secret object.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -277,7 +277,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Updated bucket secret object.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -336,7 +336,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -357,7 +357,7 @@ class BucketSecretResource(BucketSecretResourceBase):
 class AsyncBucketSecretResource(BucketSecretResourceBase):
     """Resource for managing Bucket Secrets for async client."""
 
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     async def get(self, secret_value: str) -> BucketSecret | None:
@@ -380,7 +380,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                 BucketSecret with that bucket name.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -428,7 +428,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             List of BucketSecret objects.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -491,7 +491,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Сreated bucket secret object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -572,7 +572,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Updated bucket secret object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -634,7 +634,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(

@@ -24,8 +24,8 @@ import numpy as np  # type: ignore[import-not-found]
 from pyfnx_utils.builder import PyfuncBuilder  # type: ignore[import-untyped]
 from pyfnx_utils.models.manifest import NDJSON  # type: ignore[import-untyped]
 
-from dataforce.packaging.integrations.sklearn.template import SKlearnPyFunc
-from dataforce.packaging.utils import get_version
+from luml.packaging.integrations.sklearn.template import SKlearnPyFunc
+from luml.packaging.utils import get_version
 
 
 def _resolve_dtype(dtype: np.dtype) -> str:

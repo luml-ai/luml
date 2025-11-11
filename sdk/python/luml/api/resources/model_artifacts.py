@@ -11,7 +11,7 @@ from ..utils.model_artifacts import ModelFileHandler
 from ._validators import validate_collection
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 file_handler = FileHandler()
 
@@ -120,7 +120,7 @@ class ModelArtifactResourceBase(ABC):
 class ModelArtifactResource(ModelArtifactResourceBase):
     """Resource for managing Model Artifacts."""
 
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     @validate_collection
@@ -151,7 +151,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -215,7 +215,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -266,7 +266,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -302,7 +302,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -350,7 +350,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -468,7 +468,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -540,7 +540,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -614,7 +614,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -661,7 +661,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -682,7 +682,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
 class AsyncModelArtifactResource(ModelArtifactResourceBase):
     """Resource for managing Model Artifacts for async client."""
 
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     @validate_collection
@@ -713,7 +713,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -780,7 +780,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -837,7 +837,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -878,7 +878,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -935,7 +935,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -1009,7 +1009,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -1114,7 +1114,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -1191,7 +1191,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -1242,7 +1242,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(

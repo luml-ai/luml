@@ -8,8 +8,8 @@ from .._types import ModelDetails
 
 class ModelFileHandler:
     _tabular_producer_tags = [
-        "dataforce.studio::tabular_classification:v1",
-        "dataforce.studio::tabular_regression:v1",
+        "luml::tabular_classification:v1",
+        "luml::tabular_regression:v1",
     ]
     _tabular_tags = [
         "falcon.beastbyte.ai::tabular_classification_metrics:v1",
@@ -83,9 +83,7 @@ class ModelFileHandler:
 
                 return {k: v for k, v in eval_metrics.items() if k != "N_SAMPLES"}
 
-        custom_metrics = self._get_metadata_by_tag(
-            ["dataforce.studio::registry_metrics:v1"]
-        )
+        custom_metrics = self._get_metadata_by_tag(["luml::registry_metrics:v1"])
         if custom_metrics:
             return custom_metrics.get("metrics", {})
 

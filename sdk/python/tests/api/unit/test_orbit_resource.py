@@ -1,9 +1,8 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from dataforce.api._types import Orbit
-from dataforce.api.resources.orbits import AsyncOrbitResource, OrbitResource
+from luml.api._types import Orbit
+from luml.api.resources.orbits import AsyncOrbitResource, OrbitResource
 
 
 def test_orbit_list(mock_sync_client: Mock, sample_orbit: Orbit) -> None:

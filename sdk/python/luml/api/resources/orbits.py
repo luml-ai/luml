@@ -2,12 +2,12 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from .. import DataForceAPIError
+from .. import LumlAPIError
 from .._types import Orbit, is_uuid
 from .._utils import find_by_value
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 
 class OrbitResourceBase(ABC):
@@ -53,7 +53,7 @@ class OrbitResourceBase(ABC):
 class OrbitResource(OrbitResourceBase):
     """Resource for managing Orbits."""
 
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def get(self, orbit_value: str | None = None) -> Orbit | None:
@@ -76,7 +76,7 @@ class OrbitResource(OrbitResourceBase):
                 Orbits with that name.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -120,7 +120,7 @@ class OrbitResource(OrbitResourceBase):
             List of Orbits objects.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -161,7 +161,7 @@ class OrbitResource(OrbitResourceBase):
             Orbit: Newly created orbit object with generated ID and timestamps.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -209,7 +209,7 @@ class OrbitResource(OrbitResourceBase):
             Orbit: Updated orbit object.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -259,10 +259,10 @@ class OrbitResource(OrbitResourceBase):
             None: No return value on successful deletion.
 
         Raises:
-            DataForceAPIError: If try to delete default orbit.
+            LumlAPIError: If try to delete default orbit.
 
         Example:
-            >>> dfs = DataForceClient(
+            >>> dfs = LumlClient(
             ...     api_key="dfs_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -277,7 +277,7 @@ class OrbitResource(OrbitResourceBase):
 
         """
         if self._client.orbit and orbit_id == self._client.orbit:
-            raise DataForceAPIError("Default orbit cant be deleted.")
+            raise LumlAPIError("Default orbit cant be deleted.")
 
         return self._client.delete(
             f"/organizations/{self._client.organization}/orbits/{orbit_id}"
@@ -287,7 +287,7 @@ class OrbitResource(OrbitResourceBase):
 class AsyncOrbitResource(OrbitResourceBase):
     """Resource for managing Orbits for async client."""
 
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     async def get(self, orbit_value: str | None = None) -> Orbit | None:
@@ -310,7 +310,7 @@ class AsyncOrbitResource(OrbitResourceBase):
                 Orbits with that name.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -359,7 +359,7 @@ class AsyncOrbitResource(OrbitResourceBase):
             List of Orbits objects.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -403,7 +403,7 @@ class AsyncOrbitResource(OrbitResourceBase):
             Orbit: Newly created orbit object with generated ID and timestamps.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -454,7 +454,7 @@ class AsyncOrbitResource(OrbitResourceBase):
             Orbit: Updated orbit object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -507,10 +507,10 @@ class AsyncOrbitResource(OrbitResourceBase):
             None: No return value on successful deletion.
 
         Raises:
-            DataForceAPIError: If try to delete default orbit.
+            LumlAPIError: If try to delete default orbit.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
+            >>> dfs = AsyncLumlClient(
             ...     api_key="dfs_your_key",
             ... )
             ... dfs.setup_config(
@@ -528,7 +528,7 @@ class AsyncOrbitResource(OrbitResourceBase):
 
         """
         if self._client.orbit and orbit_id == self._client.orbit:
-            raise DataForceAPIError("Default orbit cant be deleted.")
+            raise LumlAPIError("Default orbit cant be deleted.")
 
         return await self._client.delete(
             f"/organizations/{self._client.organization}/orbits/{orbit_id}"

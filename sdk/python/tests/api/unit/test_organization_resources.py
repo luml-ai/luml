@@ -1,9 +1,8 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from dataforce.api._types import Organization
-from dataforce.api.resources.organizations import (
+from luml.api._types import Organization
+from luml.api.resources.organizations import (
     AsyncOrganizationResource,
     OrganizationResource,
 )

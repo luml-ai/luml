@@ -1,30 +1,29 @@
 from collections.abc import Callable
 
-from dataforce.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 
 class TracerManager:
     _log_fn: Callable | None = None
 
     @classmethod
-    def setup_dataforce_tracing(
+    def setup_luml_tracing(
         cls,
     ) -> None:
+        from luml.experiments.tracing.span_exporter import LumlSpanExporter
         from opentelemetry import trace
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-        from dataforce.experiments.tracing.span_exporter import DataforceSpanExporter
-
-        service_name: str = "dataforce-sdk"
+        service_name: str = "luml-sdk"
         resource_attrs = {"service.name": service_name}
 
         resource = Resource.create(resource_attrs)
 
         tracer_provider = TracerProvider(resource=resource)
 
-        exporter = DataforceSpanExporter(
+        exporter = LumlSpanExporter(
             log_fn=cls._logger,
         )
 
@@ -39,9 +38,7 @@ class TracerManager:
         if cls._log_fn:
             cls._log_fn(*args, **kwargs)
         else:
-            raise ValueError(
-                "Log function is not set. Call setup_dataforce_tracing first."
-            )
+            raise ValueError("Log function is not set. Call setup_luml_tracing first.")
 
     @classmethod
     def set_experiment_tracker(cls, tracker: ExperimentTracker) -> None:
@@ -50,7 +47,7 @@ class TracerManager:
         cls._log_fn = tracker.log_span
 
 
-setup_tracing = TracerManager.setup_dataforce_tracing
+setup_tracing = TracerManager.setup_luml_tracing
 set_experiment_tracker = TracerManager.set_experiment_tracker
 
 

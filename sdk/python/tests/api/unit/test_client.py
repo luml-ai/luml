@@ -1,9 +1,9 @@
 import httpx
 import pytest
+from luml.api import AsyncLumlClient, LumlClient
+from luml.api._exceptions import NotFoundError
 from respx import MockRouter
 
-from dataforce.api import AsyncDataForceClient, DataForceClient
-from dataforce.api._exceptions import NotFoundError
 from tests.conftest import TEST_API_KEY, TEST_BASE_URL
 
 
@@ -14,7 +14,7 @@ def test_client_initialization_with_params(mock_initialization_requests: dict) -
     orbit_id = data["orbit"].id
     collection_oid = data["collection"].id
 
-    client = DataForceClient(
+    client = LumlClient(
         base_url=TEST_BASE_URL,
         api_key=TEST_API_KEY,
         organization=organization_id,
@@ -31,7 +31,7 @@ def test_client_initialization_with_params(mock_initialization_requests: dict) -
 @pytest.mark.respx(base_url=TEST_BASE_URL)
 def test_organization_validation_single_org(mock_initialization_requests: dict) -> None:
     data = mock_initialization_requests
-    client = DataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+    client = LumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     assert client.organization == data["organization"].id
 
 
@@ -57,12 +57,12 @@ def test_organization_validation_multiple_orgs_no_default(
         )
     )
 
-    client = DataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+    client = LumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     assert client.organization is None
 
 
 def test_async_client_initialization() -> None:
-    client = AsyncDataForceClient(base_url=TEST_BASE_URL, api_key=TEST_API_KEY)
+    client = AsyncLumlClient(base_url=TEST_BASE_URL, api_key=TEST_API_KEY)
     assert client._api_key == TEST_API_KEY
     assert client._base_url == TEST_BASE_URL
 
@@ -70,7 +70,7 @@ def test_async_client_initialization() -> None:
 @pytest.mark.asyncio
 @pytest.mark.respx(base_url=TEST_BASE_URL)
 async def test_async_organization_list(
-    async_client_with_mocks: AsyncDataForceClient,
+    async_client_with_mocks: AsyncLumlClient,
 ) -> None:
     organizations = await async_client_with_mocks.organizations.list()
 
@@ -80,9 +80,7 @@ async def test_async_organization_list(
 
 
 @pytest.mark.respx(base_url=TEST_BASE_URL)
-def test_error_handling(
-    client_with_mocks: DataForceClient, respx_mock: MockRouter
-) -> None:
+def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -> None:
     organization_id = client_with_mocks.organization
     bucket_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
 
@@ -102,8 +100,8 @@ def test_error_handling(
 def test_all_resources_accessible(
     resource_name: str, mock_initialization_requests: dict
 ) -> None:
-    sync_client = DataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+    sync_client = LumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     assert hasattr(sync_client, resource_name)
 
-    async_client = AsyncDataForceClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
+    async_client = AsyncLumlClient(api_key=TEST_API_KEY, base_url=TEST_BASE_URL)
     assert hasattr(async_client, resource_name)

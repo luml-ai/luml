@@ -9,10 +9,10 @@ import weakref
 from pathlib import Path
 from typing import Any
 
-from dataforce.experiments.backends._base import Backend
-from dataforce.experiments.utils import guess_span_type
-from dataforce.modelref import DiskArtifact, _BaseArtifact
-from dataforce.utils.tar import create_and_index_tar
+from luml.experiments.backends._base import Backend
+from luml.experiments.utils import guess_span_type
+from luml.modelref import DiskArtifact, _BaseArtifact
+from luml.utils.tar import create_and_index_tar
 
 _DDL_META_CREATE_EXPERIMENTS = """
     CREATE TABLE IF NOT EXISTS experiments (

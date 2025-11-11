@@ -1,9 +1,8 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-
-from dataforce.api._types import BucketSecret
-from dataforce.api.resources.bucket_secrets import (
+from luml.api._types import BucketSecret
+from luml.api.resources.bucket_secrets import (
     AsyncBucketSecretResource,
     BucketSecretResource,
 )

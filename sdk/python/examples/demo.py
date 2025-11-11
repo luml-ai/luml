@@ -1,17 +1,17 @@
 # ruff: noqa: T201
-from dataforce import DataForceClient
-from dataforce.api._types import CollectionType, ModelArtifactStatus
+from luml.api import LumlClient
+from luml.api._types import CollectionType, ModelArtifactStatus
 
-# Will use DataForce API Production url "https://api.dataforce.studio"
+# Will use Luml API Production url "https://api.Luml.studio"
 # And search for DFS_API_KEY in .env
-dfs_simple = DataForceClient()
+dfs_simple = LumlClient()
 
 # No default organization, orbit and collection are set
-dfs_without_defaults = DataForceClient(api_key="dfs_your_api_key_here")
+dfs_without_defaults = LumlClient(api_key="dfs_your_api_key_here")
 
 # Recommended initialization with default resources.
 # Resources initialized by their names
-dfs_with_defaults_names = DataForceClient(
+dfs_with_defaults_names = LumlClient(
     api_key="dfs_your_api_key_here",
     organization="My Organization",
     orbit="Default Orbit",
@@ -20,7 +20,7 @@ dfs_with_defaults_names = DataForceClient(
 
 # Recommended initialization with default resources.
 # Resources initialized by their ids
-dfs = DataForceClient(
+dfs = LumlClient(
     api_key="dfs_your_api_key_here",
     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
     orbit="0199c455-21ed-7aba-9fe5-5231611220de",

@@ -6,7 +6,7 @@ from .._types import Organization, is_uuid
 from .._utils import find_by_value
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 
 class OrganizationResourceBase(ABC):
@@ -32,7 +32,7 @@ class OrganizationResourceBase(ABC):
 class OrganizationResource(OrganizationResourceBase):
     """Resource for managing organizations."""
 
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
     def get(self, organization_value: str | None = None) -> Organization | None:
@@ -54,7 +54,7 @@ class OrganizationResource(OrganizationResourceBase):
                 with that name.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
+            >>> dfs = LumlClient(api_key="dfs_your_key")
             ... org_by_name = dfs.organizations.get("My Personal Company")
             ... org_by_id = dfs.organizations.get(
             ...     "0199c455-21ec-7c74-8efe-41470e29bae5"
@@ -87,7 +87,7 @@ class OrganizationResource(OrganizationResourceBase):
             List of Organization objects.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
+            >>> dfs = LumlClient(api_key="dfs_your_key")
             >>> orgs = dfs.organizations.list()
 
         Example response:
@@ -119,7 +119,7 @@ class OrganizationResource(OrganizationResourceBase):
 class AsyncOrganizationResource(OrganizationResourceBase):
     """Resource for managing organizations for async client."""
 
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
     async def get(self, organization_value: str | None = None) -> Organization | None:
@@ -141,7 +141,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
                 with that name.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
             >>> async def main():
             ...     org_by_name = await dfs.organizations.get("my-company")
             ...     org_by_id = await dfs.organizations.get(123)
@@ -173,7 +173,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
             List of Organization objects.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
+            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
             >>> async def main():
             ...     orgs = await dfs.organizations.list()
 
