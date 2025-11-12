@@ -1388,3 +1388,420 @@ async def test_request_delete_url_orbit_not_found(
     mock_check_permission.assert_awaited_once_with(
         organization_id, user_id, Resource.MODEL, Action.DELETE, orbit_id
     )
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_model_artifact_deletion_checks_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_get_model_artifact_details: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact_details.return_value = None
+    mock_get_orbit_simple.return_value = Mock(
+        id=orbit_id, organization_id=organization_id
+    )
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
+
+    with pytest.raises(ModelArtifactNotFoundError) as error:
+        await handler._model_artifact_deletion_checks(
+            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.MODEL, Action.DELETE, orbit_id
+    )
+    mock_get_model_artifact_details.assert_awaited_once_with(model_artifact_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.S3Service",
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_satellite_download_url(
+    mock_get_model_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_s3_service: Mock,
+    test_bucket: BucketSecret,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+    bucket_location = "orbit-123/collection-456/model.onnx"
+
+    mock_get_model_artifact.return_value = Mock(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        bucket_location=bucket_location,
+    )
+    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
+    mock_get_orbit_by_id.return_value = Mock(
+        id=orbit_id, bucket_secret_id=test_bucket.id
+    )
+    mock_get_bucket_secret.return_value = test_bucket
+
+    expected_url = "https://s3.example.com/download/url"
+
+    mock_s3_instance = AsyncMock()
+    mock_s3_instance.get_download_url.return_value = expected_url
+    mock_s3_service.return_value = mock_s3_instance
+
+    result = await handler.request_satellite_download_url(orbit_id, model_artifact_id)
+
+    assert result == expected_url
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_collection.assert_awaited_once_with(collection_id)
+    mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
+    mock_get_bucket_secret.assert_awaited_once_with(test_bucket.id)
+    mock_s3_instance.get_download_url.assert_awaited_once_with(bucket_location)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_satellite_download_url_model_not_found(
+    mock_get_model_artifact: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError) as error:
+        await handler.request_satellite_download_url(orbit_id, model_artifact_id)
+
+    assert error.value.status_code == 404
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_satellite_download_url_collection_not_found(
+    mock_get_model_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact.return_value = Mock(
+        id=model_artifact_id, collection_id=collection_id
+    )
+    mock_get_collection.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError) as error:
+        await handler.request_satellite_download_url(orbit_id, model_artifact_id)
+
+    assert error.value.status_code == 404
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_collection.assert_awaited_once_with(collection_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_satellite_download_url_orbit_not_found(
+    mock_get_model_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact.return_value = Mock(
+        id=model_artifact_id, collection_id=collection_id
+    )
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
+    mock_get_orbit_by_id.return_value = None
+
+    with pytest.raises(OrbitNotFoundError) as error:
+        await handler.request_satellite_download_url(orbit_id, model_artifact_id)
+
+    assert error.value.status_code == 404
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_collection.assert_awaited_once_with(collection_id)
+    mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_model_artifact_without_deployments(
+    mock_delete_model_artifact: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_orbit_simple.return_value = Mock(
+        id=orbit_id, organization_id=organization_id
+    )
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
+    mock_get_model_artifact.return_value = Mock(id=model_artifact_id, deployments=None)
+
+    await handler.force_delete_model_artifact(
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
+    )
+    mock_delete_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.MODEL, Action.DELETE, orbit_id
+    )
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.DeploymentRepository.delete_deployments_by_model_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_model_artifact_with_deployments(
+    mock_delete_model_artifact: AsyncMock,
+    mock_delete_deployments_by_model_id: AsyncMock,
+    mock_get_model_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    mock_get_orbit_simple.return_value = Mock(
+        id=orbit_id, organization_id=organization_id
+    )
+    mock_get_collection.return_value = Mock(id=collection_id, orbit_id=orbit_id)
+    mock_get_model_artifact.return_value = Mock(
+        id=model_artifact_id, deployments=[Mock(id=deployment_id)]
+    )
+
+    await handler.force_delete_model_artifact(
+        user_id, organization_id, orbit_id, collection_id, model_artifact_id
+    )
+
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.MODEL, Action.DELETE, orbit_id
+    )
+    mock_delete_deployments_by_model_id.assert_awaited_once_with(model_artifact_id)
+    mock_delete_model_artifact.assert_awaited_once_with(model_artifact_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.S3Service",
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_model_artifact(
+    mock_get_model_artifact: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_s3_service: Mock,
+    test_bucket: BucketSecret,
+    manifest_example: Manifest,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    bucket_location = "test.tar.gz"
+
+    model_artifact = ModelArtifact(
+        id=model_artifact_id,
+        collection_id=collection_id,
+        file_name="test.tar.gz",
+        model_name="test",
+        metrics={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        bucket_location="test.tar.gz",
+        size=100,
+        unique_identifier="uid",
+        tags=None,
+        status=ModelArtifactStatus.UPLOADED,
+        created_at=datetime.now(),
+        updated_at=None,
+    )
+
+    mock_get_model_artifact.return_value = model_artifact
+    mock_get_orbit_by_id.return_value = Mock(
+        id=orbit_id, bucket_secret_id=test_bucket.id
+    )
+    mock_get_bucket_secret.return_value = test_bucket
+
+    expected_url = "https://s3.example.com/download/url"
+    mock_s3_instance = Mock()
+    mock_s3_instance.get_download_url = AsyncMock(return_value=expected_url)
+    mock_s3_service.return_value = mock_s3_instance
+
+    result = await handler.get_satellite_model_artifact(orbit_id, model_artifact_id)
+
+    assert result.model == model_artifact
+    assert result.url == expected_url
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
+    mock_get_bucket_secret.assert_awaited_once_with(test_bucket.id)
+    mock_s3_instance.get_download_url.assert_awaited_once_with(bucket_location)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_model_artifact_not_found(
+    mock_get_model_artifact: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact.return_value = None
+
+    with pytest.raises(ModelArtifactNotFoundError) as error:
+        await handler.get_satellite_model_artifact(orbit_id, model_artifact_id)
+
+    assert error.value.status_code == 404
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+
+
+@patch(
+    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_satellite_model_artifact_orbit_not_found(
+    mock_get_model_artifact: AsyncMock,
+    mock_get_orbit_by_id: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    model_artifact_id = UUID("0199c3f7-f040-7f63-9bef-a1f380ae9eeb")
+
+    mock_get_model_artifact.return_value = Mock(id=model_artifact_id)
+    mock_get_orbit_by_id.return_value = None
+
+    with pytest.raises(OrbitNotFoundError) as error:
+        await handler.get_satellite_model_artifact(orbit_id, model_artifact_id)
+
+    assert error.value.status_code == 404
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
