@@ -68,6 +68,21 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     })
   }
 
+  async function getDeployment(organizationId: string, orbitId: string, deploymentId: string) {
+    const existingDeployment = deployments.value.find(
+      (deployment) => deployment.id === deploymentId,
+    )
+    if (existingDeployment) {
+      return existingDeployment
+    }
+    const deployment = await dataforceApi.deployments.getDeployment(
+      organizationId,
+      orbitId,
+      deploymentId,
+    )
+    return deployment
+  }
+
   return {
     deployments,
     creatorVisible,
@@ -79,5 +94,6 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     hideCreator,
     deleteDeployment,
     update,
+    getDeployment,
   }
 })

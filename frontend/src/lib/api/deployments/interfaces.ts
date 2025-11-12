@@ -37,6 +37,7 @@ export interface Deployment {
   dynamic_attributes_secrets: Record<string, string>
   model_artifact_name: string
   error_message: DeploymentErrorMessage | null
+  schemas: object
 }
 
 export interface UpdateDeploymentPayload {

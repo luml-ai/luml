@@ -172,6 +172,14 @@ const router = createRouter({
       ],
     },
     {
+      path: '/organization/:organizationId/orbit/:id/deployments/:deploymentId/schema',
+      name: 'deployment-schema',
+      component: () => import('../pages/DeploymentSchemaPage.vue'),
+      meta: {
+        requireAuth: true,
+      },
+    },
+    {
       path: '/notebooks',
       name: 'notebooks',
       component: () => import('../pages/NotebooksPage.vue'),

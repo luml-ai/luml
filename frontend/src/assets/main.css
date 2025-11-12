@@ -6,6 +6,7 @@
 @import './theme/dark-theme.css';
 @import './base.css';
 @import './vue-flow.css';
+@import './scalar.css';
 
 .divider {
   height: 1px;

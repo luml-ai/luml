@@ -1,0 +1,4 @@
+.scalar-app {
+  --scalar-background-1: var(--p-content-background);
+  --scalar-border-color: var(--p-divider-border-color);
+}

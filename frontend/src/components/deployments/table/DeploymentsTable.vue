@@ -90,6 +90,20 @@
           </div>
         </template>
       </Column>
+      <Column header="Schema" field="schema">
+        <template #body="{ data }">
+          <div class="cell">
+            <router-link
+              v-if="data.schemas && !!Object.keys(data.schemas).length"
+              :to="{ name: 'deployment-schema', params: { deploymentId: data.id } }"
+              class="link"
+            >
+              View Schema
+            </router-link>
+            <span v-else>-</span>
+          </div>
+        </template>
+      </Column>
       <Column>
         <template #body="{ data }">
           <Button
