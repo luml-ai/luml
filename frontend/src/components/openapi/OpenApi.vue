@@ -13,6 +13,7 @@ import '@scalar/api-reference/style.css'
 import { computed, watch } from 'vue'
 import { ApiReference } from '@scalar/api-reference'
 import { useThemeStore } from '@/stores/theme'
+import { type AnyApiReferenceConfiguration } from '@scalar/types/api-reference'
 
 const themeStore = useThemeStore()
 const theme = computed(() => themeStore.getCurrentTheme)
@@ -24,7 +25,7 @@ type Props = {
 
 const props = defineProps<Props>()
 
-const configuration = computed(() => {
+const configuration = computed<AnyApiReferenceConfiguration>(() => {
   return {
     content: props.content,
     showSidebar: false,

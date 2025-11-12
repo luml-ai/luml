@@ -1,7 +1,7 @@
 <template>
   <div class="deployment-schema-page">
     <UiPageLoader v-if="loading" />
-    <OpenApi v-else-if="schema" :content="schema" :server-url="serverUrl" />
+    <OpenApi v-else-if="schema && serverUrl" :content="schema" :server-url="serverUrl" />
     <Ui404 v-else />
   </div>
 </template>
