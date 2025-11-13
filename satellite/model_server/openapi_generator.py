@@ -148,11 +148,10 @@ class OpenAPIGenerator:
 
         openapi_schema["paths"]["/compute"]["post"]["summary"] = "Run model inference"
         openapi_schema["paths"]["/compute"]["post"]["description"] = """
-        The inputs should conform to the model's input specification as defined in the manifest.
-        Dynamic attributes are optional key-value pairs for model configuration.
-        For JSON inputs/outputs, shapes in Swagger UI
-        will reflect any custom schemas found in dtypes.json.
-        """
+The inputs should conform to the model's input specification as defined in the manifest.
+Dynamic attributes are optional key-value pairs for model configuration.
+For JSON inputs/outputs, shapes in Swagger UI
+will reflect any custom schemas found in dtypes.json. """
         openapi_schema["paths"]["/compute"]["post"]["tags"] = ["model"]
         openapi_schema["paths"]["/compute"]["post"]["security"] = [{"ApiKeyAuth": []}]
 
