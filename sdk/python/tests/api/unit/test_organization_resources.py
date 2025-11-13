@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+
 from luml.api._types import Organization
 from luml.api.resources.organizations import (
     AsyncOrganizationResource,

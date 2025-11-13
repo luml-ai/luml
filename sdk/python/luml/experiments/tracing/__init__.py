@@ -10,11 +10,12 @@ class TracerManager:
     def setup_luml_tracing(
         cls,
     ) -> None:
-        from luml.experiments.tracing.span_exporter import LumlSpanExporter
         from opentelemetry import trace
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+        from luml.experiments.tracing.span_exporter import LumlSpanExporter
 
         service_name: str = "luml-sdk"
         resource_attrs = {"service.name": service_name}

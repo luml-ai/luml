@@ -151,14 +151,14 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... model_by_name = dfs.model_artifacts.get("my_model")
-            ... model_by_id = dfs.model_artifacts.get(
+            ... model_by_name = luml.model_artifacts.get("my_model")
+            ... model_by_id = luml.model_artifacts.get(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ... )
 
@@ -215,13 +215,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> models = dfs.model_artifacts.list()
+            >>> models = luml.model_artifacts.list()
 
         Example response:
             >>> [
@@ -266,13 +266,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... url_info = dfs.model_artifacts.download_url(
+            ... url_info = luml.model_artifacts.download_url(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ... )
             ... download_url = url_info["url"]
@@ -302,13 +302,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... url_info = dfs.model_artifacts.delete_url(
+            ... url_info = luml.model_artifacts.delete_url(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ... )
         """
@@ -350,13 +350,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> model = dfs.model_artifacts.upload(
+            >>> model = luml.model_artifacts.upload(
             ...     file_path="/path/to/model.fnnx",
             ...     model_name="Production Model",
             ...     description="Trained on latest dataset",
@@ -398,7 +398,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         model_details = ModelFileHandler(file_path).model_details()
 
         file_format = model_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "dfs"]:
+        if file_format not in ["fnnx", "pyfnx", "luml"]:
             raise FileError("File format error")
 
         created_model = self.create(
@@ -468,17 +468,17 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> # Download with original filename
-            >>> dfs.model_artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e67")
+            >>> luml.model_artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e67")
 
             >>> # Download to specific path
-            >>> dfs.model_artifacts.download(
+            >>> luml.model_artifacts.download(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e67",
             ...     file_path="/local/path/downloaded_model.fnnx",
             ...     collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
@@ -540,13 +540,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> result = dfs.model_artifacts.create(
+            >>> result = luml.model_artifacts.create(
             ...     file_name="model.fnnx",
             ...     metrics={"accuracy": 0.95},
             ...     manifest={"version": "1.0"},
@@ -614,13 +614,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> model = dfs.model_artifacts.update(
+            >>> model = luml.model_artifacts.update(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e67",
             ...     model_name="Updated Model",
             ...     status=ModelArtifactStatus.UPLOADED
@@ -661,13 +661,13 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> dfs.model_artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
+            >>> luml.model_artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
 
         Warning:
             This operation is irreversible. The model file and all metadata
@@ -713,17 +713,17 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     model_by_name = await dfs.model_artifacts.get("my_model")
-            ...     model_by_id = await dfs.model_artifacts.get(
+            ...     model_by_name = await luml.model_artifacts.get("my_model")
+            ...     model_by_id = await luml.model_artifacts.get(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ...     )
 
@@ -780,16 +780,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     models = await dfs.model_artifacts.list()
+            ...     models = await luml.model_artifacts.list()
 
         Example response:
             >>> [
@@ -837,16 +837,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     url_info = await dfs.model_artifacts.download_url(
+            ...     url_info = await luml.model_artifacts.download_url(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ...     )
         """
@@ -878,16 +878,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     url_info = await dfs.model_artifacts.delete_url(
+            ...     url_info = await luml.model_artifacts.delete_url(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ...     )
         """
@@ -935,16 +935,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     result = await dfs.model_artifacts.create(
+            ...     result = await luml.model_artifacts.create(
             ...         file_name="model.fnnx",
             ...         metrics={"accuracy": 0.95},
             ...         manifest={"version": "1.0"},
@@ -1009,16 +1009,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     model = await dfs.model_artifacts.upload(
+            ...     model = await luml.model_artifacts.upload(
             ...         file_path="/path/to/model.fnnx",
             ...         model_name="Production Model",
             ...         description="Trained on latest dataset",
@@ -1045,7 +1045,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             raise FileError("Maximum allowed model size - 5GB")
 
         file_format = model_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "dfs"]:
+        if file_format not in ["fnnx", "pyfnx", "luml"]:
             raise FileError("File format error")
 
         created_model = await self.create(
@@ -1114,22 +1114,22 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 no default collection set.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
             ...     # Download with original filename
-            ...     await dfs.model_artifacts.download(
+            ...     await luml.model_artifacts.download(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ...     )
             ...
             ...     # Download to specific path
-            ...     await dfs.model_artifacts.download(
+            ...     await luml.model_artifacts.download(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67",
             ...         file_path="/local/path/downloaded_model.fnnx",
             ...         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
@@ -1191,16 +1191,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            >>>     model = await dfs.model_artifacts.update(
+            >>>     model = await luml.model_artifacts.update(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67",
             ...         model_name="Updated Model",
             ...         status=ModelArtifactStatus.UPLOADED
@@ -1242,16 +1242,16 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             NotFoundError: If model artifact with specified ID doesn't exist
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             ... async def main():
-            ...     await dfs.model_artifacts.delete(
+            ...     await luml.model_artifacts.delete(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e67"
             ...     )
 

@@ -1,9 +1,9 @@
 import httpx
 import pytest
-from luml.api import AsyncLumlClient, LumlClient
-from luml.api._exceptions import NotFoundError
 from respx import MockRouter
 
+from luml.api import AsyncLumlClient, LumlClient
+from luml.api._exceptions import NotFoundError
 from tests.conftest import TEST_API_KEY, TEST_BASE_URL
 
 

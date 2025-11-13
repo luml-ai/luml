@@ -87,9 +87,9 @@ class CollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = LumlClient(api_key="dfs_your_key")
-            ... collection_by_name = dfs.collections.get("My Collection")
-            ... collection_by_id = dfs.collections.get(
+            >>> luml = LumlClient(api_key="luml_your_key")
+            ... collection_by_name = luml.collections.get("My Collection")
+            ... collection_by_id = luml.collections.get(
             ...     "0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
 
@@ -129,8 +129,8 @@ class CollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = LumlClient(api_key="dfs_your_key")
-            >>> collections = dfs.collections.list()
+            >>> luml = LumlClient(api_key="luml_your_key")
+            >>> collections = luml.collections.list()
 
         Example response:
             >>> [
@@ -174,8 +174,8 @@ class CollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = LumlClient(api_key="dfs_your_key")
-            >>> collection = dfs.collections.create(
+            >>> luml = LumlClient(api_key="luml_your_key")
+            >>> collection = luml.collections.create(
             ...     name="Training Dataset",
             ...     description="Dataset for model training",
             ...     collection_type=CollectionType.DATASET,
@@ -232,19 +232,19 @@ class CollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
-            >>> collection = dfs.collections.update(
+            >>> collection = luml.collections.update(
             ...     collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             ...     name="Updated Dataset",
             ...     tags=["ml", "updated"]
             ... )
 
-            >>> dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            >>> collection = dfs.collections.update(
+            >>> luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            >>> collection = luml.collections.update(
             ...     name="Updated Dataset",
             ...     description="Updated description"
             ... )
@@ -291,18 +291,18 @@ class CollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
             ... # Delete specific collection by ID
-            ... dfs.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
+            ... luml.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
             ...  # Set default collection
-            ... dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            ... luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... # Delete default collection (collection_id will be autofilled)
-            ... dfs.collections.delete()
+            ... luml.collections.delete()
 
         Warning:
             This operation is irreversible. All models, datasets, and data
@@ -339,12 +339,12 @@ class AsyncCollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
+            >>> luml = AsyncLumlClient(api_key="luml_your_key")
             >>> async def main():
-            ...     collection_by_name = await dfs.collections.get(
+            ...     collection_by_name = await luml.collections.get(
             ...         "My Collection"
             ...     )
-            ...     collection_by_id = await dfs.collections.get(
+            ...     collection_by_id = await luml.collections.get(
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e75"
             ...     )
 
@@ -384,9 +384,9 @@ class AsyncCollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
+            >>> luml = AsyncLumlClient(api_key="luml_your_key")
             >>> async def main():
-            ...     collections = await dfs.collections.list()
+            ...     collections = await luml.collections.list()
 
         Example response:
             >>> [
@@ -430,9 +430,9 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
+            >>> luml = AsyncLumlClient(api_key="luml_your_key")
             >>> async def main():
-            ...     collection = await dfs.collections.create(
+            ...     collection = await luml.collections.create(
             ...         name="Training Dataset",
             ...         description="Dataset for model training",
             ...         collection_type=CollectionType.DATASET,
@@ -489,22 +489,22 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ... )
             >>> async def main():
-            ...     collection = await dfs.collections.update(
+            ...     collection = await luml.collections.update(
             ...         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             ...         name="Updated Dataset",
             ...         tags=["ml", "updated"]
             ...     )
             ...
-            ...     dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ...     collection = await dfs.collections.update(
+            ...     luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            ...     collection = await luml.collections.update(
             ...         name="Updated Dataset",
             ...         description="Updated description"
             ...     )
@@ -551,23 +551,23 @@ class AsyncCollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ... )
             >>> async def main():
             ...     # Delete specific collection by ID
-            ...     await dfs.collections.delete(
+            ...     await luml.collections.delete(
             ....        "0199c455-21ee-74c6-b747-19a82f1a1e75"
             ...     )
             ...
             ...     # Set default collection
-            ...     dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
+            ...     luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
             ...     # Delete default collection
-            ...     await dfs.collections.delete()
+            ...     await luml.collections.delete()
 
         Warning:
             This operation is irreversible. All models, datasets, and data

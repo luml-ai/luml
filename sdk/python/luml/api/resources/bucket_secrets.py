@@ -94,14 +94,14 @@ class BucketSecretResource(BucketSecretResourceBase):
                 BucketSecret with that bucket name.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... bucket_by_name = dfs.bucket_secrets.get("default-bucket")
-            ... bucket_by_id = dfs.bucket_secrets.get(
+            ... bucket_by_name = luml.bucket_secrets.get("default-bucket")
+            ... bucket_by_id = luml.bucket_secrets.get(
             ...     "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
             ...)
 
@@ -139,13 +139,13 @@ class BucketSecretResource(BucketSecretResourceBase):
             List of BucketSecret objects.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> secrets = dfs.bucket_secrets.list()
+            >>> secrets = luml.bucket_secrets.list()
 
         Example response:
             >>> [
@@ -199,13 +199,13 @@ class BucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Сreated bucket secret object.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> bucket_secret = dfs.bucket_secrets.create(
+            >>> bucket_secret = luml.bucket_secrets.create(
             ...     endpoint="s3.amazonaws.com",
             ...     bucket_name="my-data-bucket",
             ...     access_key="AKIAIOSFODNN7EXAMPLE",
@@ -277,13 +277,13 @@ class BucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Updated bucket secret object.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> bucket_secret = dfs.bucket_secrets.update(
+            >>> bucket_secret = luml.bucket_secrets.update(
             ...     secret_id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
             ...     endpoint="s3.amazonaws.com",
             ...     bucket_name="updated-bucket",
@@ -336,13 +336,13 @@ class BucketSecretResource(BucketSecretResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> dfs.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
+            >>> luml.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
 
         Warning:
             This operation is irreversible. Orbits using this bucket secret
@@ -380,17 +380,17 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                 BucketSecret with that bucket name.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     bucket_by_name = await dfs.bucket_secrets.get("default-bucket")
-            ...     bucket_by_id = await dfs.bucket_secrets.get(
+            ...     bucket_by_name = await luml.bucket_secrets.get("default-bucket")
+            ...     bucket_by_id = await luml.bucket_secrets.get(
             ...         "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
             ...     )
 
@@ -428,16 +428,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             List of BucketSecret objects.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     secrets = await dfs.bucket_secrets.list()
+            ...     secrets = await luml.bucket_secrets.list()
 
         Example response:
             >>> [
@@ -491,16 +491,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Сreated bucket secret object.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     bucket_secret = await dfs.bucket_secrets.create(
+            ...     bucket_secret = await luml.bucket_secrets.create(
             ...         endpoint="s3.amazonaws.com",
             ...         bucket_name="my-data-bucket",
             ...         access_key="AKIAIOSFODNN7EXAMPLE",
@@ -572,16 +572,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             BucketSecret: Updated bucket secret object.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     bucket_secret = await dfs.bucket_secrets.update(
+            ...     bucket_secret = await luml.bucket_secrets.update(
             ...         id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
             ...         endpoint="s3.amazonaws.com",
             ...         bucket_name="updated-bucket",
@@ -634,16 +634,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     await dfs.bucket_secrets.delete(
+            ...     await luml.bucket_secrets.delete(
             ...         "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
             ...     )
 

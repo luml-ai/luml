@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+
 from luml.api._types import Orbit
 from luml.api.resources.orbits import AsyncOrbitResource, OrbitResource
 

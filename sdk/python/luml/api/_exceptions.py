@@ -21,8 +21,8 @@ class ConfigurationError(LumlAPIError):
     ) -> None:
         self.message = message if message else ""
         self.message += """
-        dfs = LumlClient(
-            api_key="dfs_api_key",
+        luml = LumlClient(
+            api_key="luml_api_key",
             organization=1,
             orbit=1215,
             collection=15

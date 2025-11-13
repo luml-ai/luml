@@ -76,14 +76,14 @@ class OrbitResource(OrbitResourceBase):
                 Orbits with that name.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... orbit_by_name = dfs.orbits.get("Default Orbit")
-            ... orbit_by_id = dfs.orbits.get("0199c455-21ed-7aba-9fe5-5231611220de")
+            ... orbit_by_name = luml.orbits.get("Default Orbit")
+            ... orbit_by_id = luml.orbits.get("0199c455-21ed-7aba-9fe5-5231611220de")
 
         Example response:
             >>> Orbit(
@@ -120,13 +120,13 @@ class OrbitResource(OrbitResourceBase):
             List of Orbits objects.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> orgs = dfs.orbits.list()
+            >>> orgs = luml.orbits.list()
 
         Example response:
             >>> [
@@ -161,13 +161,13 @@ class OrbitResource(OrbitResourceBase):
             Orbit: Newly created orbit object with generated ID and timestamps.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> orbit = dfs.orbits.create(
+            >>> orbit = luml.orbits.create(
             ...     name="ML Models",
             ...     bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
@@ -209,15 +209,15 @@ class OrbitResource(OrbitResourceBase):
             Orbit: Updated orbit object.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            >>> orbit = dfs.orbits.update(name="New Orbit Name")
+            >>> orbit = luml.orbits.update(name="New Orbit Name")
 
-            >>> orbit = dfs.orbits.update(
+            >>> orbit = luml.orbits.update(
             ...     name="New Orbit Name",
             ...     bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
@@ -262,13 +262,13 @@ class OrbitResource(OrbitResourceBase):
             LumlAPIError: If try to delete default orbit.
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
-            ... dfs.orbits.delete("0199c455-21ed-7aba-9fe5-5231611220de")
+            ... luml.orbits.delete("0199c455-21ed-7aba-9fe5-5231611220de")
 
         Warning:
             This operation is irreversible. All collections, models, and data
@@ -310,17 +310,17 @@ class AsyncOrbitResource(OrbitResourceBase):
                 Orbits with that name.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     orbit_by_name = await dfs.orbits.get("Default Orbit")
-            ...     orbit_by_id = await dfs.orbits.get(
+            ...     orbit_by_name = await luml.orbits.get("Default Orbit")
+            ...     orbit_by_id = await luml.orbits.get(
             ...         "0199c455-21ed-7aba-9fe5-5231611220de"
             ...     )
 
@@ -359,16 +359,16 @@ class AsyncOrbitResource(OrbitResourceBase):
             List of Orbits objects.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     orgs = await dfs.orbits.list()
+            ...     orgs = await luml.orbits.list()
 
         Example response:
             >>> [
@@ -403,16 +403,16 @@ class AsyncOrbitResource(OrbitResourceBase):
             Orbit: Newly created orbit object with generated ID and timestamps.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     orbit = await dfs.orbits.create(
+            ...     orbit = await luml.orbits.create(
             ...         name="ML Models",
             ...         bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de"
             ...     )
@@ -454,18 +454,18 @@ class AsyncOrbitResource(OrbitResourceBase):
             Orbit: Updated orbit object.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     orbit = await dfs.orbits.update(name="New Orbit Name")
+            ...     orbit = await luml.orbits.update(name="New Orbit Name")
             ...
-            ...     orbit = await dfs.orbits.update(
+            ...     orbit = await luml.orbits.update(
             ...         name="New Orbit Name",
             ...         bucket_secret_id="0199c455-21ed-7aba-9fe5-5231611220de"
             ...     )
@@ -510,16 +510,16 @@ class AsyncOrbitResource(OrbitResourceBase):
             LumlAPIError: If try to delete default orbit.
 
         Example:
-            >>> dfs = AsyncLumlClient(
-            ...     api_key="dfs_your_key",
+            >>> luml = AsyncLumlClient(
+            ...     api_key="luml_your_key",
             ... )
-            ... dfs.setup_config(
+            ... luml.setup_config(
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             ... )
             >>> async def main():
-            ...     await dfs.orbits.delete("0199c475-8339-70ec-b032-7b3f5d59fdc1")
+            ...     await luml.orbits.delete("0199c475-8339-70ec-b032-7b3f5d59fdc1")
 
         Warning:
             This operation is irreversible. All collections, models, and data

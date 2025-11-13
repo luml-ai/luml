@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+
 from luml.api._types import ModelArtifact
 from luml.api.resources.model_artifacts import (
     AsyncModelArtifactResource,

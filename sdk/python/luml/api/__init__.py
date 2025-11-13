@@ -1,5 +1,5 @@
 __version__ = "0.1.0"
-__title__ = "dfs"
+__title__ = "luml-sdk"
 
 from ._client import AsyncLumlClient, LumlClient
 from ._exceptions import (

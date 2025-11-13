@@ -34,19 +34,19 @@ class LumlClientBase(ABC):
 
     def __init__(self, base_url: str | None = None, api_key: str | None = None) -> None:
         if base_url is None:
-            base_url = os.environ.get("DFS_BASE_URL")
+            base_url = os.environ.get("LUML_BASE_URL")
         if base_url is None:
-            base_url = "https://api.Luml.studio"
+            base_url = "https://api.luml.studio"
 
         self._base_url: URL = URL(base_url)
 
         if api_key is None:
-            api_key = os.environ.get("DFS_API_KEY")
+            api_key = os.environ.get("LUML_API_KEY")
         if api_key is None:
             raise LumlAPIError(
                 "The api_key client option must be set either by "
                 "passing api_key to the client or "
-                "by setting the DFS_API_KEY environment variable"
+                "by setting the LUML_API_KEY environment variable"
             )
         self._api_key = api_key
 
@@ -150,10 +150,10 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
 
         Parameters:
             base_url: Base URL of the Luml API.
-                Defaults to production Luml Api URL: https://api.Luml.studio.
-                Can also be set in env with name DFS_BASE_URL
+                Defaults to production Luml Api URL: https://api.dfs.studio.
+                Can also be set in env with name LUML_BASE_URL
             api_key: Your Luml API key for authentication.
-                Can also be set in env with name DFS_API_KEY
+                Can also be set in env with name LUML_API_KEY
 
         Attributes:
             organizations: Interface for managing experiments.
@@ -173,14 +173,14 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
                 name passed for client configuration
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_api_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_api_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_api_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_api_key",
             ...     organization="My Personal Organization",
             ...     orbit="Default Orbit"
             ... )
@@ -198,7 +198,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
             - Default collection must belong to the default orbit
 
             You can change default resource after client inizialization
-            ``dfs.organization=4``.
+            ``luml.organization=4``.
         """
 
         LumlClientBase.__init__(self, base_url=base_url, api_key=api_key)
@@ -223,9 +223,9 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
                 Can be set by organization ID or name.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_api_key")
+            >>> luml = AsyncLumlClient(api_key="luml_api_key")
             >>> async def main():
-            ...     await dfs.setup_config(
+            ...     await luml.setup_config(
             ...         "0199c455-21ec-7c74-8efe-41470e29bae5",
             ...         "0199c455-21ed-7aba-9fe5-5231611220de",
             ...         "0199c455-21ee-74c6-b747-19a82f1a1e75"
@@ -323,10 +323,10 @@ class LumlClient(LumlClientBase, SyncBaseClient):
 
         Parameters:
             base_url: Base URL of the Luml API.
-                Defaults to production Luml Api URL: https://api.Luml.studio.
-                Can also be set in env with name DFS_BASE_URL
+                Defaults to production Luml Api URL: https://api.dfs.studio.
+                Can also be set in env with name LUML_BASE_URL
             api_key: Your Luml API key for authentication.
-                Can also be set in env with name DFS_API_KEY
+                Can also be set in env with name LUML_API_KEY
             organization: Default organization to use for operations.
                 Can be set by organization ID or name.
             orbit: Default orbit to use for operations.
@@ -352,14 +352,14 @@ class LumlClient(LumlClientBase, SyncBaseClient):
                 by ID or name passed for client configuration
 
         Example:
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_api_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_api_key",
             ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
             ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
             ... )
 
-            >>> dfs = LumlClient(
-            ...     api_key="dfs_your_api_key",
+            >>> luml = LumlClient(
+            ...     api_key="luml_your_api_key",
             ...     organization="My Personal Organization",
             ...     orbit="Default Orbit"
             ... )
@@ -380,7 +380,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
             - Default collection must belong to the default orbit
 
             You can change default resource after client inizialization
-                ``dfs.organization="0199c455-21ec-7c74-8efe-41470e29bae5"``.
+                ``luml.organization="0199c455-21ec-7c74-8efe-41470e29bae5"``.
         """
 
         LumlClientBase.__init__(self, base_url=base_url, api_key=api_key)

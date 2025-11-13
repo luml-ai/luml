@@ -54,9 +54,9 @@ class OrganizationResource(OrganizationResourceBase):
                 with that name.
 
         Example:
-            >>> dfs = LumlClient(api_key="dfs_your_key")
-            ... org_by_name = dfs.organizations.get("My Personal Company")
-            ... org_by_id = dfs.organizations.get(
+            >>> luml = LumlClient(api_key="luml_your_key")
+            ... org_by_name = luml.organizations.get("My Personal Company")
+            ... org_by_id = luml.organizations.get(
             ...     "0199c455-21ec-7c74-8efe-41470e29bae5"
             ... )
 
@@ -87,8 +87,8 @@ class OrganizationResource(OrganizationResourceBase):
             List of Organization objects.
 
         Example:
-            >>> dfs = LumlClient(api_key="dfs_your_key")
-            >>> orgs = dfs.organizations.list()
+            >>> luml = LumlClient(api_key="luml_your_key")
+            >>> orgs = luml.organizations.list()
 
         Example response:
             >>> [
@@ -141,10 +141,12 @@ class AsyncOrganizationResource(OrganizationResourceBase):
                 with that name.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
+            >>> luml = AsyncLumlClient(api_key="luml_your_key")
             >>> async def main():
-            ...     org_by_name = await dfs.organizations.get("my-company")
-            ...     org_by_id = await dfs.organizations.get(123)
+            ...     org_by_name = await luml.organizations.get("my-company")
+            ...     org_by_id = await luml.organizations.get(
+            ...         "0199c455-21ec-7c74-8efe-41470e29ba45"
+            ...     )
 
         Example response:
             >>> Organization(
@@ -173,9 +175,9 @@ class AsyncOrganizationResource(OrganizationResourceBase):
             List of Organization objects.
 
         Example:
-            >>> dfs = AsyncLumlClient(api_key="dfs_your_key")
+            >>> luml = AsyncLumlClient(api_key="luml_your_key")
             >>> async def main():
-            ...     orgs = await dfs.organizations.list()
+            ...     orgs = await luml.organizations.list()
 
         Example response:
             >>> [
