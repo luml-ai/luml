@@ -29,7 +29,7 @@ class Orbit(BaseModel, BaseOrmConfig):
 
 
 class OrbitDetails(Orbit):
-    members: list["OrbitMember"] | None = None
+    members: list[OrbitMember] | None = None
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
@@ -41,7 +41,7 @@ class OrbitUpdate(BaseModel, BaseOrmConfig):
 class OrbitCreateIn(BaseModel, BaseOrmConfig):
     name: str
     bucket_secret_id: UUID
-    members: list["OrbitMemberCreateSimple"] | None = None
+    members: list[OrbitMemberCreateSimple] | None = None
     notify: bool = False
 
 

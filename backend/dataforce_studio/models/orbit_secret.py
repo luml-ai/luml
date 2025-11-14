@@ -1,6 +1,5 @@
 import uuid
 
-import uuid6
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,7 +14,7 @@ class OrbitSecretOrm(TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("orbit_id", "name", name="orbit_secret_name"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
@@ -24,7 +23,7 @@ class OrbitSecretOrm(TimestampMixin, Base):
     value: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
 
-    orbit: Mapped["OrbitOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm", back_populates="secrets", lazy="selectin"
     )
 
@@ -34,7 +33,7 @@ class OrbitSecretOrm(TimestampMixin, Base):
         return data
 
     @classmethod
-    def from_orbit_secret(cls, secret: OrbitSecretCreate) -> "OrbitSecretOrm":
+    def from_orbit_secret(cls, secret: OrbitSecretCreate) -> OrbitSecretOrm:
         data = secret.model_dump()
         data["value"] = encrypt(secret.value)
         return cls(**data)

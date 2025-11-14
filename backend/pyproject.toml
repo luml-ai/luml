@@ -3,35 +3,34 @@ name = "dataforce.studio"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
-    "alembic==1.14.0",
+    "alembic==1.17.1",
     "asyncpg==0.30.0",
-    "cryptography==45.0.4",
-    "ddtrace==3.16.2",
-    "fastapi[all]==0.115.6",
+    "cryptography==46.0.3",
+    "ddtrace==3.18.1",
+    "fastapi[all]==0.121.2",
     "httpx==0.27.2",
-    "minio==7.2.15",
+    "minio==7.2.18",
     "passlib[bcrypt]==1.7.4",
-    "pyjwt==2.9.0",
+    "pyjwt==2.10.1",
     "sendgrid==6.11.0",
-    "sqlalchemy[asyncio]==2.0.36",
-    "uuid6==2025.0.1",
-    "uvicorn==0.32.0",
+    "sqlalchemy[asyncio]==2.0.44",
+    "uvicorn==0.38.0",
 ]
 
 [dependency-groups]
 dev = [
-    "mypy==1.15.0",
-    "pytest==8.3.5",
-    "pytest-asyncio==0.26.0",
-    "ruff==0.11.5",
-    "types-passlib==1.7.7.20250408",
+    "mypy==1.18.2",
+    "pytest==9.0.1",
+    "pytest-asyncio==1.3.0",
+    "ruff==0.14.5",
+    "types-passlib==1.7.7.20250602",
 ]
 
 [tool.ruff]
-# Target Python 3.12
-target-version = "py312"
+# Target Python 3.14
+target-version = "py314"
 
 # Black-compatible settings
 line-length = 88
@@ -79,5 +78,5 @@ split-on-trailing-comma = true
 
 [tool.mypy]
 files = ["dataforce_studio", "utils", "tests"]
-python_version = "3.12"
+python_version = "3.14"
 strict = true

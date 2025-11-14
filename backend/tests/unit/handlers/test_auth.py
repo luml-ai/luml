@@ -41,7 +41,7 @@ class Passwords:
 
 
 @pytest_asyncio.fixture(scope="function")
-async def passwords() -> AsyncGenerator[Passwords, None]:
+async def passwords() -> AsyncGenerator[Passwords]:
     yield Passwords(
         password="test_password",
         hashed_password="$2b$12$rr/FMTnWz0BGDTiG//l.YuzZe9ZIpZTPZD5FeAVDDdqgchIDUyD66",
@@ -181,14 +181,16 @@ async def test_authenticate_user_password_not_verified(
     mock_get_user.assert_awaited_once_with(expected.email)
 
 
+@patch("passlib.context.CryptContext.verify")
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_email_not_verified(
-    mock_get_user: AsyncMock, test_user: User, passwords: Passwords
+    mock_get_user: AsyncMock, mock_verify: Mock, test_user: User, passwords: Passwords
 ) -> None:
     expected = test_user.model_copy()
     expected.email_verified = False
     mock_get_user.return_value = expected
+    mock_verify.return_value = True
 
     with pytest.raises(AuthError, match="Email not verified") as error:
         await handler._authenticate_user(expected.email, passwords.password)

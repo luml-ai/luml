@@ -26,7 +26,7 @@ class UserFixtureData:
 @pytest_asyncio.fixture(scope="function")
 async def get_created_user(
     create_database_and_apply_migrations: str, test_user_create: CreateUser
-) -> AsyncGenerator[UserFixtureData, None]:
+) -> AsyncGenerator[UserFixtureData]:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
 

@@ -1,8 +1,8 @@
 import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from uuid import UUID, uuid7
 
 import pytest
-from uuid6 import UUID, uuid7
 
 from dataforce_studio.handlers.orbits import OrbitHandler
 from dataforce_studio.infra.exceptions import (

@@ -1,7 +1,6 @@
 import uuid
 from collections.abc import Sequence
 
-import uuid6
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
@@ -20,7 +19,7 @@ class OrbitMembersOrm(TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("orbit_id", "user_id", name="orbit_member"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -29,10 +28,10 @@ class OrbitMembersOrm(TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
     )
     role: Mapped[str] = mapped_column(String, nullable=False)
-    user: Mapped["UserOrm"] = relationship(
+    user: Mapped[UserOrm] = relationship(
         "UserOrm", back_populates="orbit_memberships", lazy="selectin"
     )
-    orbit: Mapped["OrbitOrm"] = relationship(
+    orbit: Mapped[OrbitOrm] = relationship(
         "OrbitOrm", back_populates="members", lazy="selectin"
     )
 
@@ -44,7 +43,7 @@ class OrbitMembersOrm(TimestampMixin, Base):
 
     @classmethod
     def to_orbit_members_list(
-        cls, members: Sequence["OrbitMembersOrm"]
+        cls, members: Sequence[OrbitMembersOrm]
     ) -> list[OrbitMember]:
         return [OrbitMember.model_validate(member) for member in members]
 
@@ -53,7 +52,7 @@ class OrbitOrm(TimestampMixin, Base):
     __tablename__ = "orbits"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     name: Mapped[str] = mapped_column(String, nullable=False)
     organization_id: Mapped[uuid.UUID] = mapped_column(
@@ -67,33 +66,33 @@ class OrbitOrm(TimestampMixin, Base):
         nullable=False,
     )
 
-    members: Mapped[list["OrbitMembersOrm"]] = relationship(
+    members: Mapped[list[OrbitMembersOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    collections: Mapped[list["CollectionOrm"]] = relationship(  # noqa: F821
+    collections: Mapped[list[CollectionOrm]] = relationship(  # noqa: F821
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    satellites: Mapped[list["SatelliteOrm"]] = relationship(
+    satellites: Mapped[list[SatelliteOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    deployments: Mapped[list["DeploymentOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    deployments: Mapped[list[DeploymentOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    secrets: Mapped[list["OrbitSecretOrm"]] = relationship(
+    secrets: Mapped[list[OrbitSecretOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 
-    bucket_secret: Mapped["BucketSecretOrm"] = relationship(
+    bucket_secret: Mapped[BucketSecretOrm] = relationship(
         "BucketSecretOrm",
         back_populates="orbits",
         lazy="selectin",
     )
 
-    organization: Mapped["OrganizationOrm"] = relationship(
+    organization: Mapped[OrganizationOrm] = relationship(
         "OrganizationOrm",
         back_populates="orbits",
         lazy="selectin",
@@ -123,5 +122,5 @@ class OrbitOrm(TimestampMixin, Base):
         return OrbitDetails.model_validate(self)
 
     @classmethod
-    def to_orbits_list(cls, orbits: Sequence["OrbitOrm"]) -> list[Orbit]:
+    def to_orbits_list(cls, orbits: Sequence[OrbitOrm]) -> list[Orbit]:
         return [Orbit.model_validate(orbit) for orbit in orbits]

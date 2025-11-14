@@ -1,6 +1,5 @@
 import uuid
 
-import uuid6
 from pydantic import EmailStr
 from sqlalchemy import UUID, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -13,7 +12,7 @@ class StatsEmailSendOrm(TimestampMixin, Base):
     __tablename__ = "stats_emails"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=False), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=False), primary_key=True, default=uuid.uuid7
     )
     email: Mapped[EmailStr] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False)

@@ -1,6 +1,5 @@
 import uuid
 
-import uuid6
 from sqlalchemy import UUID, ForeignKey, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -14,7 +13,7 @@ class CollectionOrm(TimestampMixin, Base):
     __tablename__ = "collections"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False
@@ -24,10 +23,10 @@ class CollectionOrm(TimestampMixin, Base):
     collection_type: Mapped[str] = mapped_column("type", String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
 
-    orbit: Mapped["OrbitOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm", back_populates="collections", lazy="selectin"
     )
-    models: Mapped[list["ModelArtifactOrm"]] = relationship(  # noqa: F821
+    models: Mapped[list[ModelArtifactOrm]] = relationship(  # noqa: F821
         back_populates="collection", cascade="all, delete, delete-orphan"
     )
 

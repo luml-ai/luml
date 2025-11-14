@@ -1,7 +1,6 @@
 import uuid
 from typing import Any
 
-import uuid6
 from sqlalchemy import UUID, BigInteger, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -18,7 +17,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
     __tablename__ = "model_artifacts"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     collection_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -44,7 +43,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
         default=ModelArtifactStatus.PENDING_UPLOAD.value,
     )
 
-    collection: Mapped["CollectionOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    collection: Mapped[CollectionOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "CollectionOrm", back_populates="models", lazy="selectin"
     )
     deployments = relationship("DeploymentOrm", back_populates="models")

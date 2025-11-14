@@ -1,6 +1,5 @@
 import uuid
 
-import uuid6
 from pydantic import EmailStr, HttpUrl
 from sqlalchemy import UUID, Boolean, String, case
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -13,7 +12,7 @@ class UserOrm(TimestampMixin, Base):
     __tablename__ = "users"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     email: Mapped[EmailStr] = mapped_column(String, unique=True, nullable=False)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -24,14 +23,14 @@ class UserOrm(TimestampMixin, Base):
     hashed_password: Mapped[str | None] = mapped_column(String, nullable=True)
     hashed_api_key: Mapped[str] = mapped_column(String, nullable=True)
 
-    memberships: Mapped[list["OrganizationMemberOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    memberships: Mapped[list[OrganizationMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrganizationMemberOrm",
         back_populates="user",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
 
-    orbit_memberships: Mapped[list["OrbitMemberOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbit_memberships: Mapped[list[OrbitMemberOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitMembersOrm",
         back_populates="user",
         lazy="selectin",
@@ -52,7 +51,7 @@ class UserOrm(TimestampMixin, Base):
         return UserOut.model_validate(self)
 
     @classmethod
-    def from_user(cls, user: CreateUser) -> "UserOrm":
+    def from_user(cls, user: CreateUser) -> UserOrm:
         return UserOrm(
             **user.model_dump(),
         )

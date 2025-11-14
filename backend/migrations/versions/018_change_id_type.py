@@ -11,9 +11,9 @@ import contextlib
 import secrets
 from collections.abc import Sequence
 from datetime import UTC, datetime
+from uuid import UUID
 
 import sqlalchemy as sa
-import uuid6
 from alembic import op
 
 revision: str = "018"
@@ -22,7 +22,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
-def uuid7_from_datetime(dt: datetime | None = None) -> uuid6.UUID:
+def uuid7_from_datetime(dt: datetime | None = None) -> UUID:
     if dt is None:
         dt = datetime.now(UTC)
 
@@ -30,7 +30,7 @@ def uuid7_from_datetime(dt: datetime | None = None) -> uuid6.UUID:
     uuid_int = (timestamp_ms & 0xFFFFFFFFFFFF) << 80
     uuid_int |= secrets.randbits(76)
 
-    return uuid6.UUID(int=uuid_int, version=7)
+    return UUID(int=uuid_int, version=7)
 
 
 def upgrade() -> None:
