@@ -38,7 +38,7 @@ class ModelArtifactOrm(TimestampMixin, Base):
     size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     unique_identifier: Mapped[str] = mapped_column(String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
-    created_by_user: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_by_user: Mapped[str | None] = mapped_column(String, nullable=False)
     status: Mapped[str] = mapped_column(
         String,
         nullable=False,

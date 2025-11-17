@@ -386,6 +386,7 @@ async def test_model_artifact(
         unique_identifier="test_uid_123",
         tags=["test", "model"],
         status=ModelArtifactStatus.PENDING_UPLOAD,
+        created_by_user="User FullName",
     )
 
 
