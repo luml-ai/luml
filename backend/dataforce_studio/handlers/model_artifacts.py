@@ -111,7 +111,7 @@ class ModelArtifactHandler:
         if not organization:
             raise NotFoundError("Organization not found")
 
-        if organization.total_satellites >= organization.satellites_limit:
+        if organization.total_model_artifacts >= organization.model_artifacts_limit:
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of model artifacts"
             )

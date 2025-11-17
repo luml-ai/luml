@@ -62,7 +62,7 @@ class SatelliteHandler:
 
         if organization.total_satellites >= organization.satellites_limit:
             raise OrganizationLimitReachedError(
-                "Organization reached maximum number of satellite"
+                "Organization reached maximum number of satellites"
             )
 
     async def authenticate_api_key(self, api_key: str) -> Satellite | None:
