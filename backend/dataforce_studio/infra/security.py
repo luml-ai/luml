@@ -66,16 +66,24 @@ class JWTAuthenticationBackend(AuthenticationBackend):
         conn: HTTPConnection,
     ) -> tuple[AuthCredentials, AuthPrincipal] | None:
         authorization: str | None = conn.headers.get("Authorization")
+        token: str | None = None
+
         if authorization:
             try:
-                scheme, token = authorization.split()
+                scheme, token_value = authorization.split()
                 if scheme.lower() != "bearer":
                     return None
-                if token.startswith("dfs_"):
-                    return await self._authenticate_with_api_key(token)
-                if token.startswith("dfssat_"):
-                    return await self._authenticate_with_satellite_key(token)
-                return await self._authenticate_with_jwt_token(token)
+                token = token_value
             except ValueError:
                 return None
+        else:
+            token = conn.cookies.get("access_token")
+
+        if token:
+            if token.startswith("dfs_"):
+                return await self._authenticate_with_api_key(token)
+            if token.startswith("dfssat_"):
+                return await self._authenticate_with_satellite_key(token)
+            return await self._authenticate_with_jwt_token(token)
+
         return None

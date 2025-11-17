@@ -1,6 +1,7 @@
 from typing import Annotated
+from urllib.parse import urlencode
 
-from fastapi import APIRouter, Body, Depends, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
@@ -9,7 +10,8 @@ from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.schemas.auth import OAuthLogin, Token
 from dataforce_studio.schemas.user import (
     CreateUserIn,
-    SignInResponse,
+    DetailResponse,
+    SignInAPIResponse,
     SignInUser,
     UpdateUserIn,
     UserOut,
@@ -33,14 +35,39 @@ microsoft_auth_handler = AuthHandler(
 )
 
 
-@auth_router.post("/signup", response_model=dict)
+def set_auth_cookies(response: Response, data: Token) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=data.access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=auth_handler.access_token_expire,
+    )
+
+    if data.refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=data.refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="lax",
+            max_age=auth_handler.refresh_token_expire,
+        )
+
+
+@auth_router.post("/signup", response_model=DetailResponse)
 async def signup(create_user: CreateUserIn) -> dict[str, str]:
     return await auth_handler.handle_signup(create_user)
 
 
-@auth_router.post("/signin", response_model=SignInResponse)
-async def signin(user: SignInUser) -> SignInResponse:
-    return await auth_handler.handle_signin(user)
+@auth_router.post("/signin", response_model=SignInAPIResponse)
+async def signin(user: SignInUser, response: Response) -> SignInAPIResponse:
+    signin_response = await auth_handler.handle_signin(user)
+    set_auth_cookies(response, signin_response.token)
+    return SignInAPIResponse(
+        detail="Successfully signed in", user_id=signin_response.user_id
+    )
 
 
 @auth_router.get("/google/login")
@@ -48,17 +75,27 @@ async def google_login() -> RedirectResponse:
     return RedirectResponse(google_auth_handler.get_oauth_login_url())
 
 
-@auth_router.get("/google/callback")
-async def google_callback(code: str | None = None) -> OAuthLogin:
-    return await google_auth_handler.handle_oauth(code)
+@auth_router.get("/google/callback", response_model=SignInAPIResponse)
+async def google_callback(code: str | None, response: Response) -> SignInAPIResponse:
+    signin_response = await google_auth_handler.handle_oauth(code)
+    set_auth_cookies(response, signin_response.token)
+    return SignInAPIResponse(
+        detail="Successfully authenticated with Google", user_id=signin_response.user_id
+    )
 
 
-@auth_router.post("/refresh", response_model=Token)
-async def refresh(refresh_token: Annotated[str, Body()]) -> Token:
-    return await auth_handler.handle_refresh_token(refresh_token)
+@auth_router.post("/refresh", response_model=DetailResponse)
+async def refresh(request: Request, response: Response) -> dict[str, str]:
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+
+    tokens = await auth_handler.handle_refresh_token(refresh_token)
+    set_auth_cookies(response, tokens)
+    return {"detail": "Tokens refreshed successfully"}
 
 
-@auth_router.post("/forgot-password")
+@auth_router.post("/forgot-password", response_model=DetailResponse)
 async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
     await auth_handler.send_password_reset_email(email)
     return {"detail": "Password reset email has been sent"}
@@ -72,7 +109,7 @@ async def get_current_user_info(
     return await auth_handler.handle_get_current_user(request.user.email)
 
 
-@auth_router.delete("/users/me")
+@auth_router.delete("/users/me", response_model=DetailResponse)
 async def delete_account(
     request: Request,
 ) -> dict[str, str]:
@@ -80,7 +117,7 @@ async def delete_account(
     return {"detail": "Account deleted successfully"}
 
 
-@auth_router.patch("/users/me")
+@auth_router.patch("/users/me", response_model=DetailResponse)
 async def update_user_profile(
     request: Request,
     update_user: UpdateUserIn,
@@ -93,14 +130,19 @@ async def update_user_profile(
     }
 
 
-@auth_router.post("/logout")
-async def logout(
-    request: Request,
-    refresh_token: Annotated[str, Body()],
-) -> dict[str, str]:
-    auth_header = request.headers.get("Authorization")
-    access_token = auth_header.split()[1] if auth_header else None
+@auth_router.post("/logout", response_model=DetailResponse)
+async def logout(request: Request, response: Response) -> dict[str, str]:
+    access_token = request.cookies.get("access_token")
+    refresh_token = request.cookies.get("refresh_token")
+
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Refresh token not found")
+
     await auth_handler.handle_logout(access_token, refresh_token)
+
+    response.delete_cookie(key="access_token", samesite="lax")
+    response.delete_cookie(key="refresh_token", samesite="lax")
+
     return {"detail": "Successfully logged out"}
 
 
@@ -112,7 +154,7 @@ async def confirm_email(
     return RedirectResponse(config.CONFIRM_EMAIL_REDIRECT_URL)
 
 
-@auth_router.post("/reset-password")
+@auth_router.post("/reset-password", response_model=DetailResponse)
 async def reset_password(
     reset_token: Annotated[str, Body()],
     new_password: Annotated[str, Body(min_length=8, max_length=36)],

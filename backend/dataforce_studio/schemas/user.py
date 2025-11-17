@@ -87,6 +87,15 @@ class SignInResponse(BaseModel):
     user_id: UUID
 
 
+class SignInAPIResponse(BaseModel):
+    detail: str
+    user_id: UUID
+
+
+class DetailResponse(BaseModel):
+    detail: str
+
+
 class UpdateUserIn(BaseModel):
     password: str | None = None
     full_name: str | None = None
