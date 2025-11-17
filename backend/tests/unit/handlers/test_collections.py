@@ -1,9 +1,8 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID
+from uuid import UUID, uuid7
 
 import pytest
-import uuid6
 
 from dataforce_studio.handlers.collections import CollectionHandler
 from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
@@ -622,7 +621,7 @@ async def test_delete_collection_orbit_wrong_org(
     )
     mock_get_count.return_value = 0
 
-    mock_get_orbit_simple.return_value = Mock(organization_id=uuid6.uuid7())
+    mock_get_orbit_simple.return_value = Mock(organization_id=uuid7())
 
     with pytest.raises(NotFoundError, match="Orbit not found") as error:
         await handler.delete_collection(

@@ -1,9 +1,8 @@
 import datetime
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID
+from uuid import UUID, uuid7
 
 import pytest
-import uuid6
 from fastapi import status
 
 from dataforce_studio.handlers.deployments import DeploymentHandler
@@ -924,7 +923,7 @@ async def test_request_deployment_deletion(
         updated_at=now,
     )
     task = SatelliteQueueTask(
-        id=uuid6.uuid7(),
+        id=uuid7(),
         satellite_id=satellite_id,
         orbit_id=orbit_id,
         type=SatelliteTaskType.UNDEPLOY,

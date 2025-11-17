@@ -1,7 +1,6 @@
 import uuid
 from typing import Any
 
-import uuid6
 from sqlalchemy import UUID, CheckConstraint, ForeignKey, String, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
@@ -23,7 +22,7 @@ class DeploymentOrm(TimestampMixin, Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     orbit_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("orbits.id", ondelete="CASCADE"), nullable=False

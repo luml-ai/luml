@@ -1,9 +1,8 @@
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
-from uuid import UUID
+from uuid import UUID, uuid7
 
 import pytest
-import uuid6
 
 from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
 from dataforce_studio.infra.exceptions import (
@@ -687,8 +686,8 @@ async def test_request_delete_url_with_deployments(
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
     bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8621")
 
-    deployment1_id = uuid6.uuid7()
-    satellite_id = uuid6.uuid7()
+    deployment1_id = uuid7()
+    satellite_id = uuid7()
     now = datetime.now()
 
     model_artifact = ModelArtifactDetails(

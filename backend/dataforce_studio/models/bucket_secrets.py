@@ -1,6 +1,5 @@
 import uuid
 
-import uuid6
 from sqlalchemy import UUID, Boolean, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,7 +12,7 @@ class BucketSecretOrm(TimestampMixin, Base):
     __tablename__ = "bucket_secrets"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid6.uuid7
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
     )
     organization_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -29,10 +28,10 @@ class BucketSecretOrm(TimestampMixin, Base):
     region: Mapped[str | None] = mapped_column(String, nullable=True)
     cert_check: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
-    organization: Mapped["OrganizationOrm"] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    organization: Mapped[OrganizationOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrganizationOrm", back_populates="bucket_secrets", lazy="selectin"
     )
-    orbits: Mapped[list["OrbitOrm"]] = relationship(  # type: ignore[name-defined]  # noqa: F821
+    orbits: Mapped[list[OrbitOrm]] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm",
         back_populates="bucket_secret",
         lazy="selectin",
@@ -52,7 +51,7 @@ class BucketSecretOrm(TimestampMixin, Base):
         return data
 
     @classmethod
-    def from_bucket_secret(cls, secret: BucketSecretCreate) -> "BucketSecretOrm":
+    def from_bucket_secret(cls, secret: BucketSecretCreate) -> BucketSecretOrm:
         data = secret.model_dump()
         if secret.access_key:
             data["access_key"] = encrypt(secret.access_key)

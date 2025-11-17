@@ -1,7 +1,6 @@
 import uuid
 
 import pytest
-import uuid6
 
 from dataforce_studio.repositories.deployments import DeploymentRepository
 from dataforce_studio.schemas.deployment import (
@@ -220,7 +219,7 @@ async def test_update_deployment_details(
     details = DeploymentDetailsUpdate(
         name="my-deployment",
         description="some desc",
-        dynamic_attributes_secrets={"token": str(uuid6.uuid7())},
+        dynamic_attributes_secrets={"token": str(uuid.uuid7())},
         tags=["one", "two"],
     )
 
