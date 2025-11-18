@@ -27,12 +27,6 @@ class S3Service:
             cert_check=secret.cert_check if secret.cert_check is not None else True,
         )
 
-    def bucket_exists(self) -> bool:
-        try:
-            return self._client.bucket_exists(self._bucket_name)
-        except Exception as error:
-            raise BucketConnectionError(str(error)) from error
-
     @staticmethod
     def _calculate_optimal_chunk_size(file_size: int) -> int:
         if file_size <= 1073741824:  # 1gb
