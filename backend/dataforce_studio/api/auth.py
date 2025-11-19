@@ -2,7 +2,6 @@ from typing import Annotated, Any
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Body, Depends, Request
-from passlib.context import CryptContext
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
@@ -22,10 +21,7 @@ is_user_authenticated = UserAuthentication(["jwt"])
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
-auth_handler = AuthHandler(
-    secret_key=config.AUTH_SECRET_KEY,
-    pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto"),
-)
+auth_handler = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
 
 
 @auth_router.post("/signup", response_model=dict)
@@ -119,7 +115,7 @@ async def confirm_email(
 @auth_router.post("/reset-password")
 async def reset_password(
     reset_token: Annotated[str, Body()],
-    new_password: Annotated[str, Body(min_length=8)],
+    new_password: Annotated[str, Body(min_length=8, max_length=36)],
 ) -> dict[str, str]:
     await auth_handler.handle_reset_password(reset_token, new_password)
     return {"detail": "Password reset successfully"}

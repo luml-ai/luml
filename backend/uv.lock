@@ -282,12 +282,12 @@ source = { virtual = "." }
 dependencies = [
     { name = "alembic" },
     { name = "asyncpg" },
+    { name = "bcrypt" },
     { name = "cryptography" },
     { name = "ddtrace" },
     { name = "fastapi", extra = ["all"] },
     { name = "httpx" },
     { name = "minio" },
-    { name = "passlib", extra = ["bcrypt"] },
     { name = "pyjwt" },
     { name = "sendgrid" },
     { name = "sqlalchemy", extra = ["asyncio"] },
@@ -307,12 +307,12 @@ dev = [
 requires-dist = [
     { name = "alembic", specifier = "==1.17.1" },
     { name = "asyncpg", specifier = "==0.30.0" },
+    { name = "bcrypt", specifier = "==5.0.0" },
     { name = "cryptography", specifier = "==46.0.3" },
     { name = "ddtrace", specifier = "==3.18.1" },
     { name = "fastapi", extras = ["all"], specifier = "==0.121.2" },
     { name = "httpx", specifier = "==0.27.2" },
     { name = "minio", specifier = "==7.2.18" },
-    { name = "passlib", extras = ["bcrypt"], specifier = "==1.7.4" },
     { name = "pyjwt", specifier = "==2.10.1" },
     { name = "sendgrid", specifier = "==6.11.0" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = "==2.0.44" },
@@ -736,20 +736,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a1/d4/1fc4078c65507b51b96ca8f8c3ba19e6a61c8253c72794544580a7b6c24d/packaging-25.0.tar.gz", hash = "sha256:d443872c98d677bf60f6a1f2f8c1cb748e8fe762d2bf9d3148b5599295b0fc4f", size = 165727, upload-time = "2025-04-19T11:48:59.673Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/20/12/38679034af332785aac8774540895e234f4d07f7545804097de4b666afd8/packaging-25.0-py3-none-any.whl", hash = "sha256:29572ef2b1f17581046b3a2227d5c611fb25ec70ca1ba8554b24b0e69331a484", size = 66469, upload-time = "2025-04-19T11:48:57.875Z" },
-]
-
-[[package]]
-name = "passlib"
-version = "1.7.4"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b6/06/9da9ee59a67fae7761aab3ccc84fa4f3f33f125b370f1ccdb915bf967c11/passlib-1.7.4.tar.gz", hash = "sha256:defd50f72b65c5402ab2c573830a6978e5f202ad0d984793c8dde2c4152ebe04", size = 689844, upload-time = "2020-10-08T19:00:52.121Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/a4/ab6b7589382ca3df236e03faa71deac88cae040af60c071a78d254a62172/passlib-1.7.4-py2.py3-none-any.whl", hash = "sha256:aa6bca462b8d8bda89c70b382f0c298a20b5560af6cbfa2dce410c0a2fb669f1", size = 525554, upload-time = "2020-10-08T19:00:49.856Z" },
-]
-
-[package.optional-dependencies]
-bcrypt = [
-    { name = "bcrypt" },
 ]
 
 [[package]]

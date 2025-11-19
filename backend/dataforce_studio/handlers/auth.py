@@ -1,10 +1,10 @@
 from time import time
 from typing import Any
 
+import bcrypt
 import httpx
 import jwt
 from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
 from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
@@ -35,7 +35,6 @@ class AuthHandler:
     def __init__(
         self,
         secret_key: str,
-        pwd_context: CryptContext,
         algorithm: str = "HS256",
         access_token_expire: int = 10800,  # 3 hours
         refresh_token_expire: int = 604800,  # 7 days
@@ -44,13 +43,16 @@ class AuthHandler:
         self.algorithm = algorithm
         self.access_token_expire = access_token_expire
         self.refresh_token_expire = refresh_token_expire
-        self.pwd_context = pwd_context
 
-    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return self.pwd_context.verify(plain_password, hashed_password)
+    @staticmethod
+    def _verify_password(plain_password: str, hashed_password: str) -> bool:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
+        )
 
-    def _get_password_hash(self, password: str) -> str:
-        return self.pwd_context.hash(password)
+    @staticmethod
+    def _get_password_hash(password: str) -> str:
+        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
     async def _authenticate_user(self, email: EmailStr, password: str) -> User:
         user = await self.__user_repository.get_user(email)
@@ -60,7 +62,7 @@ class AuthHandler:
             raise AuthError("Invalid auth method", 400)
         if user.hashed_password is None:
             raise AuthError("Password is invalid", 400)
-        if not user or not self._verify_password(password, user.hashed_password):
+        if not self._verify_password(password, user.hashed_password):
             raise AuthError("Invalid email or password", 400)
         if not user.email_verified:
             raise AuthError("Email not verified", 400)

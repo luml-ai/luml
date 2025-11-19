@@ -1,4 +1,3 @@
-from passlib.context import CryptContext
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.requests import HTTPConnection
 
@@ -16,7 +15,6 @@ class JWTAuthenticationBackend(AuthenticationBackend):
     def __init__(self) -> None:
         self.auth_handler = AuthHandler(
             secret_key=config.AUTH_SECRET_KEY,
-            pwd_context=CryptContext(schemes=["bcrypt"], deprecated="auto"),
         )
         self.api_key_handler = APIKeyHandler()
         self.satellite_handler = SatelliteHandler()

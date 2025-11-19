@@ -52,6 +52,15 @@ class CreateUserIn(BaseModel):
             return value.lower().strip()
         return value
 
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if len(value) < 8 or len(value) > 36:
+            raise ValueError(
+                "Password must be at least 8 and maximum 36 characters long."
+            )
+        return value
+
     @field_validator("full_name")
     @classmethod
     def normalize_full_name(cls, value: str | None) -> str | None:
@@ -69,13 +78,6 @@ class SignInUser(BaseModel):
     def normalize_email(cls, value: str) -> str:
         if isinstance(value, str):
             return value.lower().strip()
-        return value
-
-    @field_validator("password")
-    @classmethod
-    def validate_password(cls, value: str) -> str:
-        if len(value) < 8:
-            raise ValueError("Password must be at least 8 characters long")
         return value
 
 
@@ -97,8 +99,10 @@ class UpdateUserIn(BaseModel):
         if value is None:
             return value
 
-        if len(value) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+        if len(value) < 8 or len(value) > 36:
+            raise ValueError(
+                "Password must be at least 8 and maximum 36 characters long."
+            )
         return value
 
     @field_validator("full_name")
