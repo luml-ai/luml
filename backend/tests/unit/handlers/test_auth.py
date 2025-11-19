@@ -8,7 +8,6 @@ import jwt
 import pytest
 import pytest_asyncio
 from jwt.exceptions import InvalidTokenError
-from passlib.context import CryptContext
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.exceptions import AuthError
@@ -27,11 +26,8 @@ from dataforce_studio.schemas.user import (
 
 secret_key = "test"
 algorithm = "HS256"
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-handler = AuthHandler(
-    secret_key=secret_key, algorithm=algorithm, pwd_context=pwd_context
-)
+handler = AuthHandler(secret_key=secret_key, algorithm=algorithm)
 
 
 @dataclass
@@ -66,10 +62,14 @@ def get_tokens() -> Token:
     )
 
 
-@patch("passlib.context.CryptContext.hash")
-def test_get_password_hash(patched_hash: Mock, passwords: Passwords) -> None:
+@patch("bcrypt.hashpw")
+@patch("bcrypt.gensalt")
+def test_get_password_hash(
+    mock_gensalt: Mock, mock_hashpw: Mock, passwords: Passwords
+) -> None:
     passwords_data = passwords
-    patched_hash.return_value = passwords_data.hashed_password
+    mock_gensalt.return_value = b"$2b$12$salt"
+    mock_hashpw.return_value = passwords_data.hashed_password.encode("utf-8")
 
     hashed_password_from_auth_handler = handler._get_password_hash(
         passwords_data.password
@@ -77,39 +77,41 @@ def test_get_password_hash(patched_hash: Mock, passwords: Passwords) -> None:
     assert passwords_data.hashed_password == hashed_password_from_auth_handler
 
 
-@patch("passlib.context.CryptContext.verify")
-def test_verify_password(mock_verify: Mock, passwords: Passwords) -> None:
+@patch("bcrypt.checkpw")
+def test_verify_password(mock_checkpw: Mock, passwords: Passwords) -> None:
     passwords_data = passwords
-    mock_verify.return_value = True
+    mock_checkpw.return_value = True
 
     actual = handler._verify_password(
         passwords_data.password, passwords_data.hashed_password
     )
 
     assert actual
-    mock_verify.assert_called_once_with(
-        passwords_data.password, passwords_data.hashed_password
+    mock_checkpw.assert_called_once_with(
+        passwords_data.password.encode("utf-8"),
+        passwords_data.hashed_password.encode("utf-8"),
     )
 
 
-@patch("passlib.context.CryptContext.verify")
+@patch("bcrypt.checkpw")
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user(
-    mock_get_user: AsyncMock, mock_verify: Mock, test_user: User, passwords: Passwords
+    mock_get_user: AsyncMock, mock_checkpw: Mock, test_user: User, passwords: Passwords
 ) -> None:
     passwords_data = passwords
     expected = test_user
 
-    mock_verify.return_value = True
+    mock_checkpw.return_value = True
     mock_get_user.return_value = expected
 
     actual = await handler._authenticate_user(expected.email, passwords_data.password)
 
     assert actual == expected
     mock_get_user.assert_awaited_once_with(expected.email)
-    mock_verify.assert_called_once_with(
-        passwords_data.password, expected.hashed_password
+    mock_checkpw.assert_called_once_with(
+        passwords_data.password.encode("utf-8"),
+        expected.hashed_password.encode("utf-8"),
     )
 
 
@@ -163,15 +165,15 @@ async def test_authenticate_user_password_is_invalid(
     mock_get_user.assert_awaited_once_with(expected.email)
 
 
-@patch("passlib.context.CryptContext.verify")
+@patch("bcrypt.checkpw")
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_password_not_verified(
-    mock_get_user: AsyncMock, mock_verify: Mock, test_user: User, passwords: Passwords
+    mock_get_user: AsyncMock, mock_checkpw: Mock, test_user: User, passwords: Passwords
 ) -> None:
     expected = test_user
 
-    mock_verify.return_value = False
+    mock_checkpw.return_value = False
     mock_get_user.return_value = expected
 
     with pytest.raises(AuthError, match="Invalid email or password") as error:
@@ -181,16 +183,16 @@ async def test_authenticate_user_password_not_verified(
     mock_get_user.assert_awaited_once_with(expected.email)
 
 
-@patch("passlib.context.CryptContext.verify")
+@patch("bcrypt.checkpw")
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_authenticate_user_email_not_verified(
-    mock_get_user: AsyncMock, mock_verify: Mock, test_user: User, passwords: Passwords
+    mock_get_user: AsyncMock, mock_checkpw: Mock, test_user: User, passwords: Passwords
 ) -> None:
     expected = test_user.model_copy()
     expected.email_verified = False
     mock_get_user.return_value = expected
-    mock_verify.return_value = True
+    mock_checkpw.return_value = True
 
     with pytest.raises(AuthError, match="Email not verified") as error:
         await handler._authenticate_user(expected.email, passwords.password)
@@ -242,7 +244,8 @@ def test_verify_token_invalid_jwt(mock_jwt_decode: MagicMock) -> None:
     mock_jwt_decode.assert_called_once()
 
 
-@patch("passlib.context.CryptContext.hash")
+@patch("bcrypt.hashpw")
+@patch("bcrypt.gensalt")
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @patch(
     "dataforce_studio.handlers.auth.UserRepository.create_user", new_callable=AsyncMock
@@ -256,7 +259,8 @@ async def test_handle_signup(
     mock_send_activation_email: MagicMock,
     mock_create_user: AsyncMock,
     mock_get_user: AsyncMock,
-    mock_hash: Mock,
+    mock_gensalt: Mock,
+    mock_hashpw: Mock,
     test_user_create_in: CreateUserIn,
     test_user_create: CreateUser,
     test_user: User,
@@ -265,7 +269,8 @@ async def test_handle_signup(
     create_user = test_user_create
 
     mock_get_user.return_value = None
-    mock_hash.return_value = create_user.hashed_password
+    mock_gensalt.return_value = b"$2b$12$salt"
+    mock_hashpw.return_value = create_user.hashed_password.encode("utf-8")
     mock_create_user.return_value = test_user
 
     actual = await handler.handle_signup(create_user_in)
@@ -273,7 +278,9 @@ async def test_handle_signup(
     assert actual
     assert actual["detail"] == "Please confirm your email address"
     mock_send_activation_email.assert_called_once()
-    mock_hash.assert_called_once_with(create_user_in.password)
+    mock_hashpw.assert_called_once_with(
+        create_user_in.password.encode("utf-8"), b"$2b$12$salt"
+    )
     mock_get_user.assert_awaited_once_with(create_user.email)
     mock_create_user.assert_awaited_once_with(create_user=create_user)
 
