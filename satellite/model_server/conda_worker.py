@@ -60,10 +60,16 @@ try:
         return to_jsonable(result)
 
     openapi_gen = None
+    title = None
+    description = None
+
     if model_data:
+        model_name = model_data.get("model_name", "").replace("_", " ").upper().split(".")[0]
+        title = f"{model_name}"
+        description = f"API for {model_data.get('model_name', '')} model"
         openapi_gen = OpenAPIGenerator(
-            title="Model Conda Compute Service",
-            description="Model Conda Compute Service",
+            title=title,
+            description=description,
             manifest=model_data.get("manifest"),
             dtypes_schemas=model_data.get("dtypes_schemas"),
             request_schema=model_data.get("request_schema"),
@@ -71,8 +77,8 @@ try:
         )
 
     app = UvicornService(
-        title="Model Conda Compute Service",
-        description="Model Conda Compute Service",
+        title=title or "Model Conda Compute Service",
+        description=description or "Model Conda Compute Service",
         openapi_generator=openapi_gen,
     )
 

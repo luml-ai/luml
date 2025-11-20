@@ -77,6 +77,7 @@ class DeployTask(Task):
         env: dict[str, str] = {
             "MODEL_ARTIFACT_URL": str(presigned_url),
             "DEPLOYMENT_ID": str(deployment.id),
+            "MODEL_NAME": deployment.model_artifact_name,
         }
         for key, value in secrets_env.items():
             env[key] = value
@@ -106,9 +107,6 @@ class DeployTask(Task):
         except Exception:
             return
 
-        env = await self._get_container_env(presigned_url, dep)
-        model_id = self._get_model_id_from_url(presigned_url)
-
         satellite_params = dep.satellite_parameters or {}
         health_check_timeout = satellite_params.get("health_check_timeout", 1800)
 
@@ -118,12 +116,12 @@ class DeployTask(Task):
             container_port=config.MODEL_SERVER_PORT,
             labels={
                 "df.deployment_id": dep_id,
-                "df.model_id": model_id,
+                "df.model_id": self._get_model_id_from_url(presigned_url),
             },
-            env=env,
+            env=await self._get_container_env(presigned_url, dep),
         )
 
-        inference_url = f"{config.BASE_URL.rstrip('/')}/deployments/{dep_id}/compute"
+        inference_url = f"{config.BASE_URL.rstrip('/')}/deployments/{dep_id}"
         async with ModelServerClient() as client:
             health_ok = await client.is_healthy(dep_id, timeout=int(health_check_timeout))
             await ms_handler.add_deployment(dep)

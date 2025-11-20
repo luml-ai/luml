@@ -7,6 +7,7 @@ class OpenAPIGenerator:
         title: str = "Model API",
         version: str = "0.1.0",
         description: str = "model api",
+        *,
         manifest: dict | None = None,
         dtypes_schemas: dict | None = None,
         request_schema: dict | None = None,
@@ -20,10 +21,16 @@ class OpenAPIGenerator:
         self.request_schema = request_schema
         self.response_schema = response_schema
 
-    @staticmethod
-    def _inject_dtype_schemas(openapi_schema: dict, dtypes_schemas: dict) -> None:
+    def _inject_dtype_schemas(self, openapi_schema: dict, dtypes_schemas: dict) -> None:
         for dtype_name, schema in dtypes_schemas.items():
-            openapi_schema["components"]["schemas"][dtype_name] = schema
+            schema_copy = schema.copy()
+            if "$defs" in schema_copy:
+                for def_name, def_schema in schema_copy["$defs"].items():
+                    transformed_def = self._transform_refs(def_schema.copy())
+                    openapi_schema["components"]["schemas"][def_name] = transformed_def
+                del schema_copy["$defs"]
+            transformed_schema = self._transform_refs(schema_copy)
+            openapi_schema["components"]["schemas"][dtype_name] = transformed_schema
 
     @staticmethod
     def _update_input_references(

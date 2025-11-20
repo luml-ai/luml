@@ -141,11 +141,6 @@ class ModelServerHandler:
         local_dep = await self.get_deployment(deployment_id)
         schema = local_dep.openapi_schema
 
-        if "paths" in schema and "/compute" in schema["paths"]:
-            compute_endpoint = schema["paths"].pop("/compute")
-            new_path = f"{{base_url}}/deployments/{deployment_id}/compute"
-            schema["paths"][new_path] = compute_endpoint
-
         if local_dep and local_dep.dynamic_attributes_secrets:
             dyna_props = (
                 schema.get("components", {})

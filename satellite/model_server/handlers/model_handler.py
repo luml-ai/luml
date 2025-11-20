@@ -50,6 +50,7 @@ class ModelHandler:
     @log_success("Model data for worker generated successfully.")
     def _get_model_data_for_worker(self) -> dict[str, Any]:
         return {
+            "model_name": os.getenv("MODEL_NAME", ""),
             "manifest": self._get_manifest(),
             "dtypes_schemas": self._load_dtypes_schemas(),
             "request_schema": self._get_request_model(),
