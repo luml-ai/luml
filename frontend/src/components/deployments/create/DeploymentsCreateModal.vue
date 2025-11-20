@@ -38,8 +38,10 @@
           v-model:secret-envs="initialValues.secretEnvs"
           v-model:not-secret-envs="initialValues.notSecretEnvs"
           v-model:custom-variables="initialValues.customVariables"
+          @model-changed="onModelChanged"
         ></DeploymentsFormModelSettings>
         <DeploymentsFormSatelliteSettings
+          :selected-model="selectedModel"
           v-model:satellite-id="initialValues.satelliteId"
           v-model:fields="initialValues.satelliteFields"
         ></DeploymentsFormSatelliteSettings>
@@ -64,6 +66,7 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsFormModelSettings from '../form/DeploymentsFormModelSettings.vue'
 import DeploymentsFormSatelliteSettings from '../form/DeploymentsFormSatelliteSettings.vue'
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 
 type Props = {
   initialCollectionId?: string
@@ -80,7 +83,7 @@ const visible = defineModel<boolean>('visible')
 
 const formRef = ref<any>()
 const loading = ref(false)
-
+const selectedModel = ref<MlModel | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
 
 const isFormValid = computed(() => formRef.value?.valid)
@@ -147,6 +150,10 @@ function fieldsToRecord<T extends string | number>(
     },
     {} as Record<string, T>,
   )
+}
+
+function onModelChanged(model: MlModel | null) {
+  selectedModel.value = model
 }
 
 watch(visible, (val) => {

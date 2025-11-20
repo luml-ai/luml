@@ -49,6 +49,9 @@ export interface SatelliteCapabilities {
 export interface CapabilitiesDeploy {
   inputs: string[]
   max_concurrency: number
+  version: number
+  supported_variants: string[]
+  supported_tags_combinations: string[][] | null
 }
 
 export interface SatelliteTask {

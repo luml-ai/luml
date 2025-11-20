@@ -10,7 +10,7 @@
           name="satelliteId"
           placeholder="Select satellite"
           fluid
-          :options="satellitesStore.satellitesList"
+          :options="filteredSatellites"
           option-label="name"
           option-value="id"
         >
@@ -51,6 +51,7 @@
 <script setup lang="ts">
 import type { FieldInfo } from '../deployments.interfaces'
 import type { Satellite } from '@/lib/api/satellites/interfaces'
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
@@ -59,6 +60,12 @@ import { computed, onBeforeMount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { FormField } from '@primevue/forms'
 import { Rocket } from 'lucide-vue-next'
+
+type Props = {
+  selectedModel: MlModel | null
+}
+
+const props = defineProps<Props>()
 
 const satellitesStore = useSatellitesStore()
 const route = useRoute()
@@ -73,6 +80,22 @@ const currentSatellite = computed(() => {
     (satellite) => satellite.id === satelliteId.value,
   )
   return satellite || null
+})
+
+const filteredSatellites = computed(() => {
+  const model = props.selectedModel
+  if (!model) return []
+  return satellitesStore.satellitesList
+    .filter((satellite) => !!satellite.capabilities.deploy)
+    .filter((satellite) => {
+      return !!satellite.capabilities.deploy?.supported_variants?.includes(model.manifest.variant)
+    })
+    .filter((satellite) => {
+      if (!satellite.capabilities.deploy?.supported_tags_combinations) return true
+      return !!satellite.capabilities.deploy.supported_tags_combinations.find((combination) => {
+        return combination.every((tag) => model.tags.includes(tag))
+      })
+    })
 })
 
 async function getSatellites() {
