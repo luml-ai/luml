@@ -5,6 +5,7 @@
     :model="model"
     :current-tag="currentTag"
     :model-id="modelId"
+    @finish="$emit('exit')"
   />
   <div v-else class="placeholder">
     <h2 class="title">Incorrect model</h2>

@@ -17,9 +17,7 @@
           </template>
         </Button>
       </div>
-      <Button asChild v-slot="slotProps">
-        <RouterLink :to="{ name: 'home' }" :class="slotProps.class">finish</RouterLink>
-      </Button>
+      <Button label="finish" @click="$emit('finish')" />
     </div>
     <provider-settings
       v-if="openedProvider"
@@ -48,7 +46,12 @@ type Props = {
   providerId: ProvidersEnum
 }
 
+type Emits = {
+  finish: void
+}
+
 const props = defineProps<Props>()
+defineEmits<Emits>()
 
 const providers = ref(getProviders())
 const openedProvider = ref<BaseProviderInfo | null>(null)

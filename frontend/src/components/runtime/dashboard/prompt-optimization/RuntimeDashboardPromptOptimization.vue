@@ -1,8 +1,6 @@
 <template>
   <div class="body">
-    <RuntimeDashboardPromptOptimizationHeader
-      :provider-id="providerId"
-    ></RuntimeDashboardPromptOptimizationHeader>
+    <RuntimeDashboardPromptOptimizationHeader :provider-id="providerId" @finish="$emit('finish')" />
     <div class="content-area">
       <PresentationArea
         v-if="initialNodes && initialEdges"
@@ -48,11 +46,16 @@ type Props = {
   modelId: string
 }
 
+type Emits = {
+  finish: void
+}
+
 interface MetadataItem extends MetaEntry {
   provider: ProvidersEnum
 }
 
 const props = defineProps<Props>()
+defineEmits<Emits>()
 
 const providerConnected = ref(false)
 const initialNodes = ref<PromptNode[] | null>(null)
