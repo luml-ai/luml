@@ -30,7 +30,7 @@
                 ></Rocket>
               </div>
               <div v-if="option.errorMessage" class="option-message">
-                <Info :size="12" /> {{ option.errorMessage }}
+                <Info :size="12" class="option-message-icon" /> {{ option.errorMessage }}
               </div>
             </div>
           </template>
@@ -168,8 +168,9 @@ const satellitesGroups = computed(() => {
 })
 
 function getSatelliteErrorMessage(variantValid: boolean, tagsValid: boolean) {
-  if (!variantValid) return 'This satellite is not supported for this model variant.'
-  if (!tagsValid) return 'This satellite is not supported for this model tags'
+  if (!variantValid) return 'The satellite does not support this model variant'
+  if (!tagsValid)
+    return 'The model does not contain a combination of tags required by the satellite'
   return null
 }
 
@@ -336,5 +337,9 @@ onBeforeMount(() => {
   align-items: center;
   gap: 4px;
   padding-top: 2px;
+}
+
+.option-message-icon {
+  flex: 0 0 auto;
 }
 </style>
