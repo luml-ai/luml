@@ -210,6 +210,7 @@ import { useCollectionsStore } from '@/stores/collections'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from './model/CollectionModelEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
+import { FnnxService } from '@/lib/fnnx/FnnxService'
 
 export interface SelectedModel
   extends Pick<
@@ -263,9 +264,18 @@ const downloadButtonDisabled = computed(() => !selectedModels.value.length)
 
 const compareButtonDisabled = computed(() => {
   if (selectedModels.value.length < 2) return true
-  return selectedModels.value.some((model) => model.status !== MlModelStatusEnum.uploaded)
+  const hasInvalidStatus = selectedModels.value.some(
+    (model) => model.status !== MlModelStatusEnum.uploaded,
+  )
+  if (hasInvalidStatus) return true
+  const hasAllExperimentSnapshots = selectedModels.value.every((selectedModel) => {
+    const fullModel = modelsStore.modelsList.find((m) => m.id === selectedModel.id)
+    if (!fullModel) return false
+    const archiveName = FnnxService.findExperimentSnapshotArchiveName(fullModel.file_index)
+    return !!archiveName
+  })
+  return !hasAllExperimentSnapshots
 })
-
 async function confirmDelete() {
   const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
   loading.value = true
