@@ -26,6 +26,20 @@ class SatelliteManager:
     def _generate_form_spec() -> list[dict[str, Any]]:
         return [
             {
+                "name": "custom_inference_url",
+                "type": "text",
+                "values": None,
+                "required": False,
+                "validators": [
+                    {
+                        "type": "regex",
+                        "value": r"^https?://.*",
+                        "message": "Your deployment custom base url. ",
+                    }
+                ],
+                "conditions": [],
+            },
+            {
                 "name": "use_gpu",
                 "type": "boolean",
                 "values": None,
