@@ -11,7 +11,7 @@
       :current-tag="currentTag"
       :model="getModel as Model"
       :model-id="modelId"
-      @exit="currentStep = 1"
+      @exit="exit"
     />
   </div>
 </template>
@@ -26,6 +26,10 @@ import { useFnnxModel } from '@/hooks/useFnnxModel'
 const { currentTag, getModel, modelId, createModelFromFile, removeModel, deinit } = useFnnxModel()
 
 const currentStep = ref(1)
+
+function exit() {
+  currentStep.value = 1
+}
 
 onUnmounted(() => {
   deinit()

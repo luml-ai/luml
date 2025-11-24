@@ -2,7 +2,7 @@
   <div class="wrapper">
     <header class="header">
       <h1 class="title">Runtime</h1>
-      <d-button label="finish" @click="$router.push({ name: 'home' })" />
+      <d-button label="finish" @click="$emit('finish')" />
     </header>
     <div class="board">
       <div class="card">
@@ -62,7 +62,12 @@ type Props = {
   currentTag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM
 }
 
+type Emits = {
+  finish: void
+}
+
 const props = defineProps<Props>()
+defineEmits<Emits>()
 
 const predictType = ref<'Manual' | 'Upload file'>('Manual')
 const metrics = ref<TabularMetrics | null>(null)
