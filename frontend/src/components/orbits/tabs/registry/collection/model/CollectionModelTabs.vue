@@ -19,12 +19,13 @@
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { LayoutDashboard, FolderDot, ScanEye } from 'lucide-vue-next'
+import { LayoutDashboard, FolderDot, ScanEye, Folders } from 'lucide-vue-next'
 import { computed } from 'vue'
 
 type Props = {
   showModelCard: boolean
   showExperimentSnapshot: boolean
+  showModelAttachments: boolean
 }
 
 const tabsListPT = {
@@ -52,6 +53,12 @@ const items = computed(() => [
     routeName: 'model-snapshot',
     icon: ScanEye,
     disabled: !props.showExperimentSnapshot,
+  },
+  {
+    label: 'Model attachments',
+    routeName: 'model-attachments',
+    icon: Folders,
+    disabled: !props.showModelAttachments,
   },
 ])
 </script>

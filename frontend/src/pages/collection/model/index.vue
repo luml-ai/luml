@@ -4,9 +4,12 @@
     <CollectionModelTabs
       :show-model-card="isModelCardAvailable"
       :show-experiment-snapshot="isExperimentSnapshotCardAvailable"
+      :show-model-attachments="isModelAttachmentsAvailable"
     ></CollectionModelTabs>
     <div class="view-wrapper">
-      <RouterView></RouterView>
+      <RouterView v-slot="{ Component }">
+        <component :is="Component" :model="currentModel" />
+      </RouterView>
     </div>
   </div>
 </template>
@@ -37,6 +40,16 @@ const isExperimentSnapshotCardAvailable = computed(() => {
   if (!currentModel.value) return false
   const fileIndex = currentModel.value.file_index
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
+})
+
+const isModelAttachmentsAvailable = computed(() => {
+  if (!currentModel.value) return false
+  const fileIndex = currentModel.value.file_index
+  if (!fileIndex) return false
+  const hasExtraFiles = Object.keys(fileIndex).some((path) =>
+    path.startsWith('variant_artifacts/extra_files/'),
+  )
+  return hasExtraFiles
 })
 
 onUnmounted(() => {
