@@ -3,15 +3,15 @@
     <div class="table-wrapper">
       <TableView
         v-if="viewValues?.length"
-        :columnsCount="getAllColumnNames.length"
+        :columnsCount="actualColumnsCount"
         :rowsCount="viewValues.length"
         :allColumns="getAllColumnNames"
         :value="viewValues"
-        :selectedColumns="getAllColumnNames"
+        :selectedColumns="selectedColumns"
         :exportCallback="handleExport"
         :columnTypes="columnTypes"
         :showColumnHeaderMenu="false"
-        @edit="() => {}"
+        @edit="handleEditColumns"
         @setTarget="() => {}"
         @changeGroup="() => {}"
         @changeFilters="() => {}"
@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import { watch } from 'vue'
+import { watch, computed } from 'vue'
 import TableView from '@/components/table-view/index.vue'
 import { useDataTable } from '@/hooks/useDataTable'
 
@@ -33,11 +33,15 @@ const props = defineProps<{
 const {
   viewValues,
   getAllColumnNames,
+  columnsCount,
+  selectedColumns,
   columnTypes,
-
   onSelectFile,
   downloadCSV,
+  setSelectedColumns,
 } = useDataTable(() => ({ size: false, rows: false, columns: false }))
+
+const actualColumnsCount = computed(() => columnsCount.value ?? getAllColumnNames.value.length)
 
 const loadTable = async () => {
   if (!props.contentBlob) return
@@ -47,6 +51,10 @@ const loadTable = async () => {
 
 const handleExport = () => {
   downloadCSV()
+}
+
+const handleEditColumns = (columns: string[]) => {
+  setSelectedColumns(columns)
 }
 
 watch(() => props.contentBlob, loadTable, { immediate: true })

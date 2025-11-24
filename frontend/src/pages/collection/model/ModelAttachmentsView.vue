@@ -72,6 +72,6 @@ function handleSelect(node: AttachmentNode) {
 .attachments-wrapper {
   display: flex;
   gap: 16px;
-  height: calc(100vh - 200px);
+  height: calc(100vh - 320px);
 }
 </style>

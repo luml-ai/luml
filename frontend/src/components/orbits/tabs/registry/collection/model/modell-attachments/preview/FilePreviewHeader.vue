@@ -10,11 +10,11 @@
       <div class="file-path-row">
         <span class="file-path">{{ filePath }}</span>
         <div class="file-path-actions">
-          <span class="icon-wrapper" v-tooltip.top="'Copy path'">
-            <Copy class="icon-btn" @click="$emit('copy-path')" />
+          <span class="icon-wrapper" v-tooltip.top="'Copy path'" @click="$emit('copy-path')">
+            <Copy class="icon-btn" />
           </span>
-          <span class="icon-wrapper" v-tooltip.top="'Download'">
-            <Download class="icon-btn" @click="$emit('download')" />
+          <span class="icon-wrapper" v-tooltip.top="'Download'" @click="$emit('download')">
+            <Download class="icon-btn" />
           </span>
         </div>
       </div>
@@ -95,7 +95,6 @@ defineEmits<{
   width: 20px;
   height: 20px;
   color: var(--p-form-field-float-label-color);
-  pointer-events: none;
 }
 
 .icon-wrapper:hover .icon-btn {

@@ -46,6 +46,7 @@
       <CodePreview
         v-else-if="(fileType === 'text' || fileType === 'code') && textContent"
         :text-content="textContent"
+        :file-name="fileName"
       />
     </div>
   </div>
