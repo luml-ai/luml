@@ -22,13 +22,20 @@ import { onUnmounted, ref } from 'vue'
 import UploadData from '@/components/runtime/UploadData.vue'
 import RuntimeDashboard from '@/components/runtime/dashboard/RuntimeDashboard.vue'
 import { useFnnxModel } from '@/hooks/useFnnxModel'
+import { leavePageConfirmOptions } from '@/lib/primevue/data/confirm'
+import { useConfirm } from 'primevue/useconfirm'
 
+const confirm = useConfirm()
 const { currentTag, getModel, modelId, createModelFromFile, removeModel, deinit } = useFnnxModel()
 
 const currentStep = ref(1)
 
 function exit() {
-  currentStep.value = 1
+  confirm.require(
+    leavePageConfirmOptions(() => {
+      currentStep.value = 1
+    }),
+  )
 }
 
 onUnmounted(() => {

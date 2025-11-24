@@ -13,9 +13,7 @@
 
 <script setup lang="ts">
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
-import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
 import { ArrowLeft, LogOut } from 'lucide-vue-next'
-import { useConfirm } from 'primevue'
 import { useRoute, useRouter } from 'vue-router'
 
 type Emits = {
@@ -26,7 +24,6 @@ const emit = defineEmits<Emits>()
 
 const route = useRoute()
 const router = useRouter()
-const confirm = useConfirm()
 
 function onBackClick() {
   if (route.params.mode === 'data-driven') {
@@ -36,11 +33,8 @@ function onBackClick() {
   }
 }
 function onFinishClick() {
-  const accept = async () => {
-    AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
-    router.push({ name: 'home' })
-  }
-  confirm.require(dashboardFinishConfirmOptions(accept))
+  AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'prompt_optimization' })
+  router.push({ name: 'home' })
 }
 </script>
 

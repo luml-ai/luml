@@ -23,6 +23,8 @@ import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useVueFlow, type GraphNode } from '@vue-flow/core'
 import { promptFusionService } from '@/lib/promt-fusion/PromptFusionService'
 import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'
+import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
+import { leavePageConfirmOptions } from '@/lib/primevue/data/confirm'
 import PresentationArea from '@/components/express-tasks/prompt-fusion/step-main/PresentationArea.vue'
 import Sidebar from '@/components/express-tasks/prompt-fusion/step-main/sidebar/index.vue'
 import Navigation from '@/components/express-tasks/prompt-fusion/step-main/Navigation.vue'
@@ -42,6 +44,8 @@ defineProps<Props>()
 defineEmits<Emits>()
 
 const { onNodeClick, onPaneClick } = useVueFlow()
+
+const { setGuard } = useRouteLeaveConfirm(leavePageConfirmOptions(() => {}))
 
 const activeNode = ref<GraphNode | null>(null)
 const isTrainingActive = ref(false)
@@ -66,6 +70,7 @@ onPaneClick(() => {
 
 onBeforeMount(() => {
   promptFusionService.on('CHANGE_TRAINING_STATE', onChangeTrainingState)
+  setGuard(true)
 })
 onBeforeUnmount(() => {
   promptFusionService.off('CHANGE_TRAINING_STATE', onChangeTrainingState)

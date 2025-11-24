@@ -15,10 +15,14 @@
 
 <script setup lang="ts">
 import type { Model } from '@fnnx/web'
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import TabularTask from './tabular/index.vue'
 import RuntimeDashboardPromptOptimization from './prompt-optimization/RuntimeDashboardPromptOptimization.vue'
+import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
+import { leavePageConfirmOptions } from '@/lib/primevue/data/confirm'
+
+const { setGuard } = useRouteLeaveConfirm(leavePageConfirmOptions(() => {}))
 
 type Props = {
   currentTag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM
@@ -45,6 +49,14 @@ const component = computed(() => {
   }
   return null
 })
+
+watch(
+  component,
+  (value) => {
+    setGuard(!!value)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

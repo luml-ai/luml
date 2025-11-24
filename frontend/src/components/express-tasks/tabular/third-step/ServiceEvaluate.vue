@@ -82,8 +82,6 @@ import { computed, onBeforeMount, ref } from 'vue'
 import { WandSparkles, Info, LogOut } from 'lucide-vue-next'
 import { getBarOptions } from '@/lib/apex-charts/apex-charts'
 import { table } from 'arquero'
-import { useConfirm } from 'primevue/useconfirm'
-import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useRouter } from 'vue-router'
 import DetailedTable from './DetailedTable.vue'
 import PredictContent from '@/components/predict/index.vue'
@@ -111,7 +109,6 @@ type Props = {
 const props = defineProps<Props>()
 
 const router = useRouter()
-const confirm = useConfirm()
 const organizationStore = useOrganizationStore()
 
 const modelUploadVisible = ref(false)
@@ -174,10 +171,7 @@ const finishConfirm = () => {
   if (props.currentTask) {
     AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: taskName.value })
   }
-  const accept = async () => {
-    router.push({ name: 'home' })
-  }
-  confirm.require(dashboardFinishConfirmOptions(accept))
+  router.push({ name: 'home' })
 }
 
 onBeforeMount(() => {

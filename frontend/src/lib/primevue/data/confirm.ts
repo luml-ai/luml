@@ -171,3 +171,16 @@ export const deleteSecretConfirmation: ConfirmationOptions = {
     variant: 'outlined',
   },
 }
+
+export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'Are you sure you want to leave this page?',
+  header: 'Are you sure?',
+  rejectProps: {
+    label: 'cancel',
+    outlined: true,
+  },
+  acceptProps: {
+    label: 'leave',
+  },
+  accept,
+})

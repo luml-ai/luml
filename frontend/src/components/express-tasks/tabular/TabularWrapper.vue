@@ -1,5 +1,9 @@
 <template>
-  <Stepper :value="currentStep" class="stepper" @update:value="(step) => (currentStep = step)">
+  <Stepper
+    :value="currentStep"
+    class="stepper"
+    @update:value="(step: number) => (currentStep = step)"
+  >
     <StepList>
       <Step
         v-for="step in steps"
@@ -83,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Tasks } from '@/lib/data-processing/interfaces'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useModelTraining } from '@/hooks/useModelTraining'
@@ -98,14 +102,20 @@ import UploadData from '../../ui/UploadData.vue'
 import ServiceEvaluate from './third-step/ServiceEvaluate.vue'
 import TableView from '@/components/table-view/index.vue'
 import UiTraining from '@/components/ui/UiTraining.vue'
+import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
+import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
+
+type Step = {
+  id: number
+  text: string
+}
 
 type TProps = {
-  steps: {
-    id: number
-    text: string
-  }[]
+  steps: Step[]
   task: Tasks
 }
+
+const { setGuard } = useRouteLeaveConfirm(dashboardFinishConfirmOptions(() => {}))
 
 const props = defineProps<TProps>()
 
@@ -178,7 +188,6 @@ const getPredictionFields = computed(() => {
 async function startTraining() {
   const data = getDataForTraining()
   const target = getTarget.value
-  // const groups = getGroup.value
   const task = props.task
   await startModelTraining({ data, target, task })
 
@@ -186,6 +195,14 @@ async function startTraining() {
     currentStep.value = 3
   }
 }
+
+watch(
+  currentStep,
+  (value) => {
+    setGuard(value === 3)
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
