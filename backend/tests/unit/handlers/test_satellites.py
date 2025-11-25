@@ -373,46 +373,6 @@ async def test_pair_satellite_satellite_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.satellites.SatelliteRepository.get_satellite",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
-async def test_pair_satellite_capabilities_error(
-    mock_get_satellite: AsyncMock,
-) -> None:
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
-
-    base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: None
-    }
-    initial_capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "test"}
-    }
-
-    initial_satellite = Satellite(
-        id=satellite_id,
-        orbit_id=orbit_id,
-        name="test-satellite",
-        base_url=None,
-        paired=True,
-        capabilities=initial_capabilities,
-        created_at=datetime.datetime.now(),
-        updated_at=None,
-        last_seen_at=None,
-    )
-
-    mock_get_satellite.return_value = initial_satellite
-
-    with pytest.raises(ApplicationError, match="Satellite already paired") as error:
-        await handler.pair_satellite(satellite_id, base_url, capabilities)
-
-    assert error.value.status_code == 409
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
-
-
-@patch(
     "dataforce_studio.handlers.satellites.SatelliteRepository.pair_satellite",
     new_callable=AsyncMock,
 )

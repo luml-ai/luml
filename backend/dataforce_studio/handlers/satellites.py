@@ -199,10 +199,6 @@ class SatelliteHandler:
             raise NotFoundError("Satellite not found")
 
         if satellite.paired:
-            if satellite.capabilities != capabilities:
-                raise ApplicationError(
-                    "Satellite already paired", status.HTTP_409_CONFLICT
-                )
             return satellite
 
         updated_satellite = await self.__sat_repo.pair_satellite(

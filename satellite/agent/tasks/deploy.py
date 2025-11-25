@@ -108,6 +108,10 @@ class DeployTask(Task):
 
         env = await self._get_container_env(presigned_url, dep)
         model_id = self._get_model_id_from_url(presigned_url)
+
+        satellite_params = dep.satellite_parameters or {}
+        health_check_timeout = satellite_params.get("health_check_timeout", 1800)
+
         container = await self.docker.run_model_container(
             image=config.MODEL_IMAGE,
             name=f"sat-{dep_id}",
@@ -121,7 +125,7 @@ class DeployTask(Task):
 
         inference_url = f"{config.BASE_URL.rstrip('/')}/deployments/{dep_id}/compute"
         async with ModelServerClient() as client:
-            health_ok = await client.is_healthy(dep_id)
+            health_ok = await client.is_healthy(dep_id, timeout=int(health_check_timeout))
             await ms_handler.add_deployment(dep)
             schemas = await ms_handler.get_deployment_schemas(dep_id)
 
