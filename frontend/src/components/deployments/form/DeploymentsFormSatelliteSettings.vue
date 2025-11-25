@@ -160,7 +160,7 @@ const satellitesGroups = computed(() => {
   }
   if (disabled.length > 0) {
     groups.push({
-      label: 'Not supported satellites',
+      label: 'Incompatible satellites',
       items: disabled,
     })
   }
