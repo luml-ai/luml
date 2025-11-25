@@ -30,6 +30,7 @@ select = [
     "E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"
 ]
 ignore = [
+    "ANN101",
     "ANN002", # *args
     "ANN003", # **kwargs
 ]
