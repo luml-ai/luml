@@ -82,7 +82,7 @@ export const useBucketsStore = defineStore('buckets', () => {
         throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
       }
 
-      if (rangeResponse.status !== 206) {
+      if (rangeResponse.status !== 206 && rangeResponse.status !== 200) {
         throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
       }
     } catch (err) {
