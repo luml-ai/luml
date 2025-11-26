@@ -96,16 +96,7 @@
       </Column>
       <Column>
         <template #body="{ data }">
-          <Button
-            v-if="
-              ![DeploymentStatusEnum.deleted, DeploymentStatusEnum.deletion_pending].includes(
-                data.status,
-              )
-            "
-            severity="secondary"
-            variant="text"
-            @click="onSettingsClick(data)"
-          >
+          <Button severity="secondary" variant="text" @click="onSettingsClick(data)">
             <template #icon>
               <Bolt :size="14"></Bolt>
             </template>
