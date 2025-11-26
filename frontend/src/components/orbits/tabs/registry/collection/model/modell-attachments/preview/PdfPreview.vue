@@ -1,6 +1,6 @@
 <template>
   <div class="content-pdf">
-<iframe :src="props.contentUrl" frameborder="0"></iframe>
+    <iframe :src="props.contentUrl" frameborder="0"></iframe>
   </div>
 </template>
 

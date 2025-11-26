@@ -86,11 +86,11 @@ const props = defineProps<{
 const modelsStore = useModelsStore()
 
 const { error, contentUrl, textContent, contentBlob, downloadFile, previewState } = useFilePreview({
-    file: toRef(() => props.file),
-    fileIndex: toRef(() => props.fileIndex),
-    modelId: toRef(() => props.modelId),
-    getDownloadUrl: (modelId: string) => modelsStore.getDownloadUrl(modelId),
-  })
+  file: toRef(() => props.file),
+  fileIndex: toRef(() => props.fileIndex),
+  modelId: toRef(() => props.modelId),
+  getDownloadUrl: (modelId: string) => modelsStore.getDownloadUrl(modelId),
+})
 
 const fileName = computed(() => props.file?.name || '')
 const fileSize = computed(() => props.file?.size || 0)
