@@ -1,14 +1,13 @@
 <template>
   <div class="content-image">
-    <img :src="contentUrl" :alt="fileName" />
+    <img :src="props.contentUrl" :alt="props.fileName" />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  contentUrl: string
-  fileName: string
-}>()
+import type { ImagePreviewProps } from '../attachments.interfaces'
+
+const props = defineProps<ImagePreviewProps>()
 </script>
 
 <style scoped>

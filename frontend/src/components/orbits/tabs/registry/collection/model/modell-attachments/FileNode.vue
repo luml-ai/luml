@@ -1,17 +1,22 @@
 <template>
   <li>
-    <div class="node" :class="{ selected: selected?.path === node.path }" @click.stop="handleClick">
-      <ChevronDown v-if="node.type === 'folder'" :class="{ rotated: toggle }" class="arrow-icon" />
+    <div class="node" :class="{ selected: isSelected }" @click.stop="handleClick">
+      <ChevronDown
+        v-if="node.type === 'folder'"
+        :class="{ rotated: isExpanded }"
+        class="arrow-icon"
+      />
       <component :is="fileIcon" class="node-icon" />
       <span class="node-name">{{ node.name }}</span>
     </div>
-    <ul v-if="node.type === 'folder' && toggle">
+
+    <ul v-if="node.type === 'folder' && isExpanded">
       <FileNode
         v-for="child in node.children"
         :key="child.path || child.name"
         :node="child"
         :selected="selected"
-        @select="$emit('select', $event)"
+        @select="handleSelect"
       />
     </ul>
   </li>
@@ -19,6 +24,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import type { Component } from 'vue'
 import {
   Folder,
   File,
@@ -26,21 +32,32 @@ import {
   FileMusic,
   FileVideo,
   FileImage,
-  ChevronDown,
   FileCode,
+  ChevronDown,
 } from 'lucide-vue-next'
 import { getFileType } from './utils/fileTypes'
+import type { FileNodeProps, FileNodeEmits } from './attachments.interfaces'
+import type { FileNode as FileNodeType } from '@/components/orbits/tabs/registry/collection/model/modell-attachments/attachments.interfaces'
 
-const props = defineProps<{ node: any; selected: any }>()
-const emit = defineEmits<{ (e: 'select', node: any): void }>()
+const props = defineProps<FileNodeProps>()
+const emit = defineEmits<FileNodeEmits>()
 
-const toggle = ref(false)
+const isExpanded = ref(false)
 
-const fileIcon = computed(() => {
-  if (props.node.type === 'folder') return Folder
+const isSelected = computed(() => {
+  return props.selected?.path === props.node.path
+})
+
+const fileIcon = computed((): Component => {
+  if (props.node.type === 'folder') {
+    return Folder
+  }
+
   const fileType = getFileType(props.node.name)
+
   switch (fileType) {
     case 'image':
+    case 'svg':
       return FileImage
     case 'audio':
       return FileMusic
@@ -49,11 +66,9 @@ const fileIcon = computed(() => {
     case 'pdf':
       return FileText
     case 'text':
-      return FileText
-    case 'code':
-      return FileCode
     case 'table':
       return FileText
+    case 'code':
     case 'html':
       return FileCode
     default:
@@ -61,12 +76,16 @@ const fileIcon = computed(() => {
   }
 })
 
-function handleClick() {
+function handleClick(): void {
   if (props.node.type === 'file') {
     emit('select', props.node)
   } else {
-    toggle.value = !toggle.value
+    isExpanded.value = !isExpanded.value
   }
+}
+
+function handleSelect(node: FileNodeType): void {
+  emit('select', node)
 }
 </script>
 

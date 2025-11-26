@@ -26,16 +26,10 @@
 import { Copy, Download } from 'lucide-vue-next'
 import { formatFileSize } from '../utils/fileTypes'
 
-defineProps<{
-  fileName: string
-  fileSize?: number
-  filePath: string
-}>()
+import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../attachments.interfaces'
 
-defineEmits<{
-  (e: 'copy-path'): void
-  (e: 'download'): void
-}>()
+const props = defineProps<FilePreviewHeaderProps>()
+const emit = defineEmits<FilePreviewHeaderEmits>()
 </script>
 
 <style scoped>

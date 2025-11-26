@@ -24,11 +24,9 @@
 import { watch, computed } from 'vue'
 import TableView from '@/components/table-view/index.vue'
 import { useDataTable } from '@/hooks/useDataTable'
+import type { TablePreviewProps } from '../attachments.interfaces'
 
-const props = defineProps<{
-  contentBlob: Blob
-  fileName: string
-}>()
+const props = defineProps<TablePreviewProps>()
 
 const {
   viewValues,

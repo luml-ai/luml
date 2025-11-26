@@ -15,15 +15,16 @@
 <script setup lang="ts">
 import TreeNode from './FileNode.vue'
 import { defineProps, defineEmits } from 'vue'
+import type { FileNode, FileNodeEmits } from './attachments.interfaces'
 
 const props = defineProps<{
-  tree: any[]
-  selected: any
+  tree: FileNode[]
+  selected: FileNode | null
 }>()
 
-const emit = defineEmits<{ (e: 'select', node: any): void }>()
+const emit = defineEmits<FileNodeEmits>()
 
-function onSelect(node: any) {
+function onSelect(node: FileNode) {
   emit('select', node)
 }
 </script>

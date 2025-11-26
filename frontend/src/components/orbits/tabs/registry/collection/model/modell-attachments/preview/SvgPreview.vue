@@ -1,18 +1,22 @@
 <template>
   <div class="svg-preview">
     <div class="svg-container">
-      <object :data="contentUrl" type="image/svg+xml" class="svg-object" :aria-label="fileName">
-        <img :src="contentUrl" :alt="fileName" class="svg-fallback" />
+      <object
+        :data="props.contentUrl"
+        type="image/svg+xml"
+        class="svg-object"
+        :aria-label="props.fileName"
+      >
+        <img :src="props.contentUrl" :alt="props.fileName" class="svg-fallback" />
       </object>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  contentUrl: string
-  fileName: string
-}>()
+import type { SvgPreviewProps } from '../attachments.interfaces'
+
+const props = defineProps<SvgPreviewProps>()
 </script>
 
 <style scoped></style>

@@ -1,25 +1,23 @@
 <template>
   <div class="content-pdf">
-    <iframe v-if="contentUrl" :src="contentUrl" frameborder="0"></iframe>
+<iframe :src="props.contentUrl" frameborder="0"></iframe>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  contentUrl: string
-}>()
+import type { PdfPreviewProps } from '../attachments.interfaces'
+
+const props = defineProps<PdfPreviewProps>()
 </script>
 
 <style scoped>
 .content-pdf {
   flex: 1;
   height: 100%;
-  min-height: 600px;
 }
 
 .content-pdf iframe {
   width: 100%;
   height: 100%;
-  min-height: 600px;
 }
 </style>

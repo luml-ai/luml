@@ -5,21 +5,21 @@
       <span class="mt-2">Loading...</span>
     </div>
 
-    <div v-else-if="errorMessage === 'too-big'" class="state-text">
-      <p>This file is too big for preview.</p>
-    </div>
-
-    <div v-else-if="state === 'error'" class="content">
-      <BadgeX width="48" height="48" class="icon error" />
-      <div class="title">{{ errorMessage }}</div>
-    </div>
-
     <div v-else-if="state === 'unsupported'" class="state-text">
       <p>This format is not supported for preview.</p>
     </div>
 
+    <div v-else-if="state === 'too-big'" class="state-text">
+      <p>This file is too big for preview.</p>
+    </div>
+
     <div v-else-if="state === 'empty'" class="state-text">
       <p>This attachment is empty.</p>
+    </div>
+
+    <div v-else-if="state === 'error'" class="content">
+      <BadgeX width="48" height="48" class="icon error" />
+      <div class="title">{{ errorMessage || 'Unknown error' }}</div>
     </div>
   </div>
 </template>
@@ -28,10 +28,9 @@
 import ProgressSpinner from 'primevue/progressspinner'
 import { BadgeX } from 'lucide-vue-next'
 
-defineProps<{
-  state: 'loading' | 'error' | 'unsupported' | 'too-big' | 'empty'
-  errorMessage?: string
-}>()
+import type { PreviewStatesProps } from './../attachments.interfaces'
+
+const props = defineProps<PreviewStatesProps>()
 </script>
 
 <style scoped>

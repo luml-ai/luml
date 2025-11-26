@@ -1,8 +1,7 @@
 <template>
   <div class="content-code">
     <div v-if="isMarkdown" class="markdown-body" v-html="markdownText"></div>
-
-    <pre v-else><code>{{ textContent }}</code></pre>
+    <pre v-else><code>{{ props.textContent }}</code></pre>
   </div>
 </template>
 
@@ -12,10 +11,9 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import 'github-markdown-css/github-markdown.css'
 
-const props = defineProps<{
-  textContent: string
-  fileName?: string
-}>()
+import type { CodePreviewProps } from '../attachments.interfaces'
+
+const props = defineProps<CodePreviewProps>()
 
 const isMarkdown = computed(() => {
   return props.fileName?.toLowerCase().endsWith('.md')
@@ -50,5 +48,13 @@ const markdownText = computed(() => {
 .markdown-body {
   background-color: transparent;
   color: var(--p-text-color);
+}
+
+.markdown-body :deep(tr) {
+  background-color: transparent !important;
+}
+
+.markdown-body :deep(th:empty) {
+  display: none !important;
 }
 </style>

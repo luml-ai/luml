@@ -10,8 +10,8 @@
 
     <div class="preview-body">
       <PreviewStates
-        v-if="isLoading || error || (!fileType && selectedFile)"
-        :state="isLoading ? 'loading' : error ? 'error' : 'unsupported'"
+        v-if="previewState"
+        :state="previewState"
         :error-message="error || undefined"
       />
 
@@ -70,18 +70,12 @@ import SvgPreview from './preview/SvgPreview.vue'
 
 import { useToast } from 'primevue'
 import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import type { FileNode } from './attachments.interfaces'
 
 const toast = useToast()
 
-interface AttachmentNode {
-  name: string
-  path?: string
-  type: 'file' | 'folder'
-  size?: number
-}
-
 const props = defineProps<{
-  file: AttachmentNode | null
+  file: FileNode | null
   fileIndex: Record<string, [number, number]>
   organizationId: string
   orbitId: string
@@ -91,14 +85,13 @@ const props = defineProps<{
 
 const modelsStore = useModelsStore()
 
-const { isLoading, error, contentUrl, textContent, contentBlob, downloadFile } = useFilePreview({
-  file: toRef(() => props.file),
-  fileIndex: toRef(() => props.fileIndex),
-  modelId: toRef(() => props.modelId),
-  getDownloadUrl: (modelId: string) => modelsStore.getDownloadUrl(modelId),
-})
+const { error, contentUrl, textContent, contentBlob, downloadFile, previewState } = useFilePreview({
+    file: toRef(() => props.file),
+    fileIndex: toRef(() => props.fileIndex),
+    modelId: toRef(() => props.modelId),
+    getDownloadUrl: (modelId: string) => modelsStore.getDownloadUrl(modelId),
+  })
 
-const selectedFile = computed(() => props.file)
 const fileName = computed(() => props.file?.name || '')
 const fileSize = computed(() => props.file?.size || 0)
 const fileType = computed(() => (props.file ? getFileType(props.file.name) : null))

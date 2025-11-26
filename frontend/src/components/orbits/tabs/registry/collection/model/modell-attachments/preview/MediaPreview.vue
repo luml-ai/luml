@@ -1,15 +1,13 @@
 <template>
-  <div class="content-media" :class="`content-${type}`">
-    <audio v-if="type === 'audio' && contentUrl" controls :src="contentUrl"></audio>
-    <video v-if="type === 'video' && contentUrl" controls :src="contentUrl"></video>
+  <div class="content-media" :class="`content-${props.type}`">
+    <audio v-if="props.type === 'audio'" controls :src="props.contentUrl"></audio>
+    <video v-else-if="props.type === 'video'" controls :src="props.contentUrl"></video>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  type: 'audio' | 'video'
-  contentUrl: string
-}>()
+import type { MediaPreviewProps } from '../attachments.interfaces'
+const props = defineProps<MediaPreviewProps>()
 </script>
 
 <style scoped>

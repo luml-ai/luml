@@ -1,25 +1,26 @@
 <template>
   <div class="content-html">
-    <iframe v-if="contentUrl" :src="contentUrl" sandbox="allow-same-origin"></iframe>
+    <iframe :src="props.contentUrl" sandbox="allow-same-origin"></iframe>
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  contentUrl: string
-}>()
+import type { HtmlPreviewProps } from '../attachments.interfaces'
+
+const props = defineProps<HtmlPreviewProps>()
 </script>
 
 <style scoped>
 .content-html {
   flex: 1;
   height: 100%;
+  overflow: hidden;
 }
 
 .content-html iframe {
   width: 100%;
-  min-height: 600px;
-  height: calc(100vh - 310px);
+  height: 100%;
+  min-height: 0;
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
   border-radius: 8px;
