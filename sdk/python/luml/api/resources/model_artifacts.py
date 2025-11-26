@@ -3,8 +3,13 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from .._exceptions import FileError, FileUploadError
-from .._types import ModelArtifact, ModelArtifactStatus, is_uuid
+from .._exceptions import DataForceAPIError, FileError, FileUploadError
+from .._types import (
+    CreatedModel,
+    ModelArtifact,
+    ModelArtifactStatus,
+    is_uuid,
+)
 from .._utils import find_by_value
 from ..utils.file_handler import FileHandler
 from ..utils.model_artifacts import ModelFileHandler
@@ -91,8 +96,8 @@ class ModelArtifactResourceBase(ABC):
         description: str | None = None,
         tags: builtins.list[str] | None = None,
     ) -> (
-        dict[str, str | ModelArtifact]
-        | Coroutine[Any, Any, dict[str, str | ModelArtifact]]
+        dict[str, str | CreatedModel]
+        | Coroutine[Any, Any, dict[str, str | CreatedModel]]
     ):
         raise NotImplementedError()
 
@@ -414,10 +419,10 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         model_details = ModelFileHandler(file_path).model_details()
 
         file_format = model_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "luml"]:
+        if file_format not in ["fnnx", "pyfnx", "dfs"]:
             raise FileError("File format error")
 
-        created_model = self.create(
+        created_model_data = self.create(
             file_name=model_details.file_name,
             metrics=model_details.metrics,
             manifest=model_details.manifest,
@@ -429,13 +434,39 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             tags=tags,
             collection_id=collection_id,
         )
+        model = created_model_data.model
+
         try:
-            response = file_handler.upload_file_with_progress(
-                urls=created_model["url"],
-                file_size=model_details.size,
-                file_path=file_path,
-                object_name=model_details.file_name,
-            )
+            upload_details = created_model_data.upload_details
+
+            if upload_details.multipart:
+                upload_id = file_handler.initiate_multipart_upload(upload_details.url)
+
+                if not upload_id:
+                    raise DataForceAPIError("Failed to initiate multipart upload")
+
+                multipart_urls = self._client.bucket_secrets.get_multipart_upload_urls(
+                    upload_details.bucket_secret_id,
+                    upload_details.bucket_location,
+                    model_details.size,
+                    upload_id,
+                )
+
+                response = file_handler.upload_multipart(
+                    parts=multipart_urls.parts,
+                    complete_url=multipart_urls.complete_url,
+                    file_size=model.size,
+                    file_path=file_path,
+                    file_name=model.file_name,
+                )
+            else:
+                response = file_handler.upload_simple_file_with_progress(
+                    url=upload_details.url,
+                    file_path=file_path,
+                    file_size=model.size,
+                    file_name=model.file_name,
+                )
+
             status = (
                 ModelArtifactStatus.UPLOADED
                 if response.status_code == 200
@@ -443,14 +474,14 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             )
         except FileUploadError as error:
             self.update(
-                model_id=created_model["model"].id,
+                model_id=model.id,
                 status=ModelArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
             raise error
 
         return self.update(
-            model_id=created_model["model"].id,
+            model_id=model.id,
             status=status,
             collection_id=collection_id,
         )
@@ -516,7 +547,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         file_handler.download_file_with_progress(
             url=download_url,
             file_path=file_path,
-            description=f'Downloading model id="{model_id}"...',
+            file_name=f'model id="{model_id}"',
         )
 
     @validate_collection
@@ -532,7 +563,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
         model_name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
-    ) -> dict[str, str | ModelArtifact]:
+    ) -> CreatedModel:
         """Create new model artifact record with upload URL.
 
         Creates a model artifact record and returns an upload URL for file storage.
@@ -574,8 +605,8 @@ class ModelArtifactResource(ModelArtifactResourceBase):
             size=1048576,
             model_name="Test Model"
         )
-        upload_url = result["url"]
-        model = result["model"]
+        upload_url = result.url
+        model = result.model
         ```
         """
         response = self._client.post(
@@ -592,10 +623,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 "tags": tags,
             },
         )
-        return {
-            "url": response["url"],
-            "model": ModelArtifact.model_validate(response["model"]),
-        }
+        return CreatedModel.model_validate(response)
 
     @validate_collection
     def update(
@@ -741,12 +769,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             model_by_name = await luml.model_artifacts.get("my_model")
             model_by_id = await luml.model_artifacts.get(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67"
@@ -812,12 +841,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             models = await luml.model_artifacts.list()
         ```
 
@@ -873,12 +903,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+           await  luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             url_info = await luml.model_artifacts.download_url(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67"
             )
@@ -916,12 +947,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             url_info = await luml.model_artifacts.delete_url(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67"
             )
@@ -944,7 +976,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         model_name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
-    ) -> dict[str, str | ModelArtifact]:
+    ) -> CreatedModel:
         """
         Create new model artifact record with upload URL.
 
@@ -975,12 +1007,14 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
+
             result = await luml.model_artifacts.create(
                 file_name="model.fnnx",
                 metrics={"accuracy": 0.95},
@@ -990,6 +1024,27 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 size=1048576,
                 model_name="Test Model"
             )
+        ```
+
+
+        Response object:
+        ```python
+            CreatedModel(
+                model=ModelArtifact(
+                     id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+                     model_name="Production Model",
+                     file_name="model.fnnx",
+                     description="Trained on latest dataset",
+                     collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                     status=ModelArtifactStatus.UPLOADED,
+                     tags=["ml", "production"],
+                     created_at='2025-01-15T10:30:00.123456Z',
+                     updated_at='2025-01-15T10:35:00.123456Z'),
+                upload_details=UploadDetails(
+                    url=" https://luml-models.s3.eu-north-1.amazonaws.com/my_llm_attachaments.pyfnx",
+                    multipart=False,
+                    bucket_location="my_llm_attachaments.pyfnx",
+                    bucket_secret_id="0199c455-21ee-74c6-b747-19a82f1a1873"))
         ```
         """
         response = await self._client.post(
@@ -1007,10 +1062,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             },
         )
 
-        return {
-            "url": response["url"],
-            "model": ModelArtifact.model_validate(response["model"]),
-        }
+        return CreatedModel.model_validate(response)
 
     @validate_collection
     async def upload(
@@ -1051,12 +1103,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             model = await luml.model_artifacts.upload(
                 file_path="/path/to/model.fnnx",
                 model_name="Production Model",
@@ -1068,29 +1121,31 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
 
         Response object:
         ```python
-        ModelArtifact(
-            id="0199c455-21ee-74c6-b747-19a82f1a1e67",
-            model_name="Production Model",
-            file_name="model.fnnx",
-            description="Trained on latest dataset",
-            collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            status=ModelArtifactStatus.UPLOADED,
-            tags=["ml", "production"],
-            created_at='2025-01-15T10:30:00.123456Z',
-            updated_at='2025-01-15T10:35:00.123456Z'
-        )
+            CreatedModel(
+                model=ModelArtifact(
+                     id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+                     model_name="Production Model",
+                     file_name="model.fnnx",
+                     description="Trained on latest dataset",
+                     collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                     status=ModelArtifactStatus.UPLOADED,
+                     tags=["ml", "production"],
+                     created_at='2025-01-15T10:30:00.123456Z',
+                     updated_at='2025-01-15T10:35:00.123456Z'),
+                upload_details=UploadDetails(
+                    url=" https://luml-models.s3.eu-north-1.amazonaws.com/my_llm_attachaments.pyfnx",
+                    multipart=False,
+                    bucket_location="my_llm_attachaments.pyfnx",
+                    bucket_secret_id="0199c455-21ee-74c6-b747-19a82f1a1873"))
         ```
         """
         model_details = ModelFileHandler(file_path).model_details()
 
-        if model_details.size > 5368709120:
-            raise FileError("Maximum allowed model size - 5GB")
-
         file_format = model_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "luml"]:
+        if file_format not in ["fnnx", "pyfnx", "dfs"]:
             raise FileError("File format error")
 
-        created_model = await self.create(
+        created_model_data = await self.create(
             file_name=model_details.file_name,
             metrics=model_details.metrics,
             manifest=model_details.manifest,
@@ -1102,13 +1157,40 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             tags=tags,
             collection_id=collection_id,
         )
+        model = created_model_data.model
         try:
-            response = file_handler.upload_simple_file_with_progress(
-                url=created_model["url"],
-                file_path=file_path,
-                file_size=model_details.size,
-                description=f'"Uploading model "{model_name}"..."',
-            )
+            upload_details = created_model_data.upload_details
+
+            if upload_details.multipart:
+                upload_id = file_handler.initiate_multipart_upload(upload_details.url)
+
+                if not upload_id:
+                    raise DataForceAPIError("Failed to initiate multipart upload")
+
+                multipart_urls = (
+                    await self._client.bucket_secrets.get_multipart_upload_urls(
+                        upload_details.bucket_secret_id,
+                        upload_details.bucket_location,
+                        model.size,
+                        upload_id,
+                    )
+                )
+
+                response = file_handler.upload_multipart(
+                    parts=multipart_urls.parts,
+                    complete_url=multipart_urls.complete_url,
+                    file_size=model.size,
+                    file_path=file_path,
+                    file_name=model.file_name,
+                )
+            else:
+                response = file_handler.upload_simple_file_with_progress(
+                    url=upload_details.url,
+                    file_path=file_path,
+                    file_size=model.size,
+                    file_name=model.file_name,
+                )
+
             status = (
                 ModelArtifactStatus.UPLOADED
                 if response.status_code == 200
@@ -1116,15 +1198,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
             )
         except FileUploadError as error:
             await self.update(
-                created_model["model"].id,
+                model.id,
                 status=ModelArtifactStatus.UPLOAD_FAILED,
                 collection_id=collection_id,
             )
             raise error
 
-        return await self.update(
-            created_model["model"].id, status=status, collection_id=collection_id
-        )
+        return await self.update(model.id, status=status, collection_id=collection_id)
 
     @validate_collection
     async def download(
@@ -1160,12 +1240,14 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
+
             # Download with original filename
             await luml.model_artifacts.download(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67"
@@ -1195,7 +1277,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         file_handler.download_file_with_progress(
             url=download_url,
             file_path=file_path,
-            description=f'Downloading model id="{model_id}"...',
+            file_name=f'with model id="{model_id}"',
         )
 
     @validate_collection
@@ -1239,12 +1321,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             model = await luml.model_artifacts.update(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67",
                 model_name="Updated Model",
@@ -1292,12 +1375,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             await luml.model_artifacts.delete(
                 "0199c455-21ee-74c6-b747-19a82f1a1e67"
             )

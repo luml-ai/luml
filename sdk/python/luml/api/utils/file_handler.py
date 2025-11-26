@@ -1,10 +1,14 @@
 from collections.abc import Callable, Generator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
+from xml.etree import ElementTree as ET
 
 import httpx
 
-from .._exceptions import FileDownloadError, FileUploadError
+from .._exceptions import DataForceAPIError, FileDownloadError, FileUploadError
+from .._types import (
+    PartDetails,
+)
 
 
 class FileHandler:
@@ -26,7 +30,7 @@ class FileHandler:
 
     @staticmethod
     def create_progress_bar(
-        total_size: int, description: str = ""
+        total_size: int, file_name: str = ""
     ) -> Callable[[int], None]:
         uploaded = 0
         description_shown = False
@@ -35,8 +39,8 @@ class FileHandler:
             nonlocal uploaded, description_shown
             uploaded += chunk_size
 
-            if not description_shown and description:
-                print(f"{description}")  # noqa: T201
+            if not description_shown and file_name:
+                print(f'Uploading file "{file_name}"...')  # noqa: T201
                 description_shown = True
 
             if total_size > 0:
@@ -78,11 +82,11 @@ class FileHandler:
         url: str,
         file_path: str,
         file_size: int,
-        description: str = "",
+        file_name: str = "",
         headers: dict | None = None,
     ) -> httpx.Response:
         try:
-            update_progress = self.create_progress_bar(file_size, description)
+            update_progress = self.create_progress_bar(file_size, file_name)
 
             timeout = httpx.Timeout(connect=30.0, read=300.0, write=600.0, pool=30.0)
 
@@ -103,7 +107,7 @@ class FileHandler:
             raise FileUploadError(f"Upload failed: {error}") from error
 
     def download_file_with_progress(
-        self, url: str, file_path: str, description: str = ""
+        self, url: str, file_path: str, file_name: str = ""
     ) -> str:
         try:
             timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
@@ -112,7 +116,7 @@ class FileHandler:
                 response.raise_for_status()
 
                 total_size = int(response.headers.get("content-length", 0))
-                update_progress = self.create_progress_bar(total_size, description)
+                update_progress = self.create_progress_bar(total_size, file_name)
 
                 chunk_size = self._calculate_optimal_chunk_size(total_size)
 
@@ -154,21 +158,21 @@ class FileHandler:
 
     @staticmethod
     def _upload_single_part(
-        part: dict,
+        part: PartDetails,
         file_path: str,
         progress_lock: Lock,
         update_progress: Callable[[int], None],
     ) -> dict[str, int | str]:
-        part_size = part["end_byte"] - part["start_byte"] + 1
+        part_size = part.end_byte - part.start_byte + 1
 
         with open(file_path, "rb") as f:
-            f.seek(part["start_byte"])
+            f.seek(part.start_byte)
             part_data = f.read(part_size)
             actual_size = len(part_data)
 
         with httpx.Client(timeout=300) as client:
             response = client.put(
-                part["url"],
+                part.url,
                 content=part_data,
                 headers={"Content-Length": str(actual_size)},
             )
@@ -178,19 +182,19 @@ class FileHandler:
         with progress_lock:
             update_progress(actual_size)
 
-        return {"part_number": part["part_number"], "etag": etag}
+        return {"part_number": part.part_number, "etag": etag}
 
-    def upload_file_with_backend_multipart(
+    def upload_multipart(
         self,
+        parts: list[PartDetails],
+        complete_url: str,
         file_size: int,
-        multipart_data: dict,
         file_path: str,
-        description: str = "",
+        file_name: str = "",
         max_workers: int = 5,
     ) -> httpx.Response:
         try:
-            update_progress = self.create_progress_bar(file_size, description)
-            parts = multipart_data["parts"]
+            update_progress = self.create_progress_bar(file_size, file_name)
             parts_complete = []
             progress_lock = Lock()
 
@@ -209,27 +213,29 @@ class FileHandler:
                 for future in as_completed(future_to_part):
                     part_result = future.result()
                     parts_complete.append(part_result)
-            return self._complete_multipart_upload(
-                multipart_data["complete_url"], parts_complete
-            )
+            return self._complete_multipart_upload(complete_url, parts_complete)
 
         except Exception as error:
             raise FileUploadError(f"Multipart upload failed: {error}") from error
 
-    def upload_file_with_progress(
-        self,
-        urls: dict,
-        file_size: int,
-        file_path: str,
-        object_name: str = "",
-    ) -> httpx.Response:
-        if len(urls["parts"]) > 1:
-            return self.upload_file_with_backend_multipart(
-                file_size, urls, file_path, f'Uploading model "{object_name}"...'
-            )
-        return self.upload_simple_file_with_progress(
-            urls["parts"][0]["url"],
-            file_path,
-            file_size,
-            f'Uploading model "{object_name}"...',
-        )
+    @staticmethod
+    def initiate_multipart_upload(initiate_url: str) -> str | None:
+        try:
+            with httpx.Client(timeout=300) as client:
+                response = client.post(initiate_url)
+                response.raise_for_status()
+
+                root = ET.fromstring(response.content)
+
+                upload_id = root.find(
+                    ".//{http://s3.amazonaws.com/doc/2006-03-01/}UploadId"
+                )
+                if upload_id is None:
+                    raise DataForceAPIError("UploadId not found in S3 response")
+
+                return upload_id.text
+
+        except Exception as error:
+            raise DataForceAPIError(
+                f"Failed to initiate multipart upload: {error}"
+            ) from error

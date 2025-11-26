@@ -174,7 +174,7 @@ class ModelArtifactHandler:
         )
 
         return CreateModelArtifactResponse(
-            model=created_model_artifact, url=upload_data
+            model=created_model_artifact, upload_details=upload_data
         )
 
     async def update_model_artifact(

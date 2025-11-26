@@ -40,26 +40,3 @@ def validate_collection(func: Callable[..., Any]) -> Callable[..., Any]:
         return result
 
     return wrapper
-
-
-def validate_organization(func: Callable[..., Any]) -> Callable[..., Any]:
-    @wraps(func)
-    def wrapper(
-        self: Any,  # noqa: ANN401
-        *args: Any,  # noqa: ANN401
-        **kwargs: Any,  # noqa: ANN401
-    ) -> Any:  # noqa: ANN401
-        organization_value = kwargs.get("organization_value")
-
-        if organization_value is None and not self._client.organization:
-            raise ConfigurationError(
-                "organization_id must be provided or default organization must be set"
-            )
-
-        kwargs["organization_value"] = organization_value or self._client.organization
-        result = func(self, *args, **kwargs)
-        if asyncio.iscoroutine(result):
-            return result
-        return result
-
-    return wrapper

@@ -95,3 +95,42 @@ class ModelDetails(BaseModel):
     file_hash: str
     file_index: dict[str, tuple[int, int]]
     size: int
+
+
+class MultipartUploadInfo(BaseModel):
+    upload_id: str
+    parts_count: int
+    part_size: int
+
+
+class PartDetails(BaseModel):
+    part_number: int
+    url: str
+    start_byte: int
+    end_byte: int
+    part_size: int
+
+
+class UploadDetails(BaseModel):
+    url: str
+    multipart: bool = False
+    bucket_location: str
+    bucket_secret_id: str
+
+
+class MultiPartUploadDetails(BaseModel):
+    upload_id: str
+    parts: list[PartDetails]
+    complete_url: str
+
+
+class BucketMultipartUpload(BaseModel):
+    bucket_id: str
+    bucket_location: str
+    size: int
+    upload_id: str
+
+
+class CreatedModel(BaseModel):
+    upload_details: UploadDetails
+    model: ModelArtifact

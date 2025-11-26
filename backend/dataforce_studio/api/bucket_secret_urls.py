@@ -7,6 +7,10 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretUrls,
 )
+from dataforce_studio.schemas.storage import (
+    BucketMultipartUpload,
+    MultiPartUploadDetails,
+)
 
 bucket_secret_urls_router = APIRouter(
     prefix="/bucket-secrets",
@@ -24,3 +28,14 @@ async def get_bucket_secret_connection_urls(
     secret: BucketSecretCreateIn,
 ) -> BucketSecretUrls:
     return await bucket_secret_handler.generate_bucket_urls(secret)
+
+
+@bucket_secret_urls_router.post(
+    "/upload/multipart",
+    responses=endpoint_responses,
+    response_model=MultiPartUploadDetails,
+)
+async def get_bucket_multipart_urls(
+    data: BucketMultipartUpload,
+) -> MultiPartUploadDetails:
+    return await bucket_secret_handler.get_bucket_multipart_urls(data)

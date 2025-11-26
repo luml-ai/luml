@@ -86,7 +86,12 @@ def test_model_artifact_create(
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
     mock_sync_client.post.return_value = {
-        "url": "https://example.com/upload",
+        "upload_details": {
+            "url": "https://example.com/upload",
+            "multipart": False,
+            "bucket_location": "test/location",
+            "bucket_secret_id": "0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+        },
         "model": sample_model_artifact.model_dump(),
     }
 
@@ -118,8 +123,8 @@ def test_model_artifact_create(
         json=expected_json,
     )
 
-    assert artifact["url"]
-    assert artifact["model"].file_name == expected_json["file_name"]
+    assert artifact.upload_details.url == "https://example.com/upload"
+    assert artifact.model.file_name == expected_json["file_name"]
 
 
 def test_model_artifact_update(
@@ -272,7 +277,12 @@ async def test_async_model_artifact_create(
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
     mock_async_client.post.return_value = {
-        "url": "https://example.com/upload",
+        "upload_details": {
+            "url": "https://example.com/upload",
+            "multipart": False,
+            "bucket_location": "test/location",
+            "bucket_secret_id": "0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+        },
         "model": sample_model_artifact.model_dump(),
     }
 
@@ -303,8 +313,8 @@ async def test_async_model_artifact_create(
         f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/model_artifacts",
         json=expected_json,
     )
-    assert artifact["url"]
-    assert artifact["model"].file_name == expected_json["file_name"]
+    assert artifact.upload_details.url == "https://example.com/upload"
+    assert artifact.model.file_name == expected_json["file_name"]
 
 
 @pytest.mark.asyncio

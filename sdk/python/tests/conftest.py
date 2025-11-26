@@ -6,7 +6,7 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from luml.api import AsyncLumlClient, LumlClient
+from luml.api._client import AsyncLumlClient, LumlClient
 from luml.api._types import (
     BucketSecret,
     Collection,

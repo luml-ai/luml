@@ -90,7 +90,7 @@ def test_orbit_list_none_response(mock_sync_client: Mock) -> None:
 
 def test_orbit_delete(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
-    orbit_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
+    orbit_id = "019acaac-a0fe-72c8-b51c-43ea970bd0f7"
     mock_sync_client.delete.return_value = None
 
     resource = OrbitResource(mock_sync_client)
@@ -142,7 +142,7 @@ async def test_async_orbit_get_by_id(
     mock_async_client: AsyncMock, sample_orbit: Orbit
 ) -> None:
     organization_id = mock_async_client.organization
-    orbit_id = mock_async_client.orbit
+    orbit_id = sample_orbit.id
     mock_async_client.get.return_value = sample_orbit
 
     resource = AsyncOrbitResource(mock_async_client)

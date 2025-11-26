@@ -2,7 +2,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from .._types import BucketSecret, is_uuid
+from .._types import (
+    BucketSecret,
+    MultiPartUploadDetails,
+    is_uuid,
+)
 from .._utils import find_by_value
 
 if TYPE_CHECKING:
@@ -371,6 +375,58 @@ class BucketSecretResource(BucketSecretResourceBase):
             f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
 
+    def get_multipart_upload_urls(
+        self, bucket_id: str, bucket_location: str, size: int, upload_id: str
+    ) -> MultiPartUploadDetails:
+        """
+        Get presigned URLs for multipart upload parts.
+
+        After initiating a multipart upload and receiving an upload_id,
+        use this method to get presigned URLs for uploading each part.
+
+        Args:
+            bucket_id: ID of the bucket secret.
+            bucket_location: Location/path in the bucket.
+            size: Total file size in bytes.
+            upload_id: Upload ID received from multipart initiation.
+
+        Returns:
+            MultiPartUploadDetails with parts URLs and complete URL.
+
+
+        Example:
+            ```python
+            luml = AsyncDataForceClient(api_key="luml_your_key")
+
+            async def main():
+                await luml.setup_config(
+                    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                    collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+
+                bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+                bucket_location = "orbit-0199c455-21ed-7aba-9fe5-5231611220de/
+                collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+
+                multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
+                        bucket_secret_id,
+                        bucket_location,
+                        3874658765,
+                        "some_upload_id")
+            ```
+        """
+
+        response = self._client.post(
+            "/bucket-secrets/upload/multipart",
+            json={
+                "bucket_id": bucket_id,
+                "bucket_location": bucket_location,
+                "size": size,
+                "upload_id": upload_id,
+            },
+        )
+        return MultiPartUploadDetails.model_validate(response)
+
 
 class AsyncBucketSecretResource(BucketSecretResourceBase):
     """Resource for managing Bucket Secrets for async client."""
@@ -402,12 +458,13 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                 organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                 orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                 collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             bucket_by_name = await luml.bucket_secrets.get("default-bucket")
             bucket_by_id = await luml.bucket_secrets.get(
                 "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
@@ -454,12 +511,13 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             secrets = await luml.bucket_secrets.list()
         ```
 
@@ -486,6 +544,57 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         if response is None:
             return []
         return [BucketSecret.model_validate(secret) for secret in response]
+
+    async def get_multipart_upload_urls(
+        self, bucket_id: str, bucket_location: str, size: int, upload_id: str
+    ) -> MultiPartUploadDetails:
+        """
+        Get presigned URLs for multipart upload parts.
+
+        After initiating a multipart upload and receiving an upload_id,
+        use this method to get presigned URLs for uploading each part.
+
+        Args:
+            bucket_id: ID of the bucket secret.
+            bucket_location: Location/path in the bucket.
+            size: Total file size in bytes.
+            upload_id: Upload ID received from multipart initiation.
+
+        Returns:
+            MultiPartUploadDetails with parts URLs and complete URL.
+
+
+        Example:
+            ```python
+            luml = AsyncDataForceClient(api_key="luml_your_key")
+
+            async def main():
+                await luml.setup_config(
+                    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                    collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+
+                bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+                bucket_location = "orbit-0199c455-21ed-7aba-9fe5-5231611220de/
+                collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+
+                multipart_data = await luml.bucket_secrets.get_multipart_upload_urls(
+                        bucket_secret_id,
+                        bucket_location,
+                        3874658765,
+                        "some_upload_id")
+            ```
+        """
+        response = await self._client.post(
+            "/bucket-secrets/upload/multipart",
+            json={
+                "bucket_id": bucket_id,
+                "bucket_location": bucket_location,
+                "size": size,
+                "upload_id": upload_id,
+            },
+        )
+        return MultiPartUploadDetails.model_validate(response)
 
     async def create(
         self,
@@ -521,12 +630,13 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+             )
             bucket_secret = await luml.bucket_secrets.create(
                 endpoint="s3.amazonaws.com",
                 bucket_name="my-data-bucket",
@@ -606,12 +716,13 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             bucket_secret = await luml.bucket_secrets.update(
                 id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
                 endpoint="s3.amazonaws.com",
@@ -672,12 +783,13 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-        )
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
             await luml.bucket_secrets.delete(
                 "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
             )

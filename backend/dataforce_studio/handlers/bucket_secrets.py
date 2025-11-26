@@ -18,6 +18,10 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretUrls,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
+from dataforce_studio.schemas.storage import (
+    BucketMultipartUpload,
+    MultiPartUploadDetails,
+)
 from dataforce_studio.services.s3_service import S3Service
 
 
@@ -132,3 +136,17 @@ class BucketSecretHandler:
         s3_secret = original_secret.update_from_partial(secret)
 
         return await self.generate_bucket_urls(s3_secret)
+
+    async def get_bucket_multipart_urls(
+        self, data: BucketMultipartUpload
+    ) -> MultiPartUploadDetails:
+        secret = await self.__secret_repository.get_bucket_secret(data.bucket_id)
+
+        if not secret:
+            raise NotFoundError("Secret not found")
+
+        s3_service = S3Service(secret)
+
+        return await s3_service.create_multipart_upload(
+            data.bucket_location, data.size, data.upload_id
+        )

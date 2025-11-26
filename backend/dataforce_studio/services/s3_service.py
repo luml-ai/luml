@@ -1,16 +1,23 @@
 import math
 from datetime import timedelta
+from uuid import UUID
 
 from minio import Minio
 
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES, USE_MULTIPART_BYTES
 from dataforce_studio.infra.exceptions import BucketConnectionError
 from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCreateIn
-from dataforce_studio.schemas.s3 import MultipartUploadInfo, PartDetails, UploadDetails
+from dataforce_studio.schemas.storage import (
+    MultiPartUploadDetails,
+    MultipartUploadInfo,
+    PartDetails,
+    UploadDetails,
+)
 
 
 class S3Service:
     def __init__(self, secret: BucketSecret | BucketSecretCreateIn) -> None:
+        self._bucket_id: UUID | None = getattr(secret, "id", None)
         self._bucket_name = secret.bucket_name
         self._client = self._create_minio_client(secret)
         self._url_expire = 12  # hours
@@ -48,6 +55,20 @@ class S3Service:
         parts_count = math.ceil(file_size / part_size)
 
         return parts_count, part_size
+
+    async def get_initiate_multipart_url(self, object_name: str) -> str:
+        try:
+            return self._client.get_presigned_url(
+                "POST",
+                bucket_name=self._bucket_name,
+                object_name=object_name,
+                expires=timedelta(hours=self._url_expire),
+                extra_query_params={"uploads": ""},
+            )
+        except Exception as error:
+            raise BucketConnectionError(
+                f"Failed to generate initiate URL: {error}"
+            ) from error
 
     def _initiate_multipart_upload(
         self, object_name: str, file_size: int
@@ -157,45 +178,38 @@ class S3Service:
         except Exception as error:
             raise BucketConnectionError("Failed to generate delete URL.") from error
 
-    async def create_single_upload(
-        self, bucket_location: str, size: int
-    ) -> UploadDetails:
-        url = await self.get_upload_url(bucket_location)
-        return UploadDetails(
-            upload_id=None,
-            parts=[
-                PartDetails(
-                    part_number=1,
-                    url=url,
-                    start_byte=0,
-                    end_byte=size,
-                    part_size=size,
-                )
-            ],
-            complete_url=None,
-        )
-
     async def create_multipart_upload(
-        self, bucket_location: str, size: int
-    ) -> UploadDetails:
-        multipart_info = self._initiate_multipart_upload(bucket_location, size)
+        self, bucket_location: str, size: int, upload_id: str
+    ) -> MultiPartUploadDetails:
+        parts_count, part_size = self._calculate_multipart_params(size)
+
         urls = await self._get_multipart_upload_urls(
-            bucket_location, multipart_info.upload_id, multipart_info.parts_count
+            bucket_location, upload_id, parts_count
         )
-        return UploadDetails(
-            upload_id=multipart_info.upload_id,
-            parts=self._parts_upload_details(urls, size, multipart_info.part_size),
-            complete_url=await self.get_complete_url(
-                bucket_location, multipart_info.upload_id
-            ),
+        return MultiPartUploadDetails(
+            upload_id=upload_id,
+            parts=self._parts_upload_details(urls, size, part_size),
+            complete_url=await self.get_complete_url(bucket_location, upload_id),
         )
 
     async def create_upload(self, bucket_location: str, size: int) -> UploadDetails:
+        if self._bucket_id is None:
+            raise ValueError("Bucket secret ID is required for creating upload URLs")
+
         if size > MAX_FILE_SIZE_BYTES:
             raise ValueError(
                 f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
             )
 
         if self._should_use_multipart(size):
-            return await self.create_multipart_upload(bucket_location, size)
-        return await self.create_single_upload(bucket_location, size)
+            return UploadDetails(
+                url=await self.get_initiate_multipart_url(bucket_location),
+                multipart=True,
+                bucket_location=bucket_location,
+                bucket_secret_id=self._bucket_id,
+            )
+        return UploadDetails(
+            url=await self.get_upload_url(bucket_location),
+            bucket_location=bucket_location,
+            bucket_secret_id=self._bucket_id,
+        )

@@ -2,7 +2,7 @@ import httpx
 import pytest
 from respx import MockRouter
 
-from luml.api import AsyncLumlClient, LumlClient
+from luml.api._client import AsyncLumlClient, LumlClient
 from luml.api._exceptions import NotFoundError
 from tests.conftest import TEST_API_KEY, TEST_BASE_URL
 
@@ -44,12 +44,12 @@ def test_organization_validation_multiple_orgs_no_default(
             200,
             json=[
                 {
-                    "id": "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d",
+                    "id": "0199c455-21ec-7c74-8efe-41470e29bae1",
                     "name": "Org 1",
                     "created_at": "2024-01-01T00:00:00Z",
                 },
                 {
-                    "id": "1236640f-fec6-478d-8772-90eb531cc727",
+                    "id": "0199c455-21ec-7c74-8efe-41470e29bae2",
                     "name": "Org 2",
                     "created_at": "2024-01-01T00:00:00Z",
                 },

@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, field_validator
 from dataforce_studio.constants import MAX_FILE_SIZE_BYTES
 from dataforce_studio.schemas.base import BaseOrmConfig
 from dataforce_studio.schemas.deployment import Deployment
-from dataforce_studio.schemas.s3 import UploadDetails
+from dataforce_studio.schemas.storage import UploadDetails
 
 
 class CollectionType(StrEnum):
@@ -227,7 +227,7 @@ class ModelArtifactDetails(ModelArtifact):
 
 class CreateModelArtifactResponse(BaseModel):
     model: ModelArtifact
-    url: UploadDetails
+    upload_details: UploadDetails
 
 
 class SatelliteModelArtifactResponse(BaseModel):

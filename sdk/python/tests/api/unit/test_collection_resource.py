@@ -166,7 +166,7 @@ def test_collection_update_all_params(
 def test_collection_delete(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
-    collection_id = 15
+    collection_id = "0199c455-21ee-74c6-b747-19a82f1a1e75"
     mock_sync_client.delete.return_value = None
 
     resource = CollectionResource(mock_sync_client)
@@ -352,7 +352,7 @@ async def test_async_collection_update_all_params(
 async def test_async_collection_delete(mock_async_client: AsyncMock) -> None:
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
-    collection_id = 15
+    collection_id = "0199c455-21ee-74c6-b747-19a82f1a1e75"
     mock_async_client.delete.return_value = None
 
     resource = AsyncCollectionResource(mock_async_client)

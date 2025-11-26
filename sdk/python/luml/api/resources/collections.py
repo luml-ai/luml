@@ -360,6 +360,10 @@ class AsyncCollectionResource(CollectionResourceBase):
         ```python
         luml = AsyncLumlClient(api_key="luml_your_key")
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
             collection_by_name = await luml.collections.get(
                 "My Collection"
             )
@@ -409,6 +413,10 @@ class AsyncCollectionResource(CollectionResourceBase):
         ```python
         luml = AsyncLumlClient(api_key="luml_your_key")
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
             collections = await luml.collections.list()
         ```
 
@@ -458,7 +466,12 @@ class AsyncCollectionResource(CollectionResourceBase):
         Example:
         ```python
         luml = AsyncLumlClient(api_key="luml_your_key")
+
         async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
             collection = await luml.collections.create(
                 name="Training Dataset",
                 description="Dataset for model training",
@@ -523,11 +536,12 @@ class AsyncCollectionResource(CollectionResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        )
+
         async def main():
+            luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
             collection = await luml.collections.update(
                 collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
                 name="Updated Dataset",
@@ -589,20 +603,20 @@ class AsyncCollectionResource(CollectionResourceBase):
         luml = AsyncLumlClient(
             api_key="luml_your_key",
         )
-        luml.setup_config(
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        )
         async def main():
+            luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
             # Delete specific collection by ID
             await luml.collections.delete(
                 "0199c455-21ee-74c6-b747-19a82f1a1e75"
             )
 
-        # Set default collection
-        luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
-        # Delete default collection
-        await luml.collections.delete()
+            # Set default collection
+            luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
+            # Delete default collection
+            await luml.collections.delete()
         ```
 
         Warning:

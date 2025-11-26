@@ -27,7 +27,7 @@ from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactUpdateIn,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
-from dataforce_studio.schemas.s3 import PartDetails, UploadDetails
+from dataforce_studio.schemas.storage import UploadDetails
 
 handler = ModelArtifactHandler()
 
@@ -253,6 +253,8 @@ async def test_create_model_artifact(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8345")
+    bucket_location = "orbit/collection/file_name"
 
     model_artifact = ModelArtifact(
         id=model_artifact_id,
@@ -263,7 +265,7 @@ async def test_create_model_artifact(
         manifest=manifest_example,
         file_hash="hash",
         file_index={},
-        bucket_location="loc",
+        bucket_location=bucket_location,
         size=1,
         unique_identifier="uid",
         tags=["tag"],
@@ -275,22 +277,15 @@ async def test_create_model_artifact(
 
     mock_create_model_artifact.return_value = model_artifact
     mock_check_orbit_and_collection_access.return_value = (
-        Mock(bucket_secret_id=1, organization_id=organization_id),
+        Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
         Mock(orbit_id=orbit_id),
     )
     mock_s3_service = AsyncMock()
     mock_upload_data = UploadDetails(
-        upload_id=None,
-        parts=[
-            PartDetails(
-                part_number=1,
-                url="url",
-                start_byte=0,
-                end_byte=model_artifact.size,
-                part_size=model_artifact.size,
-            )
-        ],
-        complete_url=None,
+        url=" https://dfs-models.s3.eu-north-1.amazonaws.com/orbit/collection/my_llm.pyfnx",
+        multipart=False,
+        bucket_location=bucket_location,
+        bucket_secret_id=bucket_secret_id,
     )
     mock_s3_service.create_upload.return_value = mock_upload_data
     mock_get_s3_service.return_value = mock_s3_service
@@ -315,7 +310,6 @@ async def test_create_model_artifact(
     )
 
     assert result.model == model_artifact
-    assert result.url is not None
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.MODEL, Action.CREATE, orbit_id
     )

@@ -109,7 +109,7 @@ def test_bucket_secret_list_none_response(mock_sync_client: Mock) -> None:
 
 def test_bucket_secret_delete(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
-    secret_id = "e10de756-a245-44d8-9109-002c7fbfcf69"
+    secret_id = "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
     mock_sync_client.delete.return_value = None
 
     resource = BucketSecretResource(mock_sync_client)
@@ -187,9 +187,19 @@ async def test_async_bucket_secret_create(
     organization_id = mock_async_client.organization
     mock_async_client.post.return_value = sample_bucket_secret
 
+    resource = AsyncBucketSecretResource(mock_async_client)
+    await resource.create(
+        endpoint="s3.amazonaws.com",
+        bucket_name="my-bucket",
+        access_key="access_key",
+        secret_key="secret_key",
+    )
+
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
+        "access_key": "access_key",
+        "secret_key": "secret_key",
     }
     mock_async_client.filter_none.return_value = expected_json
 
@@ -223,7 +233,7 @@ async def test_async_bucket_secret_update(
 @pytest.mark.asyncio
 async def test_async_bucket_secret_delete(mock_async_client: AsyncMock) -> None:
     organization_id = mock_async_client.organization
-    secret_id = "e10de756-a245-44d8-9109-002c7fbfcf69"
+    secret_id = "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
     mock_async_client.delete.return_value = None
 
     resource = AsyncBucketSecretResource(mock_async_client)
