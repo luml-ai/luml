@@ -162,6 +162,11 @@ const router = createRouter({
               name: 'model-snapshot',
               component: () => import('../pages/collection/model/SpanshotView.vue'),
             },
+            {
+              path: 'attachments',
+              name: 'model-attachments',
+              component: () => import('../pages/collection/model/ModelAttachmentsView.vue'),
+            },
           ],
         },
         {
