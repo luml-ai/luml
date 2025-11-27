@@ -83,6 +83,15 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     return deployment
   }
 
+  async function forceDeleteDeployment(
+    organizationId: string,
+    orbitId: string,
+    deploymentId: string,
+  ) {
+    await dataforceApi.deployments.forceDeleteDeployment(organizationId, orbitId, deploymentId)
+    deployments.value = deployments.value.filter((deployment) => deployment.id !== deploymentId)
+  }
+
   return {
     deployments,
     creatorVisible,
@@ -95,5 +104,6 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     deleteDeployment,
     update,
     getDeployment,
+    forceDeleteDeployment,
   }
 })

@@ -49,4 +49,11 @@ export class DeploymentsApi {
     )
     return responseData
   }
+
+  async forceDeleteDeployment(organizationId: string, orbitId: string, deploymentId: string) {
+    const { data: responseData } = await this.api.delete(
+      `/organizations/${organizationId}/orbits/${orbitId}/deployments/${deploymentId}/force`,
+    )
+    return responseData
+  }
 }

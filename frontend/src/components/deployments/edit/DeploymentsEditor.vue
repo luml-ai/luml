@@ -61,7 +61,22 @@
     </Form>
     <template #footer>
       <div>
-        <Button variant="outlined" severity="warn" :disabled="loading" @click="onDeleteClick">
+        <Button
+          v-if="isForceDelete"
+          variant="outlined"
+          severity="warn"
+          :disabled="loading"
+          @click="onForceDeleteClick"
+        >
+          force delete Deployment
+        </Button>
+        <Button
+          v-else
+          variant="outlined"
+          severity="warn"
+          :disabled="loading"
+          @click="onDeleteClick"
+        >
           stop deployment
         </Button>
       </div>
@@ -77,12 +92,19 @@
       @update:visible="isDeleting = false"
       @delete="onDelete"
     ></DeploymentsDelete>
+    <ForceDeleteConfirmDialog
+      v-if="isForceDeleting"
+      v-model:visible="isForceDeleting"
+      title="Force delete this deployment?"
+      :text="FORCE_DELETE_TEXT"
+      :loading="loading"
+      @confirm="onForceDelete"
+    ></ForceDeleteConfirmDialog>
   </Dialog>
 </template>
 
 <script setup lang="ts">
 import {
-  type DialogPassThroughOptions,
   Dialog,
   Button,
   useToast,
@@ -91,7 +113,11 @@ import {
   AccordionHeader,
   AccordionContent,
 } from 'primevue'
-import type { Deployment, UpdateDeploymentPayload } from '@/lib/api/deployments/interfaces'
+import {
+  DeploymentStatusEnum,
+  type Deployment,
+  type UpdateDeploymentPayload,
+} from '@/lib/api/deployments/interfaces'
 import type { FieldInfo } from '../deployments.interfaces'
 import type { Var } from '@fnnx/common/dist/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
@@ -109,6 +135,11 @@ import { editorDialogPt } from '../deployments.const'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsDelete from '@/components/orbits/delete/DeploymentsDelete.vue'
 import SecretsSelect from '../form/SecretsSelect.vue'
+import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
+import { getErrorMessage } from '@/helpers/helpers'
+
+const FORCE_DELETE_TEXT =
+  'This action will schedule a task for your satellite to shut down this deployment. <br /> If you are sure, then write "delete" below'
 
 interface FormValues {
   name: string
@@ -135,7 +166,7 @@ const route = useRoute()
 const deploymentsStore = useDeploymentsStore()
 
 const isDeleting = ref(false)
-
+const isForceDeleting = ref(false)
 const initialValues = ref<FormValues>({
   name: props.data.name,
   description: props.data.description,
@@ -150,6 +181,10 @@ const loading = ref(false)
 const organizationId = computed(() => {
   if (typeof route.params.organizationId !== 'string') throw new Error('Incorrect organization ID')
   return route.params.organizationId
+})
+
+const isForceDelete = computed(() => {
+  return DeploymentStatusEnum.active !== props.data.status
 })
 
 async function saveChanges() {
@@ -181,6 +216,28 @@ async function saveChanges() {
 
 function onDeleteClick() {
   isDeleting.value = true
+}
+
+function onForceDeleteClick() {
+  isForceDeleting.value = true
+}
+
+async function onForceDelete() {
+  try {
+    loading.value = true
+    await deploymentsStore.forceDeleteDeployment(
+      organizationId.value,
+      props.data.orbit_id,
+      props.data.id,
+    )
+    toast.add(simpleSuccessToast('Deployment is being deleted.'))
+    isForceDeleting.value = false
+    visible.value = false
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not force delete deployment')))
+  } finally {
+    loading.value = false
+  }
 }
 
 function onDelete() {
