@@ -243,8 +243,8 @@ async def test_create_model_artifact(
     mock_create_model_artifact: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_check_permissions: AsyncMock,
-    mock_check_organization_models_limit: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
+    mock_check_organization_models_limit: AsyncMock,
     test_bucket: BucketSecret,
     manifest_example: Manifest,
 ) -> None:
@@ -270,6 +270,7 @@ async def test_create_model_artifact(
         status=ModelArtifactStatus.PENDING_UPLOAD,
         created_at=datetime.now(),
         updated_at=None,
+        created_by_user="user_full_name,",
     )
 
     mock_create_model_artifact.return_value = model_artifact
