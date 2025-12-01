@@ -5,7 +5,11 @@ from uuid import UUID
 import pytest
 
 from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
-from dataforce_studio.infra.exceptions import NotFoundError
+from dataforce_studio.infra.exceptions import (
+    ApplicationError,
+    DatabaseConstraintError,
+    NotFoundError,
+)
 from dataforce_studio.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
@@ -341,3 +345,42 @@ async def test_get_worker_orbit_secret_not_found(
 
     assert error.value.status_code == 404
     mock_get_orbit_secret.assert_awaited_once_with(secret_id)
+
+
+@patch(
+    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.create_orbit_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_orbit_secret_duplicate_name(
+    mock_check_permissions: AsyncMock, mock_create_orbit_secret: AsyncMock
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    secret_name = "duplicate-name"
+
+    mock_check_permissions.return_value = OrgRole.OWNER, None
+    mock_create_orbit_secret.side_effect = DatabaseConstraintError(
+        "Secret with this name already exists"
+    )
+
+    with pytest.raises(
+        ApplicationError, match=f"Secret with name {secret_name} already exist in orbit"
+    ) as error:
+        await handler.create_orbit_secret(
+            user_id,
+            organization_id,
+            orbit_id,
+            OrbitSecretCreateIn(name=secret_name, value="test-value"),
+        )
+
+    assert error.value.status_code == 400
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ORBIT_SECRET, Action.CREATE, orbit_id
+    )

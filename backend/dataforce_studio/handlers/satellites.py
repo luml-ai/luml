@@ -10,6 +10,7 @@ from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
     ApplicationError,
+    DatabaseConstraintError,
     NotFoundError,
     OrganizationLimitReachedError,
 )
@@ -268,5 +269,7 @@ class SatelliteHandler:
 
         if not satellite:
             raise NotFoundError("Satellite not found")
-
-        return await self.__sat_repo.delete_satellite(satellite_id)
+        try:
+            return await self.__sat_repo.delete_satellite(satellite_id)
+        except DatabaseConstraintError as e:
+            raise ApplicationError(e.message, 409) from e

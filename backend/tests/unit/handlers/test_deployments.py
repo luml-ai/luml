@@ -1200,3 +1200,213 @@ async def test_verify_user_inference_access_insufficient_permissions(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.DEPLOYMENT, Action.READ, orbit_id
     )
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.delete_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_deployment(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_delete_deployment: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    mock_get_deployment.return_value = Mock(id=deployment_id)
+    mock_delete_deployment.return_value = None
+
+    await handler.force_delete_deployment(
+        user_id, organization_id, orbit_id, deployment_id
+    )
+
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
+    )
+    mock_get_deployment.assert_awaited_once_with(deployment_id)
+    mock_delete_deployment.assert_awaited_once_with(deployment_id)
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_force_delete_deployment_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    mock_get_deployment.return_value = None
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.force_delete_deployment(
+            user_id, organization_id, orbit_id, deployment_id
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.DELETE, orbit_id
+    )
+    mock_get_deployment.assert_awaited_once_with(deployment_id)
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.get_satellite_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_worker_deployment(
+    mock_get_satellite_deployment: AsyncMock,
+) -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    model_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+
+    expected = Deployment(
+        id=deployment_id,
+        orbit_id=orbit_id,
+        satellite_id=satellite_id,
+        satellite_name="satellite",
+        name="worker-deployment",
+        model_id=model_id,
+        model_artifact_name="model",
+        collection_id=collection_id,
+        status=DeploymentStatus.ACTIVE,
+        created_by_user="Worker",
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+    )
+
+    mock_get_satellite_deployment.return_value = expected
+
+    result = await handler.get_worker_deployment(satellite_id, deployment_id)
+
+    assert result == expected
+    mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.get_satellite_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_worker_deployment_not_found(
+    mock_get_satellite_deployment: AsyncMock,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+
+    mock_get_satellite_deployment.return_value = None
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.get_worker_deployment(satellite_id, deployment_id)
+
+    assert error.value.status_code == 404
+    mock_get_satellite_deployment.assert_awaited_once_with(deployment_id, satellite_id)
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_worker_deployment_incorrect_status(
+    mock_get_deployment: AsyncMock,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    mock_get_deployment.return_value = Mock(
+        id=deployment_id,
+        status=DeploymentStatus.ACTIVE,
+    )
+
+    with pytest.raises(ApplicationError) as error:
+        await handler.delete_worker_deployment(deployment_id)
+
+    assert error.value.status_code == 409
+    mock_get_deployment.assert_awaited_once_with(deployment_id)
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    details = DeploymentDetailsUpdateIn(
+        name="new-name",
+        description="desc",
+        tags=["a", "b"],
+    )
+
+    mock_update_deployment_details.return_value = None
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.update_deployment_details(
+            user_id, organization_id, orbit_id, deployment_id, details
+        )
+
+    assert error.value.status_code == 404
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.DEPLOYMENT, Action.UPDATE, orbit_id
+    )
+
+
+@patch(
+    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_worker_deployment_status_not_found(
+    mock_update_deployment: AsyncMock,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    status = DeploymentStatus.ACTIVE
+
+    mock_update_deployment.return_value = None
+
+    with pytest.raises(NotFoundError, match="Deployment not found") as error:
+        await handler.update_worker_deployment_status(
+            satellite_id, deployment_id, status
+        )
+
+    assert error.value.status_code == 404
+    mock_update_deployment.assert_awaited_once_with(
+        deployment_id, satellite_id, DeploymentUpdate(id=deployment_id, status=status)
+    )

@@ -436,3 +436,43 @@ async def test_get_existing_bucket_urls_secret_not_found(
         await handler.get_existing_bucket_urls(secret)
 
     assert error.value.status_code == 404
+
+
+@patch("dataforce_studio.handlers.bucket_secrets.S3Service")
+@pytest.mark.asyncio
+async def test_get_bucket_urls(
+    mock_s3_service: Mock,
+) -> None:
+    secret = BucketSecretCreateIn(
+        endpoint="s3.amazonaws.com",
+        bucket_name="test-bucket",
+        access_key="access_key",
+        secret_key="secret_key",
+        region="us-east-1",
+    )
+    object_name = "test_file"
+
+    presigned_url = "https://test-bucket.s3.amazonaws.com/test_file?presigned=true"
+    download_url = "https://test-bucket.s3.amazonaws.com/test_file?download=true"
+    delete_url = "https://test-bucket.s3.amazonaws.com/test_file?delete=true"
+
+    expected = BucketSecretUrls(
+        presigned_url=presigned_url,
+        download_url=download_url,
+        delete_url=delete_url,
+    )
+
+    mock_s3_instance = AsyncMock()
+    mock_s3_instance.bucket_exists.return_value = True
+    mock_s3_instance.get_upload_url.return_value = presigned_url
+    mock_s3_instance.get_download_url.return_value = download_url
+    mock_s3_instance.get_delete_url.return_value = delete_url
+    mock_s3_service.return_value = mock_s3_instance
+
+    urls = await handler.get_bucket_urls(secret)
+
+    assert urls == expected
+    mock_s3_service.assert_called_once_with(secret)
+    mock_s3_instance.get_upload_url.assert_awaited_once_with(object_name)
+    mock_s3_instance.get_download_url.assert_awaited_once_with(object_name)
+    mock_s3_instance.get_delete_url.assert_awaited_once_with(object_name)
