@@ -73,7 +73,7 @@ class DeploymentOrm(TimestampMixin, Base):
         postgresql.JSONB, nullable=False, default=dict, server_default="{}"
     )
     schemas: Mapped[dict[str, Any]] = mapped_column(
-        postgresql.JSONB, nullable=False, default=dict, server_default="{}"
+        postgresql.JSONB, nullable=True, default=None
     )
     error_message: Mapped[dict[str, Any]] = mapped_column(
         postgresql.JSONB, nullable=True, default=None
