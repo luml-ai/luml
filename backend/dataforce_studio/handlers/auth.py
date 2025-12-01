@@ -9,10 +9,13 @@ from pydantic import EmailStr
 
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
-from dataforce_studio.infra.exceptions import AuthError, EmailDeliveryError
+from dataforce_studio.infra.exceptions import (
+    AuthError,
+    EmailDeliveryError,
+)
 from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.auth import Token, UserInfo
+from dataforce_studio.schemas.auth import OAuthLogin, Token
 from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -25,8 +28,7 @@ from dataforce_studio.schemas.user import (
     UserOut,
 )
 from dataforce_studio.services.oauth_providers import (
-    OAuthGoogleProvider,
-    OAuthMicrosoftProvider,
+    OAuthProvider,
 )
 from dataforce_studio.settings import config
 
@@ -39,12 +41,14 @@ class AuthHandler:
     def __init__(
         self,
         secret_key: str,
+        oauth_provider: type[OAuthProvider] | None = None,
         algorithm: str = "HS256",
         access_token_expire: int = 10800,  # 3 hours
         refresh_token_expire: int = 604800,  # 7 days
     ) -> None:
         self.secret_key = secret_key
         self.algorithm = algorithm
+        self.oauth_provider = oauth_provider
         self.access_token_expire = access_token_expire
         self.refresh_token_expire = refresh_token_expire
 
@@ -244,14 +248,39 @@ class AuthHandler:
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err
 
-    async def _update_or_create_oauth_user(
-        self, userinfo: UserInfo, provider: AuthProvider
-    ) -> User:
+    def get_oauth_login_url(self) -> str:
+        if not self.oauth_provider:
+            raise AuthError("OAuth provider is not configured for this handler", 500)
+        return self.oauth_provider.login_url()
+
+    async def handle_oauth(self, code: str | None) -> OAuthLogin:
+        if not code:
+            raise AuthError("OAuth callback code is missing", 400)
+
+        if not self.oauth_provider:
+            raise AuthError("OAuth provider is not configured for this handler", 500)
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            access_token = await self.oauth_provider.exchange_code_for_token(
+                client, code
+            )
+            userinfo = await self.oauth_provider.get_user_info(client, access_token)
+
+        if not userinfo.email:
+            raise AuthError("Failed to retrieve user email", 400)
+
         user = await self.__user_repository.get_user(userinfo.email)
 
-        if user and user.auth_method != provider:
+        if user and user.auth_method != self.oauth_provider.PROVIDER_TYPE:
             await self.__user_repository.update_user(
-                UpdateUser(email=userinfo.email, auth_method=AuthProvider.GOOGLE)
+                UpdateUser(
+                    email=userinfo.email, auth_method=self.oauth_provider.PROVIDER_TYPE
+                )
+            )
+
+        if user and userinfo.photo_url != user.photo:
+            await self.__user_repository.update_user(
+                UpdateUser(email=userinfo.email, photo=userinfo.photo_url)
             )
 
         if not user:
@@ -261,55 +290,12 @@ class AuthHandler:
                     full_name=userinfo.full_name,
                     photo=userinfo.photo_url,
                     email_verified=True,
-                    auth_method=provider,
+                    auth_method=self.oauth_provider.PROVIDER_TYPE,
                     hashed_password=None,
                 )
             )
 
-        if (
-            provider == AuthProvider.GOOGLE
-            and user
-            and userinfo.photo_url != user.photo
-        ):
-            await self.__user_repository.update_user(
-                UpdateUser(email=userinfo.email, photo=userinfo.photo_url)
-            )
-
-        return user
-
-    async def handle_google_auth(self, code: str | None) -> dict[str, Any]:
-        if not code:
-            raise AuthError("Google callback code is missing")
-
-        async with httpx.AsyncClient() as client:
-            access_token = await OAuthGoogleProvider.exchange_code_for_token(
-                client, code
-            )
-            userinfo = await OAuthGoogleProvider.get_user_info(client, access_token)
-
-        if not userinfo.email:
-            raise AuthError("Failed to retrieve user email", 400)
-
-        user = await self._update_or_create_oauth_user(userinfo, AuthProvider.GOOGLE)
-
-        return {"token": self._create_tokens(user.email), "user_id": user.id}
-
-    async def handle_microsoft_auth(self, code: str | None) -> dict[str, Any]:
-        if not code:
-            raise AuthError("Microsoft callback code is missing")
-
-        async with httpx.AsyncClient() as client:
-            access_token = await OAuthMicrosoftProvider.exchange_code_for_token(
-                client, code
-            )
-            userinfo = await OAuthMicrosoftProvider.get_user_info(client, access_token)
-
-        if not userinfo.email:
-            raise AuthError("Failed to retrieve user email", 400)
-
-        user = await self._update_or_create_oauth_user(userinfo, AuthProvider.MICROSOFT)
-
-        return {"token": self._create_tokens(user.email), "user_id": user.id}
+        return OAuthLogin(token=self._create_tokens(user.email), user_id=user.id)
 
     async def send_password_reset_email(self, email: EmailStr) -> None:
         if not (service_user := await self.__user_repository.get_user(email)):

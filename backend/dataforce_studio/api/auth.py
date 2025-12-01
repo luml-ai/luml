@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Request
 from pydantic import EmailStr
@@ -6,7 +6,7 @@ from starlette.responses import RedirectResponse
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas.auth import Token
+from dataforce_studio.schemas.auth import OAuthLogin, Token
 from dataforce_studio.schemas.user import (
     CreateUserIn,
     SignInResponse,
@@ -25,6 +25,12 @@ is_user_authenticated = UserAuthentication(["jwt"])
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
 
 auth_handler = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
+google_auth_handler = AuthHandler(
+    secret_key=config.AUTH_SECRET_KEY, oauth_provider=OAuthGoogleProvider
+)
+microsoft_auth_handler = AuthHandler(
+    secret_key=config.AUTH_SECRET_KEY, oauth_provider=OAuthMicrosoftProvider
+)
 
 
 @auth_router.post("/signup", response_model=dict)
@@ -39,12 +45,12 @@ async def signin(user: SignInUser) -> SignInResponse:
 
 @auth_router.get("/google/login")
 async def google_login() -> RedirectResponse:
-    return RedirectResponse(OAuthGoogleProvider.login_url())
+    return RedirectResponse(google_auth_handler.get_oauth_login_url())
 
 
 @auth_router.get("/google/callback")
-async def google_callback(code: str | None = None) -> dict[str, Any]:
-    return await auth_handler.handle_google_auth(code)
+async def google_callback(code: str | None = None) -> OAuthLogin:
+    return await google_auth_handler.handle_oauth(code)
 
 
 @auth_router.post("/refresh", response_model=Token)
@@ -117,9 +123,9 @@ async def reset_password(
 
 @auth_router.get("/microsoft/login")
 async def microsoft_login() -> RedirectResponse:
-    return RedirectResponse(OAuthMicrosoftProvider.login_url())
+    return RedirectResponse(microsoft_auth_handler.get_oauth_login_url())
 
 
 @auth_router.get("/microsoft/callback")
-async def microsoft_callback(code: str | None = None) -> dict[str, Any]:
-    return await auth_handler.handle_microsoft_auth(code)
+async def microsoft_callback(code: str | None = None) -> OAuthLogin:
+    return await microsoft_auth_handler.handle_oauth(code)

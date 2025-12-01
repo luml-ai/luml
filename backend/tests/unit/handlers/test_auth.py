@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from time import time
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from uuid import uuid7
 
 import jwt
 import pytest
@@ -11,7 +12,7 @@ from jwt.exceptions import InvalidTokenError
 
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.exceptions import AuthError
-from dataforce_studio.schemas.auth import Token
+from dataforce_studio.schemas.auth import OAuthLogin, Token, UserInfo
 from dataforce_studio.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -23,11 +24,14 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
+from dataforce_studio.services.oauth_providers import OAuthGoogleProvider
 
 secret_key = "test"
 algorithm = "HS256"
 
-handler = AuthHandler(secret_key=secret_key, algorithm=algorithm)
+handler = AuthHandler(
+    secret_key=secret_key, algorithm=algorithm, oauth_provider=OAuthGoogleProvider
+)
 
 
 @dataclass
@@ -622,8 +626,14 @@ async def test_handle_logout_invalid_refresh_token(mock_jwt_decode: Mock) -> Non
     assert error.value.status_code == 400
 
 
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-@patch("httpx.AsyncClient.get", new_callable=AsyncMock)
+@patch(
+    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.get_user_info",
+    new_callable=AsyncMock,
+)
 @patch(
     "dataforce_studio.handlers.auth.AuthHandler._create_tokens", new_callable=MagicMock
 )
@@ -635,135 +645,90 @@ async def test_handle_logout_invalid_refresh_token(mock_jwt_decode: Mock) -> Non
     "dataforce_studio.handlers.auth.UserRepository.update_user", new_callable=AsyncMock
 )
 @pytest.mark.asyncio
-async def test_handle_google_auth(
+async def test_handle_oauth_google(
     mock_update_user: AsyncMock,
     mock_create_user: AsyncMock,
     mock_get_user: AsyncMock,
     mock_create_tokens: MagicMock,
-    mock_get: AsyncMock,
-    mock_post: AsyncMock,
+    mock_get_user_info: AsyncMock,
+    mock_exchange_code: AsyncMock,
     get_tokens: Token,
     test_user_create: CreateUser,
 ) -> None:
-    user = test_user_create
-    expected = {"token": get_tokens, "user_id": user.id}
-
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json = MagicMock(
-        return_value={"access_token": "fake_access_token"}
+    created_user = User(
+        id=uuid7(),
+        email=test_user_create.email,
+        full_name=test_user_create.full_name,
+        email_verified=True,
+        auth_method=AuthProvider.GOOGLE,
+        photo="http://example.com/photo.jpg",
+        hashed_password=None,
+        disabled=False,
     )
 
-    mock_get.return_value.status_code = 200
-    mock_get.return_value.json = MagicMock(
-        return_value={
-            "email": user.email,
-            "name": user.full_name,
-            "picture": "http://example.com/photo.jpg",
-        }
+    expected = OAuthLogin(token=get_tokens, user_id=created_user.id)
+
+    mock_exchange_code.return_value = "access_token"
+    mock_get_user_info.return_value = UserInfo(
+        email=test_user_create.email,
+        full_name=test_user_create.full_name,
+        photo_url="http://example.com/photo.jpg",
     )
 
     mock_get_user.return_value = None
-    mock_create_user.return_value = user
+    mock_create_user.return_value = created_user
     mock_create_tokens.return_value = get_tokens
 
-    result = await handler.handle_google_auth("code")
+    result = await handler.handle_oauth("code")
 
     assert result == expected
-    mock_post.assert_awaited_once()
-    mock_get.assert_awaited_once()
+    mock_exchange_code.assert_awaited_once()
+    mock_get_user_info.assert_awaited_once()
     mock_create_user.assert_awaited_once()
-    mock_create_tokens.assert_called_once_with(user.email)
+    mock_create_tokens.assert_called_once_with(created_user.email)
 
 
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-@pytest.mark.asyncio
-async def test_google_auth_token_failure(mock_post: AsyncMock) -> None:
-    mock_post.return_value.status_code = 400
-
-    with pytest.raises(
-        AuthError, match="Failed to retrieve token from Google"
-    ) as error:
-        await handler.handle_google_auth("code")
-
-    assert error.value.status_code == 400
-
-
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-@pytest.mark.asyncio
-async def test_google_auth_no_access_token(mock_post: AsyncMock) -> None:
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json = MagicMock(return_value={})
-
-    with pytest.raises(AuthError, match="Failed to retrieve access token") as error:
-        await handler.handle_google_auth("code")
-    assert error.value.status_code == 400
-
-
-@patch("httpx.AsyncClient.get", new_callable=AsyncMock)
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
-@pytest.mark.asyncio
-async def test_google_auth_userinfo_failure(
-    mock_post: AsyncMock, mock_get: AsyncMock, get_tokens: Token
-) -> None:
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json = MagicMock(
-        return_value={"access_token": get_tokens.access_token}
-    )
-
-    mock_get.return_value.status_code = 400
-
-    with pytest.raises(
-        AuthError, match="Failed to retrieve user info from Google"
-    ) as error:
-        await handler.handle_google_auth("code")
-    assert error.value.status_code == 400
-
-
-@patch("httpx.AsyncClient.get", new_callable=AsyncMock)
-@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
+@patch(
+    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
+    new_callable=AsyncMock,
+)
+@patch(
+    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.get_user_info",
+    new_callable=AsyncMock,
+)
+@patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @patch(
     "dataforce_studio.handlers.auth.AuthHandler._create_tokens", new_callable=MagicMock
 )
-@patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
 @patch(
     "dataforce_studio.handlers.auth.UserRepository.update_user", new_callable=AsyncMock
 )
 @pytest.mark.asyncio
-async def test_google_auth_updates_non_google_user(
+async def test_oauth_updates_auth_method_for_existing_user(
     mock_update_user: AsyncMock,
-    mock_get_user: AsyncMock,
     mock_create_tokens: MagicMock,
-    mock_post: AsyncMock,
-    mock_get: AsyncMock,
+    mock_get_user: AsyncMock,
+    mock_get_user_info: AsyncMock,
+    mock_exchange_code: AsyncMock,
     get_tokens: Token,
 ) -> None:
-    tokens = get_tokens
-    mock_post.return_value.status_code = 200
-    mock_post.return_value.json = MagicMock(
-        return_value={"access_token": tokens.access_token}
+    email = "user@example.com"
+    photo = "http://example.com/photo.jpg"
+
+    mock_exchange_code.return_value = "access_token"
+    mock_get_user_info.return_value = UserInfo(
+        email=email, full_name="Test User", photo_url=photo
     )
 
-    mock_get.return_value.status_code = 200
-    mock_get.return_value.json = MagicMock(
-        return_value={
-            "email": "user@example.com",
-            "name": "Test User",
-            "picture": "http://example.com/photo.jpg",
-        }
+    mock_get_user.return_value = MagicMock(
+        id=uuid.uuid4(), email=email, auth_method=AuthProvider.EMAIL, photo=photo
     )
+    mock_create_tokens.return_value = get_tokens
 
-    existing_user = MagicMock(
-        email="user@example.com",
-        auth_method=AuthProvider.EMAIL,
-        photo="http://example.com/photo.jpg",
-    )
-    mock_get_user.return_value = existing_user
-    mock_create_tokens.return_value = tokens
-
-    await handler.handle_google_auth("code")
+    await handler.handle_oauth("code")
 
     mock_update_user.assert_awaited_once_with(
-        UpdateUser(email="user@example.com", auth_method=AuthProvider.GOOGLE)
+        UpdateUser(email=email, auth_method=AuthProvider.GOOGLE)
     )
 
 

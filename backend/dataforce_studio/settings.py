@@ -13,11 +13,16 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
+    GOOGLE_AUTH_URL: str = "https://accounts.google.com/o/oauth2/v2/auth"
+    GOOGLE_TOKEN_URL: str = "https://oauth2.googleapis.com/token"
+    GOOGLE_USERINFO_URL: str = "https://www.googleapis.com/oauth2/v2/userinfo"
 
     MICROSOFT_CLIENT_ID: str
     MICROSOFT_CLIENT_SECRET: str
     MICROSOFT_TENANT: str
     MICROSOFT_REDIRECT_URI: str
+    MICROSOFT_AUTH_URL: str = "https://login.microsoftonline.com"
+    MICROSOFT_GRAPH_URL: str = "https://graph.microsoft.com/v1.0/me"
 
     CONFIRM_EMAIL_REDIRECT_URL: str
     CONFIRM_EMAIL_URL: str
