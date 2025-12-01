@@ -40,6 +40,8 @@
       </div>
       <Accordion
         v-if="secretDynamicAttributes.length || secretEnvs.length"
+        :multiple="true"
+        v-model:value="secretsAccordion"
         style="margin-bottom: 12px"
       >
         <template #expandicon>
@@ -83,7 +85,7 @@
           </AccordionContent>
         </AccordionPanel>
       </Accordion>
-      <Accordion v-if="notSecretEnvs.length">
+      <Accordion v-if="notSecretEnvs.length" v-model:value="envAccordion" :multiple="true">
         <template #expandicon>
           <ChevronDown :size="20"></ChevronDown>
         </template>
@@ -216,6 +218,8 @@ const modelsStore = useModelsStore()
 const secretsStore = useSecretsStore()
 const toast = useToast()
 
+const secretsAccordion = ref<string[]>([])
+const envAccordion = ref<string[]>([])
 const modelsList = ref<MlModel[]>([])
 
 const collectionId = defineModel<string | null>('collectionId')
@@ -319,6 +323,26 @@ function setEnvs(manifest: Manifest) {
 function removeCustomVariable(removeIndex: number) {
   customVariables.value = customVariables.value.filter((item, index) => index !== removeIndex)
 }
+
+watch(
+  [secretEnvs, secretDynamicAttributes],
+  ([envs, dynAttrs]) => {
+    if (envs.length > 0 || dynAttrs.length > 0) {
+      secretsAccordion.value = ['0']
+    }
+  },
+  { immediate: true, deep: true },
+)
+
+watch(
+  notSecretEnvs,
+  (envs) => {
+    if (envs.length > 0) {
+      envAccordion.value = ['0']
+    }
+  },
+  { immediate: true, deep: true },
+)
 
 watch(collectionId, onCollectionChange, { immediate: true })
 
