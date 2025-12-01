@@ -24,6 +24,7 @@ from dataforce_studio.schemas.orbit import (
     OrbitMember,
     OrbitMemberCreate,
     OrbitMemberCreateSimple,
+    OrbitRole,
     OrbitUpdate,
     UpdateOrbitMember,
 )
@@ -133,6 +134,13 @@ class OrbitHandler:
 
         if orbit.members:
             await self._validate_orbit_members(user_id, organization_id, orbit.members)
+
+        if orbit.members is None:
+            orbit.members = []
+
+        orbit.members.append(
+            OrbitMemberCreateSimple(user_id=user_id, role=OrbitRole.ADMIN)
+        )
 
         created_orbit = await self.__orbits_repository.create_orbit(
             organization_id, orbit
