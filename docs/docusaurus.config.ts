@@ -3,8 +3,6 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import dotenv from 'dotenv';
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
-
 dotenv.config();
 
 const config: Config = {
@@ -12,60 +10,66 @@ const config: Config = {
   tagline: 'Build AI Solutions Faster than Ever',
   favicon: 'img/favicon.ico',
 
-  // Set the production url of your site here
-  url: process.env.URL,
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
+  url: process.env.URL || 'https://dataforce.studio',
   baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'DataForce', // Usually your GitHub org/user name.
-  projectName: 'DataForce Studio', // Usually your repo name.
+  organizationName: 'DataForce', 
+  projectName: 'DataForce Studio', 
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+headTags: [],
 
   presets: [
     [
       'classic',
       {
         docs: {
-          routeBasePath: '/',
+          routeBasePath: '/', 
           sidebarPath: './sidebars.ts',
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: './src/css/custom.css', 
         },
       } satisfies Preset.Options,
     ],
   ],
 
   themeConfig: {
-    // Replace with your project's social card
     image: 'img/dsf.webp',
     navbar: {
-      title: 'DataForce Studio',
+      title: 'DataForce Studio', 
+      
       logo: {
-        alt: 'My Site Logo',
+        alt: 'DataForce Studio Logo',
         src: 'img/logo.png',
-        href: '/getting-started',
+        href: '/', 
       },
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'docsSidebar', 
           position: 'left',
-          label: 'Tutorial',
+          label: 'Documentation',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'guidesSidebar', 
+          position: 'left',
+          label: 'Guides',
+        },
+        {
+          type: 'docSidebar',
+          sidebarId: 'sdkSidebar', 
+          position: 'left',
+          label: 'SDK',
         },
       ],
     },
@@ -76,8 +80,16 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/getting-started',
+              label: 'Documentation',
+              to: '/documentation/intro', 
+            },
+            {
+              label: 'Guides',
+              to: '/guides/getting-started', 
+            },
+            {
+              label: 'SDK',
+              to: '/sdk/reference/dataforce/api', 
             },
           ],
         },
@@ -90,13 +102,12 @@ const config: Config = {
     },
     announcementBar: {
       id: 'wip_notice', 
-      content: '🚧 This documentation is a work in progress and may be incomplete.',
+      content: '🚧 This documentation is a work in progress.',
       backgroundColor: '#fff3cd', 
       textColor: '#663c00',       
       isCloseable: true,
     },
   } satisfies Preset.ThemeConfig,
-
 };
 
 export default config;
