@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import UUID, Boolean, ForeignKey, String
+from sqlalchemy import UUID, Boolean, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from dataforce_studio.infra.encryption import decrypt, encrypt
@@ -10,6 +10,11 @@ from dataforce_studio.schemas.bucket_secrets import BucketSecret, BucketSecretCr
 
 class BucketSecretOrm(TimestampMixin, Base):
     __tablename__ = "bucket_secrets"
+    __table_args__ = (
+        UniqueConstraint(
+            "endpoint", "bucket_name", "organization_id", name="uq_bucket_endpoint"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7

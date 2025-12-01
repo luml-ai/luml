@@ -19,9 +19,12 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             orm_secret = BucketSecretOrm.from_bucket_secret(secret)
             session.add(orm_secret)
-            await session.commit()
-            await session.refresh(orm_secret)
-            return orm_secret.to_bucket_secret()
+            try:
+                await session.commit()
+                await session.refresh(orm_secret)
+                return orm_secret.to_bucket_secret()
+            except IntegrityError as e:
+                raise DatabaseConstraintError() from e
 
     async def get_bucket_secret(self, secret_id: UUID) -> BucketSecret | None:
         async with self._get_session() as session:
@@ -58,9 +61,12 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
                 update_data["session_token"] = encrypt(secret.session_token)
             for field, value in update_data.items():
                 setattr(db_secret, field, value)
-            await session.commit()
-            await session.refresh(db_secret)
-            return db_secret.to_bucket_secret()
+            try:
+                await session.commit()
+                await session.refresh(db_secret)
+                return db_secret.to_bucket_secret()
+            except IntegrityError as e:
+                raise DatabaseConstraintError() from e
 
     async def delete_bucket_secret(self, secret_id: UUID) -> None:
         async with self._get_session() as session:

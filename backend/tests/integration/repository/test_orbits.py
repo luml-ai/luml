@@ -87,7 +87,9 @@ async def test_attach_bucket_secret(
 
     secret = await secret_repo.create_bucket_secret(
         BucketSecretCreate(
-            organization_id=organization.id, endpoint="s3", bucket_name="test-bucket"
+            organization_id=organization.id,
+            endpoint="s3",
+            bucket_name="test_attach_bucket_secret",
         )
     )
     assert secret

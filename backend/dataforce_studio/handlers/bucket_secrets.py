@@ -3,6 +3,7 @@ from uuid import UUID
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
+    ApplicationError,
     BucketSecretInUseError,
     DatabaseConstraintError,
     NotFoundError,
@@ -36,8 +37,14 @@ class BucketSecretHandler:
         secret_create = BucketSecretCreate(
             **secret.model_dump(), organization_id=organization_id
         )
-        created = await self.__secret_repository.create_bucket_secret(secret_create)
-        return BucketSecretOut.model_validate(created)
+        try:
+            created = await self.__secret_repository.create_bucket_secret(secret_create)
+            return BucketSecretOut.model_validate(created)
+        except DatabaseConstraintError as error:
+            raise ApplicationError(
+                "Bucket secret with the given bucket name and endpoint already exists.",
+                409,
+            ) from error
 
     async def get_organization_bucket_secrets(
         self, user_id: UUID, organization_id: UUID
@@ -74,9 +81,17 @@ class BucketSecretHandler:
             organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
         )
         secret.id = secret_id
-        db_secret = await self.__secret_repository.update_bucket_secret(secret)
+        try:
+            db_secret = await self.__secret_repository.update_bucket_secret(secret)
+        except DatabaseConstraintError as error:
+            raise ApplicationError(
+                "Bucket secret with the given bucket name and endpoint already exists.",
+                409,
+            ) from error
+
         if not db_secret:
             raise NotFoundError("Secret not found")
+
         return BucketSecretOut.model_validate(db_secret)
 
     async def delete_bucket_secret(

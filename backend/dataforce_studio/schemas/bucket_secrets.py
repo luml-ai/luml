@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from dataforce_studio.schemas.base import BaseOrmConfig
 
@@ -15,6 +15,13 @@ class _BucketSecretBase(BaseModel):
     secure: bool | None = None
     region: str | None = None
     cert_check: bool | None = None
+
+    @field_validator("endpoint")
+    @classmethod
+    def strip_http_protocol(cls, v: str) -> str:
+        if v:
+            v = v.removeprefix("http://").removeprefix("https://")
+        return v
 
 
 class BucketSecretCreateIn(_BucketSecretBase): ...
@@ -55,6 +62,13 @@ class BucketSecretUpdateIn(BaseModel):
     secure: bool | None = None
     region: str | None = None
     cert_check: bool | None = None
+
+    @field_validator("endpoint")
+    @classmethod
+    def strip_http_protocol(cls, v: str | None) -> str | None:
+        if v:
+            v = v.removeprefix("http://").removeprefix("https://")
+        return v
 
 
 class BucketSecretUpdate(BucketSecretUpdateIn):
