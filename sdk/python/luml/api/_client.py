@@ -36,7 +36,7 @@ class LumlClientBase(ABC):
         if base_url is None:
             base_url = os.environ.get("LUML_BASE_URL")
         if base_url is None:
-            base_url = "https://api.luml.studio"
+            base_url = "https://api.luml.ai"
 
         self._base_url: URL = URL(base_url)
 

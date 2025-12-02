@@ -102,7 +102,7 @@ def sample_bucket_secret() -> BucketSecret:
 @pytest.fixture
 def sample_model_artifact() -> ModelArtifact:
     return ModelArtifact(
-        id="0199c337-09f4-7a01-9f5f-5f685t62cf70",
+        id="0199c337-09f4-7a01-9f5f-5f68a562cf70",
         file_name="model.pkl",
         model_name="test-model",
         collection_id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
