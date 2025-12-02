@@ -1,9 +1,12 @@
 from time import time
 from typing import Any
 
-import bcrypt
 import httpx
 import jwt
+from argon2 import (
+    PasswordHasher,
+    exceptions as argon2_exceptions,
+)
 from jwt.exceptions import InvalidTokenError
 from pydantic import EmailStr
 
@@ -37,6 +40,7 @@ class AuthHandler:
     __user_repository = UserRepository(engine)
     __token_black_list_repository = TokenBlackListRepository(engine)
     __emails_handler = EmailHandler()
+    _password_hasher: PasswordHasher = PasswordHasher()
 
     def __init__(
         self,
@@ -52,15 +56,20 @@ class AuthHandler:
         self.access_token_expire = access_token_expire
         self.refresh_token_expire = refresh_token_expire
 
-    @staticmethod
-    def _verify_password(plain_password: str, hashed_password: str) -> bool:
-        return bcrypt.checkpw(
-            plain_password.encode("utf-8"), hashed_password.encode("utf-8")
-        )
+    @classmethod
+    def _verify_password(cls, plain_password: str, hashed_password: str) -> bool:
+        try:
+            cls._password_hasher.verify(hashed_password, plain_password)
+            return True
+        except (
+            argon2_exceptions.VerificationError,
+            argon2_exceptions.InvalidHash,
+        ):
+            return False
 
-    @staticmethod
-    def _get_password_hash(password: str) -> str:
-        return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    @classmethod
+    def _get_password_hash(cls, password: str) -> str:
+        return cls._password_hasher.hash(password)
 
     @staticmethod
     def _get_email_confirmation_link(token: str) -> str:

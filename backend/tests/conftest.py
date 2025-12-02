@@ -60,6 +60,7 @@ from dataforce_studio.schemas.user import (
 from dataforce_studio.settings import config
 
 TEST_DB_NAME = "df_studio_test"
+TEST_PASSWORD = "test_password"
 
 
 async def _terminate_connections(conn: AsyncConnection, db_name: str) -> None:
@@ -234,7 +235,7 @@ async def test_user_create() -> AsyncGenerator[CreateUser]:
         email_verified=False,
         auth_method=AuthProvider.EMAIL,
         photo=None,
-        hashed_password="$2b$12$rr/FMTnWz0BGDTiG//l.YuzZe9ZIpZTPZD5FeAVDDdqgchIDUyD66",
+        hashed_password="$argon2id$v=19$m=65536,t=3,p=4$GZPWq5NMO1CsJrHq+EpiTA$E2QWHVvlRyMcPb4231Bh9pBhnjjENgeqYdb1M7lsIXs",
     )
 
 
@@ -247,7 +248,7 @@ async def test_user_create_in(
         email=user.email,
         full_name=user.full_name,
         photo=user.photo,
-        password="test_password",
+        password=TEST_PASSWORD,
     )
 
 
