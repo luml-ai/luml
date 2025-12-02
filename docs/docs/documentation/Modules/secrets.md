@@ -10,6 +10,11 @@ administration, and rotation of sensitive information, such as API keys (OpenAI,
 Technically, a Secret represents a Key-Value pair that is injected into the execution environment 
 (Deployment) as an environment variable.
 
+<img 
+  src={require('./pics_secrets/secrets.png').default} 
+  style={{ width: '650px', borderRadius: '10px' }} 
+/>
+
 ## Operating Principles
 1. **Data Abstraction**
 The module implements the principle of separating knowledge from usage.

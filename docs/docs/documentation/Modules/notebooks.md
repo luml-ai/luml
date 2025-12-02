@@ -25,6 +25,8 @@ The module implements an automatic model detection mechanism. When a user saves 
 2. Displays it in the platform's UI sidebar (Info section).
 3. Provides a context menu for managing the object.
 
+![](./pics_notebooks/notebooks.png)
+
 This allows the model to be treated as an independent entity: viewing metadata, downloading it to a local device, 
 or pushing it to the global Registry without leaving the notebook context.
 

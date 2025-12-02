@@ -14,6 +14,8 @@ making it an effective tool for quickly obtaining results <u>without writing any
 ## Task Types
 The system offers three specialized environments depending on the problem type.
 
+![](./pics_express_tasks/express_tasks_1.png)
+
 ### 1. Tabular Classification
 This mode fully automates the process of creating classification models. 
 Users are not required to configure algorithms or manually process features—simply uploading a training dataset and specifying the Target column is sufficient. 
@@ -40,8 +42,18 @@ The following elements are used to build the scheme:
 - *Processor*: A transformation node containing instructions for text processing.
 - *Gate*: A logical node for flow branching (if/else conditions).
 
+<img 
+  src={require('./pics_express_tasks/promt_opt.png').default} 
+  style={{ width: '650px', borderRadius: '10px' }} 
+/>
+
 The optimization is based on the Teacher-Student concept, where a more powerful model (Teacher) is used to 
 configure and train a lighter, faster model (Student) for a specific task.
+
+<img 
+  src={require('./pics_express_tasks/promt_opt1.png').default} 
+  style={{ width: '650px', borderRadius: '10px' }} 
+/>
 
 ## Data Preparation
 Express Tasks support data uploads in **.csv** and **.xlsx** formats. 
@@ -53,12 +65,22 @@ It is critical to adhere to table structuring rules (headers, delimiters) for co
 Before training begins, the module provides an interface for basic dataset manipulation. 
 The user can filter rows by specific conditions, sort data, or exclude unnecessary columns that should not influence training.
 
+![](./pics_express_tasks/data_prepar.png)
+
 ## Outputs
 Successful completion of an Express Task generates a model in .dfs format. 
 This is the native binary format of the LUML platform, encapsulating trained weights, metadata, and preprocessing instructions.
 
 Along with the model file, the user gains access to:
-- **Evaluation Dashboard** -- an interactive panel with quality metrics allowing assessment of model reliability before use.
-- **Prediction Interface** -- a built-in tool for model testing, allowing predictions for single records (manual) or data batches (via file upload).
+- **Evaluation Dashboard** - an interactive panel with quality metrics allowing assessment of model reliability before use.
+
+![](./pics_express_tasks/dashboard.png)
+
+- **Prediction Interface** - a built-in tool for model testing, allowing predictions for single records (manual) or data batches (via file upload).
+
+<img 
+  src={require('./pics_express_tasks/predict.png').default} 
+  style={{ width: '350px', borderRadius: '10px' }} 
+/>
 
 The ready model can be saved locally or moved to the [Registry](./Registry/registry.md) for further deployment via [Orbits](../Core-Concepts/orbit.md).

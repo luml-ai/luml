@@ -22,11 +22,26 @@ Graphical representation of metric trends and summary tables.
 Since the experiment snapshot is intrinsically linked to the saved model file (.dfs), this allows for the precise reproduction of experimental conditions. 
 Users can revert to any previous model version and re-run it to verify results.
 
+![](./pics_model_registry/traces.png)
+
 ### LLM Tracing
 For Large Language Models (LLMs), an advanced analysis mode—Tracing—is available within Experiment Snapshots. 
 It enables a detailed breakdown of the response generation process.
+
+![](./pics_model_registry/traces_llm.png)
 
 Tracing tools include:
 - *Trace View* - visualization of all intermediate execution steps (chain of thought, tool calls, vector database queries).
 - *Step Attributes* - detailed technical information on each processing node (input/output tokens, latency, used prompts).
 - *Scoring* - generation quality assessment using Expected Result metrics or an automated LLM-judge.
+
+
+<img 
+  src={require('./pics_model_registry/traces_llm1.png').default} 
+  style={{ width: '750px', borderRadius: '10px' }} 
+/>
+
+<img 
+  src={require('./pics_model_registry/llm_traces2.png').default} 
+  style={{ width: '750px', borderRadius: '10px' }} 
+/>

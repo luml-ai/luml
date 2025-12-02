@@ -8,6 +8,8 @@ The Model Card is a specialized dashboard that transforms raw statistical data i
 a clear visual narrative about your model's quality. 
 Unlike the technical Overview, the focus here is specifically on interpreting training results.
 
+![](./pics_model_registry/model_card.png)
+
 The first layer of analysis is *Metrics and Visualization*. 
 Depending on the task type, the system automatically calculates key success indicators such as Accuracy, F1-score, or RMSE. 
 These figures are complemented by charts (such as Confusion Matrices or error distribution curves), allowing you to instantly assess the overall picture and identify where the model errs most frequently.
