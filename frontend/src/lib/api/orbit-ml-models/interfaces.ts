@@ -52,17 +52,10 @@ export interface UpdateMlModelPayload {
 
 export interface CreateModelResponse {
   model: MlModel
-  url: {
-    upload_id: string
-    parts: CreateModelPart[]
-    complete_url: string
+  upload_details: {
+    url: string
+    multipart: boolean
+    bucket_location: string
+    bucket_secret_id: string
   }
-}
-
-export interface CreateModelPart {
-  part_number: number
-  url: string
-  start_byte: number
-  end_byte: number
-  part_size: number
 }

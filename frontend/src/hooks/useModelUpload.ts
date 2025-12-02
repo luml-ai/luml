@@ -67,7 +67,7 @@ export const useModelUpload = () => {
   ) {
     try {
       progress.value = 0
-      const url = data.url.parts[0].url
+      const url = data.upload_details.url
       await axios.put(url, buffer, {
         headers: { 'Content-Type': 'application/octet-stream' },
         onUploadProgress,
