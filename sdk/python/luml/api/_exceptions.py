@@ -3,16 +3,16 @@ from typing import Literal
 import httpx
 
 
-class DataForceAPIError(Exception):
+class LumlAPIError(Exception):
     def __init__(
         self,
-        message: str = "DataForce Studio API error.",
+        message: str = "LUML Studio API error.",
     ) -> None:
         self.message = message
         super().__init__(self.message)
 
 
-class ConfigurationError(DataForceAPIError):
+class ConfigurationError(LumlAPIError):
     def __init__(
         self,
         resource_type: str,
@@ -21,8 +21,8 @@ class ConfigurationError(DataForceAPIError):
     ) -> None:
         self.message = message if message else ""
         self.message += """
-        dfs = DataForceClient(
-            api_key="dfs_api_key",
+        luml = LumlClient(
+            api_key="luml_api_key",
             organization=1,
             orbit=1215,
             collection=15
@@ -43,7 +43,7 @@ class ConfigurationError(DataForceAPIError):
         super().__init__(self.message)
 
 
-class MultipleResourcesFoundError(DataForceAPIError):
+class MultipleResourcesFoundError(LumlAPIError):
     pass
 
 
@@ -108,7 +108,7 @@ class CollectionResourceNotFoundError(ResourceNotFoundError):
         super().__init__("Collection", value, all_values, message)
 
 
-class APIError(DataForceAPIError):
+class APIError(LumlAPIError):
     message: str
     request: httpx.Request
     body: object | None

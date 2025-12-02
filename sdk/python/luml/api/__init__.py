@@ -1,7 +1,7 @@
 __version__ = "0.1.0"
-__title__ = "dfs"
+__title__ = "luml-sdk"
 
-from ._client import AsyncDataForceClient, DataForceClient
+from ._client import AsyncLumlClient, LumlClient
 from ._exceptions import (
     APIError,
     APIResponseValidationError,
@@ -9,8 +9,8 @@ from ._exceptions import (
     AuthenticationError,
     BadRequestError,
     ConflictError,
-    DataForceAPIError,
     InternalServerError,
+    LumlAPIError,
     NotFoundError,
     PermissionDeniedError,
     UnprocessableEntityError,
@@ -19,9 +19,9 @@ from ._exceptions import (
 __all__ = [
     "__version__",
     "__title__",
-    "DataForceClient",
-    "AsyncDataForceClient",
-    "DataForceAPIError",
+    "LumlClient",
+    "AsyncLumlClient",
+    "LumlAPIError",
     "APIError",
     "APIResponseValidationError",
     "APIStatusError",

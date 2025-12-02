@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from dataforce.api._types import Collection, CollectionType
-from dataforce.api.resources.collections import (
+from luml.api._types import Collection, CollectionType
+from luml.api.resources.collections import (
     AsyncCollectionResource,
     CollectionResource,
 )

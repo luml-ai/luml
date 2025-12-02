@@ -3,7 +3,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from dataforce.modelref import DiskArtifact
+from luml.modelref import DiskArtifact
 
 
 def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:

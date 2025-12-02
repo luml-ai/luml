@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from dataforce.api._types import ModelArtifact
-from dataforce.api.resources.model_artifacts import (
+from luml.api._types import ModelArtifact
+from luml.api.resources.model_artifacts import (
     AsyncModelArtifactResource,
     ModelArtifactResource,
 )
@@ -40,7 +40,7 @@ def test_model_artifact_download_url(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/download"}
     mock_sync_client.get.return_value = expected
 
@@ -66,7 +66,7 @@ def test_model_artifact_delete_url(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/delete"}
     mock_sync_client.get.return_value = expected
 
@@ -128,10 +128,10 @@ def test_model_artifact_update(
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     model_name = "updated-model"
     update_data = {"model_name": model_name}
-    model = sample_model_artifact.copy()
+    model = sample_model_artifact.model_copy()
     model.model_name = model_name
     mock_sync_client.patch.return_value = model
     mock_sync_client.filter_none.return_value = update_data
@@ -150,7 +150,7 @@ def test_model_artifact_delete(mock_sync_client: Mock) -> None:
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     mock_sync_client.delete.return_value = None
 
     resource = ModelArtifactResource(mock_sync_client)
@@ -233,7 +233,7 @@ async def test_async_model_artifact_download_url(mock_async_client: AsyncMock) -
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/download"}
     mock_async_client.get.return_value = expected
 
@@ -251,7 +251,7 @@ async def test_async_model_artifact_delete_url(mock_async_client: AsyncMock) -> 
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     expected = {"url": "https://example.com/delete"}
     mock_async_client.get.return_value = expected
 
@@ -314,10 +314,10 @@ async def test_async_model_artifact_update(
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     model_name = "updated-model"
     update_data = {"model_name": model_name}
-    model = sample_model_artifact.copy()
+    model = sample_model_artifact.model_copy()
     model.model_name = model_name
     mock_async_client.patch.return_value = model
     mock_async_client.filter_none.return_value = update_data
@@ -337,7 +337,7 @@ async def test_async_model_artifact_delete(mock_async_client: AsyncMock) -> None
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
-    model_id = 1
+    model_id = "1236640f-fec6-478d-8772-90eb531cc727"
     mock_async_client.delete.return_value = None
 
     resource = AsyncModelArtifactResource(mock_async_client)

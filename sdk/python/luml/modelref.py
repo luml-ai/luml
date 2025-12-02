@@ -95,7 +95,7 @@ class ModelReference:
                 tar.addfile(file_info, fileobj=io.BytesIO(file_content))
 
     def add_model_card(self, html_content: str) -> None:
-        tag = "dataforce.studio::model_card:v1"
+        tag = "luml::model_card:v1"
 
         zip_buffer = io.BytesIO()
         with zipfile.ZipFile(

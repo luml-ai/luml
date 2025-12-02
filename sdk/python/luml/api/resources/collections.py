@@ -8,7 +8,7 @@ from .._utils import find_by_value
 from ._validators import validate_collection
 
 if TYPE_CHECKING:
-    from .._client import AsyncDataForceClient, DataForceClient
+    from .._client import AsyncLumlClient, LumlClient
 
 
 class CollectionResourceBase(ABC):
@@ -63,10 +63,9 @@ class CollectionResourceBase(ABC):
 
 
 class CollectionResource(CollectionResourceBase):
-    def __init__(self, client: "DataForceClient") -> None:
+    def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
-    @validate_collection
     def get(self, collection_value: str | None = None) -> Collection | None:
         """
         Get collection by id or name.
@@ -88,23 +87,27 @@ class CollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
-            ... collection_by_name = dfs.collections.get("My Collection")
-            ... collection_by_id = dfs.collections.get(
-            ...     "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ... )
+        ```python
+        luml = LumlClient(api_key="luml_your_key")
+        collection_by_name = luml.collections.get("My Collection")
+        collection_by_id = luml.collections.get(
+            "0199c455-21ee-74c6-b747-19a82f1a1e75"
+        )
+        ```
 
         Example response:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     name="My Collection",
-            ...     description="Dataset for ML models",
-            ...     collection_type='model',
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     tags=["ml", "training"],
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at=None
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="My Collection",
+            description="Dataset for ML models",
+            collection_type='model',
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            tags=["ml", "training"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        )
+        ```
         """
         if collection_value is None:
             if self._client.collection:
@@ -130,22 +133,26 @@ class CollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
-            >>> collections = dfs.collections.list()
+        ```python
+        luml = LumlClient(api_key="luml_your_key")
+        collections = luml.collections.list()
+        ```
 
         Example response:
-            >>> [
-            ...     Collection(
-            ...         id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...         name="My Collection",
-            ...         description="Dataset for ML models",
-            ...         collection_type='model',
-            ...         orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...         tags=["ml", "training"],
-            ...         created_at='2025-01-15T10:30:00.123456Z',
-            ...         updated_at=None
-            ...     )
-            ... ]
+        ```python
+        [
+            Collection(
+                id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                name="My Collection",
+                description="Dataset for ML models",
+                collection_type='model',
+                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+                tags=["ml", "training"],
+                created_at='2025-01-15T10:30:00.123456Z',
+                updated_at=None
+            )
+        ]
+        ```
         """
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections"
@@ -175,25 +182,29 @@ class CollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = DataForceClient(api_key="dfs_your_key")
-            >>> collection = dfs.collections.create(
-            ...     name="Training Dataset",
-            ...     description="Dataset for model training",
-            ...     collection_type=CollectionType.DATASET,
-            ...     tags=["ml", "training"]
-            ... )
+        ```python
+        luml = LumlClient(api_key="luml_your_key")
+        collection = luml.collections.create(
+            name="Training Dataset",
+            description="Dataset for model training",
+            collection_type=CollectionType.DATASET,
+            tags=["ml", "training"]
+        )
+        ```
 
         Response object:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     name="Training Dataset",
-            ...     description="Dataset for model training",
-            ...     collection_type='model',
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     tags=["ml", "training"],
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at=None
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="Training Dataset",
+            description="Dataset for model training",
+            collection_type='model',
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            tags=["ml", "training"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        )
+        ```
         """
         response = self._client.post(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
@@ -233,35 +244,39 @@ class CollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = DataForceClient(
-            ...     api_key="dfs_your_key",
-            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
-            ... )
-            >>> collection = dfs.collections.update(
-            ...     collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     name="Updated Dataset",
-            ...     tags=["ml", "updated"]
-            ... )
+        ```python
+        luml = LumlClient(
+            api_key="luml_your_key",
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de"
+        )
+        collection = luml.collections.update(
+            collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="Updated Dataset",
+            tags=["ml", "updated"]
+        )
 
-            >>> dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            >>> collection = dfs.collections.update(
-            ...     name="Updated Dataset",
-            ...     description="Updated description"
-            ... )
+        luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+        collection = luml.collections.update(
+            name="Updated Dataset",
+            description="Updated description"
+        )
+        ```
 
         Response object:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     description="Updated description",
-            ...     name="Updated Dataset",
-            ...     collection_type='model',
-            ...     tags=["ml", "updated"],
-            ...     total_models=43,
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at='2025-01-15T14:22:30.987654Z'
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            description="Updated description",
+            name="Updated Dataset",
+            collection_type='model',
+            tags=["ml", "updated"],
+            total_models=43,
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at='2025-01-15T14:22:30.987654Z'
+        )
+        ```
         """
         response = self._client.patch(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
@@ -292,18 +307,20 @@ class CollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = DataForceClient(
-            ...     api_key="dfs_your_key",
-            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de"
-            ... )
-            ... # Delete specific collection by ID
-            ... dfs.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
+        ```python
+        luml = LumlClient(
+            api_key="luml_your_key",
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de"
+        )
+        # Delete specific collection by ID
+        luml.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
-            ...  # Set default collection
-            ... dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ... # Delete default collection (collection_id will be autofilled)
-            ... dfs.collections.delete()
+        # Set default collection
+        luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+        # Delete default collection (collection_id will be autofilled)
+        luml.collections.delete()
+        ```
 
         Warning:
             This operation is irreversible. All models, datasets, and data
@@ -316,10 +333,9 @@ class CollectionResource(CollectionResourceBase):
 
 
 class AsyncCollectionResource(CollectionResourceBase):
-    def __init__(self, client: "AsyncDataForceClient") -> None:
+    def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
-    @validate_collection
     async def get(self, collection_value: str | None = None) -> Collection | None:
         """
         Get collection by id or name.
@@ -341,26 +357,30 @@ class AsyncCollectionResource(CollectionResourceBase):
                 with that name / id.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
-            >>> async def main():
-            ...     collection_by_name = await dfs.collections.get(
-            ...         "My Collection"
-            ...     )
-            ...     collection_by_id = await dfs.collections.get(
-            ...         "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ...     )
+        ```python
+        luml = AsyncLumlClient(api_key="luml_your_key")
+        async def main():
+            collection_by_name = await luml.collections.get(
+                "My Collection"
+            )
+            collection_by_id = await luml.collections.get(
+                "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
+        ```
 
         Example response:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     name="My Collection",
-            ...     description="Dataset for ML models",
-            ...     collection_type='model',
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     tags=["ml", "training"],
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at=None
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="My Collection",
+            description="Dataset for ML models",
+            collection_type='model',
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            tags=["ml", "training"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        )
+        ```
         """
         if collection_value is None:
             if self._client.collection:
@@ -386,23 +406,27 @@ class AsyncCollectionResource(CollectionResourceBase):
             List of Collection objects.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
-            >>> async def main():
-            ...     collections = await dfs.collections.list()
+        ```python
+        luml = AsyncLumlClient(api_key="luml_your_key")
+        async def main():
+            collections = await luml.collections.list()
+        ```
 
         Example response:
-            >>> [
-            ...     Collection(
-            ...         id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...         name="My Collection",
-            ...         description="Dataset for ML models",
-            ...         collection_type='model',
-            ...         orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...         tags=["ml", "training"],
-            ...         created_at='2025-01-15T10:30:00.123456Z',
-            ...         updated_at=None
-            ...     )
-            ... ]
+        ```python
+        [
+            Collection(
+                id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                name="My Collection",
+                description="Dataset for ML models",
+                collection_type='model',
+                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+                tags=["ml", "training"],
+                created_at='2025-01-15T10:30:00.123456Z',
+                updated_at=None
+            )
+        ]
+        ```
         """
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections"
@@ -432,26 +456,30 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Created collection object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(api_key="dfs_your_key")
-            >>> async def main():
-            ...     collection = await dfs.collections.create(
-            ...         name="Training Dataset",
-            ...         description="Dataset for model training",
-            ...         collection_type=CollectionType.DATASET,
-            ...         tags=["ml", "training"]
-            ...     )
+        ```python
+        luml = AsyncLumlClient(api_key="luml_your_key")
+        async def main():
+            collection = await luml.collections.create(
+                name="Training Dataset",
+                description="Dataset for model training",
+                collection_type=CollectionType.DATASET,
+                tags=["ml", "training"]
+            )
+        ```
 
         Response object:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     name="Training Dataset",
-            ...     description="Dataset for model training",
-            ...     collection_type='model',
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     tags=["ml", "training"],
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at=None
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="Training Dataset",
+            description="Dataset for model training",
+            collection_type='model',
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            tags=["ml", "training"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        )
+        ```
         """
         response = await self._client.post(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
@@ -491,38 +519,42 @@ class AsyncCollectionResource(CollectionResourceBase):
             Collection: Updated collection object.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
-            ...     api_key="dfs_your_key",
-            ... )
-            ... dfs.setup_config(
-            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            ... )
-            >>> async def main():
-            ...     collection = await dfs.collections.update(
-            ...         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...         name="Updated Dataset",
-            ...         tags=["ml", "updated"]
-            ...     )
-            ...
-            ...     dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ...     collection = await dfs.collections.update(
-            ...         name="Updated Dataset",
-            ...         description="Updated description"
-            ...     )
+        ```python
+        luml = AsyncLumlClient(
+            api_key="luml_your_key",
+        )
+        luml.setup_config(
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        )
+        async def main():
+            collection = await luml.collections.update(
+                collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                name="Updated Dataset",
+                tags=["ml", "updated"]
+            )
+
+            luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            collection = await luml.collections.update(
+                name="Updated Dataset",
+                description="Updated description"
+            )
+        ```
 
         Response object:
-            >>> Collection(
-            ...     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-            ...     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-            ...     description="Updated description",
-            ...     name="Updated Dataset",
-            ...     collection_type='model',
-            ...     tags=["ml", "updated"],
-            ...     total_models=43,
-            ...     created_at='2025-01-15T10:30:00.123456Z',
-            ...     updated_at='2025-01-15T14:22:30.987654Z'
-            ... )
+        ```python
+        Collection(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+            description="Updated description",
+            name="Updated Dataset",
+            collection_type='model',
+            tags=["ml", "updated"],
+            total_models=43,
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at='2025-01-15T14:22:30.987654Z'
+        )
+        ```
         """
         response = await self._client.patch(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
@@ -553,23 +585,25 @@ class AsyncCollectionResource(CollectionResourceBase):
             None: No return value on successful deletion.
 
         Example:
-            >>> dfs = AsyncDataForceClient(
-            ...     api_key="dfs_your_key",
-            ... )
-            ... dfs.setup_config(
-            ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            ... )
-            >>> async def main():
-            ...     # Delete specific collection by ID
-            ...     await dfs.collections.delete(
-            ....        "0199c455-21ee-74c6-b747-19a82f1a1e75"
-            ...     )
-            ...
-            ...     # Set default collection
-            ...     dfs.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
-            ...     # Delete default collection
-            ...     await dfs.collections.delete()
+        ```python
+        luml = AsyncLumlClient(
+            api_key="luml_your_key",
+        )
+        luml.setup_config(
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        )
+        async def main():
+            # Delete specific collection by ID
+            await luml.collections.delete(
+                "0199c455-21ee-74c6-b747-19a82f1a1e75"
+            )
+
+        # Set default collection
+        luml.collection = "0199c455-21ee-74c6-b747-19a82f1a1e56"
+        # Delete default collection
+        await luml.collections.delete()
+        ```
 
         Warning:
             This operation is irreversible. All models, datasets, and data

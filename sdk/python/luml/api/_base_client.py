@@ -50,7 +50,7 @@ class BaseClient(ABC):
         return {
             "Accept": "application/json",
             "Content-Type": "application/json",
-            "User-Agent": "dataforce-sdk/0.1.0",
+            "User-Agent": "luml-sdk/0.1.0",
             **self.auth_headers,
         }
 

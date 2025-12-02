@@ -7,7 +7,7 @@ from opentelemetry.trace import Link, SpanKind, Status, StatusCode
 from opentelemetry.util.types import Attributes
 
 
-class DataforceSpanExporter(SpanExporter):
+class LumlSpanExporter(SpanExporter):
     def __init__(
         self,
         log_fn: Callable,

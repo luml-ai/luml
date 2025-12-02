@@ -4,8 +4,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any
 
-from dataforce.experiments.backends import Backend, BackendRegistry
-from dataforce.modelref import ArtifactMap, DiskArtifact, ModelReference
+from luml.experiments.backends import Backend, BackendRegistry
+from luml.modelref import ArtifactMap, DiskArtifact, ModelReference
 
 
 class ExperimentTracker:
@@ -188,7 +188,7 @@ class ExperimentTracker:
         if attachments_result is None:
             raise ValueError(f"No attachments found for experiment {exp_id}")
         attachments, index = attachments_result
-        tag = "dataforce.studio::experiment_snapshot:v1"
+        tag = "luml::experiment_snapshot:v1"
         with NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
             zip_path = temp_zip.name
 

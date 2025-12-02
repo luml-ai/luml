@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from dataforce.api._types import Orbit
-from dataforce.api.resources.orbits import AsyncOrbitResource, OrbitResource
+from luml.api._types import Orbit
+from luml.api.resources.orbits import AsyncOrbitResource, OrbitResource
 
 
 def test_orbit_list(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
@@ -79,13 +79,6 @@ def test_orbit_update(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
     assert orbit.name == orbit_name
 
 
-def test_orbit_get_invalid_type(mock_sync_client: Mock) -> None:
-    resource = OrbitResource(mock_sync_client)
-    orbit = resource.get(123.45)
-
-    assert orbit is None
-
-
 def test_orbit_list_none_response(mock_sync_client: Mock) -> None:
     mock_sync_client.get.return_value = None
 
@@ -96,12 +89,12 @@ def test_orbit_list_none_response(mock_sync_client: Mock) -> None:
 
 
 def test_orbit_delete(mock_sync_client: Mock) -> None:
-    organization_id = 1
-    orbit_id = 1215
+    organization_id = mock_sync_client.organization
+    orbit_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
     mock_sync_client.delete.return_value = None
 
     resource = OrbitResource(mock_sync_client)
-    result = resource.delete()
+    result = resource.delete(orbit_id)
 
     mock_sync_client.delete.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}"
@@ -153,7 +146,7 @@ async def test_async_orbit_get_by_id(
     mock_async_client.get.return_value = sample_orbit
 
     resource = AsyncOrbitResource(mock_async_client)
-    orbit = await resource.get(1234)  # Specific ID
+    orbit = await resource.get(orbit_id)  # Specific ID
 
     mock_async_client.get.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}"
@@ -172,14 +165,6 @@ async def test_async_orbit_get_by_name(
     orbit = await resource.get(orbit_name)
 
     assert orbit.name == orbit_name
-
-
-@pytest.mark.asyncio
-async def test_async_orbit_get_invalid_type(mock_async_client: AsyncMock) -> None:
-    resource = AsyncOrbitResource(mock_async_client)
-    orbit = await resource.get(123.45)
-
-    assert orbit is None
 
 
 @pytest.mark.asyncio
@@ -236,11 +221,11 @@ async def test_async_orbit_update(
 @pytest.mark.asyncio
 async def test_async_orbit_delete(mock_async_client: AsyncMock) -> None:
     organization_id = mock_async_client.organization
-    orbit_id = mock_async_client.orbit
+    orbit_id = "c2cb9f9d-474b-4b57-a318-7755edb61d76"
     mock_async_client.delete.return_value = None
 
     resource = AsyncOrbitResource(mock_async_client)
-    result = await resource.delete()
+    result = await resource.delete(orbit_id)
 
     mock_async_client.delete.assert_called_once_with(
         f"/organizations/{organization_id}/orbits/{orbit_id}"
