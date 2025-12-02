@@ -146,10 +146,14 @@ class OAuthMicrosoftProvider(OAuthProvider):
         email = result.get("mail")
         if not email:
             other_mails = result.get("otherMails")
-            email = other_mails[0] if other_mails else result.get("userPrincipalName")
+            email = (
+                other_mails[0]
+                if other_mails and len(other_mails) > 0
+                else result.get("userPrincipalName")
+            )
 
         return UserInfo(
             email=email,
-            full_name=result.get("displayName"),
+            full_name=result.get("displayName", email),
             photo_url=None,
         )

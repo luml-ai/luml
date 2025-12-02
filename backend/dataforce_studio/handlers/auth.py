@@ -271,17 +271,16 @@ class AuthHandler:
 
         user = await self.__user_repository.get_user(userinfo.email)
 
-        if user and user.auth_method != self.oauth_provider.PROVIDER_TYPE:
-            await self.__user_repository.update_user(
-                UpdateUser(
-                    email=userinfo.email, auth_method=self.oauth_provider.PROVIDER_TYPE
-                )
-            )
+        if user:
+            update_user = UpdateUser(email=userinfo.email)
 
-        if user and userinfo.photo_url != user.photo:
-            await self.__user_repository.update_user(
-                UpdateUser(email=userinfo.email, photo=userinfo.photo_url)
-            )
+            if user.auth_method != self.oauth_provider.PROVIDER_TYPE:
+                update_user.auth_method = self.oauth_provider.PROVIDER_TYPE
+
+            if userinfo.photo_url != user.photo:
+                update_user.photo = userinfo.photo_url
+
+            await self.__user_repository.update_user(update_user)
 
         if not user:
             user = await self.__user_repository.create_user(
