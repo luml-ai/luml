@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from .._exceptions import DataForceAPIError, FileError, FileUploadError
+from .._exceptions import FileError, FileUploadError, LumlAPIError
 from .._types import (
     CreatedModel,
     ModelArtifact,
@@ -443,7 +443,7 @@ class ModelArtifactResource(ModelArtifactResourceBase):
                 upload_id = file_handler.initiate_multipart_upload(upload_details.url)
 
                 if not upload_id:
-                    raise DataForceAPIError("Failed to initiate multipart upload")
+                    raise LumlAPIError("Failed to initiate multipart upload")
 
                 multipart_urls = self._client.bucket_secrets.get_multipart_upload_urls(
                     upload_details.bucket_secret_id,
@@ -1165,7 +1165,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 upload_id = file_handler.initiate_multipart_upload(upload_details.url)
 
                 if not upload_id:
-                    raise DataForceAPIError("Failed to initiate multipart upload")
+                    raise LumlAPIError("Failed to initiate multipart upload")
 
                 multipart_urls = (
                     await self._client.bucket_secrets.get_multipart_upload_urls(

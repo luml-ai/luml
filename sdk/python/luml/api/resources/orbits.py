@@ -103,9 +103,12 @@ class OrbitResource(OrbitResourceBase):
         """
         if orbit_value is None:
             orbit_value = self._client.orbit
-        if is_uuid(orbit_value):
-            return self._get_by_id(orbit_value)
-        return self._get_by_name(orbit_value)
+
+        if orbit_value:
+            if is_uuid(orbit_value):
+                return self._get_by_id(orbit_value)
+            return self._get_by_name(orbit_value)
+        return None
 
     def _get_by_id(self, orbit_id: str) -> Orbit:
         response = self._client.get(
@@ -360,9 +363,11 @@ class AsyncOrbitResource(OrbitResourceBase):
         """
         if orbit_value is None:
             orbit_value = self._client.orbit
-        if is_uuid(orbit_value):
-            return await self._get_by_id(orbit_value)
-        return await self._get_by_name(orbit_value)
+        if orbit_value:
+            if is_uuid(orbit_value):
+                return await self._get_by_id(orbit_value)
+            return await self._get_by_name(orbit_value)
+        return None
 
     async def _get_by_id(self, orbit_id: str) -> Orbit:
         response = await self._client.get(

@@ -187,14 +187,6 @@ async def test_async_bucket_secret_create(
     organization_id = mock_async_client.organization
     mock_async_client.post.return_value = sample_bucket_secret
 
-    resource = AsyncBucketSecretResource(mock_async_client)
-    await resource.create(
-        endpoint="s3.amazonaws.com",
-        bucket_name="my-bucket",
-        access_key="access_key",
-        secret_key="secret_key",
-    )
-
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
@@ -204,10 +196,16 @@ async def test_async_bucket_secret_create(
     mock_async_client.filter_none.return_value = expected_json
 
     resource = AsyncBucketSecretResource(mock_async_client)
-    await resource.create(endpoint="s3.amazonaws.com", bucket_name="my-bucket")
+    await resource.create(
+        endpoint="s3.amazonaws.com",
+        bucket_name="my-bucket",
+        access_key="access_key",
+        secret_key="secret_key",
+    )
 
     mock_async_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets", json=expected_json
+        f"/organizations/{organization_id}/bucket-secrets",
+        json=expected_json,
     )
 
 

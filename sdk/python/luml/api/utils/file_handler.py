@@ -5,7 +5,7 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
-from .._exceptions import DataForceAPIError, FileDownloadError, FileUploadError
+from .._exceptions import FileDownloadError, FileUploadError, LumlAPIError
 from .._types import (
     PartDetails,
 )
@@ -231,11 +231,11 @@ class FileHandler:
                     ".//{http://s3.amazonaws.com/doc/2006-03-01/}UploadId"
                 )
                 if upload_id is None:
-                    raise DataForceAPIError("UploadId not found in S3 response")
+                    raise LumlAPIError("UploadId not found in S3 response")
 
                 return upload_id.text
 
         except Exception as error:
-            raise DataForceAPIError(
+            raise LumlAPIError(
                 f"Failed to initiate multipart upload: {error}"
             ) from error
