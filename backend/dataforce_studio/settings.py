@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     TEMPLATE_ID_ORGANIZATION_INVITE_EMAIL: str
     TEMPLATE_ID_ADDED_TO_ORBIT_EMAIL: str
 
-    CORS_ORIGINS: str = "http://localhost:5173,https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
+    CORS_ORIGINS: str = "https://app.dataforce.studio,https://dev.dataforce.studio,https://app.luml.ai,https://dev.luml.ai"
 
     # quickfix, to be refactored later
     model_config = SettingsConfigDict(
