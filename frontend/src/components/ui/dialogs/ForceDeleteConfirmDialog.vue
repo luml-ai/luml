@@ -27,7 +27,7 @@
 
 <script setup lang="ts">
 import { Dialog, Button, InputText } from 'primevue'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 type Props = {
   title: string
@@ -49,6 +49,11 @@ const input = ref('')
 
 const confirmDisabled = computed(() => {
   return input.value !== 'delete'
+})
+
+watch(visible, (val) => {
+  if (val) return
+  input.value = ''
 })
 </script>
 

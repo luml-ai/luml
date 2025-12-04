@@ -82,4 +82,15 @@ export class MlModelsApi {
     )
     return responseData
   }
+
+  async forceDelete(
+    organizationId: string,
+    orbitId: string,
+    collectionId: string,
+    modelId: string,
+  ) {
+    return this.api.delete(
+      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/model_artifacts/${modelId}/force`,
+    )
+  }
 }

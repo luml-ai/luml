@@ -24,6 +24,11 @@ interface RequestInfo {
   collectionId: string
 }
 
+interface DeleteModelsResult {
+  deleted: string[]
+  failed: string[]
+}
+
 interface ModelStore {
   modelsList: Ref<MlModel[]>
   requestInfo: Ref<RequestInfo>
@@ -57,10 +62,7 @@ interface ModelStore {
     },
   ) => Promise<void>
   resetList: () => void
-  deleteModels: (modelsIds: string[]) => Promise<{
-    deleted: string[]
-    failed: string[]
-  }>
+  deleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
   downloadModel: (modelId: string, name: string) => Promise<void>
   getDownloadUrl: (modelId: string) => Promise<string>
   setCurrentModelTag: (tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) => void
@@ -74,6 +76,7 @@ interface ModelStore {
   setExperimentSnapshotProvider: (provider: ExperimentSnapshotProvider) => void
   resetExperimentSnapshotProvider: () => void
   updateModel: (payload: UpdateMlModelPayload) => Promise<void>
+  forceDeleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
 }
 
 export const useModelsStore = defineStore('models', (): ModelStore => {
@@ -171,19 +174,15 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
   }
 
   async function deleteModel(modelId: string) {
+    const { organizationId, orbitId, collectionId } = requestInfo.value
     const { url } = await dataforceApi.mlModels.getModelDeleteUrl(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      organizationId,
+      orbitId,
+      collectionId,
       modelId,
     )
     await axios.delete(url)
-    await dataforceApi.mlModels.confirmModelDelete(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
-      modelId,
-    )
+    await dataforceApi.mlModels.confirmModelDelete(organizationId, orbitId, collectionId, modelId)
   }
 
   async function downloadModel(modelId: string, name: string) {
@@ -194,10 +193,11 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
   }
 
   async function getDownloadUrl(modelId: string) {
+    const { organizationId, orbitId, collectionId } = requestInfo.value
     const { url } = await dataforceApi.mlModels.getModelDownloadUrl(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      organizationId,
+      orbitId,
+      collectionId,
       modelId,
     )
     return url
@@ -238,16 +238,37 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
   }
 
   async function updateModel(payload: UpdateMlModelPayload) {
+    const { organizationId, orbitId, collectionId } = requestInfo.value
     const result = await dataforceApi.mlModels.updateModel(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
+      organizationId,
+      orbitId,
+      collectionId,
       payload.id,
       payload,
     )
     modelsList.value = modelsList.value.map((model) => {
       return model.id === result.id ? result : model
     })
+  }
+
+  async function forceDeleteModels(modelsIds: string[]) {
+    const { organizationId, orbitId, collectionId } = requestInfo.value
+    const results = await Promise.allSettled(
+      modelsIds.map((id) =>
+        dataforceApi.mlModels.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
+      ),
+    )
+    const deleted: string[] = []
+    const failed: string[] = []
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        deleted.push(result.value)
+      } else {
+        failed.push(modelsIds[index])
+      }
+    })
+    modelsList.value = modelsList.value.filter((model) => !deleted.includes(model.id))
+    return { deleted, failed }
   }
 
   return {
@@ -275,5 +296,6 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     setExperimentSnapshotProvider,
     resetExperimentSnapshotProvider,
     updateModel,
+    forceDeleteModels,
   }
 })

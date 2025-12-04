@@ -190,6 +190,13 @@
       @update:visible="modelForEdit = null"
       :data="modelForEdit"
     ></CollectionModelEditor>
+    <ForceDeleteConfirmDialog
+      :visible="isForceDeleting"
+      :title="forceDeleteTitle"
+      :text="FORCE_DELETE_TEXT"
+      :loading="loading"
+      @confirm="onForceDelete"
+    ></ForceDeleteConfirmDialog>
   </div>
 </template>
 
@@ -211,6 +218,10 @@ import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsC
 import CollectionModelEditor from './model/CollectionModelEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
+import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
+
+const FORCE_DELETE_TEXT =
+  'This action will permanently delete the models. If your bucket still contains the model files, the storage space will not be freed until you remove them manually. <br /> If you are sure, then write "delete" below'
 
 export interface SelectedModel
   extends Pick<
@@ -234,6 +245,7 @@ const selectedModels = ref<SelectedModel[]>([])
 const loading = ref(false)
 const modelForDeployment = ref<string | null>(null)
 const modelForEdit = ref<SelectedModel | null>(null)
+const isForceDeleting = ref(false)
 
 const tableData = computed<SelectedModel[]>(() => {
   return modelsStore.modelsList.map((item) => {
@@ -276,20 +288,21 @@ const compareButtonDisabled = computed(() => {
   })
   return !hasAllExperimentSnapshots
 })
+
+const forceDeleteTitle = computed(() => {
+  return selectedModels.value.length > 1 ? 'Force delete these models?' : 'Force delete this model?'
+})
+
 async function confirmDelete() {
-  const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
-  loading.value = true
   try {
+    const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
+    loading.value = true
     const result = await modelsStore.deleteModels(modelsForDelete)
     if (result.deleted?.length) {
-      toast.add(
-        simpleSuccessToast(
-          `Models: ${result.deleted} has been removed from the collection successfully`,
-        ),
-      )
+      showSuccessDeleteToast(result.deleted)
     }
     if (result.failed?.length) {
-      toast.add(simpleErrorToast(`Failed to delete the models: ${result.failed}`))
+      showErrorDeleteToast(result.failed)
     }
   } catch {
     toast.add(simpleErrorToast('Failed to delete models'))
@@ -301,7 +314,14 @@ async function confirmDelete() {
 
 async function onDeleteClick() {
   if (!selectedModels.value.length || loading.value) return
-  confirm.require(deleteModelConfirmOptions(confirmDelete, selectedModels.value?.length))
+  const hasFailedStatus = selectedModels.value.some(
+    (model) => model.status !== MlModelStatusEnum.uploaded,
+  )
+  if (hasFailedStatus) {
+    isForceDeleting.value = true
+  } else {
+    confirm.require(deleteModelConfirmOptions(confirmDelete, selectedModels.value?.length))
+  }
 }
 
 async function downloadClick() {
@@ -348,6 +368,36 @@ function onUpdateModelDeploymentVisible(val?: boolean) {
 function openModelEditor() {
   if (!selectedModels.value[0]) return
   modelForEdit.value = selectedModels.value[0]
+}
+
+async function onForceDelete() {
+  try {
+    const modelsForDelete = selectedModels.value.map((model: any) => model.id) || []
+    loading.value = true
+    const result = await modelsStore.forceDeleteModels(modelsForDelete)
+    if (result.deleted?.length) {
+      showSuccessDeleteToast(result.deleted)
+    }
+    if (result.failed?.length) {
+      showErrorDeleteToast(result.failed)
+    }
+  } catch {
+    toast.add(simpleErrorToast('Failed to delete models'))
+  } finally {
+    selectedModels.value = []
+    loading.value = false
+    isForceDeleting.value = false
+  }
+}
+
+function showSuccessDeleteToast(models: string[]) {
+  toast.add(
+    simpleSuccessToast(`Models: ${models} has been removed from the collection successfully`),
+  )
+}
+
+function showErrorDeleteToast(models: string[]) {
+  toast.add(simpleErrorToast(`Failed to delete the models: ${models}`))
 }
 
 watch(tableData, (data) => {
