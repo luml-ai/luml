@@ -40,6 +40,7 @@ class OAuthGoogleProvider(OAuthProvider):
             "scope": "openid email profile",
             "access_type": "offline",
             "prompt": "consent",
+            "state": "google",
         }
         return config.GOOGLE_AUTH_URL + "?" + urlencode(params)
 
@@ -101,6 +102,7 @@ class OAuthMicrosoftProvider(OAuthProvider):
             "redirect_uri": config.MICROSOFT_REDIRECT_URI,
             "response_type": "code",
             "scope": "openid email profile User.Read",
+            "state": "microsoft",
         }
         return auth_url + "?" + urlencode(params)
 
