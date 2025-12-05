@@ -34,6 +34,7 @@ import type {
   OrbitDetails,
   OrbitMember,
   UpdateOrbitPayload,
+  IGetMicrosoftLoginRequest,
 } from './DataforceApi.interfaces'
 import { installDataforceInterceptors } from './DataforceApi.interceptors'
 import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
@@ -90,6 +91,15 @@ export class DataforceApiClass {
 
   public async googleLogin(params: IGetGoogleLoginRequest): Promise<IPostSignInResponse> {
     const { data } = await this.api.get('/auth/google/callback', {
+      skipInterceptors: true,
+      params,
+    })
+
+    return data
+  }
+
+  public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSignInResponse> {
+    const { data } = await this.api.get('/auth/microsoft/callback', {
       skipInterceptors: true,
       params,
     })

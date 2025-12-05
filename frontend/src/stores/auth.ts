@@ -75,5 +75,23 @@ export const useAuthStore = defineStore('auth', () => {
     if (usersStore.getUserEmail) AnalyticsService.identify(user_id, usersStore.getUserEmail)
   }
 
-  return { isAuth, signUp, signIn, logout, checkIsLoggedId, forgotPassword, loginWithGoogle }
+  const loginWithMicrosoft = async (code: string) => {
+    const { token, user_id } = await dataforceApi.microsoftLogin({ code })
+    if (!token.access_token) return
+    saveTokens(token.access_token, token.refresh_token)
+    isAuth.value = true
+    await usersStore.loadUser()
+    if (usersStore.getUserEmail) AnalyticsService.identify(user_id, usersStore.getUserEmail)
+  }
+
+  return {
+    isAuth,
+    signUp,
+    signIn,
+    logout,
+    checkIsLoggedId,
+    forgotPassword,
+    loginWithGoogle,
+    loginWithMicrosoft,
+  }
 })

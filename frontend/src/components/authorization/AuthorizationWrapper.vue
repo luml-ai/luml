@@ -43,7 +43,7 @@
 <script setup lang="ts">
 import type { IAuthorizationService, TAuthorizationWrapperProps } from './interfaces'
 import GoogleIcon from '@/assets/img/authorization-services/google.svg'
-// import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
+import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
 // import GitHubIcon from '@/assets/img/authorization-services/github.svg'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
@@ -66,12 +66,13 @@ const services: IAuthorizationService[] = [
     action: () =>
       (window.location.href = `${import.meta.env.VITE_DATAFORCE_API_URL}/auth/google/login`),
   },
-  // {
-  //   id: 'microsoft',
-  //   label: 'Sign in with Microsoft',
-  //   icon: MicrosoftIcon,
-  //   action: () => console.log('Microsoft'),
-  // },
+  {
+    id: 'microsoft',
+    label: 'Sign in with Microsoft',
+    icon: MicrosoftIcon,
+    action: () =>
+      (window.location.href = `${import.meta.env.VITE_DATAFORCE_API_URL}/auth/microsoft/login`),
+  },
   // {
   //   id: 'github',
   //   label: 'Sign in with Github',
@@ -83,9 +84,14 @@ const services: IAuthorizationService[] = [
 onBeforeMount(async () => {
   const urlParams = new URLSearchParams(window.location.search)
   const code = urlParams.get('code')
+  const provider = urlParams.get('state')
   if (!code) return
   try {
-    await authStore.loginWithGoogle(code)
+    if (provider === 'google') {
+      await authStore.loginWithGoogle(code)
+    } else if (provider === 'microsoft') {
+      await authStore.loginWithMicrosoft(code)
+    }
     await userStore.loadUser()
     router.push({ name: 'home' })
   } catch (e) {

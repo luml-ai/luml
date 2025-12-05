@@ -90,6 +90,10 @@ export interface IGetGoogleLoginRequest {
   code: string
 }
 
+export interface IGetMicrosoftLoginRequest {
+  code: string
+}
+
 export interface IResetPasswordRequest {
   reset_token: string
   new_password: string
