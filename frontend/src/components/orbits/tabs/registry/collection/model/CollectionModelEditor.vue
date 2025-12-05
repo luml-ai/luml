@@ -101,6 +101,7 @@ type Props = {
 const props = defineProps<Props>()
 
 const visible = defineModel<boolean>('visible')
+const emit = defineEmits(['model-deleted'])
 
 const toast = useToast()
 const confirm = useConfirm()
@@ -163,6 +164,7 @@ async function deleteModel() {
       toast.add(
         simpleSuccessToast(`Model "${props.data.model_name}" was removed from the collection.`),
       )
+      emit('model-deleted')
       visible.value = false
       await new Promise((resolve) => setTimeout(resolve, 100))
     } else if (result.failed?.length) {

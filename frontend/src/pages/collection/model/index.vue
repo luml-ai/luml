@@ -14,14 +14,14 @@
             <Bolt :size="16" />
           </template>
         </Button>
-        <Button
-          variant="text"
-          severity="secondary"
-          v-tooltip="'Deploy'"
-          @click="initDeploy"
-        >
+        <Button variant="text" severity="secondary" v-tooltip="'Deploy'" @click="initDeploy">
           <template #icon>
             <Rocket :size="16" />
+          </template>
+        </Button>
+        <Button variant="text" severity="secondary" v-tooltip="'Download'" @click="downloadClick">
+          <template #icon>
+            <Download :size="16" />
           </template>
         </Button>
       </div>
@@ -36,31 +36,32 @@
         <component :is="Component" :model="currentModel" />
       </RouterView>
     </div>
-    <DeploymentsCreateModal
-      v-if="modelForDeployment"
-      :visible="!!modelForDeployment"
-      :initial-collection-id="collectionsStore.currentCollection?.id"
-      :initial-model-id="modelForDeployment"
-      @update:visible="onUpdateModelDeploymentVisible"
-    ></DeploymentsCreateModal>
-    <CollectionModelEditor
-      v-if="modelForEdit"
-      :visible="!!modelForEdit"
-      @update:visible="onUpdateModelEditorVisible"
-      @model-deleted="onModelDeleted"
-      :data="modelForEdit"
-    ></CollectionModelEditor>
   </div>
+  <DeploymentsCreateModal
+    v-if="modelForDeployment"
+    :visible="!!modelForDeployment"
+    :initial-collection-id="collectionsStore.currentCollection?.id"
+    :initial-model-id="modelForDeployment"
+    @update:visible="onUpdateModelDeploymentVisible"
+  ></DeploymentsCreateModal>
+
+  <CollectionModelEditor
+    v-if="modelForEdit"
+    :visible="!!modelForEdit"
+    @update:visible="onUpdateModelEditorVisible"
+    @model-deleted="onModelDeleted"
+    :data="modelForEdit"
+  ></CollectionModelEditor>
 </template>
 
 <script setup lang="ts">
 import { useModelsStore } from '@/stores/models'
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/model/CollectionModelTabs.vue'
 import { Button } from 'primevue'
-import { Bolt, Rocket } from 'lucide-vue-next'
+import { Bolt, Rocket, Download } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
@@ -147,9 +148,18 @@ function navigateToCollectionModels() {
     params: {
       organizationId: route.params.organizationId,
       id: route.params.id,
-      collectionId: route.params.collectionId
-    }
+      collectionId: route.params.collectionId,
+    },
   })
+}
+
+async function downloadClick() {
+  if (!currentModel.value) return
+  try {
+    await modelsStore.downloadModel(currentModel.value.id, currentModel.value.file_name)
+  } catch (e) {
+    console.error('Download failed', e)
+  }
 }
 
 onUnmounted(() => {
@@ -163,19 +173,14 @@ onUnmounted(() => {
 <style scoped>
 .header {
   display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-bottom: 20px;
 }
 
 .title {
-  margin-right: 0;
+  margin-bottom: 20px;
 }
 
 .toolbar {
-  display: flex;
-  align-items: center;
-  gap: 0px;
+  margin-left: auto;
 }
 
 .view-wrapper {
