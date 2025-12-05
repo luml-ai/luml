@@ -41,10 +41,11 @@
         <div class="updated-date">
           {{
             secret.updated_at
-              ? new Date(secret.updated_at).toLocaleDateString()
-              : new Date().toLocaleDateString()
+              ? new Date(secret.updated_at).toLocaleString()
+              : new Date().toLocaleString()
           }}
         </div>
+
         <div class="actions">
           <Button variant="text" severity="secondary" @click="editSecret(secret)">
             <template #icon>
@@ -154,9 +155,5 @@ function normalizeTags(tags: any): string[] {
 .secret-name {
   word-wrap: break-word;
   overflow-wrap: anywhere;
-}
-
-.updated-date {
-  color: var(--p-form-field-disabled-color);
 }
 </style>
