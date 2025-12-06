@@ -47,7 +47,7 @@
             <label class="label" :class="{ required: field.required }">{{ field.label }}</label>
             <template v-if="field.type === SatelliteFieldTypeEnum.boolean">
               <ToggleButton
-                v-model="field.value"
+                v-model="field.value as unknown as boolean"
                 size="small"
                 @change="updateFields"
               ></ToggleButton>
@@ -55,7 +55,7 @@
             <template v-else-if="field.type === SatelliteFieldTypeEnum.dropdown">
               <Select
                 v-model="field.value"
-                :options="field.values"
+                :options="field.values || []"
                 :required="field.required"
                 size="small"
                 option-label="label"
@@ -66,7 +66,7 @@
             </template>
             <template v-else-if="field.type === SatelliteFieldTypeEnum.number">
               <InputNumber
-                v-model="field.value"
+                v-model="field.value as unknown as number"
                 placeholder="Enter value"
                 size="small"
                 :required="field.required"
@@ -75,7 +75,7 @@
             </template>
             <template v-else>
               <InputText
-                v-model="field.value"
+                v-model="field.value as string"
                 placeholder="Enter value"
                 size="small"
                 :required="field.required"
@@ -116,7 +116,7 @@ const toast = useToast()
 const { fields: fieldsForShowing, setFields } = useSatelliteFields()
 
 const satelliteId = defineModel<string | null>('satelliteId')
-const fields = defineModel<FieldInfo[]>('fields')
+const fields = defineModel<FieldInfo<string | number | boolean>[]>('fields')
 
 const ignoreWatch = ref(false)
 

@@ -8,6 +8,14 @@ export interface FieldInfo<T = string> {
   key: string
   value: T | null
   label: string
+  required?: boolean
+  values?: FieldOption[] | null
+  type?: SatelliteFieldTypeEnum
+}
+
+interface FieldOption {
+  label: string
+  value: string | number
 }
 
 export interface SatelliteFieldInfo {
