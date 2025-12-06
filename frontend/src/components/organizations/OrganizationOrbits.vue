@@ -1,10 +1,16 @@
 <template>
   <div>
-    <h3 class="label">
-      List of Orbits for current organization ({{
-        organizationStore.organizationDetails?.orbits.length || 0
-      }})
-    </h3>
+    <div class="toolbar">
+      <h3 class="label">
+        List of Orbits for current organization ({{
+          organizationStore.organizationDetails?.orbits.length || 0
+        }})
+      </h3>
+      <Button v-if="createAvailable" @click="showCreator = true">
+        <Plus :size="14" />
+        <span>New Orbit</span>
+      </Button>
+    </div>
     <div class="users">
       <div class="users-header">
         <div class="row">
@@ -32,14 +38,32 @@
         All Orbits linked to this organization will be shown in this table once available.
       </div>
     </div>
+    <OrbitCreator
+      v-if="organizationStore.currentOrganization"
+      v-model:visible="showCreator"
+      :organization-id="organizationStore.currentOrganization.id"
+    ></OrbitCreator>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useOrganizationStore } from '@/stores/organization'
+import { Button } from 'primevue'
+import { Plus } from 'lucide-vue-next'
+import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { computed, ref } from 'vue'
 import OrganizationOrbitSettings from './OrganizationOrbitSettings.vue'
+import OrbitCreator from '../orbits/creator/OrbitCreator.vue'
 
 const organizationStore = useOrganizationStore()
+
+const showCreator = ref(false)
+
+const createAvailable = computed(() => {
+  return !!organizationStore.currentOrganization?.permissions?.orbit?.includes(
+    PermissionEnum.create,
+  )
+})
 </script>
 
 <style scoped>

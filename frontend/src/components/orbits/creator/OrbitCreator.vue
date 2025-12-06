@@ -69,7 +69,7 @@
                   <RouterLink
                     :to="{
                       name: 'organization-buckets',
-                      params: { id: +route.params.organizationId },
+                      params: { id: organizationId },
                     }"
                     :class="slotProps.class"
                   >
@@ -107,7 +107,12 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useUserStore } from '@/stores/user'
 import { orbitCreatorResolver } from '@/utils/forms/resolvers'
-import { useRoute } from 'vue-router'
+
+type Props = {
+  organizationId: string
+}
+
+const props = defineProps<Props>()
 
 const dialogPt: DialogPassThroughOptions = {
   root: {
@@ -142,7 +147,6 @@ const bucketsStore = useBucketsStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const userStore = useUserStore()
-const route = useRoute()
 
 const membersList = computed(() => {
   if (!organizationStore.organizationDetails) return []
@@ -168,10 +172,6 @@ const getMemberFullName = computed(() => (userId: string) => {
   return membersList.value.find((member) => member.id === userId)?.full_name || ''
 })
 
-function getSingleParam(param: string | string[] | undefined): string {
-  return Array.isArray(param) ? param[0] : param || ''
-}
-
 watch(
   membersModel,
   (members) => {
@@ -188,7 +188,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   try {
     loading.value = true
     const payload = initialValues.value as CreateOrbitPayload
-    await orbitsStore.createOrbit(getSingleParam(route.params.organizationId), payload)
+    await orbitsStore.createOrbit(props.organizationId, payload)
     toast.add(simpleSuccessToast('Orbit created'))
     visible.value = false
   } catch (e: any) {
@@ -199,7 +199,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 }
 
 watch(visible, (val) => {
-  if (val) bucketsStore.getBuckets(getSingleParam(route.params.organizationId))
+  if (val) bucketsStore.getBuckets(props.organizationId)
 })
 </script>
 
