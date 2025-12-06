@@ -1,6 +1,9 @@
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import type { Orbit } from '@/lib/api/DataforceApi.interfaces'
+import { combineValidators, getSatelliteValidator } from '@/helpers/helpers'
+import type { CreateDeploymentForm } from '@/components/deployments/deployments.interfaces'
+import type { Ref } from 'vue'
 
 export const signInResolver = zodResolver(
   z.object({
@@ -151,21 +154,42 @@ const keyValueSchema = z.object({
 })
 
 const valueSchema = z.object({
-  value: z.union([z.string().min(1), z.number().min(1)]),
+  value: z.union([
+    z.string().nullable().optional(),
+    z.number().nullable().optional(),
+    z.boolean().nullable().optional(),
+  ]),
 })
 
-export const createDeploymentResolver = zodResolver(
-  z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
-    tags: z.array(z.string()).optional().default([]),
-    collectionId: z.string(),
-    modelId: z.string(),
-    satelliteId: z.string(),
-    secretDynamicAttributes: z.array(valueSchema).optional(),
-    secretEnvs: z.array(valueSchema).optional(),
-    notSecretEnvs: z.array(valueSchema).optional(),
-    customVariables: z.array(keyValueSchema).optional(),
-    satelliteFields: z.array(valueSchema).optional(),
-  }),
-)
+export const createDeploymentResolver = (formData: Ref<CreateDeploymentForm>) =>
+  zodResolver(
+    z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      tags: z.array(z.string()).optional().default([]),
+      collectionId: z.string().min(1),
+      modelId: z.string().min(1),
+      satelliteId: z.string().min(1),
+      secretDynamicAttributes: z.array(valueSchema).optional(),
+      secretEnvs: z.array(valueSchema).optional(),
+      notSecretEnvs: z.array(valueSchema).optional(),
+      customVariables: z.array(keyValueSchema).optional(),
+      satelliteFields: z.array(z.any()).superRefine((fields, ctx) => {
+        formData.value.satelliteFields.forEach((field, index) => {
+          const validator = combineValidators(
+            field.validators.map(getSatelliteValidator),
+            field.required,
+          )
+          const result = validator.safeParse(fields[index]?.value)
+          if (!result.success) {
+            result.error.issues.forEach((issue) => {
+              ctx.addIssue({
+                ...issue,
+                path: [index, 'value'],
+              })
+            })
+          }
+        })
+      }),
+    }),
+  )

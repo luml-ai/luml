@@ -1,7 +1,23 @@
+import type {
+  SatelliteFieldTypeEnum,
+  SatelliteFieldValue,
+  Validator,
+} from '@/lib/api/satellites/interfaces'
+
 export interface FieldInfo<T = string> {
   key: string
   value: T | null
   label: string
+}
+
+export interface SatelliteFieldInfo {
+  key: string
+  value: string | number | boolean | null
+  label: string
+  type: SatelliteFieldTypeEnum
+  values: SatelliteFieldValue[] | null
+  required: boolean
+  validators: Validator[]
 }
 
 export interface CreateDeploymentForm {
@@ -16,5 +32,5 @@ export interface CreateDeploymentForm {
   secretEnvs: FieldInfo<string>[]
   notSecretEnvs: FieldInfo<string>[]
   customVariables: Omit<FieldInfo<string>, 'label'>[]
-  satelliteFields: FieldInfo<string | number>[]
+  satelliteFields: SatelliteFieldInfo[]
 }

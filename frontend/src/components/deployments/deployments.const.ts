@@ -1,4 +1,5 @@
 import type { DialogPassThroughOptions } from 'primevue'
+import type { CreateDeploymentForm } from './deployments.interfaces'
 
 export const dialogPt: DialogPassThroughOptions = {
   mask: {
@@ -36,14 +37,17 @@ export const deploymentErrorDialogPt: DialogPassThroughOptions = {
   },
 }
 
-export const getInitialFormData = (collectionId?: string, modelId?: string) => {
+export const getInitialFormData = (
+  collectionId?: string,
+  modelId?: string,
+): CreateDeploymentForm => {
   return {
     name: '',
     description: '',
     tags: [],
-    collectionId: collectionId ?? null,
-    modelId: modelId ?? null,
-    satelliteId: null,
+    collectionId: collectionId ?? '',
+    modelId: modelId ?? '',
+    satelliteId: '',
     secretDynamicAttributes: [],
     dynamicAttributes: [],
     secretEnvs: [],

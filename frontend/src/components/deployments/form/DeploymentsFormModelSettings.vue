@@ -209,7 +209,13 @@ type Props = {
   initialModelId?: string
 }
 
+type Emits = {
+  modelChanged: [MlModel | null]
+}
+
 const props = defineProps<Props>()
+
+const emit = defineEmits<Emits>()
 
 const collectionsStore = useCollectionsStore()
 const modelsStore = useModelsStore()
@@ -284,6 +290,7 @@ function onCollectionChange(collectionId: string | null | undefined) {
 }
 
 function onModelChange(model: MlModel | null) {
+  emit('modelChanged', model)
   customVariables.value = []
   if (model) {
     setDynamicAttributes(model.manifest)

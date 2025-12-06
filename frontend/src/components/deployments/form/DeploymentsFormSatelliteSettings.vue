@@ -10,22 +10,27 @@
           name="satelliteId"
           placeholder="Select satellite"
           fluid
-          :options="satellitesStore.satellitesList"
+          :options="satellitesGroups"
           option-label="name"
           option-value="id"
+          option-disabled="disabled"
+          option-group-label="label"
+          option-group-children="items"
         >
-          <template #header>
-            <div class="dropdown-title">Available satellites</div>
-          </template>
           <template #option="{ option }">
             <div class="option">
-              <div class="option-text">{{ option.name }}</div>
+              <div class="option-text">
+                {{ option.name }}
+              </div>
               <div class="option-icons">
                 <Rocket
                   v-if="option.capabilities.deploy"
                   :size="16"
                   color="var(--p-icon-muted-color)"
                 ></Rocket>
+              </div>
+              <div v-if="option.errorMessage" class="option-message">
+                <Info :size="12" class="option-message-icon" /> {{ option.errorMessage }}
               </div>
             </div>
           </template>
@@ -39,8 +44,44 @@
             :name="`satelliteFields.${index}.value`"
             class="field"
           >
-            <label class="label">{{ field.label }}</label>
-            <InputText v-model="field.value" placeholder="Enter value" size="small"></InputText>
+            <label class="label" :class="{ required: field.required }">{{ field.label }}</label>
+            <template v-if="field.type === SatelliteFieldTypeEnum.boolean">
+              <ToggleButton
+                v-model="field.value"
+                size="small"
+                @change="updateFields"
+              ></ToggleButton>
+            </template>
+            <template v-else-if="field.type === SatelliteFieldTypeEnum.dropdown">
+              <Select
+                v-model="field.value"
+                :options="field.values"
+                :required="field.required"
+                size="small"
+                option-label="label"
+                option-value="value"
+                placeholder="Select value"
+                @change="updateFields"
+              ></Select>
+            </template>
+            <template v-else-if="field.type === SatelliteFieldTypeEnum.number">
+              <InputNumber
+                v-model="field.value"
+                placeholder="Enter value"
+                size="small"
+                :required="field.required"
+                @change="updateFields"
+              ></InputNumber>
+            </template>
+            <template v-else>
+              <InputText
+                v-model="field.value"
+                placeholder="Enter value"
+                size="small"
+                :required="field.required"
+                @change="updateFields"
+              ></InputText>
+            </template>
           </FormField>
         </div>
       </div>
@@ -50,30 +91,88 @@
 
 <script setup lang="ts">
 import type { FieldInfo } from '../deployments.interfaces'
-import type { Satellite } from '@/lib/api/satellites/interfaces'
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import { SatelliteFieldTypeEnum, type SatelliteField } from '@/lib/api/satellites/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
-import { Select, useToast, InputText } from 'primevue'
-import { computed, onBeforeMount, watch } from 'vue'
+import { Select, useToast, InputText, InputNumber, ToggleButton } from 'primevue'
+import { computed, nextTick, onBeforeMount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { FormField } from '@primevue/forms'
-import { Rocket } from 'lucide-vue-next'
+import { Rocket, Info } from 'lucide-vue-next'
+import { useSatelliteFields } from '@/hooks/satellites/useSatelliteFields'
+import { watch } from 'vue'
+
+type Props = {
+  selectedModel: MlModel | null
+}
+
+const props = defineProps<Props>()
 
 const satellitesStore = useSatellitesStore()
 const route = useRoute()
 const toast = useToast()
+const { fields: fieldsForShowing, setFields } = useSatelliteFields()
 
 const satelliteId = defineModel<string | null>('satelliteId')
 const fields = defineModel<FieldInfo[]>('fields')
 
-const currentSatellite = computed(() => {
-  if (!satelliteId.value) return null
-  const satellite = satellitesStore.satellitesList.find(
-    (satellite) => satellite.id === satelliteId.value,
-  )
-  return satellite || null
+const ignoreWatch = ref(false)
+
+const filteredSatellites = computed(() => {
+  const model = props.selectedModel
+  if (!model) return []
+  return satellitesStore.satellitesList.filter((satellite) => !!satellite.capabilities.deploy)
 })
+
+const satellitesOptions = computed(() => {
+  const model = props.selectedModel
+  if (!model) return []
+  return filteredSatellites.value.map((satellite) => {
+    const variantValid = !!satellite.capabilities.deploy?.supported_variants?.includes(
+      model.manifest.variant,
+    )
+    const supportedTagsEmpty = !satellite.capabilities.deploy?.supported_tags_combinations
+    const tagsSupported = !!satellite.capabilities.deploy?.supported_tags_combinations?.find(
+      (combination) => {
+        return combination.every((tag) => model.manifest.producer_tags.includes(tag))
+      },
+    )
+    const tagsValid = supportedTagsEmpty || tagsSupported
+    return {
+      ...satellite,
+      disabled: !variantValid || !tagsValid,
+      errorMessage: getSatelliteErrorMessage(variantValid, tagsValid),
+    }
+  })
+})
+
+const satellitesGroups = computed(() => {
+  const disabled = satellitesOptions.value.filter((satellite) => satellite.disabled)
+  const enabled = satellitesOptions.value.filter((satellite) => !satellite.disabled)
+  const groups = []
+  if (enabled.length > 0) {
+    groups.push({
+      label: 'Available satellites',
+      items: enabled,
+    })
+  }
+  if (disabled.length > 0) {
+    groups.push({
+      label: 'Incompatible satellites',
+      items: disabled,
+    })
+  }
+  return groups
+})
+
+function getSatelliteErrorMessage(variantValid: boolean, tagsValid: boolean) {
+  if (!variantValid) return 'The satellite does not support this model variant'
+  if (!tagsValid)
+    return 'The model does not contain a combination of tags required by the satellite'
+  return null
+}
 
 async function getSatellites() {
   try {
@@ -92,20 +191,69 @@ async function getSatellites() {
   }
 }
 
-function onSatelliteChange(satellite: Satellite | null) {
-  if (satellite) {
-    const inputs = satellite.capabilities.deploy?.inputs
-    fields.value = inputs?.map((input) => getFieldFromInput(input)) || []
-  } else {
-    fields.value = []
+function updateFields() {
+  const satellite =
+    satellitesStore.satellitesList.find((satellite) => satellite.id === satelliteId.value) || null
+  setFields(
+    satellite,
+    props.selectedModel,
+    fields.value?.reduce(
+      (acc, field) => {
+        acc[field.key] = field.value
+        return acc
+      },
+      {} as Record<string, any>,
+    ) || {},
+  )
+}
+
+function getFieldInfo(data: SatelliteField) {
+  return {
+    key: data.name,
+    value: null,
+    label: data.name,
+    required: data.required,
+    validators: data.validators,
+    values: data.values,
+    type: data.type,
   }
 }
 
-function getFieldFromInput(input: string) {
-  return { key: input, label: input, value: '' }
+function removeOldFields(currentFields: string[]) {
+  const updatedFields = fields.value?.filter((field) => {
+    return currentFields.includes(field.key)
+  })
+  fields.value = updatedFields
 }
 
-watch(currentSatellite, onSatelliteChange)
+function addNewFields(newFields: SatelliteField[]) {
+  const notExistingFields = newFields.filter((field) => {
+    return !fields.value?.some((f) => f.key === field.name)
+  })
+  fields.value = [...(fields.value || []), ...notExistingFields.map(getFieldInfo)]
+}
+
+watch(
+  [() => props.selectedModel, () => satelliteId.value, () => fields.value],
+  (values, prevValues) => {
+    const isModelChanged = values[0] !== prevValues[0]
+    const isSatelliteChanged = values[1] !== prevValues[1]
+    const isFieldsChanged = JSON.stringify(values[2]) !== JSON.stringify(prevValues[2])
+    const someDataChanged = isModelChanged || isSatelliteChanged || isFieldsChanged
+    if (ignoreWatch.value || !someDataChanged) return
+    updateFields()
+  },
+  { deep: true },
+)
+
+watch(fieldsForShowing, (newFields) => {
+  ignoreWatch.value = true
+  removeOldFields(newFields.map((field) => field.name))
+  nextTick(() => {
+    addNewFields(newFields)
+    ignoreWatch.value = false
+  })
+})
 
 onBeforeMount(() => {
   getSatellites()
@@ -170,15 +318,28 @@ onBeforeMount(() => {
 
 .option {
   width: 100%;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 15px;
+  column-gap: 15px;
 }
 
 .option-icons {
   flex: 0 0 auto;
   display: flex;
   gap: 6px;
+}
+
+.option-message {
+  grid-column: span 2;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-top: 2px;
+}
+
+.option-message-icon {
+  flex: 0 0 auto;
 }
 </style>

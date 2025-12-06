@@ -1,3 +1,4 @@
+import type { Validator } from '@/lib/api/satellites/interfaces'
 import {
   Tasks,
   type ClassificationMetrics,
@@ -6,6 +7,7 @@ import {
 } from '@/lib/data-processing/interfaces'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
+import { z } from 'zod'
 
 export const getMetrics = (
   data: Pick<
@@ -201,4 +203,40 @@ function tryParseJson(text: string) {
   } catch (e) {
     return null
   }
+}
+
+export function getSatelliteValidator(config: Validator) {
+  switch (config.type) {
+    case 'min':
+      return z.number().min(config.value)
+
+    case 'max':
+      return z.number().max(config.value)
+
+    case 'regex':
+      return z.string().regex(config.value)
+
+    case 'equal':
+      return z.any().refine((val) => val === config.value)
+
+    case 'notEqual':
+      return z.any().refine((val) => val !== config.value)
+
+    case 'in':
+      return z.any().refine((val) => config.value.includes(val))
+  }
+}
+
+export function combineValidators(validators: z.ZodTypeAny[], required: boolean) {
+  let schema: z.ZodTypeAny = z.any()
+
+  for (const v of validators) {
+    schema = schema.pipe(v)
+  }
+
+  if (!required) {
+    schema = schema.optional()
+  }
+
+  return schema
 }

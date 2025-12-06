@@ -20,7 +20,7 @@
         id="createDeploymentForm"
         class="content"
         :initial-values="initialValues"
-        :resolver="createDeploymentResolver"
+        :resolver="resolver"
         @submit="onSubmit"
       >
         <DeploymentsFormBasicsSettings
@@ -38,8 +38,10 @@
           v-model:secret-envs="initialValues.secretEnvs"
           v-model:not-secret-envs="initialValues.notSecretEnvs"
           v-model:custom-variables="initialValues.customVariables"
+          @model-changed="onModelChanged"
         ></DeploymentsFormModelSettings>
         <DeploymentsFormSatelliteSettings
+          :selected-model="selectedModel"
           v-model:satellite-id="initialValues.satelliteId"
           v-model:fields="initialValues.satelliteFields"
         ></DeploymentsFormSatelliteSettings>
@@ -52,10 +54,11 @@
 import type { CreateDeploymentForm, FieldInfo } from '../deployments.interfaces'
 import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
 import type { FormSubmitEvent } from '@primevue/forms'
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { Dialog, Button, useToast } from 'primevue'
 import { Form } from '@primevue/forms'
 import { dialogPt, getInitialFormData } from '../deployments.const'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { getErrorMessage, getNumberOrString } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
@@ -80,8 +83,9 @@ const visible = defineModel<boolean>('visible')
 
 const formRef = ref<any>()
 const loading = ref(false)
-
+const selectedModel = ref<MlModel | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
+const resolver = ref(createDeploymentResolver(initialValues))
 
 const isFormValid = computed(() => formRef.value?.valid)
 
@@ -94,7 +98,10 @@ function resetForm() {
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) return
+  if (!valid) {
+    toast.add(simpleErrorToast('Check the form for errors'))
+    return
+  }
   const formData = initialValues.value as any as CreateDeploymentForm
   const payload = getPayload(formData)
   try {
@@ -124,7 +131,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
     description: form.description,
     satellite_id: form.satelliteId,
     model_artifact_id: form.modelId,
-    satellite_parameters: fieldsToRecord(form.satelliteFields, getNumberOrString),
+    satellite_parameters: fieldsToRecord<string | number | boolean>(form.satelliteFields, (v) => v),
     dynamic_attributes_secrets: fieldsToRecord(
       form.secretDynamicAttributes,
       (v) => v,
@@ -135,7 +142,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
   }
 }
 
-function fieldsToRecord<T extends string | number>(
+function fieldsToRecord<T extends string | number | boolean>(
   fields: FieldInfo<T>[],
   transform: (value: NonNullable<T>) => T,
 ): Record<string, T> {
@@ -149,12 +156,9 @@ function fieldsToRecord<T extends string | number>(
   )
 }
 
-watch(visible, (val) => {
-  if (val) return
-  resetForm()
-})
-
-onMounted(() => {})
+function onModelChanged(model: MlModel | null) {
+  selectedModel.value = model
+}
 </script>
 
 <style scoped>
