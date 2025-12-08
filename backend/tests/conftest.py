@@ -216,7 +216,7 @@ async def member_data() -> AsyncGenerator[OrganizationMember]:
         role=OrgRole.OWNER,
         user=UserOut(
             id=uuid7(),
-            email="test@gmail.com",
+            email="test@example.com",
             full_name="Full Name",
             disabled=False,
             photo=None,
@@ -229,7 +229,7 @@ async def member_data() -> AsyncGenerator[OrganizationMember]:
 @pytest_asyncio.fixture(scope="function")
 async def test_user_create() -> AsyncGenerator[CreateUser]:
     yield CreateUser(
-        email=f"testuser_{uuid.uuid4()}@example.com",
+        email=f"test_{uuid.uuid4()}@example.com",
         full_name="Test User",
         disabled=None,
         email_verified=False,
@@ -426,6 +426,7 @@ async def create_organization_with_user(
             organization_id=created_organization.id,
             endpoint="s3",
             bucket_name="test-bucket",
+            region="us-east-1",
         )
     )
     assert secret is not None, (
@@ -455,7 +456,7 @@ async def create_organization_with_members(
 
     for _ in range(10):
         user_data = test_user_create.model_copy()
-        user_data.email = f"user_{uuid.uuid4()}@gmail.com"
+        user_data.email = f"test_{uuid.uuid4()}@example.com"
         user = await repo.create_user(user_data)
         users.append(user)
 
@@ -473,7 +474,7 @@ async def create_organization_with_members(
         invited_by_user = random.choice(users)
         invite = await invites_repo.create_organization_invite(
             CreateOrganizationInvite(
-                email=f"invited_{uuid.uuid4()}_@gmail.com",
+                email=f"test_{uuid.uuid4()}@example.com",
                 role=OrgRole.MEMBER,
                 organization_id=data.organization.id,
                 invited_by=invited_by_user.id,
@@ -517,6 +518,7 @@ async def create_orbit(
             organization_id=organization.id,
             endpoint="s3",
             bucket_name="test-bucket",
+            region="us-east-1",
         )
     )
     assert bucket_secret is not None, (
@@ -551,7 +553,7 @@ async def create_orbit_with_members(
 
     for _ in range(10):
         user_data = test_user_create.model_copy()
-        user_data.email = f"{uuid.uuid4()}@example.com"
+        user_data.email = f"test_{uuid.uuid4()}@example.com"
         created_user = await user_repo.create_user(user_data)
         member = await repo.create_orbit_member(
             OrbitMemberCreate(

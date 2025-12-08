@@ -10,6 +10,9 @@ from argon2 import (
 from jwt.exceptions import InvalidTokenError
 from pydantic import EmailStr
 
+from dataforce_studio.clients.oauth_providers import (
+    OAuthProvider,
+)
 from dataforce_studio.handlers.emails import EmailHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
@@ -29,9 +32,6 @@ from dataforce_studio.schemas.user import (
     UpdateUserIn,
     User,
     UserOut,
-)
-from dataforce_studio.services.oauth_providers import (
-    OAuthProvider,
 )
 from dataforce_studio.settings import config
 

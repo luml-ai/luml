@@ -10,6 +10,7 @@ import pytest
 import pytest_asyncio
 from jwt.exceptions import InvalidTokenError
 
+from dataforce_studio.clients.oauth_providers import OAuthGoogleProvider
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.exceptions import AuthError
 from dataforce_studio.schemas.auth import OAuthLogin, Token, UserInfo
@@ -24,7 +25,6 @@ from dataforce_studio.schemas.user import (
     User,
     UserOut,
 )
-from dataforce_studio.services.oauth_providers import OAuthGoogleProvider
 
 secret_key = "test"
 algorithm = "HS256"
@@ -212,7 +212,7 @@ async def test_authenticate_user_email_not_verified(
 
 @pytest.mark.asyncio
 async def test_create_tokens() -> None:
-    actual = handler._create_tokens("some_user_email@gmail.com")
+    actual = handler._create_tokens("test@example.com")
 
     assert actual
     assert actual.access_token
@@ -222,7 +222,7 @@ async def test_create_tokens() -> None:
 
 @patch("dataforce_studio.handlers.auth.jwt.decode")
 def test_verify_token_valid(mock_jwt_decode: MagicMock) -> None:
-    email = "some_user_email@gmail.com"
+    email = "test@example.com"
     mock_jwt_decode.return_value = {"sub": email}
 
     actual = handler._verify_token("token")
@@ -627,11 +627,11 @@ async def test_handle_logout_invalid_refresh_token(mock_jwt_decode: Mock) -> Non
 
 
 @patch(
-    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
+    "dataforce_studio.clients.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.get_user_info",
+    "dataforce_studio.clients.oauth_providers.OAuthGoogleProvider.get_user_info",
     new_callable=AsyncMock,
 )
 @patch(
@@ -689,11 +689,11 @@ async def test_handle_oauth_google(
 
 
 @patch(
-    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
+    "dataforce_studio.clients.oauth_providers.OAuthGoogleProvider.exchange_code_for_token",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.services.oauth_providers.OAuthGoogleProvider.get_user_info",
+    "dataforce_studio.clients.oauth_providers.OAuthGoogleProvider.get_user_info",
     new_callable=AsyncMock,
 )
 @patch("dataforce_studio.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
@@ -712,7 +712,7 @@ async def test_oauth_updates_auth_method_for_existing_user(
     mock_exchange_code: AsyncMock,
     get_tokens: Token,
 ) -> None:
-    email = "user@example.com"
+    email = "test@example.com"
     photo = "http://example.com/photo.jpg"
 
     mock_exchange_code.return_value = "access_token"

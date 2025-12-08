@@ -13,7 +13,7 @@ def get_invite_obj(
     organization: OrganizationOrm, user: User
 ) -> CreateOrganizationInvite:
     return CreateOrganizationInvite(
-        email=f"invite_{uuid.uuid4()}@gmail.com",
+        email=f"test_{uuid.uuid4()}@example.com",
         role=OrgRole.MEMBER,
         organization_id=organization.id,
         invited_by=user.id,

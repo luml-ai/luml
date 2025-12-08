@@ -42,7 +42,7 @@ async def test_create_user_and_organization(
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
     user = CreateUser(
-        email=f"test_create_user_org_{uuid.uuid4()}@email.com",
+        email=f"test_{uuid.uuid4()}@example.com",
         full_name="Test User",
         disabled=False,
         email_verified=True,
@@ -121,7 +121,7 @@ async def test_update_user(get_created_user: UserFixtureData) -> None:
 @pytest.mark.asyncio
 async def test_update_user_not_found(get_created_user: UserFixtureData) -> None:
     repo = get_created_user.repo
-    user_update_data = {"email": "user_not_found@example.com", "email_verified": True}
+    user_update_data = {"email": "test@example.com", "email_verified": True}
 
     updated_user = await repo.update_user(UpdateUser.model_validate(user_update_data))
 

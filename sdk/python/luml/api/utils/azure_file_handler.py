@@ -11,8 +11,6 @@ from .base_file_handler import BaseFileHandler
 
 
 class AzureFileHandler(BaseFileHandler):
-    """File handler for Azure Blob Storage."""
-
     def upload_simple(
         self,
         url: str,
@@ -20,7 +18,6 @@ class AzureFileHandler(BaseFileHandler):
         file_size: int,
         file_name: str = "",
     ) -> httpx.Response:
-        """Upload a file using simple PUT request to Azure Blob."""
         try:
             update_progress = self.create_progress_bar(file_size, file_name)
 
@@ -54,7 +51,6 @@ class AzureFileHandler(BaseFileHandler):
         file_name: str = "",
         upload_id: str | None = None,
     ) -> httpx.Response:
-        """Upload a file using Azure Block Blob multipart upload."""
         try:
             update_progress = self.create_progress_bar(file_size, file_name)
             block_ids = []
@@ -83,7 +79,6 @@ class AzureFileHandler(BaseFileHandler):
 
     @staticmethod
     def _get_block_id(part_number: int) -> str:
-        """Generate Azure block ID from part number."""
         return base64.b64encode(f"block-{part_number:08d}".encode()).decode()
 
     @staticmethod
@@ -93,7 +88,6 @@ class AzureFileHandler(BaseFileHandler):
         progress_lock: Lock,
         update_progress: Callable[[int], None],
     ) -> str:
-        """Upload a single block to Azure Blob Storage."""
         part_size = part.end_byte - part.start_byte + 1
 
         with open(file_path, "rb") as f:
@@ -115,15 +109,11 @@ class AzureFileHandler(BaseFileHandler):
         with progress_lock:
             update_progress(actual_size)
 
-        # Return the block ID for this part
         return AzureFileHandler._get_block_id(part.part_number)
 
     def _commit_block_list(self, url: str, block_ids: list[str]) -> httpx.Response:
-        """Commit Azure block list to finalize upload."""
-        # Sort block IDs by their part number
         block_ids.sort()
 
-        # Build XML for block list
         xml_blocks = ""
         for block_id in block_ids:
             xml_blocks += f"<Latest>{block_id}</Latest>"

@@ -59,6 +59,7 @@ async def test_create_duplicate_bucket_secret_raises_error(
         organization_id=data.organization.id,
         endpoint="s3.duplicate.com",
         bucket_name="duplicate-bucket",
+        region="us-east-1",
     )
 
     await repo.create_bucket_secret(secret_data)
@@ -78,6 +79,7 @@ async def test_get_bucket_secret(
         organization_id=data.organization.id,
         endpoint="s3.get.com",
         bucket_name="test-bucket-get",
+        region="us-east-1",
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
@@ -113,6 +115,7 @@ async def test_get_organization_bucket_secrets(
             organization_id=data.organization.id,
             endpoint=f"s3.test{i}.com",
             bucket_name=f"test-bucket-{i}",
+            region="us-east-1",
         )
         await repo.create_bucket_secret(secret_data)
 
@@ -137,6 +140,7 @@ async def test_update_bucket_secret(
         organization_id=data.organization.id,
         endpoint=endpoint,
         bucket_name="test-bucket-update",
+        region="us-east-1",
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
@@ -170,6 +174,7 @@ async def test_update_bucket_secret_strips_http_protocol(
         organization_id=data.organization.id,
         endpoint="s3.update-strip.com",
         bucket_name="test-bucket-update-strip",
+        region="us-east-1",
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
@@ -216,6 +221,7 @@ async def test_update_bucket_secret_duplicate_raises_error(
         organization_id=data.organization.id,
         endpoint="s3.second.com",
         bucket_name="second-bucket",
+        region="us-east-1",
     )
     secret2 = await repo.create_bucket_secret(secret2_data)
 
@@ -240,6 +246,7 @@ async def test_delete_bucket_secret(
         organization_id=data.organization.id,
         endpoint="s3.delete.com",
         bucket_name="test-bucket-delete",
+        region="us-east-1",
     )
 
     created_secret = await repo.create_bucket_secret(secret_data)
@@ -262,6 +269,7 @@ async def test_delete_bucket_secret_in_use_raises_error(
         organization_id=data.organization.id,
         endpoint="s3.in-use.com",
         bucket_name="in-use-bucket",
+        region="us-east-1",
     )
     created_secret = await secret_repo.create_bucket_secret(secret_data)
 

@@ -3,8 +3,10 @@ from uuid import UUID
 
 from minio import Minio
 
+from dataforce_studio.clients.base_storage_client import BaseStorageClient
 from dataforce_studio.infra.exceptions import BucketConnectionError
 from dataforce_studio.schemas.bucket_secrets import (
+    BucketType,
     S3BucketSecret,
     S3BucketSecretCreateIn,
 )
@@ -14,10 +16,9 @@ from dataforce_studio.schemas.storage import (
     S3MultiPartUploadDetails,
     S3UploadDetails,
 )
-from dataforce_studio.services.base_storage_service import BaseStorageService
 
 
-class S3Service(BaseStorageService):
+class S3Client(BaseStorageClient):
     def __init__(self, secret: S3BucketSecret | S3BucketSecretCreateIn) -> None:
         self._bucket_id: UUID | None = getattr(secret, "id", None)
         self._bucket_name = secret.bucket_name
@@ -182,12 +183,14 @@ class S3Service(BaseStorageService):
 
         if self._should_use_multipart(size):
             return S3UploadDetails(
+                type=BucketType.S3,
                 url=await self.get_initiate_multipart_url(bucket_location),
                 multipart=True,
                 bucket_location=bucket_location,
                 bucket_secret_id=self._bucket_id,
             )
         return S3UploadDetails(
+            type=BucketType.S3,
             url=await self.get_upload_url(bucket_location),
             bucket_location=bucket_location,
             bucket_secret_id=self._bucket_id,

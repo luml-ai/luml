@@ -20,6 +20,7 @@ class BucketSecretUrls(BaseModel, BaseOrmConfig):
 
 
 class _S3BucketSecretBase(BaseModel):
+    type: Literal[BucketType.S3] = BucketType.S3
     endpoint: str
     bucket_name: str
     access_key: str | None = None
@@ -37,8 +38,7 @@ class _S3BucketSecretBase(BaseModel):
         return v
 
 
-class S3BucketSecretCreateIn(_S3BucketSecretBase):
-    type: Literal[BucketType.S3] = BucketType.S3
+class S3BucketSecretCreateIn(_S3BucketSecretBase): ...
 
 
 class S3BucketSecretCreate(S3BucketSecretCreateIn):
@@ -48,20 +48,19 @@ class S3BucketSecretCreate(S3BucketSecretCreateIn):
 class S3BucketSecret(_S3BucketSecretBase, BaseOrmConfig):
     id: UUID
     organization_id: UUID
-    type: Literal[BucketType.S3] = BucketType.S3
     created_at: datetime
     updated_at: datetime | None = None
 
 
 class S3BucketSecretOut(BaseModel, BaseOrmConfig):
     id: UUID
+    type: Literal[BucketType.S3] = BucketType.S3
     endpoint: str
     bucket_name: str
     secure: bool | None = None
     region: str
     cert_check: bool | None = None
     organization_id: UUID
-    type: Literal[BucketType.S3] = BucketType.S3
     created_at: datetime
     updated_at: datetime | None = None
 
@@ -90,12 +89,12 @@ class S3BucketSecretUpdate(S3BucketSecretUpdateIn):
 
 
 class _AzureBucketSecretBase(BaseModel):
+    type: Literal[BucketType.AZURE] = BucketType.AZURE
     endpoint: str
     bucket_name: str
 
 
-class AzureBucketSecretCreateIn(_AzureBucketSecretBase):
-    type: Literal[BucketType.AZURE] = BucketType.AZURE
+class AzureBucketSecretCreateIn(_AzureBucketSecretBase): ...
 
 
 class AzureBucketSecretCreate(AzureBucketSecretCreateIn):
@@ -105,17 +104,16 @@ class AzureBucketSecretCreate(AzureBucketSecretCreateIn):
 class AzureBucketSecret(_AzureBucketSecretBase, BaseOrmConfig):
     id: UUID
     organization_id: UUID
-    type: Literal[BucketType.AZURE] = BucketType.AZURE
     created_at: datetime
     updated_at: datetime | None = None
 
 
 class AzureBucketSecretOut(BaseModel, BaseOrmConfig):
     id: UUID
+    type: Literal[BucketType.AZURE] = BucketType.AZURE
     endpoint: str
     bucket_name: str
     organization_id: UUID
-    type: Literal[BucketType.AZURE] = BucketType.AZURE
     created_at: datetime
     updated_at: datetime | None = None
 

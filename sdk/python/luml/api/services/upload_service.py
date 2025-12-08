@@ -1,5 +1,3 @@
-"""Upload service for orchestrating file uploads to different bucket types."""
-
 from typing import TYPE_CHECKING
 
 import httpx
@@ -18,11 +16,6 @@ if TYPE_CHECKING:
 
 class UploadService:
     def __init__(self, bucket_secrets_client: "BucketSecretResource") -> None:
-        """Initialize upload service.
-
-        Args:
-            bucket_secrets_client: Client for interacting with bucket secrets API
-        """
         self._bucket_secrets = bucket_secrets_client
 
     def upload_file(
@@ -32,27 +25,6 @@ class UploadService:
         file_size: int,
         file_name: str = "",
     ) -> httpx.Response:
-        """Upload a file to storage bucket.
-
-        Orchestrates the entire upload process including:
-        - Selecting appropriate file handler based on bucket type
-        - Initiating multipart upload if needed
-        - Getting upload URLs from bucket secrets service
-        - Performing the actual upload
-
-        Args:
-            upload_details: Upload configuration with bucket info and URLs
-            file_path: Path to the file to upload
-            file_size: Size of the file in bytes
-            file_name: Optional display name for progress tracking
-
-        Returns:
-            httpx.Response: Response from the upload operation
-
-        Raises:
-            FileUploadError: If upload fails
-            LumlAPIError: If multipart upload initiation fails
-        """
         handler = create_file_handler(upload_details.type)
 
         if upload_details.multipart:
@@ -90,14 +62,7 @@ class UploadService:
 
 
 class AsyncUploadService:
-    """Async service for orchestrating file uploads to storage buckets."""
-
     def __init__(self, bucket_secrets_client: "AsyncBucketSecretResource") -> None:
-        """Initialize async upload service.
-
-        Args:
-            bucket_secrets_client: Async client for interacting with bucket secrets API
-        """
         self._bucket_secrets = bucket_secrets_client
 
     async def upload_file(
@@ -107,27 +72,6 @@ class AsyncUploadService:
         file_size: int,
         file_name: str = "",
     ) -> httpx.Response:
-        """Upload a file to storage bucket asynchronously.
-
-        Orchestrates the entire upload process including:
-        - Selecting appropriate file handler based on bucket type
-        - Initiating multipart upload if needed
-        - Getting upload URLs from bucket secrets service
-        - Performing the actual upload
-
-        Args:
-            upload_details: Upload configuration with bucket info and URLs
-            file_path: Path to the file to upload
-            file_size: Size of the file in bytes
-            file_name: Optional display name for progress tracking
-
-        Returns:
-            httpx.Response: Response from the upload operation
-
-        Raises:
-            FileUploadError: If upload fails
-            LumlAPIError: If multipart upload initiation fails
-        """
         handler = create_file_handler(upload_details.type)
 
         if upload_details.multipart:

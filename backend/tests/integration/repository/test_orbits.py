@@ -90,6 +90,7 @@ async def test_attach_bucket_secret(
             organization_id=organization.id,
             endpoint="s3",
             bucket_name="test_attach_bucket_secret",
+            region="us-east-1",
         )
     )
     assert secret

@@ -10,20 +10,21 @@ from azure.storage.blob import (
     generate_blob_sas,
 )
 
+from dataforce_studio.clients.base_storage_client import BaseStorageClient
 from dataforce_studio.infra.exceptions import BucketConnectionError
 from dataforce_studio.schemas.bucket_secrets import (
     AzureBucketSecret,
     AzureBucketSecretCreateIn,
+    BucketType,
 )
 from dataforce_studio.schemas.storage import (
     AzureMultiPartUploadDetails,
     AzureUploadDetails,
     PartDetails,
 )
-from dataforce_studio.services.base_storage_service import BaseStorageService
 
 
-class AzureBlobService(BaseStorageService):
+class AzureBlobClient(BaseStorageClient):
     def __init__(self, secret: AzureBucketSecret | AzureBucketSecretCreateIn) -> None:
         self._bucket_id: UUID | None = getattr(secret, "id", None)
         self._container_name = secret.bucket_name
@@ -120,8 +121,8 @@ class AzureBlobService(BaseStorageService):
             BlobSasPermissions(write=True, create=True),
         )
 
-        seperator = "&" if "?" in url else "?"
-        return f"{url}{seperator}comp=blocklist"
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}comp=blocklist"
 
     async def _get_multipart_upload_urls(
         self, object_name: str, parts_count: int
@@ -133,9 +134,9 @@ class AzureBlobService(BaseStorageService):
                     object_name,
                     BlobSasPermissions(write=True, create=True),
                 )
-                seperator = "&" if "?" in url else "?"
+                separator = "&" if "?" in url else "?"
                 urls.append(
-                    f"{url}{seperator}comp=block&blockid={self._get_part_id(part_number)}"
+                    f"{url}{separator}comp=block&blockid={self._get_part_id(part_number)}"
                 )
 
             return urls
@@ -188,11 +189,13 @@ class AzureBlobService(BaseStorageService):
 
         if self._should_use_multipart(size):
             return AzureUploadDetails(
+                type=BucketType.AZURE,
                 multipart=True,
                 bucket_location=bucket_location,
                 bucket_secret_id=self._bucket_id,
             )
         return AzureUploadDetails(
+            type=BucketType.AZURE,
             url=await self.get_upload_url(bucket_location),
             bucket_location=bucket_location,
             bucket_secret_id=self._bucket_id,

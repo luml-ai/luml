@@ -9,7 +9,6 @@ from dataforce_studio.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
-    BucketSecretUpdateIn,
     BucketSecretUrls,
 )
 
@@ -62,7 +61,7 @@ async def update_bucket_secret(
     request: Request,
     organization_id: UUID,
     secret_id: UUID,
-    secret: BucketSecretUpdateIn,
+    secret: BucketSecretUpdate,
 ) -> BucketSecretOut:
     return await bucket_secret_handler.update_bucket_secret(
         request.user.id, organization_id, secret_id, secret

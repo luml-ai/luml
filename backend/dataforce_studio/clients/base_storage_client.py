@@ -17,7 +17,7 @@ from dataforce_studio.schemas.storage import (
 )
 
 
-class BaseStorageService(ABC):
+class BaseStorageClient(ABC):
     _url_expire = 12  # hours
 
     @staticmethod
@@ -34,7 +34,7 @@ class BaseStorageService(ABC):
 
     @staticmethod
     def _should_use_multipart(file_size: int) -> bool:
-        return file_size > USE_MULTIPART_BYTES / 5  # 500 mb
+        return file_size > USE_MULTIPART_BYTES  # 500 mb
 
     def _calculate_multipart_params(self, file_size: int) -> tuple[int, int]:
         part_size = self._calculate_optimal_chunk_size(file_size)

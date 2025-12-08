@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from dataforce_studio.clients.storage_factory import create_storage_client
 from dataforce_studio.handlers.permissions import PermissionsHandler
 from dataforce_studio.infra.db import engine
 from dataforce_studio.infra.exceptions import (
@@ -11,17 +12,13 @@ from dataforce_studio.infra.exceptions import (
 from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
 from dataforce_studio.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
-    AzureBucketSecretUpdate,
     BucketSecret,
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
-    BucketSecretUpdateIn,
     BucketSecretUrls,
     S3BucketSecretCreate,
     S3BucketSecretCreateIn,
-    S3BucketSecretUpdate,
-    S3BucketSecretUpdateIn,
     validate_bucket_secret_out,
 )
 from dataforce_studio.schemas.permissions import Action, Resource
@@ -30,7 +27,6 @@ from dataforce_studio.schemas.storage import (
     BucketMultipartUpload,
     S3MultiPartUploadDetails,
 )
-from dataforce_studio.services.storage_factory import create_storage_service
 
 
 class BucketSecretHandler:
@@ -94,26 +90,16 @@ class BucketSecretHandler:
         user_id: UUID,
         organization_id: UUID,
         secret_id: UUID,
-        secret: BucketSecretUpdateIn,
+        secret: BucketSecretUpdate,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
         )
-        if isinstance(secret, S3BucketSecretUpdateIn):
-            secret_with_id: S3BucketSecretUpdate | AzureBucketSecretUpdate = (
-                S3BucketSecretUpdate(
-                    id=secret_id, **secret.model_dump(exclude_unset=True)
-                )
-            )
-        else:
-            secret_with_id = AzureBucketSecretUpdate(
-                id=secret_id, **secret.model_dump(exclude_unset=True)
-            )
+
+        secret.id = secret_id
 
         try:
-            db_secret = await self.__secret_repository.update_bucket_secret(
-                secret_with_id
-            )
+            db_secret = await self.__secret_repository.update_bucket_secret(secret)
         except DatabaseConstraintError as error:
             raise ApplicationError(
                 "Bucket secret with the given bucket name and endpoint already exists.",
@@ -144,7 +130,7 @@ class BucketSecretHandler:
         secret_data: BucketSecretCreateIn | BucketSecret,
     ) -> BucketSecretUrls:
         object_name = "test_file"
-        storage_service = create_storage_service(secret_data)
+        storage_service = create_storage_client(secret_data.type)(secret_data)  # type: ignore[arg-type]
 
         return BucketSecretUrls(
             presigned_url=await storage_service.get_upload_url(object_name),
@@ -177,7 +163,7 @@ class BucketSecretHandler:
         if not secret:
             raise NotFoundError("Secret not found")
 
-        storage_service = create_storage_service(secret)
+        storage_service = create_storage_client(secret.type)(secret)  # type: ignore[arg-type]
 
         return await storage_service.create_multipart_upload(
             data.bucket_location, data.size, data.upload_id

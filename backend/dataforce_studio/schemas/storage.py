@@ -1,5 +1,4 @@
 import uuid
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -21,7 +20,7 @@ class PartDetails(BaseModel):
 
 
 class S3UploadDetails(BaseModel):
-    type: Literal[BucketType.S3] = BucketType.S3
+    type: BucketType = BucketType.S3
     url: str
     multipart: bool = False
     bucket_location: str
@@ -29,7 +28,7 @@ class S3UploadDetails(BaseModel):
 
 
 class AzureUploadDetails(BaseModel):
-    type: Literal[BucketType.AZURE] = BucketType.AZURE
+    type: BucketType = BucketType.AZURE
     url: str | None = None
     multipart: bool = False
     bucket_location: str
@@ -37,14 +36,14 @@ class AzureUploadDetails(BaseModel):
 
 
 class S3MultiPartUploadDetails(BaseModel):
-    type: Literal[BucketType.S3] = BucketType.S3
+    type: BucketType | None = BucketType.S3
     upload_id: str
     parts: list[PartDetails]
     complete_url: str
 
 
 class AzureMultiPartUploadDetails(BaseModel):
-    type: Literal[BucketType.AZURE] = BucketType.AZURE
+    type: BucketType | None = BucketType.AZURE
     parts: list[PartDetails]
     complete_url: str
 

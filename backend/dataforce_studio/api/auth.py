@@ -4,6 +4,10 @@ from fastapi import APIRouter, Body, Depends, Request
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
+from dataforce_studio.clients.oauth_providers import (
+    OAuthGoogleProvider,
+    OAuthMicrosoftProvider,
+)
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.schemas.auth import OAuthLogin, Token
@@ -13,10 +17,6 @@ from dataforce_studio.schemas.user import (
     SignInUser,
     UpdateUserIn,
     UserOut,
-)
-from dataforce_studio.services.oauth_providers import (
-    OAuthGoogleProvider,
-    OAuthMicrosoftProvider,
 )
 from dataforce_studio.settings import config
 
