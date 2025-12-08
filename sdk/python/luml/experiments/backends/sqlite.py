@@ -647,13 +647,16 @@ class SQLiteBackend(Backend):
 
         self.pool.mark_experiment_inactive(experiment_id)
 
-    def get_experiment_db(self, experiment_id: str) -> DiskArtifact:
+    def export_experiment_db(self, experiment_id: str) -> DiskArtifact:
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
+        conn = sqlite3.Connection(db_path, check_same_thread=False)
+        conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        conn.close()
         return DiskArtifact(db_path)
 
-    def get_attachments(
+    def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseArtifact, _BaseArtifact] | None:
         return create_and_index_tar(self._get_attachments_dir(experiment_id))

@@ -112,11 +112,11 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_experiment_db(self, experiment_id: str) -> _BaseArtifact:
+    def export_experiment_db(self, experiment_id: str) -> _BaseArtifact:
         pass
 
     @abstractmethod
-    def get_attachments(
+    def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseArtifact, _BaseArtifact] | None:
         pass

@@ -154,7 +154,7 @@ class ExperimentTracker:
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
-        self.backend.log_attachment(exp_id, name, data)
+        self.backend.log_attachment(exp_id, name, data, binary)
 
     def get_experiment(self, experiment_id: str) -> dict[str, Any]:  # noqa: ANN401
         return self.backend.get_experiment_data(experiment_id)
@@ -183,8 +183,8 @@ class ExperimentTracker:
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
-        exp_db = self.backend.get_experiment_db(exp_id)
-        attachments_result = self.backend.get_attachments(exp_id)
+        exp_db = self.backend.export_experiment_db(exp_id)
+        attachments_result = self.backend.export_attachments(exp_id)
         if attachments_result is None:
             raise ValueError(f"No attachments found for experiment {exp_id}")
         attachments, index = attachments_result
@@ -218,3 +218,9 @@ class ExperimentTracker:
         )
 
         Path(zip_path).unlink(missing_ok=True)
+
+    def enable_tracing(self) -> None:
+        from luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
+
+        setup_tracing()
+        set_experiment_tracker(self)
