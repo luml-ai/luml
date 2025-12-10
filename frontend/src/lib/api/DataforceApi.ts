@@ -2,8 +2,6 @@ import axios from 'axios'
 import type { AxiosInstance } from 'axios'
 import type {
   IGetUserResponse,
-  IPostLogoutRequest,
-  IPostRefreshTokenRequest,
   IPostRefreshTokenResponse,
   IPostSignInRequest,
   IPostSignInResponse,
@@ -60,6 +58,7 @@ export class DataforceApiClass {
     this.api = axios.create({
       baseURL: import.meta.env.VITE_DATAFORCE_API_URL,
       timeout: 10000,
+      withCredentials: true,
     })
 
     installDataforceInterceptors(this.api)
@@ -98,7 +97,7 @@ export class DataforceApiClass {
     return data
   }
 
-  public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSignInResponse> {
+public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSignInResponse> {
     const { data } = await this.api.get('/auth/microsoft/callback', {
       skipInterceptors: true,
       params,
@@ -107,10 +106,15 @@ export class DataforceApiClass {
     return data
   }
 
-  public async refreshToken(data: IPostRefreshTokenRequest): Promise<IPostRefreshTokenResponse> {
-    const { data: responseData } = await this.api.post('/auth/refresh', data.refresh_token, {
-      skipInterceptors: true,
-    })
+  public async refreshToken(): Promise<IPostRefreshTokenResponse> {
+    const { data: responseData } = await this.api.post(
+      '/auth/refresh',
+      {},
+      {
+        skipInterceptors: true,
+        withCredentials: true,
+      },
+    )
 
     return responseData
   }
@@ -118,7 +122,7 @@ export class DataforceApiClass {
   public async forgotPassword(
     data: IPostForgotPasswordRequest,
   ): Promise<IPostForgotPasswordResponse> {
-    const { data: responseData } = await this.api.post('/auth/forgot-password', data.email, {
+    const { data: responseData } = await this.api.post('/auth/forgot-password', data, {
       skipInterceptors: true,
     })
 
@@ -143,8 +147,8 @@ export class DataforceApiClass {
     return responseData
   }
 
-  public async logout(data: IPostLogoutRequest): Promise<TPostLogoutResponse> {
-    const { data: responseData } = await this.api.post('/auth/logout', data)
+  public async logout(undefined: undefined, p0: { skipInterceptors: boolean }): Promise<TPostLogoutResponse> {
+    const { data: responseData } = await this.api.post('/auth/logout', {})
 
     return responseData
   }

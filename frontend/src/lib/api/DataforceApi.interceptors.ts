@@ -1,56 +1,78 @@
 import type { AxiosInstance } from 'axios'
-import type { IPostRefreshTokenRequest, IPostRefreshTokenResponse } from './DataforceApi.interfaces'
+
+let isRefreshing = false
+let failedQueue: Array<{
+  resolve: (value?: any) => void
+  reject: (reason?: any) => void
+}> = []
+
+const processQueue = (error: any = null) => {
+  failedQueue.forEach(promise => {
+    if (error) {
+      promise.reject(error)
+    } else {
+      promise.resolve()
+    }
+  })
+  
+  failedQueue = []
+}
 
 export const installDataforceInterceptors = (api: AxiosInstance) => {
+  api.defaults.withCredentials = true
   api.interceptors.request.use(
-    (config) => {
-      if (config.skipInterceptors) {
-        return config
-      }
-      const token = localStorage.getItem('token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
-      return config
-    },
-    (error) => {
-      return Promise.reject(error)
-    },
+    (config) => config,
+    (error) => Promise.reject(error)
   )
-
   api.interceptors.response.use(
-    (response) => {
-      return response
-    },
+    (response) => response,
     async (error) => {
-      if (error.response && error.response.status === 401) {
+      const originalRequest = error.config
+
+      if (
+        error.response?.status === 401 && 
+        !originalRequest._retry &&
+        !originalRequest.url?.includes('/auth/refresh') &&
+        !originalRequest.url?.includes('/auth/signin') &&
+        !originalRequest.url?.includes('/auth/signup') &&
+        !originalRequest.skipInterceptors
+      ) {
+        if (isRefreshing) {
+          return new Promise((resolve, reject) => {
+            failedQueue.push({ resolve, reject })
+          })
+            .then(() => api.request(originalRequest))
+            .catch(err => Promise.reject(err))
+        }
+
+        originalRequest._retry = true
+        isRefreshing = true
+
         try {
-          const refresh_token = localStorage.getItem('refreshToken')
-
-          if (!refresh_token) throw new Error('Refresh token is not exist')
-
-          const data: IPostRefreshTokenRequest = { refresh_token }
-
-          const { data: responseData } = await api.post<IPostRefreshTokenResponse>(
+          await api.post(
             '/auth/refresh',
-            data.refresh_token,
+            {},
+            {
+              skipInterceptors: true,
+              withCredentials: true
+            }
           )
-
-          const newToken = responseData.access_token
-
-          localStorage.setItem('token', newToken)
-          localStorage.setItem('refreshToken', responseData.refresh_token)
-
-          error.config.headers.Authorization = `Bearer ${newToken}`
-          return api.request(error.config)
+        
+          processQueue()
+          isRefreshing = false
+          
+          return api.request(originalRequest)
+          
         } catch (refreshError) {
-          localStorage.removeItem('token')
-          localStorage.removeItem('refreshToken')
-          console.error('Failed to refresh token:', refreshError)
+          processQueue(refreshError)
+          isRefreshing = false
+          console.error('Token refresh failed, logging out')
+          window.dispatchEvent(new CustomEvent('auth:logout'))
+          
+          return Promise.reject(refreshError)
         }
       }
-
       return Promise.reject(error)
-    },
+    }
   )
 }

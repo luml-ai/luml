@@ -34,7 +34,7 @@ interface TrackEventMap {
 
 class AnalyticsServiceClass {
   constructor() {
-    this.init()
+    // this.init()
   }
 
   track<K extends keyof TrackEventMap>(key: K, payload: TrackEventMap[K]) {

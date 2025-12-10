@@ -25,11 +25,7 @@ export interface IPostSignInRequest {
 }
 
 export interface IPostSignInResponse {
-  token: {
-    access_token: string
-    token_type: string
-    refresh_token: string
-  }
+  detail: string
   user_id: number
 }
 
@@ -38,9 +34,7 @@ export interface IPostRefreshTokenRequest {
 }
 
 export interface IPostRefreshTokenResponse {
-  access_token: string
-  token_type: string
-  refresh_token: string
+  detail: string
 }
 
 export interface IPostChangePasswordRequest {
@@ -68,7 +62,9 @@ export interface IPostLogoutRequest {
   refresh_token: string
 }
 
-export type TPostLogoutResponse = string
+export type TPostLogoutResponse = {
+  detail: string
+}
 
 export interface IUpdateUserRequest {
   full_name?: string

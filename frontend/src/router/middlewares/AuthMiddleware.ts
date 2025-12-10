@@ -8,7 +8,7 @@ export async function authMiddleware(
 ) {
   try {
     const authStore = useAuthStore()
-    await authStore.checkIsLoggedId()
+    await authStore.checkIsLoggedIn()
     const isLoggedIn = authStore.isAuth
 
     if (to.meta.requireAuth && !isLoggedIn) {
