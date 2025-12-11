@@ -6,7 +6,7 @@ export interface DatabaseMetadata {
 type FileFormats = 'json'
 type FileTypes = '"notebook"'
 
-export interface DataforceFile {
+export interface LumlFile {
   content: any
   created: Date
   format: FileFormats
@@ -22,5 +22,5 @@ export interface DataforceFile {
 export interface Notebook extends Partial<DatabaseMetadata> {
   name: string
   version: number
-  files?: DataforceFile[]
+  files?: LumlFile[]
 }

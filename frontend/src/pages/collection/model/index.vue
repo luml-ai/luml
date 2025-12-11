@@ -87,8 +87,8 @@ const currentModel = computed(() => {
 const isModelCardAvailable = computed(() => {
   if (!currentModel.value) return false
   const fileIndex = currentModel.value.file_index
-  const includeDataforceTag = FnnxService.getTypeTag(currentModel.value.manifest)
-  return !!(includeDataforceTag || FnnxService.findHtmlCard(fileIndex))
+  const includeSupportedTag = FnnxService.getTypeTag(currentModel.value.manifest)
+  return !!(includeSupportedTag || FnnxService.findHtmlCard(fileIndex))
 })
 
 const isExperimentSnapshotCardAvailable = computed(() => {

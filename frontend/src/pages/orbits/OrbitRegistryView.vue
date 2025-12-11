@@ -36,9 +36,9 @@ import { Folders } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
 import CollectionsList from '@/components/orbits/tabs/registry/CollectionsList.vue'
 import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()

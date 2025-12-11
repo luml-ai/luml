@@ -85,7 +85,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
 import { modelEditorResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useModelsStore } from '@/stores/models'
 
 const dialogPT: DialogPassThroughOptions = {

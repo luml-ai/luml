@@ -1,4 +1,4 @@
-import { DataforceApiClass } from './DataforceApi'
+import { ApiClass } from './api'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -6,4 +6,4 @@ declare module 'axios' {
   }
 }
 
-export const dataforceApi = new DataforceApiClass()
+export const api = new ApiClass()

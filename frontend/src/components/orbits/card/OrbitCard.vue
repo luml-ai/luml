@@ -58,7 +58,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Orbit as OrbitType } from '@/lib/api/DataforceApi.interfaces'
+import type { Orbit as OrbitType } from '@/lib/api/api.interfaces'
 import { ref } from 'vue'
 import { Plus, Lock, Orbit, EllipsisVertical } from 'lucide-vue-next'
 import { Button } from 'primevue'

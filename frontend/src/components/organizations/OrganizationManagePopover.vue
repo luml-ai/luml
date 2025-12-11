@@ -93,7 +93,7 @@ import { useOrganizationStore } from '@/stores/organization'
 import OrganizationCreator from './OrganizationCreator.vue'
 import OrganizationLeavePopover from './OrganizationLeavePopover.vue'
 import UiId from '../ui/UiId.vue'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const organizationStore = useOrganizationStore()
 

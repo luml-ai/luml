@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Orbit } from '@/lib/api/DataforceApi.interfaces'
+import type { Orbit } from '@/lib/api/api.interfaces'
 import OrbitCard from './card/OrbitCard.vue'
 
 type Props = {

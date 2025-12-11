@@ -109,7 +109,7 @@ import { ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useAuthStore } from '@/stores/auth'
-import type { IPostSignupRequest } from '@/lib/api/DataforceApi.interfaces'
+import type { IPostSignupRequest } from '@/lib/api/api.interfaces'
 import { useRouter } from 'vue-router'
 import { signUpInitialValues } from '@/utils/forms/initialValues'
 import { signUpResolver } from '@/utils/forms/resolvers'

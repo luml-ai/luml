@@ -94,7 +94,7 @@
 </template>
 
 <script setup lang="ts">
-import type { CreateOrbitPayload, IGetUserResponse } from '@/lib/api/DataforceApi.interfaces'
+import type { CreateOrbitPayload, IGetUserResponse } from '@/lib/api/api.interfaces'
 import type { DialogPassThroughOptions, MultiSelectPassThroughOptions } from 'primevue'
 import { Dialog, Button, InputText, Checkbox, MultiSelect, Select, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'

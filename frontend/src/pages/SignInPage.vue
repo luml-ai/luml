@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@primevue/forms'
-import type { IPostSignInRequest } from '@/lib/api/DataforceApi.interfaces'
+import type { IPostSignInRequest } from '@/lib/api/api.interfaces'
 
 import { ref, watch } from 'vue'
 

@@ -28,7 +28,7 @@
           id="bucket_name"
           name="bucket_name"
           type="text"
-          placeholder="e.g. dataforce-storage"
+          placeholder="e.g. luml-storage"
           fluid
         />
         <div v-if="($form as any).bucket_name?.invalid" class="message">

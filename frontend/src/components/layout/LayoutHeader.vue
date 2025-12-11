@@ -1,7 +1,7 @@
 <template>
   <header id="header" class="header">
     <router-link :to="{ name: 'home' }" class="logo">
-      <img :src="mainLogo" alt="Dataforce Studio" class="logo-img" />
+      <img :src="mainLogo" alt="LUML" class="logo-img" />
     </router-link>
     <div v-if="isActivesVisible" class="actives">
       <user-toolbar v-if="authStore.isAuth" />

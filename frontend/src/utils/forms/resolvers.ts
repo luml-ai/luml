@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
-import type { Orbit } from '@/lib/api/DataforceApi.interfaces'
+import type { Orbit } from '@/lib/api/api.interfaces'
 import { combineValidators, getSatelliteValidator } from '@/helpers/helpers'
 import type { CreateDeploymentForm } from '@/components/deployments/deployments.interfaces'
 import type { Ref } from 'vue'
