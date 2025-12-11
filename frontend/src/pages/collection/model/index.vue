@@ -63,7 +63,7 @@ import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/mo
 import { Button } from 'primevue'
 import { Bolt, Rocket, Download } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from '@/components/orbits/tabs/registry/collection/model/CollectionModelEditor.vue'
