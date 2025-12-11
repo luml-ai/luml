@@ -1,8 +1,8 @@
 import type { LocalStorageProviderSettings } from './LocalStorageService.interfaces'
 
 type StorageValueMap = {
-  'providersSettings': LocalStorageProviderSettings
-  'currentOrganizationId': string
+  providersSettings: LocalStorageProviderSettings
+  currentOrganizationId: string
 }
 
 type StorageKey = keyof StorageValueMap

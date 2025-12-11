@@ -47,11 +47,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     bucketId: string,
     data: BucketSecretCreator & { id: string },
   ) {
-    const updatedBucket = await api.bucketSecrets.updateBucketSecret(
-      organizationId,
-      bucketId,
-      data,
-    )
+    const updatedBucket = await api.bucketSecrets.updateBucketSecret(organizationId, bucketId, data)
     const index = buckets.value.findIndex((bucket) => bucket.id === bucketId)
     if (index !== -1) {
       buckets.value[index] = updatedBucket

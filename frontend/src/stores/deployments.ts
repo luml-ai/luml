@@ -75,11 +75,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     if (existingDeployment) {
       return existingDeployment
     }
-    const deployment = await api.deployments.getDeployment(
-      organizationId,
-      orbitId,
-      deploymentId,
-    )
+    const deployment = await api.deployments.getDeployment(organizationId, orbitId, deploymentId)
     return deployment
   }
 

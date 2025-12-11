@@ -2,10 +2,7 @@ import { defineStore } from 'pinia'
 import type { IUser } from './user.interfaces'
 import { computed, ref, watch } from 'vue'
 import { api } from '@/lib/api'
-import type {
-  IPostChangePasswordRequest,
-  IUpdateUserRequest,
-} from '@/lib/api/api.interfaces'
+import type { IPostChangePasswordRequest, IUpdateUserRequest } from '@/lib/api/api.interfaces'
 import { useAuthStore } from './auth'
 import { useOrganizationStore } from './organization'
 import { useInvitationsStore } from './invitations'

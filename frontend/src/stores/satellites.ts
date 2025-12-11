@@ -36,12 +36,7 @@ export const useSatellitesStore = defineStore('satellites', () => {
     satelliteId: string,
     payload: CreateSatellitePayload,
   ) {
-    const newData = await api.satellites.update(
-      organizationId,
-      orbitId,
-      satelliteId,
-      payload,
-    )
+    const newData = await api.satellites.update(organizationId, orbitId, satelliteId, payload)
     const newList = satellitesList.value.map((satellite) => {
       if (satellite.id === newData.id) return newData
       else return satellite

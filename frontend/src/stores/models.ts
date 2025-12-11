@@ -117,12 +117,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
-    return api.mlModels.createModel(
-      info.organizationId,
-      info.orbitId,
-      info.collectionId,
-      data,
-    )
+    return api.mlModels.createModel(info.organizationId, info.orbitId, info.collectionId, data)
   }
 
   async function confirmModelUpload(
