@@ -40,6 +40,9 @@ watch(visible, (val) => {
 })
 
 const dialogPt: DialogPassThroughOptions = {
+  mask: {
+    style: 'padding: 15px;',
+  },
   root: {
     style: 'width: 600px;',
   },
