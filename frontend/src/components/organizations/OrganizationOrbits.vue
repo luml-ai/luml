@@ -11,31 +11,33 @@
         <span>New Orbit</span>
       </Button>
     </div>
-    <div class="users">
-      <div class="users-header">
-        <div class="row">
-          <div class="cell">Orbit</div>
-          <div class="cell">Number of members</div>
-          <div class="cell">Created</div>
-          <div class="cell"></div>
+    <div class="users-wrapper">
+      <div class="users">
+        <div class="users-header">
+          <div class="row">
+            <div class="cell">Orbit</div>
+            <div class="cell">Number of members</div>
+            <div class="cell">Created</div>
+            <div class="cell"></div>
+          </div>
         </div>
-      </div>
-      <div v-if="organizationStore.organizationDetails?.orbits.length" class="users-list">
-        <div v-for="orbit in organizationStore.organizationDetails.orbits" class="row">
-          <div class="cell cell-user" style="overflow: hidden">
-            <div>
-              <h4 style="overflow: hidden; text-overflow: ellipsis">{{ orbit.name }}</h4>
+        <div v-if="organizationStore.organizationDetails?.orbits.length" class="users-list">
+          <div v-for="orbit in organizationStore.organizationDetails.orbits" class="row">
+            <div class="cell cell-user" style="overflow: hidden">
+              <div>
+                <h4 style="overflow: hidden; text-overflow: ellipsis">{{ orbit.name }}</h4>
+              </div>
+            </div>
+            <div class="cell">{{ orbit.total_members }}</div>
+            <div class="cell">{{ new Date(orbit.created_at).toLocaleDateString() }}</div>
+            <div class="cell">
+              <OrganizationOrbitSettings :orbit-id="orbit.id"></OrganizationOrbitSettings>
             </div>
           </div>
-          <div class="cell">{{ orbit.total_members }}</div>
-          <div class="cell">{{ new Date(orbit.created_at).toLocaleDateString() }}</div>
-          <div class="cell">
-            <OrganizationOrbitSettings :orbit-id="orbit.id"></OrganizationOrbitSettings>
-          </div>
         </div>
-      </div>
-      <div v-else>
-        All Orbits linked to this organization will be shown in this table once available.
+        <div v-else>
+          All Orbits linked to this organization will be shown in this table once available.
+        </div>
       </div>
     </div>
     <OrbitCreator
@@ -97,12 +99,16 @@ const createAvailable = computed(() => {
 .item-label {
   font-weight: 500;
 }
-.users {
+.users-wrapper {
+  overflow-x: auto;
   padding: 16px;
   border-radius: 8px;
   background: var(--p-card-background);
   border: 1px solid var(--p-content-border-color);
   box-shadow: var(--card-shadow);
+}
+.users {
+  min-width: 650px;
 }
 .users-header {
   padding: 10px 0;

@@ -8,14 +8,7 @@
   >
     <div class="inputs">
       <div class="field">
-        <label
-          for="endpoint"
-          :class="{
-            'label required': !update,
-            'label--medium': update,
-          }"
-          >Endpoint</label
-        >
+        <label for="endpoint" class="label">Endpoint</label>
         <InputText
           v-model="initialValues.endpoint"
           id="endpoint"
@@ -29,14 +22,7 @@
         </div>
       </div>
       <div class="field">
-        <label
-          for="bucket_name"
-          :class="{
-            'label required': !update,
-            'label--medium': update,
-          }"
-          >Bucket name</label
-        >
+        <label for="bucket_name" class="label required">Bucket name</label>
         <InputText
           v-model="initialValues.bucket_name"
           id="bucket_name"
@@ -50,14 +36,7 @@
         </div>
       </div>
       <div class="field">
-        <label
-          for="access_key"
-          :class="{
-            label: !update,
-            'label--medium': update,
-          }"
-          >Access key</label
-        >
+        <label for="access_key" class="label">Access key</label>
         <InputText
           v-model="initialValues.access_key"
           id="access_key"
@@ -68,14 +47,7 @@
         />
       </div>
       <div class="field">
-        <label
-          for="secret_key"
-          :class="{
-            label: !update,
-            'label--medium': update,
-          }"
-          >Secret key</label
-        >
+        <label for="secret_key" class="label">Secret key</label>
         <InputText
           v-model="initialValues.secret_key"
           id="secret_key"
@@ -86,13 +58,7 @@
         />
       </div>
       <div class="field">
-        <label
-          for="region"
-          :class="{
-            label: !update,
-            'label--medium': update,
-          }"
-        >
+        <label for="region" class="label">
           Region
           <div
             v-tooltip.left="'If your provider doesn’t require a region, you may enter any value.'"
@@ -113,13 +79,7 @@
     </div>
 
     <div class="field field--protocol">
-      <label
-        :class="{
-          label: !update,
-          'label--medium': update,
-        }"
-        >Secure (http/https)</label
-      >
+      <label class="label">Secure (http/https)</label>
       <ToggleSwitch v-model="initialValues.secure" name="secure" />
     </div>
 
@@ -129,7 +89,7 @@
 
 <script setup lang="ts">
 import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { ref, watch, withDefaults, computed } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, InputText, ToggleSwitch } from 'primevue'
@@ -256,9 +216,6 @@ function onSubmit({ valid }: FormSubmitEvent) {
 .message {
   font-size: 12px;
   line-height: 1.75;
-}
-.label--medium {
-  font-weight: 500;
 }
 @media (max-width: 768px) {
   .tooltip-icon {

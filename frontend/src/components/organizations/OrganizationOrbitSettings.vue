@@ -33,49 +33,51 @@
         <div v-if="!orbitMembers.length" class="placeholder">
           There are currently no active members for this Orbit.
         </div>
-        <div v-else class="table">
-          <div class="table-header">
-            <div class="table-row">
-              <div>Orbit members</div>
-              <div>Role</div>
-              <div></div>
+        <div v-else class="table-wrapper">
+          <div class="table">
+            <div class="table-header">
+              <div class="table-row">
+                <div>Orbit members</div>
+                <div>Role</div>
+                <div></div>
+              </div>
             </div>
-          </div>
-          <div class="table-body">
-            <div v-for="member in orbitMembers" class="table-row">
-              <div class="cell cell-user">
-                <Avatar
-                  :label="member.user.photo ? undefined : member.user.full_name[0]"
-                  shape="circle"
-                  :image="member.user.photo"
-                  class="avatar"
-                />
-                <div>
-                  <h4>{{ member.user.full_name }}</h4>
+            <div class="table-body">
+              <div v-for="member in orbitMembers" class="table-row">
+                <div class="cell cell-user">
+                  <Avatar
+                    :label="member.user.photo ? undefined : member.user.full_name[0]"
+                    shape="circle"
+                    :image="member.user.photo"
+                    class="avatar"
+                  />
+                  <div>
+                    <h4>{{ member.user.full_name }}</h4>
+                  </div>
                 </div>
-              </div>
-              <div class="cell">
-                <Select
-                  v-model="member.role"
-                  :options="OPTIONS"
-                  option-label="label"
-                  option-value="value"
-                  name="role"
-                  id="role"
-                  fluid
-                ></Select>
-              </div>
-              <div class="buttons">
-                <Button
-                  severity="secondary"
-                  variant="outlined"
-                  :disabled="loading"
-                  @click="onTrashClick(member.id)"
-                >
-                  <template #icon>
-                    <Trash2 :size="12" />
-                  </template>
-                </Button>
+                <div class="cell">
+                  <Select
+                    v-model="member.role"
+                    :options="OPTIONS"
+                    option-label="label"
+                    option-value="value"
+                    name="role"
+                    id="role"
+                    fluid
+                  ></Select>
+                </div>
+                <div class="buttons">
+                  <Button
+                    severity="secondary"
+                    variant="outlined"
+                    :disabled="loading"
+                    @click="onTrashClick(member.id)"
+                  >
+                    <template #icon>
+                      <Trash2 :size="12" />
+                    </template>
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
@@ -287,12 +289,16 @@ watch(visible, (val) => {
 .placeholder {
   font-size: 20px;
 }
-.table {
+.table-wrapper {
+  overflow-x: auto;
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
   padding: 16px;
   width: 100%;
   border-radius: 8px;
+}
+.table {
+  min-width: 450px;
 }
 .table-header {
   font-weight: 500;
@@ -320,5 +326,17 @@ watch(visible, (val) => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+@media (max-width: 768px) {
+  .form {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .body {
+    padding: 16px 0 8px;
+  }
+  .placeholder {
+    font-size: 16px;
+  }
 }
 </style>

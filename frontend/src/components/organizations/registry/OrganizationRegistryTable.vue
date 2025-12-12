@@ -1,27 +1,29 @@
 <template>
-  <div class="simple-table">
-    <div class="simple-table__header">
-      <div class="simple-table__row">
-        <div>Name</div>
-        <div>Endpoint</div>
-        <div>Created</div>
-        <div></div>
-      </div>
-    </div>
-    <div class="simple-table__rows">
-      <div v-if="!bucketsStore.buckets.length" class="simple-table__placeholder">
-        No buckets created for this organization.
-      </div>
-      <div v-for="bucket in bucketsStore.buckets" class="simple-table__row">
-        <div class="cell">
-          {{ bucket.bucket_name }}
+  <div class="table-wrapper">
+    <div class="table">
+      <div class="simple-table__header">
+        <div class="simple-table__row">
+          <div>Name</div>
+          <div>Endpoint</div>
+          <div>Created</div>
+          <div></div>
         </div>
-        <div class="cell">
-          {{ bucket.endpoint }}
+      </div>
+      <div class="simple-table__rows">
+        <div v-if="!bucketsStore.buckets.length" class="simple-table__placeholder">
+          No buckets created for this organization.
         </div>
-        <div>{{ new Date(bucket.created_at).toLocaleDateString() }}</div>
-        <div>
-          <BucketSettings :bucket="bucket" />
+        <div v-for="bucket in bucketsStore.buckets" class="simple-table__row">
+          <div class="cell">
+            {{ bucket.bucket_name }}
+          </div>
+          <div class="cell">
+            {{ bucket.endpoint }}
+          </div>
+          <div>{{ new Date(bucket.created_at).toLocaleDateString() }}</div>
+          <div>
+            <BucketSettings :bucket="bucket" />
+          </div>
         </div>
       </div>
     </div>
@@ -53,6 +55,19 @@ onMounted(async () => {
 
 <style scoped>
 @import '@/assets/tables.css';
+
+.table-wrapper {
+  overflow-x: auto;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--p-card-background);
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: var(--card-shadow);
+}
+
+.table {
+  min-width: 750px;
+}
 
 .simple-table__row {
   grid-template-columns: 300px 1fr 120px 35px;

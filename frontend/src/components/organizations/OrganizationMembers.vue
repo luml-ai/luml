@@ -21,38 +21,40 @@
         </div>
       </div>
     </div>
-    <div class="users">
-      <div class="users-header">
-        <div class="row">
-          <div class="cell">User</div>
-          <div class="cell">Role</div>
-          <div class="cell">Date added</div>
-          <div class="cell"></div>
-        </div>
-      </div>
-      <div class="users-list">
-        <div v-for="member in members" class="row">
-          <div class="cell cell-user">
-            <Avatar
-              :label="member.user.photo ? undefined : member.user.full_name[0]"
-              shape="circle"
-              :image="member.user.photo"
-            />
-            <div>
-              <h4>{{ member.user.full_name }}</h4>
-              <div class="email">{{ member.user.email }}</div>
-            </div>
+    <div class="users-wrapper">
+      <div class="users">
+        <div class="users-header">
+          <div class="row">
+            <div class="cell">User</div>
+            <div class="cell">Role</div>
+            <div class="cell">Date added</div>
+            <div class="cell"></div>
           </div>
-          <div class="cell">{{ member.role }}</div>
-          <div class="cell">{{ new Date(member.created_at).toLocaleDateString() }}</div>
-          <div class="cell">
-            <OrganizationUserSettings
-              v-if="
-                member.role === OrganizationRoleEnum.member ||
-                (member.role === OrganizationRoleEnum.admin && isUserOwner)
-              "
-              :member="member"
-            ></OrganizationUserSettings>
+        </div>
+        <div class="users-list">
+          <div v-for="member in members" class="row">
+            <div class="cell cell-user">
+              <Avatar
+                :label="member.user.photo ? undefined : member.user.full_name[0]"
+                shape="circle"
+                :image="member.user.photo"
+              />
+              <div>
+                <h4>{{ member.user.full_name }}</h4>
+                <div class="email">{{ member.user.email }}</div>
+              </div>
+            </div>
+            <div class="cell">{{ member.role }}</div>
+            <div class="cell">{{ new Date(member.created_at).toLocaleDateString() }}</div>
+            <div class="cell">
+              <OrganizationUserSettings
+                v-if="
+                  member.role === OrganizationRoleEnum.member ||
+                  (member.role === OrganizationRoleEnum.admin && isUserOwner)
+                "
+                :member="member"
+              ></OrganizationUserSettings>
+            </div>
           </div>
         </div>
       </div>
@@ -121,12 +123,16 @@ const isUserOwner = computed(
 .item-label {
   font-weight: 500;
 }
-.users {
+.users-wrapper {
+  overflow-x: auto;
   padding: 16px;
   border-radius: 8px;
   background: var(--p-card-background);
   border: 1px solid var(--p-content-border-color);
   box-shadow: var(--card-shadow);
+}
+.users {
+  min-width: 600px;
 }
 .users-header {
   padding: 10px 0;
@@ -153,5 +159,16 @@ const isUserOwner = computed(
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+@media (max-width: 992px) {
+  .buttons {
+    flex-direction: column;
+  }
+  .list {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
 }
 </style>
