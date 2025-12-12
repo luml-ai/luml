@@ -10,8 +10,8 @@ from dataforce_studio.models import SatelliteOrm, SatelliteQueueOrm
 from dataforce_studio.repositories.base import CrudMixin, RepositoryBase
 from dataforce_studio.schemas.satellite import (
     Satellite,
-    SatelliteCapability,
     SatelliteCreate,
+    SatellitePair,
     SatelliteQueueTask,
     SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
@@ -55,26 +55,10 @@ class SatelliteRepository(RepositoryBase, CrudMixin):
             satellites = result.scalars().all()
             return [s.to_satellite() for s in satellites]
 
-    async def pair_satellite(
-        self,
-        satellite_id: UUID,
-        base_url: str,
-        capabilities: dict[SatelliteCapability, dict[str, str | int] | None],
-    ) -> Satellite | None:
+    async def pair_satellite(self, satellite: SatellitePair) -> Satellite | None:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(SatelliteOrm).where(SatelliteOrm.id == satellite_id)
-            )
-            sat = result.scalar_one_or_none()
-            if not sat:
-                return None
-            sat.paired = True
-            sat.base_url = base_url
-            sat.capabilities = capabilities
-            sat.last_seen_at = datetime.now(UTC)
-            await session.commit()
-            await session.refresh(sat)
-            return sat.to_satellite()
+            db_satellite = await self.update_model(session, SatelliteOrm, satellite)
+            return db_satellite.to_satellite() if db_satellite else None
 
     async def list_tasks(
         self,
