@@ -2,15 +2,14 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.organizations import OrganizationHandler
+from luml.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
     OrganizationLimitReachedError,
 )
-from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.schemas.organization import (
+from luml.models import OrganizationOrm
+from luml.schemas.organization import (
     Organization,
     OrganizationCreateIn,
     OrganizationDetails,
@@ -18,13 +17,13 @@ from dataforce_studio.schemas.organization import (
     OrganizationUpdate,
     OrgRole,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
+from luml.schemas.permissions import Action, Resource
 
 handler = OrganizationHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -44,7 +43,7 @@ async def test_check_org_members_limit_raises(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations",
+    "luml.handlers.organizations.UserRepository.get_user_organizations",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -72,15 +71,15 @@ async def test_get_user_organizations(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -108,15 +107,15 @@ async def test_get_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -144,11 +143,11 @@ async def test_get_organization_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
+    "luml.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.create_organization",
+    "luml.handlers.organizations.UserRepository.create_organization",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -179,15 +178,15 @@ async def test_create_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.update_organization",
+    "luml.handlers.organizations.UserRepository.update_organization",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -218,11 +217,11 @@ async def test_update_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.update_organization",
+    "luml.handlers.organizations.UserRepository.update_organization",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -254,15 +253,15 @@ async def test_update_organization_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.delete_organization",
+    "luml.handlers.organizations.UserRepository.delete_organization",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -287,11 +286,11 @@ async def test_delete_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
+    "luml.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -318,11 +317,11 @@ async def test_leave_from_organization(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
+    "luml.handlers.organizations.UserRepository.delete_organization_member_by_user_id",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

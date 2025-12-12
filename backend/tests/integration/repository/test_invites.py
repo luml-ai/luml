@@ -1,11 +1,11 @@
 import uuid
 
 import pytest
+from luml.models import OrganizationOrm
+from luml.repositories.invites import InviteRepository
+from luml.schemas.organization import CreateOrganizationInvite, OrgRole
+from luml.schemas.user import User
 
-from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.repositories.invites import InviteRepository
-from dataforce_studio.schemas.organization import CreateOrganizationInvite, OrgRole
-from dataforce_studio.schemas.user import User
 from tests.conftest import OrganizationFixtureData
 
 

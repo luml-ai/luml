@@ -1,18 +1,18 @@
 import uuid
 
 import pytest
-
-from dataforce_studio.repositories.deployments import DeploymentRepository
-from dataforce_studio.schemas.deployment import (
+from luml.repositories.deployments import DeploymentRepository
+from luml.schemas.deployment import (
     DeploymentCreate,
     DeploymentDetailsUpdate,
     DeploymentStatus,
     DeploymentUpdate,
 )
-from dataforce_studio.schemas.satellite import (
+from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
+
 from tests.conftest import SatelliteFixtureData
 
 

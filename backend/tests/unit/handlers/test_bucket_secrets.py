@@ -4,14 +4,14 @@ from uuid import UUID
 
 import pytest
 
-from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.bucket_secrets import BucketSecretHandler
+from luml.infra.exceptions import (
     ApplicationError,
     BucketSecretInUseError,
     DatabaseConstraintError,
     NotFoundError,
 )
-from dataforce_studio.schemas.bucket_secrets import (
+from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
     AzureBucketSecretCreateIn,
     AzureBucketSecretOut,
@@ -23,8 +23,8 @@ from dataforce_studio.schemas.bucket_secrets import (
     S3BucketSecretOut,
     S3BucketSecretUpdate,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
-from dataforce_studio.schemas.storage import (
+from luml.schemas.permissions import Action, Resource
+from luml.schemas.storage import (
     BucketMultipartUpload,
     PartDetails,
     S3MultiPartUploadDetails,
@@ -34,11 +34,11 @@ handler = BucketSecretHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -83,11 +83,11 @@ async def test_create_bucket_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -128,11 +128,11 @@ async def test_create_bucket_secret_azure(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.create_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -172,11 +172,11 @@ async def test_create_bucket_secret_s3_not_unique(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_organization_bucket_secrets",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_organization_bucket_secrets",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -213,11 +213,11 @@ async def test_get_organization_bucket_secrets(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -252,11 +252,11 @@ async def test_get_bucket_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -281,11 +281,11 @@ async def test_get_bucket_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -328,11 +328,11 @@ async def test_update_bucket_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -369,11 +369,11 @@ async def test_update_bucket_secret_s3_not_unique(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -407,11 +407,11 @@ async def test_update_bucket_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.delete_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.delete_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -432,11 +432,11 @@ async def test_delete_bucket_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.delete_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.delete_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -460,7 +460,7 @@ async def test_delete_bucket_secret_in_use(
     )
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @pytest.mark.asyncio
 async def test_generate_bucket_urls(
     mock_create_storage_client: Mock,
@@ -502,9 +502,9 @@ async def test_generate_bucket_urls(
     mock_storage_instance.get_delete_url.assert_awaited_once_with(object_name)
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -566,9 +566,9 @@ async def test_get_existing_bucket_urls(
     mock_storage_instance.get_delete_url.assert_awaited_once_with(object_name)
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -597,7 +597,7 @@ async def test_get_existing_bucket_urls_type_cant_be_changed(
 
 
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -620,7 +620,7 @@ async def test_get_existing_bucket_urls_secret_not_found(
     assert error.value.status_code == 404
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @pytest.mark.asyncio
 async def test_get_bucket_urls(
     mock_create_storage_client: Mock,
@@ -663,9 +663,9 @@ async def test_get_bucket_urls(
     mock_storage_instance.get_delete_url.assert_awaited_once_with(object_name)
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -740,9 +740,9 @@ async def test_get_bucket_multipart_urls(
     )
 
 
-@patch("dataforce_studio.handlers.bucket_secrets.create_storage_client")
+@patch("luml.handlers.bucket_secrets.create_storage_client")
 @patch(
-    "dataforce_studio.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

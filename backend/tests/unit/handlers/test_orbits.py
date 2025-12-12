@@ -3,15 +3,14 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID, uuid7
 
 import pytest
-
-from dataforce_studio.handlers.orbits import OrbitHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.orbits import OrbitHandler
+from luml.infra.exceptions import (
     NotFoundError,
     OrbitMemberNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.models import OrganizationMemberOrm
-from dataforce_studio.schemas.orbit import (
+from luml.models import OrganizationMemberOrm
+from luml.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
@@ -21,8 +20,8 @@ from dataforce_studio.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
-from dataforce_studio.schemas.organization import OrgRole
-from dataforce_studio.schemas.user import UserOut
+from luml.schemas.organization import OrgRole
+from luml.schemas.user import UserOut
 
 handler = OrbitHandler()
 
@@ -73,23 +72,23 @@ def test_orbit_details(test_orbit_member: OrbitMember) -> OrbitDetails:
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.UserRepository.get_organization_details",
+    "luml.handlers.orbits.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    "luml.handlers.orbits.OrbitRepository.get_organization_orbits_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
+    "luml.handlers.orbits.OrbitRepository.create_orbit",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -132,23 +131,23 @@ async def test_create_organization_orbit(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.UserRepository.get_organization_details",
+    "luml.handlers.orbits.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    "luml.handlers.orbits.OrbitRepository.get_organization_orbits_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
+    "luml.handlers.orbits.OrbitRepository.create_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -184,23 +183,23 @@ async def test_create_organization_orbit_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.UserRepository.get_organization_details",
+    "luml.handlers.orbits.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.orbits.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits_count",
+    "luml.handlers.orbits.OrbitRepository.get_organization_orbits_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit",
+    "luml.handlers.orbits.OrbitRepository.create_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -236,11 +235,11 @@ async def test_create_organization_orbit_secret_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_organization_orbits",
+    "luml.handlers.orbits.OrbitRepository.get_organization_orbits",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -265,15 +264,15 @@ async def test_get_organization_orbits(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit",
+    "luml.handlers.orbits.OrbitRepository.get_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -298,15 +297,15 @@ async def test_get_orbit(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit",
+    "luml.handlers.orbits.OrbitRepository.get_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -331,15 +330,15 @@ async def test_get_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit",
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -367,15 +366,15 @@ async def test_update_orbit(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit",
+    "luml.handlers.orbits.OrbitRepository.update_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -402,15 +401,15 @@ async def test_update_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.delete_orbit",
+    "luml.handlers.orbits.OrbitRepository.delete_orbit",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -432,15 +431,15 @@ async def test_delete_orbit(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_members",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_members",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -468,31 +467,31 @@ async def test_get_orbit_members(
 
 
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_simple",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.emails.EmailHandler.send_added_to_orbit_email",
+    "luml.handlers.emails.EmailHandler.send_added_to_orbit_email",
     new_callable=MagicMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_members_count",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_members_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.create_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.create_orbit_member",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.UserRepository.get_organization_member",
+    "luml.handlers.orbits.UserRepository.get_organization_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -540,19 +539,19 @@ async def test_create_orbit_member(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.update_orbit_member",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -586,19 +585,19 @@ async def test_update_orbit_member(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.update_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.update_orbit_member",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -630,19 +629,19 @@ async def test_update_orbit_member_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.delete_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.delete_orbit_member",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbits.OrbitRepository.get_orbit_member",
+    "luml.handlers.orbits.OrbitRepository.get_orbit_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

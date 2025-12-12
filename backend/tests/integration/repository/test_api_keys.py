@@ -1,13 +1,12 @@
 import uuid
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import (
+from luml.repositories.users import UserRepository
+from luml.schemas.user import (
     CreateUser,
     UpdateUserAPIKey,
 )
+from sqlalchemy.ext.asyncio import create_async_engine
 
 
 @pytest.mark.asyncio

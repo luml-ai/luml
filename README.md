@@ -1,7 +1,7 @@
 <div align="center">
 
 <h1 style="border-bottom: none">
-    <b><a href="https://app.dataforce.studio">DataForce Studio</a></b><br />
+    <b><a href="https://app.luml.ai">LUML</a></b><br />
     Build AI Solutions Faster Than Ever
     <br>
 </h1>
@@ -14,10 +14,10 @@
 </p>
 
 <div align="center">
-    <a href="https://dataforce.studio">Home Page</a> |
+    <a href="https://luml.ai">Home Page</a> |
     <a href="https://discord.com/invite/qVPPstSv9R">Discord</a> |
-    <a href="https://app.dataforce.studio">App</a> |
-    <a href="https://docs.dataforce.studio/getting-started">Documentation</a>
+    <a href="https://app.luml.ai">App</a> |
+    <a href="https://docs.luml.ai/getting-started">Documentation</a>
 </div>
 <br/>
 </div>
@@ -30,9 +30,9 @@
 
 
 
-## What is DataForce Studio?
+## What is LUML?
 
-**DataForce Studio** is an open-source MLOps platform designed to help you build, manage, and deploy AI/ML models with ease. The goal is to support the entire model lifecycle, from model creation to deployment and monitoring, all within a no-bloat, user-friendly interface.
+**LUML** is an open-source MLOps platform designed to help you build, manage, and deploy AI/ML models with ease. The goal is to support the entire model lifecycle, from model creation to deployment and monitoring, all within a no-bloat, user-friendly interface.
 
 ## Roadmap
 

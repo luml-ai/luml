@@ -2,20 +2,19 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.permissions import PermissionsHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.permissions import PermissionsHandler
+from luml.infra.exceptions import (
     InsufficientPermissionsError,
 )
-from dataforce_studio.schemas.orbit import OrbitRole
-from dataforce_studio.schemas.organization import OrgRole
-from dataforce_studio.schemas.permissions import Action, Resource
+from luml.schemas.orbit import OrbitRole
+from luml.schemas.organization import OrgRole
+from luml.schemas.permissions import Action, Resource
 
 handler = PermissionsHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -37,7 +36,7 @@ async def test_check_permission_user_not_org_member(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -58,7 +57,7 @@ async def test_check_organization_permission_insufficient_permissions(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -78,11 +77,11 @@ async def test_check_organization_permission_success(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -107,11 +106,11 @@ async def test_check_orbit_permission_user_not_member(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -134,11 +133,11 @@ async def test_check_orbit_permission_success(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -161,11 +160,11 @@ async def test_check_orbit_action_access_org_admin(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.OrbitRepository.get_orbit_member_role",
+    "luml.handlers.permissions.OrbitRepository.get_orbit_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

@@ -1,18 +1,18 @@
 import uuid
 
 import pytest
-
-from dataforce_studio.infra.exceptions import DatabaseConstraintError
-from dataforce_studio.repositories.deployments import DeploymentRepository
-from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.schemas.deployment import DeploymentCreate, DeploymentStatus
-from dataforce_studio.schemas.model_artifacts import (
+from luml.infra.exceptions import DatabaseConstraintError
+from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.model_artifacts import ModelArtifactRepository
+from luml.repositories.satellites import SatelliteRepository
+from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
+from luml.schemas.model_artifacts import (
     ModelArtifactCreate,
     ModelArtifactStatus,
     ModelArtifactUpdate,
 )
-from dataforce_studio.schemas.satellite import SatelliteCreate
+from luml.schemas.satellite import SatelliteCreate
+
 from tests.conftest import CollectionFixtureData
 
 

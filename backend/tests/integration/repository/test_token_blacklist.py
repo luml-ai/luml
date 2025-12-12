@@ -2,9 +2,8 @@ import time
 import uuid
 
 import pytest
+from luml.repositories.token_blacklist import TokenBlackListRepository
 from sqlalchemy.ext.asyncio import create_async_engine
-
-from dataforce_studio.repositories.token_blacklist import TokenBlackListRepository
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@ wasm/test_*.py
 /backend/.env
 /.idea/.gitignore
 /backend/.coverage
-/backend/dataforce_studio/factories/
+/backend/luml/factories/
 /.gitignore
 __pycache__/
 *.py[cod]

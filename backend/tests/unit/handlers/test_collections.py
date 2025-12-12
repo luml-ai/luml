@@ -3,10 +3,9 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid7
 
 import pytest
-
-from dataforce_studio.handlers.collections import CollectionHandler
-from dataforce_studio.infra.exceptions import CollectionDeleteError, NotFoundError
-from dataforce_studio.schemas.model_artifacts import (
+from luml.handlers.collections import CollectionHandler
+from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
@@ -14,21 +13,21 @@ from dataforce_studio.schemas.model_artifacts import (
     CollectionUpdate,
     CollectionUpdateIn,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
+from luml.schemas.permissions import Action, Resource
 
 handler = CollectionHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.create_collection",
+    "luml.handlers.collections.CollectionRepository.create_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -78,15 +77,15 @@ async def test_create_collection(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.create_collection",
+    "luml.handlers.collections.CollectionRepository.create_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -124,15 +123,15 @@ async def test_create_collection_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_orbit_collections",
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -163,15 +162,15 @@ async def test_get_orbit_collections_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_orbit_collections",
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -202,15 +201,15 @@ async def test_get_orbit_collections_orbit_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.create_collection",
+    "luml.handlers.collections.CollectionRepository.create_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -248,15 +247,15 @@ async def test_create_collection_orbit_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.update_collection",
+    "luml.handlers.collections.CollectionRepository.update_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -308,15 +307,15 @@ async def test_update_collection(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.update_collection",
+    "luml.handlers.collections.CollectionRepository.update_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -357,15 +356,15 @@ async def test_update_collection_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.update_collection",
+    "luml.handlers.collections.CollectionRepository.update_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -401,23 +400,23 @@ async def test_update_collection_orbit_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_collection",
+    "luml.handlers.collections.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.delete_collection",
+    "luml.handlers.collections.CollectionRepository.delete_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -461,23 +460,23 @@ async def test_delete_collection_empty(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_collection",
+    "luml.handlers.collections.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.delete_collection",
+    "luml.handlers.collections.CollectionRepository.delete_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -535,15 +534,15 @@ async def test_delete_collection_not_empty(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_collection",
+    "luml.handlers.collections.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -576,23 +575,23 @@ async def test_delete_collection_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_collection",
+    "luml.handlers.collections.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.delete_collection",
+    "luml.handlers.collections.CollectionRepository.delete_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -641,15 +640,15 @@ async def test_delete_collection_orbit_wrong_org(
 
 
 @patch(
-    "dataforce_studio.handlers.collections.PermissionsHandler.check_permissions",
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.OrbitRepository.get_orbit_simple",
+    "luml.handlers.collections.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.collections.CollectionRepository.get_orbit_collections",
+    "luml.handlers.collections.CollectionRepository.get_orbit_collections",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     SATELLITE_TOKEN: str
-    PLATFORM_URL: AnyHttpUrl = "https://dev-api.dataforce.studio"
+    PLATFORM_URL: AnyHttpUrl = "https://api.luml.ai"
     BASE_URL: str = "http://localhost"
     MODEL_IMAGE: str = "df-random-svc:latest"
     POLL_INTERVAL_SEC: float = 2.0

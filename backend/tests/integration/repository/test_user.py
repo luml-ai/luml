@@ -4,16 +4,15 @@ from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.user import (
+from luml.repositories.users import UserRepository
+from luml.schemas.user import (
     AuthProvider,
     CreateUser,
     UpdateUser,
     User,
     UserOut,
 )
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 
 @dataclass

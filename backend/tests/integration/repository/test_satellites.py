@@ -3,14 +3,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.schemas.satellite import (
+from luml.repositories.satellites import SatelliteRepository
+from luml.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreate,
     SatellitePair,
 )
+from sqlalchemy.ext.asyncio import create_async_engine
+
 from tests.conftest import OrbitFixtureData
 
 

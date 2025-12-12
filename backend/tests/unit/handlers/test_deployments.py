@@ -4,14 +4,13 @@ from uuid import UUID, uuid7
 
 import pytest
 from fastapi import status
-
-from dataforce_studio.handlers.deployments import DeploymentHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.deployments import DeploymentHandler
+from luml.infra.exceptions import (
     ApplicationError,
     InsufficientPermissionsError,
     NotFoundError,
 )
-from dataforce_studio.schemas.deployment import (
+from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
     DeploymentCreateIn,
@@ -21,8 +20,8 @@ from dataforce_studio.schemas.deployment import (
     DeploymentUpdate,
     DeploymentUpdateIn,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
-from dataforce_studio.schemas.satellite import (
+from luml.schemas.permissions import Action, Resource
+from luml.schemas.satellite import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
@@ -32,31 +31,31 @@ handler = DeploymentHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.create_deployment",
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.UserRepository.get_public_user_by_id",
+    "luml.handlers.deployments.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.CollectionRepository.get_collection",
+    "luml.handlers.deployments.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.SatelliteRepository.get_satellite",
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -141,11 +140,11 @@ async def test_create_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -185,15 +184,15 @@ async def test_create_deployment_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.SatelliteRepository.get_satellite",
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -236,19 +235,19 @@ async def test_create_deployment_satellite_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.SatelliteRepository.get_satellite",
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -294,23 +293,23 @@ async def test_create_deployment_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.CollectionRepository.get_collection",
+    "luml.handlers.deployments.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.SatelliteRepository.get_satellite",
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -359,27 +358,27 @@ async def test_create_deployment_collection_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.UserRepository.get_public_user_by_id",
+    "luml.handlers.deployments.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.CollectionRepository.get_collection",
+    "luml.handlers.deployments.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.SatelliteRepository.get_satellite",
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_simple",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -432,11 +431,11 @@ async def test_create_deployment_user_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.list_deployments",
+    "luml.handlers.deployments.DeploymentRepository.list_deployments",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -485,11 +484,11 @@ async def test_list_deployments(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -538,11 +537,11 @@ async def test_get_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.request_deployment_deletion",
+    "luml.handlers.deployments.DeploymentRepository.request_deployment_deletion",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -607,11 +606,11 @@ async def test_delete_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.request_deployment_deletion",
+    "luml.handlers.deployments.DeploymentRepository.request_deployment_deletion",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -642,11 +641,11 @@ async def test_delete_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.request_deployment_deletion",
+    "luml.handlers.deployments.DeploymentRepository.request_deployment_deletion",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -693,11 +692,11 @@ async def test_delete_deployment_already_pending(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.delete_deployment",
+    "luml.handlers.deployments.DeploymentRepository.delete_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -725,7 +724,7 @@ async def test_delete_worker_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -743,11 +742,11 @@ async def test_delete_worker_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -777,7 +776,7 @@ async def test_get_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.list_satellite_deployments",
+    "luml.handlers.deployments.DeploymentRepository.list_satellite_deployments",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -816,11 +815,11 @@ async def test_list_worker_deployments(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment_details",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -888,11 +887,11 @@ async def test_update_deployment_details(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.request_deployment_deletion",
+    "luml.handlers.deployments.DeploymentRepository.request_deployment_deletion",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -951,7 +950,7 @@ async def test_request_deployment_deletion(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -992,7 +991,7 @@ async def test_update_worker_deployment_status(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1044,7 +1043,7 @@ async def test_update_worker_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1079,15 +1078,15 @@ async def test_update_worker_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.APIKeyHandler.authenticate_api_key",
+    "luml.handlers.deployments.APIKeyHandler.authenticate_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1117,7 +1116,7 @@ async def test_verify_user_inference_access(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.APIKeyHandler.authenticate_api_key",
+    "luml.handlers.deployments.APIKeyHandler.authenticate_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1136,11 +1135,11 @@ async def test_verify_user_inference_access_invalid_api_key(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.APIKeyHandler.authenticate_api_key",
+    "luml.handlers.deployments.APIKeyHandler.authenticate_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1163,15 +1162,15 @@ async def test_verify_user_inference_access_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.deployments.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.APIKeyHandler.authenticate_api_key",
+    "luml.handlers.deployments.APIKeyHandler.authenticate_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1203,15 +1202,15 @@ async def test_verify_user_inference_access_insufficient_permissions(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.delete_deployment",
+    "luml.handlers.deployments.DeploymentRepository.delete_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1240,11 +1239,11 @@ async def test_force_delete_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1272,7 +1271,7 @@ async def test_force_delete_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_satellite_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1309,7 +1308,7 @@ async def test_get_worker_deployment(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_satellite_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_satellite_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1329,7 +1328,7 @@ async def test_get_worker_deployment_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.get_deployment",
+    "luml.handlers.deployments.DeploymentRepository.get_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1351,11 +1350,11 @@ async def test_delete_worker_deployment_incorrect_status(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment_details",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.deployments.PermissionsHandler.check_permissions",
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1388,7 +1387,7 @@ async def test_update_deployment_details_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.deployments.DeploymentRepository.update_deployment",
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
