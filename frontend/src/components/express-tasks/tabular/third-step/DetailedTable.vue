@@ -2,7 +2,15 @@
   <div>
     <header class="card-header">
       <h3 class="card-title">
-        Detailed view <triangle-alert v-if="isTrainMode" :size="20" class="warning-icon" />
+        Detailed view
+        <triangle-alert
+          v-if="isTrainMode"
+          :size="20"
+          class="warning-icon"
+          v-tooltip="
+            'Cross-validation was used due to insufficient test data. The sample is from the training set.'
+          "
+        />
       </h3>
       <div class="detailed-actions">
         <!--<div class="highlight-toggle-wrapper">
