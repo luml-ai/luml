@@ -492,4 +492,11 @@ onBeforeMount(async () => {
   font-weight: var(--p-select-option-group-font-weight);
   color: var(--p-select-option-group-color);
 }
+
+@media (max-width: 992px) {
+  .column {
+    border-right: none;
+    border-bottom: 1px solid var(--p-divider-border-color);
+  }
+}
 </style>

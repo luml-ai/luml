@@ -1,16 +1,18 @@
 <template>
   <Dialog v-model:visible="visible" :pt="dialogPt" modal :draggable="false">
     <template #header>
-      <h3>Create deployment</h3>
-      <div class="buttons">
-        <Button
-          form="createDeploymentForm"
-          label="Deploy"
-          :disabled="!isFormValid"
-          :loading="loading"
-          type="submit"
-        ></Button>
-        <Button label="Cancel" severity="secondary" @click="onCancel"></Button>
+      <div class="header-content">
+        <h3>Create deployment</h3>
+        <div class="buttons">
+          <Button
+            form="createDeploymentForm"
+            label="Deploy"
+            :disabled="!isFormValid"
+            :loading="loading"
+            type="submit"
+          ></Button>
+          <Button label="Cancel" severity="secondary" @click="onCancel"></Button>
+        </div>
       </div>
     </template>
     <template #default>
@@ -192,5 +194,26 @@ function onModelChanged(model: MlModel | null) {
   grid-template-columns: repeat(3, 1fr);
   height: 100%;
   overflow: hidden;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+@media (max-width: 992px) {
+  .content {
+    grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  .header-content {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
 }
 </style>

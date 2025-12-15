@@ -1,7 +1,7 @@
 <template>
   <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
     <div>
-      <div style="margin-bottom: 8px">
+      <div class="organization-button-wrapper">
         <OrganizationManagePopover v-if="authStore.isAuth"></OrganizationManagePopover>
         <d-button
           v-else
@@ -207,6 +207,10 @@ onMounted(() => {
   width: 67px;
 }
 
+.organization-button-wrapper {
+  margin-bottom: 8px;
+}
+
 .sidebar-bottom {
   display: flex;
   flex-direction: column;
@@ -353,6 +357,10 @@ onMounted(() => {
   }
   .toggle-width-button {
     display: none;
+  }
+  .organization-button-wrapper {
+    max-width: 200px;
+    margin: 0 auto 8px;
   }
 }
 </style>

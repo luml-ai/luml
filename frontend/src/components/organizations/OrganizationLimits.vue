@@ -12,6 +12,7 @@
               organizationStore.organizationDetails.members_limit) *
             100
           "
+          class="progress"
         ></UiCircleProgress>
         <div class="item-content">
           <div class="item-values">
@@ -29,6 +30,7 @@
               organizationStore.organizationDetails.orbits_limit) *
             100
           "
+          class="progress"
         ></UiCircleProgress>
         <div class="item-content">
           <div class="item-values">
@@ -46,11 +48,13 @@
               organizationStore.organizationDetails.satellites_limit) *
             100
           "
+          class="progress"
         />
         <div class="item-content">
           <div class="item-values">
-            {{ organizationStore.organizationDetails.total_satellites }}/
-            {{ organizationStore.organizationDetails.satellites_limit }}
+            {{ organizationStore.organizationDetails.total_satellites }}/{{
+              organizationStore.organizationDetails.satellites_limit
+            }}
           </div>
           <div class="item-label">satellites limit per organization</div>
         </div>
@@ -63,11 +67,13 @@
               organizationStore.organizationDetails.model_artifacts_limit) *
             100
           "
+          class="progress"
         />
         <div class="item-content">
           <div class="item-values">
-            {{ organizationStore.organizationDetails.total_model_artifacts }}/
-            {{ organizationStore.organizationDetails.model_artifacts_limit }}
+            {{ organizationStore.organizationDetails.total_model_artifacts }}/{{
+              organizationStore.organizationDetails.model_artifacts_limit
+            }}
           </div>
           <div class="item-label">model attachments limit per organization</div>
         </div>
@@ -102,7 +108,8 @@ const organizationStore = useOrganizationStore()
   margin-bottom: 20px;
 }
 .items {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 24px;
 }
 .item {
@@ -118,5 +125,18 @@ const organizationStore = useOrganizationStore()
 }
 .item-label {
   color: var(--p-text-muted-color);
+}
+.progress {
+  flex: 0 0 auto;
+}
+@media (max-width: 1100px) {
+  .items {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 768px) {
+  .items {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

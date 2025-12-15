@@ -165,6 +165,7 @@ describe('OrbitCreator', () => {
       },
       props: {
         visible: true,
+        organizationId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
       },
     })
   })

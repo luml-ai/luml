@@ -102,4 +102,11 @@ function searchTags(event: AutoCompleteCompleteEvent) {
   resize: none;
   height: 72px;
 }
+
+@media (max-width: 992px) {
+  .column {
+    border-right: none;
+    border-bottom: 1px solid var(--p-divider-border-color);
+  }
+}
 </style>

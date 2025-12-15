@@ -144,4 +144,12 @@ function getPayload(values: { email: string; role: OrganizationRoleEnum }) {
 .form-select {
   flex: 0 0 160px;
 }
+@media (max-width: 768px) {
+  .form {
+    flex-direction: column;
+  }
+  .form-select {
+    flex: 0 0 auto;
+  }
+}
 </style>

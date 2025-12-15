@@ -116,4 +116,10 @@ const trainMetrics = computed(() => {
   font-weight: 500;
   color: var(--p-primary-500);
 }
+
+@media (max-width: 1100px) {
+  .model-info {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

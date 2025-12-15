@@ -5,40 +5,42 @@
     modal
     header="Manage invites"
     :draggable="false"
-    style="width: 938px"
+    style="width: 938px; max-width: 100%"
     :pt="dialogPT"
   >
     <div class="dialog-content">
       <p class="dialog-text">
         Organization members have access to all data within the organization.
       </p>
-      <div v-if="invites.length" class="table">
-        <div class="table-header">
-          <div class="table-row">
-            <div>Email</div>
-            <div>Role</div>
-            <div>Invited by</div>
-            <div>Invitation sent on</div>
-            <div></div>
+      <div v-if="invites.length" class="table-wrapper">
+        <div class="table">
+          <div class="table-header">
+            <div class="table-row">
+              <div>Email</div>
+              <div>Role</div>
+              <div>Invited by</div>
+              <div>Invitation sent on</div>
+              <div></div>
+            </div>
           </div>
-        </div>
-        <div class="table-body">
-          <div v-for="invitation in invites" class="table-row">
-            <div class="cell">{{ invitation.email }}</div>
-            <div class="cell">{{ invitation.role }}</div>
-            <div class="cell">{{ invitation.invited_by_user.full_name }}</div>
-            <div class="cell">{{ new Date(invitation.created_at).toLocaleDateString() }}</div>
-            <div class="buttons">
-              <Button
-                severity="secondary"
-                variant="outlined"
-                :disabled="loading"
-                @click="reject(invitation.organization_id, invitation.id)"
-              >
-                <template #icon>
-                  <Trash2 :size="12" />
-                </template>
-              </Button>
+          <div class="table-body">
+            <div v-for="invitation in invites" class="table-row">
+              <div class="cell">{{ invitation.email }}</div>
+              <div class="cell">{{ invitation.role }}</div>
+              <div class="cell">{{ invitation.invited_by_user.full_name }}</div>
+              <div class="cell">{{ new Date(invitation.created_at).toLocaleDateString() }}</div>
+              <div class="buttons">
+                <Button
+                  severity="secondary"
+                  variant="outlined"
+                  :disabled="loading"
+                  @click="reject(invitation.organization_id, invitation.id)"
+                >
+                  <template #icon>
+                    <Trash2 :size="12" />
+                  </template>
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -95,12 +97,15 @@ async function reject(organizationId: string, inviteId: string) {
   color: var(--p-text-muted-color);
   margin-bottom: 28px;
 }
-.table {
+.table-wrapper {
+  overflow-x: auto;
   background: var(--p-content-background);
   border: 1px solid var(--p-content-border-color);
   padding: 16px;
-  width: 100%;
   border-radius: 8px;
+}
+.table {
+  min-width: 858px;
 }
 .table-header {
   font-weight: 500;

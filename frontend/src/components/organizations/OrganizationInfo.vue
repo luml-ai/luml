@@ -1,8 +1,8 @@
 <template>
   <div class="info">
-    <Avatar size="large" :label="avatarLabel" />
+    <Avatar size="large" :label="avatarLabel" class="avatar" />
     <div class="name">{{ organizationStore.currentOrganization?.name }}</div>
-    <Button severity="secondary" variant="text" @click="visible = true">
+    <Button severity="secondary" variant="text" @click="visible = true" class="edit-button">
       <template #icon>
         <PenLine :size="14" />
       </template>
@@ -133,6 +133,12 @@ onMounted(() => {
   align-items: center;
   gap: 12px;
 }
+.avatar {
+  flex: 0 0 auto;
+}
+.edit-button {
+  flex: 0 0 auto;
+}
 .popup-title {
   display: flex;
   gap: 8px;
@@ -161,6 +167,11 @@ onMounted(() => {
 }
 .label {
   font-weight: 500;
+}
+@media (max-width: 768px) {
+  .name {
+    font-size: 16px;
+  }
 }
 </style>
 

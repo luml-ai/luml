@@ -1,57 +1,59 @@
 <template>
-  <div class="simple-table">
-    <div class="simple-table__header">
-      <div class="simple-table__row">
-        <div>Secret name</div>
-        <div>Key</div>
-        <div>Tags</div>
-        <div>Updated</div>
-        <div></div>
+  <div class="table-wrapper">
+    <div class="simple-table">
+      <div class="simple-table__header">
+        <div class="simple-table__row">
+          <div>Secret name</div>
+          <div>Key</div>
+          <div>Tags</div>
+          <div>Updated</div>
+          <div></div>
+        </div>
       </div>
-    </div>
-    <div class="simple-table__rows">
-      <div v-if="!secretsStore.secretsList.length" class="simple-table__placeholder">
-        You don’t have any secrets yet.
-      </div>
-      <div v-for="secret in secretsStore.secretsList" :key="secret.id" class="simple-table__row">
-        <div class="secret-name">
-          {{ secret.name }}
+      <div class="simple-table__rows">
+        <div v-if="!secretsStore.secretsList.length" class="simple-table__placeholder">
+          You don’t have any secrets yet.
         </div>
-        <div class="secret-key">
-          <Button
-            variant="text"
-            severity="secondary"
-            class="eye-button"
-            @click="showSecretModal(secret)"
-          >
-            <template #icon>
-              <Eye :size="15" />
-            </template>
-          </Button>
-          <span v-if="!visibleSecrets[secret.id]" class="secret-hidden">
-            {{ maskSecret(secret.value) }}
-          </span>
-          <span v-else class="secret-revealed">{{ secret.value }}</span>
-        </div>
-        <div class="tags">
-          <Tag v-for="tag in normalizeTags(secret.tags)" :key="tag" class="tag">
-            <span>{{ tag }}</span>
-          </Tag>
-        </div>
-        <div class="updated-date">
-          {{
-            secret.updated_at
-              ? new Date(secret.updated_at).toLocaleString()
-              : new Date().toLocaleString()
-          }}
-        </div>
+        <div v-for="secret in secretsStore.secretsList" :key="secret.id" class="simple-table__row">
+          <div class="secret-name">
+            {{ secret.name }}
+          </div>
+          <div class="secret-key">
+            <Button
+              variant="text"
+              severity="secondary"
+              class="eye-button"
+              @click="showSecretModal(secret)"
+            >
+              <template #icon>
+                <Eye :size="15" />
+              </template>
+            </Button>
+            <span v-if="!visibleSecrets[secret.id]" class="secret-hidden">
+              {{ maskSecret(secret.value) }}
+            </span>
+            <span v-else class="secret-revealed">{{ secret.value }}</span>
+          </div>
+          <div class="tags">
+            <Tag v-for="tag in normalizeTags(secret.tags)" :key="tag" class="tag">
+              <span>{{ tag }}</span>
+            </Tag>
+          </div>
+          <div class="updated-date">
+            {{
+              secret.updated_at
+                ? new Date(secret.updated_at).toLocaleString()
+                : new Date().toLocaleString()
+            }}
+          </div>
 
-        <div class="actions">
-          <Button variant="text" severity="secondary" @click="editSecret(secret)">
-            <template #icon>
-              <Bolt :size="14" />
-            </template>
-          </Button>
+          <div class="actions">
+            <Button variant="text" severity="secondary" @click="editSecret(secret)">
+              <template #icon>
+                <Bolt :size="14" />
+              </template>
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -100,8 +102,8 @@ function showSecretModal(secret: OrbitSecret) {
 }
 
 function maskSecret(value?: string): string {
-  if (!value) return '*'.repeat(30)
-  return value.length > 30 ? '*'.repeat(30) : '*'.repeat(value.length)
+  if (!value) return '*'.repeat(15)
+  return value.length > 15 ? '*'.repeat(15) : '*'.repeat(value.length)
 }
 
 function normalizeTags(tags: any): string[] {
@@ -119,10 +121,18 @@ function normalizeTags(tags: any): string[] {
 <style scoped>
 @import '@/assets/tables.css';
 
+.table-wrapper {
+  overflow-x: auto;
+}
+
+.simple-table {
+  min-width: 870px;
+}
+
 .simple-table__header .simple-table__row,
 .simple-table__rows .simple-table__row {
   display: grid;
-  grid-template-columns: 1.3fr 1.5fr 1fr 1fr 40px;
+  grid-template-columns: repeat(4, 1fr) 40px;
   align-items: center;
 }
 
@@ -155,5 +165,15 @@ function normalizeTags(tags: any): string[] {
 .secret-name {
   word-wrap: break-word;
   overflow-wrap: anywhere;
+}
+
+.updated-date {
+  color: var(--p-text-muted-color);
+}
+
+@media (min-width: 769px) and (max-width: 1300px) {
+  .table-wrapper {
+    margin: 0 -80px;
+  }
 }
 </style>
