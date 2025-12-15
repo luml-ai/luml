@@ -87,7 +87,27 @@ const selectedModel = ref<MlModel | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
 const resolver = ref(createDeploymentResolver(initialValues))
 
-const isFormValid = computed(() => formRef.value?.valid)
+function areFieldsFilled(fields: FieldInfo<any>[] | undefined): boolean {
+  if (!fields || fields.length === 0) return true
+  return fields.every(
+    (field) => field.value !== null && field.value !== '' && field.value !== undefined,
+  )
+}
+
+const isFormValid = computed(() => {
+  const form = initialValues.value
+
+  const basicFieldsValid = !!(form.name && form.collectionId && form.modelId && form.satelliteId)
+
+  if (!basicFieldsValid) return false
+
+  return (
+    areFieldsFilled(form.secretEnvs) &&
+    areFieldsFilled(form.notSecretEnvs) &&
+    areFieldsFilled(form.secretDynamicAttributes) &&
+    areFieldsFilled(form.satelliteFields)
+  )
+})
 
 function onCancel() {
   visible.value = false
