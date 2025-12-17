@@ -97,7 +97,7 @@ export class DataforceApiClass {
     return data
   }
 
-public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSignInResponse> {
+  public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSignInResponse> {
     const { data } = await this.api.get('/auth/microsoft/callback', {
       skipInterceptors: true,
       params,
@@ -112,7 +112,6 @@ public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSig
       {},
       {
         skipInterceptors: true,
-        withCredentials: true,
       },
     )
 
@@ -147,9 +146,8 @@ public async microsoftLogin(params: IGetMicrosoftLoginRequest): Promise<IPostSig
     return responseData
   }
 
-  public async logout(undefined: undefined, p0: { skipInterceptors: boolean }): Promise<TPostLogoutResponse> {
+  public async logout(): Promise<TPostLogoutResponse> {
     const { data: responseData } = await this.api.post('/auth/logout', {})
-
     return responseData
   }
 

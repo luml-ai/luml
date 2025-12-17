@@ -7,14 +7,14 @@ let failedQueue: Array<{
 }> = []
 
 const processQueue = (error: any = null) => {
-  failedQueue.forEach(promise => {
+  failedQueue.forEach((promise) => {
     if (error) {
       promise.reject(error)
     } else {
       promise.resolve()
     }
   })
-  
+
   failedQueue = []
 }
 
@@ -22,7 +22,7 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
   api.defaults.withCredentials = true
   api.interceptors.request.use(
     (config) => config,
-    (error) => Promise.reject(error)
+    (error) => Promise.reject(error),
   )
   api.interceptors.response.use(
     (response) => response,
@@ -30,7 +30,7 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
       const originalRequest = error.config
 
       if (
-        error.response?.status === 401 && 
+        error.response?.status === 401 &&
         !originalRequest._retry &&
         !originalRequest.url?.includes('/auth/refresh') &&
         !originalRequest.url?.includes('/auth/signin') &&
@@ -42,7 +42,7 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
             failedQueue.push({ resolve, reject })
           })
             .then(() => api.request(originalRequest))
-            .catch(err => Promise.reject(err))
+            .catch((err) => Promise.reject(err))
         }
 
         originalRequest._retry = true
@@ -54,25 +54,24 @@ export const installDataforceInterceptors = (api: AxiosInstance) => {
             {},
             {
               skipInterceptors: true,
-              withCredentials: true
-            }
+              withCredentials: true,
+            },
           )
-        
+
           processQueue()
           isRefreshing = false
-          
+
           return api.request(originalRequest)
-          
         } catch (refreshError) {
           processQueue(refreshError)
           isRefreshing = false
           console.error('Token refresh failed, logging out')
           window.dispatchEvent(new CustomEvent('auth:logout'))
-          
+
           return Promise.reject(refreshError)
         }
       }
       return Promise.reject(error)
-    }
+    },
   )
 }

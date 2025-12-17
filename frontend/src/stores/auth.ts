@@ -15,7 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const route = useRoute()
   const router = useRouter()
   const isAuth = ref(false)
-  const isLoggingOut = ref(false) 
+  const isLoggingOut = ref(false)
 
   const signUp = async (data: IPostSignupRequest) => {
     await dataforceApi.signUp(data)
@@ -32,7 +32,7 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await dataforceApi.googleLogin({ code })
     isAuth.value = true
     await usersStore.loadUser()
-    
+
     if (usersStore.getUserEmail) {
       AnalyticsService.identify(response.user_id, usersStore.getUserEmail)
     }
@@ -46,18 +46,17 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggingOut.value = true
 
     try {
-      await dataforceApi.logout(undefined, { skipInterceptors: true })
+      await dataforceApi.logout()
     } catch (e) {
-      console.error('Logout error:', e) 
+      console.error('Logout error:', e)
     } finally {
       usersStore.resetUser()
       isAuth.value = false
       isLoggingOut.value = false
-      
+
       if (route.meta.requireAuth) {
         setTimeout(() => {
-          router.push({ name: 'home' }).catch(() => {
-          })
+          router.push({ name: 'home' }).catch(() => {})
         }, 0)
       }
     }
