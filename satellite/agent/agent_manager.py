@@ -9,7 +9,10 @@ class SatelliteManager:
         self.platform = platform
 
     async def pair(self) -> None:
-        await self.platform.pair_satellite(config.BASE_URL.rstrip("/"), self.get_capabilities())
+        slug = None
+        await self.platform.pair_satellite(
+            config.BASE_URL.rstrip("/"), self.get_capabilities(), slug
+        )
 
     @staticmethod
     def get_capabilities() -> dict[str, Any]:

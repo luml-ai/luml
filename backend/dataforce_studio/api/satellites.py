@@ -41,12 +41,8 @@ model_artifacts_handler = ModelArtifactHandler()
 @satellite_worker_router.post(
     "/pair", responses=endpoint_responses, response_model=Satellite
 )
-async def pair_satellite(request: Request, data: SatellitePairIn) -> Satellite:
-    return await satellite_handler.pair_satellite(
-        request.user.id,
-        str(data.base_url),
-        data.capabilities,
-    )
+async def pair_satellite(request: Request, satellite: SatellitePairIn) -> Satellite:
+    return await satellite_handler.pair_satellite(request.user.id, satellite)
 
 
 @satellite_worker_router.get(

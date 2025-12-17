@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -20,10 +21,11 @@ from dataforce_studio.repositories.users import UserRepository
 from dataforce_studio.schemas.permissions import Action, Resource
 from dataforce_studio.schemas.satellite import (
     Satellite,
-    SatelliteCapability,
     SatelliteCreate,
     SatelliteCreateIn,
     SatelliteCreateOut,
+    SatellitePair,
+    SatellitePairIn,
     SatelliteQueueTask,
     SatelliteRegenerateApiKey,
     SatelliteTaskStatus,
@@ -204,13 +206,19 @@ class SatelliteHandler:
         return updated_satellite
 
     async def pair_satellite(
-        self,
-        satellite_id: UUID,
-        base_url: str,
-        capabilities: dict[SatelliteCapability, dict[str, str | int] | None],
+        self, satellite_id: UUID, satellite_in: SatellitePairIn
     ) -> Satellite:
-        if not capabilities:
+        if not satellite_in.capabilities:
             raise ApplicationError("Invalid capabilities", status.HTTP_400_BAD_REQUEST)
+
+        satellite_pair = SatellitePair(
+            id=satellite_id,
+            base_url=str(satellite_in.base_url),
+            capabilities=satellite_in.capabilities,
+            slug=satellite_in.slug,
+            paired=True,
+            last_seen_at=datetime.now(UTC),
+        )
 
         satellite = await self.__sat_repo.get_satellite(satellite_id)
         if not satellite:
@@ -219,9 +227,7 @@ class SatelliteHandler:
         if satellite.paired:
             return satellite
 
-        updated_satellite = await self.__sat_repo.pair_satellite(
-            satellite_id, base_url, capabilities
-        )
+        updated_satellite = await self.__sat_repo.pair_satellite(satellite_pair)
 
         if not updated_satellite:
             raise NotFoundError("Satellite not found")

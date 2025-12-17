@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -8,6 +9,7 @@ from dataforce_studio.repositories.satellites import SatelliteRepository
 from dataforce_studio.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreate,
+    SatellitePair,
 )
 from tests.conftest import OrbitFixtureData
 
@@ -108,13 +110,22 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
         SatelliteCapability.DEPLOY: {"config": "value"}
     }
 
-    paired_satellite = await repo.pair_satellite(satellite.id, base_url, capabilities)
+    satellite_pair = SatellitePair(
+        id=satellite.id,
+        base_url=str(base_url),
+        capabilities=capabilities,
+        paired=True,
+        last_seen_at=datetime.now(UTC),
+    )
+
+    paired_satellite = await repo.pair_satellite(satellite_pair)
 
     assert paired_satellite
     assert paired_satellite.id == satellite.id
     assert paired_satellite.paired is True
     assert paired_satellite.base_url == base_url
     assert paired_satellite.capabilities == capabilities
+    assert paired_satellite.last_seen_at is not None
 
 
 @pytest.mark.asyncio

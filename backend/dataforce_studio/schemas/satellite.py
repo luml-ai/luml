@@ -38,6 +38,7 @@ class Satellite(BaseModel, BaseOrmConfig):
     base_url: str | None = None
     paired: bool
     capabilities: dict[SatelliteCapability, dict[str, Any] | None]
+    slug: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
     last_seen_at: datetime | None = None
@@ -72,6 +73,16 @@ class SatelliteCreate(BaseModel, BaseOrmConfig):
 class SatellitePairIn(BaseModel):
     base_url: HttpUrl
     capabilities: dict[SatelliteCapability, dict[str, Any] | None]
+    slug: str | None = None
+
+
+class SatellitePair(BaseModel, BaseOrmConfig):
+    id: UUID
+    base_url: str
+    capabilities: dict[SatelliteCapability, dict[str, Any] | None]
+    slug: str | None = None
+    paired: bool = True
+    last_seen_at: datetime
 
 
 class SatelliteUpdateIn(BaseModel, BaseOrmConfig):

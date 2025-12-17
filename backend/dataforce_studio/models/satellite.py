@@ -46,6 +46,7 @@ class SatelliteOrm(TimestampMixin, Base):
             postgresql.JSONB, nullable=False, default=dict, server_default="{}"
         )
     )
+    slug: Mapped[str] = mapped_column(String, nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     base_url: Mapped[str | None] = mapped_column(String, nullable=True)

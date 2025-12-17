@@ -17,6 +17,7 @@ from dataforce_studio.schemas.satellite import (
     SatelliteCapability,
     SatelliteCreateIn,
     SatelliteCreateOut,
+    SatellitePairIn,
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
@@ -347,11 +348,15 @@ async def test_pair_satellite(
     mock_get_satellite.return_value = unpaired_satellite
     mock_pair_satellite.return_value = expected
 
-    satellite = await handler.pair_satellite(satellite_id, base_url, capabilities)
+    satellite_pair_in = SatellitePairIn(
+        base_url=base_url,
+        capabilities=capabilities,
+    )
+    satellite = await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert satellite == expected
     mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_pair_satellite.assert_awaited_once_with(satellite_id, base_url, capabilities)
+    mock_pair_satellite.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -361,8 +366,13 @@ async def test_pair_satellite_empty_capabilities() -> None:
     base_url = "https://satellite.example.com"
     capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {}
 
+    satellite_pair_in = SatellitePairIn(
+        base_url=base_url,
+        capabilities=capabilities,
+    )
+
     with pytest.raises(ApplicationError, match="Invalid capabilities") as error:
-        await handler.pair_satellite(satellite_id, base_url, capabilities)
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert error.value.status_code == 400
 
@@ -384,8 +394,13 @@ async def test_pair_satellite_satellite_not_found(
 
     mock_get_satellite.return_value = None
 
+    satellite_pair_in = SatellitePairIn(
+        base_url=base_url,
+        capabilities=capabilities,
+    )
+
     with pytest.raises(NotFoundError, match="Satellite not found") as error:
-        await handler.pair_satellite(satellite_id, base_url, capabilities)
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert error.value.status_code == 404
     mock_get_satellite.assert_awaited_once_with(satellite_id)
@@ -427,7 +442,11 @@ async def test_pair_satellite_already_paired(
 
     mock_get_satellite.return_value = expected
 
-    satellite = await handler.pair_satellite(satellite_id, base_url, capabilities)
+    satellite_pair_in = SatellitePairIn(
+        base_url=base_url,
+        capabilities=capabilities,
+    )
+    satellite = await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert satellite == expected
     mock_get_satellite.assert_awaited_once_with(satellite_id)
@@ -471,12 +490,17 @@ async def test_pair_satellite_update_error(
     mock_get_satellite.return_value = unpaired_satellite
     mock_pair_satellite.return_value = None
 
+    satellite_pair_in = SatellitePairIn(
+        base_url=base_url,
+        capabilities=capabilities,
+    )
+
     with pytest.raises(NotFoundError, match="Satellite not found") as error:
-        await handler.pair_satellite(satellite_id, base_url, capabilities)
+        await handler.pair_satellite(satellite_id, satellite_pair_in)
 
     assert error.value.status_code == 404
     mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_pair_satellite.assert_awaited_once_with(satellite_id, base_url, capabilities)
+    mock_pair_satellite.assert_awaited_once()
 
 
 @patch(
