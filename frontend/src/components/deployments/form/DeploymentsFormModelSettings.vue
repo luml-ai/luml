@@ -310,7 +310,7 @@ function onModelChange(model: MlModel | null) {
 function getFieldFromVar(attributeData: Var) {
   return {
     key: attributeData.name,
-    label: attributeData.description || attributeData.name,
+    label: attributeData.name,
     value: null,
   }
 }

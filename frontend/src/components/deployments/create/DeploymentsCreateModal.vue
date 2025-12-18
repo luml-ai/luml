@@ -62,7 +62,7 @@ import { Form } from '@primevue/forms'
 import { dialogPt, getInitialFormData } from '../deployments.const'
 import { computed, ref } from 'vue'
 import { createDeploymentResolver } from '@/utils/forms/resolvers'
-import { getErrorMessage, getNumberOrString } from '@/helpers/helpers'
+import { getErrorMessage } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
 import { useDeploymentsStore } from '@/stores/deployments'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -159,7 +159,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
       (v) => v,
     ) as unknown as Record<string, string>,
     env_variables_secrets: fieldsToRecord<string>(form.secretEnvs, (v) => String(v)),
-    env_variables: fieldsToRecord(form.notSecretEnvs, getNumberOrString),
+    env_variables: fieldsToRecord(form.notSecretEnvs, (v) => String(v)),
     tags: form.tags,
   }
 }
