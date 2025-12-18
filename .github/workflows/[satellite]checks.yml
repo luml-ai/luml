@@ -1,0 +1,38 @@
+name: Satellite checks
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'satellite/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'satellite/**'
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies with uv
+        working-directory: satellite
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev
+
+      - name: Check formatting with Ruff
+        working-directory: satellite
+        run: uv run ruff format --check agent model_server
+
+      - name: Lint with Ruff
+        working-directory: satellite
+        run: uv run ruff check agent model_server

@@ -172,7 +172,9 @@ class ModelHandler:
                     existing_packages.add(
                         dep["package"].split("==")[0].split(">=")[0].split("<=")[0].strip()
                     )
-            for pkg_name in ["uvicorn",]:
+            for pkg_name in [
+                "uvicorn",
+            ]:
                 if pkg_name not in existing_packages:
                     version = importlib_metadata.version(pkg_name)
                     env_config["dependencies"].append({"package": f"{pkg_name}=={version}"})
