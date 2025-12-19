@@ -1,14 +1,14 @@
 <template>
   <div class="attachments-wrapper">
-      <FileTree :tree="tree" :selected="selectedFile" @select="handleSelect" />
-      <FilePreview
-        :file="selectedFile"
-        :file-index="attachmentsIndex"
-        :organization-id="organizationId"
-        :orbit-id="orbitId"
-        :collection-id="collectionId"
-        :model-id="modelId"
-      />
+    <FileTree :tree="tree" :selected="selectedFile" @select="handleSelect" />
+    <FilePreview
+      :file="selectedFile"
+      :file-index="attachmentsIndex"
+      :organization-id="organizationId"
+      :orbit-id="orbitId"
+      :collection-id="collectionId"
+      :model-id="modelId"
+    />
   </div>
 </template>
 <script setup lang="ts">
@@ -43,7 +43,7 @@ async function loadAttachmentsData() {
     error.value = null
     const downloadUrl = await modelsStore.getDownloadUrl(modelId)
     const indexPath = Object.keys(props.model.file_index).find((path) =>
-      path.includes('attachments.index.json')
+      path.includes('attachments.index.json'),
     )
 
     if (!indexPath) {
@@ -51,7 +51,7 @@ async function loadAttachmentsData() {
     }
 
     const tarPath = Object.keys(props.model.file_index).find((path) =>
-      path.includes('attachments.tar')
+      path.includes('attachments.tar'),
     )
 
     if (!tarPath) {
@@ -66,7 +66,7 @@ async function loadAttachmentsData() {
     const [tarOffset, tarLength] = props.model.file_index[tarPath]
     const tarBlob = await fetchFileBlob(downloadUrl, tarOffset, tarLength)
     const tarUrl = URL.createObjectURL(tarBlob)
-    
+
     const adjustedIndex: Record<string, [number, number]> = {}
     Object.entries(index).forEach(([path, [offset, length]]) => {
       adjustedIndex[path] = [offset, length]
@@ -113,7 +113,7 @@ function buildTreeFromIndex(index: Record<string, [number, number]>): Attachment
       if (idx === parts.length - 1) {
         current[part] = {
           type: 'file',
-          path: fullPath, 
+          path: fullPath,
           size,
         }
       } else {

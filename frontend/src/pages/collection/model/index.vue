@@ -46,10 +46,12 @@ const isModelAttachmentsAvailable = computed(() => {
   if (!currentModel.value) return false
   const fileIndex = currentModel.value.file_index
   if (!fileIndex) return false
-  const hasExtraFiles = Object.keys(fileIndex).some((path) =>
-    path.startsWith('variant_artifacts/extra_files/'),
-  )
-  return hasExtraFiles
+  const tarPath = Object.keys(fileIndex).find((path) => path.includes('attachments.tar'))
+  const indexPath = Object.keys(fileIndex).find((path) => path.includes('attachments.index.json'))
+  if (!tarPath || !indexPath) return false
+  const tarSize = fileIndex[tarPath]?.[1] || 0
+  const indexSize = fileIndex[indexPath]?.[1] || 0
+  return tarSize > 10240 || indexSize > 24
 })
 
 onUnmounted(() => {
