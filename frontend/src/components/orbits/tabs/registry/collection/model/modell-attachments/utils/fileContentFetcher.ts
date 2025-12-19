@@ -75,7 +75,7 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
 
     const dataOffset = headerStart + 512
     const fileData = tarArrayBuffer.slice(dataOffset, dataOffset + fileSize)
-    
+
     const blob = new Blob([fileData])
 
     const processed = await processFileContent(blob, fileType, file.name)
@@ -89,4 +89,3 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
     return { error: 'unknown' }
   }
 }
-
