@@ -29,7 +29,59 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
     if (length > MAX_PREVIEW_SIZE) {
       return { error: 'too-big' }
     }
-    const blob = await fetchFileBlob(downloadUrl, offset, length)
+
+    const tarBlobUrl = (window as any).__tarBlobUrl
+    if (!tarBlobUrl) {
+      throw new Error('Tar blob URL not found')
+    }
+
+    const tarResponse = await fetch(tarBlobUrl)
+    const tarArrayBuffer = await tarResponse.arrayBuffer()
+    const tarData = new Uint8Array(tarArrayBuffer)
+
+    const searchStr = file.path 
+    const encoder = new TextEncoder()
+    const searchBytes = encoder.encode(searchStr)
+    
+    let tarHeaderOffset = -1
+    for (let i = offset; i < offset + 2048 && i < tarData.length - searchBytes.length; i++) {
+      let match = true
+      for (let j = 0; j < searchBytes.length; j++) {
+        if (tarData[i + j] !== searchBytes[j]) {
+          match = false
+          break
+        }
+      }
+      if (match) {
+        tarHeaderOffset = i
+        break
+      }
+    }
+    
+    if (tarHeaderOffset === -1) {
+      throw new Error('Could not find tar header for file')
+    }
+
+    const headerStart = tarHeaderOffset
+    const sizeBytes = tarData.slice(headerStart + 124, headerStart + 136)
+    const sizeOctalStr = Array.from(sizeBytes)
+      .map(b => String.fromCharCode(b))
+      .join('')
+      .trim()
+      .replace(/\0/g, '')
+      .replace(/ /g, '')
+    
+    const fileSize = parseInt(sizeOctalStr, 8)
+    console.log('File size from tar header:', fileSize, 'bytes')
+    
+    const dataOffset = headerStart + 512
+    const fileData = tarArrayBuffer.slice(dataOffset, dataOffset + fileSize)
+    
+    const preview = new Uint8Array(fileData.slice(0, Math.min(200, fileSize)))
+    console.log('First bytes:', new TextDecoder('utf-8').decode(preview))
+    
+    const blob = new Blob([fileData])
+    
     const processed = await processFileContent(blob, fileType, file.name)
     return {
       blob,
