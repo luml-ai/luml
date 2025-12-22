@@ -46,7 +46,7 @@
         id="model-file"
         :file="fileInfo"
         :error="fileError"
-        accept-text="Accepts .dfs, .fnnx, .pyfnx, .luml file type"
+        accept-text="Accepts .luml, .dfs, .fnnx, .pyfnx file type"
         upload-text="upload model file"
         class="file-field"
         @select-file="onSelectFile"
