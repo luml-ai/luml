@@ -68,7 +68,7 @@
           :disabled="loading"
           @click="onForceDeleteClick"
         >
-          force delete Deployment
+          force delete deployment
         </Button>
         <Button
           v-else
