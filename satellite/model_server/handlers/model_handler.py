@@ -32,14 +32,13 @@ class ModelHandler:
             self.extracted_path = self._get_or_extract_model(self._model_url)
             self._model_envs = self._create_model_env()
 
-            if self._model_envs:
-                self.conda_worker = ModelCondaManager(
-                    self._get_env_name(),
-                    self._model_envs["manager"],
-                    self.extracted_path,
-                    self._get_model_data_for_worker(),
-                )
-                self.conda_worker.start()
+            self.conda_worker = ModelCondaManager(
+                self._get_env_name(),
+                self._model_envs["manager"],
+                self.extracted_path,
+                self._get_model_data_for_worker(),
+            )
+            self.conda_worker.start()
         except Exception as error:
             logger.error(
                 f"Model handler initialization failed: {error}\nTraceback: {traceback.format_exc()}"
@@ -64,7 +63,7 @@ class ModelHandler:
     @staticmethod
     def _generate_model_id(url: str) -> str:
         parsed_url = urlparse(url)
-        url_path = parsed_url.path.split("?")[0]  # Remove query params
+        url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
 
     @log_success("Model downloaded successfully.")
@@ -154,7 +153,7 @@ class ModelHandler:
         }
 
     @log_success("Model env created successfully.")
-    def _create_model_env(self) -> dict[str, Any] | None:
+    def _create_model_env(self) -> dict[str, Any]:
         env_spec = self._get_env()
         if not env_spec:
             env_spec = self._get_default_env_spec()
@@ -190,4 +189,4 @@ class ModelHandler:
                 f"[CREATE_ENV] Failed to create model environment: {e}\n"
                 f"Traceback: {traceback.format_exc()}"
             )
-            return None
+            raise RuntimeError(f"Failed to create conda environment: {e}") from e

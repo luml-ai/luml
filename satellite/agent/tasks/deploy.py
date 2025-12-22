@@ -21,6 +21,8 @@ logger = logging.getLogger(__name__)
 
 
 class DeployTask(Task):
+    default_health_check_timeout = 1800
+
     async def _handle_healthcheck_timeout(
         self, container: DockerContainer, task_id: str, dep_id: str
     ) -> None:
@@ -108,7 +110,9 @@ class DeployTask(Task):
             return
 
         satellite_params = dep.satellite_parameters or {}
-        health_check_timeout = satellite_params.get("health_check_timeout", 1800)
+        health_check_timeout = satellite_params.get(
+            "health_check_timeout", self.default_health_check_timeout
+        )
 
         container = await self.docker.run_model_container(
             image=config.MODEL_IMAGE,
@@ -124,21 +128,33 @@ class DeployTask(Task):
         inference_url = f"/deployments/{dep_id}"
         async with ModelServerClient() as client:
             health_ok = await client.is_healthy(dep_id, timeout=int(health_check_timeout))
-            await ms_handler.add_deployment(dep)
-            schemas = await ms_handler.get_deployment_schemas(dep_id)
 
         if not health_ok:
             await self._handle_healthcheck_timeout(container, task.id, dep_id)
             return
 
-        await self.platform.update_deployment(
-            dep_id,
-            DeploymentUpdate(
-                inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
-            ),
-        )
-        await self.platform.update_task_status(
-            task.id,
-            SatelliteTaskStatus.DONE,
-            {"inference_url": inference_url},
-        )
+        try:
+            await ms_handler.add_deployment(dep)
+            schemas = await ms_handler.get_deployment_schemas(dep_id)
+
+            await self.platform.update_deployment(
+                dep_id,
+                DeploymentUpdate(
+                    inference_url=inference_url, schemas=schemas, status=DeploymentStatus.ACTIVE
+                ),
+            )
+            await self.platform.update_task_status(
+                task.id,
+                SatelliteTaskStatus.DONE,
+                {"inference_url": inference_url},
+            )
+        except Exception as e:
+            logger.error(f"Failed to finalize deployment {dep_id}: {e}", exc_info=True)
+            error_message = {"reason": "failed to finalize deployment", "error": str(e)}
+            await self.platform.update_task_status(
+                task.id, SatelliteTaskStatus.FAILED, error_message
+            )
+            await self.platform.update_deployment(
+                dep_id,
+                DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
+            )

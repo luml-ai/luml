@@ -8,7 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    model_handler = ModelHandler()
+    try:
+        model_handler = ModelHandler()
+    except Exception as error:
+        logger.error(f"[main] Failed to initialize ModelHandler: {error}")
+        sys.exit(1)
 
     process = model_handler.conda_worker.process
     if process:

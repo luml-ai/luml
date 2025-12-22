@@ -1,7 +1,6 @@
 import json
 import logging
 import sys
-import traceback
 from typing import Any
 
 import uvicorn
@@ -9,17 +8,16 @@ from openapi_generator import OpenAPIGenerator
 from services.base_service import HTTPException
 from services.service import UvicornService
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - [conda_worker] %(message)s"
-)
+logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
 try:
-    logger.info("[INIT] Starting conda_worker...")
+    logger.info("Starting...")
 
     if len(sys.argv) < 2:
-        logger.error("[INIT] Missing required extracted_path argument")
+        logger.error("Missing required extracted_path argument")
+        sys.stderr.flush()
         sys.exit(1)
 
     extracted_path = sys.argv[1]
@@ -105,16 +103,14 @@ try:
             raise HTTPException(status_code=400, detail="Missing 'inputs' in request")
 
         try:
-            result = await compute_model(inputs, request_data.get("dynamic_attributes") or {})
-            return result
+            return await compute_model(inputs, request_data.get("dynamic_attributes") or {})
         except Exception as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
 
     if __name__ == "__main__":
-        logger.info("[UVICORN] Starting server...")
+        logger.info("Starting server...")
         uvicorn.run(app, host="0.0.0.0", port=port)
 
 except Exception as e:
-    logger.error(f"[ERROR] Fatal error in conda worker: {e}")
-    logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
+    logger.exception(f"Fatal error in conda worker: {e}")
     sys.exit(1)
