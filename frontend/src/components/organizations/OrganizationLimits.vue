@@ -75,7 +75,7 @@
               organizationStore.organizationDetails.model_artifacts_limit
             }}
           </div>
-          <div class="item-label">model artifacts limit per organization</div>
+          <div class="item-label">artifacts limit per organization</div>
         </div>
       </div>
     </div>
