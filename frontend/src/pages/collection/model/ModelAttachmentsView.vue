@@ -1,22 +1,31 @@
 <template>
   <div class="attachments-wrapper">
-    <FileTree :tree="tree" :selected="selectedFile" @select="handleSelect" />
-    <FilePreview
-      :file="selectedFile"
-      :file-index="attachmentsIndex"
-      :organization-id="organizationId"
-      :orbit-id="orbitId"
-      :collection-id="collectionId"
-      :model-id="modelId"
-    />
+    <UiPageLoader v-if="loading"></UiPageLoader>
+    <template v-else-if="isEmpty">
+      <div class="empty-state">
+        <p>This attachment is empty.</p>
+      </div>
+    </template>
+    <template v-else>
+      <FileTree :tree="tree" :selected="selectedFile" @select="handleSelect" />
+      <FilePreview
+        :file="selectedFile"
+        :file-index="attachmentsIndex"
+        :organization-id="organizationId"
+        :orbit-id="orbitId"
+        :collection-id="collectionId"
+        :model-id="modelId"
+      />
+    </template>
   </div>
 </template>
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useModelsStore } from '@/stores/models'
 import FileTree from '../../../components/orbits/tabs/registry/collection/model/modell-attachments/FileTree.vue'
 import FilePreview from '../../../components/orbits/tabs/registry/collection/model/modell-attachments/FilePreview.vue'
+import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 interface AttachmentNode {
   name: string
   path?: string
@@ -36,6 +45,20 @@ const selectedFile = ref<AttachmentNode | null>(null)
 const attachmentsIndex = ref<Record<string, [number, number]>>({})
 const loading = ref(true)
 const error = ref<string | null>(null)
+const isEmpty = computed(() => {
+  return !loading.value && tree.value.length === 0
+})
+
+async function fetchFileBlob(url: string, offset: number, length: number): Promise<Blob> {
+  const end = offset + length - 1
+  const response = await fetch(url, {
+    headers: { Range: `bytes=${offset}-${end}` },
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP Error: ${response.status}`)
+  }
+  return response.blob()
+}
 
 async function loadAttachmentsData() {
   try {
@@ -50,6 +73,15 @@ async function loadAttachmentsData() {
       return
     }
 
+    const indexRange = props.model.file_index[indexPath]
+    if (!indexRange) {
+      return
+    }
+    const [indexOffset, indexLength] = indexRange
+    const indexBlob = await fetchFileBlob(downloadUrl, indexOffset, indexLength)
+    const indexText = await indexBlob.text()
+    const index = JSON.parse(indexText) as Record<string, [number, number]>
+
     const tarPath = Object.keys(props.model.file_index).find((path) =>
       path.includes('attachments.tar'),
     )
@@ -58,42 +90,20 @@ async function loadAttachmentsData() {
       return
     }
 
-    const [indexOffset, indexLength] = props.model.file_index[indexPath]
-    const indexBlob = await fetchFileBlob(downloadUrl, indexOffset, indexLength)
-    const indexText = await indexBlob.text()
-    const index = JSON.parse(indexText) as Record<string, [number, number]>
-
-    const [tarOffset, tarLength] = props.model.file_index[tarPath]
-    const tarBlob = await fetchFileBlob(downloadUrl, tarOffset, tarLength)
-    const tarUrl = URL.createObjectURL(tarBlob)
-
-    const adjustedIndex: Record<string, [number, number]> = {}
-    Object.entries(index).forEach(([path, [offset, length]]) => {
-      adjustedIndex[path] = [offset, length]
-    })
-
-    attachmentsIndex.value = adjustedIndex
-    ;(window as any).__tarBlobUrl = tarUrl
-
+    const tarRange = props.model.file_index[tarPath]
+    if (!tarRange) {
+      return
+    }
+    const [tarOffset] = tarRange
+    attachmentsIndex.value = index
+    ;(window as any).__tarOffset = tarOffset
+    ;(window as any).__modelDownloadUrl = downloadUrl
     tree.value = buildTreeFromIndex(index)
   } catch (e) {
     console.error('Failed to load attachments:', e)
   } finally {
     loading.value = false
   }
-}
-
-async function fetchFileBlob(url: string, offset: number, length: number): Promise<Blob> {
-  const end = offset + length - 1
-  const response = await fetch(url, {
-    headers: { Range: `bytes=${offset}-${end}` },
-  })
-
-  if (!response.ok) {
-    throw new Error(`HTTP Error: ${response.status}`)
-  }
-
-  return response.blob()
 }
 
 function buildTreeFromIndex(index: Record<string, [number, number]>): AttachmentNode[] {
@@ -167,5 +177,12 @@ onMounted(() => {
   display: flex;
   gap: 16px;
   height: calc(100vh - 320px);
+}
+.empty-state {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--p-form-field-float-label-color);
 }
 </style>

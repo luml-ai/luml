@@ -8,7 +8,8 @@ import type {
 const MAX_PREVIEW_SIZE = 10 * 1024 * 1024
 
 export async function fetchFileContent(params: FetchFileContentParams): Promise<FileContentResult> {
-  const { file, fileIndex, downloadUrl } = params
+  const { file, fileIndex } = params
+
   if (!file.path || file.type !== 'file') {
     return {}
   }
@@ -22,7 +23,9 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
     if (!rangeData) {
       return { error: 'not-found' }
     }
-    const [offset, length] = rangeData
+
+    const [offsetInTar, length] = rangeData
+
     if (length === 0) {
       return { error: 'empty' }
     }
@@ -30,21 +33,24 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
       return { error: 'too-big' }
     }
 
-    const tarBlobUrl = (window as any).__tarBlobUrl
-    if (!tarBlobUrl) {
-      throw new Error('Tar blob URL not found')
+    const tarBaseOffset = (window as any).__tarOffset
+    const downloadUrl = (window as any).__modelDownloadUrl
+
+    if (!tarBaseOffset || !downloadUrl) {
+      throw new Error('TAR metadata not found')
     }
+    const chunkStart = tarBaseOffset + offsetInTar
+    const chunkSize = 4096 + length
 
-    const tarResponse = await fetch(tarBlobUrl)
-    const tarArrayBuffer = await tarResponse.arrayBuffer()
+    const tarChunkBlob = await fetchFileBlob(downloadUrl, chunkStart, chunkSize)
+    const tarArrayBuffer = await tarChunkBlob.arrayBuffer()
     const tarData = new Uint8Array(tarArrayBuffer)
-
     const searchStr = file.path
     const encoder = new TextEncoder()
     const searchBytes = encoder.encode(searchStr)
 
     let tarHeaderOffset = -1
-    for (let i = offset; i < offset + 2048 && i < tarData.length - searchBytes.length; i++) {
+    for (let i = 0; i < 4096 && i < tarData.length - searchBytes.length; i++) {
       let match = true
       for (let j = 0; j < searchBytes.length; j++) {
         if (tarData[i + j] !== searchBytes[j]) {
@@ -88,4 +94,15 @@ export async function fetchFileContent(params: FetchFileContentParams): Promise<
     console.error('Failed to fetch file content:', e)
     return { error: 'unknown' }
   }
+}
+
+async function fetchFileBlob(url: string, offset: number, length: number): Promise<Blob> {
+  const end = offset + length - 1
+  const response = await fetch(url, {
+    headers: { Range: `bytes=${offset}-${end}` },
+  })
+  if (!response.ok) {
+    throw new Error(`HTTP Error: ${response.status}`)
+  }
+  return response.blob()
 }
