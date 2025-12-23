@@ -10,7 +10,7 @@ from dataforce_studio.clients.oauth_providers import (
 )
 from dataforce_studio.handlers.auth import AuthHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
-from dataforce_studio.schemas.auth import OAuthLogin, Token
+from dataforce_studio.schemas.auth import Token
 from dataforce_studio.schemas.user import (
     CreateUserIn,
     DetailResponse,
@@ -40,7 +40,8 @@ def set_auth_cookies(response: Response, data: Token) -> None:
         value=data.access_token,
         httponly=True,
         secure=True,
-        samesite="lax",
+        samesite="none",
+        path="/",
         max_age=auth_handler.access_token_expire,
     )
 
@@ -50,7 +51,8 @@ def set_auth_cookies(response: Response, data: Token) -> None:
             value=data.refresh_token,
             httponly=True,
             secure=True,
-            samesite="lax",
+            samesite="none",
+            path="/",
             max_age=auth_handler.refresh_token_expire,
         )
 
@@ -139,8 +141,12 @@ async def logout(request: Request, response: Response) -> dict[str, str]:
 
     await auth_handler.handle_logout(access_token, refresh_token)
 
-    response.delete_cookie(key="access_token", samesite="lax")
-    response.delete_cookie(key="refresh_token", samesite="lax")
+    response.delete_cookie(
+        key="access_token", httponly=True, secure=True, samesite="none", path="/"
+    )
+    response.delete_cookie(
+        key="refresh_token", httponly=True, secure=True, samesite="none", path="/"
+    )
 
     return {"detail": "Successfully logged out"}
 
@@ -168,5 +174,11 @@ async def microsoft_login() -> RedirectResponse:
 
 
 @auth_router.get("/microsoft/callback")
-async def microsoft_callback(code: str | None = None) -> OAuthLogin:
-    return await microsoft_auth_handler.handle_oauth(code)
+async def microsoft_callback(code: str | None, response: Response) -> SignInAPIResponse:
+    signin_response = await microsoft_auth_handler.handle_oauth(code)
+    set_auth_cookies(response, signin_response.token)
+
+    return SignInAPIResponse(
+        detail="Successfully authenticated with Microsoft",
+        user_id=signin_response.user_id,
+    )
