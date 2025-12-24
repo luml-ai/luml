@@ -4,8 +4,8 @@ from dataforce_studio.handlers.bucket_secrets import BucketSecretHandler
 from dataforce_studio.infra.dependencies import UserAuthentication
 from dataforce_studio.infra.endpoint_responses import endpoint_responses
 from dataforce_studio.schemas.bucket_secrets import (
+    BucketSecretCreateIn,
     BucketSecretUrls,
-    S3BucketSecretCreateIn,
 )
 from dataforce_studio.schemas.storage import (
     AzureMultiPartUploadDetails,
@@ -26,7 +26,7 @@ bucket_secret_handler = BucketSecretHandler()
     "/urls", responses=endpoint_responses, response_model=BucketSecretUrls
 )
 async def get_bucket_secret_connection_urls(
-    secret: S3BucketSecretCreateIn,
+    secret: BucketSecretCreateIn,
 ) -> BucketSecretUrls:
     return await bucket_secret_handler.generate_bucket_urls(secret)
 
