@@ -2,8 +2,8 @@ import type { AxiosInstance } from 'axios'
 import type {
   BucketConnectionUrls,
   BucketSecret,
-  BucketSecretCreator,
-  BucketSecretValidator,
+  BucketFormData,
+  BucketFormDataWithId,
 } from './interfaces'
 import type { BaseDetailResponse } from '../api.interfaces'
 
@@ -28,7 +28,7 @@ export class BucketSecretsApi {
     return responseData
   }
 
-  async createBucketSecret(organizationId: string, data: BucketSecretCreator) {
+  async createBucketSecret(organizationId: string, data: BucketFormData) {
     const { data: responseData } = await this.api.post<BucketSecret>(
       `/organizations/${organizationId}/bucket-secrets`,
       data,
@@ -36,11 +36,7 @@ export class BucketSecretsApi {
     return responseData
   }
 
-  async updateBucketSecret(
-    organizationId: string,
-    secretId: string,
-    data: BucketSecretCreator & { id: string },
-  ) {
+  async updateBucketSecret(organizationId: string, secretId: string, data: BucketFormDataWithId) {
     const { data: responseData } = await this.api.patch<BucketSecret>(
       `/organizations/${organizationId}/bucket-secrets/${secretId}`,
       data,
@@ -55,7 +51,7 @@ export class BucketSecretsApi {
     return responseData
   }
 
-  async getBucketSecretConnectionUrls(data: BucketSecretCreator) {
+  async getBucketSecretConnectionUrls(data: BucketFormData) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
       `bucket-secrets/urls`,
       data,
@@ -66,7 +62,7 @@ export class BucketSecretsApi {
   async getExistingBucketSecretConnectionUrls(
     organizationId: string,
     secretId: string,
-    data: BucketSecretValidator,
+    data: BucketFormDataWithId,
   ) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
       `/organizations/${organizationId}/bucket-secrets/${secretId}/urls`,

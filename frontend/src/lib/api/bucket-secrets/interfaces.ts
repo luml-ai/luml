@@ -1,4 +1,5 @@
 export interface BucketSecret {
+  type: BucketTypeEnum
   id: string
   endpoint: string
   bucket_name: string
@@ -10,7 +11,8 @@ export interface BucketSecret {
   updated_at: Date
 }
 
-export interface BucketSecretCreator {
+export interface S3BucketFormData {
+  type: BucketTypeEnum.s3
   endpoint: string
   bucket_name: string
   access_key?: string
@@ -27,6 +29,17 @@ export interface BucketConnectionUrls {
   delete_url: string
 }
 
-export interface BucketSecretValidator extends BucketSecretCreator {
-  id: string
+export interface AzureBucketFormData {
+  type: BucketTypeEnum.azure
+  endpoint: string
+  bucket_name: string
 }
+
+export enum BucketTypeEnum {
+  s3 = 's3',
+  azure = 'azure',
+}
+
+export type BucketFormData = S3BucketFormData | AzureBucketFormData
+
+export type BucketFormDataWithId = BucketFormData & { id: string }

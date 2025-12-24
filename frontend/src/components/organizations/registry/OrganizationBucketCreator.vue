@@ -14,20 +14,34 @@
       <template #header>
         <h2 class="creator-title">Add a new storage bucket</h2>
       </template>
-      <BucketForm @submit="create" :loading="loading"></BucketForm>
+      <SelectButton
+        v-model="selectedBucketType"
+        :options="selectButtonOptions"
+        option-label="label"
+        option-value="value"
+        class="select-button"
+      ></SelectButton>
+      <component
+        :is="formComponent"
+        @submit="create"
+        :loading="loading"
+        class="form-component"
+      ></component>
     </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { ref } from 'vue'
-import { Button, Dialog, useToast, type DialogPassThroughOptions } from 'primevue'
+import { BucketTypeEnum, type BucketFormData } from '@/lib/api/bucket-secrets/interfaces'
+import type { DialogPassThroughOptions } from 'primevue'
+import { computed, ref } from 'vue'
+import { Button, Dialog, useToast, SelectButton } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import BucketForm from './BucketForm.vue'
+import AzureBucketForm from './AzureBucketForm.vue'
+import S3BucketForm from './S3BucketForm.vue'
 
 const dialogPT: DialogPassThroughOptions = {
   header: {
@@ -38,14 +52,30 @@ const dialogPT: DialogPassThroughOptions = {
   },
 }
 
+const selectButtonOptions = [
+  {
+    label: 'S3 bucket',
+    value: BucketTypeEnum.s3,
+  },
+  {
+    label: 'Azure',
+    value: BucketTypeEnum.azure,
+  },
+]
+
 const organizationStore = useOrganizationStore()
 const bucketsStore = useBucketsStore()
 const toast = useToast()
 
 const visible = ref(false)
 const loading = ref(false)
+const selectedBucketType = ref<BucketTypeEnum>(BucketTypeEnum.s3)
 
-async function create(data: BucketSecretCreator) {
+const formComponent = computed(() => {
+  return selectedBucketType.value === BucketTypeEnum.s3 ? S3BucketForm : AzureBucketForm
+})
+
+async function create(data: BucketFormData) {
   const organizationId = organizationStore.currentOrganization?.id
   if (!organizationId) {
     toast.add(simpleErrorToast('Current organization not found'))
@@ -76,5 +106,9 @@ async function create(data: BucketSecretCreator) {
   font-size: 20px;
   font-weight: 600;
   text-transform: uppercase;
+}
+
+.select-button {
+  margin-bottom: 12px;
 }
 </style>

@@ -1,4 +1,8 @@
-import type { BucketSecret, BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
+import type {
+  BucketSecret,
+  BucketFormData,
+  BucketFormDataWithId,
+} from '@/lib/api/bucket-secrets/interfaces'
 import { api } from '@/lib/api'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -37,7 +41,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     buckets.value = await api.bucketSecrets.getBucketSecretsList(organizationId)
   }
 
-  async function createBucket(organizationId: string, data: BucketSecretCreator) {
+  async function createBucket(organizationId: string, data: BucketFormData) {
     const bucket = await api.bucketSecrets.createBucketSecret(organizationId, data)
     buckets.value.push(bucket)
   }
@@ -45,7 +49,7 @@ export const useBucketsStore = defineStore('buckets', () => {
   async function updateBucket(
     organizationId: string,
     bucketId: string,
-    data: BucketSecretCreator & { id: string },
+    data: BucketFormDataWithId,
   ) {
     const updatedBucket = await api.bucketSecrets.updateBucketSecret(organizationId, bucketId, data)
     const index = buckets.value.findIndex((bucket) => bucket.id === bucketId)
@@ -89,13 +93,13 @@ export const useBucketsStore = defineStore('buckets', () => {
     }
   }
 
-  async function checkBucket(data: BucketSecretCreator) {
+  async function checkBucket(data: BucketFormData) {
     const connectionUrls = await api.bucketSecrets.getBucketSecretConnectionUrls(data)
     const text = 'Connection test...'
     const blob = new Blob([text], { type: 'text/plain' })
     const buffer = await blob.arrayBuffer()
     await axios.put(connectionUrls.presigned_url, buffer, {
-      headers: { 'Content-Type': 'application/octet-stream' },
+      headers: { 'Content-Type': 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
     })
 
     try {
@@ -111,7 +115,7 @@ export const useBucketsStore = defineStore('buckets', () => {
   async function checkExistingBucket(
     organizationId: string,
     bucketId: string,
-    data: BucketSecretCreator,
+    data: BucketFormData,
   ) {
     const connectionUrls = await api.bucketSecrets.getExistingBucketSecretConnectionUrls(
       organizationId,
@@ -122,7 +126,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     const blob = new Blob([text], { type: 'text/plain' })
     const buffer = await blob.arrayBuffer()
     await axios.put(connectionUrls.presigned_url, buffer, {
-      headers: { 'Content-Type': 'application/octet-stream' },
+      headers: { 'Content-Type': 'application/octet-stream', 'x-ms-blob-type': 'BlockBlob' },
     })
     try {
       await validateRangeSupport(connectionUrls.download_url)

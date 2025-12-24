@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import type { BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
+import { BucketTypeEnum, type S3BucketFormData } from '@/lib/api/bucket-secrets/interfaces'
 import { ref, watch, computed } from 'vue'
 import { z } from 'zod'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -97,14 +97,14 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { CircleHelp } from 'lucide-vue-next'
 
 type Props = {
-  initialData?: BucketSecretCreator
+  initialData?: S3BucketFormData
   loading: boolean
   showSubmitButton?: boolean
   update?: boolean
 }
 
 type Emits = {
-  submit: [BucketSecretCreator]
+  submit: [S3BucketFormData]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -112,7 +112,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 const emits = defineEmits<Emits>()
 
-const initialValues = ref<BucketSecretCreator>({
+const initialValues = ref<S3BucketFormData>({
+  type: BucketTypeEnum.s3,
   endpoint: props.initialData?.endpoint || '',
   bucket_name: props.initialData?.bucket_name || '',
   access_key: props.initialData?.access_key || '',
@@ -165,7 +166,8 @@ function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
 
   if (props.update) {
-    const formData: BucketSecretCreator = {
+    const formData: S3BucketFormData = {
+      type: BucketTypeEnum.s3,
       endpoint: initialValues.value.endpoint || props.initialData?.endpoint || '',
       bucket_name: initialValues.value.bucket_name || props.initialData?.bucket_name || '',
       region: initialValues.value.region || props.initialData?.region || '',

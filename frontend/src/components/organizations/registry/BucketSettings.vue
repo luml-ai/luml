@@ -19,8 +19,17 @@
     </template>
     <div class="dialog-content">
       <div class="bucket-form-wrapper">
-        <BucketForm
-          :initial-data="initialData"
+        <S3BucketForm
+          v-if="initialData.type === BucketTypeEnum.s3"
+          :initial-data="initialData as S3BucketFormData"
+          :loading="loading"
+          :show-submit-button="false"
+          update
+          @submit="onFormSubmit"
+        />
+        <AzureBucketForm
+          v-else
+          :initial-data="initialData as AzureBucketFormData"
           :loading="loading"
           :show-submit-button="false"
           update
@@ -37,14 +46,21 @@
   </Dialog>
 </template>
 <script setup lang="ts">
-import type { BucketSecret, BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
+import {
+  BucketTypeEnum,
+  type AzureBucketFormData,
+  type BucketSecret,
+  type BucketFormData,
+  type S3BucketFormData,
+} from '@/lib/api/bucket-secrets/interfaces'
 import { computed, ref } from 'vue'
 import { Button, Dialog, useConfirm, useToast } from 'primevue'
 import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteBucketConfirmOptions } from '@/lib/primevue/data/confirm'
-import BucketForm from './BucketForm.vue'
+import S3BucketForm from './S3BucketForm.vue'
+import AzureBucketForm from './AzureBucketForm.vue'
 
 const dialogPT = {
   footer: {
@@ -64,16 +80,30 @@ const toast = useToast()
 const visible = ref(false)
 const loading = ref(false)
 
-const initialData = computed<BucketSecretCreator>(() => ({
-  bucket_name: props.bucket.bucket_name,
-  endpoint: props.bucket.endpoint,
-  region: props.bucket.region,
-  secure: props.bucket.secure,
-  access_key: '',
-  secret_key: '',
-}))
+const initialData = computed<BucketFormData>(() => {
+  switch (props.bucket.type) {
+    case BucketTypeEnum.s3:
+      return {
+        type: BucketTypeEnum.s3,
+        bucket_name: props.bucket.bucket_name,
+        endpoint: props.bucket.endpoint,
+        region: props.bucket.region,
+        secure: props.bucket.secure,
+        access_key: '',
+        secret_key: '',
+      }
+    case BucketTypeEnum.azure:
+      return {
+        type: BucketTypeEnum.azure,
+        bucket_name: props.bucket.bucket_name,
+        endpoint: props.bucket.endpoint,
+      }
+    default:
+      throw new Error('Invalid bucket type')
+  }
+})
 
-async function onFormSubmit(formData: BucketSecretCreator) {
+async function onFormSubmit(formData: BucketFormData) {
   try {
     loading.value = true
     await bucketsStore.checkExistingBucket(props.bucket.organization_id, props.bucket.id, formData)
