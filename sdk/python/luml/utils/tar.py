@@ -9,12 +9,9 @@ from luml.modelref import DiskArtifact
 def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:
     index = {}
     for member in file.getmembers():
-        name = member.name
-        if member.isdir() and not name.endswith("/"):
-            name += "/"
-        offset = member.offset  # always available, even for dirs
-        size = member.size if member.isfile() else 0
-        index[name] = (offset, size)
+        if not member.isfile():
+            continue
+        index[member.name] = (member.offset_data, member.size)
     return index
 
 
