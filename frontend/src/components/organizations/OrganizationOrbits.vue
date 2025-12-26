@@ -52,7 +52,7 @@
 import { useOrganizationStore } from '@/stores/organization'
 import { Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { computed, ref } from 'vue'
 import OrganizationOrbitSettings from './OrganizationOrbitSettings.vue'
 import OrbitCreator from '../orbits/creator/OrbitCreator.vue'
