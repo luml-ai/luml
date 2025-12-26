@@ -36,7 +36,7 @@ import OrbitsList from '@/components/orbits/OrbitsList.vue'
 import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()

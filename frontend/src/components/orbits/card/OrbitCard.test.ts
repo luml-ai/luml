@@ -2,7 +2,7 @@ import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import OrbitCard from './OrbitCard.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const mockData = {
   id: '11111111-1111-1111-1111-111111111111',

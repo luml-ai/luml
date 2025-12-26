@@ -112,7 +112,7 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
     if (!modelBlob.value) throw new Error('There is no model to download')
 
     const timestamp = Date.now()
-    const filename = `${currentTask.value}_${timestamp}.dfs`
+    const filename = `${currentTask.value}_${timestamp}.luml`
 
     downloadFileFromBlob(modelBlob.value, filename)
   }

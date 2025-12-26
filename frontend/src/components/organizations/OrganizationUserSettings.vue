@@ -52,7 +52,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Member } from '@/lib/api/DataforceApi.interfaces'
+import type { Member } from '@/lib/api/api.interfaces'
 import { ref, watch } from 'vue'
 import { Button, Dialog, Avatar, Select, useConfirm, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'

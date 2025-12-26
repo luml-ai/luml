@@ -6,7 +6,7 @@
         id="model"
         :file="file"
         :error="isError"
-        accept-text="Accepts .dfs files"
+        accept-text="Accepts .luml files"
         upload-text="upload a model"
         :loading="isModelLoading"
         loading-message="Model creating..."

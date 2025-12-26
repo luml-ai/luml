@@ -1,9 +1,9 @@
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import type {
   IPostSignInRequest,
   IPostSignInResponse,
   IPostSignupRequest,
-} from '@/lib/api/DataforceApi.interfaces'
+} from '@/lib/api/api.interfaces'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useUserStore } from './user'
@@ -18,18 +18,18 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggingOut = ref(false)
 
   const signUp = async (data: IPostSignupRequest) => {
-    await dataforceApi.signUp(data)
+    await api.signUp(data)
   }
 
   const signIn = async (data: IPostSignInRequest) => {
-    const response: IPostSignInResponse = await dataforceApi.signIn(data)
+    const response: IPostSignInResponse = await api.signIn(data)
     isAuth.value = true
     await usersStore.loadUser()
     AnalyticsService.identify(response.user_id, data.email)
   }
 
   const loginWithGoogle = async (code: string) => {
-    const response = await dataforceApi.googleLogin({ code })
+    const response = await api.googleLogin({ code })
     isAuth.value = true
     await usersStore.loadUser()
 
@@ -46,7 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggingOut.value = true
 
     try {
-      await dataforceApi.logout()
+      await api.logout()
     } catch (e) {
       console.error('Logout error:', e)
     } finally {
@@ -72,7 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const forgotPassword = async (email: string) => {
-    await dataforceApi.forgotPassword({ email })
+    await api.forgotPassword({ email })
   }
 
   if (typeof window !== 'undefined') {
@@ -83,7 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const loginWithMicrosoft = async (code: string) => {
-    const response = await dataforceApi.microsoftLogin({ code })
+    const response = await api.microsoftLogin({ code })
     isAuth.value = true
     await usersStore.loadUser()
     if (usersStore.getUserEmail) {

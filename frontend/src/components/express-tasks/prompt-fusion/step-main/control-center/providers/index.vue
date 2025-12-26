@@ -49,7 +49,7 @@ function saveSettings(settings: ProviderSetting[]) {
   }, ProviderStatus.connected)
   openedProvider.value.status = newStatus
   openedProvider.value.settings = settings
-  const settingsInStorage = LocalStorageService.get('dataforce.providersSettings')
+  const settingsInStorage = LocalStorageService.get('providersSettings')
   promptFusionService.updateProviderSettings(openedProvider.value.id, settings)
   const isNeedToSaveData = settingsInStorage?.saveApiKeys
   if (isNeedToSaveData) {
@@ -60,7 +60,7 @@ function saveSettings(settings: ProviderSetting[]) {
       },
       {},
     )
-    LocalStorageService.set('dataforce.providersSettings', settingsInStorage)
+    LocalStorageService.set('providersSettings', settingsInStorage)
   }
   promptFusionService.closeProviderSettings()
 }

@@ -4,9 +4,9 @@ import type {
   Organization,
   OrganizationDetails,
   UpdateMemberPayload,
-} from '@/lib/api/DataforceApi.interfaces'
+} from '@/lib/api/api.interfaces'
 import { defineStore } from 'pinia'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import { ref } from 'vue'
 import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
@@ -31,18 +31,18 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function getAvailableOrganizations() {
-    const response = await dataforceApi.getOrganizations()
+    const response = await api.getOrganizations()
     availableOrganizations.value = response
     await setInitialOrganization()
   }
 
   async function createOrganization(payload: CreateOrganizationPayload) {
-    await dataforceApi.createOrganization(payload)
+    await api.createOrganization(payload)
     await getAvailableOrganizations()
   }
 
   async function updateOrganization(organizationId: string, payload: CreateOrganizationPayload) {
-    const details = await dataforceApi.updateOrganization(organizationId, payload)
+    const details = await api.updateOrganization(organizationId, payload)
     availableOrganizations.value = availableOrganizations.value.map((organization) => {
       return organization.id === organizationId
         ? { ...details, role: organization.role }
@@ -52,10 +52,10 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function deleteOrganization(organizationId: string) {
-    await dataforceApi.deleteOrganization(organizationId)
-    const organizationInLocalStorage = LocalStorageService.get('dataforce:currentOrganizationId')
+    await api.deleteOrganization(organizationId)
+    const organizationInLocalStorage = LocalStorageService.get('currentOrganizationId')
     if (organizationInLocalStorage && organizationInLocalStorage === organizationId) {
-      LocalStorageService.remove('dataforce:currentOrganizationId')
+      LocalStorageService.remove('currentOrganizationId')
     }
     availableOrganizations.value = availableOrganizations.value.filter(
       (organization) => organization.id !== organizationId,
@@ -65,20 +65,20 @@ export const useOrganizationStore = defineStore('organization', () => {
 
   async function setCurrentOrganizationId(id: string) {
     currentOrganizationId.value = id
-    LocalStorageService.set('dataforce:currentOrganizationId', `${id}`)
+    LocalStorageService.set('currentOrganizationId', `${id}`)
   }
 
   async function getOrganizationDetails(id: string) {
     loading.value = true
     try {
-      organizationDetails.value = await dataforceApi.getOrganization(id)
+      organizationDetails.value = await api.getOrganization(id)
     } finally {
       loading.value = false
     }
   }
 
   async function setInitialOrganization() {
-    const organizationInStorage = LocalStorageService.get('dataforce:currentOrganizationId')
+    const organizationInStorage = LocalStorageService.get('currentOrganizationId')
     const organizationInStorageAvailable =
       organizationInStorage &&
       availableOrganizations.value?.find((org) => org.id === organizationInStorage)
@@ -98,7 +98,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     memberId: string,
     payload: UpdateMemberPayload,
   ) {
-    const info = await dataforceApi.updateOrganizationMember(organizationId, memberId, payload)
+    const info = await api.updateOrganizationMember(organizationId, memberId, payload)
     const currentOrganizationDetails = organizationDetails.value
     if (!currentOrganizationDetails) return
     currentOrganizationDetails.members = currentOrganizationDetails.members.map((member) => {
@@ -112,7 +112,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function deleteMember(organizationId: string, memberId: string) {
-    await dataforceApi.deleteMemberFormOrganization(organizationId, memberId)
+    await api.deleteMemberFormOrganization(organizationId, memberId)
     if (!organizationDetails.value) return
     const members = organizationDetails.value.members.filter((member) => member.id !== memberId)
     organizationDetails.value = { ...organizationDetails.value, members: members }
@@ -131,7 +131,7 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function leaveOrganization(organizationId: string) {
-    await dataforceApi.leaveOrganization(organizationId)
+    await api.leaveOrganization(organizationId)
     availableOrganizations.value = availableOrganizations.value.filter(
       (organization) => organization.id !== organizationId,
     )

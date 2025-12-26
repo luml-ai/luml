@@ -11,7 +11,7 @@ import type {
 } from '@/lib/api/orbit-ml-models/interfaces'
 import { defineStore } from 'pinia'
 import { computed, ref, type Ref } from 'vue'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
@@ -104,7 +104,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
   })
 
   function getModelsList(organizationId: string, orbitId: string, collectionId: string) {
-    return dataforceApi.mlModels.getModelsList(
+    return api.mlModels.getModelsList(
       organizationId ?? requestInfo.value.organizationId,
       orbitId ?? requestInfo.value.orbitId,
       collectionId ?? requestInfo.value.collectionId,
@@ -117,12 +117,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
-    return dataforceApi.mlModels.createModel(
-      info.organizationId,
-      info.orbitId,
-      info.collectionId,
-      data,
-    )
+    return api.mlModels.createModel(info.organizationId, info.orbitId, info.collectionId, data)
   }
 
   async function confirmModelUpload(
@@ -130,7 +125,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     requestData?: typeof requestInfo.value,
   ) {
     const info = requestData ? requestData : requestInfo.value
-    const model = await dataforceApi.mlModels.updateModel(
+    const model = await api.mlModels.updateModel(
       info.organizationId,
       info.orbitId,
       info.collectionId,
@@ -145,7 +140,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     requestData?: typeof requestInfo.value,
   ) {
     const info = requestData ? requestData : requestInfo.value
-    await dataforceApi.mlModels.updateModel(
+    await api.mlModels.updateModel(
       info.organizationId,
       info.orbitId,
       info.collectionId,
@@ -175,14 +170,14 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   async function deleteModel(modelId: string) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const { url } = await dataforceApi.mlModels.getModelDeleteUrl(
+    const { url } = await api.mlModels.getModelDeleteUrl(
       organizationId,
       orbitId,
       collectionId,
       modelId,
     )
     await axios.delete(url)
-    await dataforceApi.mlModels.confirmModelDelete(organizationId, orbitId, collectionId, modelId)
+    await api.mlModels.confirmModelDelete(organizationId, orbitId, collectionId, modelId)
   }
 
   async function downloadModel(modelId: string, name: string) {
@@ -194,7 +189,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   async function getDownloadUrl(modelId: string) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const { url } = await dataforceApi.mlModels.getModelDownloadUrl(
+    const { url } = await api.mlModels.getModelDownloadUrl(
       organizationId,
       orbitId,
       collectionId,
@@ -239,7 +234,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   async function updateModel(payload: UpdateMlModelPayload) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const result = await dataforceApi.mlModels.updateModel(
+    const result = await api.mlModels.updateModel(
       organizationId,
       orbitId,
       collectionId,
@@ -255,7 +250,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     const { organizationId, orbitId, collectionId } = requestInfo.value
     const results = await Promise.allSettled(
       modelsIds.map((id) =>
-        dataforceApi.mlModels.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
+        api.mlModels.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
       ),
     )
     const deleted: string[] = []

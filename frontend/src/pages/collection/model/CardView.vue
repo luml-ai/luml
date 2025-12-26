@@ -93,7 +93,7 @@ async function setHtmlData(model: MlModel) {
   modelsStore.setCurrentModelHtmlBlobUrl(blobUrl)
 }
 
-async function setDataforceMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: MlModel) {
+async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: MlModel) {
   const metadataFileName = FnnxService.getModelMetadataFileName(model.file_index)
   if (!metadataFileName) return
   modelsStore.setCurrentModelTag(tag)
@@ -112,7 +112,7 @@ async function setMetadata() {
   if (!model) throw new Error('Current model does not exist')
   const currentTag = FnnxService.getTypeTag(model.manifest)
   if (currentTag) {
-    await setDataforceMetadata(currentTag, model)
+    await setLumlMetadata(currentTag, model)
   } else {
     await setHtmlData(model)
   }

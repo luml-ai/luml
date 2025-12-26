@@ -1,11 +1,11 @@
-import type { DatabaseMetadata, DataforceFile, Notebook } from './database.interfaces'
+import type { DatabaseMetadata, LumlFile, Notebook } from './database.interfaces'
 import { openDB, deleteDB, type IDBPDatabase } from 'idb'
 import jszip from 'jszip'
 import { saveAs } from 'file-saver'
 
 const DATABASE_PREFIX = 'jl_'
 const FILES_STORE = 'files'
-const DATAFORCE_FILES_EXTENSIONS = ['.dfs', '.fnnx', '.pyfnx']
+const AVAILABLE_FILES_EXTENSIONS = ['.dfs', '.fnnx', '.pyfnx', '.luml']
 
 class DatabaseServiceClass {
   async getDatabases() {
@@ -39,7 +39,7 @@ class DatabaseServiceClass {
     let db = await openDB(name)
     if (db.objectStoreNames.contains('meta')) {
       const meta = await db.get('meta', 'info')
-      const files = await this.getDataforceFiles(db)
+      const files = await this.getLumlFiles(db)
       const info = { name, version: db.version, ...meta, files }
       db.close()
       return info
@@ -166,7 +166,7 @@ class DatabaseServiceClass {
     db.close()
   }
 
-  async getFileBlob(file: DataforceFile) {
+  async getFileBlob(file: LumlFile) {
     const byteCharacters = atob(file.content)
     const byteNumbers = new Array(byteCharacters.length)
     for (let i = 0; i < byteCharacters.length; i++) {
@@ -182,7 +182,7 @@ class DatabaseServiceClass {
     return found?.version ?? 0
   }
 
-  private async getDataforceFiles(db: IDBPDatabase): Promise<DataforceFile[]> {
+  private async getLumlFiles(db: IDBPDatabase): Promise<LumlFile[]> {
     if (!db.objectStoreNames.contains(FILES_STORE)) return []
     const tx = db.transaction(FILES_STORE, 'readonly')
     const store = tx.objectStore(FILES_STORE)
@@ -190,7 +190,7 @@ class DatabaseServiceClass {
     const files = allFiles.filter((file) => {
       const fullPath = file?.path || file?.name || ''
 
-      return DATAFORCE_FILES_EXTENSIONS.find((extension) => {
+      return AVAILABLE_FILES_EXTENSIONS.find((extension) => {
         return fullPath.endsWith(extension)
       })
     })

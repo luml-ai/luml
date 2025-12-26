@@ -18,7 +18,7 @@ const processQueue = (error: any = null) => {
   failedQueue = []
 }
 
-export const installDataforceInterceptors = (api: AxiosInstance) => {
+export const installInterceptors = (api: AxiosInstance) => {
   api.defaults.withCredentials = true
   api.interceptors.request.use(
     (config) => config,

@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import type {
   OrbitSecret,
   CreateSecretPayload,
@@ -28,11 +28,11 @@ export const useSecretsStore = defineStore('secrets', () => {
   }
 
   async function loadSecrets(organizationId: string, orbitId: string) {
-    secretsList.value = await dataforceApi.orbitSecrets.getSecrets(organizationId, orbitId)
+    secretsList.value = await api.orbitSecrets.getSecrets(organizationId, orbitId)
   }
 
   async function addSecret(organizationId: string, orbitId: string, payload: CreateSecretPayload) {
-    await dataforceApi.orbitSecrets.createSecret(organizationId, orbitId, payload)
+    await api.orbitSecrets.createSecret(organizationId, orbitId, payload)
     await loadSecrets(organizationId, orbitId)
   }
 
@@ -41,17 +41,17 @@ export const useSecretsStore = defineStore('secrets', () => {
     orbitId: string,
     payload: UpdateSecretPayload,
   ) {
-    await dataforceApi.orbitSecrets.updateSecret(organizationId, orbitId, payload)
+    await api.orbitSecrets.updateSecret(organizationId, orbitId, payload)
     await loadSecrets(organizationId, orbitId)
   }
 
   async function deleteSecret(organizationId: string, orbitId: string, secretId: string) {
-    await dataforceApi.orbitSecrets.deleteSecret(organizationId, orbitId, secretId)
+    await api.orbitSecrets.deleteSecret(organizationId, orbitId, secretId)
     secretsList.value = secretsList.value.filter((secret) => secret.id !== secretId)
   }
 
   async function getSecretById(organizationId: string, orbitId: string, secretId: string) {
-    return await dataforceApi.orbitSecrets.getSecretById(organizationId, orbitId, secretId)
+    return await api.orbitSecrets.getSecretById(organizationId, orbitId, secretId)
   }
 
   function reset() {

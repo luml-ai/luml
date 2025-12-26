@@ -237,7 +237,7 @@ class PromptFusionServiceClass extends Observable<Events> {
     if (!this.modelBlob) throw new Error('Model not found')
 
     const timestamp = Date.now()
-    const filename = `prompt-optimization_${timestamp}.dfs`
+    const filename = `prompt-optimization_${timestamp}.luml`
     const url = URL.createObjectURL(this.modelBlob)
     const a = document.createElement('a')
     a.href = url

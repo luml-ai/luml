@@ -1,5 +1,5 @@
 <template>
-  <authorization-wrapper title="Sign in" sub-title="Welcome to DataForce Studio" :image="MainImage">
+  <authorization-wrapper title="Sign in" sub-title="Welcome to LUML" :image="MainImage">
     <template #form>
       <d-form
         v-slot="$form"
@@ -80,7 +80,7 @@
 
 <script setup lang="ts">
 import type { FormSubmitEvent } from '@primevue/forms'
-import type { IPostSignInRequest } from '@/lib/api/DataforceApi.interfaces'
+import type { IPostSignInRequest } from '@/lib/api/api.interfaces'
 
 import { ref, watch } from 'vue'
 

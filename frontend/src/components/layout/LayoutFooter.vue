@@ -1,6 +1,6 @@
 <template>
   <footer id="footer" class="footer">
-    <p>© DataForce Solutions GmbH 2024</p>
+    <p>© LUML GmbH 2025</p>
   </footer>
 </template>
 

@@ -5,7 +5,7 @@ import type {
   BucketSecretCreator,
   BucketSecretValidator,
 } from './interfaces'
-import type { BaseDetailResponse } from '../DataforceApi.interfaces'
+import type { BaseDetailResponse } from '../api.interfaces'
 
 export class BucketSecretsApi {
   private api: AxiosInstance

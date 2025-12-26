@@ -4,7 +4,7 @@ import type {
 } from '@/lib/api/orbit-collections/interfaces'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import { useRoute } from 'vue-router'
 
 export const useCollectionsStore = defineStore('collections', () => {
@@ -25,7 +25,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   })
 
   async function loadCollections(organizationId?: string, orbitId?: string) {
-    collectionsList.value = await dataforceApi.orbitCollections.getCollectionsList(
+    collectionsList.value = await api.orbitCollections.getCollectionsList(
       organizationId ?? requestInfo.value.organizationId,
       orbitId ?? requestInfo.value.orbitId,
     )
@@ -36,7 +36,7 @@ export const useCollectionsStore = defineStore('collections', () => {
     requestData?: typeof requestInfo.value,
   ) {
     const info = requestData ? requestData : requestInfo.value
-    const collection = await dataforceApi.orbitCollections.createCollection(
+    const collection = await api.orbitCollections.createCollection(
       info.organizationId,
       info.orbitId,
       payload,
@@ -45,7 +45,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
-    const updatedCollection = await dataforceApi.orbitCollections.updateCollection(
+    const updatedCollection = await api.orbitCollections.updateCollection(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       collectionId,
@@ -57,7 +57,7 @@ export const useCollectionsStore = defineStore('collections', () => {
   }
 
   async function deleteCollection(collectionId: string) {
-    await dataforceApi.orbitCollections.deleteCollection(
+    await api.orbitCollections.deleteCollection(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       collectionId,

@@ -1,4 +1,4 @@
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import type { CreateSatellitePayload, Satellite } from '@/lib/api/satellites/interfaces'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -12,13 +12,13 @@ export const useSatellitesStore = defineStore('satellites', () => {
     orbitId: string,
     payload: CreateSatellitePayload,
   ) {
-    const data = await dataforceApi.satellites.create(organizationId, orbitId, payload)
+    const data = await api.satellites.create(organizationId, orbitId, payload)
     satellitesList.value.push(data.satellite)
     return data
   }
 
   async function loadSatellites(organizationId: string, orbitId: string) {
-    return dataforceApi.satellites.getList(organizationId, orbitId)
+    return api.satellites.getList(organizationId, orbitId)
   }
 
   function setList(list: Satellite[]) {
@@ -26,7 +26,7 @@ export const useSatellitesStore = defineStore('satellites', () => {
   }
 
   async function deleteSatellite(organizationId: string, orbitId: string, satelliteId: string) {
-    await dataforceApi.satellites.delete(organizationId, orbitId, satelliteId)
+    await api.satellites.delete(organizationId, orbitId, satelliteId)
     setList(satellitesList.value.filter((satellite) => satellite.id !== satelliteId))
   }
 
@@ -36,12 +36,7 @@ export const useSatellitesStore = defineStore('satellites', () => {
     satelliteId: string,
     payload: CreateSatellitePayload,
   ) {
-    const newData = await dataforceApi.satellites.update(
-      organizationId,
-      orbitId,
-      satelliteId,
-      payload,
-    )
+    const newData = await api.satellites.update(organizationId, orbitId, satelliteId, payload)
     const newList = satellitesList.value.map((satellite) => {
       if (satellite.id === newData.id) return newData
       else return satellite
@@ -50,7 +45,7 @@ export const useSatellitesStore = defineStore('satellites', () => {
   }
 
   async function regenerateApiKey(organizationId: string, orbitId: string, satelliteId: string) {
-    return dataforceApi.satellites.regenerateApiKye(organizationId, orbitId, satelliteId)
+    return api.satellites.regenerateApiKye(organizationId, orbitId, satelliteId)
   }
 
   function showCreator() {
@@ -70,7 +65,7 @@ export const useSatellitesStore = defineStore('satellites', () => {
     if (existingSatellite) {
       return existingSatellite
     }
-    const satellite = await dataforceApi.satellites.getItem(organizationId, orbitId, satelliteId)
+    const satellite = await api.satellites.getItem(organizationId, orbitId, satelliteId)
     return satellite
   }
 

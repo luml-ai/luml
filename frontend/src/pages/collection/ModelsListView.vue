@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import { useOrbitsStore } from '@/stores/orbits'
 import CollectionHeader from '@/components/orbits/tabs/registry/collection/CollectionHeader.vue'

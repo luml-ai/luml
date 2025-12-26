@@ -101,7 +101,7 @@
 
 <script setup lang="ts">
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
-import type { Member, OrbitMember } from '@/lib/api/DataforceApi.interfaces'
+import type { Member, OrbitMember } from '@/lib/api/api.interfaces'
 import { computed, ref, watch } from 'vue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'

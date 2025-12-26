@@ -1,5 +1,5 @@
 import type { AxiosInstance } from 'axios'
-import type { BaseDetailResponse } from '../DataforceApi.interfaces'
+import type { BaseDetailResponse } from '../api.interfaces'
 import type { OrbitCollection, OrbitCollectionCreator } from './interfaces'
 
 export class OrbitCollectionsApi {

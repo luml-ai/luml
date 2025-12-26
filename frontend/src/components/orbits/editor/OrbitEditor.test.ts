@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia } from 'pinia'
 import OrbitSettingsDialog from './OrbitEditor.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 vi.mock('@/stores/buckets', () => ({
   useBucketsStore: () => ({

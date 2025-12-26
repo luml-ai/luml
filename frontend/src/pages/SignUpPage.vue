@@ -1,5 +1,5 @@
 <template>
-  <authorization-wrapper title="Sign up" sub-title="Welcome to DataForce Studio" :image="MainImage">
+  <authorization-wrapper title="Sign up" sub-title="Welcome to LUML" :image="MainImage">
     <template #form>
       <d-form
         class="form"
@@ -109,7 +109,7 @@ import { ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useAuthStore } from '@/stores/auth'
-import type { IPostSignupRequest } from '@/lib/api/DataforceApi.interfaces'
+import type { IPostSignupRequest } from '@/lib/api/api.interfaces'
 import { useRouter } from 'vue-router'
 import { signUpInitialValues } from '@/utils/forms/initialValues'
 import { signUpResolver } from '@/utils/forms/resolvers'

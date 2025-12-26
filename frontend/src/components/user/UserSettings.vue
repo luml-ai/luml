@@ -106,7 +106,7 @@ import { useConfirm } from 'primevue/useconfirm'
 import { useRouter } from 'vue-router'
 import { useToast } from 'primevue/usetoast'
 
-import type { IUpdateUserRequest } from '@/lib/api/DataforceApi.interfaces'
+import type { IUpdateUserRequest } from '@/lib/api/api.interfaces'
 import { userSettingResolver } from '@/utils/forms/resolvers'
 import { userProfileUpdateSuccessToast } from '@/lib/primevue/data/toasts'
 import { storeToRefs } from 'pinia'

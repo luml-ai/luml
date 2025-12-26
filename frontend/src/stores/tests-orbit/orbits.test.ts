@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useOrbitsStore } from '@/stores/orbits'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import type {
   Orbit,
   OrbitDetails,
@@ -9,12 +9,12 @@ import type {
   UpdateOrbitPayload,
   AddMemberToOrbitPayload,
   OrbitMember,
-} from '@/lib/api/DataforceApi.interfaces'
+} from '@/lib/api/api.interfaces'
 import { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 vi.mock('@/lib/api', () => ({
-  dataforceApi: {
+  api: {
     getOrganizationOrbits: vi.fn(),
     createOrbit: vi.fn(),
     updateOrbit: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('@/lib/api', () => ({
   },
 }))
 
-const mockApi = vi.mocked(dataforceApi)
+const mockApi = vi.mocked(api)
 const baseOrbit: Orbit = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Default Orbit',

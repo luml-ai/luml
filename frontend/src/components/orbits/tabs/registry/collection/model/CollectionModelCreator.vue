@@ -46,7 +46,7 @@
         id="model-file"
         :file="fileInfo"
         :error="fileError"
-        accept-text="Accepts .dfs, .fnnx, .pyfnx file type"
+        accept-text="Accepts .luml, .dfs, .fnnx, .pyfnx file type"
         upload-text="upload model file"
         class="file-field"
         @select-file="onSelectFile"
@@ -144,7 +144,8 @@ function checkFileFormat(fileName: string) {
   const isDfs = fileName.endsWith('.dfs')
   const isFnnx = fileName.endsWith('.fnnx')
   const isPyfnx = fileName.endsWith('.pyfnx')
-  return isDfs || isFnnx || isPyfnx
+  const isLuml = fileName.endsWith('.luml')
+  return isDfs || isFnnx || isPyfnx || isLuml
 }
 
 function onRemoveFile() {

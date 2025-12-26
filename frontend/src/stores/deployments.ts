@@ -3,7 +3,7 @@ import type {
   Deployment,
   UpdateDeploymentPayload,
 } from '@/lib/api/deployments/interfaces'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
@@ -16,12 +16,12 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     orbitId: string,
     payload: CreateDeploymentPayload,
   ) {
-    const newDeployment = await dataforceApi.deployments.create(organizationId, orbitId, payload)
+    const newDeployment = await api.deployments.create(organizationId, orbitId, payload)
     deployments.value.push(newDeployment)
   }
 
   function getDeployments(organizationId: string, orbitId: string) {
-    return dataforceApi.deployments.getList(organizationId, orbitId)
+    return api.deployments.getList(organizationId, orbitId)
   }
 
   function setDeployments(data: Deployment[]) {
@@ -41,7 +41,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
   }
 
   async function deleteDeployment(organizationId: string, orbitId: string, deploymentId: string) {
-    const updatedDeployment = await dataforceApi.deployments.deleteDeployment(
+    const updatedDeployment = await api.deployments.deleteDeployment(
       organizationId,
       orbitId,
       deploymentId,
@@ -57,7 +57,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     deploymentId: string,
     payload: UpdateDeploymentPayload,
   ) {
-    const newDeployment = await dataforceApi.deployments.update(
+    const newDeployment = await api.deployments.update(
       organizationId,
       orbitId,
       deploymentId,
@@ -75,11 +75,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     if (existingDeployment) {
       return existingDeployment
     }
-    const deployment = await dataforceApi.deployments.getDeployment(
-      organizationId,
-      orbitId,
-      deploymentId,
-    )
+    const deployment = await api.deployments.getDeployment(organizationId, orbitId, deploymentId)
     return deployment
   }
 
@@ -88,7 +84,7 @@ export const useDeploymentsStore = defineStore('deployments', () => {
     orbitId: string,
     deploymentId: string,
   ) {
-    await dataforceApi.deployments.forceDeleteDeployment(organizationId, orbitId, deploymentId)
+    await api.deployments.forceDeleteDeployment(organizationId, orbitId, deploymentId)
     deployments.value = deployments.value.filter((deployment) => deployment.id !== deploymentId)
   }
 

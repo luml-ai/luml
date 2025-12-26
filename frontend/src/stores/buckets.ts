@@ -1,5 +1,5 @@
 import type { BucketSecret, BucketSecretCreator } from '@/lib/api/bucket-secrets/interfaces'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import axios from 'axios'
@@ -34,11 +34,11 @@ export const useBucketsStore = defineStore('buckets', () => {
   const buckets = ref<BucketSecret[]>([])
 
   async function getBuckets(organizationId: string) {
-    buckets.value = await dataforceApi.bucketSecrets.getBucketSecretsList(organizationId)
+    buckets.value = await api.bucketSecrets.getBucketSecretsList(organizationId)
   }
 
   async function createBucket(organizationId: string, data: BucketSecretCreator) {
-    const bucket = await dataforceApi.bucketSecrets.createBucketSecret(organizationId, data)
+    const bucket = await api.bucketSecrets.createBucketSecret(organizationId, data)
     buckets.value.push(bucket)
   }
 
@@ -47,11 +47,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     bucketId: string,
     data: BucketSecretCreator & { id: string },
   ) {
-    const updatedBucket = await dataforceApi.bucketSecrets.updateBucketSecret(
-      organizationId,
-      bucketId,
-      data,
-    )
+    const updatedBucket = await api.bucketSecrets.updateBucketSecret(organizationId, bucketId, data)
     const index = buckets.value.findIndex((bucket) => bucket.id === bucketId)
     if (index !== -1) {
       buckets.value[index] = updatedBucket
@@ -60,7 +56,7 @@ export const useBucketsStore = defineStore('buckets', () => {
   }
 
   async function deleteBucket(organizationId: string, bucketId: string) {
-    await dataforceApi.bucketSecrets.deleteBucketSecret(organizationId, bucketId)
+    await api.bucketSecrets.deleteBucketSecret(organizationId, bucketId)
     buckets.value = buckets.value.filter((bucket) => bucket.id !== bucketId)
   }
 
@@ -94,7 +90,7 @@ export const useBucketsStore = defineStore('buckets', () => {
   }
 
   async function checkBucket(data: BucketSecretCreator) {
-    const connectionUrls = await dataforceApi.bucketSecrets.getBucketSecretConnectionUrls(data)
+    const connectionUrls = await api.bucketSecrets.getBucketSecretConnectionUrls(data)
     const text = 'Connection test...'
     const blob = new Blob([text], { type: 'text/plain' })
     const buffer = await blob.arrayBuffer()
@@ -117,7 +113,7 @@ export const useBucketsStore = defineStore('buckets', () => {
     bucketId: string,
     data: BucketSecretCreator,
   ) {
-    const connectionUrls = await dataforceApi.bucketSecrets.getExistingBucketSecretConnectionUrls(
+    const connectionUrls = await api.bucketSecrets.getExistingBucketSecretConnectionUrls(
       organizationId,
       bucketId,
       { ...data, id: bucketId },

@@ -213,7 +213,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   try {
     loading.value = true
     const timestamp = Date.now()
-    const filename = props.fileName ? props.fileName : `${props.currentTask}_${timestamp}.dfs`
+    const filename = props.fileName ? props.fileName : `${props.currentTask}_${timestamp}.luml`
     const file = new File([props.modelBlob], filename)
     const ids = getRequestInfo()
     await upload(

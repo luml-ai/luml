@@ -85,7 +85,7 @@ import { deleteCollectionConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useCollectionsStore } from '@/stores/collections'
 import { collectionEditorResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const dialogPT: DialogPassThroughOptions = {
   footer: {

@@ -29,7 +29,7 @@ export const SECRET_TAGS = [FNNX_VARIABLES_TAGS_ENUM.runtime_secret_v1]
 
 class FnnxServiceClass {
   async createModelFromFile(file: File) {
-    const allowedExtensions = ['.fnnx', '.pyfnx', '.dfs']
+    const allowedExtensions = ['.fnnx', '.pyfnx', '.dfs', '.luml']
     if (!allowedExtensions.some((ext) => file.name.endsWith(ext))) {
       throw new Error('Incorrect file format')
     }

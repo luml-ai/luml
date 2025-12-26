@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DataforceFile } from '@/lib/databases/database.interfaces'
+import type { LumlFile } from '@/lib/databases/database.interfaces'
 import { SplitButton } from 'primevue'
 import { CloudDownload } from 'lucide-vue-next'
 import { DatabaseService } from '@/lib/databases/DatabaseService'
@@ -23,7 +23,7 @@ import ModelUpload from '../model-upload/ModelUpload.vue'
 import { ref } from 'vue'
 
 type Props = {
-  file: DataforceFile
+  file: LumlFile
 }
 
 const props = defineProps<Props>()

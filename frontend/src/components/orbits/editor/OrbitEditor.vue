@@ -56,7 +56,7 @@ import {
   PermissionEnum,
   type Orbit as OrbitType,
   type UpdateOrbitPayload,
-} from '@/lib/api/DataforceApi.interfaces'
+} from '@/lib/api/api.interfaces'
 import { ref, watch } from 'vue'
 import {
   Dialog,

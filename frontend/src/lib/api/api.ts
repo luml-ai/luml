@@ -33,8 +33,8 @@ import type {
   OrbitMember,
   UpdateOrbitPayload,
   IGetMicrosoftLoginRequest,
-} from './DataforceApi.interfaces'
-import { installDataforceInterceptors } from './DataforceApi.interceptors'
+} from './api.interfaces'
+import { installInterceptors } from './api.interceptors'
 import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
 import { BucketSecretsApi } from './bucket-secrets'
 import { OrbitCollectionsApi } from './orbit-collections'
@@ -44,7 +44,7 @@ import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
 import { DeploymentsApi } from './deployments'
 
-export class DataforceApiClass {
+export class ApiClass {
   private api: AxiosInstance
   public bucketSecrets: BucketSecretsApi
   public orbitCollections: OrbitCollectionsApi
@@ -56,12 +56,12 @@ export class DataforceApiClass {
 
   constructor() {
     this.api = axios.create({
-      baseURL: import.meta.env.VITE_DATAFORCE_API_URL,
+      baseURL: import.meta.env.VITE_API_URL,
       timeout: 10000,
       withCredentials: true,
     })
 
-    installDataforceInterceptors(this.api)
+    installInterceptors(this.api)
 
     this.bucketSecrets = new BucketSecretsApi(this.api)
     this.orbitCollections = new OrbitCollectionsApi(this.api)

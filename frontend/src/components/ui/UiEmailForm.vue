@@ -49,7 +49,7 @@ import { simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { forgotPasswordInitialValues } from '@/utils/forms/initialValues'
 import { forgotPasswordResolver } from '@/utils/forms/resolvers'
 import { useRoute } from 'vue-router'
-import { dataforceApi } from '@/lib/api'
+import { api } from '@/lib/api'
 
 const toast = useToast()
 const route = useRoute()
@@ -63,7 +63,7 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
   loading.value = true
   try {
     const currentPage = route.name
-    await dataforceApi.sendEmail({ email: values.email, description: currentPage as string })
+    await api.sendEmail({ email: values.email, description: currentPage as string })
     initialValues.value = { ...forgotPasswordInitialValues }
     toast.add(
       simpleSuccessToast(

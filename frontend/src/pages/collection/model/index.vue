@@ -63,7 +63,7 @@ import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/mo
 import { Button } from 'primevue'
 import { Bolt, Rocket, Download } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
-import { PermissionEnum } from '@/lib/api/DataforceApi.interfaces'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from '@/components/orbits/tabs/registry/collection/model/CollectionModelEditor.vue'
@@ -87,8 +87,8 @@ const currentModel = computed(() => {
 const isModelCardAvailable = computed(() => {
   if (!currentModel.value) return false
   const fileIndex = currentModel.value.file_index
-  const includeDataforceTag = FnnxService.getTypeTag(currentModel.value.manifest)
-  return !!(includeDataforceTag || FnnxService.findHtmlCard(fileIndex))
+  const includeSupportedTag = FnnxService.getTypeTag(currentModel.value.manifest)
+  return !!(includeSupportedTag || FnnxService.findHtmlCard(fileIndex))
 })
 
 const isExperimentSnapshotCardAvailable = computed(() => {

@@ -35,7 +35,7 @@
       </div>
     </div>
     <div class="image">
-      <img :src="image" alt="dataforce.studio" class="img" />
+      <img :src="image" alt="LUML" class="img" />
     </div>
   </div>
 </template>
@@ -63,15 +63,13 @@ const services: IAuthorizationService[] = [
     id: 'google',
     label: 'Sign in with Google',
     icon: GoogleIcon,
-    action: () =>
-      (window.location.href = `${import.meta.env.VITE_DATAFORCE_API_URL}/auth/google/login`),
+    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/auth/google/login`),
   },
   {
     id: 'microsoft',
     label: 'Sign in with Microsoft',
     icon: MicrosoftIcon,
-    action: () =>
-      (window.location.href = `${import.meta.env.VITE_DATAFORCE_API_URL}/auth/microsoft/login`),
+    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/auth/microsoft/login`),
   },
   // {
   //   id: 'github',
