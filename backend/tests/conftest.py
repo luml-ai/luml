@@ -7,19 +7,16 @@ from uuid import uuid7
 
 import asyncpg  # type: ignore[import-untyped]
 import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
-from utils.db import migrate_db
-
-from dataforce_studio.models import OrganizationOrm
-from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
-from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.repositories.invites import InviteRepository
-from dataforce_studio.repositories.model_artifacts import ModelArtifactRepository
-from dataforce_studio.repositories.orbits import OrbitRepository
-from dataforce_studio.repositories.satellites import SatelliteRepository
-from dataforce_studio.repositories.users import UserRepository
-from dataforce_studio.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
-from dataforce_studio.schemas.model_artifacts import (
+from luml.models import OrganizationOrm
+from luml.repositories.bucket_secrets import BucketSecretRepository
+from luml.repositories.collections import CollectionRepository
+from luml.repositories.invites import InviteRepository
+from luml.repositories.model_artifacts import ModelArtifactRepository
+from luml.repositories.orbits import OrbitRepository
+from luml.repositories.satellites import SatelliteRepository
+from luml.repositories.users import UserRepository
+from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
+from luml.schemas.model_artifacts import (
     NDJSON,
     Collection,
     CollectionCreate,
@@ -29,7 +26,7 @@ from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactCreate,
     ModelArtifactStatus,
 )
-from dataforce_studio.schemas.orbit import (
+from luml.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
@@ -37,7 +34,7 @@ from dataforce_studio.schemas.orbit import (
     OrbitMemberCreate,
     OrbitRole,
 )
-from dataforce_studio.schemas.organization import (
+from luml.schemas.organization import (
     CreateOrganizationInvite,
     Organization,
     OrganizationCreateIn,
@@ -49,17 +46,19 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UserInvite,
 )
-from dataforce_studio.schemas.satellite import Satellite, SatelliteCreate
-from dataforce_studio.schemas.user import (
+from luml.schemas.satellite import Satellite, SatelliteCreate
+from luml.schemas.user import (
     AuthProvider,
     CreateUser,
     CreateUserIn,
     User,
     UserOut,
 )
-from dataforce_studio.settings import config
+from luml.settings import config
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from utils.db import migrate_db
 
-TEST_DB_NAME = "df_studio_test"
+TEST_DB_NAME = "luml_studio_test"
 TEST_PASSWORD = "test_password"
 
 
@@ -376,13 +375,13 @@ async def test_model_artifact(
 ) -> AsyncGenerator[ModelArtifactCreate]:
     yield ModelArtifactCreate(
         collection_id=uuid7(),
-        file_name="model.dfs",
+        file_name="model.luml",
         model_name="Test Model",
         metrics={"accuracy": 0.95, "precision": 0.92},
         manifest=manifest_example,
         file_hash=str(uuid.uuid4()),
         file_index={"model": (0, 1000)},
-        bucket_location="orbit/collection/model.dfs",
+        bucket_location="orbit/collection/model.luml",
         size=1000,
         unique_identifier="test_uid_123",
         tags=["test", "model"],

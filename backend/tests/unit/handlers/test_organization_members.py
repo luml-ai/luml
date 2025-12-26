@@ -2,25 +2,24 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.schemas.organization import (
+from luml.handlers.organizations import OrganizationHandler
+from luml.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
     OrgRole,
     UpdateOrganizationMember,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
+from luml.schemas.permissions import Action, Resource
 
 handler = OrganizationHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_members",
+    "luml.handlers.organizations.UserRepository.get_organization_members",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -45,15 +44,15 @@ async def test_get_organization_members_data(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_by_id",
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.update_organization_member",
+    "luml.handlers.organizations.UserRepository.update_organization_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -79,15 +78,15 @@ async def test_update_organization_member_by_id(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_by_id",
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.delete_organization_member",
+    "luml.handlers.organizations.UserRepository.delete_organization_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -116,19 +115,19 @@ async def test_delete_organization_member_by_id(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_member_role",
+    "luml.handlers.organizations.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.PermissionsHandler.check_permissions",
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.create_organization_member",
+    "luml.handlers.organizations.UserRepository.create_organization_member",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

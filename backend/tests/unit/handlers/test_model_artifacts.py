@@ -3,9 +3,8 @@ from unittest.mock import AsyncMock, Mock, patch
 from uuid import UUID, uuid7
 
 import pytest
-
-from dataforce_studio.handlers.model_artifacts import ModelArtifactHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.model_artifacts import ModelArtifactHandler
+from luml.infra.exceptions import (
     ApplicationError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
@@ -13,9 +12,9 @@ from dataforce_studio.infra.exceptions import (
     ModelArtifactNotFoundError,
     OrbitNotFoundError,
 )
-from dataforce_studio.schemas.bucket_secrets import S3BucketSecret
-from dataforce_studio.schemas.deployment import Deployment, DeploymentStatus
-from dataforce_studio.schemas.model_artifacts import (
+from luml.schemas.bucket_secrets import S3BucketSecret
+from luml.schemas.deployment import Deployment, DeploymentStatus
+from luml.schemas.model_artifacts import (
     Collection,
     CollectionType,
     Manifest,
@@ -26,14 +25,14 @@ from dataforce_studio.schemas.model_artifacts import (
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
 )
-from dataforce_studio.schemas.permissions import Action, Resource
-from dataforce_studio.schemas.storage import S3UploadDetails
+from luml.schemas.permissions import Action, Resource
+from luml.schemas.storage import S3UploadDetails
 
 handler = ModelArtifactHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -51,7 +50,7 @@ async def test_get_secret_or_raise(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -68,11 +67,11 @@ async def test_get_secret_or_raise_not_found(mock_get_bucket_secret: AsyncMock) 
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -99,7 +98,7 @@ async def test_check_orbit_and_collection_access(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -122,11 +121,11 @@ async def test_check_orbit_and_collection_access_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -153,15 +152,15 @@ async def test_check_orbit_and_collection_access_collection_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_collection_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_collection_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -214,27 +213,27 @@ async def test_get_collection_model_artifact(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_organization_models_limit",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_organization_models_limit",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.UserRepository.get_public_user_by_id",
+    "luml.handlers.model_artifacts.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.create_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.create_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -320,27 +319,27 @@ async def test_create_model_artifact(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -408,23 +407,23 @@ async def test_get_model_artifact(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -462,27 +461,27 @@ async def test_get_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -546,31 +545,31 @@ async def test_request_download_url(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_status",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.update_status",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -653,27 +652,27 @@ async def test_request_delete_url(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -771,23 +770,23 @@ async def test_request_delete_url_with_deployments(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -840,23 +839,23 @@ async def test_confirm_deletion_pending(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -914,23 +913,23 @@ async def test_confirm_deletion_not_pending(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1012,23 +1011,23 @@ async def test_update_model_artifact(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1069,9 +1068,9 @@ async def test_update_model_artifact_not_found(
     mock_update_model_artifact.assert_not_awaited()
 
 
-@patch("dataforce_studio.handlers.model_artifacts.create_storage_client")
+@patch("luml.handlers.model_artifacts.create_storage_client")
 @patch(
-    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1097,19 +1096,19 @@ async def test_get_storage_client(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1167,19 +1166,19 @@ async def test_update_model_artifact_invalid_status_transition(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.update_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1239,15 +1238,15 @@ async def test_update_model_artifact_update_failed(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1280,15 +1279,15 @@ async def test_request_download_url_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1321,19 +1320,19 @@ async def test_request_delete_url_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1400,19 +1399,19 @@ async def test_request_delete_url_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1447,22 +1446,22 @@ async def test_model_artifact_deletion_checks_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.create_storage_client",
+    "luml.handlers.model_artifacts.create_storage_client",
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1508,7 +1507,7 @@ async def test_request_satellite_download_url(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1528,11 +1527,11 @@ async def test_request_satellite_download_url_model_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1558,15 +1557,15 @@ async def test_request_satellite_download_url_collection_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1595,23 +1594,23 @@ async def test_request_satellite_download_url_orbit_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1644,27 +1643,27 @@ async def test_force_delete_model_artifact_without_deployments(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.PermissionsHandler.check_permissions",
+    "luml.handlers.model_artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.DeploymentRepository.delete_deployments_by_model_id",
+    "luml.handlers.model_artifacts.DeploymentRepository.delete_deployments_by_model_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.delete_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1703,18 +1702,18 @@ async def test_force_delete_model_artifact_with_deployments(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.create_storage_client",
+    "luml.handlers.model_artifacts.create_storage_client",
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.model_artifacts.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1772,7 +1771,7 @@ async def test_get_satellite_model_artifact(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -1792,11 +1791,11 @@ async def test_get_satellite_model_artifact_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
+    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

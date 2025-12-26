@@ -31,17 +31,17 @@ jobs:
       - name: Check formatting
         working-directory: backend
         run: |
-          uv run ruff format --check dataforce_studio migrations tests utils
+          uv run ruff format --check luml migrations tests utils
 
       - name: Linting
         working-directory: backend
         run: |
-          uv run ruff check dataforce_studio migrations tests utils
+          uv run ruff check luml migrations tests utils
 
       - name: Type checking
         working-directory: backend
         run: |
-          uv run mypy dataforce_studio
+          uv run mypy luml
 
       - name: Set up test database service
         run: |

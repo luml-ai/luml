@@ -6,7 +6,7 @@ ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 
 COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
-COPY dataforce_studio /app/dataforce_studio
+COPY luml /app/luml
 COPY pyproject.toml /app/pyproject.toml
 COPY migrations /app/migrations
 COPY alembic.ini /app/alembic.ini
@@ -22,4 +22,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv sync --frozen --no-install-project --no-dev
-CMD ["uv", "run", "ddtrace-run", "uvicorn", "dataforce_studio.server:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "ddtrace-run", "uvicorn", "luml.server:app", "--host", "0.0.0.0", "--port", "8000"]

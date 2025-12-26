@@ -1,12 +1,12 @@
 import pytest
-
-from dataforce_studio.repositories.collections import CollectionRepository
-from dataforce_studio.schemas.model_artifacts import (
+from luml.repositories.collections import CollectionRepository
+from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionType,
     CollectionUpdate,
 )
+
 from tests.conftest import CollectionFixtureData, OrbitFixtureData
 
 

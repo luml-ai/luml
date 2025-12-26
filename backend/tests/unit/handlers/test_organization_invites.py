@@ -3,11 +3,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.organizations import OrganizationHandler
-from dataforce_studio.infra.exceptions import ApplicationError
-from dataforce_studio.models import OrganizationInviteOrm
-from dataforce_studio.schemas.organization import (
+from luml.handlers.organizations import OrganizationHandler
+from luml.infra.exceptions import ApplicationError
+from luml.models import OrganizationInviteOrm
+from luml.schemas.organization import (
     CreateOrganizationInvite,
     CreateOrganizationInviteIn,
     OrganizationInvite,
@@ -15,45 +14,45 @@ from dataforce_studio.schemas.organization import (
     OrgRole,
     UserInvite,
 )
-from dataforce_studio.schemas.user import CreateUser, UserOut
+from luml.schemas.user import CreateUser, UserOut
 
 handler = OrganizationHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_organization_invite_by_email",
+    "luml.handlers.organizations.InviteRepository.get_organization_invite_by_email",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_member_by_email",
+    "luml.handlers.organizations.UserRepository.get_organization_member_by_email",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_public_user_by_id",
+    "luml.handlers.organizations.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invite",
+    "luml.handlers.organizations.InviteRepository.get_invite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.EmailHandler.send_organization_invite_email",
+    "luml.handlers.organizations.EmailHandler.send_organization_invite_email",
     new_callable=MagicMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
+    "luml.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.create_organization_invite",
+    "luml.handlers.organizations.InviteRepository.create_organization_invite",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -103,11 +102,11 @@ async def test_send_invite(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_public_user_by_id",
+    "luml.handlers.organizations.UserRepository.get_public_user_by_id",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -132,11 +131,11 @@ async def test_send_invite_to_yourself(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.delete_organization_invite",
+    "luml.handlers.organizations.InviteRepository.delete_organization_invite",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -156,27 +155,27 @@ async def test_cancel_invite(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_user_organizations_membership_count",
+    "luml.handlers.organizations.UserRepository.get_user_organizations_membership_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_details",
+    "luml.handlers.organizations.UserRepository.get_organization_details",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.get_organization_members_count",
+    "luml.handlers.organizations.UserRepository.get_organization_members_count",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.UserRepository.create_organization_member",
+    "luml.handlers.organizations.UserRepository.create_organization_member",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invite",
+    "luml.handlers.organizations.InviteRepository.get_invite",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.delete_organization_invites_for_user",
+    "luml.handlers.organizations.InviteRepository.delete_organization_invites_for_user",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -213,7 +212,7 @@ async def test_accept_invite(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.delete_organization_invite",
+    "luml.handlers.organizations.InviteRepository.delete_organization_invite",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -228,11 +227,11 @@ async def test_reject_invite(
 
 
 @patch(
-    "dataforce_studio.handlers.permissions.UserRepository.get_organization_member_role",
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_by_organization_id",
+    "luml.handlers.organizations.InviteRepository.get_invites_by_organization_id",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -255,7 +254,7 @@ async def test_get_organization_invites(
 
 
 @patch(
-    "dataforce_studio.handlers.organizations.InviteRepository.get_invites_by_user_email",
+    "luml.handlers.organizations.InviteRepository.get_invites_by_user_email",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

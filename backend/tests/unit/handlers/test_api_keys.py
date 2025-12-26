@@ -2,16 +2,15 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.api_keys import APIKeyHandler
-from dataforce_studio.infra.exceptions import UserAPIKeyCreateError
-from dataforce_studio.schemas.user import APIKeyCreateOut, UserOut
+from luml.handlers.api_keys import APIKeyHandler
+from luml.infra.exceptions import UserAPIKeyCreateError
+from luml.schemas.user import APIKeyCreateOut, UserOut
 
 handler = APIKeyHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.api_keys.UserRepository.create_user_api_key",
+    "luml.handlers.api_keys.UserRepository.create_user_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -30,7 +29,7 @@ async def test_create_user_api_key(
 
 
 @patch(
-    "dataforce_studio.handlers.api_keys.UserRepository.create_user_api_key",
+    "luml.handlers.api_keys.UserRepository.create_user_api_key",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -45,7 +44,7 @@ async def test_create_user_api_key_failed(
 
 
 @patch(
-    "dataforce_studio.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
+    "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -70,7 +69,7 @@ async def test_authenticate_api_key(
 
 
 @patch(
-    "dataforce_studio.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
+    "luml.handlers.api_keys.UserRepository.get_user_by_api_key_hash",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -86,7 +85,7 @@ async def test_authenticate_api_key_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.api_keys.UserRepository.delete_api_key_by_user_id",
+    "luml.handlers.api_keys.UserRepository.delete_api_key_by_user_id",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

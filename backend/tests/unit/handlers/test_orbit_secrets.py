@@ -3,32 +3,31 @@ from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
 import pytest
-
-from dataforce_studio.handlers.orbit_secrets import OrbitSecretHandler
-from dataforce_studio.infra.exceptions import (
+from luml.handlers.orbit_secrets import OrbitSecretHandler
+from luml.infra.exceptions import (
     ApplicationError,
     DatabaseConstraintError,
     NotFoundError,
 )
-from dataforce_studio.schemas.orbit_secret import (
+from luml.schemas.orbit_secret import (
     OrbitSecret,
     OrbitSecretCreate,
     OrbitSecretCreateIn,
     OrbitSecretOut,
     OrbitSecretUpdate,
 )
-from dataforce_studio.schemas.organization import OrgRole
-from dataforce_studio.schemas.permissions import Action, Resource
+from luml.schemas.organization import OrgRole
+from luml.schemas.permissions import Action, Resource
 
 handler = OrbitSecretHandler()
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.create_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.create_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -70,11 +69,11 @@ async def test_create_orbit_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secrets",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secrets",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -109,11 +108,11 @@ async def test_get_orbit_secrets(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -149,11 +148,11 @@ async def test_get_orbit_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -175,11 +174,11 @@ async def test_get_orbit_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.update_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.update_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -216,11 +215,11 @@ async def test_update_orbit_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.update_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.update_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -247,11 +246,11 @@ async def test_update_orbit_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.delete_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.delete_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -274,7 +273,7 @@ async def test_delete_orbit_secret(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secrets",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secrets",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -302,7 +301,7 @@ async def test_get_worker_orbit_secrets(mock_get_orbit_secrets: AsyncMock) -> No
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -328,7 +327,7 @@ async def test_get_worker_orbit_secret(mock_get_orbit_secret: AsyncMock) -> None
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.get_orbit_secret",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
@@ -348,11 +347,11 @@ async def test_get_worker_orbit_secret_not_found(
 
 
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.OrbitSecretRepository.create_orbit_secret",
+    "luml.handlers.orbit_secrets.OrbitSecretRepository.create_orbit_secret",
     new_callable=AsyncMock,
 )
 @patch(
-    "dataforce_studio.handlers.orbit_secrets.PermissionsHandler.check_permissions",
+    "luml.handlers.orbit_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio

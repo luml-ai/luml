@@ -13,7 +13,7 @@ class UvicornService(UvicornBaseService):
         self,
         *,
         title: str = "Model API",
-        description: str = "API for running inference on FNNX / DFS models",
+        description: str = "API for running inference on FNNX / LUML models",
         version: str = "1.0.0",
         openapi_generator: OpenAPIGenerator | None = None,
     ) -> None:

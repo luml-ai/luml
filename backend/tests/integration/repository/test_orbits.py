@@ -1,9 +1,8 @@
 import pytest
-
-from dataforce_studio.repositories.bucket_secrets import BucketSecretRepository
-from dataforce_studio.repositories.orbits import OrbitRepository
-from dataforce_studio.schemas.bucket_secrets import S3BucketSecretCreate
-from dataforce_studio.schemas.orbit import (
+from luml.repositories.bucket_secrets import BucketSecretRepository
+from luml.repositories.orbits import OrbitRepository
+from luml.schemas.bucket_secrets import S3BucketSecretCreate
+from luml.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
     OrbitDetails,
@@ -13,6 +12,7 @@ from dataforce_studio.schemas.orbit import (
     OrbitUpdate,
     UpdateOrbitMember,
 )
+
 from tests.conftest import (
     OrbitFixtureData,
     OrbitWithMembersFixtureData,
