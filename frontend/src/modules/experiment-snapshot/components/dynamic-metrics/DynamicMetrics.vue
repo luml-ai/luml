@@ -1,60 +1,88 @@
 <template>
-  <div class="charts">
+  <DynamicMetricsToolbar
+    :limit="METRICS_LIMIT"
+    :total="metricsNames.length"
+    @page-change="onPageChange"
+  />
+  <div v-if="visibleMetricsNames.length > 0" class="charts">
     <DynamicMetricsItem
-      v-for="name in uniqueMetrics"
+      v-for="name in visibleMetricsNames"
       :key="name"
       :metric-name="name"
-      :data="metricsRecord[name]"
+      :data="metrics[name]"
       :models-info="modelsInfo"
     />
+  </div>
+  <div v-else class="no-metrics">
+    <p>No metrics found...</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import type {
   ExperimentSnapshotDynamicMetric,
-  ExperimentSnapshotDynamicMetrics,
+  ExperimentSnapshotProvider,
   ModelInfo,
 } from '../../interfaces/interfaces'
-import { computed } from 'vue'
+import type { PageState } from 'primevue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import DynamicMetricsItem from './DynamicMetricsItem.vue'
+import DynamicMetricsToolbar from './DynamicMetricsToolbar.vue'
+
+const METRICS_LIMIT = 50
 
 type Props = {
-  metricsList: ExperimentSnapshotDynamicMetrics[]
+  metricsNames: string[]
+  provider: ExperimentSnapshotProvider
   modelsInfo: Record<string, ModelInfo>
 }
 
 const props = defineProps<Props>()
 
-const { uniqueMetrics, metricsRecord } = computed(() => {
-  const keysSet = new Set<string>()
-  const record: Record<string, ExperimentSnapshotDynamicMetric[]> = {}
+let dynamicMetricsController: AbortController | null = null
 
-  props.metricsList.forEach((modelData, modelIdx) => {
-    Object.entries(modelData).forEach(([metricName, value]) => {
-      keysSet.add(metricName)
+const page = ref(0)
+const visibleMetricsNames = ref<string[]>([])
+const metrics = ref<Record<string, ExperimentSnapshotDynamicMetric[]>>({})
 
-      if (!record[metricName]) {
-        record[metricName] = []
-      }
-      record[metricName][modelIdx] = value
-    })
+function resetMetrics() {
+  metrics.value = {}
+}
+
+async function getMetrics() {
+  dynamicMetricsController?.abort()
+  dynamicMetricsController = new AbortController()
+  visibleMetricsNames.value.forEach(async (name) => {
+    if (metrics.value[name]) return
+    const data = await props.provider.getDynamicMetricData(name, dynamicMetricsController?.signal)
+    metrics.value[name] = data
   })
+}
 
-  for (const metric of keysSet) {
-    record[metric] ??= []
-    for (let i = 0; i < props.metricsList.length; i++) {
-      record[metric][i] = record[metric][i] || []
-    }
-  }
+function onPageChange(event: PageState) {
+  page.value = event.page
+}
 
-  return {
-    uniqueMetrics: [...keysSet].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }),
-    ),
-    metricsRecord: record,
-  }
-}).value
+function setVisibleMetricsNames() {
+  visibleMetricsNames.value = props.metricsNames.slice(
+    page.value * METRICS_LIMIT,
+    (page.value + 1) * METRICS_LIMIT,
+  )
+}
+
+watch(
+  page,
+  () => {
+    setVisibleMetricsNames()
+    resetMetrics()
+    getMetrics()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  dynamicMetricsController?.abort()
+})
 </script>
 
 <style scoped>

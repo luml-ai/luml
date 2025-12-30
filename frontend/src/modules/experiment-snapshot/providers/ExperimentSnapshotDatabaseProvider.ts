@@ -1,7 +1,7 @@
-import type { Database, SqlValue } from 'sql.js'
+import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
   EvalsDatasets,
-  ExperimentSnapshotDynamicMetrics,
+  ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   ModelSnapshot,
@@ -9,25 +9,91 @@ import type {
   TraceSpan,
 } from '../interfaces/interfaces'
 import { safeParse } from '../helpers/helpers'
+import { loadAsync as loadZipAsync } from 'jszip'
+import initSqlJs from 'sql.js'
+import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url'
+
+interface ModelInfo {
+  modelId: string
+  buffer: ArrayBuffer
+}
 
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
-  modelsSnapshots: ModelSnapshot[]
+  private _modelsSnapshots: ModelSnapshot[] | null = null
 
-  constructor(snapshots: ModelSnapshot[]) {
-    this.modelsSnapshots = snapshots
+  private get modelsSnapshots() {
+    if (!this._modelsSnapshots) throw new Error('Models snapshots not initialized')
+    return this._modelsSnapshots
+  }
+
+  async init(data: ModelInfo[]) {
+    const SQL = await initSqlJs({ locateFile: () => sqlWasmUrl })
+    const snapshotsPromises = data.map(async ({ modelId, buffer }) => {
+      const database = await this.createDatabaseFromBuffer(buffer, SQL)
+      return { modelId, database }
+    })
+    this._modelsSnapshots = await Promise.all(snapshotsPromises)
+  }
+
+  async getDynamicMetricsNames() {
+    const names = this.modelsSnapshots.map((snapshot) =>
+      this.getModelMetricsNames(snapshot.database),
+    )
+    const uniqueNames = new Set<string>(names.flat())
+    return [...uniqueNames]
+  }
+
+  private getModelMetricsNames(database: Database) {
+    const queryResult = database.exec('SELECT key FROM dynamic_metrics')
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
+  }
+
+  async getDynamicMetricData(metricName: string) {
+    const data = this.modelsSnapshots.map((snapshot) =>
+      this.getModelDynamicMetricData(snapshot.database, metricName, snapshot.modelId),
+    )
+    return data
+  }
+
+  private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
+    const queryResult = database.exec(
+      `SELECT value, step FROM dynamic_metrics WHERE key = '${metricName}'`,
+    )
+    const rows = queryResult[0]?.values || []
+    const total = rows.length
+    const MAX_POINTS = 50_000
+    const data: ExperimentSnapshotDynamicMetric = {
+      x: [],
+      y: [],
+      modelId,
+      aggregated: rows.length > MAX_POINTS,
+    }
+    if (total === 0) return data
+    const stepSize = total > MAX_POINTS ? Math.ceil(total / MAX_POINTS) : 1
+    for (let i = 0; i < total; i += stepSize) {
+      const row = rows[i]
+      const value = row[0]
+      const step = row[1]
+      if (typeof step !== 'number' || typeof value !== 'number') continue
+      data.x.push(step)
+      data.y.push(value)
+    }
+    return data
+  }
+
+  async createDatabaseFromBuffer(buffer: ArrayBuffer, SQL: SqlJsStatic) {
+    const zip = await loadZipAsync(buffer)
+    const dbFile = zip.file('exp.db')
+    if (!dbFile) throw new Error('exp.db not found')
+    const content = await dbFile.async('uint8array')
+    return new SQL.Database(content)
   }
 
   async getStaticParamsList() {
     const list = this.modelsSnapshots
       .map((snapshot) => this.getStaticParams(snapshot.database, snapshot.modelId))
       .flat()
-    return list
-  }
-
-  async getDynamicMetricsList() {
-    const list = this.modelsSnapshots.map((snapshot) =>
-      this.getDynamicMetrics(snapshot.database, snapshot.modelId),
-    )
     return list
   }
 
@@ -66,22 +132,6 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return { ...obj, modelId }
   }
 
-  private getDynamicMetrics(database: Database, modelId: string) {
-    const queryResult = database.exec(
-      'SELECT key, value, step FROM dynamic_metrics ORDER BY key, step',
-    )
-    const rows = queryResult[0]?.values || []
-    const grouped: ExperimentSnapshotDynamicMetrics = {}
-    rows.map(([key, value, step]) => {
-      if (typeof key !== 'string' && typeof key !== 'number') return
-      if (!grouped[key]) grouped[key] = { x: [], y: [], modelId }
-      if (typeof step !== 'number' || typeof value !== 'number') return
-      grouped[key].x.push(step)
-      grouped[key].y.push(value)
-    })
-    return grouped
-  }
-
   private getEvals(database: Database, modelId: string): EvalsDatasets {
     const queryResult = database.exec(
       'SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals LIMIT 100',
@@ -115,7 +165,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getSpansList(args: SpansParams): Promise<Omit<TraceSpan, 'children'>[]> {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === args.modelId)?.database
     if (!db) return []
-    const traceId = this.getTraceId(args)
+    const traceId = await this.getTraceId(args)
     if (!traceId) return []
     const result = db.exec(
       `SELECT trace_id, span_id, parent_span_id, name, kind, start_time_unix_nano, end_time_unix_nano, status_code, status_message, attributes, events, links, dfs_span_type FROM spans WHERE trace_id = '${traceId}'`,
@@ -131,7 +181,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return list
   }
 
-  getTraceId(args: SpansParams) {
+  async getTraceId(args: SpansParams) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === args.modelId)?.database
     if (!db) return null
     const bridge = db.exec(
@@ -143,7 +193,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return null
   }
 
-  buildSpanTree(spans: Omit<TraceSpan, 'children'>[]): TraceSpan[] {
+  async buildSpanTree(spans: Omit<TraceSpan, 'children'>[]): Promise<TraceSpan[]> {
     const spanMap: Record<string, TraceSpan> = {}
     spans.forEach((span) => {
       spanMap[span.span_id] = { ...span, children: [] }

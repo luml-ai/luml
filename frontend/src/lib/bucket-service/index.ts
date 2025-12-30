@@ -13,11 +13,13 @@ export class ModelDownloader {
     fileName: string,
     buffer?: boolean,
     outerOffset = 0,
+    signal?: AbortSignal,
   ): Promise<T> {
     const range = this.getRangeHeader(fileIndex, fileName, outerOffset)
     const file = await axios.get(this.url, {
       headers: { Range: range },
       responseType: buffer ? 'arraybuffer' : 'json',
+      signal,
     })
     return file.data
   }

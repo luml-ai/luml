@@ -8,21 +8,30 @@
       </Button>
     </template>
     <UiScalable v-model="scaled" title="Compare parameters">
-      <StaticParametersMultipleTable :data="tableData"></StaticParametersMultipleTable>
+      <StaticParametersMultipleTable
+        :data="tableData"
+        :models-info="modelsInfo"
+        scrollHeight="180px"
+      ></StaticParametersMultipleTable>
       <template #scaled>
-        <StaticParametersMultipleTable :data="tableData"></StaticParametersMultipleTable>
+        <StaticParametersMultipleTable
+          :data="tableData"
+          :models-info="modelsInfo"
+          scrollHeight="auto"
+        ></StaticParametersMultipleTable>
       </template>
     </UiScalable>
   </UiCard>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
 import type { ExperimentSnapshotStaticParams, ModelsInfo } from '../../interfaces/interfaces'
-import UiCard from '../ui/UiCard.vue'
-import UiScalable from '../ui/UiScalable.vue'
+import { computed, ref } from 'vue'
 import { Button } from 'primevue'
 import { Maximize2 } from 'lucide-vue-next'
+import UiCard from '../ui/UiCard.vue'
+import UiScalable from '../ui/UiScalable.vue'
+
 import StaticParametersMultipleTable from './StaticParametersMultipleTable.vue'
 
 type Props = {
@@ -47,10 +56,11 @@ const uniqueParams = computed(() => {
 const tableData = computed(() => {
   return uniqueParams.value.map((param) => {
     const modelsWithParams = Object.entries(props.modelsInfo).map((entries) => {
+      const modelId = entries[0]
       const modelValue =
         props.parametersList.find((staticParams) => staticParams.modelId === entries[0])?.[param] ||
         '-'
-      return [entries[1].name, modelValue]
+      return [modelId, modelValue]
     })
     const row: Record<string, any> = Object.fromEntries(modelsWithParams)
     row['Parameters'] = param

@@ -6,7 +6,7 @@ export const useModelsTags = () => {
 
   const existingTags = computed<string[]>(() => {
     const tagsSet = modelsStore.modelsList.reduce((acc: Set<string>, item) => {
-      item.tags.map((tag) => {
+      item.tags?.map((tag) => {
         acc.add(tag)
       })
       return acc

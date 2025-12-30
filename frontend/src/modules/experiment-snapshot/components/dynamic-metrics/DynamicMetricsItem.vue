@@ -1,5 +1,11 @@
 <template>
-  <DynamicMetricsItemContent :title="metricName" class="chart-wrapper" @scale="setScaledChart">
+  <DynamicMetricsItemContent
+    :title="metricName"
+    :loading="!data"
+    :aggregated="isAggregated"
+    class="chart-wrapper"
+    @scale="setScaledChart"
+  >
     <div ref="chartRef" style="height: 200px; width: 100%"></div>
     <template #scaled>
       <div ref="chartScaledRef" style="height: calc(100vh - 100px); width: 100%"></div>
@@ -9,7 +15,7 @@
 
 <script setup lang="ts">
 import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '../../interfaces/interfaces'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import Plotly from 'plotly.js-dist'
 import DynamicMetricsItemContent from './DynamicMetricsItemContent.vue'
 import { useVariableValue } from '../../hooks/useVariableValue'
@@ -22,7 +28,7 @@ const themeStore = useThemeStore()
 
 type Props = {
   metricName: string
-  data: ExperimentSnapshotDynamicMetric[]
+  data: ExperimentSnapshotDynamicMetric[] | undefined
   modelsInfo: Record<string, ModelInfo>
 }
 
@@ -31,8 +37,18 @@ const props = defineProps<Props>()
 const chartRef = ref<HTMLDivElement | null>(null)
 const chartScaledRef = ref<HTMLDivElement | null>(null)
 
+const isAggregated = computed(() => {
+  return !!props.data?.some((item) => item.aggregated)
+})
+
 const plotlyData = computed(() => {
-  const data: ExperimentSnapshotDynamicMetric[] = JSON.parse(JSON.stringify(props.data))
+  if (!props.data) return []
+  const data: ExperimentSnapshotDynamicMetric[] = props.data.map((item) => ({
+    modelId: item.modelId,
+    x: [...item.x],
+    y: [...item.y],
+    aggregated: item.aggregated,
+  }))
   return data
     .filter((item) => item.modelId)
     .map((item) => {
@@ -84,6 +100,15 @@ function getPlotlyLayout() {
   })
 }
 
+function renderChart() {
+  if (!props.data) return
+  const layout = getPlotlyLayout()
+  Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
+    displayModeBar: false,
+    responsive: true,
+  })
+}
+
 watch(
   () => themeStore.getCurrentTheme,
   () => {
@@ -92,13 +117,15 @@ watch(
   },
 )
 
-onMounted(() => {
-  const layout = getPlotlyLayout()
-  Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
-    displayModeBar: false,
-    responsive: true,
-  })
-})
+watch(
+  () => props.data,
+  () => {
+    nextTick(() => {
+      renderChart()
+    })
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

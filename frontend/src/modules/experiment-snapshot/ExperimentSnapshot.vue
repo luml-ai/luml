@@ -1,6 +1,7 @@
 <template>
   <div class="content">
-    <template v-if="staticParams?.length && showStaticParams">
+    <Skeleton v-if="staticParamsLoading" style="height: 210px; margin-bottom: 20px"></Skeleton>
+    <template v-else-if="staticParams?.length && showStaticParams">
       <StaticParameters
         v-if="modelsIds.length === 1"
         :parameters="staticParams[0]"
@@ -11,12 +12,23 @@
         :models-info="modelsInfo"
       ></StaticParametersMultiple>
     </template>
+
+    <div
+      v-if="dynamicMetricsLoading"
+      style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px"
+    >
+      <Skeleton style="height: 300px; width: 100%"></Skeleton>
+      <Skeleton style="height: 300px; width: 100%"></Skeleton>
+    </div>
     <DynamicMetrics
-      v-if="dynamicMetrics"
-      :metrics-list="dynamicMetrics"
+      v-else-if="dynamicMetricsNames"
+      :metrics-names="dynamicMetricsNames"
+      :provider="props.provider"
       :models-info="modelsInfo"
     ></DynamicMetrics>
-    <div v-if="evalsStore.evals && Object.keys(evalsStore.evals)" class="evals-list">
+
+    <div v-if="evalsLoading" style="height: 210px; margin-bottom: 20px"></div>
+    <div v-else-if="evalsStore.evals && Object.keys(evalsStore.evals)" class="evals-list">
       <EvalsCard
         v-for="item of evalsStore.evals"
         :data="item"
@@ -32,21 +44,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import type {
-  ExperimentSnapshotDynamicMetrics,
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   ModelsInfo,
 } from './interfaces/interfaces'
+import { useToast, Skeleton } from 'primevue'
+import { simpleErrorToast } from './lib/primevue/data/toasts'
+import { useEvalsStore } from './store/evals'
 import StaticParameters from './components/static-parameters/StaticParameters.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
 import EvalsCard from './components/evals/EvalsCard.vue'
-import { useToast } from 'primevue'
-import { simpleErrorToast } from './lib/primevue/data/toasts'
 import StaticParametersMultiple from './components/static-parameters-multiple/StaticParametersMultiple.vue'
 import TracesDialog from './components/evals/traces/TracesDialog.vue'
-import { useEvalsStore } from './store/evals'
 
 type Props = {
   provider: ExperimentSnapshotProvider
@@ -59,43 +70,75 @@ const props = defineProps<Props>()
 const toast = useToast()
 const evalsStore = useEvalsStore()
 
+let dynamicMetricsController: AbortController | null = null
+let staticParamsController: AbortController | null = null
+let evalsController: AbortController | null = null
+
+const staticParamsLoading = ref(true)
 const staticParams = ref<ExperimentSnapshotStaticParams[] | null>(null)
-const dynamicMetrics = ref<ExperimentSnapshotDynamicMetrics[] | null>()
+const dynamicMetricsLoading = ref(true)
+const dynamicMetricsNames = ref<string[] | null>(null)
+const evalsLoading = ref(true)
 
 const showStaticParams = computed(() => {
   if (!staticParams.value) return false
   return staticParams.value.find((params) => Object.keys(params).find((key) => key !== 'modelId'))
 })
 
-async function setStaticParams() {
+async function initStaticParams() {
+  staticParamsController?.abort()
+  staticParamsController = new AbortController()
   try {
-    staticParams.value = await props.provider.getStaticParamsList()
+    staticParamsLoading.value = true
+    staticParams.value = await props.provider.getStaticParamsList(staticParamsController.signal)
   } catch (error) {
     toast.add(simpleErrorToast('Failed to load static params'))
+  } finally {
+    staticParamsLoading.value = false
   }
 }
 
-async function setDynamicMetrics() {
+async function initDynamicMetrics() {
+  dynamicMetricsController?.abort()
+  dynamicMetricsController = new AbortController()
   try {
-    dynamicMetrics.value = await props.provider.getDynamicMetricsList()
+    dynamicMetricsLoading.value = true
+    dynamicMetricsNames.value = await props.provider.getDynamicMetricsNames(
+      dynamicMetricsController.signal,
+    )
+    dynamicMetricsLoading.value = false
   } catch (error) {
+    if (error instanceof DOMException) return
     toast.add(simpleErrorToast('Failed to load dynamic metrics'))
+  } finally {
+    dynamicMetricsLoading.value = false
   }
 }
 
-async function setEvals() {
+async function initEvals() {
+  evalsController?.abort()
+  evalsController = new AbortController()
   try {
-    evalsStore.setEvals()
+    evalsLoading.value = true
+    evalsStore.setEvals(evalsController.signal)
   } catch (error: any) {
     toast.add(simpleErrorToast(error.message))
+  } finally {
+    evalsLoading.value = false
   }
 }
 
 onMounted(async () => {
   evalsStore.setProvider(props.provider)
-  setStaticParams()
-  setDynamicMetrics()
-  setEvals()
+  initStaticParams()
+  initDynamicMetrics()
+  initEvals()
+})
+
+onBeforeUnmount(() => {
+  dynamicMetricsController?.abort()
+  staticParamsController?.abort()
+  evalsController?.abort()
 })
 
 onUnmounted(() => {
