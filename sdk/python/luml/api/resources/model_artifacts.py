@@ -8,11 +8,13 @@ from luml.api._types import (
     CreatedModel,
     ModelArtifact,
     ModelArtifactsList,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
+    SortOrder,
     is_uuid,
 )
 from luml.api._utils import find_by_value
-from luml.api.resources._mixins import ListedResource
+from luml.api.resources._listed_resource import ListedResource
 from luml.api.resources._validators import validate_collection
 from luml.api.services.upload_service import AsyncUploadService, UploadService
 from luml.api.utils.model_artifacts import ModelFileHandler
@@ -243,6 +245,8 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         collection_id: str | None = None,
         start_after: str | None = None,
         limit: int | None = 100,
+        sort_by: ModelArtifactSortBy | None = None,
+        order: SortOrder = SortOrder.DESC,
     ) -> ModelArtifactsList:
         """
         List all model artifacts in the collection.
@@ -250,10 +254,13 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
-            limit: Limit number of models per page
-            start_after: ID of the model artifact to start listing from.
             collection_id: ID of the collection to list models from. If not provided,
                 uses the default collection set in the client.
+            start_after: ID of the model artifact to start listing from.
+            limit: Limit number of models per page (default: 100).
+            sort_by: Field to sort by. Options: model_name, file_name, size.
+                If not provided, sorts by creation time (UUID v7).
+            order: Sort order - "asc" or "desc" (default: "desc").
 
         Returns:
             List of ModelArtifact objects.
@@ -270,7 +277,14 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
         )
+        # Default: sorted by creation time, newest first
         models = luml.model_artifacts.list()
+
+        # Sort by size
+        models = luml.model_artifacts.list(
+            sort_by=ModelArtifactSortBy.SIZE,
+            order=SortOrder.DESC
+        )
         ```
 
         Example response:
@@ -290,9 +304,16 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         ]
         ```
         """
-        params = {"limit": limit}
+        params = {
+            "limit": limit,
+            "order": order.value if isinstance(order, SortOrder) else order,
+        }
         if start_after:
             params["cursor"] = start_after
+        if sort_by:
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, ModelArtifactSortBy) else sort_by
+            )
 
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",
@@ -887,6 +908,8 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         collection_id: str | None = None,
         start_after: str | None = None,
         limit: int | None = 100,
+        sort_by: ModelArtifactSortBy | None = None,
+        order: SortOrder = SortOrder.DESC,
     ) -> list[ModelArtifact]:
         """
         List all model artifacts in the collection.
@@ -896,6 +919,11 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         Args:
             collection_id: ID of the collection to list models from. If not provided,
                 uses the default collection set in the client.
+            start_after: ID of the model artifact to start listing from.
+            limit: Limit number of models per page (default: 100).
+            sort_by: Field to sort by. Options: model_name, file_name, size.
+                If not provided, sorts by creation time (UUID v7).
+            order: Sort order - "asc" or "desc" (default: "desc").
 
         Returns:
             List of ModelArtifact objects.
@@ -916,7 +944,14 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 orbit="0199c455-21ed-7aba-9fe5-5231611220de",
                 collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             )
+            # Default: sorted by creation time, newest first
             models = await luml.model_artifacts.list()
+
+            # Sort by size
+            models = await luml.model_artifacts.list(
+                sort_by=ModelArtifactSortBy.SIZE,
+                order=SortOrder.ASC
+            )
         ```
 
         Example response:
@@ -937,9 +972,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         ```
         """
 
-        params = {"limit": limit}
+        params = {"limit": limit, "order": order.value}
         if start_after:
             params["cursor"] = start_after
+        if sort_by:
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, ModelArtifactSortBy) else sort_by
+            )
 
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",

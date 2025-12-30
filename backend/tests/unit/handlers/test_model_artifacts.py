@@ -214,7 +214,7 @@ async def test_get_collection_model_artifacts(
         organization_id, orbit_id, collection_id
     )
     mock_get_collection_model_artifact.assert_awaited_once_with(
-        collection_id, pagination_limit, pagination_cursor
+        collection_id, pagination_limit, pagination_cursor, "created_at", "desc"
     )
 
 

@@ -366,6 +366,8 @@ class ModelArtifactHandler:
         collection_id: UUID,
         cursor: UUID | None = None,
         limit: int = 100,
+        sort_by: str = "created_at",
+        order: str = "desc",
     ) -> ModelArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -378,7 +380,7 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
         items = await self.__repository.get_collection_model_artifacts(
-            collection_id, limit, cursor
+            collection_id, limit, cursor, sort_by, order
         )
         return ModelArtifactsList(
             items=items, cursor=items[-1].id if len(items) == limit else None

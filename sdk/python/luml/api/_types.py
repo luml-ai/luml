@@ -87,6 +87,27 @@ class ModelArtifactStatus(StrEnum):
     DELETION_FAILED = "deletion_failed"
 
 
+class ModelArtifactSortBy(StrEnum):
+    """
+    Options: "created_at", "model_name", "description", "size", "status"
+    """
+
+    CREATED_AT = "created_at"
+    MODEL_NAME = "model_name"
+    SIZE = "size"
+    DESCRIPTION = "description"
+    STATUS = "status"
+
+
+class SortOrder(StrEnum):
+    """
+    Options: "asc", "desc"
+    """
+
+    ASC = "asc"
+    DESC = "desc"
+
+
 class Collection(BaseModel):
     id: str
     orbit_id: str
