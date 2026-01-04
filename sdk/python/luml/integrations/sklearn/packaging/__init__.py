@@ -1,25 +1,7 @@
-from typing import Any
-
-from luml.utils.time import get_epoch
-
-try:
-    from sklearn.base import BaseEstimator  # type: ignore[import-not-found]
-except ImportError:
-    BaseEstimator = None
-
-try:
-    import cloudpickle  # type: ignore[import-not-found]
-except ImportError:
-    cloudpickle = None
-
-try:
-    import pandas as pd  # type: ignore[import-untyped]
-except ImportError:
-    pd = None
-
-
 import os
 import tempfile
+from typing import TYPE_CHECKING, Any, Literal
+from warnings import warn
 
 import numpy as np  # type: ignore[import-not-found]
 from fnnx.extras.builder import PyfuncBuilder
@@ -27,7 +9,17 @@ from fnnx.extras.pydantic_models.manifest import NDJSON
 
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
 from luml.modelref import ModelReference
+from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
+from luml.utils.time import get_epoch
+
+if TYPE_CHECKING:
+    from sklearn.base import BaseEstimator
+
+try:
+    import pandas as pd  # type: ignore[import-untyped]
+except ImportError:
+    pd = None
 
 
 def _resolve_dtype(dtype: np.dtype) -> str:
@@ -38,31 +30,20 @@ def _resolve_dtype(dtype: np.dtype) -> str:
     return "str"
 
 
-def save_sklearn(  # noqa: C901
-    estimator: Any,  # noqa: ANN401
+def _get_default_deps() -> list[str]:
+    return [
+        "scikit-learn==" + get_version("sklearn"),
+        "scipy==" + get_version("scipy"),
+        "numpy==" + get_version("numpy"),
+        "cloudpickle==" + get_version("cloudpickle"),
+    ]
+
+
+def _add_io(
+    builder: PyfuncBuilder,
+    estimator: "BaseEstimator",
     inputs: Any,  # noqa: ANN401
-    path: str | None = None,
-    manifest_model_name: str | None = None,
-    manifest_model_version: str | None = None,
-    manifest_model_description: str | None = None,
-    extra_dependencies: list[str] | None = None,
-) -> ModelReference:
-    path = path or f"model_{get_epoch()}.luml"
-    if not cloudpickle:
-        raise RuntimeError("cloudpickle is not installed")
-    if not BaseEstimator:
-        raise RuntimeError("sklearn is not installed")
-
-    if not callable(getattr(estimator, "predict", None)):
-        raise TypeError("Provided estimator must implement a .predict() method")
-
-    builder = PyfuncBuilder(
-        pyfunc=SKlearnPyFunc,
-        model_name=manifest_model_name,
-        model_version=manifest_model_version,
-        model_description=manifest_model_description,
-    )
-
+) -> None:
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
@@ -110,7 +91,7 @@ def save_sklearn(  # noqa: C901
 
     builder.set_extra_values({"input_order": input_order})
 
-    y_pred = estimator.predict(x)
+    y_pred = estimator.predict(x)  # type: ignore
     y_array = np.asarray(y_pred)
     y_shape = ["batch"] + list(y_array.shape[1:])
     y_dtype = _resolve_dtype(y_array.dtype)
@@ -124,18 +105,82 @@ def save_sklearn(  # noqa: C901
         )
     )
 
-    dependencies = [
-        "scikit-learn==" + get_version("sklearn"),
-        "scipy==" + get_version("scipy"),
-        "numpy==" + get_version("numpy"),
-        "cloudpickle==" + get_version("cloudpickle"),
-    ]
+
+def _add_dependencies(
+    builder: PyfuncBuilder,
+    dependencies: Literal["default"] | Literal["all"] | list[str],
+    extra_dependencies: list[str] | None,
+    extra_code_modules: list[str] | Literal["auto"] | None,
+) -> None:
+    if dependencies == "all" or extra_code_modules == "auto":
+        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
+
+    if dependencies == "all":
+        dependencies = auto_pip_dependencies
+    elif dependencies == "default":
+        dependencies = _get_default_deps()
+        builder.add_fnnx_runtime_dependency()
+
+    local_depencies = []
+    if extra_code_modules == "auto":
+        local_depencies.extend(auto_local_dependencies)
+    elif isinstance(extra_code_modules, list):
+        local_depencies.extend(extra_code_modules)
+
     for dep in dependencies:
         builder.add_runtime_dependency(dep)
     if extra_dependencies:
         for dep in extra_dependencies:
             builder.add_runtime_dependency(dep)
-    builder.add_fnnx_runtime_dependency()
+
+
+def save_sklearn(  # noqa: C901
+    estimator: "BaseEstimator",
+    inputs: Any,  # noqa: ANN401
+    path: str | None = None,
+    dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
+    extra_dependencies: list[str] | None = None,
+    extra_code_modules: list[str] | Literal["auto"] | None = None,
+    manifest_model_name: str | None = None,
+    manifest_model_version: str | None = None,
+    manifest_model_description: str | None = None,
+) -> ModelReference:
+    import cloudpickle
+    from sklearn.base import BaseEstimator
+
+    if not isinstance(estimator, BaseEstimator):
+        raise TypeError(
+            f"Expected estimator to be sklearn.BaseEstimator, got {type(estimator)}"
+        )
+    if not hasattr(estimator, "predict"):
+        raise RuntimeError("Estimator should implement a predict method")
+
+    if isinstance(dependencies, list):
+        warn(
+            "Overwriting the dependencies might lead to unexpected side-effects, "
+            "consider providing `extra_dependcies` instead.",
+            stacklevel=2,
+        )
+        if not has_dependency(dependencies, "fnnx"):
+            warn(
+                "The provided list of dependencies does not contain `fnnx`",
+                stacklevel=2,
+            )
+
+    path = path or f"sklearn_model_{get_epoch()}.luml"
+
+    if not callable(getattr(estimator, "predict", None)):
+        raise TypeError("Provided estimator must implement a .predict() method")
+
+    builder = PyfuncBuilder(
+        pyfunc=SKlearnPyFunc,
+        model_name=manifest_model_name,
+        model_version=manifest_model_version,
+        model_description=manifest_model_description,
+    )
+
+    _add_io(builder, estimator, inputs)
+    _add_dependencies(builder, dependencies, extra_dependencies, extra_code_modules)
 
     with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
         cloudpickle.dump(estimator, tmp)
