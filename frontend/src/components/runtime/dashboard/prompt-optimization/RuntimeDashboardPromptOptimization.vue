@@ -47,7 +47,7 @@ type Props = {
 }
 
 type Emits = {
-  finish: void
+  finish: []
 }
 
 interface MetadataItem extends MetaEntry {

@@ -30,7 +30,7 @@ type Props = {
   modelId: string | null
 }
 type Emits = {
-  exit: void
+  exit: []
 }
 
 const props = defineProps<Props>()

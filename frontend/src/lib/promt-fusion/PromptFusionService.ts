@@ -407,7 +407,7 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   private getFieldHandlePosition(nodeType: NodeTypeEnum, inputVariant: FieldVariant) {
     if (nodeType === NodeTypeEnum.gate) {
-      return inputVariant === 'condition' ? Position.Left : Position.Right
+      return inputVariant === 'condition' ? Position.Right : Position.Left
     } else if (nodeType === NodeTypeEnum.processor) {
       return inputVariant === 'input' ? Position.Left : Position.Right
     } else if (nodeType === NodeTypeEnum.input) {
