@@ -77,7 +77,7 @@ async def get_model_artifacts(
     organization_id: UUID,
     orbit_id: UUID,
     collection_id: UUID,
-    cursor: UUID | None = None,
+    cursor: str | None = None,
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
     sort_by: Annotated[ModelArtifactSortBy, Query()] = ModelArtifactSortBy.CREATED_AT,
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,

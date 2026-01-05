@@ -1,22 +1,26 @@
 from uuid import UUID
 
+from luml.handlers.base import PaginationMixin
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
+    CollectionsList,
+    CollectionSortBy,
     CollectionUpdate,
     CollectionUpdateIn,
 )
 from luml.schemas.permissions import Action, Resource
 
 
-class CollectionHandler:
+class CollectionHandler(PaginationMixin):
     __repository = CollectionRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
@@ -47,8 +51,16 @@ class CollectionHandler:
         return await self.__repository.create_collection(collection_create)
 
     async def get_orbit_collections(
-        self, user_id: UUID, organization_id: UUID, orbit_id: UUID
-    ) -> list[Collection]:
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        cursor: str | None = None,
+        limit: int = 100,
+        sort_by: CollectionSortBy = CollectionSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
+        search: str | None = None,
+    ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -61,7 +73,24 @@ class CollectionHandler:
         )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
-        return await self.__repository.get_orbit_collections(orbit_id)
+
+        cursor_id, cursor_value, cursor_sorting = self.decode_cursor(cursor)
+
+        if cursor_sorting != sort_by.value:
+            items = await self.__repository.get_orbit_collections(
+                orbit_id=orbit_id,
+                limit=limit,
+                sort_by=sort_by,
+                order=order,
+                search=search,
+            )
+        else:
+            items = await self.__repository.get_orbit_collections(
+                orbit_id, limit, cursor_id, cursor_value, sort_by, order, search
+            )
+        return CollectionsList(
+            items=items, cursor=self.get_cursor(items, limit, sort_by)
+        )
 
     async def update_collection(
         self,

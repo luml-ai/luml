@@ -14,6 +14,7 @@ from luml.infra.exceptions import (
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.deployment import Deployment, DeploymentStatus
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionType,
@@ -22,6 +23,7 @@ from luml.schemas.model_artifacts import (
     ModelArtifactDetails,
     ModelArtifactIn,
     ModelArtifactsList,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
@@ -177,7 +179,6 @@ async def test_get_collection_model_artifacts(
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
     pagination_limit = 100
-    pagination_cursor = None
 
     expected_models_list = [
         ModelArtifact(
@@ -214,7 +215,10 @@ async def test_get_collection_model_artifacts(
         organization_id, orbit_id, collection_id
     )
     mock_get_collection_model_artifact.assert_awaited_once_with(
-        collection_id, pagination_limit, pagination_cursor, "created_at", "desc"
+        collection_id=collection_id,
+        limit=pagination_limit,
+        sort_by=ModelArtifactSortBy.CREATED_AT,
+        order=SortOrder.DESC,
     )
 
 

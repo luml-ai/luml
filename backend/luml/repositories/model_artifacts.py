@@ -1,30 +1,24 @@
-from operator import gt, lt
 from uuid import UUID
 
-from sqlalchemy import asc, desc, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.schemas.general import CursorType, SortOrder
 from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactDetails,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
 )
 
 
 class ModelArtifactRepository(RepositoryBase, CrudMixin):
-    _SORT_COLUMNS = {
-        "created_at": ModelArtifactOrm.created_at,
-        "model_name": ModelArtifactOrm.model_name,
-        "file_name": ModelArtifactOrm.file_name,
-        "size": ModelArtifactOrm.size,
-    }
-
     async def create_model_artifact(
         self, model_artifact: ModelArtifactCreate
     ) -> ModelArtifact:
@@ -62,51 +56,23 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
         self,
         collection_id: UUID,
         limit: int,
-        cursor: UUID | None = None,
-        sort_by: str | None = None,
-        order: str | None = "desc",
+        cursor_id: UUID | None = None,
+        cursor_value: CursorType | None = None,
+        sort_by: ModelArtifactSortBy = ModelArtifactSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
     ) -> list[ModelArtifact]:
         async with self._get_session() as session:
-            query = select(ModelArtifactOrm).where(
-                ModelArtifactOrm.collection_id == collection_id
+            db_models = await self.get_models_with_pagination(
+                session,
+                ModelArtifactOrm,
+                ModelArtifactOrm.collection_id == collection_id,
+                cursor_id=cursor_id,
+                cursor_value=cursor_value,
+                sort_by=sort_by,
+                order=order,
+                limit=limit,
             )
-
-            if cursor and (
-                cursor_record := await session.get(ModelArtifactOrm, cursor)
-            ):
-                op = lt if order == "desc" else gt
-
-                if sort_by and sort_by in self._SORT_COLUMNS:
-                    sort_column = self._SORT_COLUMNS[sort_by]
-                    cursor_value = getattr(cursor_record, sort_by)
-
-                    query = query.where(
-                        op(sort_column, cursor_value)
-                        | (
-                            (sort_column == cursor_value)
-                            & op(ModelArtifactOrm.id, cursor)
-                        )
-                    )
-                else:
-                    query = query.where(op(ModelArtifactOrm.id, cursor))
-
-            sort_func = desc if order == "desc" else asc
-
-            if not sort_by or sort_by == "created_at":
-                query = query.order_by(sort_func(ModelArtifactOrm.id))
-            else:
-                sort_column = self._SORT_COLUMNS.get(
-                    sort_by, ModelArtifactOrm.created_at
-                )
-                query = query.order_by(
-                    sort_func(sort_column),
-                    sort_func(ModelArtifactOrm.id),
-                )
-
-            query = query.limit(limit)
-
-            result = await session.execute(query)
-            return [model.to_model_artifact() for model in result.scalars().all()]
+            return [model.to_model_artifact() for model in db_models]
 
     async def get_model_artifact(self, model_artifact_id: UUID) -> ModelArtifact | None:
         async with self._get_session() as session:

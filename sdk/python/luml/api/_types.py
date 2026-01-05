@@ -108,6 +108,18 @@ class SortOrder(StrEnum):
     DESC = "desc"
 
 
+class CollectionSortBy(StrEnum):
+    """
+    Options: "created_at", "name", "description", "collection_type", "total_models"
+    """
+
+    CREATED_AT = "created_at"
+    NAME = "name"
+    COLLECTION_TYPE = "collection_type"
+    DESCRIPTION = "description"
+    TOTAL_MODELS = "total_models"
+
+
 class Collection(BaseModel):
     id: str
     orbit_id: str
@@ -118,6 +130,11 @@ class Collection(BaseModel):
     total_models: int
     created_at: str
     updated_at: str | None = None
+
+
+class CollectionsList(BaseModel):
+    items: list[Collection]
+    cursor: str | None = None
 
 
 class ModelArtifact(BaseModel):

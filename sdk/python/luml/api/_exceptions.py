@@ -3,6 +3,28 @@ from typing import Literal
 import httpx
 
 
+def _format_resources(
+    resource_type: str,
+    all_values: list | None,
+    has_more: bool = False,
+) -> str:
+    if not all_values:
+        return ""
+
+    if len(all_values) == 0:
+        return f"\nYou do not have available {resource_type}s yet."
+
+    result = f"\nAvailable {resource_type}s for configuration:"
+
+    for item in all_values:
+        result += f'\n      {resource_type}(id={item.id}, name="{item.name}")'
+
+    if has_more:
+        result += "..."
+
+    return result
+
+
 class LumlAPIError(Exception):
     def __init__(
         self,
@@ -18,6 +40,7 @@ class ConfigurationError(LumlAPIError):
         resource_type: str,
         message: str | None = None,
         all_values: list | None = None,
+        has_more: bool = False,
     ) -> None:
         self.message = message if message else ""
         self.message += """
@@ -28,17 +51,7 @@ class ConfigurationError(LumlAPIError):
             collection=15
         )
         """
-        if all_values:
-            if len(all_values) > 0:
-                formatted_resources = "\n      ".join(
-                    f'{resource_type}(id={e.id}, name="{e.name}")' for e in all_values
-                )
-                self.message += (
-                    f"\nAvailable {resource_type}s for configuration:"
-                    f"\n      {formatted_resources}"
-                )
-            else:
-                self.message += f"\nYou do not have available {resource_type}s yet."
+        self.message += _format_resources(resource_type, all_values, has_more)
 
         super().__init__(self.message)
 
@@ -53,6 +66,7 @@ class ResourceNotFoundError(Exception):
         resource_type: str,
         value: int | str,
         all_values: list | None = None,
+        has_more: bool = False,
         message: str | None = None,
     ) -> None:
         if message:
@@ -63,17 +77,7 @@ class ResourceNotFoundError(Exception):
                 f"{resource_type} with {value_reference} '{value}'"
                 f" not found. Try to set with another id or name."
             )
-        if all_values:
-            if len(all_values) > 0:
-                formatted_resources = "\n      ".join(
-                    f'{resource_type}(id={e.id}, name="{e.name}")' for e in all_values
-                )
-                self.message += (
-                    f"\nAvailable {resource_type}s for configuration:"
-                    f"\n      {formatted_resources}"
-                )
-            else:
-                self.message += f"\nYou do not have available {resource_type}s yet."
+        self.message += _format_resources(resource_type, all_values, has_more)
 
         super().__init__(self.message)
 
@@ -83,9 +87,10 @@ class OrbitResourceNotFoundError(ResourceNotFoundError):
         self,
         value: int | str,
         all_values: list | None = None,
+        has_more: bool = False,
         message: str | None = None,
     ) -> None:
-        super().__init__("Orbit", value, all_values, message)
+        super().__init__("Orbit", value, all_values, has_more, message)
 
 
 class OrganizationResourceNotFoundError(ResourceNotFoundError):
@@ -93,9 +98,10 @@ class OrganizationResourceNotFoundError(ResourceNotFoundError):
         self,
         value: int | str,
         all_values: list | None = None,
+        has_more: bool = False,
         message: str | None = None,
     ) -> None:
-        super().__init__("Organization", value, all_values, message)
+        super().__init__("Organization", value, all_values, has_more, message)
 
 
 class CollectionResourceNotFoundError(ResourceNotFoundError):
@@ -103,9 +109,10 @@ class CollectionResourceNotFoundError(ResourceNotFoundError):
         self,
         value: int | str,
         all_values: list | None = None,
+        has_more: bool = False,
         message: str | None = None,
     ) -> None:
-        super().__init__("Collection", value, all_values, message)
+        super().__init__("Collection", value, all_values, has_more, message)
 
 
 class APIError(LumlAPIError):

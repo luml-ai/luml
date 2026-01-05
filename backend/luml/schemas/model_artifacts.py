@@ -56,6 +56,19 @@ class CollectionUpdateIn(BaseModel):
     tags: list[str] | None = None
 
 
+class CollectionSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    NAME = "name"
+    COLLECTION_TYPE = "collection_type"
+    DESCRIPTION = "description"
+    TOTAL_MODELS = "total_models"
+
+
+class CollectionsList(BaseModel):
+    items: list[Collection]
+    cursor: str | None
+
+
 ModelArtifactNamesField = Annotated[
     str,
     Field(
@@ -245,4 +258,4 @@ class SatelliteModelArtifactResponse(BaseModel):
 
 class ModelArtifactsList(BaseModel):
     items: list[ModelArtifact]
-    cursor: UUID | None
+    cursor: str | None

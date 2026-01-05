@@ -1,12 +1,14 @@
 from collections.abc import Sequence
+from operator import gt, lt
 from typing import Any, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import delete, func, select
+from sqlalchemy import asc, delete, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from luml.models import Base
+from luml.schemas.general import SortOrder
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -175,6 +177,60 @@ class CrudMixin:
 
         if use_unique:
             return result.unique().all()
+        return result.scalars().all()
+
+    @staticmethod
+    def _get_sort_col(
+        orm_class: type[TOrm],
+        sort_by: str | None = None,
+    ) -> Any:  # noqa: ANN401
+        if sort_by is None:
+            return orm_class.created_at  # type: ignore[attr-defined]
+        return getattr(orm_class, sort_by, orm_class.created_at)  # type: ignore[attr-defined]
+
+    async def get_models_with_pagination(
+        self,
+        session: AsyncSession,
+        orm_class: type[TOrm],
+        *where_conditions: Any,  # noqa: ANN401
+        cursor_id: UUID | None = None,
+        cursor_value: Any | None = None,  # noqa: ANN401
+        sort_by: str | None = None,
+        order: SortOrder,
+        limit: int = 100,
+        options: list[Any] | None = None,  # noqa: ANN401
+        join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
+        select_fields: list[Any] | None = None,  # noqa: ANN401
+        use_unique: bool = False,
+    ) -> Sequence[Any]:  # noqa: ANN401
+        stmt = select(*(select_fields or [orm_class]))
+
+        if join_condition:
+            stmt = stmt.join(*join_condition)
+
+        if where_conditions:
+            stmt = stmt.where(*where_conditions)
+
+        sort_column = self._get_sort_col(orm_class, sort_by)
+
+        if cursor_id and cursor_value:
+            op = lt if order == SortOrder.DESC else gt
+            stmt = stmt.where(
+                op(sort_column, cursor_value)
+                | ((sort_column == cursor_value) & op(orm_class.id, cursor_id))  # type: ignore[attr-defined]
+            )
+
+        sort_func = desc if order == SortOrder.DESC else asc
+        stmt = stmt.order_by(
+            sort_func(sort_column),
+            sort_func(orm_class.id),  # type: ignore[attr-defined]
+        )
+
+        stmt = stmt.options(*(options or [])).limit(limit)
+        result = await session.execute(stmt)
+
+        if use_unique:
+            return result.unique().scalars().all()
         return result.scalars().all()
 
     @staticmethod

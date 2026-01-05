@@ -1,13 +1,17 @@
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from luml.handlers.collections import CollectionHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreateIn,
+    CollectionsList,
+    CollectionSortBy,
     CollectionUpdateIn,
 )
 
@@ -39,13 +43,27 @@ async def create_collection(
 @collections_router.get(
     "",
     responses=endpoint_responses,
-    response_model=list[Collection],
+    response_model=CollectionsList,
 )
 async def get_orbit_collections(
-    request: Request, organization_id: UUID, orbit_id: UUID
-) -> list[Collection]:
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(gt=0, le=100)] = 50,
+    sort_by: Annotated[CollectionSortBy, Query()] = CollectionSortBy.CREATED_AT,
+    order: Annotated[SortOrder, Query()] = SortOrder.DESC,
+    search: str | None = None,
+) -> CollectionsList:
     return await collection_handler.get_orbit_collections(
-        request.user.id, organization_id, orbit_id
+        request.user.id,
+        organization_id,
+        orbit_id,
+        cursor,
+        limit,
+        sort_by,
+        order,
+        search,
     )
 
 
