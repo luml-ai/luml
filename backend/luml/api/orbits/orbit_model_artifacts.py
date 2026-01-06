@@ -1,15 +1,18 @@
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 
 from luml.handlers.model_artifacts import ModelArtifactHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     CreateModelArtifactResponse,
     ModelArtifact,
     ModelArtifactIn,
+    ModelArtifactsList,
+    ModelArtifactSortBy,
     ModelArtifactUpdateIn,
 )
 
@@ -67,19 +70,27 @@ async def update_model_artifact(
 @model_artifacts_router.get(
     "",
     responses=endpoint_responses,
-    response_model=list[ModelArtifact],
+    response_model=ModelArtifactsList,
 )
-async def get_model_artifact(
+async def get_model_artifacts(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
     collection_id: UUID,
-) -> list[ModelArtifact]:
-    return await model_artifacts_handler.get_collection_model_artifact(
+    cursor: str | None = None,
+    limit: Annotated[int, Query(gt=0, le=100)] = 50,
+    sort_by: Annotated[ModelArtifactSortBy, Query()] = ModelArtifactSortBy.CREATED_AT,
+    order: Annotated[SortOrder, Query()] = SortOrder.DESC,
+) -> ModelArtifactsList:
+    return await model_artifacts_handler.get_collection_model_artifacts(
         request.user.id,
         organization_id,
         orbit_id,
         collection_id,
+        cursor,
+        limit,
+        sort_by,
+        order,
     )
 
 

@@ -7,10 +7,12 @@ from sqlalchemy.orm import selectinload
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.schemas.general import CursorType, SortOrder
 from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactDetails,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
 )
@@ -50,17 +52,27 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
                 else error_mess
             ) from error
 
-    async def get_collection_model_artifact(
-        self, collection_id: UUID
+    async def get_collection_model_artifacts(
+        self,
+        collection_id: UUID,
+        limit: int,
+        cursor_id: UUID | None = None,
+        cursor_value: CursorType | None = None,
+        sort_by: ModelArtifactSortBy = ModelArtifactSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
     ) -> list[ModelArtifact]:
         async with self._get_session() as session:
-            result = await session.execute(
-                select(ModelArtifactOrm)
-                .where(ModelArtifactOrm.collection_id == collection_id)
-                .order_by(ModelArtifactOrm.created_at)
+            db_models = await self.get_models_with_pagination(
+                session,
+                ModelArtifactOrm,
+                ModelArtifactOrm.collection_id == collection_id,
+                cursor_id=cursor_id,
+                cursor_value=cursor_value,
+                sort_by=sort_by,
+                order=order,
+                limit=limit,
             )
-            db_versions = result.scalars().all()
-            return [v.to_model_artifact() for v in db_versions]
+            return [model.to_model_artifact() for model in db_models]
 
     async def get_model_artifact(self, model_artifact_id: UUID) -> ModelArtifact | None:
         async with self._get_session() as session:

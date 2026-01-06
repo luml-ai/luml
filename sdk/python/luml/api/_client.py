@@ -67,17 +67,27 @@ class LumlClientBase(ABC):
         exception_class: type[Exception],
     ) -> str | None:
         if not entity_value:
-            return entities[0].id if len(entities) == 1 else None
+            entities_list = (
+                list(entities) if not isinstance(entities, list) else entities
+            )
+            return entities_list[0].id if len(entities_list) == 1 else None
+
+        entities_iter = (
+            iter(entities) if not isinstance(entities, list) else iter(entities)
+        )
 
         if is_uuid(entity_value):
-            entity = next((e for e in entities if e.id == entity_value), None)
+            entity = next((e for e in entities_iter if e.id == entity_value), None)
         elif isinstance(entity_value, str):
-            entity = next((e for e in entities if e.name == entity_value), None)
+            entity = next((e for e in entities_iter if e.name == entity_value), None)
         else:
             entity = None
 
         if not entity:
-            raise exception_class(entity_value, entities)
+            entities_list = (
+                list(entities) if not isinstance(entities, list) else entities
+            )
+            raise exception_class(entity_value, entities_list)
         return entity.id
 
     @abstractmethod
@@ -267,20 +277,70 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
 
+    async def _validate_collection_by_name(self, collection_value: str) -> str | None:
+        collections_result = await self.collections.list(search=collection_value)
+        if len(collections_result.items) == 1:
+            return collections_result.items[0].id
+        if len(collections_result.items) > 1:
+            exact_matches = [
+                collection
+                async for collection in self.collections.list_all(
+                    search=collection_value
+                )
+                if collection.name == collection_value
+            ]
+            if len(exact_matches) == 1:
+                return exact_matches[0].id
+            if len(exact_matches) > 1:
+                raise CollectionResourceNotFoundError(
+                    f"'{collection_value}' "
+                    f"(multiple collections with this name found, use collection ID)",
+                    all_values=exact_matches,
+                    has_more=False,
+                )
+        return None
+
     async def _validate_collection(self, collection_value: str | None) -> str | None:  # type: ignore[override]
         if not collection_value and (not self._organization or not self._orbit):
             return None
 
-        all_collections = await self.collections.list()
         if (not self._organization or not self._orbit) and collection_value:
+            collections_result = await self.collections.list()
             raise ConfigurationError(
                 "Collection",
                 "Default organization and orbit must be "
                 "set before setting default collection.",
-                all_values=all_collections,
+                all_values=collections_result.items,
+                has_more=collections_result.cursor is not None,
             )
-        return self._validate_default_resource(
-            collection_value, all_collections, CollectionResourceNotFoundError
+
+        if not collection_value:
+            collections_result = await self.collections.list(limit=2)
+            if len(collections_result.items) == 0:
+                return None
+            if len(collections_result.items) == 1 and collections_result.cursor is None:
+                return collections_result.items[0].id
+
+            all_collections = await self.collections.list()
+            raise ConfigurationError(
+                "Collection",
+                "Multiple collections found. Please specify a collection ID or name.",
+                all_values=all_collections.items,
+                has_more=collections_result.cursor is not None,
+            )
+
+        if is_uuid(collection_value):
+            async for collection in self.collections.list_all():
+                if collection.id == collection_value:
+                    return collection.id
+        else:
+            return await self._validate_collection_by_name(collection_value)
+
+        collections_result = await self.collections.list()
+        raise CollectionResourceNotFoundError(
+            collection_value,
+            all_values=collections_result.items,
+            has_more=collections_result.cursor is not None,
         )
 
     @cached_property
@@ -428,19 +488,67 @@ class LumlClient(LumlClientBase, SyncBaseClient):
             orbit_value, all_orbits, OrbitResourceNotFoundError
         )
 
+    def _validate_collection_by_name(self, collection_value: str) -> str | None:
+        collections_result = self.collections.list(search=collection_value)
+        if len(collections_result.items) == 1:
+            return collections_result.items[0].id
+        if len(collections_result.items) > 1:
+            exact_matches = [
+                collection
+                for collection in self.collections.list_all(search=collection_value)
+                if collection.name == collection_value
+            ]
+            if len(exact_matches) == 1:
+                return exact_matches[0].id
+            if len(exact_matches) > 1:
+                raise CollectionResourceNotFoundError(
+                    f"'{collection_value}' "
+                    f"(multiple collections with this name found, use collection ID)",
+                    all_values=exact_matches,
+                    has_more=False,
+                )
+        return None
+
     def _validate_collection(self, collection_value: str | None) -> str | None:
         if not collection_value and (not self._organization or not self._orbit):
             return None
-        all_collections = self.collections.list()
+
         if (not self._organization or not self._orbit) and collection_value:
+            collections_result = self.collections.list()
             raise ConfigurationError(
                 "Collection",
                 "Default organization and orbit must be "
                 "set before setting default collection.",
-                all_values=all_collections,
+                all_values=collections_result.items,
+                has_more=collections_result.cursor is not None,
             )
-        return self._validate_default_resource(
-            collection_value, all_collections, CollectionResourceNotFoundError
+
+        if not collection_value:
+            collections_result = self.collections.list(limit=2)
+            if len(collections_result.items) == 0:
+                return None
+            if len(collections_result.items) == 1 and collections_result.cursor is None:
+                return collections_result.items[0].id
+            all_collections = self.collections.list()
+            raise ConfigurationError(
+                "Collection",
+                "Multiple collections found. Please specify a collection ID or name.",
+                all_values=all_collections.items,
+                has_more=collections_result.cursor is not None,
+            )
+
+        if is_uuid(collection_value):
+            for collection in self.collections.list_all():
+                if collection.id == collection_value:
+                    return collection.id
+        else:
+            return self._validate_collection_by_name(collection_value)
+
+        collections_result = self.collections.list()
+        raise CollectionResourceNotFoundError(
+            collection_value,
+            all_values=collections_result.items,
+            has_more=collections_result.cursor is not None,
         )
 
     @cached_property

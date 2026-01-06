@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from luml.api.resources._listed_resource import PaginatedList
+
 
 def is_uuid(value: str | None) -> bool:
     if value is None:
@@ -72,6 +74,10 @@ class Orbit(BaseModel):
 
 
 class CollectionType(StrEnum):
+    """
+    Options: "model", "dataset".
+    """
+
     MODEL = "model"
     DATASET = "dataset"
 
@@ -81,6 +87,39 @@ class ModelArtifactStatus(StrEnum):
     UPLOADED = "uploaded"
     UPLOAD_FAILED = "upload_failed"
     DELETION_FAILED = "deletion_failed"
+
+
+class ModelArtifactSortBy(StrEnum):
+    """
+    Options: "created_at", "model_name", "description", "size", "status"
+    """
+
+    CREATED_AT = "created_at"
+    MODEL_NAME = "model_name"
+    SIZE = "size"
+    DESCRIPTION = "description"
+    STATUS = "status"
+
+
+class SortOrder(StrEnum):
+    """
+    Options: "asc", "desc"
+    """
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+class CollectionSortBy(StrEnum):
+    """
+    Options: "created_at", "name", "description", "collection_type", "total_models"
+    """
+
+    CREATED_AT = "created_at"
+    NAME = "name"
+    COLLECTION_TYPE = "collection_type"
+    DESCRIPTION = "description"
+    TOTAL_MODELS = "total_models"
 
 
 class Collection(BaseModel):
@@ -93,6 +132,10 @@ class Collection(BaseModel):
     total_models: int
     created_at: str
     updated_at: str | None = None
+
+
+class CollectionsList(PaginatedList[Collection]):
+    pass
 
 
 class ModelArtifact(BaseModel):
@@ -112,6 +155,10 @@ class ModelArtifact(BaseModel):
     status: str
     created_at: str
     updated_at: str | None = None
+
+
+class ModelArtifactsList(PaginatedList[ModelArtifact]):
+    pass
 
 
 class ModelDetails(BaseModel):

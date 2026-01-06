@@ -237,9 +237,7 @@ def example_comprehensive_card() -> None:
     )
 
     # Save the card
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".html", delete=False
-    ) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
         f.write(builder.build())
         print(f"Comprehensive card saved to: {f.name}")  # noqa: T201
         print(f"Open in browser: file://{f.name}")  # noqa: T201

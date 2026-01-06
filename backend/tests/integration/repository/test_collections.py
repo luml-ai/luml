@@ -65,7 +65,7 @@ async def test_get_orbit_collections(create_orbit: OrbitFixtureData) -> None:
         created = await repo.create_collection(collection_data)
         collections_data.append(created)
 
-    orbit_collections = await repo.get_orbit_collections(orbit.id)
+    orbit_collections = await repo.get_orbit_collections(orbit.id, 100)
 
     assert len(orbit_collections) == collections_num
 
@@ -104,3 +104,93 @@ async def test_delete_collection(create_collection: CollectionFixtureData) -> No
 
     fetched_after_delete = await repo.get_collection(collection.id)
     assert fetched_after_delete is None
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_collections_search_by_name(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    engine, orbit = data.engine, data.orbit
+    repo = CollectionRepository(engine)
+
+    collections_data = [
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="First collection",
+            name="my-model-collection",
+            collection_type=CollectionType.MODEL,
+            tags=["tag1"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Second collection",
+            name="dataset-collection",
+            collection_type=CollectionType.DATASET,
+            tags=["tag2"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Third collection",
+            name="another-model",
+            collection_type=CollectionType.MODEL,
+            tags=["tag3"],
+        ),
+    ]
+
+    for collection_data in collections_data:
+        await repo.create_collection(collection_data)
+
+    search_results = await repo.get_orbit_collections(orbit.id, 100, search="model")
+
+    assert len(search_results) == 2
+    names = [c.name for c in search_results]
+    assert "my-model-collection" in names
+    assert "another-model" in names
+    assert "dataset-collection" not in names
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_collections_search_by_tags(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    engine, orbit = data.engine, data.orbit
+    repo = CollectionRepository(engine)
+
+    collections_data = [
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 1",
+            name="collection-1",
+            collection_type=CollectionType.MODEL,
+            tags=["production", "ml-model"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 2",
+            name="collection-2",
+            collection_type=CollectionType.DATASET,
+            tags=["staging", "dataset"],
+        ),
+        CollectionCreate(
+            orbit_id=orbit.id,
+            description="Collection 3",
+            name="collection-3",
+            collection_type=CollectionType.MODEL,
+            tags=["production", "dataset"],
+        ),
+    ]
+
+    for collection_data in collections_data:
+        await repo.create_collection(collection_data)
+
+    search_results = await repo.get_orbit_collections(
+        orbit.id, 100, search="production"
+    )
+
+    assert len(search_results) == 2
+    names = [c.name for c in search_results]
+    assert "collection-1" in names
+    assert "collection-3" in names
+    assert "collection-2" not in names

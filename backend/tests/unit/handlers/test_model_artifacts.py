@@ -14,6 +14,7 @@ from luml.infra.exceptions import (
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.deployment import Deployment, DeploymentStatus
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionType,
@@ -21,6 +22,8 @@ from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactDetails,
     ModelArtifactIn,
+    ModelArtifactsList,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
@@ -152,7 +155,7 @@ async def test_check_orbit_and_collection_access_collection_not_found(
 
 
 @patch(
-    "luml.handlers.model_artifacts.ModelArtifactRepository.get_collection_model_artifact",
+    "luml.handlers.model_artifacts.ModelArtifactRepository.get_collection_model_artifacts",
     new_callable=AsyncMock,
 )
 @patch(
@@ -164,7 +167,7 @@ async def test_check_orbit_and_collection_access_collection_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_get_collection_model_artifact(
+async def test_get_collection_model_artifacts(
     mock_check_permissions: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_collection_model_artifact: AsyncMock,
@@ -175,8 +178,9 @@ async def test_get_collection_model_artifact(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    pagination_limit = 100
 
-    expected = [
+    expected_models_list = [
         ModelArtifact(
             id=model_artifact_id,
             collection_id=collection_id,
@@ -195,10 +199,11 @@ async def test_get_collection_model_artifact(
             updated_at=None,
         )
     ]
+    expected = ModelArtifactsList(items=expected_models_list, cursor=None)
 
-    mock_get_collection_model_artifact.return_value = expected
+    mock_get_collection_model_artifact.return_value = expected_models_list
 
-    result = await handler.get_collection_model_artifact(
+    result = await handler.get_collection_model_artifacts(
         user_id, organization_id, orbit_id, collection_id
     )
 
@@ -209,7 +214,12 @@ async def test_get_collection_model_artifact(
     mock_check_orbit_and_collection_access.assert_awaited_once_with(
         organization_id, orbit_id, collection_id
     )
-    mock_get_collection_model_artifact.assert_awaited_once_with(collection_id)
+    mock_get_collection_model_artifact.assert_awaited_once_with(
+        collection_id=collection_id,
+        limit=pagination_limit,
+        sort_by=ModelArtifactSortBy.CREATED_AT,
+        order=SortOrder.DESC,
+    )
 
 
 @patch(

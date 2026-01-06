@@ -62,12 +62,13 @@ async def test_get_model_artifact(
 
 
 @pytest.mark.asyncio
-async def test_get_collection_model_artifact(
+async def test_get_collection_model_artifacts(
     create_collection: CollectionFixtureData, test_model_artifact: ModelArtifactCreate
 ) -> None:
     data = create_collection
     engine, collection = data.engine, data.collection
     repo = ModelArtifactRepository(engine)
+    limit = 100
 
     model_data1 = test_model_artifact.model_copy()
     model_data1.collection_id = collection.id
@@ -80,7 +81,7 @@ async def test_get_collection_model_artifact(
     created_model1 = await repo.create_model_artifact(model_data1)
     created_model2 = await repo.create_model_artifact(model_data2)
 
-    models = await repo.get_collection_model_artifact(collection.id)
+    models = await repo.get_collection_model_artifacts(collection.id, limit)
 
     assert len(models) == 2
     model_ids = [m.id for m in models]

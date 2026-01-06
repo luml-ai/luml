@@ -1,10 +1,20 @@
 import builtins
 from abc import ABC, abstractmethod
-from collections.abc import Coroutine
+from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
-from luml.api._types import Collection, CollectionType, is_uuid
+from luml.api._types import (
+    Collection,
+    CollectionsList,
+    CollectionSortBy,
+    CollectionType,
+    SortOrder,
+    is_uuid,
+)
 from luml.api._utils import find_by_value
+from luml.api.resources._listed_resource import (
+    ListedResource,
+)
 from luml.api.resources._validators import validate_collection
 
 if TYPE_CHECKING:
@@ -33,7 +43,14 @@ class CollectionResourceBase(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def list(self) -> list[Collection] | Coroutine[Any, Any, list[Collection]]:
+    def list(
+        self,
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+    ) -> CollectionsList | Coroutine[Any, Any, CollectionsList]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -62,7 +79,7 @@ class CollectionResourceBase(ABC):
         raise NotImplementedError()
 
 
-class CollectionResource(CollectionResourceBase):
+class CollectionResource(CollectionResourceBase, ListedResource):
     def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
@@ -118,49 +135,136 @@ class CollectionResource(CollectionResourceBase):
         return self._get_by_name(collection_value)
 
     def _get_by_name(self, name: str) -> Collection | None:
-        return find_by_value(self.list(), name)
+        return find_by_value(self.list().items, name)
 
     def _get_by_id(self, collection_id: str) -> Collection | None:
         return find_by_value(
-            self.list(), collection_id, lambda c: c.id == collection_id
+            self.list().items, collection_id, lambda c: c.id == collection_id
         )
 
-    def list(self) -> list[Collection]:
+    def list_all(
+        self,
+        *,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+    ) -> Iterator[Collection]:
+        """
+        List all orbit collections with auto-paging.
+
+        Args:
+            limit: Page size (default: 100).
+            sort_by: Field to sort by. Options: name, description, created_at.
+            order: Sort order - "asc" or "desc" (default: "desc").
+            search: Search string to filter collections by name or tags.
+
+        Returns:
+            Collection objects from all pages.
+
+        Example:
+        ```python
+        luml = LumlClient(
+            api_key="luml_your_key",
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de"
+        )
+
+        for collection in luml.collections.list_all(limit=50):
+            print(collection.id)
+
+        # Search by name or tags
+        for collection in luml.collections.list_all(search="model"):
+            print(collection.name)
+        ```
+        """
+        return self._auto_paginate(
+            self.list,  # type: ignore[arg-type]
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+        )
+
+    def list(
+        self,
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+    ) -> CollectionsList:
         """
         List all collections in the default orbit.
 
+        Args:
+            start_after: Cursor to start listing from.
+            limit: Maximum number of collections per page (default: 100).
+            sort_by: Field to sort by. Options: name, description, created_at.
+                If not provided, sorts by creation time.
+            order: Sort order - "asc" or "desc" (default: "desc").
+            search: Search string to filter collections by name or tags.
+
         Returns:
-            List of Collection objects.
+            CollectionsList object with items and cursor.
 
         Example:
         ```python
         luml = LumlClient(api_key="luml_your_key")
-        collections = luml.collections.list()
+        result = luml.collections.list()
+        for collection in result.items:
+            print(collection.name)
+
+        # Sort by name
+        result = luml.collections.list(
+            sort_by=CollectionSortBy.NAME,
+            order=SortOrder.ASC
+        )
+
+        # Search by name or tags
+        result = luml.collections.list(search="model")
         ```
 
         Example response:
         ```python
-        [
-            Collection(
-                id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-                name="My Collection",
-                description="Dataset for ML models",
-                collection_type='model',
-                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-                tags=["ml", "training"],
-                created_at='2025-01-15T10:30:00.123456Z',
-                updated_at=None
-            )
-        ]
+        CollectionsList(
+            items=[
+                Collection(
+                    id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                    name="My Collection",
+                    description="Dataset for ML models",
+                    collection_type='model',
+                    orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+                    tags=["ml", "training"],
+                    created_at='2025-01-15T10:30:00.123456Z',
+                    updated_at=None
+                )
+            ],
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+        )
         ```
         """
+        params = {
+            "limit": limit,
+            "order": order.value if isinstance(order, SortOrder) else order,
+        }
+        if start_after:
+            params["cursor"] = start_after
+        if sort_by:
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, CollectionSortBy) else sort_by
+            )
+        if search:
+            params["search"] = search
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            params=params,
         )
         if response is None:
-            return []
+            return CollectionsList(items=[])
 
-        return [Collection.model_validate(collection) for collection in response]
+        return CollectionsList.model_validate(response)
 
     def create(
         self,
@@ -332,7 +436,7 @@ class CollectionResource(CollectionResourceBase):
         )
 
 
-class AsyncCollectionResource(CollectionResourceBase):
+class AsyncCollectionResource(CollectionResourceBase, ListedResource):
     def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
@@ -395,19 +499,85 @@ class AsyncCollectionResource(CollectionResourceBase):
         return await self._get_by_name(collection_value)
 
     async def _get_by_name(self, name: str) -> Collection | None:
-        return find_by_value(await self.list(), name)
+        result = await self.list()
+        return find_by_value(result.items, name)
 
     async def _get_by_id(self, collection_id: str) -> Collection | None:
+        result = await self.list()
         return find_by_value(
-            await self.list(), collection_id, lambda c: c.id == collection_id
+            result.items, collection_id, lambda c: c.id == collection_id
         )
 
-    async def list(self) -> list[Collection]:
+    def list_all(
+        self,
+        *,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+    ) -> AsyncIterator[Collection]:
+        """
+        List all orbit collections with auto-paging.
+
+        Args:
+            limit: Page size (default: 100).
+            sort_by: Field to sort by. Options: name, description, created_at.
+            order: Sort order - "asc" or "desc" (default: "desc").
+            search: Search string to filter collections by name or tags.
+
+        Returns:
+            Collection objects from all pages.
+
+        Example:
+        ```python
+        luml = AsyncLumlClient(
+            api_key="luml_your_key",
+        )
+
+        async def main():
+            await luml.setup_config(
+                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            )
+
+            async for collection in luml.collections.list_all(limit=50):
+                print(collection.id)
+
+            # Search by name or tags
+            async for collection in luml.collections.list_all(search="model"):
+                print(collection.name)
+        ```
+        """
+        return self._auto_paginate_async(
+            self.list,  # type: ignore[arg-type]
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+        )
+
+    async def list(
+        self,
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+    ) -> CollectionsList:
         """
         List all collections in the default orbit.
 
+        Args:
+            start_after: Cursor to start listing from.
+            limit: Maximum number of collections per page (default: 100).
+            sort_by: Field to sort by. Options: name, description, created_at.
+                If not provided, sorts by creation time.
+            order: Sort order - "asc" or "desc" (default: "desc").
+            search: Search string to filter collections by name or tags.
+
         Returns:
-            List of Collection objects.
+            CollectionsList object with items and cursor.
 
         Example:
         ```python
@@ -417,32 +587,60 @@ class AsyncCollectionResource(CollectionResourceBase):
                 organization="0199c455-21ec-7c74-8efe-41470e29bae5",
                 orbit="0199c455-21ed-7aba-9fe5-5231611220de",
             )
-            collections = await luml.collections.list()
+            result = await luml.collections.list()
+            for collection in result.items:
+                print(collection.name)
+
+            # Sort by name
+            result = await luml.collections.list(
+                sort_by=CollectionSortBy.NAME,
+                order=SortOrder.ASC
+            )
+
+            # Search by name or tags
+            result = await luml.collections.list(search="model")
         ```
 
         Example response:
         ```python
-        [
-            Collection(
-                id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-                name="My Collection",
-                description="Dataset for ML models",
-                collection_type='model',
-                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
-                tags=["ml", "training"],
-                created_at='2025-01-15T10:30:00.123456Z',
-                updated_at=None
-            )
-        ]
+        CollectionsList(
+            items=[
+                Collection(
+                    id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                    name="My Collection",
+                    description="Dataset for ML models",
+                    collection_type='model',
+                    orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
+                    tags=["ml", "training"],
+                    created_at='2025-01-15T10:30:00.123456Z',
+                    updated_at=None
+                )
+            ],
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+        )
         ```
         """
+        params = {
+            "limit": limit,
+            "order": order.value if isinstance(order, SortOrder) else order,
+        }
+        if start_after:
+            params["cursor"] = start_after
+        if sort_by:
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, CollectionSortBy) else sort_by
+            )
+        if search:
+            params["search"] = search
+
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections"
+            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            params=params,
         )
         if response is None:
-            return []
+            return CollectionsList(items=[])
 
-        return [Collection.model_validate(collection) for collection in response]
+        return CollectionsList.model_validate(response)
 
     async def create(
         self,

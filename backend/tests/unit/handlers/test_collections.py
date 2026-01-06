@@ -5,10 +5,13 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.collections import CollectionHandler
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
+    CollectionsList,
+    CollectionSortBy,
     CollectionType,
     CollectionUpdate,
     CollectionUpdateIn,
@@ -675,16 +678,26 @@ async def test_get_orbit_collections_success(
             updated_at=None,
         )
     ]
+    expected = CollectionsList(
+        items=expected_collections,
+        cursor=None,
+    )
 
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
     mock_get_collections.return_value = expected_collections
 
     result = await handler.get_orbit_collections(user_id, organization_id, orbit_id)
 
-    assert result == expected_collections
+    assert result == expected
 
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_collections.assert_awaited_once_with(orbit_id)
+    mock_get_collections.assert_awaited_once_with(
+        orbit_id=orbit_id,
+        limit=100,
+        sort_by=CollectionSortBy.CREATED_AT,
+        order=SortOrder.DESC,
+        search=None,
+    )
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,

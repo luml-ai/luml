@@ -56,6 +56,19 @@ class CollectionUpdateIn(BaseModel):
     tags: list[str] | None = None
 
 
+class CollectionSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    NAME = "name"
+    COLLECTION_TYPE = "collection_type"
+    DESCRIPTION = "description"
+    TOTAL_MODELS = "total_models"
+
+
+class CollectionsList(BaseModel):
+    items: list[Collection]
+    cursor: str | None
+
+
 ModelArtifactNamesField = Annotated[
     str,
     Field(
@@ -73,6 +86,14 @@ class ModelArtifactStatus(StrEnum):
     PENDING_DELETION = "pending_deletion"
     UPLOAD_FAILED = "upload_failed"
     DELETION_FAILED = "deletion_failed"
+
+
+class ModelArtifactSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    MODEL_NAME = "model_name"
+    SIZE = "size"
+    DESCRIPTION = "description"
+    STATUS = "status"
 
 
 class ModelIO(BaseModel):
@@ -233,3 +254,8 @@ class CreateModelArtifactResponse(BaseModel):
 class SatelliteModelArtifactResponse(BaseModel):
     model: ModelArtifact
     url: str
+
+
+class ModelArtifactsList(BaseModel):
+    items: list[ModelArtifact]
+    cursor: str | None

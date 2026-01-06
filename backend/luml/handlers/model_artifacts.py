@@ -2,6 +2,7 @@ from uuid import UUID, uuid4
 
 from luml.clients.base_storage_client import BaseStorageClient
 from luml.clients.storage_factory import create_storage_client
+from luml.handlers.base import PaginationMixin
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
@@ -21,6 +22,7 @@ from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import BucketSecret
+from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CreateModelArtifactResponse,
@@ -28,6 +30,8 @@ from luml.schemas.model_artifacts import (
     ModelArtifactCreate,
     ModelArtifactDetails,
     ModelArtifactIn,
+    ModelArtifactsList,
+    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
@@ -37,7 +41,7 @@ from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
 
 
-class ModelArtifactHandler:
+class ModelArtifactHandler(PaginationMixin):
     __repository = ModelArtifactRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
@@ -357,13 +361,17 @@ class ModelArtifactHandler:
 
         await self.__repository.delete_model_artifact(model_artifact_id)
 
-    async def get_collection_model_artifact(
+    async def get_collection_model_artifacts(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-    ) -> list[ModelArtifact]:
+        cursor: str | None = None,
+        limit: int = 100,
+        sort_by: ModelArtifactSortBy = ModelArtifactSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
+    ) -> ModelArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -374,7 +382,19 @@ class ModelArtifactHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        return await self.__repository.get_collection_model_artifact(collection_id)
+        cursor_id, cursor_value, cursor_sorting = self.decode_cursor(cursor)
+
+        if cursor_sorting != sort_by.value:
+            items = await self.__repository.get_collection_model_artifacts(
+                collection_id=collection_id, limit=limit, sort_by=sort_by, order=order
+            )
+        else:
+            items = await self.__repository.get_collection_model_artifacts(
+                collection_id, limit, cursor_id, cursor_value, sort_by, order
+            )
+        return ModelArtifactsList(
+            items=items[:limit], cursor=self.get_cursor(items, limit, sort_by)
+        )
 
     async def get_model_artifact(
         self,
