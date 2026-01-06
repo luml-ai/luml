@@ -12,7 +12,9 @@ from luml.api._types import (
     is_uuid,
 )
 from luml.api._utils import find_by_value
-from luml.api.resources._listed_resource import ListedResource
+from luml.api.resources._listed_resource import (
+    ListedResource,
+)
 from luml.api.resources._validators import validate_collection
 
 if TYPE_CHECKING:
@@ -154,7 +156,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         Args:
             limit: Page size (default: 100).
             sort_by: Field to sort by. Options: name, description, created_at.
-            order: Sort order - "asc" or "desc"
+            order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
 
         Returns:
@@ -177,7 +179,11 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         return self._auto_paginate(
-            self.list, limit=limit, sort_by=sort_by, order=order, search=search
+            self.list,  # type: ignore[arg-type]
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search=search,
         )
 
     def list(
@@ -197,7 +203,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             limit: Maximum number of collections per page (default: 100).
             sort_by: Field to sort by. Options: name, description, created_at.
                 If not provided, sorts by creation time.
-            order: Sort order - "asc" or "desc"
+            order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
 
         Returns:
@@ -235,7 +241,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                     updated_at=None
                 )
             ],
-            cursor="base64_encoded_cursor_string"
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
         )
         ```
         """
@@ -516,7 +522,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         Args:
             limit: Page size (default: 100).
             sort_by: Field to sort by. Options: name, description, created_at.
-            order: Sort order - "asc" or "desc"
+            order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
 
         Returns:
@@ -543,7 +549,11 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         return self._auto_paginate_async(
-            self.list, limit=limit, sort_by=sort_by, order=order, search=search
+            self.list,  # type: ignore[arg-type]
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            search=search,
         )
 
     async def list(
@@ -606,7 +616,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                     updated_at=None
                 )
             ],
-            cursor="base64_encoded_cursor_string"
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
         )
         ```
         """

@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from luml.api.resources._listed_resource import PaginatedList
+
 
 def is_uuid(value: str | None) -> bool:
     if value is None:
@@ -132,9 +134,8 @@ class Collection(BaseModel):
     updated_at: str | None = None
 
 
-class CollectionsList(BaseModel):
-    items: list[Collection]
-    cursor: str | None = None
+class CollectionsList(PaginatedList[Collection]):
+    pass
 
 
 class ModelArtifact(BaseModel):
@@ -156,9 +157,8 @@ class ModelArtifact(BaseModel):
     updated_at: str | None = None
 
 
-class ModelArtifactsList(BaseModel):
-    items: list[ModelArtifact]
-    cursor: str | None = None
+class ModelArtifactsList(PaginatedList[ModelArtifact]):
+    pass
 
 
 class ModelDetails(BaseModel):

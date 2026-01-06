@@ -263,7 +263,7 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
 
         Returns:
-            List of ModelArtifact objects.
+            ModelArtifactList object.
 
         Raises:
             ConfigurationError: If collection_id not provided and
@@ -289,19 +289,68 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
 
         Example response:
         ```python
-        [
-            ModelArtifact(
-                id="0199c455-21ee-74c6-b747-19a82f1a1e67",
-                model_name="my_model",
-                file_name="model.fnnx",
-                description="Trained model",
-                collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-                status=ModelArtifactStatus.UPLOADED,
-                tags=["ml", "production"],
-                created_at='2025-01-15T10:30:00.123456Z',
-                updated_at=None
-            )
-        ]
+        ModelArtifactsList(
+            items=[
+                ModelArtifact(
+                    id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+                    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                    model_name="my_model",
+                    file_name="model.fnnx",
+                    description="Trained model",
+                    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+                    manifest={
+                        "variant": "pipeline",
+                        "name": None,
+                        "version": None,
+                        "description": "",
+                        "producer_name": "falcon.beastbyte.ai",
+                        "producer_version": "0.8.0",
+                        "producer_tags": [
+                            "falcon.beastbyte.ai::tabular_regression:v1",
+                            "dataforce.studio::tabular_regression:v1",
+                        ],
+                        "inputs": [
+                            {
+                                "name": "age",
+                                "content_type": "NDJSON",
+                                "dtype": "Array[float32]",
+                                "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                                "shape": ["batch", 1],
+                            },
+                        ],
+                        "outputs": [
+                            {
+                                "name": "y_pred",
+                                "content_type": "NDJSON",
+                                "dtype": "Array[float32]",
+                                "tags": None,
+                                "shape": ["batch", 1],
+                            }
+                        ],
+                        "dynamic_attributes": [],
+                        "env_vars": [],
+                    }
+                    bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+                    file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+                    file_index = {
+                        "env.json": (3584, 2),
+                        "ops.json": (7168, 1869),
+                        "meta.json": (239616, 3279),
+                        "dtypes.json": (238592, 2),
+                        "manifest.json": (512, 2353),
+                        "variant_config.json": (4608, 372),
+                        "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+                    }
+                    size=245760,
+                    unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+                    status=ModelArtifactStatus.UPLOADED,
+                    tags=["ml", "production"],
+                    created_at='2025-01-15T10:30:00.123456Z',
+                    updated_at=None
+                )
+            ],
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+        )
         ```
         """
         params = {
@@ -910,7 +959,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: ModelArtifactSortBy | None = None,
         order: SortOrder = SortOrder.DESC,
-    ) -> list[ModelArtifact]:
+    ) -> ModelArtifactsList:
         """
         List all model artifacts in the collection.
 
@@ -926,7 +975,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
 
         Returns:
-            List of ModelArtifact objects.
+            ModelArtifactsList object.
 
         Raises:
             ConfigurationError: If collection_id not provided and
@@ -956,19 +1005,68 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
 
         Example response:
         ```python
-        [
-            ModelArtifact(
-                id="0199c455-21ee-74c6-b747-19a82f1a1e67",
-                model_name="my_model",
-                file_name="model.fnnx",
-                description="Trained model",
-                collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-                status=ModelArtifactStatus.UPLOADED,
-                tags=["ml", "production"],
-                created_at='2025-01-15T10:30:00.123456Z',
-                updated_at=None
-            )
-        ]
+        ModelArtifactsList(
+            items=[
+                ModelArtifact(
+                    id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+                    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                    model_name="my_model",
+                    file_name="model.fnnx",
+                    description="Trained model",
+                    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+                    manifest={
+                        "variant": "pipeline",
+                        "name": None,
+                        "version": None,
+                        "description": "",
+                        "producer_name": "falcon.beastbyte.ai",
+                        "producer_version": "0.8.0",
+                        "producer_tags": [
+                            "falcon.beastbyte.ai::tabular_regression:v1",
+                            "dataforce.studio::tabular_regression:v1",
+                        ],
+                        "inputs": [
+                            {
+                                "name": "age",
+                                "content_type": "NDJSON",
+                                "dtype": "Array[float32]",
+                                "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                                "shape": ["batch", 1],
+                            },
+                        ],
+                        "outputs": [
+                            {
+                                "name": "y_pred",
+                                "content_type": "NDJSON",
+                                "dtype": "Array[float32]",
+                                "tags": None,
+                                "shape": ["batch", 1],
+                            }
+                        ],
+                        "dynamic_attributes": [],
+                        "env_vars": [],
+                    }
+                    bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+                    file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+                    file_index = {
+                        "env.json": (3584, 2),
+                        "ops.json": (7168, 1869),
+                        "meta.json": (239616, 3279),
+                        "dtypes.json": (238592, 2),
+                        "manifest.json": (512, 2353),
+                        "variant_config.json": (4608, 372),
+                        "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+                    }
+                    size=245760,
+                    unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+                    status=ModelArtifactStatus.UPLOADED,
+                    tags=["ml", "production"],
+                    created_at='2025-01-15T10:30:00.123456Z',
+                    updated_at=None
+                )
+            ],
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+        )
         ```
         """
 

@@ -320,7 +320,14 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
                 return None
             if len(collections_result.items) == 1 and collections_result.cursor is None:
                 return collections_result.items[0].id
-            pass
+
+            all_collections = await self.collections.list()
+            raise ConfigurationError(
+                "Collection",
+                "Multiple collections found. Please specify a collection ID or name.",
+                all_values=all_collections.items,
+                has_more=collections_result.cursor is not None,
+            )
 
         if is_uuid(collection_value):
             async for collection in self.collections.list_all():
@@ -522,7 +529,13 @@ class LumlClient(LumlClientBase, SyncBaseClient):
                 return None
             if len(collections_result.items) == 1 and collections_result.cursor is None:
                 return collections_result.items[0].id
-            pass
+            all_collections = self.collections.list()
+            raise ConfigurationError(
+                "Collection",
+                "Multiple collections found. Please specify a collection ID or name.",
+                all_values=all_collections.items,
+                has_more=collections_result.cursor is not None,
+            )
 
         if is_uuid(collection_value):
             for collection in self.collections.list_all():
