@@ -158,7 +158,7 @@ def save_sklearn(  # noqa: C901
     if isinstance(dependencies, list):
         warn(
             "Overwriting the dependencies might lead to unexpected side-effects, "
-            "consider providing `extra_dependcies` instead.",
+            "consider providing `extra_dependencies` instead.",
             stacklevel=2,
         )
         if not has_dependency(dependencies, "fnnx"):
