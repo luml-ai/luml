@@ -393,7 +393,7 @@ class ModelArtifactHandler(PaginationMixin):
                 collection_id, limit, cursor_id, cursor_value, sort_by, order
             )
         return ModelArtifactsList(
-            items=items, cursor=self.get_cursor(items, limit, sort_by)
+            items=items[:limit], cursor=self.get_cursor(items, limit, sort_by)
         )
 
     async def get_model_artifact(

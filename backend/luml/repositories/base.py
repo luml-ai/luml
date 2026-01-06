@@ -226,7 +226,7 @@ class CrudMixin:
             sort_func(orm_class.id),  # type: ignore[attr-defined]
         )
 
-        stmt = stmt.options(*(options or [])).limit(limit)
+        stmt = stmt.options(*(options or [])).limit(limit + 1)
         result = await session.execute(stmt)
 
         if use_unique:
