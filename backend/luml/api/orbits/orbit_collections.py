@@ -10,9 +10,9 @@ from luml.schemas.general import SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreateIn,
-    CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionDetails,
     CollectionUpdateIn,
 )
 

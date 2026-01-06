@@ -12,9 +12,9 @@ from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
-    CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionDetails,
     CollectionUpdate,
     CollectionUpdateIn,
 )
