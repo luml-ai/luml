@@ -14,6 +14,7 @@ from luml.schemas.model_artifacts import (
     CollectionCreateIn,
     CollectionsList,
     CollectionSortBy,
+    CollectionDetails,
     CollectionUpdate,
     CollectionUpdateIn,
 )
@@ -91,6 +92,22 @@ class CollectionHandler(PaginationMixin):
         return CollectionsList(
             items=items[:limit], cursor=self.get_cursor(items, limit, sort_by)
         )
+
+    async def get_collection_details(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_id: UUID,
+    ) -> CollectionDetails | None:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.COLLECTION,
+            Action.READ,
+            orbit_id,
+        )
+        return await self.__repository.get_collection_details(collection_id)
 
     async def update_collection(
         self,

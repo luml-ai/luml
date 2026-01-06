@@ -1,14 +1,15 @@
 from uuid import UUID
 
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, cast, or_, func, select
 
-from luml.models import CollectionOrm
+from luml.models import CollectionOrm, ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import CursorType, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionSortBy,
+    CollectionDetails,
     CollectionUpdate,
 )
 
@@ -31,6 +32,44 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                 collection_id,
             )
             return db_collection.to_collection() if db_collection else None
+
+    async def get_collection_details(
+        self, collection_id: UUID
+    ) -> CollectionDetails | None:
+        async with self._get_session() as session:
+            db_collection = await self.get_model(
+                session,
+                CollectionOrm,
+                collection_id,
+            )
+            if db_collection:
+                metrics_query = select(
+                    func.jsonb_each(ModelArtifactOrm.metrics).scalar_table_valued("key")
+                ).where(
+                    ModelArtifactOrm.collection_id == collection_id,
+                    ModelArtifactOrm.metrics.is_not(None),
+                    ModelArtifactOrm.metrics != {},
+                )
+                metrics_query_result = await session.execute(metrics_query)
+
+                metrics = sorted(
+                    {row[0] for row in metrics_query_result.unique().all()}
+                )
+
+                tags_query = select(ModelArtifactOrm.tags).where(
+                    ModelArtifactOrm.collection_id == collection_id,
+                    ModelArtifactOrm.tags.is_not(None),
+                )
+                tags_query_result = await session.execute(tags_query)
+                all_tags = set()
+                for row in tags_query_result.all():
+                    tags_list = row[0]
+                    if tags_list:
+                        all_tags.update(tags_list)
+                tags = sorted(all_tags)
+
+                return db_collection.to_collection_details(metrics, tags)
+            return None
 
     async def get_orbit_collections(
         self,
