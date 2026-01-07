@@ -24,16 +24,21 @@ try:
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8080
     model_data = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
 
-    import numpy as np
+    try:
+        import numpy as np
+    except ImportError:
+        np = None  # type: ignore[assignment]
+
     from fnnx.device import DeviceMap
     from fnnx.handlers.local import LocalHandlerConfig
     from fnnx.runtime import Runtime
 
     def to_jsonable(obj: Any) -> Any:  # noqa: ANN401
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        if isinstance(obj, np.generic):
-            return obj.item()
+        if np is not None:
+            if isinstance(obj, np.ndarray):
+                return obj.tolist()
+            if isinstance(obj, np.generic):
+                return obj.item()
         if isinstance(obj, dict):
             return {k: to_jsonable(v) for k, v in obj.items()}
         if isinstance(obj, list):

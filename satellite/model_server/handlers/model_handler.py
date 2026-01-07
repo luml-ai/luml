@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 from conda_manager import ModelCondaManager
 from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
-from utils.logging import log_success
+from utils.logging import log_success  # type: ignore
 
 from .file_handler import FileHandler
 
