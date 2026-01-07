@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 from uuid import UUID
 
 from aiodocker.containers import DockerContainer
+from aiodocker.exceptions import DockerError
 
 from agent.clients import ModelServerClient
 from agent.handlers.handler_instances import ms_handler
@@ -95,6 +96,25 @@ class DeployTask(Task):
         url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
 
+    async def _handle_container_creation_error(
+        self, task_id: str, dep_id: str, error_str: str
+    ) -> None:
+        if "No such image" in error_str or "not found" in error_str.lower():
+            error_message = {
+                "reason": "Docker image not found",
+                "error": f"Image '{config.MODEL_IMAGE}' not found. "
+                f"Please ensure the image is built or pulled on the satellite.",
+            }
+        else:
+            error_message = {"reason": "Failed to create container", "error": error_str}
+
+        logger.error(f"Failed to run container for deployment {dep_id}: {error_str}")
+        await self.platform.update_task_status(task_id, SatelliteTaskStatus.FAILED, error_message)
+        await self.platform.update_deployment(
+            dep_id,
+            DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
+        )
+
     async def run(self, task: SatelliteQueueTask) -> None:
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 
@@ -114,16 +134,20 @@ class DeployTask(Task):
             "health_check_timeout", self.default_health_check_timeout
         )
 
-        container = await self.docker.run_model_container(
-            image=config.MODEL_IMAGE,
-            name=f"sat-{dep_id}",
-            container_port=config.MODEL_SERVER_PORT,
-            labels={
-                "df.deployment_id": dep_id,
-                "df.model_id": self._get_model_id_from_url(presigned_url),
-            },
-            env=await self._get_container_env(presigned_url, dep),
-        )
+        try:
+            container = await self.docker.run_model_container(
+                image=config.MODEL_IMAGE,
+                name=f"sat-{dep_id}",
+                container_port=config.MODEL_SERVER_PORT,
+                labels={
+                    "df.deployment_id": dep_id,
+                    "df.model_id": self._get_model_id_from_url(presigned_url),
+                },
+                env=await self._get_container_env(presigned_url, dep),
+            )
+        except DockerError as e:
+            await self._handle_container_creation_error(task.id, dep_id, str(e))
+            return
 
         inference_url = f"/deployments/{dep_id}"
         async with ModelServerClient() as client:
