@@ -3,7 +3,6 @@
     <h2 class="title">Dynamic Metrics</h2>
     <div class="toolbar-body">
       <Paginator
-        v-if="true"
         :rows="limit"
         :totalRecords="total"
         :alwaysShow="false"

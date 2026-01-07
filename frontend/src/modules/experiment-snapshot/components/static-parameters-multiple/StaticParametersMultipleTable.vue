@@ -48,7 +48,7 @@ const columns = computed(() => {
 })
 
 const sortedColumns = computed(() => {
-  return columns.value.sort((a, b) => {
+  return [...columns.value].sort((a, b) => {
     if (a.id === 'Parameters') return -1
     return 1
   })

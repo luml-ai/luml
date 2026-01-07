@@ -50,13 +50,32 @@ function resetMetrics() {
 }
 
 async function getMetrics() {
+  const metricsToFetch = visibleMetricsNames.value.filter((name) => !metrics.value[name])
+  const results = await fetchMetrics(metricsToFetch)
+  const rejectedMetrics: Record<string, any> = {}
+  results.forEach((result, index) => {
+    if (result.status === 'rejected') {
+      rejectedMetrics[metricsToFetch[index]] = result.reason
+    }
+  })
+  handleRejectedMetrics(rejectedMetrics)
+}
+
+function handleRejectedMetrics(rejectedMetrics: Record<string, any>) {
+  Object.keys(rejectedMetrics).forEach((name) => {
+    console.error(`Failed to load dynamic metric data for "${name}":`, rejectedMetrics[name])
+  })
+}
+
+async function fetchMetrics(names: string[]) {
   dynamicMetricsController?.abort()
   dynamicMetricsController = new AbortController()
-  visibleMetricsNames.value.forEach(async (name) => {
-    if (metrics.value[name]) return
-    const data = await props.provider.getDynamicMetricData(name, dynamicMetricsController?.signal)
-    metrics.value[name] = data
-  })
+  return Promise.allSettled(
+    names.map(async (name) => {
+      const data = await props.provider.getDynamicMetricData(name, dynamicMetricsController?.signal)
+      metrics.value[name] = data
+    }),
+  )
 }
 
 function onPageChange(event: PageState) {

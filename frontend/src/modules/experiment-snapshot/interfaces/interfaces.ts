@@ -11,7 +11,7 @@ export interface ExperimentSnapshotProvider {
   getEvalsList: (signal?: AbortSignal) => Promise<EvalsListType>
   getSpansList: (args: SpansParams) => Promise<SpansListType>
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
-  getTraceId: (params: any) => Promise<any>
+  getTraceId: (params: SpansParams) => Promise<any>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>

@@ -54,7 +54,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     })
 
     const provider = new ExperimentSnapshotWorkerProxy(worker)
-    modelsStore.setExperimentSnapshotProvider(provider as any)
+    modelsStore.setExperimentSnapshotProvider(provider)
   }
 
   async function loadArchiveBuffer(model: MlModel) {

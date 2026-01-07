@@ -192,7 +192,7 @@ const createMockProvider = (
     buildSpanTree: async () => {
       return []
     },
-    getTraceId: async (params: any) => {
+    getTraceId: async (params: SpansParams) => {
       return `trace-${params.evalId}`
     },
   }
