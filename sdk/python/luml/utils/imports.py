@@ -67,7 +67,11 @@ def get_object_path(obj: object) -> tuple[str, str]:  # noqa: C901
 
 
 def extract_top_level_modules(modules: list[str]) -> list[str]:
-    top_level = [m.split("/")[0] for m in modules]
+    top_level = []
+    for m in modules:
+        normalized = os.path.normpath(m)
+        first_component = normalized.split(os.path.sep, 1)[0]
+        top_level.append(first_component)
     return list(set(top_level))
 
 
