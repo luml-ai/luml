@@ -40,7 +40,7 @@ def set_auth_cookies(response: Response, data: Token) -> None:
         value=data.access_token,
         httponly=True,
         secure=True,
-        samesite="none",
+        samesite=config.AUTH_COOKIE_SAMESITE,
         path="/",
         max_age=auth_handler.access_token_expire,
     )
@@ -51,7 +51,7 @@ def set_auth_cookies(response: Response, data: Token) -> None:
             value=data.refresh_token,
             httponly=True,
             secure=True,
-            samesite="none",
+            samesite=config.AUTH_COOKIE_SAMESITE,
             path="/",
             max_age=auth_handler.refresh_token_expire,
         )
@@ -135,6 +135,7 @@ async def update_user_profile(
 async def logout(request: Request, response: Response) -> dict[str, str]:
     access_token = request.cookies.get("access_token")
     refresh_token = request.cookies.get("refresh_token")
+    samesite = config.AUTH_COOKIE_SAMESITE
 
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Refresh token not found")
@@ -142,10 +143,10 @@ async def logout(request: Request, response: Response) -> dict[str, str]:
     await auth_handler.handle_logout(access_token, refresh_token)
 
     response.delete_cookie(
-        key="access_token", httponly=True, secure=True, samesite="none", path="/"
+        key="access_token", httponly=True, secure=True, samesite=samesite, path="/"
     )
     response.delete_cookie(
-        key="refresh_token", httponly=True, secure=True, samesite="none", path="/"
+        key="refresh_token", httponly=True, secure=True, samesite=samesite, path="/"
     )
 
     return {"detail": "Successfully logged out"}
