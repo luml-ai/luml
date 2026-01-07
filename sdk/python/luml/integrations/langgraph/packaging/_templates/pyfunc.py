@@ -1,6 +1,5 @@
 import importlib
-from types import ModuleType
-from typing import cast
+from typing import Any, cast
 
 from fnnx.variants.pyfunc import PyFunc
 from langgraph.pregel import Pregel
@@ -8,7 +7,7 @@ from langgraph.types import Command
 
 
 # copied from luml.utils.imports; template should not depend on luml sdk
-def dyn_import(spec: str) -> ModuleType:
+def dyn_import(spec: str) -> Any:  # noqa: ANN401
     module_path, obj_name = spec.split("::", 1)
     module = importlib.import_module(module_path)
     return getattr(module, obj_name)

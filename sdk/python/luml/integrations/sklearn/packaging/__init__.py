@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 try:
     import pandas as pd  # type: ignore[import-untyped]
 except ImportError:
-    pd = None
+    pd = None  # type: ignore[assignment]
 
 
 def _resolve_dtype(dtype: np.dtype) -> str:
@@ -121,17 +121,19 @@ def _add_dependencies(
         dependencies = _get_default_deps()
         builder.add_fnnx_runtime_dependency()
 
-    local_depencies = []
+    local_dependencies = []
     if extra_code_modules == "auto":
-        local_depencies.extend(auto_local_dependencies)
+        local_dependencies.extend(auto_local_dependencies)
     elif isinstance(extra_code_modules, list):
-        local_depencies.extend(extra_code_modules)
+        local_dependencies.extend(extra_code_modules)
 
     for dep in dependencies:
         builder.add_runtime_dependency(dep)
     if extra_dependencies:
         for dep in extra_dependencies:
             builder.add_runtime_dependency(dep)
+    for module in local_dependencies:
+        builder.add_module(module)
 
 
 def save_sklearn(  # noqa: C901

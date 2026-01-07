@@ -2,7 +2,7 @@ import gc
 import importlib
 import os
 import sys
-from types import ModuleType
+from typing import Any
 
 
 def get_version(package: str) -> str:
@@ -71,7 +71,7 @@ def extract_top_level_modules(modules: list[str]) -> list[str]:
     return list(set(top_level))
 
 
-def dyn_import(spec: str) -> ModuleType:
+def dyn_import(spec: str) -> Any:  # noqa: ANN401
     if "::" not in spec:
         raise ValueError(
             f"Invalid import spec '{spec}'. Expected format: 'module.path::object_name'"

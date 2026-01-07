@@ -61,7 +61,7 @@ def _add_dependencies(
     extra_code_modules: list[str] | Literal["auto"] | None,
 ) -> None:
     local_dependencies, pip_dependencies = [], []
-    if isinstance(extra_dependencies, str) or extra_code_modules == "auto":
+    if isinstance(dependencies, str) or extra_code_modules == "auto":
         auto_pip_dependencies, auto_local_dependencies = find_dependencies()
 
     if isinstance(dependencies, list):
