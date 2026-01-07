@@ -160,8 +160,6 @@ def save_sklearn(  # noqa: C901
         raise TypeError(
             f"Expected estimator to be sklearn.BaseEstimator, got {type(estimator)}"
         )
-    if not hasattr(estimator, "predict"):
-        raise RuntimeError("Estimator should implement a predict method")
 
     if isinstance(dependencies, list):
         warn(
