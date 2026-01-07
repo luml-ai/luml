@@ -4,6 +4,7 @@ export enum DeploymentStatusEnum {
   failed = 'failed',
   deleted = 'deleted',
   deletion_pending = 'deletion_pending',
+  not_responding = 'not_responding',
 }
 
 export interface CreateDeploymentPayload {
