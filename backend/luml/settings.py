@@ -1,5 +1,6 @@
 import os
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -7,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     AUTH_SECRET_KEY: str
     BUCKET_SECRET_KEY: str
+    AUTH_COOKIE_SAMESITE: Literal["lax", "strict", "none"] = "lax"
 
     POSTGRESQL_DSN: str
 
