@@ -3,8 +3,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
-from httpx import HTTPError
-from luml.api._exceptions import FileError, FileUploadError, ConflictError
+from luml.api._exceptions import FileError, FileUploadError
 from luml.api._types import (
     CreatedModel,
     ModelArtifact,
@@ -720,8 +719,6 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 "tags": tags,
             },
         )
-        if response.status_code == 409:
-            raise ConflictError("You reached models limit per collection.")
         return CreatedModel.model_validate(response)
 
     @validate_collection
@@ -1276,8 +1273,6 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 "tags": tags,
             },
         )
-        if response.status_code == 409:
-            raise ConflictError("You reached models limit per collection.")
         return CreatedModel.model_validate(response)
 
     @validate_collection

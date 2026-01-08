@@ -117,7 +117,14 @@ class ModelServerHandler:
                         dep_id,
                         DeploymentUpdate(
                             status=DeploymentStatus.NOT_RESPONDING,
-                            error_message={"reason": error_message, "error": error_message},
+                            error_message={
+                                "reason": error_message,
+                                "error": (
+                                    f"Health check failed for deployment '{dep_id}'. "
+                                    "Please inspect the model server or container logs "
+                                    "for this deployment."
+                                ),
+                            },
                         ),
                     )
 

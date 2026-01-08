@@ -24,12 +24,11 @@ try:
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 8080
     model_data = json.loads(sys.argv[3]) if len(sys.argv) > 3 else {}
 
-    import numpy as np
+    try:
+        import numpy as np
+    except ImportError:
+        np = None  # type: ignore[assignment]
 
-    # try:
-    #     import numpy as np
-    # except ImportError:
-    #     np = None  # type: ignore[assignment]
     from fnnx.device import DeviceMap
     from fnnx.handlers.local import LocalHandlerConfig
     from fnnx.runtime import Runtime
