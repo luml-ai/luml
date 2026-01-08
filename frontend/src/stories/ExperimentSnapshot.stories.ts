@@ -7,7 +7,6 @@ import type {
   ModelsInfo,
   EvalsInfo,
   SpansParams,
-  TraceSpan,
 } from '@/modules/experiment-snapshot/interfaces/interfaces'
 import { Toast } from 'primevue'
 import StorybookPageWrapper from './StorybookPageWrapper.vue'
@@ -57,16 +56,19 @@ const createMockProvider = (
           0.8467280864500022,
         ],
         modelId: 'model-1',
+        aggregated: false,
       },
       metric_2: {
         x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         y: [0.62, 0.69, 0.75, 0.79, 0.82, 0.84, 0.86, 0.88, 0.89, 0.9],
         modelId: 'model-1',
+        aggregated: false,
       },
       metric_3: {
         x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         y: [150, 145, 140, 135, 130, 128, 125, 123, 120, 118],
         modelId: 'model-1',
+        aggregated: false,
       },
     },
     evalsList = {
@@ -165,15 +167,19 @@ const createMockProvider = (
   } = options
 
   return {
+    init: async () => {
+      return
+    },
     getStaticParamsList: async () => {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
       if (shouldError) throw new Error('Failed to load static params')
       return staticParams
     },
-    getDynamicMetricsList: async () => {
-      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-      if (shouldError) throw new Error('Failed to load dynamic metrics')
-      return [dynamicMetrics]
+    getDynamicMetricsNames: async () => {
+      return Object.keys(dynamicMetrics)
+    },
+    getDynamicMetricData: async (metricName: string) => {
+      return [dynamicMetrics[metricName]]
     },
     getEvalsList: async () => {
       if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
@@ -183,10 +189,10 @@ const createMockProvider = (
     getSpansList: async (params: SpansParams) => {
       return []
     },
-    buildSpanTree: () => {
+    buildSpanTree: async () => {
       return []
     },
-    getTraceId: (params: any) => {
+    getTraceId: async (params: SpansParams) => {
       return `trace-${params.evalId}`
     },
   }
@@ -392,16 +398,19 @@ export const MultipleModels: Story = {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
           y: [0.85, 0.87, 0.89, 0.91, 0.93, 0.94, 0.95, 0.95, 0.96, 0.96],
           modelId: 'model-1',
+          aggregated: false,
         },
         metric_1: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
           y: [0.82, 0.84, 0.86, 0.88, 0.9, 0.91, 0.92, 0.92, 0.93, 0.93],
           modelId: 'model-2',
+          aggregated: false,
         },
         metric_4: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
           y: [180, 175, 170, 165, 160, 158, 155, 153, 150, 148],
           modelId: 'model-3',
+          aggregated: false,
         },
       },
     }),
@@ -444,6 +453,7 @@ export const ManyMetrics: Story = {
             0.75, 0.78, 0.81, 0.83, 0.85, 0.87, 0.88, 0.89, 0.9, 0.91, 0.92, 0.92, 0.93, 0.93, 0.94,
           ],
           modelId: 'model-1',
+          aggregated: false,
         },
         metric_1: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -451,6 +461,7 @@ export const ManyMetrics: Story = {
             0.72, 0.75, 0.78, 0.8, 0.82, 0.84, 0.85, 0.86, 0.87, 0.88, 0.89, 0.89, 0.9, 0.9, 0.91,
           ],
           modelId: 'model-1',
+          aggregated: false,
         },
 
         metric_3: {
@@ -459,6 +470,7 @@ export const ManyMetrics: Story = {
             0.7, 0.73, 0.76, 0.79, 0.81, 0.83, 0.85, 0.86, 0.87, 0.88, 0.89, 0.9, 0.9, 0.91, 0.91,
           ],
           modelId: 'model-1',
+          aggregated: false,
         },
         metric_6: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -466,11 +478,13 @@ export const ManyMetrics: Story = {
             0.7, 0.73, 0.76, 0.79, 0.81, 0.83, 0.85, 0.86, 0.87, 0.88, 0.89, 0.9, 0.9, 0.91, 0.91,
           ],
           modelId: 'model-1',
+          aggregated: false,
         },
         metric_4: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
           y: [150, 145, 140, 135, 130, 128, 125, 123, 120, 118, 117, 116, 115, 115, 114],
           modelId: 'model-1',
+          aggregated: false,
         },
         metric_5: {
           x: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
@@ -479,6 +493,7 @@ export const ManyMetrics: Story = {
             0.037, 0.036,
           ],
           modelId: 'model-1',
+          aggregated: false,
         },
       },
     }),

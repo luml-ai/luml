@@ -3,17 +3,22 @@
     :value="data"
     size="small"
     scrollable
-    scrollHeight="180px"
-    :tableStyle="columns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? 'table-layout: fixed;' : ''"
+    :scrollHeight="scrollHeight"
+    :tableStyle="sortedColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? 'table-layout: fixed;' : ''"
   >
-    <Column v-for="column in columns" :field="column" :header="column" :pt="{ bodyCell: 'cell' }">
+    <Column
+      v-for="column in sortedColumns"
+      :field="column.id"
+      :header="column.header"
+      :pt="{ bodyCell: 'cell' }"
+    >
       <template #body="slotProps">
         <div
           class="cell-content"
-          :style="columns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? '' : 'width: 180px;'"
+          :style="sortedColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? '' : 'width: 180px;'"
         >
-          <span v-tooltip.top="getParameterText(slotProps.data[column])">
-            {{ getParameterText(slotProps.data[column]) }}
+          <span v-tooltip.top="getParameterText(slotProps.data[column.id])">
+            {{ getParameterText(slotProps.data[column.id]) }}
           </span>
         </div>
       </template>
@@ -22,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import type { ModelsInfo } from '../../interfaces/interfaces'
 import { DataTable, Column } from 'primevue'
 import { computed } from 'vue'
 
@@ -29,14 +35,21 @@ const MIN_COLUMNS_FOR_FIXED_LAYOUT = 4
 
 type Props = {
   data: Record<string, any>[]
+  scrollHeight: string
+  modelsInfo: ModelsInfo
 }
 
 const props = defineProps<Props>()
 
 const columns = computed(() => {
   if (!props.data[0]) return []
-  return Object.keys(props.data[0]).sort((a, b) => {
-    if (a === 'Parameters') return -1
+  const columns = Object.keys(props.data[0])
+  return columns.map((column) => ({ id: column, header: getColumnHeader(column) }))
+})
+
+const sortedColumns = computed(() => {
+  return [...columns.value].sort((a, b) => {
+    if (a.id === 'Parameters') return -1
     return 1
   })
 })
@@ -46,6 +59,11 @@ const getParameterText = computed(() => (parameter: any) => {
     typeof parameter === 'object' && parameter.length ? parameter.join(', ') : parameter
   return string
 })
+
+function getColumnHeader(column: string) {
+  if (column === 'Parameters') return 'Parameters'
+  return props.modelsInfo[column]?.name || '-'
+}
 </script>
 
 <style scoped>

@@ -35,7 +35,7 @@ export interface MlModel {
   bucket_location: string
   size: number
   unique_identifier: string
-  tags: string[]
+  tags?: string[]
   status: MlModelStatusEnum
   created_at: string
   updated_at: string

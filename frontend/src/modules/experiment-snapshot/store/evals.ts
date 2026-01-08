@@ -21,8 +21,8 @@ export const useEvalsStore = defineStore('evals', () => {
     provider.value = newProvider
   }
 
-  async function setEvals() {
-    evals.value = await getProvider.value.getEvalsList()
+  async function setEvals(signal?: AbortSignal) {
+    evals.value = await getProvider.value.getEvalsList(signal)
   }
 
   function setCurrentEvalData(datasetId: string, evalId: string) {
@@ -59,6 +59,7 @@ export const useEvalsStore = defineStore('evals', () => {
       datasetId: currentDatasetId.value,
       evalId: currentEvalId.value,
     })
+    if (!spansList) return []
     spansCount.value = spansList.length
     let minTime: number | null = null
     let maxTime: number | null = null

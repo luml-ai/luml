@@ -111,12 +111,12 @@ const modelsStore = useModelsStore()
 const initialValues = ref({
   name: props.data.model_name,
   description: props.data.description,
-  tags: [...props.data.tags],
+  tags: [...(props.data.tags || [])],
 })
 const loading = ref(false)
 const existingTags = computed(() => {
   const tagsSet = modelsStore.modelsList.reduce((acc: Set<string>, item) => {
-    item.tags.map((tag) => {
+    item.tags?.map((tag) => {
       acc.add(tag)
     })
     return acc

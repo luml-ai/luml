@@ -1,54 +1,86 @@
 import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import {
-  ExperimentSnapshotDatabaseProvider,
-  type ModelSnapshot,
-} from '@/modules/experiment-snapshot'
+import { ExperimentSnapshotWorkerProxy } from '@/modules/experiment-snapshot/providers/ExperimentSnapshotWorkerProxy'
 import { useModelsStore } from '@/stores/models'
-import JSZip from 'jszip'
-import { ref } from 'vue'
-import { useSqlLite } from './useSqlLite'
+import { onUnmounted } from 'vue'
 
 export const useExperimentSnapshotsDatabaseProvider = () => {
   const modelsStore = useModelsStore()
-  const { getSQL, initSql } = useSqlLite()
 
-  const databasesList = ref<ModelSnapshot[]>([])
+  let abortControllers: Record<string, AbortController> = {}
+
+  const worker = new Worker(new URL('@/workers/experiment-snapshot', import.meta.url), {
+    type: 'module',
+  })
+
+  worker.onerror = (e) => {
+    console.error('❌ Worker error:', e)
+  }
+
+  worker.onmessageerror = (e) => {
+    console.error('❌ Worker message error:', e)
+  }
+
+  function callWorker<T>(message: any): Promise<T> {
+    const requestId = crypto.randomUUID()
+
+    return new Promise((resolve, reject) => {
+      const handler = (e: MessageEvent) => {
+        if (e.data.requestId !== requestId) return
+        worker.removeEventListener('message', handler)
+        if (e.data.type === 'error') {
+          reject(e.data.error)
+        } else {
+          resolve(e.data.data)
+        }
+      }
+      worker.addEventListener('message', handler)
+      worker.postMessage({ ...message, requestId })
+    })
+  }
 
   async function init(models: MlModel[]) {
-    await Promise.all(models.map((model) => addModelDatabase(model)))
-    const provider = new ExperimentSnapshotDatabaseProvider(databasesList.value)
+    const payload = await Promise.all(
+      models.map(async (model) => ({
+        modelId: model.id,
+        buffer: await loadArchiveBuffer(model),
+      })),
+    )
+
+    await callWorker({
+      type: 'init',
+      payload,
+    })
+
+    const provider = new ExperimentSnapshotWorkerProxy(worker)
     modelsStore.setExperimentSnapshotProvider(provider)
   }
 
-  async function addModelDatabase(model: MlModel) {
-    try {
-      const buffer = await loadArchiveBuffer(model)
-      const db = await createDatabase(buffer)
-      databasesList.value.push({ modelId: model.id, database: db })
-    } catch (e) {
-      console.error(e)
-    }
-  }
-
   async function loadArchiveBuffer(model: MlModel) {
+    abortControllers[model.id]?.abort()
+    abortControllers[model.id] = new AbortController()
+    const { signal } = abortControllers[model.id]
+
     const archiveName = FnnxService.findExperimentSnapshotArchiveName(model.file_index)
     if (!archiveName)
       throw new Error(`Experiment snapshot data for model '${model.model_name}' was not found`)
     const url = await modelsStore.getDownloadUrl(model.id)
     const modelDownloader = new ModelDownloader(url)
-    return modelDownloader.getFileFromBucket<ArrayBuffer>(model.file_index, archiveName, true)
+    return modelDownloader.getFileFromBucket<ArrayBuffer>(
+      model.file_index,
+      archiveName,
+      true,
+      0,
+      signal,
+    )
   }
 
-  async function createDatabase(buffer: ArrayBuffer) {
-    const zip = await JSZip.loadAsync(buffer)
-    const dbFile = zip.file('exp.db')
-    if (!dbFile) throw new Error('Database file not found')
-    const content = await dbFile.async('uint8array')
-    await initSql()
-    return new getSQL.value.Database(content)
-  }
+  onUnmounted(() => {
+    Object.values(abortControllers).forEach((controller) => {
+      controller.abort()
+    })
+  })
 
   return {
     init,

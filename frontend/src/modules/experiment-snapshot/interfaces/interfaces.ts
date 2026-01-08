@@ -1,13 +1,20 @@
 import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {
-  getStaticParamsList: () => Promise<ExperimentSnapshotStaticParams[]>
-  getDynamicMetricsList: () => Promise<ExperimentSnapshotDynamicMetrics[]>
-  getEvalsList: () => Promise<Record<string, EvalsInfo[]> | null>
-  getSpansList: (args: SpansParams) => Promise<Omit<TraceSpan, 'children'>[]>
-  buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => TraceSpan[]
-  getTraceId: (params: any) => any
+  init: (data: any[]) => Promise<void>
+  getDynamicMetricsNames: (signal?: AbortSignal) => Promise<string[]>
+  getDynamicMetricData: (
+    metricName: string,
+    signal?: AbortSignal,
+  ) => Promise<ExperimentSnapshotDynamicMetric[]>
+  getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
+  getEvalsList: (signal?: AbortSignal) => Promise<EvalsListType>
+  getSpansList: (args: SpansParams) => Promise<SpansListType>
+  buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
+  getTraceId: (params: SpansParams) => Promise<any>
 }
+
+export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
 
 export interface ExperimentSnapshotStaticParams {
   eval_dataset: string
@@ -24,6 +31,7 @@ export interface ExperimentSnapshotDynamicMetric {
   x: number[]
   y: number[]
   modelId: string
+  aggregated: boolean
 }
 
 export interface EvalsDatasets extends Record<string, EvalsInfo[]> {}
@@ -92,3 +100,7 @@ export enum SpanTypeEnum {
   EMBEDDER = 4,
   RERANKER = 5,
 }
+
+export type EvalsListType = Record<string, EvalsInfo[]> | null
+
+export type SpansListType = Omit<TraceSpan, 'children'>[] | null
