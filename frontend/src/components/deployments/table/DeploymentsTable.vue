@@ -45,17 +45,18 @@
           <div class="cell">
             <Tag v-if="data.status === DeploymentStatusEnum.active" severity="success">Active</Tag>
             <Tag v-if="data.status === DeploymentStatusEnum.pending" severity="warn"> Pending </Tag>
-            <div
-              v-if="
-                data.status === DeploymentStatusEnum.failed ||
-                data.status === DeploymentStatusEnum.not_responding
-              "
-              class="tag-with-icon"
-            >
-              <Tag severity="danger">{{
-                data.status === DeploymentStatusEnum.failed ? 'Failed' : 'Not Responding'
-              }}</Tag>
-
+            <div v-if="data.status === DeploymentStatusEnum.failed" class="tag-with-icon">
+              <Tag severity="danger">Failed</Tag>
+              <TriangleAlert
+                v-if="data.error_message"
+                v-tooltip.top="'Show error'"
+                :size="14"
+                color="var(--p-tag-danger-color)"
+                @click="error = data.error_message"
+              />
+            </div>
+            <div v-if="data.status === DeploymentStatusEnum.not_responding" class="tag-with-icon">
+              <Tag severity="danger">Not Responding</Tag>
               <TriangleAlert
                 v-if="data.error_message"
                 v-tooltip.top="'Show error'"
