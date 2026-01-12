@@ -1,7 +1,7 @@
 from typing import Any
 
-from .clients import PlatformClient
-from .settings import config
+from agent.clients import PlatformClient
+from agent.settings import config
 
 
 class SatelliteManager:
