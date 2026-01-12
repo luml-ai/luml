@@ -131,6 +131,90 @@ async def test_get_orbit(create_orbit: OrbitFixtureData) -> None:
 
 
 @pytest.mark.asyncio
+async def test_get_orbit_with_collections_tags(create_orbit: OrbitFixtureData) -> None:
+    import random
+
+    from luml.repositories.collections import CollectionRepository
+    from luml.schemas.model_artifacts import CollectionCreate, CollectionType
+
+    data = create_orbit
+    orbit_repo = OrbitRepository(data.engine)
+    collection_repo = CollectionRepository(data.engine)
+    orbit = data.orbit
+
+    all_tags = ["tag1", "tag2", "tag3", "tag4"]
+
+    for i in range(4):
+        collection = CollectionCreate(
+            orbit_id=orbit.id,
+            description=f"Collection {i}",
+            name=f"collection-{i}",
+            collection_type=CollectionType.MODEL
+            if i % 2 == 0
+            else CollectionType.DATASET,
+            tags=all_tags
+            if i == 0
+            else random.sample(all_tags, k=random.randint(0, 3)),
+        )
+        await collection_repo.create_collection(collection)
+
+    fetched_orbit = await orbit_repo.get_orbit(orbit.id, orbit.organization_id)
+
+    assert fetched_orbit
+    assert isinstance(fetched_orbit, OrbitDetails)
+    assert fetched_orbit.id == orbit.id
+
+    assert fetched_orbit.collections_tags is not None
+    assert sorted(fetched_orbit.collections_tags) == sorted(all_tags)
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_without_collections(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    repo = OrbitRepository(data.engine)
+    orbit = data.orbit
+
+    fetched_orbit = await repo.get_orbit(orbit.id, orbit.organization_id)
+
+    assert fetched_orbit
+    assert isinstance(fetched_orbit, OrbitDetails)
+    assert fetched_orbit.id == orbit.id
+
+    assert fetched_orbit.collections_tags == []
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_with_collections_without_tags(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    from luml.repositories.collections import CollectionRepository
+    from luml.schemas.model_artifacts import CollectionCreate, CollectionType
+
+    data = create_orbit
+    orbit_repo = OrbitRepository(data.engine)
+    collection_repo = CollectionRepository(data.engine)
+    orbit = data.orbit
+
+    for i in range(3):
+        collection = CollectionCreate(
+            orbit_id=orbit.id,
+            description=f"Collection {i}",
+            name=f"collection-{i}",
+            collection_type=CollectionType.MODEL,
+            tags=None,
+        )
+        await collection_repo.create_collection(collection)
+
+    fetched_orbit = await orbit_repo.get_orbit(orbit.id, orbit.organization_id)
+
+    assert fetched_orbit
+    assert isinstance(fetched_orbit, OrbitDetails)
+    assert fetched_orbit.id == orbit.id
+
+    assert fetched_orbit.collections_tags == []
+
+
+@pytest.mark.asyncio
 async def test_get_organization_orbits(
     create_organization_with_user: OrganizationFixtureData,
 ) -> None:

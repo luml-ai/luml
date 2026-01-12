@@ -78,7 +78,7 @@ async def get_collection_details(
     organization_id: UUID,
     orbit_id: UUID,
     collection_id: UUID,
-) -> CollectionDetails | None:
+) -> CollectionDetails:
     return await collection_handler.get_collection_details(
         request.user.id,
         organization_id,

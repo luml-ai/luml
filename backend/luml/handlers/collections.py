@@ -99,7 +99,7 @@ class CollectionHandler(PaginationMixin):
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-    ) -> CollectionDetails | None:
+    ) -> CollectionDetails:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -107,7 +107,13 @@ class CollectionHandler(PaginationMixin):
             Action.READ,
             orbit_id,
         )
-        return await self.__repository.get_collection_details(collection_id)
+
+        collection = await self.__repository.get_collection_details(collection_id)
+
+        if not collection or collection.orbit_id != orbit_id:
+            raise NotFoundError("Collection not found")
+
+        return collection
 
     async def update_collection(
         self,
