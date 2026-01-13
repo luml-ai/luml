@@ -27,7 +27,7 @@
             <div v-for="invitation in invites" class="table-row">
               <div class="cell">{{ invitation.email }}</div>
               <div class="cell">{{ invitation.role }}</div>
-              <div class="cell">{{ invitation.invited_by_user?.full_name ?? 'Unknown'}}</div>
+              <div class="cell">{{ invitation.invited_by_user?.full_name ?? 'Unknown' }}</div>
               <div class="cell">{{ new Date(invitation.created_at).toLocaleDateString() }}</div>
               <div class="buttons">
                 <Button
