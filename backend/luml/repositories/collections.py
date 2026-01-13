@@ -10,6 +10,7 @@ from luml.schemas.model_artifacts import (
     CollectionCreate,
     CollectionDetails,
     CollectionSortBy,
+    CollectionType,
     CollectionUpdate,
 )
 
@@ -65,7 +66,19 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                     tags_query_result.all()
                 )
 
-                return db_collection.to_collection_details(metrics, tags)
+                return CollectionDetails(
+                    id=db_collection.id,
+                    orbit_id=db_collection.orbit_id,
+                    description=db_collection.description,
+                    name=db_collection.name,
+                    collection_type=CollectionType(db_collection.collection_type),
+                    tags=db_collection.tags,
+                    total_models=db_collection.total_models,
+                    created_at=db_collection.created_at,
+                    updated_at=db_collection.updated_at,
+                    models_tags=tags,
+                    models_metrics=metrics,
+                )
             return None
 
     async def get_orbit_collections(
