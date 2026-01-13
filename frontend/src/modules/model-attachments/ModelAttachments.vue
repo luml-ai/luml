@@ -68,13 +68,23 @@ function handleSelect(node: FileNode) {
 
 async function handleCopyPath() {
   if (!selectedFile.value?.path) return
-  await navigator.clipboard.writeText(selectedFile.value.path)
-  toast.add({
-    severity: 'success',
-    summary: 'Success',
-    detail: 'Path copied to clipboard',
-    life: 3000,
-  })
+  try {
+    await navigator.clipboard.writeText(selectedFile.value.path)
+    toast.add({
+      severity: 'success',
+      summary: 'Success',
+      detail: 'Path copied to clipboard',
+      life: 3000,
+    })
+  } catch (error) {
+    console.error('Failed to copy to clipboard:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Failed to copy path to clipboard',
+      life: 3000,
+    })
+  }
 }
 
 function handleDownload() {

@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { ref, watch, onUnmounted } from 'vue'
 import { getFileType } from '../utils/fileTypes'
 import { processFileContent } from '../utils/fileContentProcessors'
 import type { PreviewState, UseFilePreviewOptions } from '../interfaces/interfaces'
@@ -90,6 +90,10 @@ export function useFilePreview(options: UseFilePreviewOptions) {
   }
 
   watch(file, loadContent, { immediate: true })
+
+  onUnmounted(() => {
+    cleanup()
+  })
 
   return {
     error,

@@ -25,7 +25,7 @@ export function useTablePreview(options: UseTablePreviewOptions) {
       return { headers: [], rows: [], columnsCount: 0, rowsCount: 0 }
     }
 
-    const parseRow = (line: string): string[] => {
+    const parseRow = (line: string, lineNumber: number): string[] => {
       const result: string[] = []
       let current = ''
       let inQuotes = false
@@ -47,20 +47,34 @@ export function useTablePreview(options: UseTablePreviewOptions) {
           current += char
         }
       }
+      if (inQuotes) {
+        throw new Error(`Malformed CSV: unclosed quote on line ${lineNumber}`)
+      }
 
       result.push(current.trim())
 
       return result
     }
 
-    const headers = parseRow(lines[0])
-    const rows = lines.slice(1).map(parseRow)
+    try {
+      const headers = parseRow(lines[0], 1)
+      const rows: string[][] = []
 
-    return {
-      headers,
-      rows,
-      columnsCount: headers.length,
-      rowsCount: rows.length,
+      for (let i = 1; i < lines.length; i++) {
+        if (lines[i].trim()) {
+          rows.push(parseRow(lines[i], i + 1))
+        }
+      }
+
+      return {
+        headers,
+        rows,
+        columnsCount: headers.length,
+        rowsCount: rows.length,
+      }
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Failed to parse CSV content'
+      return { headers: [], rows: [], columnsCount: 0, rowsCount: 0 }
     }
   }
 
