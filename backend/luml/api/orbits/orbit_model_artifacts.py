@@ -95,6 +95,23 @@ async def get_model_artifacts(
 
 
 @model_artifacts_router.get(
+    "/{model_artifact_id}",
+    responses=endpoint_responses,
+    response_model=ModelArtifact,
+)
+async def get_model_artifact_details(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    collection_id: UUID,
+    model_artifact_id: UUID,
+) -> ModelArtifact:
+    return await model_artifacts_handler.get_model_artifact(
+        request.user.id, organization_id, orbit_id, collection_id, model_artifact_id
+    )
+
+
+@model_artifacts_router.get(
     "/{model_artifact_id}/download-url", responses=endpoint_responses
 )
 async def get_model_artifact_download_url(

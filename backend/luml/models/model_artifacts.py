@@ -1,7 +1,7 @@
 import uuid
 from typing import Any
 
-from sqlalchemy import UUID, BigInteger, ForeignKey, String
+from sqlalchemy import UUID, BigInteger, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,6 +15,18 @@ from luml.schemas.model_artifacts import (
 
 class ModelArtifactOrm(TimestampMixin, Base):
     __tablename__ = "model_artifacts"
+    __table_args__ = (
+        Index(
+            "ix_model_artifacts_metrics_gin",
+            "metrics",
+            postgresql_using="gin",
+        ),
+        Index(
+            "ix_model_artifacts_tags_gin",
+            "tags",
+            postgresql_using="gin",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7

@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError
-from luml.models import OrbitMembersOrm, OrbitOrm
+from luml.models import CollectionOrm, OrbitMembersOrm, OrbitOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.orbit import (
     Orbit,
@@ -82,7 +82,19 @@ class OrbitRepository(RepositoryBase, CrudMixin):
                 )
             )
 
-            return db_orbit.to_orbit_details()
+            tags_query = select(CollectionOrm.tags).where(
+                CollectionOrm.orbit_id == orbit_id,
+                CollectionOrm.tags.is_not(None),
+            )
+            tags_query_result = await session.execute(tags_query)
+            collections_tags = self.collect_unique_values_from_array_column(
+                tags_query_result.all()
+            )
+
+            orbit_details = db_orbit.to_orbit_details()
+            orbit_details.collections_tags = collections_tags
+
+            return orbit_details
 
     async def get_orbit_simple(
         self, orbit_id: UUID, organization_id: UUID

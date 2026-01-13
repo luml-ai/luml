@@ -43,6 +43,11 @@ class Collection(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
 
 
+class CollectionDetails(Collection):
+    models_tags: list[str] = []
+    models_metrics: list[str] = []
+
+
 class CollectionUpdate(BaseModel):
     id: UUID | None = None
     description: str | None = None

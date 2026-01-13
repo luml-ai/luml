@@ -333,34 +333,18 @@ async def test_create_model_artifact(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
     "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
-@patch(
-    "luml.handlers.model_artifacts.ModelArtifactHandler._get_secret_or_raise",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
-    new_callable=AsyncMock,
-)
 @pytest.mark.asyncio
 async def test_get_model_artifact(
-    mock_get_storage_client: AsyncMock,
-    mock_get_secret_or_raise: AsyncMock,
     mock_get_model_artifact: AsyncMock,
-    mock_get_collection: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
     mock_check_permissions: AsyncMock,
-    test_bucket: S3BucketSecret,
     manifest_example: Manifest,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -386,34 +370,24 @@ async def test_get_model_artifact(
         updated_at=None,
     )
 
-    mock_secret = test_bucket
-
     mock_get_model_artifact.return_value = model_artifact
-    mock_get_orbit_simple.return_value = Mock(bucket_secret_id=1)
-    mock_get_orbit_simple.return_value = Mock(
-        bucket_secret_id=1, organization_id=organization_id
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id, organization_id=organization_id),
+        Mock(id=collection_id, orbit_id=orbit_id),
     )
-    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
-    mock_get_secret_or_raise.return_value = mock_secret
-    mock_storage_client = AsyncMock()
-    mock_storage_client.get_download_url.return_value = "url"
-    mock_get_storage_client.return_value = mock_storage_client
 
-    result_model_artifact, url = await handler.get_model_artifact(
+    result_model_artifact = await handler.get_model_artifact(
         user_id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
     assert result_model_artifact == model_artifact
-    assert url == "url"
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.MODEL, Action.READ, orbit_id
     )
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_storage_client.assert_awaited_once()
-    mock_storage_client.get_download_url.assert_awaited_once_with(
-        model_artifact.bucket_location
+    mock_check_orbit_and_collection_access.assert_awaited_once_with(
+        organization_id, orbit_id, collection_id
     )
+    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
 
 
 @patch(
@@ -421,29 +395,21 @@ async def test_get_model_artifact(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.model_artifacts.CollectionRepository.get_collection",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.model_artifacts.OrbitRepository.get_orbit_simple",
+    "luml.handlers.model_artifacts.ModelArtifactHandler._check_orbit_and_collection_access",
     new_callable=AsyncMock,
 )
 @patch(
     "luml.handlers.model_artifacts.ModelArtifactRepository.get_model_artifact",
     new_callable=AsyncMock,
 )
-@patch(
-    "luml.handlers.model_artifacts.ModelArtifactHandler._get_storage_client",
-    new_callable=AsyncMock,
-)
 @pytest.mark.asyncio
 async def test_get_model_artifact_not_found(
-    mock_get_storage_client: AsyncMock,
     mock_get_model_artifact: AsyncMock,
-    mock_get_orbit_simple: AsyncMock,
-    mock_get_collection: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
     mock_check_permissions: AsyncMock,
 ) -> None:
+    from luml.infra.exceptions import NotFoundError
+
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
@@ -451,12 +417,12 @@ async def test_get_model_artifact_not_found(
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     mock_get_model_artifact.return_value = None
-    mock_get_orbit_simple.return_value = Mock(
-        bucket_secret_id=1, organization_id=organization_id
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(id=orbit_id, organization_id=organization_id),
+        Mock(id=collection_id, orbit_id=orbit_id),
     )
-    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
 
-    with pytest.raises(ModelArtifactNotFoundError) as error:
+    with pytest.raises(NotFoundError) as error:
         await handler.get_model_artifact(
             user_id, organization_id, orbit_id, collection_id, model_artifact_id
         )
@@ -465,9 +431,10 @@ async def test_get_model_artifact_not_found(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.MODEL, Action.READ, orbit_id
     )
+    mock_check_orbit_and_collection_access.assert_awaited_once_with(
+        organization_id, orbit_id, collection_id
+    )
     mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
-    mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_storage_client.assert_not_awaited()
 
 
 @patch(

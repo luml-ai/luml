@@ -403,7 +403,7 @@ class ModelArtifactHandler(PaginationMixin):
         orbit_id: UUID,
         collection_id: UUID,
         model_artifact_id: UUID,
-    ) -> tuple[ModelArtifact, str]:
+    ) -> ModelArtifact:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -415,12 +415,9 @@ class ModelArtifactHandler(PaginationMixin):
             organization_id, orbit_id, collection_id
         )
         model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
-
-        storage_service = await self._get_storage_client(orbit.bucket_secret_id)
-        url = await storage_service.get_download_url(model_artifact.bucket_location)
-        return model_artifact, url
+        if not model_artifact or model_artifact.collection_id != collection_id:
+            raise NotFoundError("Model Artifact model not found")
+        return model_artifact
 
     async def get_satellite_model_artifact(
         self,

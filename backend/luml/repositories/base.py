@@ -243,3 +243,14 @@ class CrudMixin:
             select(func.count()).select_from(orm_class).where(*where_conditions)
         )
         return result.scalar() or 0
+
+    @staticmethod
+    def collect_unique_values_from_array_column(
+        query_result: Sequence[Any],  # noqa: ANN401
+    ) -> list[str]:
+        unique_values = set()
+        for row in query_result:
+            value_list = row[0]
+            if value_list:
+                unique_values.update(value_list)
+        return sorted(unique_values)

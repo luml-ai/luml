@@ -1,14 +1,16 @@
 from uuid import UUID
 
-from sqlalchemy import String, cast, or_
+from sqlalchemy import String, cast, func, or_, select
 
-from luml.models import CollectionOrm
+from luml.models import CollectionOrm, ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import CursorType, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
+    CollectionDetails,
     CollectionSortBy,
+    CollectionType,
     CollectionUpdate,
 )
 
@@ -31,6 +33,53 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                 collection_id,
             )
             return db_collection.to_collection() if db_collection else None
+
+    async def get_collection_details(
+        self, collection_id: UUID
+    ) -> CollectionDetails | None:
+        async with self._get_session() as session:
+            db_collection = await self.get_model(
+                session,
+                CollectionOrm,
+                collection_id,
+            )
+            if db_collection:
+                metrics_query = select(
+                    func.jsonb_each(ModelArtifactOrm.metrics).scalar_table_valued("key")
+                ).where(
+                    ModelArtifactOrm.collection_id == collection_id,
+                    ModelArtifactOrm.metrics.is_not(None),
+                    ModelArtifactOrm.metrics != {},
+                )
+                metrics_query_result = await session.execute(metrics_query)
+
+                metrics = sorted(
+                    {row[0] for row in metrics_query_result.unique().all()}
+                )
+
+                tags_query = select(ModelArtifactOrm.tags).where(
+                    ModelArtifactOrm.collection_id == collection_id,
+                    ModelArtifactOrm.tags.is_not(None),
+                )
+                tags_query_result = await session.execute(tags_query)
+                tags = self.collect_unique_values_from_array_column(
+                    tags_query_result.all()
+                )
+
+                return CollectionDetails(
+                    id=db_collection.id,
+                    orbit_id=db_collection.orbit_id,
+                    description=db_collection.description,
+                    name=db_collection.name,
+                    collection_type=CollectionType(db_collection.collection_type),
+                    tags=db_collection.tags,
+                    total_models=db_collection.total_models,
+                    created_at=db_collection.created_at,
+                    updated_at=db_collection.updated_at,
+                    models_tags=tags,
+                    models_metrics=metrics,
+                )
+            return None
 
     async def get_orbit_collections(
         self,
