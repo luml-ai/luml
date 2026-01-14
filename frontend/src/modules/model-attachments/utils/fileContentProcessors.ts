@@ -1,5 +1,5 @@
 import type { FileType } from './fileTypes'
-import type { FileContentResult } from '../attachments.interfaces'
+import type { FileContentResult } from '../interfaces/interfaces'
 
 type ProcessorResult = Promise<Partial<FileContentResult>>
 
@@ -33,23 +33,19 @@ export async function processPdfContent(blob: Blob): ProcessorResult {
 
 export async function processTextContent(blob: Blob, fileName: string): ProcessorResult {
   let textContent = await blob.text()
-
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'json') {
     try {
       textContent = JSON.stringify(JSON.parse(textContent), null, 2)
     } catch {}
   }
-
   return { text: textContent }
 }
 
 export async function processHtmlContent(blob: Blob): ProcessorResult {
   let htmlText = await blob.text()
-
   htmlText = htmlText.replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, '')
   htmlText = await convertImagesToBlob(htmlText)
-
   const htmlBlob = new Blob([htmlText], { type: 'text/html' })
   return {
     contentUrl: URL.createObjectURL(htmlBlob),
@@ -93,10 +89,8 @@ async function convertImagesToBlob(htmlText: string): Promise<string> {
     try {
       const response = await fetch(src)
       if (!response.ok) continue
-
       const blob = await response.blob()
       const objectUrl = URL.createObjectURL(blob)
-
       img.setAttribute('src', objectUrl)
     } catch (e) {
       console.warn('Failed to convert image', src, e)

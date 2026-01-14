@@ -173,6 +173,22 @@ class FnnxServiceClass {
     return Object.keys(fileIndex).find((file) => regex.test(file))
   }
 
+  hasAttachments(fileIndex: FileIndex) {
+    return !!this.findAttachmentsTarPath(fileIndex)
+  }
+
+  findAttachmentsTarPath(fileIndex: FileIndex) {
+    const regex =
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.tar$/
+    return Object.keys(fileIndex).find((path) => regex.test(path))
+  }
+
+  findAttachmentsIndexPath(fileIndex: FileIndex) {
+    const regex =
+      /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.index\.json$/
+    return Object.keys(fileIndex).find((path) => regex.test(path))
+  }
+
   getDynamicAttributes(manifest: Manifest) {
     const secrets: Var[] = []
     const notSecrets: Var[] = []

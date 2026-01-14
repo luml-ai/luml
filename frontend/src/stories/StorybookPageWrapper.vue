@@ -61,7 +61,7 @@ const tabPT: TabPassThroughOptions = {}
 
 const items = computed(() => [
   {
-    label: 'Model overview',
+    label: 'Overview',
     routeName: 'model',
     icon: LayoutDashboard,
     disabled: true,

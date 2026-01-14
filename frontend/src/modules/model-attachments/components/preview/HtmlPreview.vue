@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import type { HtmlPreviewProps } from '../attachments.interfaces'
+import type { HtmlPreviewProps } from '../../interfaces/interfaces'
 
 const props = defineProps<HtmlPreviewProps>()
 </script>

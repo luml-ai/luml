@@ -6,7 +6,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MediaPreviewProps } from '../attachments.interfaces'
+import type { MediaPreviewProps } from '../../interfaces/interfaces'
 const props = defineProps<MediaPreviewProps>()
 </script>
 

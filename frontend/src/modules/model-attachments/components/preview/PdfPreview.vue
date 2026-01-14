@@ -5,7 +5,7 @@
 </template>
 
 <script setup lang="ts">
-import type { PdfPreviewProps } from '../attachments.interfaces'
+import type { PdfPreviewProps } from '../../interfaces/interfaces'
 
 const props = defineProps<PdfPreviewProps>()
 </script>

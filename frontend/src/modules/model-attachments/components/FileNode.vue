@@ -35,9 +35,24 @@ import {
   FileCode,
   ChevronDown,
 } from 'lucide-vue-next'
-import { getFileType } from './utils/fileTypes'
-import type { FileNodeProps, FileNodeEmits } from './attachments.interfaces'
-import type { FileNode as FileNodeType } from '@/components/orbits/tabs/registry/collection/model/modell-attachments/attachments.interfaces'
+import { getFileType, type FileType } from '../utils/fileTypes'
+import type {
+  FileNode as FileNodeType,
+  FileNodeProps,
+  FileNodeEmits,
+} from '../interfaces/interfaces'
+
+const FILE_TYPE_ICONS: Record<FileType, Component> = {
+  image: FileImage,
+  svg: FileImage,
+  audio: FileMusic,
+  video: FileVideo,
+  pdf: FileText,
+  text: FileText,
+  table: FileText,
+  code: FileCode,
+  html: FileCode,
+}
 
 const props = defineProps<FileNodeProps>()
 const emit = defineEmits<FileNodeEmits>()
@@ -54,26 +69,7 @@ const fileIcon = computed((): Component => {
   }
 
   const fileType = getFileType(props.node.name)
-
-  switch (fileType) {
-    case 'image':
-    case 'svg':
-      return FileImage
-    case 'audio':
-      return FileMusic
-    case 'video':
-      return FileVideo
-    case 'pdf':
-      return FileText
-    case 'text':
-    case 'table':
-      return FileText
-    case 'code':
-    case 'html':
-      return FileCode
-    default:
-      return File
-  }
+  return fileType ? FILE_TYPE_ICONS[fileType] : File
 })
 
 function handleClick(): void {
