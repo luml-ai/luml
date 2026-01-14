@@ -113,6 +113,7 @@ async def get_current_user_info(
 @auth_router.delete("/users/me", response_model=DetailResponse)
 async def delete_account(
     request: Request,
+    _: Annotated[None, Depends(is_user_authenticated)],
 ) -> dict[str, str]:
     await auth_handler.handle_delete_account(request.user.email)
     return {"detail": "Account deleted successfully"}
