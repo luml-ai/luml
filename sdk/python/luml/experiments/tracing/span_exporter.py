@@ -54,7 +54,6 @@ class LumlSpanExporter(SpanExporter):
         links = self._convert_links(span.links)
 
         trace_flags = span.context.trace_flags  # type: ignore
-        print(f"Exporting span: {span.name} (trace_id={trace_id}, span_id={span_id})")  # noqa: T201
 
         self.log_fn(
             trace_id=trace_id,
