@@ -1,17 +1,17 @@
 from typing import Any
 
-from .clients import PlatformClient
-from .settings import config
+from agent.clients import PlatformClient
+from agent.settings import config
 
 
 class SatelliteManager:
     def __init__(self, platform: PlatformClient) -> None:
         self.platform = platform
+        self.slug = "docker-2026.01-v1-debian12"
 
     async def pair(self) -> None:
-        slug = None
         await self.platform.pair_satellite(
-            config.BASE_URL.rstrip("/"), self.get_capabilities(), slug
+            config.BASE_URL.rstrip("/"), self.get_capabilities(), self.slug
         )
 
     @staticmethod

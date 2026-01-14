@@ -6,6 +6,7 @@ import httpx
 from cashews import cache
 
 from agent.schemas import Deployment, DeploymentUpdate, SatelliteTaskStatus
+from agent.schemas.deployments import ErrorMessage
 
 logger = logging.getLogger("satellite")
 
@@ -52,12 +53,14 @@ class PlatformClient:
         self,
         task_id: str,
         status: SatelliteTaskStatus,
-        result: dict[str, Any] | None = None,
+        result: ErrorMessage | dict[str, str] | None = None,
     ) -> dict[str, Any]:
         assert self._session is not None
         body: dict[str, Any] = {"status": status.value}
         if result is not None:
-            body["result"] = result
+            body["result"] = (
+                result if isinstance(result, dict) else result.model_dump(exclude_unset=True)
+            )
         r = await self._session.post(self._url(f"/satellites/v1/tasks/{task_id}/status"), json=body)
         r.raise_for_status()
         return r.json()

@@ -1040,7 +1040,6 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase):
                 "tags": tags,
             },
         )
-
         return CreatedModel.model_validate(response)
 
     @validate_collection

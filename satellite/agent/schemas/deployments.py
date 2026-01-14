@@ -13,11 +13,16 @@ class DeploymentStatus(StrEnum):
     NOT_RESPONDING = "not_responding"
 
 
+class ErrorMessage(BaseModel):
+    reason: str
+    error: str
+
+
 class DeploymentUpdate(BaseModel):
     status: DeploymentStatus | None = None
     inference_url: str | None = None
     schemas: dict[str, Any] | None = None
-    error_message: dict[str, str] | None = None
+    error_message: ErrorMessage | None = None
 
 
 class Deployment(BaseModel):

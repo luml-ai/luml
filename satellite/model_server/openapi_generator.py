@@ -1,3 +1,4 @@
+import copy
 from typing import Any
 
 
@@ -114,6 +115,8 @@ class OpenAPIGenerator:
                 return {"type": "array", "items": base_schema}
 
         elif content_type == "JSON":
+            if dtype in self.dtypes_schemas:
+                return {"$ref": f"#/components/schemas/{dtype}"}
             return {"type": "object"}
 
         return {}
@@ -149,13 +152,11 @@ class OpenAPIGenerator:
 
         for attr in manifest.get("dynamic_attributes", []):
             name = attr["name"]
-            desc = attr.get("description", f"Dynamic attribute '{name}'")
-            # Создаем title из name (преобразуем snake_case в Title Case)
             title = " ".join(word.capitalize() for word in name.split("_"))
             properties[name] = {
                 "anyOf": [{"type": "string"}, {"type": "null"}],
                 "default": f"<<<{name}>>>",
-                "description": desc,
+                "description": attr.get("description", f"Dynamic attribute '{name}'"),
                 "title": title,
             }
 
@@ -213,12 +214,14 @@ class OpenAPIGenerator:
 
     def _inject_dtype_schemas(self) -> None:
         for dtype_name, schema in self.dtypes_schemas.items():
-            schema_copy = schema.copy()
+            schema_copy = copy.deepcopy(schema)
             if "$defs" in schema_copy:
                 for def_name, def_schema in schema_copy["$defs"].items():
-                    self.components_schemas[def_name] = self._transform_refs(def_schema.copy())
+                    transformed = self._transform_refs(copy.deepcopy(def_schema))
+                    self.components_schemas[def_name] = transformed
                 del schema_copy["$defs"]
-            self.components_schemas[dtype_name] = self._transform_refs(schema_copy)
+            transformed_main = self._transform_refs(schema_copy)
+            self.components_schemas[dtype_name] = transformed_main
 
     @staticmethod
     def _build_ndjson_schema_with_shape(dtype_ref: str, shape: list[int | str]) -> dict[str, Any]:  # noqa: ANN401

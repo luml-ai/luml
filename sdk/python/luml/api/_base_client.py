@@ -137,9 +137,14 @@ class SyncBaseClient(BaseClient):
                 body = response.json()
             except Exception:
                 body = response.text if response.content else None
+
+            error_detail = ""
+            if isinstance(body, dict) and "detail" in body:
+                error_detail = f": {body['detail']}"
+
             raise self._make_status_error(
                 f"Error response {response.status_code} "
-                f"while requesting {response.request.method} {response.url}",
+                f"while requesting {response.request.method} {response.url}{error_detail}",
                 body=body,
                 response=response,
             )
@@ -206,9 +211,13 @@ class AsyncBaseClient(BaseClient):
             except Exception:
                 body = response.text if response.content else None
 
+            error_detail = ""
+            if isinstance(body, dict) and "detail" in body:
+                error_detail = f": {body['detail']}"
+
             raise self._make_status_error(
                 f"Error response {response.status_code} "
-                f"while requesting {response.request.method} {response.url}",
+                f"while requesting {response.request.method} {response.url}{error_detail}",
                 body=body,
                 response=response,
             )

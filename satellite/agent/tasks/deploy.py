@@ -1,10 +1,14 @@
+import asyncio
+import contextlib
 import hashlib
 import logging
 from urllib.parse import urlparse
 from uuid import UUID
 
 from aiodocker.containers import DockerContainer
+from aiodocker.exceptions import DockerError
 
+from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
 from agent.clients import ModelServerClient
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
@@ -14,6 +18,7 @@ from agent.schemas import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
 )
+from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
 from agent.tasks.base import Task
 
@@ -34,7 +39,7 @@ class DeployTask(Task):
                 logs = str(logs) if logs is not None else ""
         except Exception:
             logs = ""
-        error_message = {"reason": "healthcheck timeout", "error": str(logs)[-1000:]}
+        error_message = ErrorMessage(reason="healthcheck timeout", error=str(logs)[-1000:])
         await self.platform.update_task_status(task_id, SatelliteTaskStatus.FAILED, error_message)
         await self.platform.update_deployment(
             dep_id, DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message)
@@ -50,7 +55,9 @@ class DeployTask(Task):
             )
             return deployment, presigned_url
         except Exception as e:
-            error_message = {"reason": "failed to get model artifact details", "error": str(e)}
+            error_message = ErrorMessage(
+                reason="failed to get model artifact details", error=str(e)
+            )
             await self.platform.update_task_status(
                 task_id, SatelliteTaskStatus.FAILED, error_message
             )
@@ -95,13 +102,59 @@ class DeployTask(Task):
         url_path = parsed_url.path.split("?")[0]
         return hashlib.md5(url_path.encode()).hexdigest()
 
+    async def _handle_container_creation_error(
+        self, task_id: str, dep_id: str, error_str: str
+    ) -> None:
+        if "No such image" in error_str or "not found" in error_str.lower():
+            error_message = ErrorMessage(
+                reason="Docker image not found",
+                error=f"Image '{config.MODEL_IMAGE}' not found. "
+                f"Please ensure the image is built or pulled on the satellite.",
+            )
+        else:
+            error_message = ErrorMessage(reason="Failed to create container", error=error_str)
+
+        logger.error(f"Failed to run container for deployment {dep_id}: {error_str}")
+        await self.platform.update_task_status(task_id, SatelliteTaskStatus.FAILED, error_message)
+        await self.platform.update_deployment(
+            dep_id,
+            DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
+        )
+
+    async def _handle_deploying_error(
+        self, container: DockerContainer, task_id: str, dep_id: str, error_str: str
+    ) -> None:
+        try:
+            logs = await container.log(stdout=True, stderr=True, follow=False, tail=100)
+            if isinstance(logs, list):
+                logs = "".join(logs)
+            elif not isinstance(logs, str):
+                logs = str(logs) if logs is not None else ""
+        except Exception:
+            logs = ""
+
+        error_message = ErrorMessage(
+            reason="Container stopped or not found",
+            error=f"{error_str}\n\nLogs:\n{str(logs)[-1000:]}",
+        )
+        logger.error(f"[deploy] Container {dep_id} check failed: {error_message}")
+        await self.platform.update_task_status(task_id, SatelliteTaskStatus.FAILED, error_message)
+        await self.platform.update_deployment(
+            dep_id,
+            DeploymentUpdate(status=DeploymentStatus.FAILED, error_message=error_message),
+        )
+
     async def run(self, task: SatelliteQueueTask) -> None:
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 
         dep_id = (task.payload or {}).get("deployment_id")
         if dep_id is None:
             await self.platform.update_task_status(
-                task.id, SatelliteTaskStatus.FAILED, {"reason": "missing deployment_id"}
+                task.id,
+                SatelliteTaskStatus.FAILED,
+                ErrorMessage(
+                    reason="Failed to deploy model", error="Missing deployment_id in task."
+                ),
             )
             return
         try:
@@ -114,20 +167,42 @@ class DeployTask(Task):
             "health_check_timeout", self.default_health_check_timeout
         )
 
-        container = await self.docker.run_model_container(
-            image=config.MODEL_IMAGE,
-            name=f"sat-{dep_id}",
-            container_port=config.MODEL_SERVER_PORT,
-            labels={
-                "df.deployment_id": dep_id,
-                "df.model_id": self._get_model_id_from_url(presigned_url),
-            },
-            env=await self._get_container_env(presigned_url, dep),
-        )
+        try:
+            container = await self.docker.run_model_container(
+                image=config.MODEL_IMAGE,
+                name=f"sat-{dep_id}",
+                container_port=config.MODEL_SERVER_PORT,
+                labels={
+                    "df.deployment_id": dep_id,
+                    "df.model_id": self._get_model_id_from_url(presigned_url),
+                },
+                env=await self._get_container_env(presigned_url, dep),
+            )
+        except DockerError as e:
+            await self._handle_container_creation_error(task.id, dep_id, str(e))
+            return
 
         inference_url = f"/deployments/{dep_id}"
+
+        health_ok = False
         async with ModelServerClient() as client:
-            health_ok = await client.is_healthy(dep_id, timeout=int(health_check_timeout))
+            for i in range(int(health_check_timeout)):
+                if i % 5 == 0:
+                    try:
+                        await self.docker.check_container_running(dep_id)
+                    except (ContainerNotFoundError, ContainerNotRunningError) as e:
+                        await self._handle_deploying_error(container, task.id, dep_id, str(e))
+                        return
+
+                with contextlib.suppress(Exception):
+                    response = await client._session.get(
+                        f"http://sat-{dep_id}:{config.MODEL_SERVER_PORT}/healthz", timeout=5.0
+                    )
+                    if response.status_code == 200:
+                        health_ok = True
+                        break
+
+                await asyncio.sleep(1)
 
         if not health_ok:
             await self._handle_healthcheck_timeout(container, task.id, dep_id)
@@ -150,7 +225,7 @@ class DeployTask(Task):
             )
         except Exception as e:
             logger.error(f"Failed to finalize deployment {dep_id}: {e}", exc_info=True)
-            error_message = {"reason": "failed to finalize deployment", "error": str(e)}
+            error_message = ErrorMessage(reason="failed to finalize deployment", error=str(e))
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )

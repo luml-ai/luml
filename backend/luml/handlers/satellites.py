@@ -224,9 +224,6 @@ class SatelliteHandler:
         if not satellite:
             raise NotFoundError("Satellite not found")
 
-        if satellite.paired:
-            return satellite
-
         updated_satellite = await self.__sat_repo.pair_satellite(satellite_pair)
 
         if not updated_satellite:

@@ -55,6 +55,16 @@
                 @click="error = data.error_message"
               />
             </div>
+            <div v-if="data.status === DeploymentStatusEnum.not_responding" class="tag-with-icon">
+              <Tag severity="danger">Not Responding</Tag>
+              <TriangleAlert
+                v-if="data.error_message"
+                v-tooltip.top="'Show error'"
+                :size="14"
+                color="var(--p-tag-danger-color)"
+                @click="error = data.error_message"
+              />
+            </div>
             <Tag v-if="data.status === DeploymentStatusEnum.deletion_pending" severity="warn">
               Shutting down
             </Tag>

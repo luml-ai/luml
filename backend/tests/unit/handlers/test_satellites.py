@@ -414,53 +414,6 @@ async def test_pair_satellite_satellite_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_pair_satellite_already_paired(
-    mock_get_satellite: AsyncMock,
-    mock_pair_satellite: AsyncMock,
-) -> None:
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
-
-    base_url = "https://satellite.example.com"
-    capabilities: dict[SatelliteCapability, dict[str, Any] | None] = {
-        SatelliteCapability.DEPLOY: {"key": "kdhfkgjhdkfghk"}
-    }
-
-    expected = Satellite(
-        id=satellite_id,
-        orbit_id=orbit_id,
-        name="test-satellite",
-        description=None,
-        base_url=base_url,
-        paired=True,
-        capabilities=capabilities,
-        created_at=datetime.datetime.now(),
-        updated_at=None,
-        last_seen_at=datetime.datetime.now(),
-    )
-
-    mock_get_satellite.return_value = expected
-
-    satellite_pair_in = SatellitePairIn(
-        base_url=base_url,
-        capabilities=capabilities,
-    )
-    satellite = await handler.pair_satellite(satellite_id, satellite_pair_in)
-
-    assert satellite == expected
-    mock_get_satellite.assert_awaited_once_with(satellite_id)
-    mock_pair_satellite.assert_not_awaited()
-
-
-@patch(
-    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.satellites.SatelliteRepository.get_satellite",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
 async def test_pair_satellite_update_error(
     mock_get_satellite: AsyncMock,
     mock_pair_satellite: AsyncMock,
