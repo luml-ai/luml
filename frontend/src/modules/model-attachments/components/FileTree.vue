@@ -1,7 +1,7 @@
 <template>
   <div class="file-tree">
     <ul>
-      <TreeNode
+      <FileNode
         v-for="node in tree"
         :key="node.path || node.name"
         :node="node"
@@ -13,18 +13,17 @@
 </template>
 
 <script setup lang="ts">
-import TreeNode from './FileNode.vue'
-import { defineProps, defineEmits } from 'vue'
-import type { FileNode, FileNodeEmits } from './attachments.interfaces'
+import FileNode from './FileNode.vue'
+import type { FileNode as FileNodeType, FileNodeEmits } from '../interfaces/interfaces'
 
-const props = defineProps<{
-  tree: FileNode[]
-  selected: FileNode | null
+defineProps<{
+  tree: FileNodeType[]
+  selected: FileNodeType | null
 }>()
 
 const emit = defineEmits<FileNodeEmits>()
 
-function onSelect(node: FileNode) {
+function onSelect(node: FileNodeType) {
   emit('select', node)
 }
 </script>

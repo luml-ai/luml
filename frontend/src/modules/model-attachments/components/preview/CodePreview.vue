@@ -11,7 +11,7 @@ import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import 'github-markdown-css/github-markdown.css'
 
-import type { CodePreviewProps } from '../attachments.interfaces'
+import type { CodePreviewProps } from '../../interfaces/interfaces'
 
 const props = defineProps<CodePreviewProps>()
 

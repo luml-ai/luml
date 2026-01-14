@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import type { SvgPreviewProps } from '../attachments.interfaces'
+import type { SvgPreviewProps } from '../../interfaces/interfaces'
 
 const props = defineProps<SvgPreviewProps>()
 </script>

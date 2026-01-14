@@ -24,9 +24,9 @@
 
 <script setup lang="ts">
 import { Copy, Download } from 'lucide-vue-next'
-import { formatFileSize } from '../utils/fileTypes'
+import { formatFileSize } from '../../utils/fileTypes'
 
-import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../attachments.interfaces'
+import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../../interfaces/interfaces'
 
 const props = defineProps<FilePreviewHeaderProps>()
 const emit = defineEmits<FilePreviewHeaderEmits>()
