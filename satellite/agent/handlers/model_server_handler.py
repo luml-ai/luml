@@ -4,8 +4,16 @@ from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
+from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
 from agent.clients import ModelServerClient, PlatformClient
-from agent.schemas import Deployment, DeploymentStatus, LocalDeployment, Secret
+from agent.clients.docker_client import DockerService
+from agent.schemas import (
+    Deployment,
+    DeploymentStatus,
+    DeploymentUpdate,
+    LocalDeployment,
+    Secret,
+)
 from agent.settings import config
 
 logger = logging.getLogger(__name__)
@@ -59,9 +67,10 @@ class ModelServerHandler:
 
     async def sync_deployments(self) -> None:
         logger.info("[ModelServerHandler] sync_deployments...")
-        async with PlatformClient(
-            str(config.PLATFORM_URL), config.SATELLITE_TOKEN
-        ) as platform_client:
+        async with (
+            PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform_client,
+            DockerService() as docker,
+        ):
             deployments_db = await platform_client.list_deployments()
             active_deployments_db = [
                 dep for dep in deployments_db if dep.get("status", "") == "active"
@@ -70,16 +79,53 @@ class ModelServerHandler:
             logger.info(
                 f"[active_deployments_db] {[d.get('id', '') for d in active_deployments_db]}"
             )
+
             for dep in active_deployments_db:
-                async with ModelServerClient() as client:
-                    health_ok = await client.is_healthy(dep["id"])
-                if health_ok:
-                    await self.add_single_deployment(
-                        dep["id"], dep.get("dynamic_attributes_secrets")
+                dep_id = dep["id"]
+                try:
+                    await docker.check_container_running(dep_id)
+                except ContainerNotFoundError:
+                    await platform_client.update_deployment(
+                        dep_id,
+                        DeploymentUpdate(
+                            status=DeploymentStatus.NOT_RESPONDING,
+                            error_message={
+                                "reason": "Not Found",
+                                "error": f"Container with deployment id '{dep_id}' not found",
+                            },
+                        ),
                     )
+                    continue
+                except ContainerNotRunningError as e:
+                    await platform_client.update_deployment(
+                        dep_id,
+                        DeploymentUpdate(
+                            status=DeploymentStatus.NOT_RESPONDING,
+                            error_message={"reason": "Container not running", "error": str(e)},
+                        ),
+                    )
+                    continue
+
+                async with ModelServerClient() as client:
+                    health_ok = await client.is_healthy(dep_id)
+
+                if health_ok:
+                    await self.add_single_deployment(dep_id, dep.get("dynamic_attributes_secrets"))
                 else:
-                    await platform_client.update_deployment_status(
-                        dep["id"], DeploymentStatus.NOT_RESPONDING
+                    error_message = "Health check failed"
+                    await platform_client.update_deployment(
+                        dep_id,
+                        DeploymentUpdate(
+                            status=DeploymentStatus.NOT_RESPONDING,
+                            error_message={
+                                "reason": error_message,
+                                "error": (
+                                    f"Health check failed for deployment '{dep_id}'. "
+                                    "Please inspect the model server or container logs "
+                                    "for this deployment."
+                                ),
+                            },
+                        ),
                     )
 
             logger.info(f"Synced deployments: {list(self.deployments.keys())}")
