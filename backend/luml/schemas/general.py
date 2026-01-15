@@ -1,6 +1,5 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -14,10 +13,15 @@ class SortOrder(StrEnum):
 type CursorType = int | str | float | datetime
 
 
+class Cursor(BaseModel):
+    id: UUID
+    value: CursorType | None
+    sort_by: str = "created_at"
+
+
 class PaginationParams(BaseModel):
-    cursor_id: UUID | None = None
-    cursor_value: Any | None = None
-    sort_by: str | None = None
+    cursor: Cursor | None = None
+    sort_by: str = "created_at"
     order: SortOrder = SortOrder.DESC
     limit: int = 100
-    metric_key: str | None = None
+    extra_sort_field: str | None = None

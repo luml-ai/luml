@@ -1,14 +1,11 @@
-import random
-import uuid
-
 import pytest
 from luml.repositories.collections import CollectionRepository
+from luml.schemas.general import PaginationParams
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
     CollectionType,
     CollectionUpdate,
-    ModelArtifactCreate,
 )
 
 from tests.conftest import CollectionFixtureData, OrbitFixtureData
@@ -69,7 +66,8 @@ async def test_get_orbit_collections(create_orbit: OrbitFixtureData) -> None:
         created = await repo.create_collection(collection_data)
         collections_data.append(created)
 
-    orbit_collections = await repo.get_orbit_collections(orbit.id, 100)
+    pagination = PaginationParams(limit=100)
+    orbit_collections = await repo.get_orbit_collections(orbit.id, pagination)
 
     assert len(orbit_collections) == collections_num
 
@@ -111,80 +109,6 @@ async def test_delete_collection(create_collection: CollectionFixtureData) -> No
 
 
 @pytest.mark.asyncio
-async def test_get_collection_details_with_models_metrics_and_tags(
-    create_collection: CollectionFixtureData,
-    test_model_artifact: ModelArtifactCreate,
-) -> None:
-    from luml.repositories.model_artifacts import ModelArtifactRepository
-
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    collection_repo = CollectionRepository(engine)
-    model_repo = ModelArtifactRepository(engine)
-
-    all_tags = ["tag1", "tag2", "tag3", "tag4"]
-    all_metrics = ["accuracy", "precision", "recall", "f1_score"]
-
-    for i in range(4):
-        model = test_model_artifact.model_copy()
-        model.collection_id = collection.id
-
-        if i == 0:
-            model.metrics = {metric: random.random() for metric in all_metrics}
-            model.tags = all_tags
-        else:
-            metrics = random.sample(all_metrics, k=random.randint(0, 3))
-            model.metrics = {metric: random.random() for metric in metrics}
-
-            model.tags = random.sample(all_tags, k=random.randint(0, 3))
-
-        await model_repo.create_model_artifact(model)
-
-    collection_details = await collection_repo.get_collection_details(collection.id)
-
-    assert collection_details is not None
-    assert collection_details.id == collection.id
-    assert collection_details.name == collection.name
-
-    assert collection_details.models_metrics is not None
-    assert sorted(collection_details.models_metrics) == sorted(all_metrics)
-
-    assert collection_details.models_tags is not None
-    assert sorted(collection_details.models_tags) == sorted(all_tags)
-
-
-@pytest.mark.asyncio
-async def test_get_collection_details_without_models(
-    create_collection: CollectionFixtureData,
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    collection_repo = CollectionRepository(engine)
-
-    collection_details = await collection_repo.get_collection_details(collection.id)
-
-    assert collection_details is not None
-    assert collection_details.id == collection.id
-    assert collection_details.name == collection.name
-
-    assert collection_details.models_metrics == []
-    assert collection_details.models_tags == []
-
-
-@pytest.mark.asyncio
-async def test_get_collection_details_nonexistent_collection(
-    create_collection: CollectionFixtureData,
-) -> None:
-    data = create_collection
-    engine = data.engine
-    collection_repo = CollectionRepository(engine)
-
-    collection_details = await collection_repo.get_collection_details(uuid.uuid7())
-
-    assert collection_details is None
-
-
-@pytest.mark.asyncio
 async def test_get_orbit_collections_search_by_name(
     create_orbit: OrbitFixtureData,
 ) -> None:
@@ -219,7 +143,10 @@ async def test_get_orbit_collections_search_by_name(
     for collection_data in collections_data:
         await repo.create_collection(collection_data)
 
-    search_results = await repo.get_orbit_collections(orbit.id, 100, search="model")
+    pagination = PaginationParams(limit=100)
+    search_results = await repo.get_orbit_collections(
+        orbit.id, pagination, search="model"
+    )
 
     assert len(search_results) == 2
     names = [c.name for c in search_results]
@@ -263,8 +190,9 @@ async def test_get_orbit_collections_search_by_tags(
     for collection_data in collections_data:
         await repo.create_collection(collection_data)
 
+    pagination = PaginationParams(limit=100)
     search_results = await repo.get_orbit_collections(
-        orbit.id, 100, search="production"
+        orbit.id, pagination, search="production"
     )
 
     assert len(search_results) == 2

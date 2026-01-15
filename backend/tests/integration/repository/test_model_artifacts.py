@@ -6,6 +6,7 @@ from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
+from luml.schemas.general import PaginationParams
 from luml.schemas.model_artifacts import (
     ModelArtifactCreate,
     ModelArtifactStatus,
@@ -81,7 +82,8 @@ async def test_get_collection_model_artifacts(
     created_model1 = await repo.create_model_artifact(model_data1)
     created_model2 = await repo.create_model_artifact(model_data2)
 
-    models = await repo.get_collection_model_artifacts(collection.id, limit)
+    pagination = PaginationParams(limit=limit)
+    models = await repo.get_collection_model_artifacts(collection.id, pagination)
 
     assert len(models) == 2
     model_ids = [m.id for m in models]

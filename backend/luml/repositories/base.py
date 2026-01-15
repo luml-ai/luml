@@ -193,15 +193,14 @@ class CrudMixin:
     def _get_sort_col(
         orm_class: type[TOrm],
         sort_by: str | None = None,
-        metric_key: str | None = None,
+        extra_sort_field: str | None = None,
     ) -> Any:  # noqa: ANN401
-        from luml.handlers.base import PaginationMixin
-
         if sort_by is None:
             return orm_class.created_at  # type: ignore[attr-defined]
-        if sort_by == PaginationMixin.METRICS_SORT_KEY and metric_key:
+
+        if extra_sort_field and sort_by == "metrics":
             return cast(
-                orm_class.metrics[metric_key].astext,  # type: ignore[attr-defined]
+                orm_class.metrics[extra_sort_field].astext,  # type: ignore[attr-defined]
                 Float,
             )
         return getattr(orm_class, sort_by, orm_class.created_at)  # type: ignore[attr-defined]
@@ -252,14 +251,14 @@ class CrudMixin:
             stmt = stmt.where(*where_conditions)
 
         sort_column = self._get_sort_col(
-            orm_class, pagination.sort_by, pagination.metric_key
+            orm_class, pagination.sort_by, pagination.extra_sort_field
         )
 
-        if pagination.cursor_id is not None:
+        if pagination.cursor is not None:
             cursor_condition = self._build_cursor_condition(
                 sort_column,
-                pagination.cursor_value,
-                pagination.cursor_id,
+                pagination.cursor.value,
+                pagination.cursor.id,
                 orm_class,
                 pagination.order,
             )
