@@ -34,7 +34,7 @@
           </template>
         </Button>
       </div>
-      <div class="message">
+      <div v-if="!apiKey" class="message">
         For security reasons, this key is no longer visible. Generate a new one if needed.
       </div>
     </div>
