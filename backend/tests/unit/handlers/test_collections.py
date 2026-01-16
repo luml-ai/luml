@@ -11,7 +11,6 @@ from luml.schemas.model_artifacts import (
     CollectionCreate,
     CollectionCreateIn,
     CollectionsList,
-    CollectionSortBy,
     CollectionType,
     CollectionUpdate,
     CollectionUpdateIn,
@@ -691,13 +690,16 @@ async def test_get_orbit_collections_success(
     assert result == expected
 
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-    mock_get_collections.assert_awaited_once_with(
-        orbit_id=orbit_id,
-        limit=100,
-        sort_by=CollectionSortBy.CREATED_AT,
-        order=SortOrder.DESC,
-        search=None,
-    )
+
+    # Check that pagination params were passed correctly
+    call_args = mock_get_collections.await_args
+    assert call_args.kwargs["orbit_id"] == orbit_id
+    assert call_args.kwargs["search"] is None
+    pagination = call_args.kwargs["pagination"]
+    assert pagination.sort_by == "created_at"
+    assert pagination.order == SortOrder.DESC
+    assert pagination.limit == 100
+    assert pagination.cursor is None
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,

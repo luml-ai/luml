@@ -4,11 +4,21 @@ from typing import Any, TypeVar
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import asc, delete, desc, func, select
+from sqlalchemy import (
+    Float,
+    asc,
+    cast,
+    delete,
+    desc,
+    func,
+    nullsfirst,
+    nullslast,
+    select,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from luml.models import Base
-from luml.schemas.general import SortOrder
+from luml.schemas.general import PaginationParams, SortOrder
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -183,21 +193,50 @@ class CrudMixin:
     def _get_sort_col(
         orm_class: type[TOrm],
         sort_by: str | None = None,
+        extra_sort_field: str | None = None,
     ) -> Any:  # noqa: ANN401
         if sort_by is None:
             return orm_class.created_at  # type: ignore[attr-defined]
+
+        if extra_sort_field and sort_by == "metrics":
+            return cast(
+                orm_class.metrics[extra_sort_field].astext,  # type: ignore[attr-defined]
+                Float,
+            )
         return getattr(orm_class, sort_by, orm_class.created_at)  # type: ignore[attr-defined]
+
+    @staticmethod
+    def _build_cursor_condition(
+        sort_column: Any,  # noqa: ANN401
+        cursor_value: Any,  # noqa: ANN401
+        cursor_id: UUID,
+        orm_class: type[TOrm],
+        order: SortOrder,
+    ) -> Any:  # noqa: ANN401
+        op = lt if order == SortOrder.DESC else gt
+
+        if cursor_value is not None:
+            condition = op(sort_column, cursor_value) | (
+                (sort_column == cursor_value) & op(orm_class.id, cursor_id)  # type: ignore[attr-defined]
+            )
+
+            if order == SortOrder.DESC:
+                condition = condition | sort_column.is_(None)
+
+        else:
+            condition = sort_column.is_(None) & op(orm_class.id, cursor_id)  # type: ignore[attr-defined]
+
+            if order == SortOrder.ASC:
+                condition = condition | sort_column.isnot(None)
+
+        return condition
 
     async def get_models_with_pagination(
         self,
         session: AsyncSession,
         orm_class: type[TOrm],
         *where_conditions: Any,  # noqa: ANN401
-        cursor_id: UUID | None = None,
-        cursor_value: Any | None = None,  # noqa: ANN401
-        sort_by: str | None = None,
-        order: SortOrder,
-        limit: int = 100,
+        pagination: PaginationParams,
         options: list[Any] | None = None,  # noqa: ANN401
         join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
         select_fields: list[Any] | None = None,  # noqa: ANN401
@@ -211,22 +250,28 @@ class CrudMixin:
         if where_conditions:
             stmt = stmt.where(*where_conditions)
 
-        sort_column = self._get_sort_col(orm_class, sort_by)
+        sort_column = self._get_sort_col(
+            orm_class, pagination.sort_by, pagination.extra_sort_field
+        )
 
-        if cursor_id and cursor_value:
-            op = lt if order == SortOrder.DESC else gt
-            stmt = stmt.where(
-                op(sort_column, cursor_value)
-                | ((sort_column == cursor_value) & op(orm_class.id, cursor_id))  # type: ignore[attr-defined]
+        if pagination.cursor is not None:
+            cursor_condition = self._build_cursor_condition(
+                sort_column,
+                pagination.cursor.value,
+                pagination.cursor.id,
+                orm_class,
+                pagination.order,
             )
+            stmt = stmt.where(cursor_condition)
 
-        sort_func = desc if order == SortOrder.DESC else asc
+        sort_func = desc if pagination.order == SortOrder.DESC else asc
+        null_func = nullslast if pagination.order == SortOrder.DESC else nullsfirst
         stmt = stmt.order_by(
-            sort_func(sort_column),
+            null_func(sort_func(sort_column)),
             sort_func(orm_class.id),  # type: ignore[attr-defined]
         )
 
-        stmt = stmt.options(*(options or [])).limit(limit + 1)
+        stmt = stmt.options(*(options or [])).limit(pagination.limit + 1)
         result = await session.execute(stmt)
 
         if use_unique:

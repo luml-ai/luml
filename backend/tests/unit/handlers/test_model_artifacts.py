@@ -23,7 +23,6 @@ from luml.schemas.model_artifacts import (
     ModelArtifactDetails,
     ModelArtifactIn,
     ModelArtifactsList,
-    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
     ModelArtifactUpdateIn,
@@ -214,12 +213,16 @@ async def test_get_collection_model_artifacts(
     mock_check_orbit_and_collection_access.assert_awaited_once_with(
         organization_id, orbit_id, collection_id
     )
-    mock_get_collection_model_artifact.assert_awaited_once_with(
-        collection_id=collection_id,
-        limit=pagination_limit,
-        sort_by=ModelArtifactSortBy.CREATED_AT,
-        order=SortOrder.DESC,
-    )
+
+    # Check that pagination params were passed correctly
+    call_args = mock_get_collection_model_artifact.await_args
+    assert call_args.args[0] == collection_id
+    pagination = call_args.args[1]
+    assert pagination.sort_by == "created_at"
+    assert pagination.order == SortOrder.DESC
+    assert pagination.limit == pagination_limit
+    assert pagination.cursor is None
+    assert pagination.extra_sort_field is None
 
 
 @patch(

@@ -91,7 +91,7 @@ class ModelArtifactStatus(StrEnum):
 
 class ModelArtifactSortBy(StrEnum):
     """
-    Options: "created_at", "model_name", "description", "size", "status"
+    Options: "created_at", "model_name", "description", "size", "status", "metrics"
     """
 
     CREATED_AT = "created_at"
@@ -99,6 +99,7 @@ class ModelArtifactSortBy(StrEnum):
     SIZE = "size"
     DESCRIPTION = "description"
     STATUS = "status"
+    METRICS = "metrics"
 
 
 class SortOrder(StrEnum):
@@ -132,6 +133,11 @@ class Collection(BaseModel):
     total_models: int
     created_at: str
     updated_at: str | None = None
+
+
+class CollectionDetails(Collection):
+    models_tags: list[str] | None = None
+    models_metrics: list[str] | None = None
 
 
 class CollectionsList(PaginatedList[Collection]):

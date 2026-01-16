@@ -2,13 +2,13 @@ from uuid import UUID, uuid4
 
 from luml.clients.base_storage_client import BaseStorageClient
 from luml.clients.storage_factory import create_storage_client
-from luml.handlers.base import PaginationMixin
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
+    InvalidSortingError,
     InvalidStatusTransitionError,
     ModelArtifactNotFoundError,
     NotFoundError,
@@ -22,7 +22,7 @@ from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.general import SortOrder
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CreateModelArtifactResponse,
@@ -39,9 +39,10 @@ from luml.schemas.model_artifacts import (
 )
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
+from luml.utils.pagination import decode_cursor, get_cursor
 
 
-class ModelArtifactHandler(PaginationMixin):
+class ModelArtifactHandler:
     __repository = ModelArtifactRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
@@ -120,6 +121,20 @@ class ModelArtifactHandler(PaginationMixin):
             raise OrganizationLimitReachedError(
                 "Organization reached maximum number of model artifacts"
             )
+
+    async def _is_metric_sort(self, collection_id: UUID, sort_by: str) -> bool:
+        if sort_by == "metrics":
+            raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
+
+        if sort_by in ModelArtifactSortBy._value2member_map_:
+            return False
+
+        metrics = await self.__repository.get_collection_model_artifacts_metrics(
+            collection_id
+        )
+        if sort_by not in metrics:
+            raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
+        return True
 
     async def create_model_artifact(
         self,
@@ -367,9 +382,9 @@ class ModelArtifactHandler(PaginationMixin):
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        cursor: str | None = None,
+        cursor_str: str | None = None,
         limit: int = 100,
-        sort_by: ModelArtifactSortBy = ModelArtifactSortBy.CREATED_AT,
+        sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
     ) -> ModelArtifactsList:
         await self.__permissions_handler.check_permissions(
@@ -382,18 +397,30 @@ class ModelArtifactHandler(PaginationMixin):
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        cursor_id, cursor_value, cursor_sorting = self.decode_cursor(cursor)
 
-        if cursor_sorting != sort_by.value:
-            items = await self.__repository.get_collection_model_artifacts(
-                collection_id=collection_id, limit=limit, sort_by=sort_by, order=order
-            )
-        else:
-            items = await self.__repository.get_collection_model_artifacts(
-                collection_id, limit, cursor_id, cursor_value, sort_by, order
-            )
+        is_metric = await self._is_metric_sort(collection_id, sort_by)
+        cursor = decode_cursor(cursor_str)
+
+        repo_sort_by = "metrics" if is_metric else sort_by
+        extra_sort_field = sort_by if is_metric else None
+
+        use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
+
+        pagination = PaginationParams(
+            cursor=use_cursor,
+            sort_by=repo_sort_by,
+            order=order,
+            limit=limit,
+            extra_sort_field=extra_sort_field,
+        )
+
+        items = await self.__repository.get_collection_model_artifacts(
+            collection_id, pagination
+        )
+
         return ModelArtifactsList(
-            items=items[:limit], cursor=self.get_cursor(items, limit, sort_by)
+            items=items[:limit],
+            cursor=get_cursor(items, limit, sort_by, is_metric),
         )
 
     async def get_model_artifact(
@@ -416,7 +443,7 @@ class ModelArtifactHandler(PaginationMixin):
         )
         model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
         if not model_artifact or model_artifact.collection_id != collection_id:
-            raise NotFoundError("Model Artifact model not found")
+            raise NotFoundError("Model Artifact not found")
         return model_artifact
 
     async def get_satellite_model_artifact(

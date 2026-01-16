@@ -210,7 +210,13 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
 
     @validate_collection
     def list_all(
-        self, *, collection_id: str | None = None, limit: int | None = 100
+        self,
+        *,
+        collection_id: str | None = None,
+        limit: int | None = 100,
+        sort_by: ModelArtifactSortBy | None = None,
+        order: SortOrder = SortOrder.DESC,
+        metric_key: str | None = None,
     ) -> Iterator[ModelArtifact]:
         """
         List all collection model artifacts with auto-paging.
@@ -219,6 +225,11 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             collection_id: ID of the collection to list models from. If not provided,
                 uses the default collection set in the client.
             limit: Page size (default: 100).
+            sort_by: Field to sort by. Options: model_name, file_name, size, metrics.
+                If not provided, sorts by creation time (UUID v7).
+            order: Sort order - "asc" or "desc" (default: "desc").
+            metric_key: When sort_by is "metrics", specifies which metric to sort by.
+                Must be provided when sorting by metrics.
 
         Returns:
             ModelArtifact objects from all pages.
@@ -232,11 +243,28 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
         )
 
+        # List all artifacts with default sorting
         for artifact in luml.model_artifacts.list_all(limit=50):
             print(artifact.id)
+
+        # List all artifacts sorted by F1 metric
+        for artifact in luml.model_artifacts.list_all(
+            sort_by=ModelArtifactSortBy.METRICS,
+            metric_key="F1",
+            order=SortOrder.DESC,
+            limit=50
+        ):
+            print(f"{artifact.model_name}: F1={artifact.metrics.get('F1')}")
         ```
         """
-        return self._auto_paginate(self.list, collection_id=collection_id, limit=limit)
+        return self._auto_paginate(
+            self.list,
+            collection_id=collection_id,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            metric_key=metric_key,
+        )
 
     @validate_collection
     def list(
@@ -247,6 +275,7 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: ModelArtifactSortBy | None = None,
         order: SortOrder = SortOrder.DESC,
+        metric_key: str | None = None,
     ) -> ModelArtifactsList:
         """
         List all model artifacts in the collection.
@@ -258,9 +287,11 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 uses the default collection set in the client.
             start_after: ID of the model artifact to start listing from.
             limit: Limit number of models per page (default: 100).
-            sort_by: Field to sort by. Options: model_name, file_name, size.
+            sort_by: Field to sort by. Options: model_name, file_name, size, metrics.
                 If not provided, sorts by creation time (UUID v7).
             order: Sort order - "asc" or "desc" (default: "desc").
+            metric_key: When sort_by is "metrics", specifies which metric to sort by.
+                Must be provided when sorting by metrics.
 
         Returns:
             ModelArtifactList object.
@@ -283,6 +314,13 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         # Sort by size
         models = luml.model_artifacts.list(
             sort_by=ModelArtifactSortBy.SIZE,
+            order=SortOrder.DESC
+        )
+
+        # Sort by a specific metric (e.g., F1 score)
+        models = luml.model_artifacts.list(
+            sort_by=ModelArtifactSortBy.METRICS,
+            metric_key="F1",
             order=SortOrder.DESC
         )
         ```
@@ -363,6 +401,8 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             params["sort_by"] = (
                 sort_by.value if isinstance(sort_by, ModelArtifactSortBy) else sort_by
             )
+        if metric_key:
+            params["metric_key"] = metric_key
 
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",
@@ -916,7 +956,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
 
     @validate_collection
     def list_all(
-        self, *, collection_id: str | None = None, limit: int | None = 100
+        self,
+        *,
+        collection_id: str | None = None,
+        limit: int | None = 100,
+        sort_by: ModelArtifactSortBy | None = None,
+        order: SortOrder = SortOrder.DESC,
+        metric_key: str | None = None,
     ) -> AsyncIterator[ModelArtifact]:
         """
         List all collection model artifacts with auto-paging.
@@ -925,6 +971,11 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             collection_id: ID of the collection to list models from. If not provided,
                 uses the default collection set in the client.
             limit: Page size (default: 100).
+            sort_by: Field to sort by. Options: model_name, file_name, size, metrics.
+                If not provided, sorts by creation time (UUID v7).
+            order: Sort order - "asc" or "desc" (default: "desc").
+            metric_key: When sort_by is "metrics", specifies which metric to sort by.
+                Must be provided when sorting by metrics.
 
         Returns:
             ModelArtifact objects from all pages.
@@ -942,12 +993,27 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
             )
 
+            # List all artifacts with default sorting
             async for artifact in luml.model_artifacts.list_all(limit=50):
                 print(artifact.id)
+
+            # List all artifacts sorted by F1 metric
+            async for artifact in luml.model_artifacts.list_all(
+                sort_by=ModelArtifactSortBy.METRICS,
+                metric_key="F1",
+                order=SortOrder.DESC,
+                limit=50
+            ):
+                print(f"{artifact.model_name}: F1={artifact.metrics.get('F1')}")
         ```
         """
         return self._auto_paginate_async(
-            self.list, collection_id=collection_id, limit=limit
+            self.list,
+            collection_id=collection_id,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            metric_key=metric_key,
         )
 
     @validate_collection
@@ -959,6 +1025,7 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: ModelArtifactSortBy | None = None,
         order: SortOrder = SortOrder.DESC,
+        metric_key: str | None = None,
     ) -> ModelArtifactsList:
         """
         List all model artifacts in the collection.
@@ -970,9 +1037,11 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
                 uses the default collection set in the client.
             start_after: ID of the model artifact to start listing from.
             limit: Limit number of models per page (default: 100).
-            sort_by: Field to sort by. Options: model_name, file_name, size.
+            sort_by: Field to sort by. Options: model_name, file_name, size, metrics.
                 If not provided, sorts by creation time (UUID v7).
             order: Sort order - "asc" or "desc" (default: "desc").
+            metric_key: When sort_by is "metrics", specifies which metric to sort by.
+                Must be provided when sorting by metrics.
 
         Returns:
             ModelArtifactsList object.
@@ -1000,6 +1069,13 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             models = await luml.model_artifacts.list(
                 sort_by=ModelArtifactSortBy.SIZE,
                 order=SortOrder.ASC
+            )
+
+            # Sort by a specific metric (e.g., F1 score)
+            models = await luml.model_artifacts.list(
+                sort_by=ModelArtifactSortBy.METRICS,
+                metric_key="F1",
+                order=SortOrder.DESC
             )
         ```
 
@@ -1077,6 +1153,8 @@ class AsyncModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             params["sort_by"] = (
                 sort_by.value if isinstance(sort_by, ModelArtifactSortBy) else sort_by
             )
+        if metric_key:
+            params["metric_key"] = metric_key
 
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/model_artifacts",

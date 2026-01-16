@@ -12,7 +12,6 @@ from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactIn,
     ModelArtifactsList,
-    ModelArtifactSortBy,
     ModelArtifactUpdateIn,
 )
 
@@ -79,7 +78,7 @@ async def get_model_artifacts(
     collection_id: UUID,
     cursor: str | None = None,
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
-    sort_by: Annotated[ModelArtifactSortBy, Query()] = ModelArtifactSortBy.CREATED_AT,
+    sort_by: str = "created_at",
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
 ) -> ModelArtifactsList:
     return await model_artifacts_handler.get_collection_model_artifacts(
