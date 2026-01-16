@@ -1,9 +1,7 @@
 ---
-sidebar_position: 4
+sidebar_position: 3
 ---
 
 # Data Agent
 
-This is a placeholder for the Data Agent.
-
-Once that file exists, you can **uncomment** the block in `docusaurus.config.ts` and the crash will be gone.
+#### 🚧 This section is under construction. We're working on adding detailed documentation here. Please check back soon.

@@ -1,0 +1,54 @@
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 1.5rem 1.5rem;
+  min-height: 250px;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.3s ease;
+  background: var(--ifm-card-background-color);
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+  transform: translateY(-4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  text-decoration: none;
+}
+
+.icon {
+  font-size: 2rem;
+  color: var(--ifm-color-primary);
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--ifm-font-color-base);
+}
+
+.description {
+  color: var(--ifm-color-emphasis-700);
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.linkText {
+  color: var(--ifm-color-primary);
+  font-weight: 500;
+}

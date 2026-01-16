@@ -1,0 +1,57 @@
+---
+sidebar_position: 1
+---
+
+# Getting Started
+<!-- **Last updated: Dec 20, 2025** -->
+
+## Overview
+LUML is an open-source cloud-agnostic AIOps platform. It covers the full ML project lifecycle, covering experiment tracking, model versioning, one-click model deployment, and post-deployment monitoring. 
+
+![](/img/AIOps.png)
+
+
+import GuideCards, { GuideCard } from '@site/src/components/GuideCards';
+
+
+### Explore the core LUML modules:
+
+<GuideCards>
+  <GuideCard
+    icon="📂"
+    title="Model Registry"
+    description="Discover the Model Registry structure and features in LUML"
+    link="/documentation/Modules/Registry/Model-Registry/"
+    linkText="Explore"
+  />
+  <GuideCard
+    icon="📈"
+    title="Experiments Tracking"
+    description="Amaze yourself with this Experiment Tracking implementation"
+    link="/documentation/Modules/Registry/Model-Registry/experiment_tracking/"
+    linkText="Explore"
+  />
+  <GuideCard
+    icon="📡"
+    title="Model Deployment "
+    description="Learn how to deploy a model in a few clicks!"
+    link="/documentation/Modules/deployment"
+    linkText="Explore"
+  />
+</GuideCards>
+
+
+If you are new to the platform, the quickest way to get started is to first create a model using the auto-ML module (Express Tasks). You can then use this trained model to explore more advanced functionalities. Please follow the guide below to train the model just in several clicks:
+
+1) Navigate to the [main page of the platform](https://app.luml.ai/).
+2) Choose an available task, for example ***Tabular Classification***.
+3) Select the built-in ***Sample Dataset*** for model training.
+4) Once selected, you can check out the uploaded file and make any changes if needed. Click ***Train***.
+5) Upon completion, you will see a dashboard with the model's performance metrics.
+6) You can download the model (in an [open-source format](./Core-Concepts/dfs_model.md))  by clicking the Export button.
+
+<!-- **for a more detailed guide, please refer to [[LINK]](../guides/user_guidline.md)* -->
+
+Congratulations! You have successfully trained your first model on the LUML platform. While this is the simplest method to obtain a trained model (we also support more advanced workflows via [Notebooks](./Modules/notebooks.md) and [Python SDK](../sdk/client.md)), it is the quickest way to get ready for exploring further modules, such as the [model registry](../documentation/Modules/Registry/Model-Registry/) and [model deployments](./Modules/deployment.md).
+
+

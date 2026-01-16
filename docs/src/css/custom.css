@@ -88,3 +88,80 @@
   justify-content: center;
   margin: 2rem 0;
 }
+
+/* Стилі для вкладок */
+.tabs {
+  margin: 2rem 0;
+  border-bottom: 2px solid var(--ifm-color-emphasis-300);
+}
+
+.tabs__item {
+  font-size: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tabs__item:hover {
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.tabs__item--active {
+  border-bottom: 3px solid var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+/* Контент всередині вкладок */
+[role="tabpanel"] {
+  padding: 1.5rem 0;
+}
+
+/* Стилі для зображень у вкладках */
+[role="tabpanel"] img {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin: 1.5rem 0;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Більш виразні заголовки у вкладках */
+[role="tabpanel"] strong {
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-heading-color);
+}
+
+/* Контейнер для тексту та зображення в ряд */
+.tab-content-row {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  margin: 1rem 0;
+}
+
+.tab-content-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-content-image {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-content-image img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Адаптивність для мобільних */
+@media (max-width: 996px) {
+  .tab-content-row {
+    flex-direction: column;
+  }
+}

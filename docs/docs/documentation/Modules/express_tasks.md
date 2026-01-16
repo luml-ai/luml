@@ -3,84 +3,54 @@ sidebar_position: 1
 ---
 
 # Express Tasks
-
-Express Tasks is a module of the LUML platform designed for automated machine learning model building (AutoML) 
-and LLM workflow prototyping. This tool abstracts the technical complexity of pipeline configuration, allowing users to create working artifacts 
-(.dfs format models) with minimal user intervention.
-
-The module focuses on speed and simplicity: it utilizes pre-configured data processing scenarios, 
-making it an effective tool for quickly obtaining results <u>without writing any code</u>.
+Express Tasks is a module designed for automated machine learning model building (AutoML) and LLM workflow prototyping. By utilizing pre-configured data processing scenarios, this module enables the quick development of high-quality models with minimal effort.
 
 ## Task Types
-The system offers three specialized environments depending on the problem type.
+In LUML you can train state-of-the art models for both traditional ML and GenAI use cases.
 
-![](./pics_express_tasks/express_tasks_1.png)
+### 1. Tabular Data
+Many real-world applications rely on structured information stored in tables—spreadsheets, CSV files, or databases—to solve problems ranging from fraud detection and customer analytics to demand forecasting. These datasets often combine numerical values, text fields, and categorical attributes, making them well-suited for automated learning approaches. The system can handle varied feature types, deal with missing values, transform features, split data, selecting and tune algorithms, all without extensive manual preparation.
 
-### 1. Tabular Classification
-This mode fully automates the process of creating classification models. 
-Users are not required to configure algorithms or manually process features—simply uploading a training dataset and specifying the Target column is sufficient. 
-The system independently performs preprocessing and training, returning a ready-to-use model for category prediction.
+#### 1.1 Classification
+This setting targets the prediction of category labels from tabular inputs. Once a dataset is provided and the target column is specified, the workflow proceeds automatically. The system takes care of the heavy lifting of preprocessing and training, producing a ready-to-use model for category prediction.
 
-### 2. Tabular Regression
-Similar to classification, this mode is designed for the automatic construction of regression models (predicting numerical values). 
-The user only needs to provide data, and the module handles all workflow stages—from value normalization to the generation of the final artifact.
+#### 1.2 Regression
+This mode provides an automated workflow tailored to tasks that require predicting numerical values. Supplying the dataset is enough to trigger a complete automated pipeline that handles all workflow stages—from data preparation to the generation of the final artifact.
 
-### 3. Prompt Optimization
-This is a visual no-code environment for constructing the logic of Large Language Models (LLMs). 
-Instead of writing code, the user creates a scheme (flowchart) that defines how data is processed, transformed, and filtered before generating the final response.
+### 2. Prompt Optimization
+This is a visual no-code environment for constructing LLM workflows. Instead of writing code, the user builds a flowchart that outlines the logic step by step, linking components for data processing and action triggers.
 
 The module supports two usage scenarios:
 
-1. **Free-form Optimization**: 
-Creating a workflow structure "from scratch" using a task description, where the generative model itself suggests the processing architecture.
+**Free-form Optimization**: This method optimizes a prompt solely based on the pipeline structure (diagrammed by the user) and the provided task description. No data is used in this optimization process.
 
-2. **Data-Driven Optimization**: 
-Configuring and tuning prompts based on an uploaded dataset using quality metrics (Exact match or LLM-as-a-judge).
+**Data-Driven Optimization**: In this scenario,  the prompts are tuned based on an uploaded dataset using quality metrics, such as Exact Match or an LLM-as-a-judge approach.
 
-The following elements are used to build the scheme:
-- *Input/Output*: Mandatory nodes defining the data entry point and the final result format.
-- *Processor*: A transformation node containing instructions for text processing.
-- *Gate*: A logical node for flow branching (if/else conditions).
+The following elements are used to build the flowchart:
+- Input/Output: Essential nodes that define the data required for processing and the expected result. 
+- Processor: A node responsible for data transformation. It receives an input, modifies it as needed, and returns an output. 
+- Gate: A logical node used for controlling the flow, typically for branching (implementing if/else logic). It does not transform the input data; instead, it routes the flow to the appropriate subsequent node based on a defined condition.
 
-<img 
-  src={require('./pics_express_tasks/promt_opt.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+The optimization is based on the Teacher-Student concept, where a more powerful model (Teacher) is used to configure and train a lighter model (Student) for a specific task.
 
-The optimization is based on the Teacher-Student concept, where a more powerful model (Teacher) is used to 
-configure and train a lighter, faster model (Student) for a specific task.
+**Data Preparation**
+Express Tasks support data uploads in .csv format. The module provides an interface for basic dataset manipulation. For example, the user can filter rows by specific conditions, sort data, or exclude unnecessary columns that should not be used for training.
 
-<img 
-  src={require('./pics_express_tasks/promt_opt1.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+**Outputs**
+Successful completion of an Express Task generates a model in [.luml format](../Core-Concepts/luml_model.md).
 
-## Data Preparation
-Express Tasks support data uploads in **.csv** and **.xlsx** formats. 
-It is critical to adhere to table structuring rules (headers, delimiters) for correct algorithm operation.
+Along with the model file, the user gains access to the Evaluation Dashboard - an interactive panel with quality metrics allowing assessment of model performance.
 
-*Detailed recommendations on data cleaning, formatting, and quality checks before uploading can be found in the [Advices] section.*
+The ready model can be saved locally or moved to the [Registry](./Registry/registry.md) for further deployment via [Orbit](../Core-Concepts/orbit.md).
 
-#### Built-in Preprocessing
-Before training begins, the module provides an interface for basic dataset manipulation. 
-The user can filter rows by specific conditions, sort data, or exclude unnecessary columns that should not influence training.
+## Runtime
+Runtime is a standalone playground designed for the testing of the trained in Express Tasks models.
+### Key Features
 
-![](./pics_express_tasks/data_prepar.png)
+#### 1. Model Inspection
+Upon uploading a .luml file, the system automatically parses metadata and displays the Performance Dashboard. These metrics are immutable and reflect the model's state at the time training was completed. This allows for quick verification of the artifact's quality before use.
 
-## Outputs
-Successful completion of an Express Task generates a model in .dfs format. 
-This is the native binary format of the LUML platform, encapsulating trained weights, metadata, and preprocessing instructions.
-
-Along with the model file, the user gains access to:
-- **Evaluation Dashboard** - an interactive panel with quality metrics allowing assessment of model reliability before use.
-
-![](./pics_express_tasks/dashboard.png)
-
-- **Prediction Interface** - a built-in tool for model testing, allowing predictions for single records (manual) or data batches (via file upload).
-
-<img 
-  src={require('./pics_express_tasks/predict.png').default} 
-  style={{ width: '350px', borderRadius: '10px' }} 
-/>
-
-The ready model can be saved locally or moved to the [Registry](./Registry/registry.md) for further deployment via [Orbits](../Core-Concepts/orbit.md).
+#### 2. Inference
+Runtime provides an interface for feeding input data to the model. Two modes of operation are supported:
+- Manual Entry: A mode where the user manually enters feature values and generates a prediction for a single sample. The result (class or numerical value) is displayed as text directly within the module interface.
+- Batch Processing: A mode where the user uploads a feature file to generate predictions for a larger set of samples. The system generates a file (in the same format as the input) containing the original data plus an additional column with the predicted values. This file is available for download to a local device.

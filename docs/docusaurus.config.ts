@@ -60,12 +60,12 @@ headTags: [],
           position: 'left',
           label: 'Documentation',
         },
-        {
-          type: 'docSidebar',
-          sidebarId: 'guidesSidebar', 
-          position: 'left',
-          label: 'Guides',
-        },
+        // {
+        //   type: 'docSidebar',
+        //   sidebarId: 'guidesSidebar', 
+        //   position: 'left',
+        //   label: 'Guides',
+        //},
         {
           type: 'docSidebar',
           sidebarId: 'sdkSidebar', 
