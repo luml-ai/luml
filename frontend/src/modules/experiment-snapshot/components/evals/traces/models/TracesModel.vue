@@ -7,13 +7,9 @@
             <CircuitBoard :size="16" color="var(--p-primary-color)" />
             <span>{{ name }}</span>
           </div>
-          <Button
-            v-if="spansExist"
-            severity="secondary"
-            variant="outlined"
-            label="Trace"
-            @click="showSpans"
-          >
+          <Button v-if="spansExist" severity="secondary" variant="outlined" @click="showSpans">
+            <ListTree :size="16" />
+            Trace
           </Button>
         </header>
         <div class="items-list">
@@ -67,22 +63,16 @@
       </div>
     </div>
   </div>
-  <TraceDialog
-    v-if="snapsTree"
-    v-model:visible="traceVisible"
-    :spans-tree="snapsTree"
-  ></TraceDialog>
 </template>
 
 <script setup lang="ts">
-import { CircuitBoard, FileText, Minimize2, Maximize2 } from 'lucide-vue-next'
-import { Button } from 'primevue'
+import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-vue-next'
+import { Button, useToast } from 'primevue'
+import { computed, onMounted, ref } from 'vue'
+import { useEvalsStore } from '@/modules/experiment-snapshot/store/evals'
+import { simpleErrorToast } from '@/modules/experiment-snapshot/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
-import { computed, onMounted, ref } from 'vue'
-import TraceDialog from '../trace/TraceDialog.vue'
-import { useEvalsStore } from '@/modules/experiment-snapshot/store/evals'
-import type { TraceSpan } from '@/modules/experiment-snapshot/interfaces/interfaces'
 
 type Props = {
   id: string
@@ -93,11 +83,11 @@ const props = defineProps<Props>()
 
 const evalsStore = useEvalsStore()
 
+const toast = useToast()
+
 const scoresRef = ref<HTMLDivElement | null>()
 const scoresBlockHeight = ref(0)
 const spansExist = ref(false)
-const traceVisible = ref(false)
-const snapsTree = ref<TraceSpan[] | null>(null)
 
 const modelData = computed(() =>
   evalsStore.currentEvalData?.find((item) => item.modelId === props.id),
@@ -138,15 +128,24 @@ function getFormattedItems(object: object) {
 }
 
 async function showSpans() {
-  snapsTree.value = await evalsStore.getSpansTree(props.id)
-  if (snapsTree.value?.length) {
-    traceVisible.value = true
-  } else {
+  try {
+    if (!evalsStore.selectedEval) throw new Error('No dataset or eval selected')
+    const { datasetId, evalId } = evalsStore.selectedEval
+    const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
+    evalsStore.setSelectedTrace(trace)
+  } catch {
+    toast.add(simpleErrorToast('Failed to load spans'))
   }
 }
 
-onMounted(() => {
-  spansExist.value = !!evalsStore.getTraceId(props.id)
+onMounted(async () => {
+  if (!evalsStore.selectedEval) {
+    spansExist.value = false
+  } else {
+    const { datasetId, evalId } = evalsStore.selectedEval
+    const traceId = await evalsStore.getTraceId(props.id, datasetId, evalId)
+    spansExist.value = !!traceId
+  }
 })
 </script>
 
