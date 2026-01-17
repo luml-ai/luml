@@ -122,6 +122,7 @@ function goToCollection() {
 .tag {
   font-size: 12px;
   font-weight: 400;
+  white-space: nowrap;
 }
 .tag-icon {
   transform: scaleX(-1);
