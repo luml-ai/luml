@@ -1,6 +1,6 @@
 <template>
   <footer id="footer" class="footer">
-    <p>© LUML GmbH 2025</p>
+    <p>© LUML 2025</p>
   </footer>
 </template>
 
