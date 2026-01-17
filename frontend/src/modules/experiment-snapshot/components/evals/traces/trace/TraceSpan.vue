@@ -61,6 +61,8 @@
       :nesting="nesting + 1"
       :selected-span-id="selectedSpanId"
       :all-opened="allOpened"
+      :min-span-time="minSpanTime"
+      :max-span-time="maxSpanTime"
       @select="(payload: TraceSpanType) => $emit('select', payload)"
     ></TraceSpan>
   </div>
@@ -71,7 +73,6 @@ import type { TraceSpan as TraceSpanType } from '@/modules/experiment-snapshot/i
 import { Button, ProgressBar } from 'primevue'
 import { ChevronDown, ChevronRight, History } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-import { useEvalsStore } from '@/modules/experiment-snapshot/store/evals'
 import { getFormattedTime, getSpanTypeData } from '@/modules/experiment-snapshot/helpers/helpers'
 
 type Props = {
@@ -79,6 +80,8 @@ type Props = {
   nesting: number
   selectedSpanId: string | undefined
   allOpened: boolean
+  maxSpanTime: number
+  minSpanTime: number
 }
 
 type Emits = {
@@ -87,8 +90,6 @@ type Emits = {
 
 defineEmits<Emits>()
 const props = defineProps<Props>()
-
-const evalsStore = useEvalsStore()
 
 const spanOpened = ref(true)
 
@@ -101,18 +102,16 @@ const time = computed(() => {
 })
 
 const startProgress = computed(() => {
-  if (!evalsStore.minSpanTime || !evalsStore.maxSpanTime) return 0
+  if (!props.minSpanTime || !props.maxSpanTime) return 0
   const result =
-    (props.data.start_time_unix_nano - evalsStore.minSpanTime) /
-    (evalsStore.maxSpanTime - evalsStore.minSpanTime)
+    (props.data.start_time_unix_nano - props.minSpanTime) / (props.maxSpanTime - props.minSpanTime)
   return result * 100
 })
 
 const endProgress = computed(() => {
-  if (!evalsStore.minSpanTime || !evalsStore.maxSpanTime) return 0
+  if (!props.minSpanTime || !props.maxSpanTime) return 0
   const result =
-    (props.data.end_time_unix_nano - evalsStore.minSpanTime) /
-    (evalsStore.maxSpanTime - evalsStore.minSpanTime)
+    (props.data.end_time_unix_nano - props.minSpanTime) / (props.maxSpanTime - props.minSpanTime)
   return result * 100
 })
 

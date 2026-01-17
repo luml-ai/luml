@@ -1,5 +1,9 @@
 <template>
   <div class="content">
+    <Button v-if="showTracesButton" severity="secondary" @click="showTraces">
+      <ListTree :size="16" />
+      Traces
+    </Button>
     <Skeleton v-if="staticParamsLoading" style="height: 210px; margin-bottom: 20px"></Skeleton>
     <template v-else-if="staticParams?.length && showStaticParams">
       <StaticParameters
@@ -41,6 +45,21 @@
     :models-info="modelsInfo"
     @update:visible="evalsStore.resetCurrentEvalData"
   ></TracesDialog>
+  <TracesInfoDialog
+    :visible="!!tracesData"
+    :data="tracesData || []"
+    @update:visible="onTracesInfoVisibleUpdate"
+    @select="selectTrace"
+  ></TracesInfoDialog>
+  <TraceDialog
+    v-if="!!evalsStore.selectedTrace"
+    :visible="!!evalsStore.selectedTrace"
+    :tree="evalsStore.selectedTrace.tree"
+    :count="evalsStore.selectedTrace.count"
+    :max-span-time="evalsStore.selectedTrace.maxTime || 0"
+    :min-span-time="evalsStore.selectedTrace.minTime || 0"
+    @update:visible="onTraceVisibleUpdate"
+  ></TraceDialog>
 </template>
 
 <script setup lang="ts">
@@ -49,15 +68,19 @@ import type {
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   ModelsInfo,
+  BaseTraceInfo,
 } from './interfaces/interfaces'
-import { useToast, Skeleton } from 'primevue'
+import { useToast, Skeleton, Button } from 'primevue'
 import { simpleErrorToast } from './lib/primevue/data/toasts'
 import { useEvalsStore } from './store/evals'
+import { ListTree } from 'lucide-vue-next'
 import StaticParameters from './components/static-parameters/StaticParameters.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
 import EvalsCard from './components/evals/EvalsCard.vue'
 import StaticParametersMultiple from './components/static-parameters-multiple/StaticParametersMultiple.vue'
 import TracesDialog from './components/evals/traces/TracesDialog.vue'
+import TracesInfoDialog from './components/evals/traces/TracesInfoDialog.vue'
+import TraceDialog from './components/evals/traces/trace/TraceDialog.vue'
 
 type Props = {
   provider: ExperimentSnapshotProvider
@@ -79,10 +102,17 @@ const staticParams = ref<ExperimentSnapshotStaticParams[] | null>(null)
 const dynamicMetricsLoading = ref(true)
 const dynamicMetricsNames = ref<string[] | null>(null)
 const evalsLoading = ref(true)
+const tracesIds = ref<string[] | null>(null)
+const tracesLoading = ref(false)
+const tracesData = ref<BaseTraceInfo[] | null>(null)
 
 const showStaticParams = computed(() => {
   if (!staticParams.value) return false
   return staticParams.value.find((params) => Object.keys(params).find((key) => key !== 'modelId'))
+})
+
+const showTracesButton = computed(() => {
+  return props.modelsIds.length === 1 && tracesIds.value?.length
 })
 
 async function initStaticParams() {
@@ -128,8 +158,57 @@ async function initEvals() {
   }
 }
 
+async function showTraces() {
+  tracesLoading.value = true
+  try {
+    tracesData.value = await getTracesData()
+  } catch {
+    toast.add(simpleErrorToast('Failed to load traces'))
+  } finally {
+    tracesLoading.value = false
+  }
+}
+
+async function getTracesData() {
+  if (!tracesIds.value) return []
+  const promises = tracesIds.value.map(async (traceId) => {
+    return evalsStore.getTraceSpansTree(props.modelsIds[0], traceId)
+  })
+  return Promise.all(promises)
+}
+
+function onTracesInfoVisibleUpdate(value: boolean | undefined) {
+  if (!value) {
+    tracesData.value = null
+  }
+}
+
+function selectTrace(trace: BaseTraceInfo) {
+  evalsStore.setSelectedTrace(trace)
+}
+
+function onTraceVisibleUpdate(value: boolean | undefined) {
+  if (!value) {
+    evalsStore.resetSelectedTrace()
+  }
+}
+
+async function getUniqueTracesIds(modelId: string) {
+  tracesLoading.value = true
+  try {
+    tracesIds.value = await evalsStore.getUniqueTraceIds(modelId)
+  } catch (error: any) {
+    console.error(error)
+  } finally {
+    tracesLoading.value = false
+  }
+}
+
 onMounted(async () => {
   evalsStore.setProvider(props.provider)
+  if (props.modelsIds.length === 1) {
+    getUniqueTracesIds(props.modelsIds[0])
+  }
   initStaticParams()
   initDynamicMetrics()
   initEvals()
