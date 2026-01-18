@@ -1,0 +1,4 @@
+## 2025-05-27 - Authorization Bypass in Account Deletion
+**Vulnerability:** The `DELETE /auth/users/me` endpoint was missing the explicit `Depends(is_user_authenticated)` dependency, relying solely on middleware side-effects. This allowed API keys (which are valid tokens but lack the "jwt" scope intended for user management) to bypass the scope check and delete accounts. Unauthenticated requests would crash with a 500 error instead of a 401/403.
+**Learning:** Middleware-populated user objects (`request.user`) are not a substitute for explicit route dependencies that enforce scopes and permissions. Always verify that sensitive endpoints have explicit guards.
+**Prevention:** Ensure every protected endpoint has a corresponding `Depends(...)` check for authentication and authorization. Use automated tests to verify access control for different token types (JWT vs API Key).
