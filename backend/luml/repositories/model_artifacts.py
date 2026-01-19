@@ -4,10 +4,10 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from luml.infra.exceptions import DatabaseConstraintError
+from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.models import ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
-from luml.schemas.general import PaginationParams
+from luml.schemas.general import Cursor, PaginationParams
 from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
@@ -77,19 +77,63 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
             tags_query_result = await session.execute(tags_query)
             return self.collect_unique_values_from_array_column(tags_query_result.all())
 
+    async def _is_metric_sort(self, collection_id: UUID, sort_by: str) -> bool:
+        if sort_by == "metrics":
+            raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
+
+        if getattr(ModelArtifactOrm, sort_by, None):
+            return False
+
+        metrics = await self.get_collection_model_artifacts_metrics(collection_id)
+
+        if sort_by not in metrics:
+            raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
+        return True
+
+    @staticmethod
+    def _get_cursor_from_record(  # type: ignore[override]
+        cursor_rec: ModelArtifactOrm,
+        pagination: PaginationParams,
+        is_metric: bool = False,
+    ) -> Cursor:
+        if is_metric and pagination.extra_sort_field:
+            value = cursor_rec.metrics.get(pagination.extra_sort_field)
+        else:
+            value = getattr(cursor_rec, pagination.sort_by, None)
+        return Cursor(
+            id=cursor_rec.id,
+            value=value,
+            sort_by=pagination.sort_by,
+        )
+
     async def get_collection_model_artifacts(
         self,
         collection_id: UUID,
         pagination: PaginationParams,
-    ) -> list[ModelArtifact]:
+    ) -> tuple[list[ModelArtifact], Cursor | None]:
         async with self._get_session() as session:
-            db_models = await self.get_models_with_pagination(
+            sort_by = pagination.sort_by
+            is_metric = await self._is_metric_sort(collection_id, sort_by)
+
+            if is_metric:
+                pagination.extra_sort_field = sort_by
+                pagination.sort_by = "metrics"
+
+            result = await self.get_models_with_pagination(
                 session,
                 ModelArtifactOrm,
                 ModelArtifactOrm.collection_id == collection_id,
                 pagination=pagination,
             )
-            return [model.to_model_artifact() for model in db_models]
+            db_models = result.items
+
+            cursor = (
+                None
+                if not result.has_more
+                else self._get_cursor_from_record(db_models[-1], pagination, is_metric)
+            )
+
+            return [model.to_model_artifact() for model in db_models], cursor
 
     async def get_model_artifact(self, model_artifact_id: UUID) -> ModelArtifact | None:
         async with self._get_session() as session:

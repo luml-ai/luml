@@ -1,5 +1,7 @@
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -25,3 +27,8 @@ class PaginationParams(BaseModel):
     order: SortOrder = SortOrder.DESC
     limit: int = 100
     extra_sort_field: str | None = None
+
+
+class PaginatedSequenceResponse(BaseModel):
+    items: Sequence[Any]
+    has_more: bool = False

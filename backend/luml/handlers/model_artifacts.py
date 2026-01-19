@@ -39,7 +39,7 @@ from luml.schemas.model_artifacts import (
 )
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
-from luml.utils.pagination import decode_cursor, get_cursor
+from luml.utils.pagination import decode_cursor, encode_cursor
 
 
 class ModelArtifactHandler:
@@ -398,30 +398,18 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
-        is_metric = await self._is_metric_sort(collection_id, sort_by)
-        cursor = decode_cursor(cursor_str)
-
-        repo_sort_by = "metrics" if is_metric else sort_by
-        extra_sort_field = sort_by if is_metric else None
-
-        use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
-
         pagination = PaginationParams(
-            cursor=use_cursor,
-            sort_by=repo_sort_by,
+            cursor=decode_cursor(cursor_str),
+            sort_by=sort_by,
             order=order,
             limit=limit,
-            extra_sort_field=extra_sort_field,
         )
 
-        items = await self.__repository.get_collection_model_artifacts(
+        items, cursor = await self.__repository.get_collection_model_artifacts(
             collection_id, pagination
         )
 
-        return ModelArtifactsList(
-            items=items[:limit],
-            cursor=get_cursor(items, limit, sort_by, is_metric),
-        )
+        return ModelArtifactsList(items=items, cursor=encode_cursor(cursor))
 
     async def get_model_artifact(
         self,

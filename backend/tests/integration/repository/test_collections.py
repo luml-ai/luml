@@ -67,7 +67,7 @@ async def test_get_orbit_collections(create_orbit: OrbitFixtureData) -> None:
         collections_data.append(created)
 
     pagination = PaginationParams(limit=100)
-    orbit_collections = await repo.get_orbit_collections(orbit.id, pagination)
+    orbit_collections, cursor = await repo.get_orbit_collections(orbit.id, pagination)
 
     assert len(orbit_collections) == collections_num
 
@@ -144,7 +144,7 @@ async def test_get_orbit_collections_search_by_name(
         await repo.create_collection(collection_data)
 
     pagination = PaginationParams(limit=100)
-    search_results = await repo.get_orbit_collections(
+    search_results, cursor = await repo.get_orbit_collections(
         orbit.id, pagination, search="model"
     )
 
@@ -191,7 +191,7 @@ async def test_get_orbit_collections_search_by_tags(
         await repo.create_collection(collection_data)
 
     pagination = PaginationParams(limit=100)
-    search_results = await repo.get_orbit_collections(
+    search_results, cursor = await repo.get_orbit_collections(
         orbit.id, pagination, search="production"
     )
 

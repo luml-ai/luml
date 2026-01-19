@@ -18,7 +18,12 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from luml.models import Base
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import (
+    Cursor,
+    PaginatedSequenceResponse,
+    PaginationParams,
+    SortOrder,
+)
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
@@ -190,6 +195,17 @@ class CrudMixin:
         return result.scalars().all()
 
     @staticmethod
+    def _get_cursor_from_record(
+        cursor_rec: TOrm,
+        pagination: PaginationParams,
+    ) -> Cursor:
+        return Cursor(
+            id=cursor_rec.id,  # type: ignore[attr-defined]
+            value=getattr(cursor_rec, pagination.sort_by, None),
+            sort_by=pagination.sort_by,
+        )
+
+    @staticmethod
     def _get_sort_col(
         orm_class: type[TOrm],
         sort_by: str | None = None,
@@ -241,7 +257,7 @@ class CrudMixin:
         join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
         select_fields: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
-    ) -> Sequence[Any]:  # noqa: ANN401
+    ) -> PaginatedSequenceResponse:  # noqa: ANN401
         stmt = select(*(select_fields or [orm_class]))
 
         if join_condition:
@@ -274,9 +290,13 @@ class CrudMixin:
         stmt = stmt.options(*(options or [])).limit(pagination.limit + 1)
         result = await session.execute(stmt)
 
-        if use_unique:
-            return result.unique().scalars().all()
-        return result.scalars().all()
+        items = (
+            result.unique().scalars().all() if use_unique else result.scalars().all()
+        )
+
+        return PaginatedSequenceResponse(
+            items=items[: pagination.limit], has_more=len(items) > pagination.limit
+        )
 
     @staticmethod
     async def get_model_count(
