@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from luml.handlers.bucket_secrets import BucketSecretHandler
 from luml.infra.dependencies import UserAuthentication
@@ -37,6 +37,9 @@ async def get_bucket_secret_connection_urls(
     response_model=S3MultiPartUploadDetails | AzureMultiPartUploadDetails,
 )
 async def get_bucket_multipart_urls(
+    request: Request,
     data: BucketMultipartUpload,
 ) -> S3MultiPartUploadDetails | AzureMultiPartUploadDetails:
-    return await bucket_secret_handler.get_bucket_multipart_urls(data)
+    return await bucket_secret_handler.get_bucket_multipart_urls(
+        request.user.id, data
+    )

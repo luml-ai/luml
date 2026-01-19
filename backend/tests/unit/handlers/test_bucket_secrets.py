@@ -667,11 +667,17 @@ async def test_get_bucket_urls(
     "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_get_bucket_multipart_urls(
+    mock_check_permissions: AsyncMock,
     mock_get_bucket_secret: AsyncMock,
     mock_create_storage_client: Mock,
 ) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     bucket_location = "orbit/collection/model.tar.gz"
@@ -728,10 +734,13 @@ async def test_get_bucket_multipart_urls(
     mock_create_storage_client.return_value = mock_service_class
     mock_get_bucket_secret.return_value = original_secret
 
-    result = await handler.get_bucket_multipart_urls(data)
+    result = await handler.get_bucket_multipart_urls(user_id, data)
 
     assert result == expected
     mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+    )
     mock_create_storage_client.assert_called_once_with(original_secret.type)
     mock_service_class.assert_called_once_with(original_secret)
     mock_storage_instance.create_multipart_upload.assert_awaited_once_with(
