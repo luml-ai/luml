@@ -7,7 +7,6 @@ import type {
   MlModelCreator,
   UpdateMlModelPayload,
 } from './interfaces'
-import { MlModelStatusEnum } from './interfaces'
 
 export class MlModelsApi {
   private api: AxiosInstance

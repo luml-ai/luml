@@ -37,9 +37,9 @@ export const useCollectionsList = (limit = 20, syncStore = true) => {
   }
 
   async function getNextPage() {
-    isLoading.value = true
     const cursor = getNextPageCursor()
     if (!cursor) return
+    isLoading.value = true
     const response = await getCollectionsData(cursor)
     addCollectionsToList(response.items)
     savedCursors.value.push(response.cursor)

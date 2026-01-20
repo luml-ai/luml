@@ -1,22 +1,22 @@
 <template>
-  <div v-if="!showWelcome" class="search-container">
-    <IconField>
-      <InputText
-        :model-value="searchQuery"
-        size="small"
-        placeholder="Search"
-        @update:model-value="onSearch"
-      />
-      <InputIcon>
-        <Search :size="12" />
-      </InputIcon>
-    </IconField>
-  </div>
-  <div v-if="loading" class="loading-container">
-    <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
-  </div>
-  <div v-else>
-    <div v-if="showWelcome" class="content">
+  <div>
+    <div class="search-container">
+      <IconField>
+        <InputText
+          :model-value="searchQuery"
+          size="small"
+          placeholder="Search"
+          @update:model-value="onSearch"
+        />
+        <InputIcon>
+          <Search :size="12" />
+        </InputIcon>
+      </IconField>
+    </div>
+    <div v-if="loading" class="loading-container">
+      <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
+    </div>
+    <div v-else-if="collectionsList.length === 0" class="content">
       <Folders :size="35" color="var(--p-primary-color)" />
       <h3 class="label">Welcome to the Registry</h3>
       <div class="text">
@@ -69,7 +69,6 @@ const {
 } = useCollectionsList()
 
 const loading = ref(false)
-const showWelcome = ref(true)
 
 function updateCreatorVisible(visible: boolean | undefined) {
   visible ? collectionsStore.showCreator() : collectionsStore.hideCreator()
@@ -100,7 +99,6 @@ const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 
 onBeforeMount(async () => {
   await getFirstCollectionsPage()
-  showWelcome.value = collectionsList.value.length === 0
 })
 
 onUnmounted(() => {
