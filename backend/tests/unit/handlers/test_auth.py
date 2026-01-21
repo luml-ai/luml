@@ -23,6 +23,7 @@ from luml.schemas.user import (
     User,
     UserOut,
 )
+from pydantic import ValidationError
 
 secret_key = "test"
 algorithm = "HS256"
@@ -958,3 +959,13 @@ async def test_is_token_blacklisted(mock_is_token_blacklisted: AsyncMock) -> Non
 
     assert result is True
     mock_is_token_blacklisted.assert_awaited_once_with(token)
+
+
+def test_user_full_name_length() -> None:
+    long_name = "a" * 101
+    with pytest.raises(ValidationError) as excinfo:
+        CreateUserIn(
+            email="test@example.com", password="password123", full_name=long_name
+        )
+
+    assert "String should have at most" in str(excinfo.value)

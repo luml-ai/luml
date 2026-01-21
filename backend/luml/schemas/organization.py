@@ -17,24 +17,24 @@ class OrgRole(StrEnum):
 
 
 class OrganizationCreateIn(BaseModel):
-    name: str
+    name: str = Field(max_length=100)
     logo: HttpUrl | None = None
 
 
 class OrganizationCreate(BaseModel):
-    name: str
+    name: str = Field(max_length=100)
     logo: str | None = None
 
 
 class OrganizationUpdate(BaseModel):
     id: UUID | None = None
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=100)
     logo: HttpUrl | str | None = None
 
 
 class Organization(BaseModel, BaseOrmConfig):
     id: UUID
-    name: str
+    name: str = Field(max_length=100)
     logo: HttpUrl | None = None
     created_at: datetime
     updated_at: datetime | None = None
