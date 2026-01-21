@@ -156,12 +156,16 @@ class BucketSecretHandler:
         return await self.generate_bucket_urls(updated_secret)
 
     async def get_bucket_multipart_urls(
-        self, data: BucketMultipartUpload
+        self, user_id: UUID, data: BucketMultipartUpload
     ) -> S3MultiPartUploadDetails | AzureMultiPartUploadDetails:
         secret = await self.__secret_repository.get_bucket_secret(data.bucket_id)
 
         if not secret:
             raise NotFoundError("Secret not found")
+
+        await self.__permissions_handler.check_permissions(
+            secret.organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
+        )
 
         storage_service = create_storage_client(secret.type)(secret)  # type: ignore[arg-type]
 
