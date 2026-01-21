@@ -1,3 +1,7 @@
+## 2024-05-20 - Insecure Direct Object Reference in Bucket Secrets
+**Vulnerability:** The `get_bucket_multipart_urls` endpoint in `backend/luml/api/bucket_secret_urls.py` allowed any authenticated user to generate multipart upload URLs for any bucket secret by providing its UUID, without checking if the user had permission to access that specific secret or organization.
+**Learning:** Handlers that accept an object ID directly from the request body (rather than path parameters) can easily be overlooked for permission checks, especially if the method signature doesn't require user context.
+**Prevention:** Always ensure that every handler method that accesses a resource takes `user_id` and `organization_id` as arguments and performs an explicit `check_permissions` call before accessing the data. Review all endpoints to ensure they pass user context to the business logic layer.
 ## 2025-02-14 - Password Policy Improvement
 **Vulnerability:** Weak Password Policy (Length Limit)
 **Learning:** The application restricted passwords to a maximum of 36 characters. This prevents users from using strong passphrases or generated passwords, which is contrary to NIST SP 800-63B guidelines.
