@@ -56,9 +56,9 @@ class CreateUserIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        if len(value) < 8 or len(value) > 36:
+        if len(value) < 8 or len(value) > 128:
             raise ValueError(
-                "Password must be at least 8 and maximum 36 characters long."
+                "Password must be at least 8 and maximum 128 characters long."
             )
         return value
 
@@ -109,9 +109,9 @@ class UpdateUserIn(BaseModel):
         if value is None:
             return value
 
-        if len(value) < 8 or len(value) > 36:
+        if len(value) < 8 or len(value) > 128:
             raise ValueError(
-                "Password must be at least 8 and maximum 36 characters long."
+                "Password must be at least 8 and maximum 128 characters long."
             )
         return value
 
