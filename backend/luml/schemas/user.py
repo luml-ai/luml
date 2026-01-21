@@ -1,7 +1,7 @@
 from enum import Enum
 from uuid import UUID
 
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from luml.schemas.auth import Token
 from luml.schemas.base import BaseOrmConfig
@@ -15,12 +15,12 @@ class AuthProvider(str, Enum):
 
 class _UserBase(BaseModel):
     id: UUID | None = None
-    email: EmailStr
-    full_name: str | None = None
+    email: EmailStr = Field(max_length=254)
+    full_name: str | None = Field(default=None, max_length=100)
     disabled: bool | None = None
     email_verified: bool = False
     auth_method: AuthProvider
-    photo: str | None = None
+    photo: str | None = Field(default=None, max_length=2048)
     hashed_password: str | None = None
 
 
@@ -41,10 +41,10 @@ class UserOut(BaseModel, BaseOrmConfig):
 
 
 class CreateUserIn(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     password: str
-    full_name: str | None = None
-    photo: str | None = None
+    full_name: str | None = Field(default=None, max_length=100)
+    photo: str | None = Field(default=None, max_length=2048)
 
     @field_validator("email")
     @classmethod
@@ -56,9 +56,9 @@ class CreateUserIn(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, value: str) -> str:
-        if len(value) < 8 or len(value) > 36:
+        if len(value) < 8 or len(value) > 128:
             raise ValueError(
-                "Password must be at least 8 and maximum 36 characters long."
+                "Password must be at least 8 and maximum 128 characters long."
             )
         return value
 
@@ -71,7 +71,7 @@ class CreateUserIn(BaseModel):
 
 
 class SignInUser(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     password: str
 
     @field_validator("email")
@@ -98,10 +98,10 @@ class DetailResponse(BaseModel):
 
 class UpdateUserIn(BaseModel):
     password: str | None = None
-    full_name: str | None = None
+    full_name: str | None = Field(default=None, max_length=100)
     disabled: bool | None = None
     auth_method: AuthProvider | None = None
-    photo: str | None = None
+    photo: str | None = Field(default=None, max_length=2048)
 
     @field_validator("password")
     @classmethod
@@ -109,9 +109,9 @@ class UpdateUserIn(BaseModel):
         if value is None:
             return value
 
-        if len(value) < 8 or len(value) > 36:
+        if len(value) < 8 or len(value) > 128:
             raise ValueError(
-                "Password must be at least 8 and maximum 36 characters long."
+                "Password must be at least 8 and maximum 128 characters long."
             )
         return value
 
@@ -124,7 +124,7 @@ class UpdateUserIn(BaseModel):
 
 
 class UpdateUser(UpdateUserIn):
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     email_verified: bool | None = None
     hashed_password: str | None = None
 

@@ -75,17 +75,21 @@ async def _terminate_connections(conn: AsyncConnection, db_name: str) -> None:
 
 async def _create_database(admin_dsn: str, db_name: str) -> None:
     conn = await asyncpg.connect(admin_dsn)
-    await _terminate_connections(conn, db_name)
-    await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
-    await conn.execute(f'CREATE DATABASE "{db_name}";')
-    await conn.close()
+    try:
+        await _terminate_connections(conn, db_name)
+        await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
+        await conn.execute(f'CREATE DATABASE "{db_name}";')
+    finally:
+        await conn.close()
 
 
 async def _drop_database(admin_dsn: str, db_name: str) -> None:
     conn = await asyncpg.connect(admin_dsn)
-    await _terminate_connections(conn, db_name)
-    await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
-    await conn.close()
+    try:
+        await _terminate_connections(conn, db_name)
+        await conn.execute(f'DROP DATABASE IF EXISTS "{db_name}";')
+    finally:
+        await conn.close()
 
 
 @dataclass

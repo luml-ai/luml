@@ -196,7 +196,7 @@ async def test_accept_invite(
     mock_get_user_organizations_membership_count.return_value = 0
     mock_get_organization_details.return_value = Mock(members_limit=50, total_members=0)
 
-    await handler.accept_invite(invite.id, user_id)
+    await handler.accept_invite(invite.id, user_id, invite.email)
     mock_get_invite.assert_awaited_once_with(invite.id)
     mock_get_organization_details.assert_awaited_once_with(invite.organization_id)
     mock_create_organization_member.assert_awaited_once_with(
@@ -212,17 +212,24 @@ async def test_accept_invite(
 
 
 @patch(
+    "luml.handlers.organizations.InviteRepository.get_invite",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.organizations.InviteRepository.delete_organization_invite",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_reject_invite(
     mock_delete_organization_invite: AsyncMock,
+    mock_get_invite: AsyncMock,
 ) -> None:
     invite_id = UUID("0199c416-6117-7a3d-a91c-9b4037837882")
     mock_delete_organization_invite.return_value = None
+    email = "test@example.com"
+    mock_get_invite.return_value = Mock(email=email)
 
-    await handler.reject_invite(invite_id)
+    await handler.reject_invite(invite_id, email)
     mock_delete_organization_invite.assert_awaited_once_with(invite_id)
 
 

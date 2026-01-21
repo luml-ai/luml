@@ -18,6 +18,7 @@ from luml.schemas.organization import (
     OrgRole,
 )
 from luml.schemas.permissions import Action, Resource
+from pydantic import ValidationError
 
 handler = OrganizationHandler()
 
@@ -341,3 +342,11 @@ async def test_leave_from_organization_owner(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.ORGANIZATION, Action.LEAVE
     )
+
+
+def test_organization_name_length() -> None:
+    long_name = "a" * 101
+    with pytest.raises(ValidationError) as excinfo:
+        OrganizationCreateIn(name=long_name)
+
+    assert "String should have at most" in str(excinfo.value)
