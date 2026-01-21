@@ -4,11 +4,10 @@ from sqlalchemy import String, cast, or_
 
 from luml.models import CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
-from luml.schemas.general import CursorType, SortOrder
+from luml.schemas.general import PaginationParams
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
-    CollectionSortBy,
     CollectionUpdate,
 )
 
@@ -35,11 +34,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
     async def get_orbit_collections(
         self,
         orbit_id: UUID,
-        limit: int,
-        cursor_id: UUID | None = None,
-        cursor_value: CursorType | None = None,
-        sort_by: CollectionSortBy = CollectionSortBy.CREATED_AT,
-        order: SortOrder = SortOrder.DESC,
+        pagination: PaginationParams,
         search: str | None = None,
     ) -> list[Collection]:
         async with self._get_session() as session:
@@ -58,11 +53,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                 session,
                 CollectionOrm,
                 *conditions,
-                cursor_id=cursor_id,
-                cursor_value=cursor_value,
-                sort_by=sort_by,
-                order=order,
-                limit=limit,
+                pagination=pagination,
             )
             return [mc.to_collection() for mc in db_collections]
 

@@ -7,6 +7,7 @@ from agent.schemas import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
 )
+from agent.schemas.deployments import ErrorMessage
 from agent.tasks.base import Task
 
 logger = logging.getLogger(__name__)
@@ -24,10 +25,10 @@ class UndeployTask(Task):
                 deployment_id=deployment_id
             )
         except Exception as error:
-            error_message = {
-                "reason": "Failed to remove container.",
-                "error": str(error),
-            }
+            error_message = ErrorMessage(
+                reason="Failed to remove container.",
+                error=str(error),
+            )
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )
@@ -42,7 +43,7 @@ class UndeployTask(Task):
         try:
             await self.platform.delete_deployment(deployment_id)
         except Exception as error:
-            error_message = {"reason": "Failed to delete deployment.", "error": str(error)}
+            error_message = ErrorMessage(reason="Failed to delete deployment.", error=str(error))
             await self.platform.update_task_status(
                 task.id, SatelliteTaskStatus.FAILED, error_message
             )

@@ -12,7 +12,6 @@ from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactIn,
     ModelArtifactsList,
-    ModelArtifactSortBy,
     ModelArtifactUpdateIn,
 )
 
@@ -79,7 +78,7 @@ async def get_model_artifacts(
     collection_id: UUID,
     cursor: str | None = None,
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
-    sort_by: Annotated[ModelArtifactSortBy, Query()] = ModelArtifactSortBy.CREATED_AT,
+    sort_by: str = "created_at",
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
 ) -> ModelArtifactsList:
     return await model_artifacts_handler.get_collection_model_artifacts(
@@ -91,6 +90,23 @@ async def get_model_artifacts(
         limit,
         sort_by,
         order,
+    )
+
+
+@model_artifacts_router.get(
+    "/{model_artifact_id}",
+    responses=endpoint_responses,
+    response_model=ModelArtifact,
+)
+async def get_model_artifact_details(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    collection_id: UUID,
+    model_artifact_id: UUID,
+) -> ModelArtifact:
+    return await model_artifacts_handler.get_model_artifact(
+        request.user.id, organization_id, orbit_id, collection_id, model_artifact_id
     )
 
 

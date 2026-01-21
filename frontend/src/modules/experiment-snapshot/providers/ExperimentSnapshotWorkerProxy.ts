@@ -81,15 +81,19 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     return this.call<EvalsListType>('getEvalsList', undefined, signal)
   }
 
-  getSpansList(args: SpansParams) {
-    return this.call<SpansListType>('getSpansList', [args])
-  }
-
   buildSpanTree(spans: Omit<TraceSpan, 'children'>[]) {
     return this.call<TraceSpan[]>('buildSpanTree', [spans])
   }
 
   getTraceId(args: SpansParams) {
     return this.call<string>('getTraceId', [args])
+  }
+
+  getUniqueTraceIds(modelId: string) {
+    return this.call<string[]>('getUniqueTraceIds', [modelId])
+  }
+
+  getTraceSpans(modelId: string, traceId: string) {
+    return this.call<SpansListType>('getTraceSpans', [modelId, traceId])
   }
 }

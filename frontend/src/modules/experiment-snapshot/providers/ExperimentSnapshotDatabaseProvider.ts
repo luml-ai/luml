@@ -1,4 +1,4 @@
-import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
+import type { Database, QueryExecResult, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
   EvalsDatasets,
   ExperimentSnapshotDynamicMetric,
@@ -162,23 +162,22 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return data
   }
 
-  async getSpansList(args: SpansParams): Promise<Omit<TraceSpan, 'children'>[]> {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === args.modelId)?.database
+  async getTraceSpans(modelId: string, traceId: string) {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
     if (!db) return []
-    const traceId = await this.getTraceId(args)
-    if (!traceId) return []
-    const result = db.exec(
+    const results = db.exec(
       `SELECT trace_id, span_id, parent_span_id, name, kind, start_time_unix_nano, end_time_unix_nano, status_code, status_message, attributes, events, links, dfs_span_type FROM spans WHERE trace_id = '${traceId}'`,
     )
-    if (!result[0]) return []
-    const list = result[0].values.map((array) =>
-      array.reduce((acc: any, value, index) => {
-        const columnName = result[0].columns[index]
-        acc[columnName] = safeParse(value)
-        return acc
-      }, {}),
-    )
-    return list
+    if (!results[0]) return []
+    return this.prepareSpansResult(results[0])
+  }
+
+  async getUniqueTraceIds(modelId: string) {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
+    if (!db) return []
+    const queryResult = db.exec('SELECT DISTINCT trace_id FROM spans')
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
   }
 
   async getTraceId(args: SpansParams) {
@@ -225,5 +224,17 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           children: this.sortSpans(span.children),
         }
       })
+  }
+
+  private prepareSpansResult(result: QueryExecResult) {
+    const columns = result.columns
+    const values = result.values
+    return values.map((array) =>
+      array.reduce((acc: any, value, index) => {
+        const columnName = columns[index]
+        acc[columnName] = safeParse(value)
+        return acc
+      }, {}),
+    )
   }
 }

@@ -7,12 +7,11 @@ from sqlalchemy.orm import selectinload
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import ModelArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
-from luml.schemas.general import CursorType, SortOrder
+from luml.schemas.general import PaginationParams
 from luml.schemas.model_artifacts import (
     ModelArtifact,
     ModelArtifactCreate,
     ModelArtifactDetails,
-    ModelArtifactSortBy,
     ModelArtifactStatus,
     ModelArtifactUpdate,
 )
@@ -52,25 +51,43 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
                 else error_mess
             ) from error
 
+    async def get_collection_model_artifacts_metrics(
+        self, collection_id: UUID
+    ) -> list[str]:
+        async with self._get_session() as session:
+            metrics_query = select(
+                func.jsonb_each(ModelArtifactOrm.metrics).scalar_table_valued("key")
+            ).where(
+                ModelArtifactOrm.collection_id == collection_id,
+                ModelArtifactOrm.metrics.is_not(None),
+                ModelArtifactOrm.metrics != {},
+            )
+            metrics_query_result = await session.execute(metrics_query)
+
+            return sorted({row[0] for row in metrics_query_result.unique().all()})
+
+    async def get_collection_model_artifacts_tags(
+        self, collection_id: UUID
+    ) -> list[str]:
+        async with self._get_session() as session:
+            tags_query = select(ModelArtifactOrm.tags).where(
+                ModelArtifactOrm.collection_id == collection_id,
+                ModelArtifactOrm.tags.is_not(None),
+            )
+            tags_query_result = await session.execute(tags_query)
+            return self.collect_unique_values_from_array_column(tags_query_result.all())
+
     async def get_collection_model_artifacts(
         self,
         collection_id: UUID,
-        limit: int,
-        cursor_id: UUID | None = None,
-        cursor_value: CursorType | None = None,
-        sort_by: ModelArtifactSortBy = ModelArtifactSortBy.CREATED_AT,
-        order: SortOrder = SortOrder.DESC,
+        pagination: PaginationParams,
     ) -> list[ModelArtifact]:
         async with self._get_session() as session:
             db_models = await self.get_models_with_pagination(
                 session,
                 ModelArtifactOrm,
                 ModelArtifactOrm.collection_id == collection_id,
-                cursor_id=cursor_id,
-                cursor_value=cursor_value,
-                sort_by=sort_by,
-                order=order,
-                limit=limit,
+                pagination=pagination,
             )
             return [model.to_model_artifact() for model in db_models]
 

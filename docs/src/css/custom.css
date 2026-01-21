@@ -1,44 +1,167 @@
 /**
- * Any CSS included here will be global. The classic template
- * bundles Infima by default. Infima is a CSS framework designed to
- * work well for content-centric websites.
+ * src/css/custom.css
+ * * Основний файл стилів для Docusaurus.
  */
 
-/* You can override the default Infima variables here. */
-:root {
-  --ifm-color-primary-dark: #29784c;
-  --ifm-color-primary-darker: #277148;
-  --ifm-color-primary-darkest: #205d3b;
-  --ifm-color-primary-light: #33925d;
-  --ifm-color-primary-lighter: #359962;
-  --ifm-color-primary-lightest: #3cad6e;
-  --ifm-code-font-size: 95%;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+   /*1. Color Palette*/
 
-  --ifm-navbar-background-color: #f2f3f5;
-  --ifm-navbar-link-color: #52525b;
-  --ifm-navbar-link-hover-color: #b1b1b5;
-  --ifm-link-color: #2673fd;
-  --ifm-color-primary: #2673fd;
-  --ifm-footer-background-color: #f2f3f5;
-  --ifm-hero-background-color: #303846;
+:root {
+  /* Main color: #246dfd */
+  --ifm-color-primary: #246dfd;
+  --ifm-color-primary-dark: #0356f3;
+  --ifm-color-primary-darker: #0351e6;
+  --ifm-color-primary-darkest: #0243be;
+  --ifm-color-primary-light: #4e88fe;
+  --ifm-color-primary-lighter: #6396fe;
+  --ifm-color-primary-lightest: #a1c0ff;
+  
+  /* Code blocks background */
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
 }
 
-/* For readability concerns, you should choose a lighter palette in dark mode. */
+/* For dark mode */
 [data-theme='dark'] {
-  --ifm-color-primary: #25c2a0;
-  --ifm-color-primary-dark: #21af90;
-  --ifm-color-primary-darker: #1fa588;
-  --ifm-color-primary-darkest: #1a8870;
-  --ifm-color-primary-light: #29d5b0;
-  --ifm-color-primary-lighter: #32d8b4;
-  --ifm-color-primary-lightest: #4fddbf;
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+  --ifm-color-primary: #4e88fe; 
+  --ifm-color-primary-dark: #246dfd;
+  --ifm-color-primary-darker: #0356f3;
+  --ifm-color-primary-light: #7baaff;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/*2. Sidebar Navigatoin*/
+
+/* А. Dividers*/
+
+/* Non-active state */
+.menu__list-item > .menu__link--sublist {
+  color: #0b2e6d;     /* Dark Navy Blue */
+  font-weight: 700;   /* Жирний шрифт */
+}
+
+.menu__list-item > .menu__link--sublist::after {
+  background: var(--ifm-menu-link-sublist-icon) !important;
+  filter: invert(13%) sepia(35%) saturate(5479%) hue-rotate(212deg) brightness(93%) contrast(103%); /* Це перетворює сірий на #0b2e6d */
+}
+
+/* Б. Active state (Selected/Open) */
+
+.menu__list-item > .menu__link--sublist.menu__link--active {
+  color: #246dfd !important; 
+}
+
+.menu__link--active:not(.menu__link--sublist) {
+  color: #246dfd !important;
+  background-color: rgba(36, 109, 253, 0.1); /* Легкий блакитний фон під активним пунктом */
+}
+
+/*В. Hover */
+.menu__link:hover {
+  color: #246dfd !important;
+}
+
+/*3. Dark Mode Adjustments*/
 
 
-  --ifm-navbar-background-color: #18181b;
-  --ifm-navbar-link-color: #e3e3e3;
-  --ifm-link-color: #2673fd;
-  --ifm-color-primary: #2673fd;
-  --ifm-footer-background-color: #18181b;
+[data-theme='dark'] .menu__list-item > .menu__link--sublist {
+  color: #e3e3e3; 
+}
+
+[data-theme='dark'] .menu__list-item > .menu__link--sublist.menu__link--active {
+  color: #4e88fe !important;
+}
+
+[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
+  color: #4e88fe !important;
+  background-color: rgba(78, 136, 254, 0.15);
+}
+
+/* 4. Additional Utilities*/
+
+.img-small img {
+  max-width: 300px;
+  width: 100%;
+  border-radius: 8px; 
+}
+
+.img-center {
+  display: flex;
+  justify-content: center;
+  margin: 2rem 0;
+}
+
+/* Стилі для вкладок */
+.tabs {
+  margin: 2rem 0;
+  border-bottom: 2px solid var(--ifm-color-emphasis-300);
+}
+
+.tabs__item {
+  font-size: 1rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.tabs__item:hover {
+  background-color: var(--ifm-color-emphasis-100);
+}
+
+.tabs__item--active {
+  border-bottom: 3px solid var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  font-weight: 600;
+}
+
+/* Контент всередині вкладок */
+[role="tabpanel"] {
+  padding: 1.5rem 0;
+}
+
+/* Стилі для зображень у вкладках */
+[role="tabpanel"] img {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin: 1.5rem 0;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Більш виразні заголовки у вкладках */
+[role="tabpanel"] strong {
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--ifm-heading-color);
+}
+
+/* Контейнер для тексту та зображення в ряд */
+.tab-content-row {
+  display: flex;
+  gap: 2rem;
+  align-items: flex-start;
+  margin: 1rem 0;
+}
+
+.tab-content-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-content-image {
+  flex: 1;
+  min-width: 0;
+}
+
+.tab-content-image img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Адаптивність для мобільних */
+@media (max-width: 996px) {
+  .tab-content-row {
+    flex-direction: column;
+  }
 }

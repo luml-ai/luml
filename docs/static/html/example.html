@@ -1,0 +1,304 @@
+
+    <html>
+    <head>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                line-height: 1.6;
+                padding: 24px;
+                max-width: 900px;
+                margin: 0 auto;
+                color: #333;
+            }
+            h1 {
+                color: #2c3e50;
+                border-bottom: 3px solid #3498db;
+                padding-bottom: 10px;
+            }
+            h2 {
+                color: #34495e;
+                margin-top: 32px;
+                border-left: 4px solid #3498db;
+                padding-left: 12px;
+            }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 16px 0;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            }
+            th, td {
+                text-align: left;
+                padding: 12px;
+                border-bottom: 1px solid #ddd;
+            }
+            th {
+                background-color: #3498db;
+                color: white;
+                font-weight: 600;
+            }
+            tr:hover {
+                background-color: #f5f5f5;
+            }
+            .metric-box {
+                background: #ecf0f1;
+                padding: 12px;
+                border-radius: 6px;
+                margin: 8px 0;
+            }
+            .warning {
+                background: #fff3cd;
+                border-left: 4px solid #ffc107;
+                padding: 12px;
+                margin: 16px 0;
+            }
+            .info {
+                background: #d1ecf1;
+                border-left: 4px solid #17a2b8;
+                padding: 12px;
+                margin: 16px 0;
+            }
+            code {
+                background: #f4f4f4;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-family: 'Courier New', monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Model Card: Gradient Boosting Classifier</h1>
+        
+        <div class="info">
+            <strong>Purpose:</strong> Binary classification of breast cancer tumors (malignant vs. benign)
+            using the Wisconsin Diagnostic Breast Cancer dataset.
+        </div>
+
+        <h2>Dataset Characteristics</h2>
+        <table>
+            <tr>
+                <th>Characteristic</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Total Features</td>
+                <td>30</td>
+            </tr>
+            <tr>
+                <td>Training Samples</td>
+                <td>398 (Class 0: 148, Class 1: 250)</td>
+            </tr>
+            <tr>
+                <td>Test Samples</td>
+                <td>86 (Class 0: 32, Class 1: 54)</td>
+            </tr>
+            <tr>
+                <td>Class Balance (Train)</td>
+                <td>62.8% positive class</td>
+            </tr>
+        </table>
+
+        <h2>Feature Importance Analysis</h2>
+        <p>Top 10 most influential features in the model's decision-making:</p>
+        <table>
+            <tr>
+                <th>Rank</th>
+                <th>Feature</th>
+                <th>Importance Score</th>
+                <th>Relative Impact</th>
+            </tr>
+    
+            <tr>
+                <td>1</td>
+                <td><code>worst radius</code></td>
+                <td>0.3663</td>
+                <td>
+                    <div style="background: #3498db; width: 100%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>2</td>
+                <td><code>worst concave points</code></td>
+                <td>0.3431</td>
+                <td>
+                    <div style="background: #3498db; width: 93%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>3</td>
+                <td><code>worst area</code></td>
+                <td>0.0950</td>
+                <td>
+                    <div style="background: #3498db; width: 25%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>4</td>
+                <td><code>worst perimeter</code></td>
+                <td>0.0936</td>
+                <td>
+                    <div style="background: #3498db; width: 25%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>5</td>
+                <td><code>concavity error</code></td>
+                <td>0.0150</td>
+                <td>
+                    <div style="background: #3498db; width: 4%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>6</td>
+                <td><code>worst texture</code></td>
+                <td>0.0134</td>
+                <td>
+                    <div style="background: #3498db; width: 3%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>7</td>
+                <td><code>mean concave points</code></td>
+                <td>0.0117</td>
+                <td>
+                    <div style="background: #3498db; width: 3%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>8</td>
+                <td><code>mean texture</code></td>
+                <td>0.0108</td>
+                <td>
+                    <div style="background: #3498db; width: 2%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>9</td>
+                <td><code>worst concavity</code></td>
+                <td>0.0103</td>
+                <td>
+                    <div style="background: #3498db; width: 2%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+            <tr>
+                <td>10</td>
+                <td><code>texture error</code></td>
+                <td>0.0083</td>
+                <td>
+                    <div style="background: #3498db; width: 2%; height: 20px; border-radius: 3px;"></div>
+                </td>
+            </tr>
+        
+        </table>
+        
+        <div class="info">
+            <strong>Interpretation:</strong> The model relies most heavily on 
+            <code>worst radius</code>, which contributes 36.6% 
+            to the overall feature importance. This suggests this measurement is particularly 
+            discriminative for distinguishing malignant from benign tumors.
+        </div>
+
+        <h2>Model Behavior Analysis</h2>
+        
+        <h3>Confusion Matrix (Test Set)</h3>
+        <table style="width: auto;">
+            <tr>
+                <th></th>
+                <th>Predicted: Benign</th>
+                <th>Predicted: Malignant</th>
+            </tr>
+            <tr>
+                <th>Actual: Benign</th>
+                <td style="background: #d4edda;">27</td>
+                <td style="background: #f8d7da;">5</td>
+            </tr>
+            <tr>
+                <th>Actual: Malignant</th>
+                <td style="background: #f8d7da;">3</td>
+                <td style="background: #d4edda;">51</td>
+            </tr>
+        </table>
+        
+        <div class="metric-box">
+            <strong>Error Analysis:</strong><br>
+            • False Positives (benign → malignant): 5 cases<br>
+            • False Negatives (malignant → benign): 3 cases<br>
+            <br>
+            <em>Note:</em> In medical contexts, false negatives are typically more concerning 
+            as they represent missed cancer diagnoses.
+        </div>
+
+        <h2>Model Architecture</h2>
+        <div class="metric-box">
+            <strong>Gradient Boosting Configuration:</strong><br>
+            • Ensemble Size: 200 trees<br>
+            • Learning Rate: 0.05<br>
+            • Tree Depth: 2 (shallow trees for regularization)<br>
+            • Subsampling: 1.0 (uses all training data per iteration)<br>
+        </div>
+
+        <h2>Intended Use Cases</h2>
+        <ul>
+            <li><strong>Primary:</strong> Educational demonstration of ML experiment tracking</li>
+            <li><strong>Research:</strong> Baseline model for breast cancer classification benchmarks</li>
+            <li><strong>Prototyping:</strong> Template for clinical ML workflows</li>
+        </ul>
+
+        <h2>Limitations & Caveats</h2>
+        <div class="warning">
+            <strong>Important Limitations:</strong>
+            <ul>
+                <li><strong>No Calibration:</strong> Probability outputs may not be well-calibrated. 
+                Consider isotonic or Platt scaling for clinical use.</li>
+                <li><strong>Fixed Threshold:</strong> Uses default 0.5 decision threshold without 
+                cost-benefit analysis for medical context.</li>
+                <li><strong>No Cross-Validation:</strong> Single train-test split may not capture 
+                full model variance.</li>
+                <li><strong>Dataset Bias:</strong> Wisconsin dataset may not generalize to different 
+                populations, imaging equipment, or clinical protocols.</li>
+                <li><strong>Feature Scale Sensitivity:</strong> Model may be sensitive to feature 
+                scaling differences in production data.</li>
+                <li><strong>No Fairness Audit:</strong> No analysis of performance across demographic 
+                subgroups (age, race, etc.).</li>
+            </ul>
+        </div>
+
+        <h2>Reproducibility</h2>
+        <div class="metric-box">
+            <strong>Random Seed:</strong> 42<br>
+            <strong>Data Splitting:</strong> Stratified splits to preserve class distribution<br>
+            <strong>Validation:</strong> Staged predictions used for validation curves (per-iteration metrics)<br>
+            <br>
+            <em>Environment details (sklearn version, numpy version, Python version) should be 
+            captured by your experiment tracking backend or requirements.txt.</em>
+        </div>
+
+        <h2>References & Context</h2>
+        <ul>
+            <li>Dataset: Wisconsin Diagnostic Breast Cancer (WDBC) from UCI ML Repository</li>
+            <li>Features: Computed from digitized images of fine needle aspirate (FNA) of breast mass</li>
+            <li>Feature Engineering: Mean, standard error, and "worst" values for 10 real-valued characteristics</li>
+        </ul>
+
+        <div class="info">
+            <strong>For detailed metrics and training curves:</strong> 
+            Refer to the experiment tracking dashboard. This model card focuses on 
+            interpretability, data characteristics, and deployment considerations not 
+            captured in raw metrics.
+        </div>
+
+        <footer style="margin-top: 48px; padding-top: 16px; border-top: 1px solid #ddd; color: #666; font-size: 0.9em;">
+            Generated automatically via experiment tracking pipeline • Random seed: 42
+        </footer>
+    </body>
+    </html>
+    

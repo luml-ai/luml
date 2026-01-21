@@ -1,5 +1,6 @@
 import pytest
 from luml.repositories.collections import CollectionRepository
+from luml.schemas.general import PaginationParams
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
@@ -65,7 +66,8 @@ async def test_get_orbit_collections(create_orbit: OrbitFixtureData) -> None:
         created = await repo.create_collection(collection_data)
         collections_data.append(created)
 
-    orbit_collections = await repo.get_orbit_collections(orbit.id, 100)
+    pagination = PaginationParams(limit=100)
+    orbit_collections = await repo.get_orbit_collections(orbit.id, pagination)
 
     assert len(orbit_collections) == collections_num
 
@@ -141,7 +143,10 @@ async def test_get_orbit_collections_search_by_name(
     for collection_data in collections_data:
         await repo.create_collection(collection_data)
 
-    search_results = await repo.get_orbit_collections(orbit.id, 100, search="model")
+    pagination = PaginationParams(limit=100)
+    search_results = await repo.get_orbit_collections(
+        orbit.id, pagination, search="model"
+    )
 
     assert len(search_results) == 2
     names = [c.name for c in search_results]
@@ -185,8 +190,9 @@ async def test_get_orbit_collections_search_by_tags(
     for collection_data in collections_data:
         await repo.create_collection(collection_data)
 
+    pagination = PaginationParams(limit=100)
     search_results = await repo.get_orbit_collections(
-        orbit.id, 100, search="production"
+        orbit.id, pagination, search="production"
     )
 
     assert len(search_results) == 2

@@ -101,10 +101,7 @@ const isModelAttachmentsAvailable = computed(() => {
   if (!currentModel.value) return false
   const fileIndex = currentModel.value.file_index
   if (!fileIndex) return false
-  const hasExtraFiles = Object.keys(fileIndex).some((path) =>
-    path.startsWith('variant_artifacts/extra_files/'),
-  )
-  return hasExtraFiles
+  return FnnxService.hasAttachments(fileIndex)
 })
 
 function initDeploy() {
