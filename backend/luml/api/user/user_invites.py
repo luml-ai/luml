@@ -22,9 +22,11 @@ async def get_user_invites(request: Request) -> list[UserInvite]:
 
 @user_invites_router.post("/{invite_id}/accept")
 async def accept_invite_to_organization(request: Request, invite_id: UUID) -> None:
-    return await organization_handler.accept_invite(invite_id, request.user.id)
+    return await organization_handler.accept_invite(
+        invite_id, request.user.id, request.user.email
+    )
 
 
 @user_invites_router.post("/{invite_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
 async def reject_invite_to_organization(request: Request, invite_id: UUID) -> None:
-    return await organization_handler.reject_invite(invite_id)
+    return await organization_handler.reject_invite(invite_id, request.user.email)

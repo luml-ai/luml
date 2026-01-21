@@ -240,11 +240,16 @@ class OrganizationHandler:
 
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
-    async def accept_invite(self, invite_id: UUID, user_id: UUID) -> None:
+    async def accept_invite(
+        self, invite_id: UUID, user_id: UUID, user_email: EmailStr
+    ) -> None:
         invite = await self.__invites_repository.get_invite(invite_id)
 
         if not invite:
             raise OrganizationInviteNotFoundError()
+
+        if invite.email != user_email:
+            raise InsufficientPermissionsError("This invite is not for you")
 
         await self._organization_membership_limit_check(user_id)
         await self._check_org_members_limit(invite.organization_id)
@@ -264,7 +269,15 @@ class OrganizationHandler:
             invite.organization_id, invite.email
         )
 
-    async def reject_invite(self, invite_id: UUID) -> None:
+    async def reject_invite(self, invite_id: UUID, user_email: EmailStr) -> None:
+        invite = await self.__invites_repository.get_invite(invite_id)
+
+        if not invite:
+            raise OrganizationInviteNotFoundError()
+
+        if invite.email != user_email:
+            raise InsufficientPermissionsError("This invite is not for you")
+
         return await self.__invites_repository.delete_organization_invite(invite_id)
 
     async def get_organization_invites(
