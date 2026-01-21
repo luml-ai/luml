@@ -40,6 +40,4 @@ async def get_bucket_multipart_urls(
     request: Request,
     data: BucketMultipartUpload,
 ) -> S3MultiPartUploadDetails | AzureMultiPartUploadDetails:
-    return await bucket_secret_handler.get_bucket_multipart_urls(
-        request.user.id, data
-    )
+    return await bucket_secret_handler.get_bucket_multipart_urls(request.user.id, data)
