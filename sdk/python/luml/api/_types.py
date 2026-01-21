@@ -26,6 +26,10 @@ class Organization(BaseModel):
 
 
 class BucketType(StrEnum):
+    """
+    Options: "s3", "azure".
+    """
+
     S3 = "s3"
     AZURE = "azure"
 
