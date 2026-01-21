@@ -165,6 +165,15 @@ class DatabaseConstraintError(RepositoryError):
         super().__init__(message, status_code)
 
 
+class InvalidSortingError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Invalid sorting",
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+    ) -> None:
+        super().__init__(message, status_code)
+
+
 class BucketSecretNotFoundError(ApplicationError):
     def __init__(self, message: str = "Bucket secret not found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)

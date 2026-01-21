@@ -32,6 +32,7 @@ class Orbit(BaseModel, BaseOrmConfig):
 
 class OrbitDetails(Orbit):
     members: list[OrbitMember] | None = None
+    collections_tags: list[str] | None = None
 
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):

@@ -9,9 +9,10 @@ export interface ExperimentSnapshotProvider {
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
   getEvalsList: (signal?: AbortSignal) => Promise<EvalsListType>
-  getSpansList: (args: SpansParams) => Promise<SpansListType>
+  getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
   getTraceId: (params: SpansParams) => Promise<any>
+  getUniqueTraceIds: (modelId: string) => Promise<string[]>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
@@ -104,3 +105,17 @@ export enum SpanTypeEnum {
 export type EvalsListType = Record<string, EvalsInfo[]> | null
 
 export type SpansListType = Omit<TraceSpan, 'children'>[] | null
+
+export interface BaseTraceInfo {
+  traceId: string
+  count: number
+  minTime: number | null
+  maxTime: number | null
+  tree: TraceSpan[]
+}
+
+export interface EvalTraceInfo extends BaseTraceInfo {
+  modelId: string
+  datasetId: string
+  evalId: string
+}

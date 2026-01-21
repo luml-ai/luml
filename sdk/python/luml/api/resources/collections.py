@@ -3,15 +3,16 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
+from luml.api._exceptions import NotFoundError
 from luml.api._types import (
     Collection,
+    CollectionDetails,
     CollectionsList,
     CollectionSortBy,
     CollectionType,
     SortOrder,
     is_uuid,
 )
-from luml.api._utils import find_by_value
 from luml.api.resources._listed_resource import (
     ListedResource,
 )
@@ -27,7 +28,7 @@ class CollectionResourceBase(ABC):
     @abstractmethod
     def get(
         self, collection_value: str | None
-    ) -> Collection | None | Coroutine[Any, Any, Collection | None]:
+    ) -> CollectionDetails | None | Coroutine[Any, Any, CollectionDetails | None]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -83,7 +84,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
     def __init__(self, client: "LumlClient") -> None:
         self._client = client
 
-    def get(self, collection_value: str | None = None) -> Collection | None:
+    def get(self, collection_value: str | None = None) -> CollectionDetails | None:
         """
         Get collection by id or name.
 
@@ -134,13 +135,22 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             return self._get_by_id(collection_value)
         return self._get_by_name(collection_value)
 
-    def _get_by_name(self, name: str) -> Collection | None:
-        return find_by_value(self.list().items, name)
+    def _get_by_name(self, name: str) -> CollectionDetails | None:
+        for collection in self.list_all(search=name, limit=100):
+            if collection.name == name:
+                return self._get_by_id(collection.id)
+        return None
 
-    def _get_by_id(self, collection_id: str) -> Collection | None:
-        return find_by_value(
-            self.list().items, collection_id, lambda c: c.id == collection_id
-        )
+    def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
+        try:
+            response = self._client.get(
+                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+            )
+            if response is None:
+                return None
+            return CollectionDetails.model_validate(response)
+        except NotFoundError:
+            return None
 
     def list_all(
         self,
@@ -440,7 +450,9 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
     def __init__(self, client: "AsyncLumlClient") -> None:
         self._client = client
 
-    async def get(self, collection_value: str | None = None) -> Collection | None:
+    async def get(
+        self, collection_value: str | None = None
+    ) -> CollectionDetails | None:
         """
         Get collection by id or name.
 
@@ -498,15 +510,22 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             return await self._get_by_id(collection_value)
         return await self._get_by_name(collection_value)
 
-    async def _get_by_name(self, name: str) -> Collection | None:
-        result = await self.list()
-        return find_by_value(result.items, name)
+    async def _get_by_name(self, name: str) -> CollectionDetails | None:
+        async for collection in self.list_all(search=name, limit=100):
+            if collection.name == name:
+                return await self._get_by_id(collection.id)
+        return None
 
-    async def _get_by_id(self, collection_id: str) -> Collection | None:
-        result = await self.list()
-        return find_by_value(
-            result.items, collection_id, lambda c: c.id == collection_id
-        )
+    async def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
+        try:
+            response = await self._client.get(
+                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+            )
+            if response is None:
+                return None
+            return CollectionDetails.model_validate(response)
+        except NotFoundError:
+            return None
 
     def list_all(
         self,

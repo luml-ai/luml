@@ -3,69 +3,74 @@ import type { Config } from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 import dotenv from 'dotenv';
 
-// This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
-
 dotenv.config();
 
 const config: Config = {
-  title: 'DataForce Studio',
+  title: 'LUML',
   tagline: 'Build AI Solutions Faster than Ever',
-  favicon: 'img/favicon.ico',
+  favicon: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/e6d2b6ff16759b6e2021e1a57e0427c722dd5adc/luml_logo_mark_black.svg',
 
-  // Set the production url of your site here
-  url: process.env.URL,
-  // Set the /<baseUrl>/ pathname under which your site is served
-  // For GitHub pages deployment, it is often '/<projectName>/'
+  url: process.env.URL || 'https://luml.ai',
   baseUrl: '/',
 
-  // GitHub pages deployment config.
-  // If you aren't using GitHub pages, you don't need these.
-  organizationName: 'DataForce', // Usually your GitHub org/user name.
-  projectName: 'DataForce Studio', // Usually your repo name.
+  organizationName: 'LUML', 
+  projectName: 'LUML', 
 
-  onBrokenLinks: 'throw',
+  onBrokenLinks: 'warn',
   onBrokenMarkdownLinks: 'warn',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+headTags: [],
 
   presets: [
     [
       'classic',
       {
         docs: {
-          routeBasePath: '/',
+          routeBasePath: '/', 
           sidebarPath: './sidebars.ts',
         },
         blog: false,
         theme: {
-          customCss: './src/css/custom.css',
+          customCss: './src/css/custom.css', 
         },
       } satisfies Preset.Options,
     ],
   ],
 
   themeConfig: {
-    // Replace with your project's social card
     image: 'img/dsf.webp',
     navbar: {
-      title: 'DataForce Studio',
+      title: '', 
+      
       logo: {
-        alt: 'My Site Logo',
-        src: 'img/logo.png',
-        href: '/getting-started',
+        alt: 'LUML Logo',
+        src: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_black.svg',
+        srcDark: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_white.svg',
+        href: '/', 
       },
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'tutorialSidebar',
+          sidebarId: 'docsSidebar', 
           position: 'left',
-          label: 'Tutorial',
+          label: 'Documentation',
+        },
+        // {
+        //   type: 'docSidebar',
+        //   sidebarId: 'guidesSidebar', 
+        //   position: 'left',
+        //   label: 'Guides',
+        //},
+        {
+          type: 'docSidebar',
+          sidebarId: 'sdkSidebar', 
+          position: 'left',
+          label: 'SDK',
         },
       ],
     },
@@ -76,27 +81,34 @@ const config: Config = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/getting-started',
+              label: 'Documentation',
+              to: '/documentation/quickstart', 
+            },
+            {
+              label: 'Guides',
+              to: '/guides/user_guidline', 
+            },
+            {
+              label: 'SDK',
+              to: '/sdk/bucket-secrets', 
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} DataForce Solutions GmbH. All rights reserved.`,
+      copyright: `Copyright © ${new Date().getFullYear()} LUML. All rights reserved.`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
     },
-    announcementBar: {
-      id: 'wip_notice', 
-      content: '🚧 This documentation is a work in progress and may be incomplete.',
-      backgroundColor: '#fff3cd', 
-      textColor: '#663c00',       
-      isCloseable: true,
-    },
+    // announcementBar: {
+    //   id: 'wip_notice', 
+    //   content: '🚧 This documentation is a work in progress.',
+    //   backgroundColor: '#fff3cd', 
+    //   textColor: '#663c00',       
+    //   isCloseable: true,
+    // },
   } satisfies Preset.ThemeConfig,
-
 };
 
 export default config;

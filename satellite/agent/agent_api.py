@@ -8,14 +8,13 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from agent.handlers.handler_instances import ms_handler
+from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.schemas import (
     DeploymentInfo,
     Healthz,
     InferenceAccessIn,
     InferenceAccessOut,
 )
-
-from .handlers.openapi_handler import OpenAPIHandler
 
 openapi_handler = OpenAPIHandler(ms_handler)
 

@@ -186,7 +186,7 @@ const createMockProvider = (
       if (shouldError) throw new Error('Failed to load evals')
       return evalsList
     },
-    getSpansList: async (params: SpansParams) => {
+    getTraceSpans: async (modelId: string, traceId: string) => {
       return []
     },
     buildSpanTree: async () => {
@@ -194,6 +194,9 @@ const createMockProvider = (
     },
     getTraceId: async (params: SpansParams) => {
       return `trace-${params.evalId}`
+    },
+    getUniqueTraceIds: async (modelId: string) => {
+      return []
     },
   }
 }

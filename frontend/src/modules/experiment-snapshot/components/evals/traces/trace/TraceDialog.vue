@@ -1,8 +1,11 @@
 <template>
   <Dialog v-model:visible="visible" :draggable="false" :pt="dialogPt" position="right" modal>
     <TraceSpans
-      :spans-tree="spansTree"
+      :tree="tree"
       :selected-span-id="selectedSpan.span_id"
+      :count="count"
+      :max-span-time="maxSpanTime"
+      :min-span-time="minSpanTime"
       @select="setSelectedSpan"
     ></TraceSpans>
     <TraceBody class="body" :data="selectedSpan"></TraceBody>
@@ -18,7 +21,10 @@ import type { TraceSpan } from '@/modules/experiment-snapshot/interfaces/interfa
 import { ref } from 'vue'
 
 type Props = {
-  spansTree: TraceSpan[]
+  tree: TraceSpan[]
+  count: number
+  maxSpanTime: number
+  minSpanTime: number
 }
 
 const props = defineProps<Props>()
@@ -41,7 +47,7 @@ const dialogPt: DialogPassThroughOptions = {
 
 const visible = defineModel<boolean>('visible')
 
-const selectedSpan = ref<TraceSpan>(props.spansTree[0])
+const selectedSpan = ref<TraceSpan>(props.tree[0])
 
 function setSelectedSpan(span: TraceSpan) {
   selectedSpan.value = span

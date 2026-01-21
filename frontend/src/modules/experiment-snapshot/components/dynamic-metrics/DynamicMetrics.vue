@@ -1,10 +1,11 @@
 <template>
   <DynamicMetricsToolbar
+    v-if="visibleMetricsNames.length > 0"
     :limit="METRICS_LIMIT"
     :total="metricsNames.length"
     @page-change="onPageChange"
   />
-  <div v-if="visibleMetricsNames.length > 0" class="charts">
+  <div class="charts">
     <DynamicMetricsItem
       v-for="name in visibleMetricsNames"
       :key="name"
@@ -12,9 +13,6 @@
       :data="metrics[name]"
       :models-info="modelsInfo"
     />
-  </div>
-  <div v-else class="no-metrics">
-    <p>No metrics found...</p>
   </div>
 </template>
 

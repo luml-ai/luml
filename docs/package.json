@@ -12,7 +12,9 @@
     "serve": "docusaurus serve",
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
-    "typecheck": "tsc"
+    "typecheck": "tsc",
+    "generate-sdk-docs": "cd ../sdk/python && python3 generate_docs.py",
+    "prebuild": "npm run generate-sdk-docs"
   },
   "dependencies": {
     "@docusaurus/core": "3.7.0",

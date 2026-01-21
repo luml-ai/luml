@@ -1,17 +1,16 @@
 <template>
   <div class="content">
-    <TraceItemsHeader
-      v-model:open="opened"
-      :items-count="evalsStore.spansCount || 0"
-    ></TraceItemsHeader>
+    <TraceItemsHeader v-model:open="opened" :items-count="count"></TraceItemsHeader>
     <div class="list">
       <TraceSpan
-        v-for="span in spansTree"
+        v-for="span in tree"
         :key="span.span_id"
         :data="span"
         :nesting="0"
         :selected-span-id="selectedSpanId"
         :all-opened="opened"
+        :max-span-time="maxSpanTime"
+        :min-span-time="minSpanTime"
         @select="(payload: TraceSpanType) => $emit('select', payload)"
       ></TraceSpan>
     </div>
@@ -19,15 +18,17 @@
 </template>
 
 <script setup lang="ts">
+import type { TraceSpan as TraceSpanType } from '@/modules/experiment-snapshot/interfaces/interfaces'
 import { ref } from 'vue'
 import TraceItemsHeader from './TraceItemsHeader.vue'
 import TraceSpan from './TraceSpan.vue'
-import type { TraceSpan as TraceSpanType } from '@/modules/experiment-snapshot/interfaces/interfaces'
-import { useEvalsStore } from '@/modules/experiment-snapshot/store/evals'
 
 type Props = {
-  spansTree: TraceSpanType[]
+  tree: TraceSpanType[]
   selectedSpanId: string | undefined
+  count: number
+  maxSpanTime: number
+  minSpanTime: number
 }
 
 type Emits = {
@@ -36,8 +37,6 @@ type Emits = {
 
 defineEmits<Emits>()
 defineProps<Props>()
-
-const evalsStore = useEvalsStore()
 
 const opened = ref(true)
 </script>
