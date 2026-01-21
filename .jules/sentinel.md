@@ -1,3 +1,8 @@
+## 2024-05-22 - [Broken Access Control in Invite Acceptance]
+**Vulnerability:** Found that `accept_invite` and `reject_invite` did not verify if the current user was the intended recipient of the invitation. Any user could accept or reject any invite if they knew the invite ID.
+**Learning:** Checking for "authentication" is not enough. You must always verify "authorization" (permission to act on a specific resource). Just because `request.user` exists doesn't mean they own the invite.
+**Prevention:** Always verify ownership of resources before performing actions. Pass the authenticated user's identity (ID, email) to the service layer and validate it against the resource being accessed.
+
 ## 2025-02-14 - Critical Endpoint Without Auth Check
 **Vulnerability:** The `DELETE /auth/users/me` endpoint was missing the `Depends(is_user_authenticated)` dependency. While authentication middleware populated `request.user`, accessing `request.user.email` for unauthenticated users caused a server crash (500 Internal Server Error) instead of a 401 Unauthorized response. This created a Denial of Service (DoS) risk and relied on "crash safety" rather than explicit security checks.
 **Learning:** Middleware population of user objects does not replace the need for explicit endpoint security dependencies in FastAPI. Always enforce authentication via dependencies to fail fast and securely.
