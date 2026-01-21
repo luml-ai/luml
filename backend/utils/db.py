@@ -15,8 +15,11 @@ cfg.set_main_option("script_location", MIGRATION_PATH)
 
 async def migrate_db(conn_url: str) -> None:
     async_engine = create_async_engine(conn_url, echo=True)
-    async with async_engine.begin() as conn:
-        await conn.run_sync(__execute_upgrade)
+    try:
+        async with async_engine.begin() as conn:
+            await conn.run_sync(__execute_upgrade)
+    finally:
+        await async_engine.dispose()
 
 
 def __execute_upgrade(connection: Connection) -> None:
