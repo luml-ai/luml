@@ -14,6 +14,7 @@ from luml.api.organization_routes import organization_all_routers
 from luml.api.satellites import satellite_worker_router
 from luml.api.user_routes import users_routers
 from luml.infra.exceptions import ApplicationError
+from luml.infra.middleware import SecurityHeadersMiddleware
 from luml.infra.security import JWTAuthenticationBackend
 from luml.settings import config
 
@@ -32,6 +33,8 @@ class AppService(FastAPI):
         self.include_authentication()
         self.include_error_handlers()
         self.custom_openapi()
+
+        self.add_middleware(SecurityHeadersMiddleware)
 
         allowed_origins = config.CORS_ORIGINS.split(",")
         self.add_middleware(

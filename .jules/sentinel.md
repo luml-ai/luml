@@ -21,3 +21,8 @@
 **Vulnerability:** The `/stats/email-send` endpoint is publicly accessible and allows unauthenticated creation of records.
 **Learning:** Endpoints intended for internal tracking or webhooks might be left unprotected. Frontend uses `skipInterceptors: true` to call it, bypassing auth.
 **Prevention:** Always verify authentication requirements for "stats" or "logging" endpoints. Ensure public endpoints have rate limiting and strict input validation.
+
+## 2025-02-19 - Missing Security Headers
+**Vulnerability:** The application was missing standard HTTP security headers (`X-Frame-Options`, `X-Content-Type-Options`, `Content-Security-Policy`), leaving it vulnerable to Clickjacking and MIME sniffing.
+**Learning:** FastAPI frameworks do not inject security headers by default. Explicit middleware is required to harden the response headers.
+**Prevention:** Implement a global `SecurityHeadersMiddleware` that injects `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, and `Content-Security-Policy: frame-ancestors 'none';` on all responses.
