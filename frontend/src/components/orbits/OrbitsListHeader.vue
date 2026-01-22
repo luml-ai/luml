@@ -8,7 +8,7 @@
     </div>
     <Button v-if="createAvailable" @click="$emit('createNew')">
       <Plus :size="14" />
-      <span>New Orbit</span>
+      <span>New orbit</span>
     </Button>
   </header>
 </template>
