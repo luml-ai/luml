@@ -63,16 +63,17 @@
 
 <script setup lang="ts">
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
-import { useRouter } from 'vue-router'
 import type { FormSubmitEvent } from '@primevue/forms'
+import { useRoute } from 'vue-router'
 import { computed, ref, watch } from 'vue'
 import { modelCreatorResolver } from '@/utils/forms/resolvers'
-import FileInput from '@/components/ui/FileInput.vue'
 import { Form } from '@primevue/forms'
 import { Dialog, Button, InputText, Textarea, AutoComplete, useToast, ProgressBar } from 'primevue'
 import { useModelUpload } from '@/hooks/useModelUpload'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useModelsTags } from '@/hooks/useModelsTags'
+import { getErrorMessage } from '@/helpers/helpers'
+import FileInput from '@/components/ui/FileInput.vue'
 
 interface FormData {
   name: string
@@ -95,8 +96,8 @@ const dialogPt: DialogPassThroughOptions = {
 
 const { upload, progress } = useModelUpload()
 const toast = useToast()
-const { getTagsByQuery } = useModelsTags()
-const router = useRouter()
+const { getTagsByQuery, loadTags } = useModelsTags()
+const route = useRoute()
 
 const visible = defineModel<boolean>('visible')
 const loading = ref(false)
@@ -183,16 +184,31 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   }
 }
 
-watch(visible, (val) => {
-  if (!val) {
-    formData.value = {
-      name: '',
-      description: '',
-      file: null,
-      tags: [],
-    }
-    fileError.value = false
+function reset() {
+  formData.value = {
+    name: '',
+    description: '',
+    file: null,
+    tags: [],
   }
+  fileError.value = false
+}
+
+async function initTags() {
+  try {
+    loadTags(
+      String(route.params.organizationId),
+      String(route.params.id),
+      String(route.params.collectionId),
+    )
+  } catch (e: unknown) {
+    const message = getErrorMessage(e, 'Failed to load tags')
+    toast.add(simpleErrorToast(message))
+  }
+}
+
+watch(visible, (val) => {
+  val ? initTags() : reset()
 })
 </script>
 

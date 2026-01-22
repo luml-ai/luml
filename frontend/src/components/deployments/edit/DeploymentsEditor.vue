@@ -132,11 +132,11 @@ import { useRoute } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { useDeploymentsStore } from '@/stores/deployments'
 import { editorDialogPt } from '../deployments.const'
+import { getErrorMessage } from '@/helpers/helpers'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsDelete from '@/components/orbits/delete/DeploymentsDelete.vue'
 import SecretsSelect from '../form/SecretsSelect.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
-import { getErrorMessage } from '@/helpers/helpers'
 
 const FORCE_DELETE_TEXT =
   'This action will schedule a task for your satellite to shut down this deployment. <br /> If you are sure, then write "delete" below'
@@ -245,15 +245,6 @@ function onDelete() {
   visible.value = false
 }
 
-async function initModels() {
-  const modelsList = await modelsStore.getModelsList(
-    organizationId.value,
-    props.data.orbit_id,
-    props.data.collection_id,
-  )
-  modelsStore.setModelsList(modelsList)
-}
-
 function setSecrets(secrets: Var[]) {
   initialValues.value.secretDynamicAttributes = secrets.map((attribute) => {
     const existingValue = props.data.dynamic_attributes_secrets[attribute.name]
@@ -266,12 +257,20 @@ function setSecrets(secrets: Var[]) {
 }
 
 onBeforeMount(async () => {
-  await initModels()
-  await secretsStore.loadSecrets(organizationId.value, props.data.orbit_id)
-  const currentModel = modelsStore.modelsList.find((model) => model.id === props.data.model_id)
-  if (!currentModel) return
-  const { secrets } = FnnxService.getDynamicAttributes(currentModel.manifest)
-  setSecrets(secrets)
+  try {
+    await secretsStore.loadSecrets(organizationId.value, props.data.orbit_id)
+    const requestInfo = {
+      organizationId: organizationId.value,
+      orbitId: props.data.orbit_id,
+      collectionId: props.data.collection_id,
+    }
+    const currentModel = await modelsStore.getModel(props.data.model_id, requestInfo)
+    if (!currentModel) return
+    const { secrets } = FnnxService.getDynamicAttributes(currentModel.manifest)
+    setSecrets(secrets)
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load model')))
+  }
 })
 </script>
 

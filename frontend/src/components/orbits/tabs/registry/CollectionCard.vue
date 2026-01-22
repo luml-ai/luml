@@ -89,7 +89,8 @@ function goToCollection() {
   justify-content: space-between;
   cursor: pointer;
   transition: background-color 0.3s;
-  min-height: 120px;
+  height: 147px;
+  width: calc(100vw - 379px);
 }
 .card:hover {
   background-color: var(--p-autocomplete-chip-focus-background);
@@ -138,5 +139,11 @@ function goToCollection() {
 }
 .id-text {
   color: var(--p-text-muted-color);
+}
+
+@media (max-width: 768px) {
+  .card {
+    width: calc(100vw - 30px);
+  }
 }
 </style>

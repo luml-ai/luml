@@ -24,13 +24,6 @@ export const useCollectionsStore = defineStore('collections', () => {
     }
   })
 
-  async function loadCollections(organizationId?: string, orbitId?: string) {
-    collectionsList.value = await api.orbitCollections.getCollectionsList(
-      organizationId ?? requestInfo.value.organizationId,
-      orbitId ?? requestInfo.value.orbitId,
-    )
-  }
-
   async function createCollection(
     payload: OrbitCollectionCreator,
     requestData?: typeof requestInfo.value,
@@ -41,7 +34,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       info.orbitId,
       payload,
     )
-    collectionsList.value.push(collection)
+    setCollectionsList([...collectionsList.value, collection])
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
@@ -51,9 +44,10 @@ export const useCollectionsStore = defineStore('collections', () => {
       collectionId,
       payload,
     )
-    collectionsList.value = collectionsList.value.map((collection) => {
+    const newCollections = collectionsList.value.map((collection) => {
       return collection.id === collectionId ? updatedCollection : collection
     })
+    setCollectionsList(newCollections)
   }
 
   async function deleteCollection(collectionId: string) {
@@ -62,14 +56,19 @@ export const useCollectionsStore = defineStore('collections', () => {
       requestInfo.value.orbitId,
       collectionId,
     )
-    collectionsList.value = collectionsList.value.filter(
+    const newCollections = collectionsList.value.filter(
       (collection) => collection.id !== collectionId,
     )
+    setCollectionsList(newCollections)
+  }
+
+  function setCollectionsList(collections: OrbitCollection[]) {
+    collectionsList.value = collections
   }
 
   async function setCurrentCollection(collectionId: string) {
-    currentCollection.value =
-      collectionsList.value.find((collection) => collection.id === collectionId) || null
+    const collection = await getCollection(collectionId)
+    currentCollection.value = collection
   }
 
   function resetCurrentCollection() {
@@ -89,12 +88,20 @@ export const useCollectionsStore = defineStore('collections', () => {
     creatorVisible.value = false
   }
 
+  async function getCollection(collectionId: string) {
+    return await api.orbitCollections.getCollection(
+      requestInfo.value.organizationId,
+      requestInfo.value.orbitId,
+      collectionId,
+    )
+  }
+
   return {
     collectionsList,
+    setCollectionsList,
     currentCollection,
     creatorVisible,
     requestInfo,
-    loadCollections,
     createCollection,
     updateCollection,
     deleteCollection,
@@ -103,5 +110,6 @@ export const useCollectionsStore = defineStore('collections', () => {
     resetCurrentCollection,
     showCreator,
     hideCreator,
+    getCollection,
   }
 })

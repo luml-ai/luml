@@ -59,3 +59,15 @@ export interface CreateModelResponse {
     bucket_secret_id: string
   }
 }
+
+export interface GetModelsListResponse {
+  cursor: string | null
+  items: MlModel[]
+}
+
+export interface GetModelsListParams {
+  cursor: string | null
+  limit?: number
+  sort_by?: 'created_at' | 'model_name' | 'size' | 'description' | 'status'
+  order?: 'asc' | 'desc'
+}

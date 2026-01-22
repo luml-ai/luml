@@ -20,7 +20,7 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import { useOrbitsStore } from '@/stores/orbits'
 import CollectionHeader from '@/components/orbits/tabs/registry/collection/CollectionHeader.vue'
-import CollectionModelsTable from '@/components/orbits/tabs/registry/collection/CollectionModelsTable.vue'
+import CollectionModelsTable from '@/components/orbits/tabs/registry/collection/models-table/CollectionModelsTable.vue'
 import CollectionModelCreator from '@/components/orbits/tabs/registry/collection/model/CollectionModelCreator.vue'
 
 const collectionsStore = useCollectionsStore()

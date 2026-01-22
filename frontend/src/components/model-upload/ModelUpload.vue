@@ -21,35 +21,11 @@
             option-value="id"
           />
         </div>
-        <div class="field">
-          <label for="name" class="label required">Collection</label>
-          <Select
-            v-model="formData.collection"
-            id="collection"
-            name="collection"
-            :placeholder="formData.orbit ? 'Select collection' : 'Select orbit first'"
-            :disabled="!formData.orbit"
-            fluid
-            :options="collectionsStore.collectionsList"
-            option-label="name"
-            option-value="id"
-            filter
-          >
-            <template #footer>
-              <div class="select-footer">
-                <Button
-                  label="Create new collection"
-                  variant="text"
-                  @click="collectionCreatorVisible = true"
-                >
-                  <template #icon>
-                    <Plus :size="14" />
-                  </template>
-                </Button>
-              </div>
-            </template>
-          </Select>
-        </div>
+        <ModelUploadCollectionSelect
+          v-model="formData.collection"
+          :organization-id="organizationId"
+          :orbit-id="formData.orbit"
+        />
         <div class="field">
           <label for="name" class="label required">Name</label>
           <InputText
@@ -87,12 +63,6 @@
       <Button type="submit" fluid rounded :loading="loading">Upload</Button>
     </Form>
   </Dialog>
-  <CollectionCreator
-    v-if="organizationStore.currentOrganization?.id && formData.orbit"
-    :organization-id="organizationStore.currentOrganization.id"
-    :orbit-id="formData.orbit"
-    v-model:visible="collectionCreatorVisible"
-  ></CollectionCreator>
 </template>
 
 <script setup lang="ts">
@@ -103,14 +73,11 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, Select, Dialog, InputText, Textarea, AutoComplete, useToast } from 'primevue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
-import { useCollectionsStore } from '@/stores/collections'
 import { useModelsTags } from '@/hooks/useModelsTags'
-import { useModelsStore } from '@/stores/models'
 import { useModelUpload } from '@/hooks/useModelUpload'
 import { modelUploadResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { Plus } from 'lucide-vue-next'
-import CollectionCreator from '../orbits/tabs/registry/CollectionCreator.vue'
+import ModelUploadCollectionSelect from './ModelUploadCollectionSelect.vue'
 
 type Props = {
   modelBlob: Blob
@@ -143,10 +110,8 @@ const dialogPt: DialogPassThroughOptions = {
 const visible = defineModel<boolean>('visible')
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
-const collectionsStore = useCollectionsStore()
-const modelsStore = useModelsStore()
 const toast = useToast()
-const { getTagsByQuery } = useModelsTags()
+const { getTagsByQuery, loadTags } = useModelsTags()
 const { upload } = useModelUpload()
 
 const loading = ref(false)
@@ -158,7 +123,6 @@ const formData = ref<FormData>({
   tags: [],
 })
 const autocompleteItems = ref<string[]>([])
-const collectionCreatorVisible = ref(false)
 
 const organizationId = computed(() => {
   if (!organizationStore.currentOrganization?.id) throw new Error('Current organization not found')
@@ -173,26 +137,10 @@ function searchTags(event: AutoCompleteCompleteEvent) {
   autocompleteItems.value = getTagsByQuery(event.query)
 }
 
-async function onOrbitChange(orbitId: string | null) {
-  if (orbitId) {
-    await collectionsStore.loadCollections(organizationId.value, orbitId)
-  } else {
-    collectionsStore.reset()
-  }
-  formData.value.collection = null
-}
-
 async function onCollectionChange(collectionId: string | null) {
   if (collectionId) {
     if (!formData.value.orbit) throw new Error('Orbit was not found')
-    const modelsList = await modelsStore.getModelsList(
-      organizationId.value,
-      formData.value.orbit,
-      collectionId,
-    )
-    modelsStore.setModelsList(modelsList)
-  } else {
-    modelsStore.resetList()
+    await loadTags(organizationId.value, formData.value.orbit, collectionId)
   }
 }
 
@@ -223,13 +171,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       [...formData.value.tags],
       ids,
     )
-    const collectionName = collectionsStore.collectionsList.find(
-      (collection) => collection.id === ids.collectionId,
-    )?.name
     toast.add(
-      simpleSuccessToast(
-        `${formData.value.name} has been added to the ${collectionName} successfully.`,
-      ),
+      simpleSuccessToast(`${formData.value.name} has been added to the collection successfully.`),
     )
     visible.value = false
   } catch (e: any) {
@@ -242,8 +185,6 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 onBeforeMount(async () => {
   await getOrbitsList()
 })
-
-watch(() => formData.value.orbit, onOrbitChange)
 
 watch(() => formData.value.collection, onCollectionChange)
 </script>
@@ -263,10 +204,5 @@ watch(() => formData.value.collection, onCollectionChange)
 .label {
   align-self: flex-start;
   font-size: 14px;
-}
-.select-footer {
-  margin: 0 12px;
-  padding: 4px 0;
-  border-top: 1px solid var(--p-divider-border-color);
 }
 </style>

@@ -67,7 +67,7 @@ import { useCollectionsStore } from '@/stores/collections'
 import { useDeploymentsStore } from '@/stores/deployments'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
-import DeploymentsFormModelSettings from '../form/DeploymentsFormModelSettings.vue'
+import DeploymentsFormModelSettings from '../form/model-settings/DeploymentsFormModelSettings.vue'
 import DeploymentsFormSatelliteSettings from '../form/DeploymentsFormSatelliteSettings.vue'
 
 type Props = {

@@ -35,10 +35,9 @@ const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}`,
     })
   }
-  const model = modelsStore.modelsList.find((model) => model.id === route.params.modelId)
-  if (model) {
+  if (modelsStore.currentModel) {
     list.push({
-      label: model.model_name,
+      label: modelsStore.currentModel.model_name,
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/models/${route.params.modelId}`,
     })
   }

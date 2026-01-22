@@ -65,9 +65,8 @@
 </template>
 
 <script setup lang="ts">
-import type { UpdateMlModelPayload } from '@/lib/api/orbit-ml-models/interfaces'
-import type { SelectedModel } from '../CollectionModelsTable.vue'
-import { computed, ref } from 'vue'
+import type { MlModel, UpdateMlModelPayload } from '@/lib/api/orbit-ml-models/interfaces'
+import { ref, watch } from 'vue'
 import {
   type DialogPassThroughOptions,
   Dialog,
@@ -87,6 +86,8 @@ import { modelEditorResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useModelsStore } from '@/stores/models'
+import { useModelsTags } from '@/hooks/useModelsTags'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const dialogPT: DialogPassThroughOptions = {
   footer: {
@@ -95,18 +96,25 @@ const dialogPT: DialogPassThroughOptions = {
 }
 
 type Props = {
-  data: SelectedModel
+  data: MlModel
+}
+
+type Emits = {
+  (e: 'updateModel', model: MlModel): void
+  (e: 'modelDeleted'): void
 }
 
 const props = defineProps<Props>()
 
+const emit = defineEmits<Emits>()
+
 const visible = defineModel<boolean>('visible')
-const emit = defineEmits(['model-deleted'])
 
 const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
 const modelsStore = useModelsStore()
+const { getTagsByQuery, loadTags } = useModelsTags()
 
 const initialValues = ref({
   name: props.data.model_name,
@@ -114,22 +122,10 @@ const initialValues = ref({
   tags: [...(props.data.tags || [])],
 })
 const loading = ref(false)
-const existingTags = computed(() => {
-  const tagsSet = modelsStore.modelsList.reduce((acc: Set<string>, item) => {
-    item.tags?.map((tag) => {
-      acc.add(tag)
-    })
-    return acc
-  }, new Set<string>())
-  return Array.from(tagsSet)
-})
 const autocompleteItems = ref<string[]>([])
 
 function searchTags(event: AutoCompleteCompleteEvent) {
-  autocompleteItems.value = [
-    event.query,
-    ...existingTags.value.filter((tag) => tag.toLowerCase().includes(event.query.toLowerCase())),
-  ]
+  autocompleteItems.value = getTagsByQuery(event.query)
 }
 
 async function saveChanges() {
@@ -142,7 +138,8 @@ async function saveChanges() {
       description: initialValues.value.description,
       tags: initialValues.value.tags,
     }
-    await modelsStore.updateModel(payload)
+    const newModel = await modelsStore.updateModel(payload)
+    emit('updateModel', newModel)
     toast.add(simpleSuccessToast('Model successfully updated'))
     visible.value = false
   } catch (e) {
@@ -164,9 +161,8 @@ async function deleteModel() {
       toast.add(
         simpleSuccessToast(`Model "${props.data.model_name}" was removed from the collection.`),
       )
-      emit('model-deleted')
       visible.value = false
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      emit('modelDeleted')
     } else if (result.failed?.length) {
       toast.add(simpleErrorToast(`Failed to delete model "${props.data.model_name}".`))
     }
@@ -176,6 +172,21 @@ async function deleteModel() {
     loading.value = false
   }
 }
+
+watch(
+  () => modelsStore.requestInfo,
+  async (info) => {
+    try {
+      autocompleteItems.value = []
+      if (!info) return
+      await loadTags(info.organizationId, info.orbitId, info.collectionId)
+    } catch (e) {
+      const message = getErrorMessage(e, 'Failed to load tags')
+      toast.add(simpleErrorToast(message))
+    }
+  },
+  { immediate: true, deep: true },
+)
 </script>
 
 <style scoped>

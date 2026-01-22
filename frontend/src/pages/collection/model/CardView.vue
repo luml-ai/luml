@@ -16,7 +16,7 @@
       <header class="card-header">
         <h3 class="card-title card-title--medium">Inputs and outputs</h3>
       </header>
-      <div>{{ currentModel?.manifest.producer_tags }}</div>
+      <div>{{ modelsStore.currentModel?.manifest.producer_tags }}</div>
     </div>
   </div>
   <CollectionModelCardHtml
@@ -27,27 +27,21 @@
 </template>
 
 <script setup lang="ts">
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { computed, onMounted, ref } from 'vue'
 import { useModelsStore } from '@/stores/models'
-import { useRoute } from 'vue-router'
 import { ProgressSpinner } from 'primevue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
+import { ModelDownloader } from '@/lib/bucket-service'
+import JSZip from 'jszip'
 import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardTabular.vue'
 import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardPromptOptimization.vue'
 import CollectionModelCardHtml from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardHtml.vue'
-import { ModelDownloader } from '@/lib/bucket-service'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
-import JSZip from 'jszip'
 
 const modelsStore = useModelsStore()
-const route = useRoute()
 
 const loading = ref(false)
 
-const currentModel = computed(() => {
-  if (typeof route.params.modelId !== 'string') return undefined
-  return modelsStore.modelsList.find((model) => model.id === route.params.modelId)
-})
 const isTabular = computed(
   () => modelsStore.currentModelTag && FnnxService.isTabularTag(modelsStore.currentModelTag),
 )
@@ -108,7 +102,7 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: MlM
 }
 
 async function setMetadata() {
-  const model = currentModel.value
+  const model = modelsStore.currentModel
   if (!model) throw new Error('Current model does not exist')
   const currentTag = FnnxService.getTypeTag(model.manifest)
   if (currentTag) {
