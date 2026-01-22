@@ -138,6 +138,9 @@ const multiSelectPt: MultiSelectPassThroughOptions = {
   optionLabel: {
     style: 'overflow: hidden; text-overflow: ellipsis;',
   },
+  label: {
+    style: 'display: flex; flex-wrap: nowrap; overflow-x: auto',
+  },
 }
 
 const memberRoleOptions = [OrbitRoleEnum.admin, OrbitRoleEnum.member]
