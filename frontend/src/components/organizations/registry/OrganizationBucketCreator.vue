@@ -2,7 +2,7 @@
   <div>
     <Button @click="visible = true">
       <Plus :size="14" />
-      <span> New bucket</span>
+      <span>New bucket</span>
     </Button>
     <Dialog
       v-model:visible="visible"
