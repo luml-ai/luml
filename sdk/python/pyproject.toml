@@ -17,6 +17,7 @@ api = [
 
 [project.scripts]
 generate-docs = "generate_docs:main"
+s3-proxy = "luml.s3_proxy:main"
 
 [build-system]
 requires = ["hatchling"]
