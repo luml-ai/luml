@@ -20,6 +20,7 @@ from luml.s3_proxy.schemas import (
 class S3ProxyHandler(BaseHTTPRequestHandler):
     STORAGE_ROOT: str = "./s3_storage"  # Storage root directory
     CREDENTIALS: dict[str, str] = {}
+    MAX_FILE_SIZE: int = 5 * 1024 * 1024 * 1024 * 1024  # 5 TB
 
     CORS_ENABLED: bool = False
     CORS_ORIGINS: str = "*"
@@ -39,7 +40,6 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         message = format % args if args else format
         if message.startswith("[AUTH]") and not self.DEBUG:
             return
-        print(f"[{datetime.now().isoformat()}] {message}")
 
     def add_cors_headers(self) -> None:
         if self.CORS_ENABLED:
@@ -72,6 +72,91 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         )
         self.send_s3_response(code, error.to_xml())
 
+    def _get_content_length(self) -> int:
+        header_value = self.headers.get("Content-Length")
+        if header_value is None:
+            return 0
+        try:
+            length = int(header_value)
+            return max(0, length)
+        except ValueError:
+            return 0
+
+    def _require_content_length(self) -> int | None:
+        header_value = self.headers.get("Content-Length")
+        if header_value is None:
+            self.send_error_response(
+                400, "MissingContentLength", "Content-Length header is required"
+            )
+            return None
+        try:
+            length = int(header_value)
+            if length < 0:
+                self.send_error_response(
+                    400, "InvalidArgument", "Content-Length must be non-negative"
+                )
+                return None
+            if length > self.MAX_FILE_SIZE:
+                self.send_error_response(
+                    400,
+                    "EntityTooLarge",
+                    f"File size exceeds maximum allowed ({self.MAX_FILE_SIZE} bytes)",
+                )
+                return None
+            return length
+        except ValueError:
+            self.send_error_response(
+                400, "InvalidArgument", "Content-Length must be a valid integer"
+            )
+            return None
+
+    def _safe_write_file(self, file_path: Path, content: bytes) -> bool:
+        """Safely write content to file. Returns False and sends error on failure."""
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, "wb") as f:
+                f.write(content)
+            return True
+        except PermissionError:
+            self.send_error_response(
+                500, "AccessDenied", "Permission denied writing file"
+            )
+            return False
+        except OSError as e:
+            self.send_error_response(500, "InternalError", f"Failed to write file: {e}")
+            return False
+
+    def _safe_delete_file(self, file_path: Path) -> bool:
+        """Safely delete a file. Returns False and sends error on failure."""
+        try:
+            file_path.unlink()
+            return True
+        except FileNotFoundError:
+            self.send_error_response(
+                404, "NoSuchKey", "The specified key does not exist"
+            )
+            return False
+        except PermissionError:
+            self.send_error_response(
+                500, "AccessDenied", "Permission denied deleting file"
+            )
+            return False
+        except OSError as e:
+            self.send_error_response(
+                500, "InternalError", f"Failed to delete file: {e}"
+            )
+            return False
+
+    def _safe_cleanup_temp_dir(self, temp_dir: Path) -> None:
+        """Safely cleanup multipart temp directory. Errors are logged but not raised."""
+        try:
+            if temp_dir.exists():
+                for part_file in temp_dir.glob("*"):
+                    part_file.unlink(missing_ok=True)
+                temp_dir.rmdir()
+        except OSError as e:
+            self.log_message(f"Warning: Failed to cleanup temp dir {temp_dir}: {e}")
+
     def parse_s3_path(self) -> S3Request:
         parsed = urlparse(self.path)
         path_parts = [p for p in parsed.path.split("/") if p]
@@ -91,7 +176,11 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         )
 
     def get_file_path(self, bucket: str, key: str) -> Path:
-        return Path(self.STORAGE_ROOT) / bucket / key
+        storage_root = Path(self.STORAGE_ROOT).resolve()
+        file_path = (storage_root / bucket / key).resolve()
+        if os.path.commonpath([str(storage_root), str(file_path)]) != str(storage_root):
+            raise ValueError("Invalid bucket or key path.")
+        return file_path
 
     @staticmethod
     def _sign(key: bytes, msg: str) -> bytes:
@@ -282,28 +371,37 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         try:
             credential = query_params.get("X-Amz-Credential", [""])[0]
-            date = query_params.get("X-Amz-Date", [""])[0]
+            x_amz_date = query_params.get("X-Amz-Date", [""])[0]
             expires = query_params.get("X-Amz-Expires", ["3600"])[0]
+            signed_headers = query_params.get("X-Amz-SignedHeaders", ["host"])[0]
+            client_signature = query_params.get("X-Amz-Signature", [""])[0]
 
             self.log_message(
                 f"[AUTH] Presigned - Credential: {credential}, "
-                f"Date: {date}, Expires: {expires}s"
+                f"Date: {x_amz_date}, Expires: {expires}s"
             )
 
             cred_parts = credential.split("/")
-            if len(cred_parts) < 1:
+            if len(cred_parts) != 5:
                 self.log_message("[AUTH] REJECTED: Invalid credential format")
                 return False, None
 
-            access_key = cred_parts[0]
+            access_key, date_stamp, region, service, _ = cred_parts
             self.log_message(f"[AUTH] Presigned access key: {access_key}")
 
-            if self.CREDENTIALS and access_key not in self.CREDENTIALS:
+            if not self.CREDENTIALS:
+                self.log_message("[AUTH] No credentials configured - accepting presigned URL")
+                return True, access_key
+
+            if access_key not in self.CREDENTIALS:
                 self.log_message(f"[AUTH] REJECTED: Unknown access key: {access_key}")
                 return False, access_key
 
+            secret_key = self.CREDENTIALS[access_key]
+
             try:
-                request_time = datetime.strptime(date, "%Y%m%dT%H%M%SZ")
+                request_time = datetime.strptime(x_amz_date, "%Y%m%dT%H%M%SZ")
+                request_time = request_time.replace(tzinfo=UTC)
                 age_seconds = (datetime.now(UTC) - request_time).total_seconds()
 
                 if age_seconds > int(expires):
@@ -313,19 +411,59 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
                     )
                     return False, access_key
 
-                if age_seconds < 0:
-                    self.log_message(
-                        f"[AUTH] WARNING: Presigned URL "
-                        f"from future (age: {age_seconds}s)"
-                    )
+                self.log_message(f"[AUTH] Presigned URL age: {age_seconds}s / {expires}s")
+            except ValueError as e:
+                self.log_message(f"[AUTH] REJECTED: Invalid date format: {e}")
+                return False, access_key
 
-                self.log_message(
-                    f"[AUTH] Presigned URL age: {age_seconds}s / {expires}s"
-                )
-            except Exception as e:
-                self.log_message(f"[AUTH] Warning: Could not check expiration: {e}")
-                # Accept anyway
+            canonical_params = []
+            for key in sorted(query_params.keys()):
+                if key != "X-Amz-Signature":
+                    for value in query_params[key]:
+                        canonical_params.append(f"{key}={value}")
+            canonical_querystring = "&".join(canonical_params)
 
+            canonical_headers = []
+            for header in signed_headers.split(";"):
+                if header == "host":
+                    host = self.headers.get("Host", "")
+                    canonical_headers.append(f"host:{host}")
+                else:
+                    value = self.headers.get(header, "")
+                    canonical_headers.append(f"{header}:{value.strip()}")
+            canonical_headers_str = "\n".join(canonical_headers) + "\n"
+
+            canonical_uri = parsed.path
+            canonical_request = (
+                f"{self.command}\n{canonical_uri}\n{canonical_querystring}\n"
+                f"{canonical_headers_str}\n{signed_headers}\nUNSIGNED-PAYLOAD"
+            )
+
+            self.log_message(
+                f"[AUTH] Canonical request hash: "
+                f"{hashlib.sha256(canonical_request.encode()).hexdigest()}"
+            )
+
+            credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
+            canonical_request_hash = hashlib.sha256(canonical_request.encode()).hexdigest()
+            string_to_sign = (
+                f"AWS4-HMAC-SHA256\n{x_amz_date}\n"
+                f"{credential_scope}\n{canonical_request_hash}"
+            )
+
+            signing_key = self._get_signature_key(secret_key, date_stamp, region, service)
+            computed_signature = hmac.new(
+                signing_key, string_to_sign.encode(), hashlib.sha256
+            ).hexdigest()
+
+            self.log_message(f"[AUTH] Computed signature: {computed_signature}")
+            self.log_message(f"[AUTH] Client signature:   {client_signature}")
+
+            if computed_signature != client_signature:
+                self.log_message("[AUTH] REJECTED: Signature mismatch")
+                return False, access_key
+
+            self.log_message("[AUTH] ACCEPTED: Presigned URL signature valid")
             return True, access_key
 
         except Exception as e:
@@ -442,7 +580,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
         with open(file_path, "rb") as f:
-            self.wfile.write(f.read())
+            while chunk := f.read(8192):
+                self.wfile.write(chunk)
 
     def do_PUT(self) -> None:
         if not self.check_auth():
@@ -460,14 +599,14 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             self._handle_upload_part(req)
             return
 
-        file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        content_length = int(self.headers.get("Content-Length", 0))
+        content_length = self._require_content_length()
+        if content_length is None:
+            return
         content = self.rfile.read(content_length)
 
-        with open(file_path, "wb") as f:
-            f.write(content)
+        file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
+        if not self._safe_write_file(file_path, content):
+            return
 
         etag = hashlib.md5(content).hexdigest()
 
@@ -516,13 +655,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
 
-        if not file_path.exists():
-            self.send_error_response(
-                404, "NoSuchKey", "The specified key does not exist"
-            )
+        if not self._safe_delete_file(file_path):
             return
-
-        file_path.unlink()
 
         self.send_response(204)
         self.add_cors_headers()
@@ -561,15 +695,16 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             )
             return
 
-        content_length = int(self.headers.get("Content-Length", 0))
+        content_length = self._require_content_length()
+        if content_length is None:
+            return
         content = self.rfile.read(content_length)
 
         temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
-        temp_dir.mkdir(parents=True, exist_ok=True)
         part_file = temp_dir / f"part_{part_number}"
 
-        with open(part_file, "wb") as f:
-            f.write(content)
+        if not self._safe_write_file(part_file, content):
+            return
 
         etag = hashlib.md5(content).hexdigest()
 
@@ -595,24 +730,28 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         upload_info = self.multipart_uploads[upload_id]
 
-        content_length = int(self.headers.get("Content-Length", 0))
+        content_length = self._get_content_length()
         self.rfile.read(content_length).decode("utf-8")
 
         file_path = self.get_file_path(req.bucket, req.key)  # type: ignore[arg-type]
-        file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(file_path, "wb") as output_file:
-            for part_num in sorted(upload_info.parts.keys()):
-                part_info = upload_info.parts[part_num]
-                with open(part_info.file, "rb") as part_file:
-                    output_file.write(part_file.read())
+        try:
+            file_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(file_path, "wb") as output_file:
+                for part_num in sorted(upload_info.parts.keys()):
+                    part_info = upload_info.parts[part_num]
+                    with open(part_info.file, "rb") as part_file:
+                        output_file.write(part_file.read())
+        except OSError as e:
+            self.send_error_response(
+                500, "InternalError", f"Failed to assemble file: {e}"
+            )
+            return
 
         etag = self._compute_etag(file_path)
 
         temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
-        for part_file in temp_dir.glob("*"):
-            part_file.unlink()
-        temp_dir.rmdir()
+        self._safe_cleanup_temp_dir(temp_dir)
 
         del self.multipart_uploads[upload_id]
 
@@ -634,10 +773,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             return
 
         temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
-        if temp_dir.exists():
-            for part_file in temp_dir.glob("*"):
-                part_file.unlink()
-            temp_dir.rmdir()
+        self._safe_cleanup_temp_dir(temp_dir)
 
         del self.multipart_uploads[upload_id]
 
@@ -673,11 +809,6 @@ def run_server(
 
     server_address = (host, port)
     httpd = HTTPServer(server_address, S3ProxyHandler)
-
-    if cors_enabled:
-        pass
-    if debug:
-        pass
 
     try:
         httpd.serve_forever()

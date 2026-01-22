@@ -5,7 +5,6 @@ from luml.s3_proxy.schemas import (
     MultipartUpload,
     PartInfo,
     S3ErrorResponse,
-    S3ProxyConfig,
     S3Request,
 )
 
@@ -17,7 +16,6 @@ __all__ = [
     "S3ProxyHandler",
     "S3Request",
     "S3ErrorResponse",
-    "S3ProxyConfig",
     "MultipartUpload",
     "PartInfo",
     "InitiateMultipartUploadResponse",

@@ -5,7 +5,7 @@ from luml.s3_proxy.s3proxy import run_server
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="bucket-server",
+        prog="s3-proxy",
         description="S3-compatible proxy server for local file storage",
     )
     parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
