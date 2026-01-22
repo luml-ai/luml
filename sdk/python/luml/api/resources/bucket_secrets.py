@@ -1,13 +1,13 @@
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from luml.api._types import (
     BucketSecret,
+    BucketType,
     MultiPartUploadDetails,
     is_uuid,
     model_validate_bucket_secret,
-    BucketType,
 )
 from luml.api._utils import find_by_value
 
@@ -260,7 +260,7 @@ class BucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
-                    "type": type
+                    "type": type,
                 }
             ),
         )
@@ -695,7 +695,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
-                    "type": type
+                    "type": type,
                 }
             ),
         )
