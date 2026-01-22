@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 
 @dataclass
@@ -15,7 +16,7 @@ class MultipartUpload:
     bucket: str
     key: str
     parts: dict[int, PartInfo] = field(default_factory=dict)
-    created: datetime = field(default_factory=datetime.now)
+    created: datetime = field(default_factory=datetime.now(UTC))
 
 
 @dataclass
@@ -30,23 +31,6 @@ class S3Request:
 
 
 @dataclass
-class S3ProxyConfig:
-    host: str = "127.0.0.1"
-    port: int = 9000
-    storage_root: Path = field(default_factory=lambda: Path("./s3_storage"))
-    credentials: dict[str, str] = field(default_factory=dict)
-    cors_enabled: bool = False
-    cors_origins: str = "*"
-    cors_methods: str = "GET, PUT, POST, DELETE, HEAD, OPTIONS"
-    cors_headers: str = "Authorization, Content-Type, Content-MD5, x-amz-*, Range"
-    debug: bool = False
-
-    @property
-    def has_credentials(self) -> bool:
-        return bool(self.credentials)
-
-
-@dataclass
 class S3ErrorResponse:
     code: str
     message: str
@@ -55,9 +39,9 @@ class S3ErrorResponse:
     def to_xml(self) -> str:
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <Error>
-    <Code>{self.code}</Code>
-    <Message>{self.message}</Message>
-    <RequestId>{self.request_id}</RequestId>
+    <Code>{xml_escape(self.code)}</Code>
+    <Message>{xml_escape(self.message)}</Message>
+    <RequestId>{xml_escape(self.request_id)}</RequestId>
 </Error>"""
 
 
@@ -70,9 +54,9 @@ class InitiateMultipartUploadResponse:
     def to_xml(self) -> str:
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <InitiateMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-    <Bucket>{self.bucket}</Bucket>
-    <Key>{self.key}</Key>
-    <UploadId>{self.upload_id}</UploadId>
+    <Bucket>{xml_escape(self.bucket)}</Bucket>
+    <Key>{xml_escape(self.key)}</Key>
+    <UploadId>{xml_escape(self.upload_id)}</UploadId>
 </InitiateMultipartUploadResult>"""
 
 
@@ -86,8 +70,8 @@ class CompleteMultipartUploadResponse:
     def to_xml(self) -> str:
         return f"""<?xml version="1.0" encoding="UTF-8"?>
 <CompleteMultipartUploadResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
-    <Location>{self.location}</Location>
-    <Bucket>{self.bucket}</Bucket>
-    <Key>{self.key}</Key>
-    <ETag>"{self.etag}"</ETag>
+    <Location>{xml_escape(self.location)}</Location>
+    <Bucket>{xml_escape(self.bucket)}</Bucket>
+    <Key>{xml_escape(self.key)}</Key>
+    <ETag>"{xml_escape(self.etag)}"</ETag>
 </CompleteMultipartUploadResult>"""
