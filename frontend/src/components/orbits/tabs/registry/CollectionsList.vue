@@ -1,86 +1,55 @@
 <template>
-  <div class="list-container">
-    <IconField>
-      <InputText v-model="searchQuery" size="small" placeholder="Search" />
-      <InputIcon>
-        <Search :size="12" />
-      </InputIcon>
-    </IconField>
-
-    <div class="list">
-      <CollectionCard
-        v-for="collection in filteredCollections"
-        :key="collection.id"
-        :edit-available="editAvailable"
-        :data="collection"
-      ></CollectionCard>
-
-      <div v-if="filteredCollections.length === 0" class="no-results">Collections not found...</div>
-    </div>
-  </div>
+  <VirtualScroller
+    :items="list"
+    :itemSize="171"
+    lazy
+    @lazy-load="$emit('lazy-load', $event)"
+    class="border border-surface-200 dark:border-surface-700 rounded"
+    style="height: calc(100vh - 300px); margin-bottom: -70px"
+  >
+    <template v-slot:item="{ item }">
+      <div class="card-wrapper">
+        <CollectionCard :edit-available="editAvailable" :data="item"></CollectionCard>
+      </div>
+    </template>
+  </VirtualScroller>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useCollectionsStore } from '@/stores/collections'
+import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
+import { VirtualScroller, type VirtualScrollerLazyEvent } from 'primevue'
+import { computed } from 'vue'
+import { useOrbitsStore } from '@/stores/orbits'
+import { PermissionEnum } from '@/lib/api/api.interfaces'
 import CollectionCard from './CollectionCard.vue'
-import { IconField, InputIcon, InputText } from 'primevue'
-import { Search } from 'lucide-vue-next'
 
 type Props = {
-  editAvailable: boolean
+  list: OrbitCollection[]
+}
+
+type Emits = {
+  (e: 'lazy-load', event: VirtualScrollerLazyEvent): void
 }
 
 defineProps<Props>()
+defineEmits<Emits>()
 
-const collectionsStore = useCollectionsStore()
-const searchQuery = ref('')
+const orbitsStore = useOrbitsStore()
 
-const filteredCollections = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return collectionsStore.collectionsList
-  }
-
-  const query = searchQuery.value.toLowerCase().trim()
-
-  return collectionsStore.collectionsList.filter((collection) => {
-    const matchesName = collection.name?.toLowerCase().includes(query)
-    const matchesTags = collection.tags?.some((tag: string) => tag.toLowerCase().includes(query))
-
-    return matchesName || matchesTags
-  })
+const editAvailable = computed(() => {
+  return !!orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.update)
 })
 </script>
 
 <style scoped>
-.list-container {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-:deep(.p-iconfield) {
-  max-width: 237px;
-}
-
-:deep(.p-iconfield .p-inputicon:last-child) {
-  inset-inline-end: 9px;
-}
-
-:deep(.p-iconfield .p-inputtext) {
-  width: 100%;
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
-
 .no-results {
   text-align: center;
   padding: 40px;
   color: var(--p-text-muted-color);
   font-size: 14px;
+}
+
+.card-wrapper {
+  margin-bottom: 24px;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div v-if="currentModel">
+  <div v-if="modelsStore.currentModel">
     <div class="header">
       <div class="title">Model details</div>
       <div class="toolbar">
@@ -33,7 +33,7 @@
     ></CollectionModelTabs>
     <div class="view-wrapper">
       <RouterView v-slot="{ Component }">
-        <component :is="Component" :model="currentModel" />
+        <component :is="Component" />
       </RouterView>
     </div>
   </div>
@@ -48,81 +48,71 @@
   <CollectionModelEditor
     v-if="modelForEdit"
     :visible="!!modelForEdit"
-    @update:visible="onUpdateModelEditorVisible"
-    @model-deleted="onModelDeleted"
     :data="modelForEdit"
+    @update:visible="onUpdateModelEditorVisible"
+    @updateModel="onUpdateModel"
+    @modelDeleted="onModelDeleted"
   ></CollectionModelEditor>
 </template>
 
 <script setup lang="ts">
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { useModelsStore } from '@/stores/models'
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/model/CollectionModelTabs.vue'
-import { Button } from 'primevue'
+import { Button, useToast } from 'primevue'
 import { Bolt, Rocket, Download } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
+import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/model/CollectionModelTabs.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import CollectionModelEditor from '@/components/orbits/tabs/registry/collection/model/CollectionModelEditor.vue'
-import type { SelectedModel } from '@/components/orbits/tabs/registry/collection/CollectionModelsTable.vue'
-import { getSizeText } from '@/helpers/helpers'
 
 const modelsStore = useModelsStore()
 const route = useRoute()
 const router = useRouter()
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
+const toast = useToast()
 
 const modelForDeployment = ref<string | null>(null)
-const modelForEdit = ref<SelectedModel | null>(null)
-
-const currentModel = computed(() => {
-  if (typeof route.params.modelId !== 'string') return undefined
-  return modelsStore.modelsList.find((model) => model.id === route.params.modelId)
-})
+const modelForEdit = ref<MlModel | null>(null)
 
 const isModelCardAvailable = computed(() => {
-  if (!currentModel.value) return false
-  const fileIndex = currentModel.value.file_index
-  const includeSupportedTag = FnnxService.getTypeTag(currentModel.value.manifest)
+  if (!modelsStore.currentModel) return false
+  const fileIndex = modelsStore.currentModel.file_index
+  const includeSupportedTag = FnnxService.getTypeTag(modelsStore.currentModel.manifest)
   return !!(includeSupportedTag || FnnxService.findHtmlCard(fileIndex))
 })
 
 const isExperimentSnapshotCardAvailable = computed(() => {
-  if (!currentModel.value) return false
-  const fileIndex = currentModel.value.file_index
+  if (!modelsStore.currentModel) return false
+  const fileIndex = modelsStore.currentModel.file_index
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
 })
 
 const isModelAttachmentsAvailable = computed(() => {
-  if (!currentModel.value) return false
-  const fileIndex = currentModel.value.file_index
+  if (!modelsStore.currentModel) return false
+  const fileIndex = modelsStore.currentModel.file_index
   if (!fileIndex) return false
   return FnnxService.hasAttachments(fileIndex)
 })
 
 function initDeploy() {
-  if (currentModel.value) {
-    modelForDeployment.value = currentModel.value.id
+  if (modelsStore.currentModel) {
+    modelForDeployment.value = modelsStore.currentModel.id
   }
 }
 
 function openModelEditor() {
-  const m = currentModel.value
+  const m = modelsStore.currentModel
   if (!m) return
   modelForEdit.value = {
-    id: m.id,
-    model_name: m.model_name,
-    file_name: m.file_name,
-    status: m.status,
-    description: m.description,
-    tags: m.tags,
-    created_at: m.created_at,
-    metrics: m.metrics,
-    size: getSizeText(m.size),
+    ...m,
   }
 }
 
@@ -135,8 +125,12 @@ function onUpdateModelEditorVisible(val?: boolean) {
 }
 
 function onModelDeleted() {
-  modelForEdit.value = null
+  modelsStore.resetCurrentModel()
   navigateToCollectionModels()
+}
+
+function onUpdateModel(model: MlModel) {
+  modelsStore.setCurrentModel(model)
 }
 
 function navigateToCollectionModels() {
@@ -151,15 +145,35 @@ function navigateToCollectionModels() {
 }
 
 async function downloadClick() {
-  if (!currentModel.value) return
+  if (!modelsStore.currentModel) return
   try {
-    await modelsStore.downloadModel(currentModel.value.id, currentModel.value.file_name)
+    await modelsStore.downloadModel(modelsStore.currentModel.id, modelsStore.currentModel.file_name)
   } catch (e) {
     console.error('Download failed', e)
   }
 }
 
+async function onModelIdChange(modelId: string | string[] | null) {
+  try {
+    modelsStore.resetCurrentModel()
+    if (typeof modelId !== 'string') return
+    const requestInfo = {
+      organizationId: route.params.organizationId as string,
+      orbitId: route.params.id as string,
+      collectionId: route.params.collectionId as string,
+    }
+    const model = await modelsStore.getModel(modelId, requestInfo)
+    modelsStore.setCurrentModel(model)
+  } catch (e) {
+    const message = getErrorMessage(e, 'Failed to set current model')
+    toast.add(simpleErrorToast(message))
+  }
+}
+
+watch(() => route.params.modelId, onModelIdChange, { immediate: true })
+
 onUnmounted(() => {
+  modelsStore.resetCurrentModel()
   modelsStore.resetCurrentModelTag()
   modelsStore.resetCurrentModelMetadata()
   modelsStore.resetCurrentModelHtmlBlobUrl()

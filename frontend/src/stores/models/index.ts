@@ -4,89 +4,40 @@ import type {
   TabularModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
 import type {
-  CreateModelResponse,
   MlModel,
   MlModelCreator,
   UpdateMlModelPayload,
 } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
+import type { ModelMetadata, ModelStore } from './model.interface'
 import { defineStore } from 'pinia'
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref } from 'vue'
 import { api } from '@/lib/api'
-import axios from 'axios'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
-import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
-
-// TODO: Separate interfaces
-interface RequestInfo {
-  organizationId: string
-  orbitId: string
-  collectionId: string
-}
-
-interface DeleteModelsResult {
-  deleted: string[]
-  failed: string[]
-}
-
-interface ModelStore {
-  modelsList: Ref<MlModel[]>
-  requestInfo: Ref<RequestInfo>
-  currentModelTag: Ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>
-  currentModelMetadata: Ref<
-    TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload | null
-  >
-  currentModelHtmlBlobUrl: Ref<string | null>
-  experimentSnapshotProvider: Ref<ExperimentSnapshotProvider | null>
-  initiateCreateModel: (
-    data: MlModelCreator,
-    requestData?: {
-      organizationId: string
-      orbitId: string
-      collectionId: string
-    },
-  ) => Promise<CreateModelResponse>
-  confirmModelUpload: (payload: UpdateMlModelPayload, requestData?: RequestInfo) => Promise<void>
-  getModelsList: (
-    organizationId: string,
-    orbitId: string,
-    collectionId: string,
-  ) => Promise<MlModel[]>
-  setModelsList: (list: MlModel[]) => void
-  cancelModelUpload: (
-    payload: UpdateMlModelPayload,
-    requestData?: {
-      organizationId: string
-      orbitId: string
-      collectionId: string
-    },
-  ) => Promise<void>
-  resetList: () => void
-  deleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
-  downloadModel: (modelId: string, name: string) => Promise<void>
-  getDownloadUrl: (modelId: string) => Promise<string>
-  setCurrentModelTag: (tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) => void
-  resetCurrentModelTag: () => void
-  setCurrentModelMetadata: (
-    metadata: TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload,
-  ) => void
-  resetCurrentModelMetadata: () => void
-  setCurrentModelHtmlBlobUrl: (htmlFile: string) => void
-  resetCurrentModelHtmlBlobUrl: () => void
-  setExperimentSnapshotProvider: (provider: ExperimentSnapshotProvider) => void
-  resetExperimentSnapshotProvider: () => void
-  updateModel: (payload: UpdateMlModelPayload) => Promise<void>
-  forceDeleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
-}
+import axios from 'axios'
 
 export const useModelsStore = defineStore('models', (): ModelStore => {
   const route = useRoute()
 
+  const currentModel = ref<MlModel | null>(null)
+
   const modelsList = ref<MlModel[]>([])
+
+  const setModelsList = (list: MlModel[]) => {
+    modelsList.value = list
+  }
+
+  function setCurrentModel(model: MlModel) {
+    currentModel.value = model
+  }
+
+  function resetCurrentModel() {
+    currentModel.value = null
+  }
+
   const currentModelTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
-  const currentModelMetadata = ref<
-    TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload | null
-  >(null)
+  const currentModelMetadata = ref<ModelMetadata | null>(null)
   const currentModelHtmlBlobUrl = ref<string | null>(null)
   const experimentSnapshotProvider = ref<ExperimentSnapshotProvider | null>(null)
 
@@ -102,18 +53,6 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
       collectionId: route.params.collectionId,
     }
   })
-
-  function getModelsList(organizationId: string, orbitId: string, collectionId: string) {
-    return api.mlModels.getModelsList(
-      organizationId ?? requestInfo.value.organizationId,
-      orbitId ?? requestInfo.value.orbitId,
-      collectionId ?? requestInfo.value.collectionId,
-    )
-  }
-
-  function setModelsList(list: MlModel[]) {
-    modelsList.value = list
-  }
 
   function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
@@ -132,7 +71,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
       payload.id,
       payload,
     )
-    modelsList.value.push(model)
+    setModelsList([...modelsList.value, model])
   }
 
   async function cancelModelUpload(
@@ -149,10 +88,6 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     )
   }
 
-  function resetList() {
-    modelsList.value = []
-  }
-
   async function deleteModels(modelsIds: string[]) {
     const results = await Promise.allSettled(modelsIds.map((id) => deleteModel(id).then(() => id)))
     const deleted: string[] = []
@@ -164,7 +99,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
         failed.push(modelsIds[index])
       }
     })
-    modelsList.value = modelsList.value.filter((model) => !deleted.includes(model.id))
+    removeModelsFromList(deleted)
     return { deleted, failed }
   }
 
@@ -234,16 +169,16 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
 
   async function updateModel(payload: UpdateMlModelPayload) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const result = await api.mlModels.updateModel(
+    const model = await api.mlModels.updateModel(
       organizationId,
       orbitId,
       collectionId,
       payload.id,
       payload,
     )
-    modelsList.value = modelsList.value.map((model) => {
-      return model.id === result.id ? result : model
-    })
+    const newModelsList = modelsList.value.map((m) => (m.id === model.id ? model : m))
+    setModelsList(newModelsList)
+    return model
   }
 
   async function forceDeleteModels(modelsIds: string[]) {
@@ -262,12 +197,35 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
         failed.push(modelsIds[index])
       }
     })
-    modelsList.value = modelsList.value.filter((model) => !deleted.includes(model.id))
+    removeModelsFromList(deleted)
     return { deleted, failed }
   }
 
+  async function getModelsMetrics(requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
+    const collectionDetails = await api.orbitCollections.getCollection(
+      info.organizationId,
+      info.orbitId,
+      info.collectionId,
+    )
+    return collectionDetails.models_metrics
+  }
+
+  function getModel(modelId: string, requestData?: typeof requestInfo.value) {
+    const info = requestData ? requestData : requestInfo.value
+    const { organizationId, orbitId, collectionId } = info
+    return api.mlModels.getModelById(organizationId, orbitId, collectionId, modelId)
+  }
+
+  function removeModelsFromList(modelsIds: string[]) {
+    const newModelsList = modelsList.value.filter((model) => !modelsIds.includes(model.id))
+    setModelsList(newModelsList)
+  }
+
   return {
-    modelsList,
+    currentModel,
+    setCurrentModel,
+    resetCurrentModel,
     requestInfo,
     currentModelTag,
     currentModelMetadata,
@@ -275,10 +233,7 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     experimentSnapshotProvider,
     initiateCreateModel,
     confirmModelUpload,
-    getModelsList,
-    setModelsList,
     cancelModelUpload,
-    resetList,
     deleteModels,
     downloadModel,
     getDownloadUrl,
@@ -292,5 +247,9 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     resetExperimentSnapshotProvider,
     updateModel,
     forceDeleteModels,
+    getModelsMetrics,
+    getModel,
+    modelsList,
+    setModelsList,
   }
 })

@@ -30,6 +30,7 @@
     "@vue-flow/controls": "^1.1.2",
     "@vue-flow/core": "^1.42.1",
     "@vueuse/components": "^12.7.0",
+    "@vueuse/core": "^14.1.0",
     "apexcharts": "^4.2.0",
     "arquero": "^7.2.0",
     "axios": "^1.7.7",

@@ -2,42 +2,21 @@
   <div class="column">
     <h4 class="column-title">Model</h4>
     <div class="fields">
-      <div class="field">
-        <label for="collectionId" class="label required">Collection</label>
-        <Select
-          v-model="collectionId"
-          id="collectionId"
-          name="collectionId"
-          placeholder="Select collection"
-          fluid
-          :options="collections"
-          option-label="name"
-          option-value="id"
-          :disabled="!!initialCollectionId"
-        >
-          <template #header>
-            <div class="dropdown-title">Available collection</div>
-          </template>
-        </Select>
-      </div>
-      <div class="field" style="margin-bottom: 12px">
-        <label for="modelId" class="label required">Model</label>
-        <Select
-          v-model="modelId"
-          id="modelId"
-          name="modelId"
-          placeholder="Select model"
-          fluid
-          :options="modelsList"
-          option-label="model_name"
-          option-value="id"
-          :disabled="!!initialModelId"
-        >
-          <template #header>
-            <div class="dropdown-title">Available mdodel</div>
-          </template>
-        </Select>
-      </div>
+      <CollectionSelect
+        v-model="collectionId"
+        :disabled="!!initialCollectionId"
+        :organization-id="String($route.params.organizationId)"
+        :orbit-id="String($route.params.id)"
+        :initial-collection-id="initialCollectionId"
+      ></CollectionSelect>
+      <ModelSelect
+        v-model="modelId"
+        :disabled="!!initialModelId"
+        :organization-id="String($route.params.organizationId)"
+        :orbit-id="String($route.params.id)"
+        :collection-id="collectionId || null"
+        :initial-model-id="initialModelId"
+      ></ModelSelect>
       <Accordion
         v-if="secretDynamicAttributes.length || secretEnvs.length"
         :multiple="true"
@@ -182,7 +161,7 @@
 </template>
 
 <script setup lang="ts">
-import type { FieldInfo } from '../deployments.interfaces'
+import type { FieldInfo } from '../../deployments.interfaces'
 import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import type { Manifest, Var } from '@fnnx/common/dist/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
@@ -190,7 +169,6 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
 import { useModelsStore } from '@/stores/models'
 import {
-  Select,
   useToast,
   Accordion,
   AccordionPanel,
@@ -199,12 +177,15 @@ import {
   InputText,
   Button,
 } from 'primevue'
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { onBeforeMount, ref, watch } from 'vue'
 import { HelpCircle, ChevronDown, ChevronUp, Plus, BellRing, Trash2 } from 'lucide-vue-next'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { FormField } from '@primevue/forms'
-import SecretsSelect from './SecretsSelect.vue'
+import { useRoute } from 'vue-router'
+import SecretsSelect from '../../form/SecretsSelect.vue'
+import CollectionSelect from './CollectionSelect.vue'
+import ModelSelect from './ModelSelect.vue'
 
 type Props = {
   initialCollectionId?: string
@@ -223,10 +204,10 @@ const collectionsStore = useCollectionsStore()
 const modelsStore = useModelsStore()
 const secretsStore = useSecretsStore()
 const toast = useToast()
+const route = useRoute()
 
 const secretsAccordion = ref<string[]>([])
 const envAccordion = ref<string[]>([])
-const modelsList = ref<MlModel[]>([])
 
 const collectionId = defineModel<string | null>('collectionId')
 const modelId = defineModel<string | null>('modelId')
@@ -246,32 +227,7 @@ const customVariables = defineModel<Omit<FieldInfo<string>, 'label'>[]>('customV
   default: [],
 })
 
-const collections = computed(() => collectionsStore.collectionsList)
-const selectedModel = computed(() => {
-  if (!modelId.value) return null
-  const model = modelsList.value.find((model) => model.id === modelId.value)
-  return model || null
-})
-
-async function getCollections() {
-  try {
-    await collectionsStore.loadCollections()
-  } catch (e: any) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load collections')))
-  }
-}
-
-async function getModels(collectionId: string) {
-  try {
-    const { organizationId, orbitId } = collectionsStore.requestInfo
-    modelsList.value = await modelsStore.getModelsList(organizationId, orbitId, collectionId)
-    if (props.initialModelId) {
-      modelId.value = props.initialModelId
-    }
-  } catch (e) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load models')))
-  }
-}
+const selectedModel = ref<MlModel | null>(null)
 
 async function getSecrets() {
   try {
@@ -286,14 +242,26 @@ function addCustomVariable() {
   customVariables.value?.push({ key: '', value: '' })
 }
 
-function onCollectionChange(collectionId: string | null | undefined) {
-  modelsList.value = []
-  if (collectionId) {
-    getModels(collectionId)
+async function onModelIdChange(modelId: string | null | undefined) {
+  try {
+    if (modelId) {
+      if (!collectionId.value) throw new Error('Collection ID is required')
+      const requestInfo = {
+        organizationId: String(route.params.organizationId),
+        orbitId: String(route.params.id),
+        collectionId: collectionId.value,
+      }
+      const model = await modelsStore.getModel(modelId, requestInfo)
+      selectedModel.value = model
+    } else {
+      selectedModel.value = null
+    }
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load model')))
   }
 }
 
-function onModelChange(model: MlModel | null) {
+function onSelectedModelChange(model: MlModel | null) {
   emit('modelChanged', model)
   customVariables.value = []
   if (model) {
@@ -351,15 +319,17 @@ watch(
   { immediate: true, deep: true },
 )
 
-watch(collectionId, onCollectionChange, { immediate: true })
+watch(() => modelId.value, onModelIdChange, { immediate: true })
 
-watch(selectedModel, onModelChange, { immediate: true })
+watch(selectedModel, onSelectedModelChange, { immediate: true })
 
 onBeforeMount(async () => {
-  await getCollections()
   await getSecrets()
   if (props.initialCollectionId) {
     collectionId.value = props.initialCollectionId
+  }
+  if (props.initialModelId) {
+    modelId.value = props.initialModelId
   }
 })
 </script>

@@ -1,9 +1,22 @@
 <template>
-  <div v-if="loading" class="loading-container">
-    <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
-  </div>
-  <div v-else>
-    <div v-if="!collectionsStore.collectionsList.length" class="content">
+  <div>
+    <div class="search-container">
+      <IconField>
+        <InputText
+          :model-value="searchQuery"
+          size="small"
+          placeholder="Search"
+          @update:model-value="onSearch"
+        />
+        <InputIcon>
+          <Search :size="12" />
+        </InputIcon>
+      </IconField>
+    </div>
+    <div v-if="loading" class="loading-container">
+      <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
+    </div>
+    <div v-else-if="collectionsList.length === 0" class="content">
       <Folders :size="35" color="var(--p-primary-color)" />
       <h3 class="label">Welcome to the Registry</h3>
       <div class="text">
@@ -16,9 +29,10 @@
     </div>
     <CollectionsList
       v-else
-      :edit-available="
-        !!orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.update)
-      "
+      :list="collectionsList"
+      :search="searchQuery"
+      @update:search="onSearch"
+      @lazy-load="onLazyLoad"
     ></CollectionsList>
   </div>
   <CollectionCreator
@@ -31,18 +45,28 @@
 
 <script setup lang="ts">
 import { onBeforeMount, onUnmounted, ref } from 'vue'
-import { Skeleton, useToast } from 'primevue'
-import { Folders } from 'lucide-vue-next'
+import { Skeleton, useToast, IconField, InputText, InputIcon } from 'primevue'
+import { Folders, Search } from 'lucide-vue-next'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
+import { useCollectionsList } from '@/hooks/useCollectionsList'
+import { useDebounceFn } from '@vueuse/core'
 import CollectionsList from '@/components/orbits/tabs/registry/CollectionsList.vue'
 import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
-import { PermissionEnum } from '@/lib/api/api.interfaces'
 
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
+const {
+  setRequestInfo,
+  getInitialPage,
+  collectionsList,
+  reset,
+  searchQuery,
+  setSearchQuery,
+  onLazyLoad,
+} = useCollectionsList()
 
 const loading = ref(false)
 
@@ -50,15 +74,31 @@ function updateCreatorVisible(visible: boolean | undefined) {
   visible ? collectionsStore.showCreator() : collectionsStore.hideCreator()
 }
 
-onBeforeMount(async () => {
+function onSearch(value: string | undefined) {
+  setSearchQuery(value?.trim() ?? '')
+  debouncedFirstPage()
+}
+
+async function getFirstCollectionsPage() {
   try {
     loading.value = true
-    await collectionsStore.loadCollections()
+    reset()
+    setRequestInfo({
+      organizationId: orbitsStore.currentOrbitDetails!.organization_id,
+      orbitId: orbitsStore.currentOrbitDetails!.id,
+    })
+    await getInitialPage()
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load collections'))
   } finally {
     loading.value = false
   }
+}
+
+const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
+
+onBeforeMount(async () => {
+  await getFirstCollectionsPage()
 })
 
 onUnmounted(() => {
@@ -67,6 +107,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.search-container {
+  margin-bottom: 16px;
+}
+
 .content {
   display: flex;
   flex-direction: column;
@@ -80,16 +124,31 @@ onUnmounted(() => {
   border: 1px solid var(--p-content-border-color);
   background-color: var(--p-card-background);
 }
+
 .label {
   font-weight: 500;
 }
+
 .text {
   font-size: 12px;
   color: var(--p-text-muted-color);
 }
+
 .loading-container {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+:deep(.p-iconfield) {
+  max-width: 237px;
+}
+
+:deep(.p-iconfield .p-inputicon:last-child) {
+  inset-inline-end: 9px;
+}
+
+:deep(.p-iconfield .p-inputtext) {
+  width: 100%;
 }
 </style>

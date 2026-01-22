@@ -18,11 +18,10 @@ import { useCollectionsStore } from '@/stores/collections'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useOrganizationStore } from '@/stores/organization'
 import Ui404 from '@/components/ui/Ui404.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
-import { useOrganizationStore } from '@/stores/organization'
 import CollectionBreadcrumb from '@/components/orbits/tabs/registry/collection/CollectionBreadcrumb.vue'
-import { useModelsStore } from '@/stores/models'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,7 +29,6 @@ const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
-const modelsStore = useModelsStore()
 
 const loading = ref(true)
 
@@ -51,12 +49,7 @@ async function init(organizationId: string) {
       const details = await orbitsStore.getOrbitDetails(organizationId, orbitId)
       orbitsStore.setCurrentOrbitDetails(details)
     }
-    await collectionsStore.loadCollections()
-
-    const modelsList = await modelsStore.getModelsList(organizationId, orbitId, collectionId)
-    modelsStore.setModelsList(modelsList)
-
-    collectionsStore.setCurrentCollection(collectionId)
+    await collectionsStore.setCurrentCollection(collectionId)
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load collection data'))
   } finally {
@@ -79,7 +72,6 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   collectionsStore.resetCurrentCollection()
-  modelsStore.resetList()
 })
 </script>
 

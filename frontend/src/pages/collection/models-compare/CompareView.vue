@@ -3,7 +3,7 @@
     <ComparisonHeader></ComparisonHeader>
     <ComparisonModelsList
       :models-ids="modelIdsList"
-      :models-list="modelsStore.modelsList"
+      :models-list="modelsList"
       :models-info="modelsInfo"
     ></ComparisonModelsList>
     <div v-if="loading">
@@ -26,7 +26,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import type { ModelsInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
+import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ComparisonHeader } from '@/modules/experiment-snapshot'
 import { ComparisonModelsList } from '@/modules/experiment-snapshot'
@@ -35,7 +37,6 @@ import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSna
 import { Skeleton } from 'primevue'
 import { ExperimentSnapshot } from '@/modules/experiment-snapshot'
 import { getModelColorByIndex } from '@/modules/experiment-snapshot/helpers/helpers'
-import type { ModelsInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
 
 const route = useRoute()
 const modelsStore = useModelsStore()
@@ -51,11 +52,7 @@ const modelIdsList = computed(() => {
   return [String(route.query.models)]
 })
 
-const modelsList = computed(() =>
-  modelIdsList.value
-    .map((modelId) => modelsStore.modelsList.find((model) => model.id === modelId))
-    .filter((model) => !!model),
-)
+const modelsList = ref<MlModel[]>([])
 
 const modelsInfo = computed(() => {
   return modelsList.value.reduce((acc: ModelsInfo, model, index) => {
@@ -66,21 +63,31 @@ const modelsInfo = computed(() => {
   }, {})
 })
 
-onMounted(async () => {
-  if (modelsStore.experimentSnapshotProvider) return
+async function onModelIdsChange(newModelIds: string[]) {
   try {
     loading.value = true
+    modelsStore.resetExperimentSnapshotProvider()
+    modelsList.value = []
+    const promises = await Promise.allSettled(
+      newModelIds.map((modelId) => modelsStore.getModel(modelId)),
+    )
+    const models = promises
+      .map((promise) => (promise.status === 'fulfilled' ? promise.value : null))
+      .filter((model) => !!model)
+    modelsList.value = models
     await init(modelsList.value)
   } catch (e) {
     console.error(e)
   } finally {
     loading.value = false
   }
-})
+}
 
 onUnmounted(() => {
   modelsStore.resetExperimentSnapshotProvider()
 })
+
+watch(modelIdsList, onModelIdsChange, { immediate: true, deep: true })
 </script>
 
 <style scoped>
