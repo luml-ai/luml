@@ -257,7 +257,7 @@ class CrudMixin:
         join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
         select_fields: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
-    ) -> PaginatedSequenceResponse:  # noqa: ANN401
+    ) -> PaginatedSequenceResponse[TOrm]:
         stmt = select(*(select_fields or [orm_class]))
 
         if join_condition:

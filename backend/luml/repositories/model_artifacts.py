@@ -81,7 +81,7 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
         if sort_by == "metrics":
             raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
 
-        if getattr(ModelArtifactOrm, sort_by, None):
+        if hasattr(ModelArtifactOrm, sort_by):
             return False
 
         metrics = await self.get_collection_model_artifacts_metrics(collection_id)

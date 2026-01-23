@@ -75,8 +75,11 @@ class CollectionHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
 
+        cursor = decode_cursor(cursor_str)
+        use_cursor = cursor if cursor and cursor.sort_by == sort_by.value else None
+
         pagination = PaginationParams(
-            cursor=decode_cursor(cursor_str),
+            cursor=use_cursor,
             sort_by=str(sort_by.value),
             order=order,
             limit=limit,

@@ -398,8 +398,11 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
+        cursor = decode_cursor(cursor_str)
+        use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
+
         pagination = PaginationParams(
-            cursor=decode_cursor(cursor_str),
+            cursor=use_cursor,
             sort_by=sort_by,
             order=order,
             limit=limit,
