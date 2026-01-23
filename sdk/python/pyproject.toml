@@ -19,7 +19,7 @@ tracing = [
     "opentelemetry-instrumentation-openai>=0.44.1",
     "opentelemetry-sdk>=1.36.0",
 ]
-packaging = [
+core = [
     "cloudpickle>=3.1.2,<4.0.0",
     "fnnx>=0.0.8,<0.1.0",
     "pydantic>=2.11.7,<3.0.0",
