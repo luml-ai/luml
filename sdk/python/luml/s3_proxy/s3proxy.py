@@ -1,17 +1,17 @@
 import hashlib
-import hmac
 import os
 import re
-from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
+from luml.s3_proxy.s3_signature_validator import AwsSignatureValidator
 from luml.s3_proxy.schemas import (
     CompleteMultipartUploadResponse,
     InitiateMultipartUploadResponse,
     MultipartUpload,
     PartInfo,
+    S3AuthError,
     S3ErrorResponse,
     S3Request,
 )
@@ -20,7 +20,7 @@ from luml.s3_proxy.schemas import (
 class S3ProxyHandler(BaseHTTPRequestHandler):
     STORAGE_ROOT: str = "./s3_storage"  # Storage root directory
     CREDENTIALS: dict[str, str] = {}
-    MAX_FILE_SIZE: int = 5 * 1024 * 1024 * 1024 * 1024  # 5 TB
+    MAX_FILE_SIZE: int = 5_497_558_138_880  # 5 TB
 
     CORS_ENABLED: bool = False
     CORS_ORIGINS: str = "*"
@@ -31,6 +31,19 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     multipart_uploads: dict[str, MultipartUpload] = {}
 
     DEBUG: bool = False
+    _auth: AwsSignatureValidator | None = None
+
+    @classmethod
+    def get_auth(cls) -> AwsSignatureValidator:
+        if cls._auth is None:
+            cls._auth = AwsSignatureValidator(
+                credentials=cls.CREDENTIALS, debug=cls.DEBUG
+            )
+        return cls._auth
+
+    @classmethod
+    def reset_auth(cls) -> None:
+        cls._auth = None
 
     def __init__(self, *args, **kwargs) -> None:
         os.makedirs(self.STORAGE_ROOT, exist_ok=True)
@@ -40,6 +53,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         message = format % args if args else format
         if message.startswith("[AUTH]") and not self.DEBUG:
             return
+        super().log_message("%s", message)
 
     def add_cors_headers(self) -> None:
         if self.CORS_ENABLED:
@@ -127,7 +141,6 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             return False
 
     def _safe_delete_file(self, file_path: Path) -> bool:
-        """Safely delete a file. Returns False and sends error on failure."""
         try:
             file_path.unlink()
             return True
@@ -182,328 +195,17 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             raise ValueError("Invalid bucket or key path.")
         return file_path
 
-    @staticmethod
-    def _sign(key: bytes, msg: str) -> bytes:
-        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-    def _get_signature_key(
-        self, secret_key: str, date_stamp: str, region: str, service: str
-    ) -> bytes:
-        k_date = self._sign(f"AWS4{secret_key}".encode(), date_stamp)
-        k_region = self._sign(k_date, region)
-        k_service = self._sign(k_region, service)
-        return self._sign(k_service, "aws4_request")
-
-    def validate_signature_v4(self) -> tuple[bool, str | None]:
-        auth_header = self.headers.get("Authorization", "")
-
-        self.log_message(
-            f"[AUTH] Authorization header: {auth_header[:100]}..."
-            if len(auth_header) > 100
-            else f"[AUTH] Authorization header: {auth_header}"
-        )
-
-        if not self.CREDENTIALS:
-            self.log_message(
-                "[AUTH] No credentials configured - "
-                "accepting any valid signature format"
-            )
-            if not auth_header.startswith("AWS4-HMAC-SHA256"):
-                self.log_message(
-                    "[AUTH] REJECTED: Authorization header "
-                    "does not start with AWS4-HMAC-SHA256"
-                )
-                return False, None
-            pattern = r"AWS4-HMAC-SHA256 Credential=([^/]+)/"
-            match = re.search(pattern, auth_header)
-            if match:
-                access_key = match.group(1)
-                self.log_message(
-                    f"[AUTH] ACCEPTED: Valid signature format "
-                    f"with access key: {access_key}"
-                )
-                return True, access_key
-            self.log_message(
-                "[AUTH] REJECTED: Could not extract access key "
-                "from authorization header"
-            )
-            return len(auth_header) > 0, None
-
-        self.log_message("[AUTH] Credentials configured - performing strict validation")
-        if not auth_header.startswith("AWS4-HMAC-SHA256"):
-            self.log_message(
-                "[AUTH] REJECTED: Authorization header "
-                "does not start with AWS4-HMAC-SHA256"
-            )
-            return False, None
-
-        try:
-            pattern = r"AWS4-HMAC-SHA256 Credential=([^,]+), SignedHeaders=([^,]+), Signature=([a-f0-9]+)"
-            match = re.match(pattern, auth_header)
-            if not match:
-                self.log_message(
-                    "[AUTH] REJECTED: Could not parse authorization header"
-                )
-                return False, None
-
-            credential, signed_headers, client_signature = match.groups()
-            self.log_message(
-                f"[AUTH] Parsed - Credential: {credential}, SignedHeaders: {signed_headers}, "
-                f"ClientSignature: {client_signature[:16]}..."
-            )
-
-            cred_parts = credential.split("/")
-            if len(cred_parts) != 5:
-                self.log_message(
-                    f"[AUTH] REJECTED: Invalid credential format "
-                    f"(expected 5 parts, got {len(cred_parts)})"
-                )
-                return False, None
-
-            access_key, date_stamp, region, service, _ = cred_parts
-            self.log_message(
-                f"[AUTH] Credential parts - AccessKey: {access_key}, "
-                f"Date: {date_stamp}, Region: {region}, Service: {service}"
-            )
-
-            if access_key not in self.CREDENTIALS:
-                self.log_message(f"[AUTH] REJECTED: Unknown access key: {access_key}")
-                self.log_message(
-                    f"[AUTH] Configured access keys: {list(self.CREDENTIALS.keys())}"
-                )
-                return False, access_key
-
-            secret_key = self.CREDENTIALS[access_key]
-            self.log_message(f"[AUTH] Found matching access key: {access_key}")
-
-            x_amz_date = self.headers.get("x-amz-date", "")
-            if not x_amz_date:
-                date_header = self.headers.get("Date", "")
-                if not date_header:
-                    self.log_message(
-                        "[AUTH] REJECTED: Missing x-amz-date or Date header"
-                    )
-                    return False, access_key
-                self.log_message(f"[AUTH] Using Date header: {date_header}")
-            else:
-                self.log_message(f"[AUTH] Using x-amz-date header: {x_amz_date}")
-
-            method = self.command
-            canonical_uri = urlparse(self.path).path
-            canonical_querystring = urlparse(self.path).query or ""
-
-            self.log_message(
-                f"[AUTH] Building canonical request - Method: {method}, "
-                f"URI: {canonical_uri}, Query: {canonical_querystring}"
-            )
-
-            canonical_headers = []
-            for header in signed_headers.split(";"):
-                value = self.headers.get(header, "")
-                canonical_headers.append(f"{header}:{value.strip()}")
-            canonical_headers_str = "\n".join(canonical_headers) + "\n"
-
-            self.log_message(f"[AUTH] Canonical headers: {canonical_headers}")
-
-            payload_hash = self.headers.get("x-amz-content-sha256", "UNSIGNED-PAYLOAD")
-            self.log_message(f"[AUTH] Payload hash: {payload_hash}")
-
-            canonical_request = (
-                f"{method}\n{canonical_uri}\n{canonical_querystring}\n"
-                f"{canonical_headers_str}\n{signed_headers}\n{payload_hash}"
-            )
-            self.log_message(
-                f"[AUTH] Canonical request (hash): "
-                f"{hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()}"
-            )
-
-            algorithm = "AWS4-HMAC-SHA256"
-            credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
-            canonical_request_hash = hashlib.sha256(
-                canonical_request.encode("utf-8")
-            ).hexdigest()
-            string_to_sign = (
-                f"{algorithm}\n{x_amz_date}\n"
-                f"{credential_scope}\n{canonical_request_hash}"
-            )
-
-            self.log_message("[AUTH] String to sign:")
-            for i, line in enumerate(string_to_sign.split("\n")):
-                self.log_message(f"[AUTH] Line {i}: {line}")
-
-            signing_key = self._get_signature_key(
-                secret_key, date_stamp, region, service
-            )
-            signature = hmac.new(
-                signing_key, string_to_sign.encode("utf-8"), hashlib.sha256
-            ).hexdigest()
-
-            self.log_message(f"[AUTH] Computed signature: {signature}")
-            self.log_message(f"[AUTH] Client signature:   {client_signature}")
-
-            if signature != client_signature:
-                self.log_message(
-                    f"[AUTH] REJECTED: Signature mismatch for access key: {access_key}"
-                )
-                return False, access_key
-
-            self.log_message(
-                f"[AUTH] ACCEPTED: Signature validated "
-                f"successfully for access key: {access_key}"
-            )
-            return True, access_key
-
-        except Exception as e:
-            self.log_message(f"[AUTH] REJECTED: Signature validation error: {e}")
-            import traceback
-
-            self.log_message(f"[AUTH] Traceback: {traceback.format_exc()}")
-            return False, None
-
-    def validate_presigned_url(self) -> tuple[bool, str | None]:
-        parsed = urlparse(self.path)
-        query_params = parse_qs(parsed.query, keep_blank_values=True)
-
-        if "X-Amz-Signature" not in query_params:
-            return False, None
-
-        self.log_message("[AUTH] Detected presigned URL request")
-
-        try:
-            credential = query_params.get("X-Amz-Credential", [""])[0]
-            x_amz_date = query_params.get("X-Amz-Date", [""])[0]
-            expires = query_params.get("X-Amz-Expires", ["3600"])[0]
-            signed_headers = query_params.get("X-Amz-SignedHeaders", ["host"])[0]
-            client_signature = query_params.get("X-Amz-Signature", [""])[0]
-
-            self.log_message(
-                f"[AUTH] Presigned - Credential: {credential}, "
-                f"Date: {x_amz_date}, Expires: {expires}s"
-            )
-
-            cred_parts = credential.split("/")
-            if len(cred_parts) != 5:
-                self.log_message("[AUTH] REJECTED: Invalid credential format")
-                return False, None
-
-            access_key, date_stamp, region, service, _ = cred_parts
-            self.log_message(f"[AUTH] Presigned access key: {access_key}")
-
-            if not self.CREDENTIALS:
-                self.log_message("[AUTH] No credentials configured - accepting presigned URL")
-                return True, access_key
-
-            if access_key not in self.CREDENTIALS:
-                self.log_message(f"[AUTH] REJECTED: Unknown access key: {access_key}")
-                return False, access_key
-
-            secret_key = self.CREDENTIALS[access_key]
-
-            try:
-                request_time = datetime.strptime(x_amz_date, "%Y%m%dT%H%M%SZ")
-                request_time = request_time.replace(tzinfo=UTC)
-                age_seconds = (datetime.now(UTC) - request_time).total_seconds()
-
-                if age_seconds > int(expires):
-                    self.log_message(
-                        f"[AUTH] REJECTED: Presigned URL expired "
-                        f"(age: {age_seconds}s, max: {expires}s)"
-                    )
-                    return False, access_key
-
-                self.log_message(f"[AUTH] Presigned URL age: {age_seconds}s / {expires}s")
-            except ValueError as e:
-                self.log_message(f"[AUTH] REJECTED: Invalid date format: {e}")
-                return False, access_key
-
-            canonical_params = []
-            for key in sorted(query_params.keys()):
-                if key != "X-Amz-Signature":
-                    for value in query_params[key]:
-                        canonical_params.append(f"{key}={value}")
-            canonical_querystring = "&".join(canonical_params)
-
-            canonical_headers = []
-            for header in signed_headers.split(";"):
-                if header == "host":
-                    host = self.headers.get("Host", "")
-                    canonical_headers.append(f"host:{host}")
-                else:
-                    value = self.headers.get(header, "")
-                    canonical_headers.append(f"{header}:{value.strip()}")
-            canonical_headers_str = "\n".join(canonical_headers) + "\n"
-
-            canonical_uri = parsed.path
-            canonical_request = (
-                f"{self.command}\n{canonical_uri}\n{canonical_querystring}\n"
-                f"{canonical_headers_str}\n{signed_headers}\nUNSIGNED-PAYLOAD"
-            )
-
-            self.log_message(
-                f"[AUTH] Canonical request hash: "
-                f"{hashlib.sha256(canonical_request.encode()).hexdigest()}"
-            )
-
-            credential_scope = f"{date_stamp}/{region}/{service}/aws4_request"
-            canonical_request_hash = hashlib.sha256(canonical_request.encode()).hexdigest()
-            string_to_sign = (
-                f"AWS4-HMAC-SHA256\n{x_amz_date}\n"
-                f"{credential_scope}\n{canonical_request_hash}"
-            )
-
-            signing_key = self._get_signature_key(secret_key, date_stamp, region, service)
-            computed_signature = hmac.new(
-                signing_key, string_to_sign.encode(), hashlib.sha256
-            ).hexdigest()
-
-            self.log_message(f"[AUTH] Computed signature: {computed_signature}")
-            self.log_message(f"[AUTH] Client signature:   {client_signature}")
-
-            if computed_signature != client_signature:
-                self.log_message("[AUTH] REJECTED: Signature mismatch")
-                return False, access_key
-
-            self.log_message("[AUTH] ACCEPTED: Presigned URL signature valid")
-            return True, access_key
-
-        except Exception as e:
-            self.log_message(f"[AUTH] REJECTED: Presigned URL validation error: {e}")
-            import traceback
-
-            self.log_message(f"[AUTH] Traceback: {traceback.format_exc()}")
-            return False, None
-
     def check_auth(self) -> bool:
-        self.log_message(
-            f"[AUTH] Checking authentication for {self.command} {self.path}"
-        )
-
-        is_presigned, access_key = self.validate_presigned_url()
-        if is_presigned:
-            self.log_message("[AUTH] Authentication successful (presigned URL)")
+        try:
+            self.get_auth().validate_request(
+                dict(self.headers), self.command, self.path
+            )
+            self.log_message("[AUTH] Authentication successful")
             return True
-
-        if "Authorization" not in self.headers:
-            self.log_message(
-                "[AUTH] REJECTED: No Authorization header or presigned URL parameters"
-            )
-            self.log_message(f"[AUTH] Available headers: {dict(self.headers)}")
-            self.send_error_response(403, "AccessDenied", "Access Denied")
+        except S3AuthError as e:
+            self.log_message(f"[AUTH] {e.error_code}: {e.message}")
+            self.send_error_response(e.status_code, e.error_code, e.message)
             return False
-
-        is_valid, _ = self.validate_signature_v4()
-        if not is_valid:
-            self.log_message("[AUTH] REJECTED: Signature validation failed")
-            self.send_error_response(
-                403,
-                "SignatureDoesNotMatch",
-                "The request signature we calculated does not "
-                "match the signature you provided",
-            )
-            return False
-
-        self.log_message("[AUTH] Authentication successful")
-        return True
 
     def do_OPTIONS(self) -> None:
         if self.CORS_ENABLED:
@@ -789,9 +491,6 @@ def run_server(
     access_key: str | None = None,
     secret_key: str | None = None,
     cors_enabled: bool = False,
-    cors_origins: str = "*",
-    cors_methods: str = "GET, PUT, POST, DELETE, HEAD, OPTIONS",
-    cors_headers: str = "Authorization, Content-Type, Content-MD5, x-amz-*, Range",
     debug: bool = False,
 ) -> None:
     S3ProxyHandler.STORAGE_ROOT = storage_root
@@ -803,9 +502,6 @@ def run_server(
         S3ProxyHandler.CREDENTIALS = {}
 
     S3ProxyHandler.CORS_ENABLED = cors_enabled
-    S3ProxyHandler.CORS_ORIGINS = cors_origins
-    S3ProxyHandler.CORS_METHODS = cors_methods
-    S3ProxyHandler.CORS_HEADERS = cors_headers
 
     server_address = (host, port)
     httpd = HTTPServer(server_address, S3ProxyHandler)
@@ -814,50 +510,3 @@ def run_server(
         httpd.serve_forever()
     except KeyboardInterrupt:
         httpd.shutdown()
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="S3 Proxy Server")
-    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
-    parser.add_argument("--port", type=int, default=9000, help="Port to bind to")
-    parser.add_argument(
-        "--storage", default="./s3_storage", help="Storage root directory"
-    )
-    parser.add_argument("--access-key", help="AWS access key for authentication")
-    parser.add_argument("--secret-key", help="AWS secret key for authentication")
-    parser.add_argument("--cors", action="store_true", help="Enable CORS support")
-    parser.add_argument(
-        "--cors-origins", default="*", help="CORS allowed origins (default: *)"
-    )
-    parser.add_argument(
-        "--cors-methods",
-        default="GET, PUT, POST, DELETE, HEAD, OPTIONS",
-        help="CORS allowed methods",
-    )
-    parser.add_argument(
-        "--cors-headers",
-        default="Authorization, Content-Type, Content-MD5, x-amz-*, Range",
-        help="CORS allowed headers",
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="Enable debug logging (shows detailed auth logs)",
-    )
-
-    args = parser.parse_args()
-
-    run_server(
-        host=args.host,
-        port=args.port,
-        storage_root=args.storage,
-        access_key=args.access_key,
-        secret_key=args.secret_key,
-        cors_enabled=args.cors,
-        cors_origins=args.cors_origins,
-        cors_methods=args.cors_methods,
-        cors_headers=args.cors_headers,
-        debug=args.debug,
-    )
