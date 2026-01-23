@@ -31,6 +31,38 @@ class S3Request:
 
 
 @dataclass
+class AwsAuthInfo:
+    access_key: str
+    secret_key: str
+    date_stamp: str
+    region: str
+    service: str
+    signed_headers: str
+    client_signature: str
+
+
+@dataclass
+class AwsCredentials:
+    access_key: str
+    date_stamp: str
+    region: str
+    service: str
+
+
+class S3AuthError(Exception):
+    def __init__(
+        self,
+        status_code: int,
+        error_code: str,
+        message: str,
+    ) -> None:
+        self.status_code = status_code
+        self.error_code = error_code
+        self.message = message
+        super().__init__(message)
+
+
+@dataclass
 class S3ErrorResponse:
     code: str
     message: str
