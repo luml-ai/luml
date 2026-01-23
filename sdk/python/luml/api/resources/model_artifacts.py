@@ -287,7 +287,7 @@ class ModelArtifactResource(ModelArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
 
         Returns:
-            ModelArtifactList object.
+            ModelArtifactsList object.
 
         Raises:
             ConfigurationError: If collection_id not provided and
