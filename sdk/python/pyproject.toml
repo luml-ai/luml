@@ -14,6 +14,16 @@ api = [
     "httpx>=0.28.1,<1.0.0",
     "pydantic>=2.11.7,<3.0.0",
 ]
+tracing = [
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-instrumentation-openai>=0.44.1",
+    "opentelemetry-sdk>=1.36.0",
+]
+core = [
+    "cloudpickle>=3.1.2,<4.0.0",
+    "fnnx>=0.0.8,<0.1.0",
+    "pydantic>=2.11.7,<3.0.0",
+]
 
 [project.scripts]
 generate-docs = "generate_docs:main"
@@ -37,16 +47,6 @@ dev = [
     "respx==0.22.0",
     "ruff==0.11.5",
     "types-passlib==1.7.7.20250408",
-]
-tracing = [
-    "opentelemetry-api>=1.36.0",
-    "opentelemetry-instrumentation-openai>=0.44.1",
-    "opentelemetry-sdk>=1.36.0",
-]
-packaging = [
-    "cloudpickle>=3.1.2,<4.0.0",
-    "fnnx>=0.0.8,<0.1.0",
-    "pydantic>=2.11.7,<3.0.0",
 ]
 
 [tool.ruff]
