@@ -7,74 +7,11 @@ from pydantic import BaseModel, Field, field_validator
 
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
+from luml.schemas.collections import Collection
 from luml.schemas.deployment import Deployment
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
 
-
-class CollectionType(StrEnum):
-    MODEL = "model"
-    DATASET = "dataset"
-
-
-class CollectionCreate(BaseModel):
-    orbit_id: UUID
-    description: str
-    name: str
-    collection_type: CollectionType
-    tags: list[str] | None = None
-
-
-class CollectionCreateIn(BaseModel):
-    description: str
-    name: str
-    collection_type: CollectionType
-    tags: list[str] | None = None
-
-
-class Collection(BaseModel, BaseOrmConfig):
-    id: UUID
-    orbit_id: UUID
-    description: str
-    name: str
-    collection_type: CollectionType
-    tags: list[str] | None = None
-    total_models: int
-    created_at: datetime
-    updated_at: datetime | None = None
-
-
-class CollectionDetails(Collection):
-    models_tags: list[str] = []
-    models_metrics: list[str] = []
-
-
-class CollectionUpdate(BaseModel):
-    id: UUID | None = None
-    description: str | None = None
-    name: str | None = None
-    tags: list[str] | None = None
-
-
-class CollectionUpdateIn(BaseModel):
-    description: str | None = None
-    name: str | None = None
-    tags: list[str] | None = None
-
-
-class CollectionSortBy(StrEnum):
-    CREATED_AT = "created_at"
-    NAME = "name"
-    COLLECTION_TYPE = "collection_type"
-    DESCRIPTION = "description"
-    TOTAL_MODELS = "total_models"
-
-
-class CollectionsList(BaseModel):
-    items: list[Collection]
-    cursor: str | None
-
-
-ModelArtifactNamesField = Annotated[
+ArtifactNamesField = Annotated[
     str,
     Field(
         pattern=r"^[^:\"*\`~#%;'^]+\.[^\s:\"*\`~#%;'^]+$",
@@ -85,7 +22,7 @@ ModelArtifactNamesField = Annotated[
 ]
 
 
-class ModelArtifactStatus(StrEnum):
+class ArtifactStatus(StrEnum):
     PENDING_UPLOAD = "pending_upload"
     UPLOADED = "uploaded"
     PENDING_DELETION = "pending_deletion"
@@ -93,12 +30,18 @@ class ModelArtifactStatus(StrEnum):
     DELETION_FAILED = "deletion_failed"
 
 
-class ModelArtifactSortBy(StrEnum):
+class ArtifactSortBy(StrEnum):
     CREATED_AT = "created_at"
-    MODEL_NAME = "model_name"
+    name = "name"
     SIZE = "size"
     DESCRIPTION = "description"
     STATUS = "status"
+
+
+class ArtifactType(StrEnum):
+    MODEL = "model"
+    EXPERIMENT = "experiment"
+    DATASET = "dataset"
 
 
 class ModelIO(BaseModel):
@@ -146,12 +89,12 @@ class Manifest(BaseModel):
     env_vars: list[Var]
 
 
-class ModelArtifactCreate(BaseModel):
+class ArtifactCreate(BaseModel):
     collection_id: UUID
     file_name: str
-    model_name: str | None = None
+    name: str | None = None
     description: str | None = None
-    metrics: dict[str, Any]
+    extra_values: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -159,71 +102,69 @@ class ModelArtifactCreate(BaseModel):
     size: int
     unique_identifier: str
     tags: list[str] | None = None
-    status: ModelArtifactStatus = ModelArtifactStatus.PENDING_UPLOAD
+    status: ArtifactStatus = ArtifactStatus.PENDING_UPLOAD
     created_by_user: str | None = None
+    type: ArtifactType
 
     @field_validator("size")
     @classmethod
     def validate_model_size(cls, value: int) -> int:
         if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError(
-                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
-            )
+            raise ValueError("Artifact cant be bigger than 5TB")
         return value
 
 
-class ModelArtifactIn(BaseModel):
-    file_name: ModelArtifactNamesField
-    model_name: str | None = None
+class ArtifactIn(BaseModel):
+    file_name: ArtifactNamesField
+    name: str | None = None
     description: str | None = None
-    metrics: dict[str, Any]
+    extra_values: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
     size: int
     tags: list[str] | None = None
+    type: ArtifactType
 
     @field_validator("size")
     @classmethod
     def validate_model_size(cls, value: int) -> int:
         if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError(
-                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
-            )
+            raise ValueError("Artifact cant be bigger than 5TB")
         return value
 
 
-class ModelArtifactUpdate(BaseModel):
+class ArtifactUpdate(BaseModel):
     id: UUID
     file_name: str | None = None
-    model_name: str | None = None
+    name: str | None = None
     description: str | None = None
-    status: ModelArtifactStatus | None = None
+    status: ArtifactStatus | None = None
     tags: list[str] | None = None
 
 
-class ModelArtifactUpdateIn(BaseModel):
-    file_name: ModelArtifactNamesField | None = None
-    model_name: str | None = None
+class ArtifactUpdateIn(BaseModel):
+    file_name: ArtifactNamesField | None = None
+    name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
     status: (
         Literal[
-            ModelArtifactStatus.UPLOADED,
-            ModelArtifactStatus.UPLOAD_FAILED,
-            ModelArtifactStatus.DELETION_FAILED,
+            ArtifactStatus.UPLOADED,
+            ArtifactStatus.UPLOAD_FAILED,
+            ArtifactStatus.DELETION_FAILED,
         ]
         | None
     ) = None
 
 
-class ModelArtifact(BaseModel, BaseOrmConfig):
+class Artifact(BaseModel, BaseOrmConfig):
     id: UUID
     collection_id: UUID
     file_name: str
-    model_name: str | None = None
+    name: str | None = None
     description: str | None = None
-    metrics: dict[str, Any]
+    extra_values: dict[str, Any]
     manifest: Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -231,7 +172,8 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     size: int
     unique_identifier: str
     tags: list[str] | None = None
-    status: ModelArtifactStatus
+    status: ArtifactStatus
+    type: ArtifactType
     created_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
@@ -240,27 +182,25 @@ class ModelArtifact(BaseModel, BaseOrmConfig):
     @classmethod
     def validate_model_size(cls, value: int) -> int:
         if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError(
-                f"Model cant be bigger than 5TB - {MAX_FILE_SIZE_BYTES} bytes"
-            )
+            raise ValueError("Artifact cant be bigger than 5TB")
         return value
 
 
-class ModelArtifactDetails(ModelArtifact):
+class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
 
 
-class CreateModelArtifactResponse(BaseModel):
-    model: ModelArtifact
+class CreateArtifactResponse(BaseModel):
+    artifact: Artifact
     upload_details: S3UploadDetails | AzureUploadDetails
 
 
-class SatelliteModelArtifactResponse(BaseModel):
-    model: ModelArtifact
+class SatelliteArtifactResponse(BaseModel):
+    artifact: Artifact
     url: str
 
 
-class ModelArtifactsList(BaseModel):
-    items: list[ModelArtifact]
+class ArtifactsList(BaseModel):
+    items: list[Artifact]
     cursor: str | None

@@ -23,8 +23,8 @@ class Deployment(BaseModel, BaseOrmConfig):
     satellite_id: UUID
     satellite_name: str
     name: str
-    model_id: UUID
-    model_artifact_name: str
+    artifact_id: UUID
+    artifact_name: str
     collection_id: UUID
     inference_url: str | None = None
     status: DeploymentStatus
@@ -44,7 +44,7 @@ class Deployment(BaseModel, BaseOrmConfig):
 class DeploymentCreate(BaseModel, BaseOrmConfig):
     orbit_id: UUID
     satellite_id: UUID
-    model_id: UUID
+    artifact_id: UUID
     name: str
     satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
     description: str | None = None
@@ -58,7 +58,7 @@ class DeploymentCreate(BaseModel, BaseOrmConfig):
 
 class DeploymentCreateIn(BaseModel):
     satellite_id: UUID
-    model_artifact_id: UUID
+    artifact_id: UUID
     name: str
     satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
     description: str | None = None

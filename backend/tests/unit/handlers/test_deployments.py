@@ -43,7 +43,7 @@ handler = DeploymentHandler()
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -63,7 +63,7 @@ async def test_create_deployment(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
-    mock_get_model_artifact: AsyncMock,
+    mock_get_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
     mock_create_deployment: AsyncMock,
@@ -74,21 +74,21 @@ async def test_create_deployment(
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     user_name = "User Full Name"
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
         name="my-deployment",
         orbit_id=orbit_id,
         satellite_id=satellite_id,
-        model_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=deployment_create_data_in.tags,
         created_by_user=user_name,
     )
@@ -98,8 +98,8 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="my-deployment",
-        model_id=model_artifact_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=artifact_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         inference_url=None,
         status=DeploymentStatus.PENDING,
@@ -111,7 +111,7 @@ async def test_create_deployment(
 
     mock_get_orbit_simple.return_value = Mock()
     mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
-    mock_get_model_artifact.return_value = Mock(collection_id=collection_id)
+    mock_get_artifact.return_value = Mock(collection_id=collection_id)
     mock_get_collection.return_value = Mock(orbit_id=orbit_id)
     mock_get_public_user_by_id.return_value = Mock(full_name=user_name)
     mock_create_deployment.return_value = expected, None
@@ -125,9 +125,7 @@ async def test_create_deployment(
     mock_create_deployment.assert_awaited_once_with(deployment_create_data)
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(
-        deployment_create_data_in.model_artifact_id
-    )
+    mock_get_artifact.assert_awaited_once_with(deployment_create_data_in.artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
     mock_check_permissions.assert_awaited_once_with(
@@ -156,12 +154,12 @@ async def test_create_deployment_orbit_not_found(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
 
@@ -205,12 +203,12 @@ async def test_create_deployment_satellite_not_found(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
 
@@ -235,7 +233,7 @@ async def test_create_deployment_satellite_not_found(
 
 
 @patch(
-    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -251,30 +249,30 @@ async def test_create_deployment_satellite_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_create_deployment_model_artifact_not_found(
+async def test_create_deployment_artifact_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
-    mock_get_model_artifact: AsyncMock,
+    mock_get_artifact: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
 
     mock_get_orbit_simple.return_value = Mock()
     mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
-    mock_get_model_artifact.return_value = None
+    mock_get_artifact.return_value = None
 
-    with pytest.raises(NotFoundError, match="Model artifact not found") as error:
+    with pytest.raises(NotFoundError, match="Artifact not found") as error:
         await handler.create_deployment(
             user_id, organization_id, orbit_id, deployment_create_data_in
         )
@@ -282,7 +280,7 @@ async def test_create_deployment_model_artifact_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_artifact.assert_awaited_once_with(artifact_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,
@@ -297,7 +295,7 @@ async def test_create_deployment_model_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -317,7 +315,7 @@ async def test_create_deployment_collection_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
-    mock_get_model_artifact: AsyncMock,
+    mock_get_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -325,17 +323,17 @@ async def test_create_deployment_collection_not_found(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
     mock_get_orbit_simple.return_value = Mock()
     mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
-    mock_get_model_artifact.return_value = Mock(collection_id=collection_id)
+    mock_get_artifact.return_value = Mock(collection_id=collection_id)
     mock_get_collection.return_value = None
 
     with pytest.raises(NotFoundError, match="Collection not found") as error:
@@ -346,7 +344,7 @@ async def test_create_deployment_collection_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_artifact.assert_awaited_once_with(artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
@@ -366,7 +364,7 @@ async def test_create_deployment_collection_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.deployments.ModelArtifactRepository.get_model_artifact",
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -386,7 +384,7 @@ async def test_create_deployment_user_not_found(
     mock_check_permissions: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_satellite: AsyncMock,
-    mock_get_model_artifact: AsyncMock,
+    mock_get_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_public_user_by_id: AsyncMock,
 ) -> None:
@@ -395,18 +393,18 @@ async def test_create_deployment_user_not_found(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
-    model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     deployment_create_data_in = DeploymentCreateIn(
         name="my-deployment",
         satellite_id=satellite_id,
-        model_artifact_id=model_artifact_id,
+        artifact_id=artifact_id,
         tags=["tag"],
     )
 
     mock_get_orbit_simple.return_value = Mock()
     mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
-    mock_get_model_artifact.return_value = Mock(collection_id=collection_id)
+    mock_get_artifact.return_value = Mock(collection_id=collection_id)
     mock_get_collection.return_value = Mock(orbit_id=orbit_id)
     mock_get_public_user_by_id.return_value = None
 
@@ -418,7 +416,7 @@ async def test_create_deployment_user_not_found(
     assert error.value.status_code == 404
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
     mock_get_satellite.assert_awaited_once_with(deployment_create_data_in.satellite_id)
-    mock_get_model_artifact.assert_awaited_once_with(model_artifact_id)
+    mock_get_artifact.assert_awaited_once_with(artifact_id)
     mock_get_collection.assert_awaited_once_with(collection_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
     mock_check_permissions.assert_awaited_once_with(
@@ -458,8 +456,8 @@ async def test_list_deployments(
             satellite_id=satellite_id,
             satellite_name="Satellite 1",
             name="deployment-1",
-            model_id=model_id,
-            model_artifact_name="Model Artifact 1",
+            artifact_id=model_id,
+            artifact_name="Model Artifact 1",
             collection_id=collection_id,
             status=DeploymentStatus.ACTIVE,
             created_by_user="John Doe",
@@ -510,8 +508,8 @@ async def test_get_deployment(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="deployment-1",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         created_by_user="John Doe",
@@ -565,8 +563,8 @@ async def test_delete_deployment(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="deployment-1",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         created_by_user="John",
@@ -667,8 +665,8 @@ async def test_delete_deployment_already_pending(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="deployment-1",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         status=DeploymentStatus.DELETION_PENDING,
         created_by_user="User",
@@ -796,8 +794,8 @@ async def test_list_worker_deployments(
             satellite_id=satellite_id,
             satellite_name="Satellite 1",
             name="worker-deployment",
-            model_id=model_id,
-            model_artifact_name="Model Artifact 1",
+            artifact_id=model_id,
+            artifact_name="Model Artifact 1",
             collection_id=collection_id,
             status=DeploymentStatus.ACTIVE,
             created_by_user="Worker",
@@ -854,8 +852,8 @@ async def test_update_deployment_details(
         orbit_id=orbit_id,
         satellite_id=satellite_id,
         satellite_name="Satellite 5",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 10",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 10",
         collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         name=details.name or "default-name",
@@ -913,8 +911,8 @@ async def test_request_deployment_deletion(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="deployment",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         status=DeploymentStatus.DELETION_PENDING,
         created_by_user="User",
@@ -971,8 +969,8 @@ async def test_update_worker_deployment_status(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="worker-deployment",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         status=dep_status,
         created_by_user="Worker",
@@ -1018,8 +1016,8 @@ async def test_update_worker_deployment(
         satellite_id=satellite_id,
         satellite_name="Satellite 1",
         name="worker-deployment",
-        model_id=model_id,
-        model_artifact_name="Model Artifact 1",
+        artifact_id=model_id,
+        artifact_name="Model Artifact 1",
         collection_id=collection_id,
         inference_url=inference_url,
         status=DeploymentStatus.ACTIVE,
@@ -1290,8 +1288,8 @@ async def test_get_worker_deployment(
         satellite_id=satellite_id,
         satellite_name="satellite",
         name="worker-deployment",
-        model_id=model_id,
-        model_artifact_name="model",
+        artifact_id=model_id,
+        artifact_name="model",
         collection_id=collection_id,
         status=DeploymentStatus.ACTIVE,
         created_by_user="Worker",

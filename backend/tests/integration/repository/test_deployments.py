@@ -31,7 +31,7 @@ async def test_create_deployment(create_satellite: SatelliteFixtureData) -> None
         name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
-        model_id=model.id,
+        artifact_id=model.id,
         status=DeploymentStatus.PENDING,
         created_by_user="test_user",
         tags=["test", "deployment"],
@@ -41,7 +41,7 @@ async def test_create_deployment(create_satellite: SatelliteFixtureData) -> None
     assert deployment
     assert deployment.orbit_id == deployment_data.orbit_id
     assert deployment.satellite_id == deployment_data.satellite_id
-    assert deployment.model_id == deployment_data.model_id
+    assert deployment.artifact_id == deployment_data.artifact_id
     assert deployment.collection_id == model.collection_id
     assert deployment.status == DeploymentStatus.PENDING
 
@@ -67,7 +67,7 @@ async def test_get_deployment(create_satellite: SatelliteFixtureData) -> None:
         name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
-        model_id=model.id,
+        artifact_id=model.id,
         status=DeploymentStatus.PENDING,
         created_by_user="test_user",
         tags=["test", "deployment"],
@@ -98,7 +98,7 @@ async def test_list_deployments(create_satellite: SatelliteFixtureData) -> None:
         name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
-        model_id=model.id,
+        artifact_id=model.id,
         status=DeploymentStatus.PENDING,
         created_by_user="test_user",
         tags=["test", "deployment"],
@@ -140,7 +140,7 @@ async def test_list_satellite_deployments(
                 name="my-deployment",
                 orbit_id=orbit.id,
                 satellite_id=satellite.id,
-                model_id=model.id,
+                artifact_id=model.id,
                 status=DeploymentStatus.PENDING,
             )
         )
@@ -168,7 +168,7 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
         name="my-deployment",
         orbit_id=orbit.id,
         satellite_id=satellite.id,
-        model_id=model.id,
+        artifact_id=model.id,
         status=DeploymentStatus.PENDING,
         tags=["original"],
     )
@@ -210,7 +210,7 @@ async def test_update_deployment_details(
             name="my-deployment",
             orbit_id=orbit.id,
             satellite_id=satellite.id,
-            model_id=model.id,
+            artifact_id=model.id,
             status=DeploymentStatus.PENDING,
             tags=["original"],
         )
@@ -254,7 +254,7 @@ async def test_request_deployment_deletion(
             name="my-deployment",
             orbit_id=orbit.id,
             satellite_id=satellite.id,
-            model_id=model.id,
+            artifact_id=model.id,
             status=DeploymentStatus.PENDING,
         )
     )
@@ -291,7 +291,7 @@ async def test_enqueue_undeploy_task(create_satellite: SatelliteFixtureData) -> 
             name="my-deployment",
             orbit_id=orbit.id,
             satellite_id=satellite.id,
-            model_id=model.id,
+            artifact_id=model.id,
             status=DeploymentStatus.ACTIVE,
         )
     )

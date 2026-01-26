@@ -4,9 +4,9 @@ from sqlalchemy import UUID, ForeignKey, String, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
+from luml.models.artifacts import ArtifactOrm
 from luml.models.base import Base, TimestampMixin
-from luml.models.model_artifacts import ModelArtifactOrm
-from luml.schemas.model_artifacts import Collection
+from luml.schemas.collections import Collection
 
 
 class CollectionOrm(TimestampMixin, Base):
@@ -29,14 +29,14 @@ class CollectionOrm(TimestampMixin, Base):
     orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "OrbitOrm", back_populates="collections", lazy="selectin"
     )
-    models: Mapped[list[ModelArtifactOrm]] = relationship(  # noqa: F821
+    artifacts: Mapped[list[ArtifactOrm]] = relationship(  # noqa: F821
         back_populates="collection", cascade="all, delete, delete-orphan"
     )
 
-    total_models = column_property(
-        select(func.count(ModelArtifactOrm.id))
-        .where(ModelArtifactOrm.collection_id == id)
-        .correlate_except(ModelArtifactOrm)
+    total_artifacts = column_property(
+        select(func.count(ArtifactOrm.id))
+        .where(ArtifactOrm.collection_id == id)
+        .correlate_except(ArtifactOrm)
         .scalar_subquery()
     )
 

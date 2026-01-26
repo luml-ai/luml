@@ -8,10 +8,10 @@ from luml.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
 )
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
-from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.users import UserRepository
@@ -33,7 +33,7 @@ class DeploymentHandler:
     __repo = DeploymentRepository(engine)
     __sat_repo = SatelliteRepository(engine)
     __orbit_repo = OrbitRepository(engine)
-    __artifact_repo = ModelArtifactRepository(engine)
+    __artifact_repo = ArtifactRepository(engine)
     __collection_repo = CollectionRepository(engine)
     __secret_repo = BucketSecretRepository(engine)
     __user_repo = UserRepository(engine)
@@ -69,9 +69,9 @@ class DeploymentHandler:
         if not satellite or satellite.orbit_id != orbit_id:
             raise NotFoundError("Satellite not found")
 
-        artifact = await self.__artifact_repo.get_model_artifact(data.model_artifact_id)
+        artifact = await self.__artifact_repo.get_artifact(data.artifact_id)
         if not artifact:
-            raise NotFoundError("Model artifact not found")
+            raise NotFoundError("Artifact not found")
 
         collection = await self.__collection_repo.get_collection(artifact.collection_id)
         if not collection or collection.orbit_id != orbit_id:
@@ -85,7 +85,7 @@ class DeploymentHandler:
             DeploymentCreate(
                 orbit_id=orbit_id,
                 satellite_id=data.satellite_id,
-                model_id=data.model_artifact_id,
+                artifact_id=data.artifact_id,
                 name=data.name,
                 satellite_parameters=data.satellite_parameters,
                 description=data.description,

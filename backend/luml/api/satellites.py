@@ -3,12 +3,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 
+from luml.handlers.artifacts import ArtifactHandler
 from luml.handlers.deployments import DeploymentHandler
-from luml.handlers.model_artifacts import ModelArtifactHandler
 from luml.handlers.orbit_secrets import OrbitSecretHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
+from luml.schemas.artifacts import SatelliteArtifactResponse
 from luml.schemas.deployment import (
     Deployment,
     DeploymentStatusUpdateIn,
@@ -16,7 +17,6 @@ from luml.schemas.deployment import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
-from luml.schemas.model_artifacts import SatelliteModelArtifactResponse
 from luml.schemas.orbit_secret import OrbitSecret
 from luml.schemas.satellite import (
     Satellite,
@@ -35,7 +35,7 @@ satellite_worker_router = APIRouter(
 satellite_handler = SatelliteHandler()
 deployment_handler = DeploymentHandler()
 orbit_secret_handler = OrbitSecretHandler()
-model_artifacts_handler = ModelArtifactHandler()
+artifacts_handler = ArtifactHandler()
 
 
 @satellite_worker_router.post(
@@ -182,27 +182,27 @@ async def authorize_inference_access(
 
 
 @satellite_worker_router.get(
-    "/model_artifacts/{model_artifact_id}/download-url",
+    "/artifacts/{artifact_id}/download-url",
     responses=endpoint_responses,
 )
-async def get_model_artifact_download_url(
-    request: Request, model_artifact_id: UUID
+async def get_artifact_download_url(
+    request: Request, artifact_id: UUID
 ) -> dict[str, Any]:
     await satellite_handler.touch_last_seen(request.user.id)
-    url = await model_artifacts_handler.request_satellite_download_url(
-        request.user.orbit_id, model_artifact_id
+    url = await artifacts_handler.request_satellite_download_url(
+        request.user.orbit_id, artifact_id
     )
     return {"url": url}
 
 
 @satellite_worker_router.get(
-    "/model_artifacts/{model_artifact_id}",
+    "/artifacts/{artifact_id}",
     responses=endpoint_responses,
 )
-async def get_model_artifact(
-    request: Request, model_artifact_id: UUID
-) -> SatelliteModelArtifactResponse:
+async def get_artifact(
+    request: Request, artifact_id: UUID
+) -> SatelliteArtifactResponse:
     await satellite_handler.touch_last_seen(request.user.id)
-    return await model_artifacts_handler.get_satellite_model_artifact(
-        request.user.orbit_id, model_artifact_id
+    return await artifacts_handler.get_satellite_artifact(
+        request.user.orbit_id, artifact_id
     )
