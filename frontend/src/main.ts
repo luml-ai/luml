@@ -1,5 +1,6 @@
 import './assets/main.css'
-
+import '@luml/experiments/dist/luml-experiments.css'
+import '@luml/attachments/dist/luml-attachments.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 

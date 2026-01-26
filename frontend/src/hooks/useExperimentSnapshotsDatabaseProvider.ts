@@ -1,7 +1,7 @@
 import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import { ExperimentSnapshotWorkerProxy } from '@/modules/experiment-snapshot/providers/ExperimentSnapshotWorkerProxy'
+import { ExperimentSnapshotWorkerProxy } from '@luml/experiments'
 import { useModelsStore } from '@/stores/models'
 import { onUnmounted } from 'vue'
 

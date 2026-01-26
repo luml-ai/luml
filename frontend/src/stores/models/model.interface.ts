@@ -9,7 +9,7 @@ import type {
   TabularModelMetadataPayload,
   PromptOptimizationModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
-import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
+import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import type { Ref } from 'vue'
 
 export interface RequestInfo {

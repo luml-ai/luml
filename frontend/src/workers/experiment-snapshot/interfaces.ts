@@ -1,4 +1,4 @@
-import type { ExperimentSnapshotDatabaseProvider } from '@/modules/experiment-snapshot'
+import type { ExperimentSnapshotDatabaseProvider } from '@luml/experiments'
 
 export interface InitPayloadItem {
   modelId: string

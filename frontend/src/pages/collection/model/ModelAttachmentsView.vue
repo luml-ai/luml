@@ -1,9 +1,10 @@
 <template>
   <UiPageLoader v-if="loading" />
-  <ModelAttachments v-else-if="provider" :provider="provider" />
+  <ModelAttachments v-else-if="provider" :provider="provider" class="attachments" />
 </template>
+
 <script setup lang="ts">
-import { ModelAttachments } from '@/modules/model-attachments'
+import { ModelAttachments } from '@luml/attachments'
 import { onMounted } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { useTarAttachmentsProvider } from '@/hooks/useTarAttachmentsProvider'
@@ -41,4 +42,9 @@ onMounted(async () => {
   }
 })
 </script>
-<style scoped></style>
+
+<style scoped>
+.attachments {
+  height: calc(100vh - 320px);
+}
+</style>
