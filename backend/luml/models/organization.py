@@ -34,7 +34,7 @@ class OrganizationOrm(TimestampMixin, Base):
     satellites_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="2"
     )
-    model_artifacts_limit: Mapped[int] = mapped_column(
+    artifacts_limit: Mapped[int] = mapped_column(
         Integer, nullable=False, server_default="200"
     )
 

@@ -1,12 +1,12 @@
 import pytest
 from luml.repositories.collections import CollectionRepository
-from luml.schemas.general import PaginationParams
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionType,
     CollectionUpdate,
 )
+from luml.schemas.general import PaginationParams
 
 from tests.conftest import CollectionFixtureData, OrbitFixtureData
 

@@ -4,10 +4,10 @@ from collections.abc import Sequence
 from sqlalchemy import UUID, ForeignKey, String, UniqueConstraint, func, select
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
+from luml.models.artifacts import ArtifactOrm
 from luml.models.base import Base, TimestampMixin
 from luml.models.bucket_secrets import BucketSecretOrm
 from luml.models.collection import CollectionOrm
-from luml.models.model_artifacts import ModelArtifactOrm
 from luml.models.orbit_secret import OrbitSecretOrm
 from luml.models.organization import OrganizationOrm
 from luml.models.satellite import SatelliteOrm
@@ -120,11 +120,11 @@ class OrbitOrm(TimestampMixin, Base):
         .scalar_subquery()
     )
 
-    total_model_artifacts = column_property(
-        select(func.count(ModelArtifactOrm.id))
-        .join(CollectionOrm, ModelArtifactOrm.collection_id == CollectionOrm.id)
+    total_artifacts = column_property(
+        select(func.count(ArtifactOrm.id))
+        .join(CollectionOrm, ArtifactOrm.collection_id == CollectionOrm.id)
         .where(CollectionOrm.orbit_id == id)
-        .correlate_except(ModelArtifactOrm, CollectionOrm)
+        .correlate_except(ArtifactOrm, CollectionOrm)
         .scalar_subquery()
     )
 

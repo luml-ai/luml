@@ -242,8 +242,8 @@ class UserRepository(RepositoryBase, CrudMixin):
             details.total_satellites = sum(
                 orbit.total_satellites for orbit in db_organization.orbits
             )
-            details.total_model_artifacts = sum(
-                orbit.total_model_artifacts for orbit in db_organization.orbits
+            details.total_artifacts = sum(
+                orbit.total_artifacts for orbit in db_organization.orbits
             )
             details.members_by_role = get_members_roles_count(db_organization.members)
 
