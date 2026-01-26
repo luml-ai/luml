@@ -1,4 +1,4 @@
-name: Satellite checks
+name: Satellite Tests and Linters
 
 on:
   push:
