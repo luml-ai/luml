@@ -5,7 +5,7 @@ from uuid import UUID
 
 from luml.schemas.general import Cursor, SortOrder
 
-METRICS_SORT_KEY = "metrics"
+EXTRA_VALUES_SORT_KEY = "extra_values"
 CREATED_AT_SORT_KEY = "created_at"
 
 
@@ -44,3 +44,25 @@ def decode_cursor(cursor_str: str | None) -> None | Cursor:
         )
     except Exception:
         return None
+
+
+def get_cursor(
+    items: list[Any], limit: int, sort_by: str, is_metric: bool = False
+) -> str | None:
+    if not items:
+        return None
+
+    if len(items) > limit:
+        cursor_rec = items[limit - 1]
+
+        if not is_metric:
+            cursor_value = getattr(cursor_rec, sort_by, None)
+        else:
+            cursor_value = (
+                cursor_rec.extra_values.get(sort_by)
+                if hasattr(cursor_rec, EXTRA_VALUES_SORT_KEY)
+                else None
+            )
+        return encode_cursor(cursor_rec.id, cursor_value, sort_by)
+
+    return None

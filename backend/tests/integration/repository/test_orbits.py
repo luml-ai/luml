@@ -1,7 +1,9 @@
 import pytest
 from luml.repositories.bucket_secrets import BucketSecretRepository
+from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import S3BucketSecretCreate
+from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.orbit import (
     Orbit,
     OrbitCreateIn,
@@ -134,9 +136,6 @@ async def test_get_orbit(create_orbit: OrbitFixtureData) -> None:
 async def test_get_orbit_with_collections_tags(create_orbit: OrbitFixtureData) -> None:
     import random
 
-    from luml.repositories.collections import CollectionRepository
-    from luml.schemas.model_artifacts import CollectionCreate, CollectionType
-
     data = create_orbit
     orbit_repo = OrbitRepository(data.engine)
     collection_repo = CollectionRepository(data.engine)
@@ -187,9 +186,6 @@ async def test_get_orbit_without_collections(create_orbit: OrbitFixtureData) -> 
 async def test_get_orbit_with_collections_without_tags(
     create_orbit: OrbitFixtureData,
 ) -> None:
-    from luml.repositories.collections import CollectionRepository
-    from luml.schemas.model_artifacts import CollectionCreate, CollectionType
-
     data = create_orbit
     orbit_repo = OrbitRepository(data.engine)
     collection_repo = CollectionRepository(data.engine)

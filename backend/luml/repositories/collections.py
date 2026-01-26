@@ -5,11 +5,12 @@ from sqlalchemy import String, cast, or_
 from luml.models import CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import Cursor, PaginationParams
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionUpdate,
 )
+from luml.schemas.general import PaginationParams
 
 
 class CollectionRepository(RepositoryBase, CrudMixin):

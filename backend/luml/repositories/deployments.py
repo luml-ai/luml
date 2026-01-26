@@ -139,10 +139,10 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             await self.delete_model(session, DeploymentOrm, deployment_id)
 
-    async def delete_deployments_by_model_id(self, model_id: UUID) -> None:
+    async def delete_deployments_by_artifact_id(self, artifact_id: UUID) -> None:
         async with self._get_session() as session:
             await self.delete_models_where(
-                session, DeploymentOrm, DeploymentOrm.model_id == model_id
+                session, DeploymentOrm, DeploymentOrm.artifact_id == artifact_id
             )
 
     async def update_deployment_details(
