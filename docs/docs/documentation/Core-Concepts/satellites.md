@@ -1,10 +1,10 @@
 ---
-sidebar_label: 'Satellites'
+sidebar_label: 'Satellite'
 sidebar_position: 5
-title: Satellites
+title: Satellite
 ---
 
-# Satellites
+# Satellite
 A Satellite is an externally hosted compute node that you connect to LUML using a pairing key. Once paired, it becomes the execution engine for an Orbit: the place where models and other workloads actually run, while configuration, artifacts, and coordination remain in the platform.
 
 When a Satellite comes online, it announces its capabilities to the platform—essentially telling LUML what kinds of tasks it can handle. 
