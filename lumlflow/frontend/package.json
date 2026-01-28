@@ -1,0 +1,25 @@
+{
+  "name": "lumlflow-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --build && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --build --force"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "vue": "^3.5.12"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.0",
+    "@types/node": "^22.9.0",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/tsconfig": "^0.5.1",
+    "typescript": "^5.9.2",
+    "vite": "^6.4.1",
+    "vue-tsc": "^2.1.10"
+  }
+}
