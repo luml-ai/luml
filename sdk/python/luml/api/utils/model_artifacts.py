@@ -3,7 +3,7 @@ import json
 import os
 import tarfile
 
-from luml.api._types import ModelDetails
+from luml.api._types import ArtifactFileDetails
 
 
 class ModelFileHandler:
@@ -69,7 +69,7 @@ class ModelFileHandler:
                 self._metadata = []
         return self._metadata
 
-    def get_metrics(self) -> dict:
+    def get_extra_values(self) -> dict:
         manifest = self.get_manifest()
         type_tag = self._get_type_tag(manifest.get("producer_tags", []))
 
@@ -110,12 +110,12 @@ class ModelFileHandler:
                     file_index[member.name] = (member.offset_data, member.size)
         return file_index
 
-    def model_details(self) -> ModelDetails:
-        return ModelDetails(
+    def artifact_details(self) -> ArtifactFileDetails:
+        return ArtifactFileDetails(
             file_name=self.get_file_name(),
             file_hash=self.get_file_hash(),
             size=self.get_size(),
             manifest=self.get_manifest(),
-            metrics=self.get_metrics(),
+            extra_values=self.get_extra_values(),
             file_index=self.get_file_index(),
         )
