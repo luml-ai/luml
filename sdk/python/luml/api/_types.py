@@ -89,19 +89,6 @@ class ModelArtifactStatus(StrEnum):
     DELETION_FAILED = "deletion_failed"
 
 
-class ModelArtifactSortBy(StrEnum):
-    """
-    Options: "created_at", "model_name", "description", "size", "status", "metrics"
-    """
-
-    CREATED_AT = "created_at"
-    MODEL_NAME = "model_name"
-    SIZE = "size"
-    DESCRIPTION = "description"
-    STATUS = "status"
-    METRICS = "metrics"
-
-
 class SortOrder(StrEnum):
     """
     Options: "asc", "desc"
