@@ -16,6 +16,10 @@ from luml.api._exceptions import (
 from luml.api._types import is_uuid
 
 if TYPE_CHECKING:
+    from luml.api.resources.artifacts import (
+        ArtifactResource,
+        AsyncArtifactResource,
+    )
     from luml.api.resources.bucket_secrets import (
         AsyncBucketSecretResource,
         BucketSecretResource,
@@ -23,10 +27,6 @@ if TYPE_CHECKING:
     from luml.api.resources.collections import (
         AsyncCollectionResource,
         CollectionResource,
-    )
-    from luml.api.resources.model_artifacts import (
-        AsyncModelArtifactResource,
-        ModelArtifactResource,
     )
     from luml.api.resources.orbits import AsyncOrbitResource, OrbitResource
     from luml.api.resources.organizations import (
@@ -152,7 +152,7 @@ class LumlClientBase(ABC):
 
     @cached_property
     @abstractmethod
-    def model_artifacts(self) -> "ModelArtifactResource | AsyncModelArtifactResource":
+    def artifacts(self) -> "ArtifactResource | AsyncArtifactResource":
         raise NotImplementedError()
 
 
@@ -162,7 +162,8 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
         base_url: str | None = None,
         api_key: str | None = None,
     ) -> None:
-        """Async client for interacting with the Luml platform API.
+        """
+        Async client for interacting with the Luml platform API.
 
         Parameters:
             base_url: Base URL of the Luml API.
@@ -176,7 +177,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
             orbits: Interface for managing orbits.
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
-            model_artifacts: Interface for managing model artifacts.
+            artifacts: Interface for managing Artifacts.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -372,11 +373,11 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
         return AsyncCollectionResource(self)
 
     @cached_property
-    def model_artifacts(self) -> "AsyncModelArtifactResource":
-        """Model Artifacts interface."""
-        from luml.api.resources.model_artifacts import AsyncModelArtifactResource
+    def artifacts(self) -> "AsyncArtifactResource":
+        """Artifacts interface."""
+        from luml.api.resources.artifacts import AsyncArtifactResource
 
-        return AsyncModelArtifactResource(self)
+        return AsyncArtifactResource(self)
 
 
 class LumlClient(LumlClientBase, SyncBaseClient):
@@ -388,7 +389,8 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         orbit: str | None = None,
         collection: str | None = None,
     ) -> None:
-        """Client for interacting with the Luml platform API.
+        """
+        Client for interacting with the Luml platform API.
 
         Parameters:
             base_url: Base URL of the Luml API.
@@ -408,7 +410,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
             orbits: Interface for managing orbits.
             collections: Interface for managing collections.
             bucket_secrets: Interface for managing bucket secrets.
-            model_artifacts: Interface for managing model artifacts.
+            artifacts: Interface for managing Artifacts.
 
         Raises:
             AuthenticationError: If API key is invalid or missing.
@@ -580,8 +582,8 @@ class LumlClient(LumlClientBase, SyncBaseClient):
         return CollectionResource(self)
 
     @cached_property
-    def model_artifacts(self) -> "ModelArtifactResource":
-        """Model Artifacts interface."""
-        from luml.api.resources.model_artifacts import ModelArtifactResource
+    def artifacts(self) -> "ArtifactResource":
+        """Artifacts interface."""
+        from luml.api.resources.artifacts import ArtifactResource
 
-        return ModelArtifactResource(self)
+        return ArtifactResource(self)
