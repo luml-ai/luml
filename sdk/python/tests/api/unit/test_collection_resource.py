@@ -11,7 +11,11 @@ from luml.api.resources.collections import (
 
 def test_collection_get(mock_sync_client: Mock, sample_collection: Collection) -> None:
     collection_name = sample_collection.name
-    mock_sync_client.get.return_value = [sample_collection]
+    # First call returns paginated list (for _get_by_name), second call returns single object (for _get_by_id)
+    mock_sync_client.get.side_effect = [
+        {"items": [sample_collection.model_dump()], "cursor": None},
+        sample_collection.model_dump(),
+    ]
 
     resource = CollectionResource(mock_sync_client)
     collection = resource.get(collection_name)
@@ -23,7 +27,11 @@ def test_collection_get_by_name(
     mock_sync_client: Mock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    mock_sync_client.get.return_value = [sample_collection]
+    # First call returns paginated list (for list), second call returns single object (for _get_by_id)
+    mock_sync_client.get.side_effect = [
+        {"items": [sample_collection.model_dump()], "cursor": None},
+        sample_collection.model_dump(),
+    ]
 
     resource = CollectionResource(mock_sync_client)
     collection = resource._get_by_name(collection_name)
@@ -34,16 +42,20 @@ def test_collection_get_by_name(
 def test_collection_list(mock_sync_client: Mock, sample_collection: Collection) -> None:
     organization_id = mock_sync_client.organization
     orbit_id = mock_sync_client.orbit
-    mock_sync_client.get.return_value = [sample_collection]
+    mock_sync_client.get.return_value = {
+        "items": [sample_collection.model_dump()],
+        "cursor": None,
+    }
 
     resource = CollectionResource(mock_sync_client)
     collections = resource.list()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections"
+        f"/organizations/{organization_id}/orbits/{orbit_id}/collections",
+        params={"limit": 100, "order": "desc"},
     )
-    assert len(collections) == 1
-    assert collections[0].name == sample_collection.name
+    assert len(collections.items) == 1
+    assert collections.items[0].name == sample_collection.name
 
 
 def test_collection_list_none_response(mock_sync_client: Mock) -> None:
@@ -52,7 +64,7 @@ def test_collection_list_none_response(mock_sync_client: Mock) -> None:
     resource = CollectionResource(mock_sync_client)
     collections = resource.list()
 
-    assert len(collections) == 0
+    assert len(collections.items) == 0
 
 
 def test_collection_create(
@@ -183,7 +195,11 @@ async def test_async_collection_get(
     mock_async_client: AsyncMock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    mock_async_client.get.return_value = [sample_collection]
+    # First call returns paginated list (for _get_by_name), second call returns single object (for _get_by_id)
+    mock_async_client.get.side_effect = [
+        {"items": [sample_collection.model_dump()], "cursor": None},
+        sample_collection.model_dump(),
+    ]
 
     resource = AsyncCollectionResource(mock_async_client)
     collection = await resource.get(collection_name)
@@ -196,7 +212,11 @@ async def test_async_collection_get_by_name(
     mock_async_client: AsyncMock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    mock_async_client.get.return_value = [sample_collection]
+    # First call returns paginated list (for list), second call returns single object (for _get_by_id)
+    mock_async_client.get.side_effect = [
+        {"items": [sample_collection.model_dump()], "cursor": None},
+        sample_collection.model_dump(),
+    ]
 
     resource = AsyncCollectionResource(mock_async_client)
     collection = await resource._get_by_name(collection_name)
@@ -210,16 +230,20 @@ async def test_async_collection_list(
 ) -> None:
     organization_id = mock_async_client.organization
     orbit_id = mock_async_client.orbit
-    mock_async_client.get.return_value = [sample_collection]
+    mock_async_client.get.return_value = {
+        "items": [sample_collection.model_dump()],
+        "cursor": None,
+    }
 
     resource = AsyncCollectionResource(mock_async_client)
     collections = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections"
+        f"/organizations/{organization_id}/orbits/{orbit_id}/collections",
+        params={"limit": 100, "order": "desc"},
     )
-    assert len(collections) == 1
-    assert collections[0].name == sample_collection.name
+    assert len(collections.items) == 1
+    assert collections.items[0].name == sample_collection.name
 
 
 @pytest.mark.asyncio
@@ -231,7 +255,7 @@ async def test_async_collection_list_none_response(
     resource = AsyncCollectionResource(mock_async_client)
     collections = await resource.list()
 
-    assert len(collections) == 0
+    assert len(collections.items) == 0
 
 
 @pytest.mark.asyncio
