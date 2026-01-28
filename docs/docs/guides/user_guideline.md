@@ -220,7 +220,7 @@ For manual code development.
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 
-Any model saved in the notebook as a .dfs file will automatically appear in the LUML info menu and be available for export to the Registry.
+Any model saved in the notebook as a .luml file will automatically appear in the LUML info menu and be available for export to the Registry.
 
 <img 
   src={require('./pics_user-guide/notebooks_result.png').default} 
@@ -258,7 +258,7 @@ For LLM models, view intermediate steps (Trace) in the Experiment Snapshots tab.
 ### Runtime (Testing)
 To quickly verify a model:
 1. Go to the Runtime section.
-2. Upload the .dfs file.
+2. Upload the .luml file.
 3. Enter data manually or upload a test .csv.
 4. Click Predict to view the result.
 

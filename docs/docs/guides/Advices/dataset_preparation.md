@@ -10,11 +10,14 @@ Different feature scales can distort learning, and outliers can heavily influenc
 Careful data preparation makes models more stable, interpretable, and better at generalizing to new data, resulting in more reliable and accurate predictions.
 
 ## Most common steps in Data Preparation
-#### 1. Handling missing data
+
+### Handling missing data
 Handling missing data is an essential first step in data preparation. Missing values can be removed, filled with statistical measures such as the mean, median, or mode, or replaced with a separate category for categorical features, depending on the nature of the data.
-#### 2. Handling outliers
+
+### Handling outliers
 Handling outliers is also important because extreme values can distort statistical measures and bias the model. Outliers can be addressed by trimming, winsorization, or applying transformations such as logarithms to reduce skewness. In some cases, dropping all anomalous data points may be necessary if they are clearly invalid or erroneous.
-#### 3. Drop all anomalous data
+
+### Anomalous data
 Handling anomalous data is closely related to managing outliers, but it’s a slightly broader concept. Anomalous data refers to observations that deviate significantly from expected patterns, which may include errors, corrupted entries, or rare events that are not representative of the general population.
 These anomalies can negatively affect model training by introducing noise or bias. Common approaches to handling anomal data include:
 - Detection: Identify anomalies using statistical methods (e.g., values beyond 3 standard deviations), clustering, or specialized anomaly detection algorithms.
@@ -24,17 +27,17 @@ These anomalies can negatively affect model training by introducing noise or bia
 
 Incorporating anomaly handling into data preparation ensures the model is not misled by unusual or erroneous points, improving stability, generalization, and overall predictive performance.
 
-#### 4. Checking data type for every feature
+### Checking data types
 Checking the data type for every feature ensures that numeric, categorical, and date values are correctly represented. Numeric features should be stored as numbers, dates as datetime objects, and categorical features as strings or categories.
 one-hot encoding for categorical feature
 Categorical features are often converted using one-hot encoding, which transforms each category into a separate binary column. This allows machine learning algorithms to process categorical information numerically without assuming an ordinal relationship.
 
-#### 5. Normalize numerical data
+### Normalize numerical data
 Numerical data should be normalized or standardized to ensure that features are on a comparable scale, which is particularly important for distance-based models or gradient-based optimization. Standardization (subtracting the mean and dividing by the standard deviation) or Min-Max scaling are commonly used methods.
 
-#### 6. Feature engineering
+### Feature engineering
 Feature engineering involves creating new informative features from existing ones, such as extracting day, month, and weekday from dates, generating ratios or differences between variables, or aggregating data to capture higher-level patterns. This step can significantly improve model performance by providing additional signals that the model can learn from.
-Overall, careful and systematic data preparation improves model stability, interpretability, and predictive performance. By addressing missing values, outliers, data types, encoding, scaling, and feature creation, we ensure the model learns meaningful patterns, generalizes better to new data, and avoids common pitfalls such as overfitting or bias. Properly prepared data is the fo2undation for reliable and accurate machine learning outcomes.
+Overall, careful and systematic data preparation improves model stability, interpretability, and predictive performance. By addressing missing values, outliers, data types, encoding, scaling, and feature creation, we ensure the model learns meaningful patterns, generalizes better to new data, and avoids common pitfalls such as overfitting or bias. Properly prepared data is the foundation for reliable and accurate machine learning outcomes.
 
 ## Code example of data preparation pipeline
 
