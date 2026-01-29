@@ -291,7 +291,7 @@ async def test_create_artifact(
     mock_create_artifact.return_value = artifact
     mock_check_orbit_and_collection_access.return_value = (
         Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
-        Mock(orbit_id=orbit_id),
+        Mock(orbit_id=orbit_id, collection_type=CollectionType.MODEL),
     )
     mock_storage_client = AsyncMock()
     mock_upload_data = S3UploadDetails(

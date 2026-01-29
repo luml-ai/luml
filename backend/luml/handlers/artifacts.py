@@ -7,6 +7,7 @@ from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
     ArtifactNotFoundError,
+    ArtifactTypeMismatchError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     InvalidSortingError,
@@ -29,13 +30,14 @@ from luml.schemas.artifacts import (
     ArtifactsList,
     ArtifactSortBy,
     ArtifactStatus,
+    ArtifactType,
     ArtifactUpdate,
     ArtifactUpdateIn,
     CreateArtifactResponse,
-    SatelliteArtifactResponse,
+    SatelliteArtifactResponse, LumlArtifactManifest,
 )
 from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.collections import Collection
+from luml.schemas.collections import Collection, is_artifact_type_allowed
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
@@ -136,6 +138,29 @@ class ArtifactHandler:
             raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
         return True
 
+    @staticmethod
+    def _define_artifact_type(artifact) -> ArtifactType:
+        structure = artifact.file_index.keys()
+        model_structure_files = [
+            "dtypes.json"
+            "env.json"
+            "manifest.json"
+            "meta.json"
+            "ops.json"
+            "variant_config.json"
+        ]
+
+        try:
+            if isinstance(artifact.manifest, LumlArtifactManifest):
+                return ArtifactType(artifact.manifest.type)
+        except Exception:
+            raise ArtifactTypeMismatchError("Unsupported LUML Artifact type.")
+
+        if all(file in structure for file in model_structure_files):
+            return ArtifactType.MODEL
+
+        raise ArtifactTypeMismatchError("Could not define artifact type.")
+
     async def create_artifact(
         self,
         user_id: UUID,
@@ -155,6 +180,11 @@ class ArtifactHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
+
+        artifact_type = self._define_artifact_type(artifact)
+
+        if not is_artifact_type_allowed(collection.collection_type, artifact_type):
+            raise ArtifactTypeMismatchError()
 
         await self._check_organization_artifacts_limit(organization_id)
 
@@ -184,7 +214,7 @@ class ArtifactHandler:
                 tags=artifact.tags,
                 status=ArtifactStatus.PENDING_UPLOAD,
                 created_by_user=user.full_name,
-                type=artifact.type,
+                type=artifact_type,
             )
         )
 

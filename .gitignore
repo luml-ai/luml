@@ -11,4 +11,7 @@ __pycache__/
 /sdk/python/venv/
 /.idea/
 /satellite/.env
+/lumlflow/frontend/node_modules
+/lumlflow/frontend/dist
+/lumlflow/lumlflow/static
 node_modules
