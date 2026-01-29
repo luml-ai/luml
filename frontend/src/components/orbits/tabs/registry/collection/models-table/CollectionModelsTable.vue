@@ -18,7 +18,7 @@
           class="table-white"
           scrollable
           scrollHeight="calc(100vh - 340px)"
-          :loading="isFirstPageLoading"
+          :loading="showLoader"
           :virtualScrollerOptions="virtualScrollerOptions"
           @row-click="onRowClick"
           @sort="onSort"
@@ -135,7 +135,7 @@ import {
   type GetModelsListParams,
   type MlModel,
 } from '@/lib/api/orbit-ml-models/interfaces'
-import { onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useRouter, useRoute } from 'vue-router'
@@ -156,13 +156,23 @@ const toast = useToast()
 const router = useRouter()
 const route = useRoute()
 const collectionsStore = useCollectionsStore()
-const { setRequestInfo, getInitialPage, modelsList, reset, onLazyLoad, setSortData, isLoading } =
-  useModelsList()
+const {
+  setRequestInfo,
+  getInitialPage,
+  modelsList,
+  reset,
+  onLazyLoad,
+  setSortData,
+  isLoading,
+  setLoading,
+} = useModelsList()
 
 const selectedModels = ref<MlModel[]>([])
-const isFirstPageLoading = ref(true)
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
+const showLoader = computed(() => {
+  return isLoading.value && modelsList.value.length === 0
+})
 
 const virtualScrollerOptions = ref<VirtualScrollerProps>({
   lazy: true,
@@ -197,9 +207,9 @@ async function getMetricsKeys() {
 
 async function initList() {
   try {
+    setLoading(true)
     reset()
     resetSelectedModels()
-    isFirstPageLoading.value = true
     await getMetricsKeys()
     setRequestInfo({
       organizationId: String(route.params.organizationId),
@@ -210,7 +220,7 @@ async function initList() {
   } catch (e: any) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load models')))
   } finally {
-    isFirstPageLoading.value = false
+    setLoading(false)
   }
 }
 
@@ -259,6 +269,10 @@ onBeforeMount(initList)
 .metric-column {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+:deep(.p-datatable:has(.p-datatable-mask) .p-datatable-tbody) {
+  opacity: 0;
 }
 
 @media (min-width: 768px) {

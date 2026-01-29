@@ -106,6 +106,10 @@ export const useModelsList = (limit = 20, syncStore = true) => {
     getInitialPage()
   }
 
+  function setLoading(value: boolean) {
+    isLoading.value = value
+  }
+
   if (syncStore) {
     watch(
       () => modelsStore.modelsList,
@@ -129,5 +133,6 @@ export const useModelsList = (limit = 20, syncStore = true) => {
     addModelsToList,
     setSortData,
     onLazyLoad,
+    setLoading,
   }
 }
