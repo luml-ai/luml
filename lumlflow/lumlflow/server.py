@@ -1,33 +1,17 @@
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import Request
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-api_router = APIRouter(prefix="/api")
-
-
-@api_router.get("/health")
-async def health_check() -> JSONResponse:
-    return JSONResponse({"status": "ok"})
-
-
-@api_router.get("/hello")
-async def hello() -> JSONResponse:
-    return JSONResponse({"message": "Hello from Lumlflow!"})
+from lumlflow.service import AppService
 
 
 def get_static_dir() -> Path:
     return Path(__file__).parent / "static"
 
 
-app = FastAPI(
-    title="Lumlflow",
-    description="Local ML experiment tracking",
-    version="0.1.0",
-)
-
-app.include_router(api_router)
+app = AppService()
 
 
 static_dir = get_static_dir()
