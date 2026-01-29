@@ -13,7 +13,7 @@
     "write-translations": "docusaurus write-translations",
     "write-heading-ids": "docusaurus write-heading-ids",
     "typecheck": "tsc",
-    "generate-sdk-docs": "cd ../sdk/python && python3 generate_docs.py",
+    "generate-sdk-docs": "cd ../docs && python3 generate_docs.py",
     "prebuild": "npm run generate-sdk-docs"
   },
   "dependencies": {
