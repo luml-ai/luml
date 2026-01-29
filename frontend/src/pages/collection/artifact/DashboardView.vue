@@ -1,13 +1,13 @@
 <template>
-  <div v-if="modelsStore.currentModel" class="details">
+  <div v-if="artifactsStore.currentArtifact" class="details">
     <div class="details__part">
       <div class="details__item">
         <div class="details__label">Model ID</div>
-        <div class="details__value">{{ modelsStore.currentModel.id }}</div>
+        <div class="details__value">{{ artifactsStore.currentArtifact.id }}</div>
       </div>
       <div class="details__item">
         <div class="details__label">Model name</div>
-        <div class="details__value">{{ modelsStore.currentModel.model_name }}</div>
+        <div class="details__value">{{ artifactsStore.currentArtifact.name }}</div>
       </div>
       <div class="details__item">
         <div class="details__label">Status</div>
@@ -15,7 +15,7 @@
           <Tag
             v-if="statusSeverity"
             :severity="statusSeverity"
-            :value="modelsStore.currentModel.status"
+            :value="artifactsStore.currentArtifact.status"
             class="tag"
           ></Tag>
         </div>
@@ -23,20 +23,20 @@
       <div class="details__item">
         <div class="details__label">Creation time</div>
         <div class="details__value">
-          {{ new Date(modelsStore.currentModel.created_at).toLocaleString() }}
+          {{ new Date(artifactsStore.currentArtifact.created_at).toLocaleString() }}
         </div>
       </div>
       <div class="details__item">
         <div class="details__label">Description</div>
-        <div class="details__value">{{ modelsStore.currentModel.description || '-' }}</div>
+        <div class="details__value">{{ artifactsStore.currentArtifact.description || '-' }}</div>
       </div>
       <div class="details__item">
         <div class="details__label">Tags</div>
         <div class="details__value">
           <div class="details__tags">
             <Tag
-              v-if="modelsStore.currentModel.tags?.length"
-              v-for="tag in modelsStore.currentModel.tags"
+              v-if="artifactsStore.currentArtifact.tags?.length"
+              v-for="tag in artifactsStore.currentArtifact.tags"
               :value="tag"
               class="tag"
             ></Tag>
@@ -45,7 +45,7 @@
         </div>
       </div>
       <div
-        v-if="modelsStore.currentModel?.manifest"
+        v-if="artifactsStore.currentArtifact?.manifest"
         class="details__item"
         style="align-items: center"
       >
@@ -60,49 +60,52 @@
     <div class="details__part">
       <div class="details__item">
         <div class="details__label">Size</div>
-        <div class="details__value">{{ getSizeText(modelsStore.currentModel.size) }}</div>
+        <div class="details__value">{{ getSizeText(artifactsStore.currentArtifact.size) }}</div>
       </div>
-      <div v-for="metric in Object.entries(modelsStore.currentModel.metrics)" class="details__item">
+      <div
+        v-for="metric in Object.entries(artifactsStore.currentArtifact.extra_values)"
+        class="details__item"
+      >
         <div class="details__label">{{ metric[0] }}</div>
         <div class="details__value">{{ metric[1] }}</div>
       </div>
     </div>
   </div>
   <ModelManifestModal
-    v-if="modelsStore.currentModel?.manifest"
+    v-if="artifactsStore.currentArtifact?.manifest"
     v-model:visible="manifestVisible"
-    :manifest="modelsStore.currentModel.manifest"
+    :manifest="artifactsStore.currentArtifact.manifest"
   ></ModelManifestModal>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Tag, Button } from 'primevue'
-import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
+import { ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 import { getSizeText } from '@/helpers/helpers'
 import { ref } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
 
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 
 const manifestVisible = ref(false)
 
 const statusSeverity = computed(() => {
-  if (!modelsStore.currentModel) return null
+  if (!artifactsStore.currentArtifact) return null
   else if (
-    [MlModelStatusEnum.deletion_failed, MlModelStatusEnum.upload_failed].includes(
-      modelsStore.currentModel.status,
+    [ArtifactStatusEnum.deletion_failed, ArtifactStatusEnum.upload_failed].includes(
+      artifactsStore.currentArtifact.status,
     )
   )
     return 'danger'
   else if (
-    [MlModelStatusEnum.pending_deletion, MlModelStatusEnum.pending_upload].includes(
-      modelsStore.currentModel.status,
+    [ArtifactStatusEnum.pending_deletion, ArtifactStatusEnum.pending_upload].includes(
+      artifactsStore.currentArtifact.status,
     )
   )
     return 'warn'
-  else if (modelsStore.currentModel.status === MlModelStatusEnum.uploaded) return 'success'
+  else if (artifactsStore.currentArtifact.status === ArtifactStatusEnum.uploaded) return 'success'
 })
 
 function showManifest() {

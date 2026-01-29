@@ -7,7 +7,7 @@
     <div class="buttons">
       <Button @click="$emit('add')">
         <Plus :size="14" />
-        <span>Add model</span>
+        <span>Add artifact</span>
       </Button>
     </div>
   </header>

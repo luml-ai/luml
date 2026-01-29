@@ -1,12 +1,12 @@
 <template>
   <Dialog
     v-model:visible="visible"
-    header="add a new model"
+    header="add a new artifact"
     modal
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="formData" :resolver="modelCreatorResolver" @submit="onSubmit">
+    <Form :initial-values="formData" :resolver="artifactCreateResolver" @submit="onSubmit">
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Name</label>
@@ -14,7 +14,7 @@
             v-model="formData.name"
             id="name"
             name="name"
-            placeholder="Name your model"
+            placeholder="Name your artifact"
             fluid
           />
         </div>
@@ -24,7 +24,7 @@
             v-model="formData.description"
             name="description"
             id="description"
-            placeholder="Describe your model"
+            placeholder="Describe your artifact"
             style="height: 72px; resize: none"
           ></Textarea>
         </div>
@@ -43,17 +43,17 @@
         </div>
       </div>
       <FileInput
-        id="model-file"
+        id="artifact-file"
         :file="fileInfo"
         :error="fileError"
         accept-text="Accepts .luml, .dfs, .fnnx, .pyfnx file type"
-        upload-text="upload model file"
+        upload-text="upload artifact file"
         class="file-field"
         @select-file="onSelectFile"
         @remove-file="onRemoveFile"
       />
       <div v-if="progress !== null" class="upload-section">
-        <p class="upload-description">Model uploading</p>
+        <p class="upload-description">Artifact uploading</p>
         <ProgressBar :value="progress" showValue />
       </div>
       <Button type="submit" fluid rounded :loading="loading">Add</Button>
@@ -66,12 +66,12 @@ import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primev
 import type { FormSubmitEvent } from '@primevue/forms'
 import { useRoute } from 'vue-router'
 import { computed, ref, watch } from 'vue'
-import { modelCreatorResolver } from '@/utils/forms/resolvers'
+import { artifactCreateResolver } from '@/utils/forms/resolvers'
 import { Form } from '@primevue/forms'
 import { Dialog, Button, InputText, Textarea, AutoComplete, useToast, ProgressBar } from 'primevue'
-import { useModelUpload } from '@/hooks/useModelUpload'
+import { useArtifactUpload } from '@/hooks/useArtifactUpload'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { useModelsTags } from '@/hooks/useModelsTags'
+import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
 import FileInput from '@/components/ui/FileInput.vue'
 
@@ -94,9 +94,9 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-const { upload, progress } = useModelUpload()
+const { upload, progress } = useArtifactUpload()
+const { getTagsByQuery, loadTags } = useArtifactsTags()
 const toast = useToast()
-const { getTagsByQuery, loadTags } = useModelsTags()
 const route = useRoute()
 
 const visible = defineModel<boolean>('visible')
@@ -169,7 +169,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${formData.value.name}has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
+      detail: `${formData.value.name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
       life: 5000,
     })
     formData.value.description = ''

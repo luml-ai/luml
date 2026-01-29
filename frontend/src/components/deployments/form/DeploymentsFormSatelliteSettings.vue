@@ -91,7 +91,7 @@
 
 <script setup lang="ts">
 import type { FieldInfo } from '../deployments.interfaces'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { SatelliteFieldTypeEnum, type SatelliteField } from '@/lib/api/satellites/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -105,7 +105,7 @@ import { useSatelliteFields } from '@/hooks/satellites/useSatelliteFields'
 import { watch } from 'vue'
 
 type Props = {
-  selectedModel: MlModel | null
+  selectedModel: ModelArtifact | null
 }
 
 const props = defineProps<Props>()

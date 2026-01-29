@@ -98,7 +98,7 @@ export const collectionEditorResolver = zodResolver(
   }),
 )
 
-export const modelCreatorResolver = zodResolver(
+export const artifactCreateResolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),
@@ -107,7 +107,7 @@ export const modelCreatorResolver = zodResolver(
   }),
 )
 
-export const modelEditorResolver = zodResolver(
+export const artifactEditResolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),

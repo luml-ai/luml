@@ -1,9 +1,9 @@
 import type {
-  MlModel,
-  MlModelCreator,
-  CreateModelResponse,
-  UpdateMlModelPayload,
-} from '@/lib/api/orbit-ml-models/interfaces'
+  Artifact,
+  CreateArtifactPayload,
+  CreateArtifactResponse,
+  UpdateArtifactPayload,
+} from '@/lib/api/artifacts/interfaces'
 import type { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import type {
   TabularModelMetadataPayload,
@@ -18,31 +18,34 @@ export interface RequestInfo {
   collectionId: string
 }
 
-export interface DeleteModelsResult {
+export interface DeleteArtifactsResult {
   deleted: string[]
   failed: string[]
 }
 
 export type ModelMetadata = TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload
 
-export interface ModelStore {
+export interface ArtifactsStore {
   requestInfo: Ref<RequestInfo>
-  currentModel: Ref<MlModel | null>
-  setCurrentModel: (model: MlModel) => void
-  resetCurrentModel: () => void
+  currentArtifact: Ref<Artifact | null>
+  setCurrentArtifact: (model: Artifact) => void
+  resetCurrentArtifact: () => void
   currentModelTag: Ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>
   currentModelMetadata: Ref<ModelMetadata | null>
   currentModelHtmlBlobUrl: Ref<string | null>
   experimentSnapshotProvider: Ref<ExperimentSnapshotProvider | null>
-  initiateCreateModel: (
-    data: MlModelCreator,
+  initiateCreateArtifact: (
+    data: CreateArtifactPayload,
     requestData?: RequestInfo,
-  ) => Promise<CreateModelResponse>
-  confirmModelUpload: (payload: UpdateMlModelPayload, requestData?: RequestInfo) => Promise<void>
-  cancelModelUpload: (payload: UpdateMlModelPayload, requestData?: RequestInfo) => Promise<void>
-  deleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
-  downloadModel: (modelId: string, name: string) => Promise<void>
-  getDownloadUrl: (modelId: string) => Promise<string>
+  ) => Promise<CreateArtifactResponse>
+  confirmArtifactUpload: (
+    payload: UpdateArtifactPayload,
+    requestData?: RequestInfo,
+  ) => Promise<void>
+  cancelArtifactUpload: (payload: UpdateArtifactPayload, requestData?: RequestInfo) => Promise<void>
+  deleteArtifacts: (ids: string[]) => Promise<DeleteArtifactsResult>
+  downloadArtifact: (id: string, name: string) => Promise<void>
+  getDownloadUrl: (id: string) => Promise<string>
   setCurrentModelTag: (tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) => void
   resetCurrentModelTag: () => void
   setCurrentModelMetadata: (metadata: ModelMetadata) => void
@@ -51,10 +54,10 @@ export interface ModelStore {
   resetCurrentModelHtmlBlobUrl: () => void
   setExperimentSnapshotProvider: (provider: ExperimentSnapshotProvider) => void
   resetExperimentSnapshotProvider: () => void
-  updateModel: (payload: UpdateMlModelPayload) => Promise<MlModel>
-  forceDeleteModels: (modelsIds: string[]) => Promise<DeleteModelsResult>
-  getModelsMetrics: (requestData?: RequestInfo) => Promise<string[]>
-  getModel: (modelId: string, requestData?: RequestInfo) => Promise<MlModel>
-  modelsList: Ref<MlModel[]>
-  setModelsList: (list: MlModel[]) => void
+  updateArtifact: (payload: UpdateArtifactPayload) => Promise<Artifact>
+  forceDeleteArtifacts: (ids: string[]) => Promise<DeleteArtifactsResult>
+  getArtifactsExtraValues: (requestData?: RequestInfo) => Promise<string[]>
+  getArtifact: (id: string, requestData?: RequestInfo) => Promise<Artifact>
+  artifactsList: Ref<Artifact[]>
+  setArtifactsList: (list: Artifact[]) => void
 }

@@ -3,15 +3,15 @@
     <div class="content">
       <TableToolbar
         :selected-metrics="visibleMetrics"
-        :selected-models="selectedModels"
+        :selected-artifacts="selectedArtifacts"
         :metrics="allMetricsKeys"
         @update:selected-metrics="(val) => updateSelectedMetrics(val)"
-        @clear-selected-models="resetSelectedModels"
+        @clear-selected-artifacts="resetSelectedArtifacts"
       ></TableToolbar>
       <div>
         <DataTable
-          v-model:selection="selectedModels"
-          :value="modelsList"
+          v-model:selection="selectedArtifacts"
+          :value="list"
           :pt="TABLE_PT"
           selection-mode="multiple"
           data-key="id"
@@ -25,19 +25,19 @@
         >
           <template #empty>
             <div v-if="!isLoading" class="placeholder">
-              No models to show. Add model to the table.
+              No artifacts to show. Add artifact to the table.
             </div>
           </template>
           <Column selectionMode="multiple"></Column>
           <Column
-            field="model_name"
-            header="Model name"
+            field="name"
+            header="Name"
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 180px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <NameColumnBody
-                :name="data.model_name"
+                :name="data.name"
                 :id="data.id"
                 :column-body-style="columnBodyStyle"
               />
@@ -49,7 +49,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 180px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <div :style="columnBodyStyle + 'width: 180px'">
                 {{ new Date(data.created_at).toLocaleString() }}
               </div>
@@ -61,7 +61,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 203px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <div v-tooltip="data.description" class="description" style="width: 203px">
                 {{ data.description }}
               </div>
@@ -73,7 +73,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 150px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <StatusColumnBody :status="data.status" />
             </template>
           </Column>
@@ -82,8 +82,8 @@
             header="Tags"
             :pt="{ columnHeaderContent: { style: 'width: 203px' } }"
           >
-            <template #body="{ data }">
-              <TagsList :tags="data.tags" />
+            <template #body="{ data }: { data: Artifact }">
+              <TagsList v-if="data.tags" :tags="data.tags" />
             </template>
           </Column>
           <Column
@@ -92,7 +92,7 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <div :style="columnBodyStyle + 'width: 100px'">
                 {{ getSizeText(data.size) }}
               </div>
@@ -106,13 +106,13 @@
             sortable
             :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
           >
-            <template #body="{ data }">
+            <template #body="{ data }: { data: Artifact }">
               <div
-                v-tooltip="key in data.metrics ? '' + data.metrics[key] : null"
+                v-tooltip="key in data.extra_values ? '' + data.extra_values[key] : null"
                 class="metric-column"
                 style="width: 100px"
               >
-                {{ key in data.metrics ? data.metrics[key] : '-' }}
+                {{ key in data.extra_values ? data.extra_values[key] : '-' }}
               </div>
             </template>
           </Column>
@@ -131,17 +131,17 @@ import {
 } from 'primevue'
 import { DataTable, Column } from 'primevue'
 import {
-  MlModelStatusEnum,
-  type GetModelsListParams,
-  type MlModel,
-} from '@/lib/api/orbit-ml-models/interfaces'
+  ArtifactStatusEnum,
+  type GetArtifactsListParams,
+  type Artifact,
+} from '@/lib/api/artifacts/interfaces'
 import { onBeforeMount, ref, watch } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useRouter, useRoute } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
 import { columnBodyStyle, TABLE_PT } from './models-table.data'
-import { useModelsList } from '@/hooks/useModelsList'
+import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { getErrorMessage, getSizeText } from '@/helpers/helpers'
 import { useDebounceFn } from '@vueuse/core'
 import TableToolbar from './TableToolbar.vue'
@@ -151,15 +151,15 @@ import StatusColumnBody from './StatusColumnBody.vue'
 
 const INITIAL_VISIBLE_METRICS_COUNT = 20
 
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const toast = useToast()
 const router = useRouter()
 const route = useRoute()
 const collectionsStore = useCollectionsStore()
-const { setRequestInfo, getInitialPage, modelsList, reset, onLazyLoad, setSortData, isLoading } =
-  useModelsList()
+const { setRequestInfo, getInitialPage, list, reset, onLazyLoad, setSortData, isLoading } =
+  useArtifactsList()
 
-const selectedModels = ref<MlModel[]>([])
+const selectedArtifacts = ref<Artifact[]>([])
 const isFirstPageLoading = ref(true)
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
@@ -173,21 +173,21 @@ const virtualScrollerOptions = ref<VirtualScrollerProps>({
 
 function onRowClick(event: DataTableRowClickEvent) {
   const target: any = event.originalEvent.target
-  const modelId = event.data.id
-  const isModelUploaded = event.data.status === MlModelStatusEnum.uploaded
-  if (!target || !modelId || !isModelUploaded) return
+  const artifactId = event.data.id
+  const isArtifactUploaded = event.data.status === ArtifactStatusEnum.uploaded
+  if (!target || !artifactId || !isArtifactUploaded) return
   const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
   if (rowIncludeCheckbox) return
-  router.push({ name: 'model', params: { modelId } })
+  router.push({ name: 'artifact', params: { artifactId } })
 }
 
-function resetSelectedModels() {
-  selectedModels.value = []
+function resetSelectedArtifacts() {
+  selectedArtifacts.value = []
 }
 
 async function getMetricsKeys() {
   try {
-    const metrics = await modelsStore.getModelsMetrics()
+    const metrics = await artifactsStore.getArtifactsExtraValues()
     allMetricsKeys.value = metrics
     visibleMetrics.value = allMetricsKeys.value.slice(0, INITIAL_VISIBLE_METRICS_COUNT)
   } catch (e: any) {
@@ -198,7 +198,7 @@ async function getMetricsKeys() {
 async function initList() {
   try {
     reset()
-    resetSelectedModels()
+    resetSelectedArtifacts()
     isFirstPageLoading.value = true
     await getMetricsKeys()
     setRequestInfo({
@@ -208,7 +208,7 @@ async function initList() {
     })
     await getInitialPage()
   } catch (e: any) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load models')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load artifacts')))
   } finally {
     isFirstPageLoading.value = false
   }
@@ -224,18 +224,18 @@ const updateSelectedMetrics = useDebounceFn((metrics: string[] | undefined | nul
 
 function onSort(event: DataTableSortEvent) {
   const sortData = {
-    sort_by: event.sortField as GetModelsListParams['sort_by'],
-    order: event.sortOrder === 1 ? 'asc' : ('desc' as GetModelsListParams['order']),
+    sort_by: event.sortField as GetArtifactsListParams['sort_by'],
+    order: event.sortOrder === 1 ? 'asc' : ('desc' as GetArtifactsListParams['order']),
   }
   setSortData(sortData)
   initList()
 }
 
-watch(modelsList, (data) => {
-  if (!selectedModels.value.length) return
-  selectedModels.value = selectedModels.value
-    .map((model) => data.find((updatedModel) => model.id === updatedModel.id))
-    .filter((model) => !!model)
+watch(list, (data) => {
+  if (!selectedArtifacts.value.length) return
+  selectedArtifacts.value = selectedArtifacts.value
+    .map((artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id))
+    .filter((artifact) => !!artifact)
 })
 
 onBeforeMount(initList)

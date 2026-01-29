@@ -1,18 +1,19 @@
 import { TarHandler } from '@/lib/tar-handler/TarHandler'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import {
-  MlModelStatusEnum,
-  type CreateModelResponse,
-  type MlModelCreator,
-  type UpdateMlModelPayload,
-} from '@/lib/api/orbit-ml-models/interfaces'
+  ArtifactStatusEnum,
+  type CreateArtifactResponse,
+  type CreateArtifactPayload,
+  type UpdateArtifactPayload,
+  ArtifactTypeEnum,
+} from '@/lib/api/artifacts/interfaces'
 import { getSha256 } from '@/helpers/helpers'
 import axios, { type AxiosProgressEvent } from 'axios'
 import { ref } from 'vue'
 
-export const useModelUpload = () => {
-  const modelsStore = useModelsStore()
+export const useArtifactUpload = () => {
+  const artifactsStore = useArtifactsStore()
 
   const progress = ref<number | null>(null)
 
@@ -30,34 +31,35 @@ export const useModelUpload = () => {
     const metrics = FnnxService.getRegistryMetrics(model)
     const fileHash = await getSha256(modelBuffer)
 
-    const payload: MlModelCreator = {
-      metrics: metrics,
+    const payload: CreateArtifactPayload = {
+      type: ArtifactTypeEnum.model, // TODO: change to dataset if needed
+      extra_values: metrics,
       manifest,
       file_index: Object.fromEntries(fileIndex.entries()),
       file_hash: fileHash,
       size: file.size,
       file_name: file.name,
-      model_name: name,
+      name,
       description,
       tags,
     }
-    const response = await modelsStore.initiateCreateModel(payload, requestInfo)
+    const response = await artifactsStore.initiateCreateArtifact(payload, requestInfo)
 
     await uploadToBucket(response, modelBuffer, file.name, name, description, tags, requestInfo)
 
-    const confirmPayload: UpdateMlModelPayload = {
-      id: response.model.id,
+    const confirmPayload: UpdateArtifactPayload = {
+      id: response.artifact.id,
       file_name: file.name,
-      model_name: name,
+      name,
       description,
       tags,
-      status: MlModelStatusEnum.uploaded,
+      status: ArtifactStatusEnum.uploaded,
     }
-    return modelsStore.confirmModelUpload(confirmPayload, requestInfo)
+    return artifactsStore.confirmArtifactUpload(confirmPayload, requestInfo)
   }
 
   async function uploadToBucket(
-    data: CreateModelResponse,
+    data: CreateArtifactResponse,
     buffer: ArrayBuffer,
     fileName: string,
     modelName: string,
@@ -73,14 +75,14 @@ export const useModelUpload = () => {
         onUploadProgress,
       })
     } catch (e) {
-      await modelsStore.cancelModelUpload(
+      await artifactsStore.cancelArtifactUpload(
         {
-          id: data.model.id,
+          id: data.artifact.id,
           file_name: fileName,
-          model_name: modelName,
+          name: modelName,
           description,
           tags,
-          status: MlModelStatusEnum.upload_failed,
+          status: ArtifactStatusEnum.upload_failed,
         },
         requestInfo,
       )

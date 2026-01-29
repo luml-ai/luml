@@ -1,5 +1,5 @@
 import type { DataTablePassThroughOptions } from 'primevue'
-import { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
+import { ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 
 export const TABLE_PT: DataTablePassThroughOptions = {
   root: {
@@ -11,23 +11,23 @@ export const TABLE_PT: DataTablePassThroughOptions = {
 }
 
 export const STATUS_TAGS_CONFIG = {
-  [MlModelStatusEnum.deletion_failed]: {
+  [ArtifactStatusEnum.deletion_failed]: {
     severity: 'danger',
     text: 'Deletion failed',
   },
-  [MlModelStatusEnum.pending_deletion]: {
+  [ArtifactStatusEnum.pending_deletion]: {
     severity: 'warn',
     text: 'Pending deletions',
   },
-  [MlModelStatusEnum.pending_upload]: {
+  [ArtifactStatusEnum.pending_upload]: {
     severity: 'warn',
     text: 'Pending upload',
   },
-  [MlModelStatusEnum.upload_failed]: {
+  [ArtifactStatusEnum.upload_failed]: {
     severity: 'danger',
     text: 'Upload failed',
   },
-  [MlModelStatusEnum.uploaded]: {
+  [ArtifactStatusEnum.uploaded]: {
     severity: 'success',
     text: 'Uploaded',
   },
