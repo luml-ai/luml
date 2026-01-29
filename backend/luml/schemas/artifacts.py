@@ -89,13 +89,28 @@ class Manifest(BaseModel):
     env_vars: list[Var]
 
 
+class LumlArtifactManifest(BaseModel):
+    type: str
+
+    variant: str
+    name: str | None = None
+    description: str | None = None
+    version: str | None = None
+
+    producer_name: str
+    producer_version: str
+    producer_tags: list[str]
+
+    payload: dict
+
+
 class ArtifactCreate(BaseModel):
     collection_id: UUID
     file_name: str
     name: str | None = None
     description: str | None = None
     extra_values: dict[str, Any]
-    manifest: Manifest
+    manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
     bucket_location: str
@@ -119,12 +134,11 @@ class ArtifactIn(BaseModel):
     name: str | None = None
     description: str | None = None
     extra_values: dict[str, Any]
-    manifest: Manifest
+    manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
     size: int
     tags: list[str] | None = None
-    type: ArtifactType
 
     @field_validator("size")
     @classmethod
@@ -165,7 +179,7 @@ class Artifact(BaseModel, BaseOrmConfig):
     name: str | None = None
     description: str | None = None
     extra_values: dict[str, Any]
-    manifest: Manifest
+    manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
     bucket_location: str

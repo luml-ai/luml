@@ -189,6 +189,14 @@ class ArtifactNotFoundError(ApplicationError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
+class ArtifactTypeMismatchError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Artifact type is not allowed for this collection type",
+    ) -> None:
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
+
+
 class BucketConnectionError(ApplicationError):
     def __init__(
         self,

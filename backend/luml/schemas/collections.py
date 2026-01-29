@@ -10,6 +10,19 @@ from luml.schemas.base import BaseOrmConfig
 class CollectionType(StrEnum):
     MODEL = "model"
     DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MODEL_DATASET = "model_dataset"
+    DATASET_EXPERIMENT = "dataset_experiment"
+    MODEL_EXPERIMENT = "model_experiment"
+    MIXED = "mixed"
+
+
+class CollectionSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    NAME = "name"
+    COLLECTION_TYPE = "collection_type"
+    DESCRIPTION = "description"
+    TOTAL_ARTIFACTS = "total_artifacts"
 
 
 class CollectionCreate(BaseModel):
@@ -57,14 +70,14 @@ class CollectionUpdateIn(BaseModel):
     tags: list[str] | None = None
 
 
-class CollectionSortBy(StrEnum):
-    CREATED_AT = "created_at"
-    NAME = "name"
-    COLLECTION_TYPE = "collection_type"
-    DESCRIPTION = "description"
-    TOTAL_ARTIFACTS = "total_artifacts"
-
-
 class CollectionsList(BaseModel):
     items: list[Collection]
     cursor: str | None
+
+
+def is_artifact_type_allowed(
+    collection_type: CollectionType, artifact_type: str
+) -> bool:
+    if collection_type == CollectionType.MIXED:
+        return True
+    return artifact_type in collection_type.value
