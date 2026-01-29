@@ -228,14 +228,13 @@ function onSort(event: DataTableSortEvent) {
     order: event.sortOrder === 1 ? 'asc' : ('desc' as GetModelsListParams['order']),
   }
   setSortData(sortData)
-  initList()
 }
 
 watch(modelsList, (data) => {
   if (!selectedModels.value.length) return
-  selectedModels.value = selectedModels.value
-    .map((model) => data.find((updatedModel) => model.id === updatedModel.id))
-    .filter((model) => !!model)
+  selectedModels.value = selectedModels.value.map(
+    (model) => data.find((updatedModel) => model.id === updatedModel.id) || model,
+  )
 })
 
 onBeforeMount(initList)

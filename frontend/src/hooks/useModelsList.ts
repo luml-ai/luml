@@ -12,6 +12,7 @@ interface RequestInfo {
 
 export const useModelsList = (limit = 20, syncStore = true) => {
   const modelsStore = useModelsStore()
+  const abortController = ref<AbortController | null>(null)
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
@@ -52,11 +53,14 @@ export const useModelsList = (limit = 20, syncStore = true) => {
 
   async function getModelsData(cursor: string | null) {
     if (!requestInfo.value) throw new Error('Request info not set')
+    abortController.value?.abort()
+    abortController.value = new AbortController()
     return await api.mlModels.getModelsList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.collectionId,
       { cursor, limit, ...sortData.value },
+      abortController.value.signal,
     )
   }
 
@@ -96,6 +100,12 @@ export const useModelsList = (limit = 20, syncStore = true) => {
     }
   }
 
+  async function onSortDataChange() {
+    setModelsList([])
+    savedCursors.value = []
+    getInitialPage()
+  }
+
   if (syncStore) {
     watch(
       () => modelsStore.modelsList,
@@ -105,6 +115,8 @@ export const useModelsList = (limit = 20, syncStore = true) => {
       { immediate: true },
     )
   }
+
+  watch(sortData, onSortDataChange)
 
   return {
     setRequestInfo,
