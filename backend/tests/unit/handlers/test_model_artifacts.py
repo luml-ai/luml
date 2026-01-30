@@ -14,7 +14,7 @@ from luml.infra.exceptions import (
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.deployment import Deployment, DeploymentStatus
-from luml.schemas.general import SortOrder
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionType,
@@ -169,7 +169,7 @@ async def test_check_orbit_and_collection_access_collection_not_found(
 async def test_get_collection_model_artifacts(
     mock_check_permissions: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
-    mock_get_collection_model_artifact: AsyncMock,
+    mock_get_collection_model_artifacts: AsyncMock,
     manifest_example: Manifest,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -177,7 +177,6 @@ async def test_get_collection_model_artifacts(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     model_artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    pagination_limit = 100
 
     expected_models_list = [
         ModelArtifact(
@@ -200,7 +199,7 @@ async def test_get_collection_model_artifacts(
     ]
     expected = ModelArtifactsList(items=expected_models_list, cursor=None)
 
-    mock_get_collection_model_artifact.return_value = expected_models_list
+    mock_get_collection_model_artifacts.return_value = (expected_models_list, None)
 
     result = await handler.get_collection_model_artifacts(
         user_id, organization_id, orbit_id, collection_id
@@ -213,16 +212,16 @@ async def test_get_collection_model_artifacts(
     mock_check_orbit_and_collection_access.assert_awaited_once_with(
         organization_id, orbit_id, collection_id
     )
-
-    # Check that pagination params were passed correctly
-    call_args = mock_get_collection_model_artifact.await_args
-    assert call_args.args[0] == collection_id
-    pagination = call_args.args[1]
-    assert pagination.sort_by == "created_at"
-    assert pagination.order == SortOrder.DESC
-    assert pagination.limit == pagination_limit
-    assert pagination.cursor is None
-    assert pagination.extra_sort_field is None
+    mock_get_collection_model_artifacts.assert_awaited_once_with(
+        collection_id,
+        PaginationParams(
+            cursor=None,
+            sort_by="created_at",
+            order=SortOrder.DESC,
+            limit=100,
+            extra_sort_field=None,
+        ),
+    )
 
 
 @patch(

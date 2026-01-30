@@ -18,7 +18,7 @@ from luml.schemas.model_artifacts import (
     CollectionUpdateIn,
 )
 from luml.schemas.permissions import Action, Resource
-from luml.utils.pagination import decode_cursor, get_cursor
+from luml.utils.pagination import decode_cursor, encode_cursor
 
 
 class CollectionHandler:
@@ -76,7 +76,6 @@ class CollectionHandler:
             raise NotFoundError("Orbit not found")
 
         cursor = decode_cursor(cursor_str)
-
         use_cursor = cursor if cursor and cursor.sort_by == sort_by.value else None
 
         pagination = PaginationParams(
@@ -86,16 +85,13 @@ class CollectionHandler:
             limit=limit,
         )
 
-        items = await self.__repository.get_orbit_collections(
+        items, cursor = await self.__repository.get_orbit_collections(
             orbit_id=orbit_id,
             pagination=pagination,
             search=search,
         )
 
-        return CollectionsList(
-            items=items[:limit],
-            cursor=get_cursor(items, limit, str(sort_by.value)),
-        )
+        return CollectionsList(items=items, cursor=encode_cursor(cursor))
 
     async def get_collection_details(
         self,

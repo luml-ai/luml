@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
@@ -25,3 +26,8 @@ class PaginationParams(BaseModel):
     order: SortOrder = SortOrder.DESC
     limit: int = 100
     extra_sort_field: str | None = None
+
+
+class PaginatedSequenceResponse[T](BaseModel):
+    items: Sequence[T]
+    has_more: bool = False
