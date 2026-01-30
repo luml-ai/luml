@@ -4,16 +4,18 @@ from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
-from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
-from agent.clients import ModelServerClient, PlatformClient
-from agent.clients.docker_client import DockerService
-from agent.schemas import (
+from luml_satellite_sdk import (
+    ContainerNotFoundError,
+    ContainerNotRunningError,
     Deployment,
     DeploymentStatus,
     DeploymentUpdate,
-    LocalDeployment,
-    Secret,
+    PlatformClient,
 )
+
+from agent.clients import ModelServerClient
+from agent.clients.docker_client import DockerService
+from agent.schemas import LocalDeployment, Secret
 from agent.settings import config
 
 logger = logging.getLogger(__name__)

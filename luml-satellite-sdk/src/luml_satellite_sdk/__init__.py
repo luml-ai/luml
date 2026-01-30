@@ -1,7 +1,7 @@
 """LUML Satellite SDK - SDK for building and managing LUML satellite workers."""
 
 from luml_satellite_sdk.base import BaseSatellite
-from luml_satellite_sdk.client import BasePlatformClient
+from luml_satellite_sdk.client import BasePlatformClient, PlatformClient
 from luml_satellite_sdk.exceptions import (
     ContainerNotFoundError,
     ContainerNotRunningError,
@@ -10,6 +10,10 @@ from luml_satellite_sdk.exceptions import (
     TaskException,
 )
 from luml_satellite_sdk.schemas import (
+    Deployment,
+    DeploymentStatus,
+    DeploymentUpdate,
+    ErrorMessage,
     SatelliteQueueTask,
     SatelliteTaskStatus,
     SatelliteTaskType,
@@ -25,9 +29,14 @@ __all__ = [
     "BaseSettings",
     "BaseTask",
     "BasePlatformClient",
+    "PlatformClient",
     "SatelliteTaskType",
     "SatelliteTaskStatus",
     "SatelliteQueueTask",
+    "Deployment",
+    "DeploymentStatus",
+    "DeploymentUpdate",
+    "ErrorMessage",
     "SatelliteException",
     "PairingException",
     "TaskException",
