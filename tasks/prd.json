@@ -102,14 +102,15 @@
         "Export TaskHandler from SDK's __init__.py"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-002"
       ],
       "labels": [
         "sdk",
         "handler"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-006",
@@ -415,6 +416,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T19:03:54.182Z"
+    "updatedAt": "2026-01-30T19:08:52.769Z"
   }
 }
