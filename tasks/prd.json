@@ -164,14 +164,15 @@
         "Export schemas from SDK's __init__.py"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-001"
       ],
       "labels": [
         "sdk",
         "schemas"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-009",
@@ -411,6 +412,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T12:06:42.357Z"
+    "updatedAt": "2026-01-30T12:10:37.817Z"
   }
 }
