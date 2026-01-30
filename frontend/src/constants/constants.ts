@@ -77,7 +77,7 @@ export const SIDEBAR_MENU_BOTTOM = [
     id: 1,
     label: 'Documentation',
     icon: File,
-    link: `${import.meta.env.VITE_DOCS_URL}/getting-started`,
+    link: `${import.meta.env.VITE_DOCS_URL}`,
   },
 ]
 

@@ -28,51 +28,145 @@
   --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
 }
 
-/*2. Sidebar Navigatoin*/
+/*2. Sidebar Navigation - GitBook Style */
 
-/* А. Dividers*/
+/* А. All regular menu items and subcategories - simple clean style */
 
-/* Non-active state */
-.menu__list-item > .menu__link--sublist {
-  color: #0b2e6d;     /* Dark Navy Blue */
-  font-weight: 700;   /* Жирний шрифт */
+.menu__link {
+  color: #374151 !important;
+  font-weight: 400 !important;
 }
 
-.menu__list-item > .menu__link--sublist::after {
-  background: var(--ifm-menu-link-sublist-icon) !important;
-  filter: invert(13%) sepia(35%) saturate(5479%) hue-rotate(212deg) brightness(93%) contrast(103%); /* Це перетворює сірий на #0b2e6d */
-}
-
-/* Б. Active state (Selected/Open) */
-
-.menu__list-item > .menu__link--sublist.menu__link--active {
-  color: #246dfd !important; 
-}
-
-.menu__link--active:not(.menu__link--sublist) {
-  color: #246dfd !important;
-  background-color: rgba(36, 109, 253, 0.1); /* Легкий блакитний фон під активним пунктом */
-}
-
-/*В. Hover */
 .menu__link:hover {
+  color: #111827 !important;
+  background-color: #f3f4f6 !important;
+}
+
+.menu__link--active {
   color: #246dfd !important;
+  background-color: rgba(36, 109, 253, 0.08) !important;
+  font-weight: 500 !important;
+}
+
+/* Subcategory arrows - subtle */
+.menu__link--sublist::after {
+  opacity: 0.5 !important;
+}
+
+/* Icon styling */
+.menu__link svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.menu__link:hover svg {
+  opacity: 1;
+}
+
+.menu__link--active svg {
+  opacity: 1;
+}
+
+/* Б. Section Headers (Core Concepts, Modules) - must come AFTER general rules */
+
+.sidebar-section-header {
+  margin-top: 1.25rem !important;
+}
+
+.sidebar-section-header:first-child {
+  margin-top: 0 !important;
+}
+
+/* Section header label - only the direct link, not nested ones */
+.sidebar-section-header > div > .menu__link {
+  color: #4b5563 !important;
+  font-weight: 700 !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 0.08em !important;
+  padding: 0.6rem 0.75rem 0.3rem !important;
+  cursor: default !important;
+  pointer-events: none !important;
+  text-transform: uppercase !important;
+  background-color: transparent !important;
+}
+
+.sidebar-section-header > div > .menu__link:hover {
+  color: #6b7280 !important;
+  background-color: transparent !important;
+}
+
+.sidebar-section-header > div > .menu__link::after {
+  display: none !important;
+}
+
+/* Vertical line connecting section header to its children */
+.sidebar-section-header > .menu__list {
+  border-left: 1px solid #e5e7eb !important;
+  margin-left: 0.75rem !important;
+  padding-left: 0.75rem !important;
 }
 
 /*3. Dark Mode Adjustments*/
 
-
-[data-theme='dark'] .menu__list-item > .menu__link--sublist {
-  color: #e3e3e3; 
+/* All regular menu items in dark mode */
+[data-theme='dark'] .menu__link {
+  color: #d1d5db !important;
 }
 
-[data-theme='dark'] .menu__list-item > .menu__link--sublist.menu__link--active {
-  color: #4e88fe !important;
+[data-theme='dark'] .menu__link:hover {
+  color: #f9fafb !important;
+  background-color: #374151 !important;
 }
 
-[data-theme='dark'] .menu__link--active:not(.menu__link--sublist) {
+[data-theme='dark'] .menu__link--active {
   color: #4e88fe !important;
-  background-color: rgba(78, 136, 254, 0.15);
+  background-color: rgba(78, 136, 254, 0.15) !important;
+}
+
+[data-theme='dark'] .menu__link--sublist::after {
+  opacity: 0.5 !important;
+}
+
+/* Section headers in dark mode - must come AFTER general rules */
+[data-theme='dark'] .sidebar-section-header > div > .menu__link {
+  color: #d1d5db !important;
+  background-color: transparent !important;
+}
+
+[data-theme='dark'] .sidebar-section-header > div > .menu__link:hover {
+  color: #d1d5db !important;
+  background-color: transparent !important;
+}
+
+/* Vertical line in dark mode */
+[data-theme='dark'] .sidebar-section-header > .menu__list {
+  border-left-color: #4b5563 !important;
+}
+
+/* 3.1. Collapsible menu items - fix background colors */
+
+.menu__list-item-collapsible {
+  background-color: transparent !important;
+}
+
+.menu__list-item-collapsible--active {
+  background-color: transparent !important;
+}
+
+[data-theme='dark'] .menu__list-item-collapsible {
+  background-color: transparent !important;
+}
+
+[data-theme='dark'] .menu__list-item-collapsible--active {
+  background-color: transparent !important;
+}
+
+/* Make the default caret bigger and more visible */
+.menu__link--sublist-caret::after {
+  background-size: 1.5rem 1.5rem !important;
+  height: 1.25rem !important;
+  width: 1.25rem !important;
+  min-width: 1.25rem !important;
 }
 
 /* 4. Additional Utilities*/

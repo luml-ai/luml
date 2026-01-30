@@ -7,8 +7,8 @@
       name="modelId"
       placeholder="Select model"
       fluid
-      :options="modelsList"
-      option-label="model_name"
+      :options="list"
+      option-label="name"
       option-value="id"
       :disabled="disabled"
       :virtualScrollerOptions="virtualScrollerOptions"
@@ -21,10 +21,10 @@
 </template>
 
 <script setup lang="ts">
-import { useModelsList } from '@/hooks/useModelsList'
+import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { Select } from 'primevue'
 import { watch } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
@@ -37,9 +37,9 @@ type Props = {
   initialModelId?: string
 }
 
-const { setRequestInfo, getInitialPage, modelsList, reset, addModelsToList, onLazyLoad } =
-  useModelsList(20, false)
-const modelsStore = useModelsStore()
+const { setRequestInfo, getInitialPage, list, reset, addItemsToList, onLazyLoad } =
+  useArtifactsList(20, false)
+const artifactsStore = useArtifactsStore()
 const toast = useToast()
 
 const virtualScrollerOptions = {
@@ -53,8 +53,8 @@ const props = defineProps<Props>()
 const modelValue = defineModel<string | null>('modelValue')
 
 async function addInitialModelToList(modelId: string) {
-  const model = await modelsStore.getModel(modelId)
-  addModelsToList([model])
+  const model = await artifactsStore.getArtifact(modelId)
+  addItemsToList([model])
 }
 
 async function onRequestInfoChange() {

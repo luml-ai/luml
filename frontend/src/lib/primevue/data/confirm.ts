@@ -114,17 +114,17 @@ export const deleteCollectionConfirmOptions = (accept: () => void): Confirmation
   accept,
 })
 
-export const deleteModelConfirmOptions = (
+export const deleteArtifactConfirmOptions = (
   accept: () => void,
   count: number,
 ): ConfirmationOptions => ({
   message: 'This action is permanent and cannot be undone.',
-  header: count > 1 ? `Delete ${count}  models?` : 'Delete model?',
+  header: count > 1 ? `Delete ${count}  artifacts?` : 'Delete artifact?',
   rejectProps: {
     label: 'cancel',
   },
   acceptProps: {
-    label: count > 1 ? 'delete models' : 'delete model',
+    label: count > 1 ? 'delete artifacts' : 'delete artifact',
     severity: 'warn',
     outlined: true,
   },

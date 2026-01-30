@@ -38,7 +38,7 @@ import { installInterceptors } from './api.interceptors'
 import type { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
 import { BucketSecretsApi } from './bucket-secrets'
 import { OrbitCollectionsApi } from './orbit-collections'
-import { MlModelsApi } from './orbit-ml-models'
+import { ArtifactsApi } from './artifacts'
 import { ApiKeysApi } from './api-keys'
 import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
@@ -48,7 +48,7 @@ export class ApiClass {
   private api: AxiosInstance
   public bucketSecrets: BucketSecretsApi
   public orbitCollections: OrbitCollectionsApi
-  public mlModels: MlModelsApi
+  public artifacts: ArtifactsApi
   public apiKeys: ApiKeysApi
   public satellites: SatellitesApi
   public orbitSecrets: OrbitSecretsApi
@@ -65,7 +65,7 @@ export class ApiClass {
 
     this.bucketSecrets = new BucketSecretsApi(this.api)
     this.orbitCollections = new OrbitCollectionsApi(this.api)
-    this.mlModels = new MlModelsApi(this.api)
+    this.artifacts = new ArtifactsApi(this.api)
     this.apiKeys = new ApiKeysApi(this.api)
     this.satellites = new SatellitesApi(this.api)
     this.orbitSecrets = new OrbitSecretsApi(this.api)

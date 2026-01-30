@@ -21,7 +21,7 @@
             option-value="id"
           />
         </div>
-        <ModelUploadCollectionSelect
+        <ArtifactUploadCollectionSelect
           v-model="formData.collection"
           :organization-id="organizationId"
           :orbit-id="formData.orbit"
@@ -32,7 +32,7 @@
             v-model="formData.name"
             id="name"
             name="name"
-            placeholder="Name your model"
+            placeholder="Name your artifact"
             fluid
           />
         </div>
@@ -42,7 +42,7 @@
             v-model="formData.description"
             name="description"
             id="description"
-            placeholder="Describe your model"
+            placeholder="Describe your artifact"
             style="height: 72px; resize: none"
           ></Textarea>
         </div>
@@ -73,11 +73,11 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Button, Select, Dialog, InputText, Textarea, AutoComplete, useToast } from 'primevue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useOrganizationStore } from '@/stores/organization'
-import { useModelsTags } from '@/hooks/useModelsTags'
-import { useModelUpload } from '@/hooks/useModelUpload'
+import { useArtifactsTags } from '@/hooks/useArtifactsTags'
+import { useArtifactUpload } from '@/hooks/useArtifactUpload'
 import { modelUploadResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import ModelUploadCollectionSelect from './ModelUploadCollectionSelect.vue'
+import ArtifactUploadCollectionSelect from './ModelUploadCollectionSelect.vue'
 
 type Props = {
   modelBlob: Blob
@@ -111,8 +111,8 @@ const visible = defineModel<boolean>('visible')
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
-const { getTagsByQuery, loadTags } = useModelsTags()
-const { upload } = useModelUpload()
+const { getTagsByQuery, loadTags } = useArtifactsTags()
+const { upload } = useArtifactUpload()
 
 const loading = ref(false)
 const formData = ref<FormData>({

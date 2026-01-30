@@ -13,7 +13,7 @@
         </div>
         <div class="info-item">
           <Database :size="12" />
-          <span>{{ data.total_models }}</span>
+          <span>{{ data.total_artifacts }}</span>
         </div>
       </div>
       <div class="id-row">

@@ -16,11 +16,11 @@ import { Breadcrumb } from 'primevue'
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 
 const route = useRoute()
 const collectionStore = useCollectionsStore()
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 
 const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
   const list = [
@@ -35,10 +35,10 @@ const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}`,
     })
   }
-  if (modelsStore.currentModel) {
+  if (artifactsStore.currentArtifact) {
     list.push({
-      label: modelsStore.currentModel.model_name,
-      route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/models/${route.params.modelId}`,
+      label: artifactsStore.currentArtifact.name,
+      route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/artifacts/${route.params.artifactId}`,
     })
   }
   const modelsToCompare = typeof route.query.models === 'object' ? route.query.models : null

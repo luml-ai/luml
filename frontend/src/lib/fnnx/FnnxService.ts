@@ -6,7 +6,7 @@ import {
 } from '../data-processing/interfaces'
 import type { Manifest, MetaEntry, Var } from '@fnnx/common/dist/interfaces'
 import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
-import type { FileIndex } from '../api/orbit-ml-models/interfaces'
+import type { FileIndex } from '../api/artifacts/interfaces'
 
 export enum FNNX_PRODUCER_TAGS_METADATA_ENUM {
   contains_classification_metrics_v1 = 'falcon.beastbyte.ai::tabular_classification_metrics:v1',
