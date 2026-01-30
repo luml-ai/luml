@@ -124,14 +124,15 @@
         "Export SatelliteManager from SDK's __init__.py"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-003"
       ],
       "labels": [
         "sdk",
         "manager"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-007",
@@ -416,6 +417,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T19:08:52.769Z"
+    "updatedAt": "2026-01-30T19:12:33.646Z"
   }
 }

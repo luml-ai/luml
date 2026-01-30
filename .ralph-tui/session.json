@@ -3,10 +3,10 @@
   "sessionId": "62b3c74b-a945-4cc1-ba8a-4df843471259",
   "status": "running",
   "startedAt": "2026-01-30T11:52:41.457Z",
-  "updatedAt": "2026-01-30T19:03:54.265Z",
-  "currentIteration": 1,
+  "updatedAt": "2026-01-30T19:08:52.862Z",
+  "currentIteration": 2,
   "maxIterations": 10,
-  "tasksCompleted": 7,
+  "tasksCompleted": 8,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -41,8 +41,8 @@
       {
         "id": "US-005",
         "title": "Move TaskHandler and task registry to SDK",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-006",
@@ -240,6 +240,16 @@
       "durationMs": 78412,
       "startedAt": "2026-01-30T19:02:35.769Z",
       "endedAt": "2026-01-30T19:03:54.181Z"
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "taskId": "US-005",
+      "taskTitle": "Move TaskHandler and task registry to SDK",
+      "taskCompleted": true,
+      "durationMs": 297489,
+      "startedAt": "2026-01-30T19:03:55.274Z",
+      "endedAt": "2026-01-30T19:08:52.763Z"
     }
   ],
   "skippedTaskIds": [],
