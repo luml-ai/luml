@@ -25,7 +25,9 @@ async def run_async() -> None:
         async with DockerService() as docker:
             handler = TaskHandler(platform=platform, docker=docker)
             controller = PeriodicController(
-                handler=handler, poll_interval_s=float(config.POLL_INTERVAL_SEC)
+                platform=platform,
+                dispatch=handler.dispatch,
+                poll_interval_s=float(config.POLL_INTERVAL_SEC),
             )
             satellite_manager = SatelliteManager(platform)
             try:
