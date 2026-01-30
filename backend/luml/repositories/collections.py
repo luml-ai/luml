@@ -7,6 +7,7 @@ from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
+    CollectionTypeFilter,
     CollectionUpdate,
 )
 from luml.schemas.general import PaginationParams
@@ -36,6 +37,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
         orbit_id: UUID,
         pagination: PaginationParams,
         search: str | None = None,
+        collection_type: CollectionTypeFilter | None = None,
     ) -> list[Collection]:
         async with self._get_session() as session:
             conditions = [CollectionOrm.orbit_id == orbit_id]
@@ -47,6 +49,11 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                         CollectionOrm.name.ilike(search_pattern),
                         cast(CollectionOrm.tags, String).ilike(search_pattern),
                     )
+                )
+
+            if collection_type is not None:
+                conditions.append(
+                    CollectionOrm.collection_type.contains(collection_type.value)
                 )
 
             db_collections = await self.get_models_with_pagination(

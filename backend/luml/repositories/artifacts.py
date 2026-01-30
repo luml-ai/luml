@@ -12,6 +12,7 @@ from luml.schemas.artifacts import (
     ArtifactCreate,
     ArtifactDetails,
     ArtifactStatus,
+    ArtifactType,
     ArtifactUpdate,
 )
 from luml.schemas.general import PaginationParams
@@ -75,12 +76,17 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         self,
         collection_id: UUID,
         pagination: PaginationParams,
+        artifact_type: ArtifactType | None = None,
     ) -> list[Artifact]:
         async with self._get_session() as session:
+            conditions = [ArtifactOrm.collection_id == collection_id]
+            if artifact_type is not None:
+                conditions.append(ArtifactOrm.type == artifact_type.value)
+
             db_artifacts = await self.get_models_with_pagination(
                 session,
                 ArtifactOrm,
-                ArtifactOrm.collection_id == collection_id,
+                *conditions,
                 pagination=pagination,
             )
             return [artifact.to_artifact() for artifact in db_artifacts]

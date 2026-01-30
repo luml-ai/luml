@@ -7,10 +7,14 @@ from luml.handlers.artifacts import ArtifactHandler
 from luml.infra.exceptions import (
     ApplicationError,
     ArtifactNotFoundError,
+    ArtifactTypeMismatchError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
+    InvalidSortingError,
     InvalidStatusTransitionError,
+    NotFoundError,
     OrbitNotFoundError,
+    OrganizationLimitReachedError,
 )
 from luml.schemas.artifacts import (
     Artifact,
@@ -21,6 +25,7 @@ from luml.schemas.artifacts import (
     ArtifactType,
     ArtifactUpdate,
     ArtifactUpdateIn,
+    LumlArtifactManifest,
     Manifest,
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
@@ -250,8 +255,13 @@ async def test_get_collection_artifacts(
     "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._define_artifact_type",
+    return_value=ArtifactType.MODEL,
+)
 @pytest.mark.asyncio
 async def test_create_artifact(
+    mock_define_artifact_type: Mock,
     mock_get_storage_client: AsyncMock,
     mock_create_artifact: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
@@ -313,7 +323,6 @@ async def test_create_artifact(
         file_name="file.txt",
         name=None,
         tags=["tag"],
-        type=ArtifactType.MODEL,
     )
     result = await handler.create_artifact(
         user_id,
@@ -1803,3 +1812,305 @@ async def test_get_satellite_artifact_orbit_not_found(
     assert error.value.status_code == 404
     mock_get_artifact.assert_awaited_once_with(artifact_id)
     mock_get_orbit_by_id.assert_awaited_once_with(orbit_id)
+
+
+@patch(
+    "luml.handlers.artifacts.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_organization_artifacts_limit_organization_not_found(
+    mock_get_organization_details: AsyncMock,
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+
+    mock_get_organization_details.return_value = None
+
+    with pytest.raises(NotFoundError) as error:
+        await handler._check_organization_artifacts_limit(organization_id)
+
+    assert error.value.status_code == 404
+    mock_get_organization_details.assert_awaited_once_with(organization_id)
+
+
+@patch(
+    "luml.handlers.artifacts.UserRepository.get_organization_details",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_organization_artifacts_limit_reached(
+    mock_get_organization_details: AsyncMock,
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+
+    mock_get_organization_details.return_value = Mock(
+        total_artifacts=100,
+        artifacts_limit=100,
+    )
+
+    with pytest.raises(OrganizationLimitReachedError) as error:
+        await handler._check_organization_artifacts_limit(organization_id)
+
+    assert error.value.status_code == 409
+    mock_get_organization_details.assert_awaited_once_with(organization_id)
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts_extra_values",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_is_metric_sort_extra_values_error(
+    mock_get_extra_values: AsyncMock,
+) -> None:
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    with pytest.raises(InvalidSortingError) as error:
+        await handler._is_metric_sort(collection_id, "extra_values")
+
+    assert error.value.status_code == 400
+    mock_get_extra_values.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts_extra_values",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_is_metric_sort_custom_metric_found(
+    mock_get_extra_values: AsyncMock,
+) -> None:
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    mock_get_extra_values.return_value = {"accuracy", "precision", "recall"}
+
+    result = await handler._is_metric_sort(collection_id, "accuracy")
+
+    assert result is True
+    mock_get_extra_values.assert_awaited_once_with(collection_id)
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts_extra_values",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_is_metric_sort_custom_metric_not_found(
+    mock_get_extra_values: AsyncMock,
+) -> None:
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    mock_get_extra_values.return_value = {"accuracy", "precision"}
+
+    with pytest.raises(InvalidSortingError) as error:
+        await handler._is_metric_sort(collection_id, "unknown_metric")
+
+    assert error.value.status_code == 400
+    mock_get_extra_values.assert_awaited_once_with(collection_id)
+
+
+def test_define_artifact_type_with_luml_manifest() -> None:
+    artifact = Mock(
+        manifest=LumlArtifactManifest(
+            type="model",
+            variant="pipeline",
+            producer_name="test",
+            producer_version="1.0",
+            producer_tags=[],
+            payload={},
+        ),
+        file_index={},
+    )
+
+    result = ArtifactHandler._define_artifact_type(artifact)
+
+    assert result == ArtifactType.MODEL
+
+
+def test_define_artifact_type_with_luml_manifest_unsupported_type() -> None:
+    artifact = Mock(
+        manifest=LumlArtifactManifest(
+            type="unsupported_type",
+            variant="pipeline",
+            producer_name="test",
+            producer_version="1.0",
+            producer_tags=[],
+            payload={},
+        ),
+        file_index={},
+    )
+
+    with pytest.raises(
+        ArtifactTypeMismatchError, match="Unsupported LUML Artifact type"
+    ):
+        ArtifactHandler._define_artifact_type(artifact)
+
+
+def test_define_artifact_type_from_file_structure() -> None:
+    model_files = {
+        "dtypes.json": "content",
+        "env.json": "content",
+        "manifest.json": "content",
+        "meta.json": "content",
+        "ops.json": "content",
+        "variant_config.json": "content",
+    }
+    artifact = Mock(
+        manifest=Mock(spec=[]),
+        file_index=model_files,
+    )
+
+    result = ArtifactHandler._define_artifact_type(artifact)
+
+    assert result == ArtifactType.MODEL
+
+
+def test_define_artifact_type_cannot_determine() -> None:
+    artifact = Mock(
+        manifest=Mock(spec=[]),
+        file_index={"random_file.txt": "content"},
+    )
+
+    with pytest.raises(
+        ArtifactTypeMismatchError, match="Could not define artifact type"
+    ):
+        ArtifactHandler._define_artifact_type(artifact)
+
+
+@patch(
+    "luml.handlers.artifacts.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_organization_artifacts_limit",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._define_artifact_type",
+    return_value=ArtifactType.MODEL,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_artifact_type_not_allowed(
+    mock_check_permissions: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_define_artifact_type: Mock,
+    mock_check_organization_artifacts_limit: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8345")
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
+        Mock(orbit_id=orbit_id, collection_type=CollectionType.DATASET),
+    )
+
+    artifact_in = ArtifactIn(
+        extra_values={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        size=1,
+        file_name="file.txt",
+        name=None,
+        tags=["tag"],
+    )
+
+    with pytest.raises(ArtifactTypeMismatchError):
+        await handler.create_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            artifact_in,
+        )
+
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
+    )
+    mock_check_orbit_and_collection_access.assert_awaited_once_with(
+        organization_id, orbit_id, collection_id
+    )
+    mock_check_organization_artifacts_limit.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_organization_artifacts_limit",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._define_artifact_type",
+    return_value=ArtifactType.MODEL,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_artifact_user_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_define_artifact_type: Mock,
+    mock_check_organization_artifacts_limit: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8345")
+
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
+        Mock(orbit_id=orbit_id, collection_type=CollectionType.MODEL),
+    )
+    mock_get_public_user_by_id.return_value = None
+
+    artifact_in = ArtifactIn(
+        extra_values={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        size=1,
+        file_name="file.txt",
+        name=None,
+        tags=["tag"],
+    )
+
+    with pytest.raises(NotFoundError, match="User not found"):
+        await handler.create_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            artifact_in,
+        )
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
+    )
+    mock_check_orbit_and_collection_access.assert_awaited_once_with(
+        organization_id, orbit_id, collection_id
+    )
+    mock_check_organization_artifacts_limit.assert_awaited_once_with(organization_id)
+    mock_get_public_user_by_id.assert_awaited_once_with(user_id)
