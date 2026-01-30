@@ -2,6 +2,7 @@
 
 from luml_satellite_sdk.base import BaseSatellite
 from luml_satellite_sdk.client import BasePlatformClient, PlatformClient
+from luml_satellite_sdk.controller import PeriodicController
 from luml_satellite_sdk.exceptions import (
     ContainerNotFoundError,
     ContainerNotRunningError,
@@ -30,6 +31,7 @@ __all__ = [
     "BaseTask",
     "BasePlatformClient",
     "PlatformClient",
+    "PeriodicController",
     "SatelliteTaskType",
     "SatelliteTaskStatus",
     "SatelliteQueueTask",

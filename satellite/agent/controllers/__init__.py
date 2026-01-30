@@ -1,3 +1,3 @@
-from agent.controllers.periodic import PeriodicController
+from luml_satellite_sdk import PeriodicController
 
 __all__ = ["PeriodicController"]
