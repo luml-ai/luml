@@ -6,8 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from luml.handlers.collections import CollectionHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
-from luml.schemas.general import SortOrder
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreateIn,
     CollectionDetails,
@@ -15,6 +14,7 @@ from luml.schemas.model_artifacts import (
     CollectionSortBy,
     CollectionUpdateIn,
 )
+from luml.schemas.general import SortOrder
 
 collections_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/collections",

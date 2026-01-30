@@ -6,44 +6,44 @@ from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactNotFoundError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     InvalidSortingError,
     InvalidStatusTransitionError,
-    ModelArtifactNotFoundError,
     NotFoundError,
     OrbitNotFoundError,
     OrganizationLimitReachedError,
 )
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
-from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
-from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.general import PaginationParams, SortOrder
-from luml.schemas.model_artifacts import (
-    Collection,
-    CreateModelArtifactResponse,
-    ModelArtifact,
-    ModelArtifactCreate,
-    ModelArtifactDetails,
-    ModelArtifactIn,
-    ModelArtifactsList,
-    ModelArtifactSortBy,
-    ModelArtifactStatus,
-    ModelArtifactUpdate,
-    ModelArtifactUpdateIn,
-    SatelliteModelArtifactResponse,
+from luml.schemas.artifacts import (
+    Artifact,
+    ArtifactCreate,
+    ArtifactDetails,
+    ArtifactIn,
+    ArtifactsList,
+    ArtifactSortBy,
+    ArtifactStatus,
+    ArtifactUpdate,
+    ArtifactUpdateIn,
+    CreateArtifactResponse,
+    SatelliteArtifactResponse,
 )
+from luml.schemas.bucket_secrets import BucketSecret
+from luml.schemas.collections import Collection
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
 from luml.utils.pagination import decode_cursor, get_cursor
 
 
-class ModelArtifactHandler:
-    __repository = ModelArtifactRepository(engine)
+class ArtifactHandler:
+    __repository = ArtifactRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
@@ -51,12 +51,12 @@ class ModelArtifactHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __model_artifact_transitions = {
-        ModelArtifactStatus.PENDING_UPLOAD: {
-            ModelArtifactStatus.UPLOADED,
-            ModelArtifactStatus.UPLOAD_FAILED,
+    __artifact_transitions = {
+        ArtifactStatus.PENDING_UPLOAD: {
+            ArtifactStatus.UPLOADED,
+            ArtifactStatus.UPLOAD_FAILED,
         },
-        ModelArtifactStatus.PENDING_DELETION: {ModelArtifactStatus.DELETION_FAILED},
+        ArtifactStatus.PENDING_DELETION: {ArtifactStatus.DELETION_FAILED},
     }
 
     async def _get_secret_or_raise(self, secret_id: UUID) -> BucketSecret:
@@ -82,18 +82,18 @@ class ModelArtifactHandler:
             raise CollectionNotFoundError()
         return orbit, collection
 
-    async def _model_artifact_deletion_checks(
+    async def _artifact_deletion_checks(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
-    ) -> ModelArtifactDetails:
+        artifact_id: UUID,
+    ) -> ArtifactDetails:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.DELETE,
             orbit_id,
         )
@@ -101,53 +101,53 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
-        model_artifact = await self.__repository.get_model_artifact_details(
-            model_artifact_id
-        )
+        artifact = await self.__repository.get_artifact_details(artifact_id)
 
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+        if not artifact:
+            raise ArtifactNotFoundError()
 
-        return model_artifact
+        return artifact
 
-    async def _check_organization_models_limit(self, organization_id: UUID) -> None:
+    async def _check_organization_artifacts_limit(self, organization_id: UUID) -> None:
         organization = await self.__user_repository.get_organization_details(
             organization_id
         )
         if not organization:
             raise NotFoundError("Organization not found")
 
-        if organization.total_model_artifacts >= organization.model_artifacts_limit:
+        if organization.total_artifacts >= organization.artifacts_limit:
             raise OrganizationLimitReachedError(
-                "Organization reached maximum number of model artifacts"
+                "Organization reached maximum number of artifacts"
             )
 
     async def _is_metric_sort(self, collection_id: UUID, sort_by: str) -> bool:
-        if sort_by == "metrics":
-            raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
+        if sort_by == "extra_values":
+            raise InvalidSortingError(
+                "Cannot sort by 'extra_values'. Pass a metric key"
+            )
 
-        if sort_by in ModelArtifactSortBy._value2member_map_:
+        if sort_by in ArtifactSortBy._value2member_map_:
             return False
 
-        metrics = await self.__repository.get_collection_model_artifacts_metrics(
+        extra_values = await self.__repository.get_collection_artifacts_extra_values(
             collection_id
         )
-        if sort_by not in metrics:
+        if sort_by not in extra_values:
             raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
         return True
 
-    async def create_model_artifact(
+    async def create_artifact(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact: ModelArtifactIn,
-    ) -> CreateModelArtifactResponse:
+        artifact: ArtifactIn,
+    ) -> CreateArtifactResponse:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.CREATE,
             orbit_id,
         )
@@ -156,7 +156,7 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
-        await self._check_organization_models_limit(organization_id)
+        await self._check_organization_artifacts_limit(organization_id)
 
         user = await self.__user_repository.get_public_user_by_id(user_id)
 
@@ -164,52 +164,53 @@ class ModelArtifactHandler:
             raise NotFoundError("User not found")
 
         unique_id = uuid4().hex
-        object_name = f"{unique_id}-{model_artifact.file_name}"
+        object_name = f"{unique_id}-{artifact.file_name}"
 
         bucket_location = f"orbit-{orbit_id}/collection-{collection_id}/{object_name}"
 
-        created_model_artifact = await self.__repository.create_model_artifact(
-            ModelArtifactCreate(
+        created_artifact = await self.__repository.create_artifact(
+            ArtifactCreate(
                 collection_id=collection_id,
-                file_name=model_artifact.file_name,
-                model_name=model_artifact.model_name,
-                description=model_artifact.description,
-                metrics=model_artifact.metrics,
-                manifest=model_artifact.manifest,
-                file_hash=model_artifact.file_hash,
-                file_index=model_artifact.file_index,
+                file_name=artifact.file_name,
+                name=artifact.name,
+                description=artifact.description,
+                extra_values=artifact.extra_values,
+                manifest=artifact.manifest,
+                file_hash=artifact.file_hash,
+                file_index=artifact.file_index,
                 bucket_location=bucket_location,
-                size=model_artifact.size,
+                size=artifact.size,
                 unique_identifier=unique_id,
-                tags=model_artifact.tags,
-                status=ModelArtifactStatus.PENDING_UPLOAD,
+                tags=artifact.tags,
+                status=ArtifactStatus.PENDING_UPLOAD,
                 created_by_user=user.full_name,
+                type=artifact.type,
             )
         )
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
 
         upload_data = await storage_service.create_upload(
-            bucket_location, model_artifact.size
+            bucket_location, artifact.size
         )
 
-        return CreateModelArtifactResponse(
-            model=created_model_artifact, upload_details=upload_data
+        return CreateArtifactResponse(
+            artifact=created_artifact, upload_details=upload_data
         )
 
-    async def update_model_artifact(
+    async def update_artifact(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
-        model_artifact: ModelArtifactUpdateIn,
-    ) -> ModelArtifact:
+        artifact_id: UUID,
+        artifact: ArtifactUpdateIn,
+    ) -> Artifact:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.UPDATE,
             orbit_id,
         )
@@ -217,35 +218,29 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
-        model_artifact_obj = await self.__repository.get_model_artifact(
-            model_artifact_id
-        )
+        artifact_obj = await self.__repository.get_artifact(artifact_id)
 
-        if not model_artifact_obj:
-            raise ModelArtifactNotFoundError()
+        if not artifact_obj:
+            raise ArtifactNotFoundError()
 
-        if (
-            model_artifact.status
-            and model_artifact.status
-            not in self.__model_artifact_transitions.get(
-                model_artifact_obj.status, set()
-            )
+        if artifact.status and artifact.status not in self.__artifact_transitions.get(
+            artifact_obj.status, set()
         ):
             raise InvalidStatusTransitionError(
                 f"Invalid status transition from "
-                f"{model_artifact_obj.status} to {model_artifact.status}"
+                f"{artifact_obj.status} to {artifact.status}"
             )
 
-        update_data = model_artifact.model_dump(exclude_unset=True)
-        update_data["id"] = model_artifact_id
-        updated = await self.__repository.update_model_artifact(
-            model_artifact_id,
+        update_data = artifact.model_dump(exclude_unset=True)
+        update_data["id"] = artifact_id
+        updated = await self.__repository.update_artifact(
+            artifact_id,
             collection_id,
-            ModelArtifactUpdate(**update_data),
+            ArtifactUpdate(**update_data),
         )
 
         if not updated:
-            raise ModelArtifactNotFoundError()
+            raise ArtifactNotFoundError()
 
         return updated
 
@@ -255,12 +250,12 @@ class ModelArtifactHandler:
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
+        artifact_id: UUID,
     ) -> str:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.READ,
             orbit_id,
         )
@@ -268,12 +263,12 @@ class ModelArtifactHandler:
         orbit, collection = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+        artifact = await self.__repository.get_artifact(artifact_id)
+        if not artifact:
+            raise ArtifactNotFoundError()
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
-        return await storage_service.get_download_url(model_artifact.bucket_location)
+        return await storage_service.get_download_url(artifact.bucket_location)
 
     async def request_delete_url(
         self,
@@ -281,27 +276,25 @@ class ModelArtifactHandler:
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
+        artifact_id: UUID,
     ) -> str:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.DELETE,
             orbit_id,
         )
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact_details(
-            model_artifact_id
-        )
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+        artifact = await self.__repository.get_artifact_details(artifact_id)
+        if not artifact:
+            raise ArtifactNotFoundError()
 
-        if model_artifact.deployments:
+        if artifact.deployments:
             raise ApplicationError(
-                "Cannot delete model artifact because it is used in deployments.", 409
+                "Cannot delete artifact because it is used in deployments.", 409
             )
 
         orbit = await self.__orbit_repository.get_orbit_simple(
@@ -311,33 +304,33 @@ class ModelArtifactHandler:
             raise OrbitNotFoundError()
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
-        url = await storage_service.get_delete_url(model_artifact.bucket_location)
+        url = await storage_service.get_delete_url(artifact.bucket_location)
         await self.__repository.update_status(
-            model_artifact_id, ModelArtifactStatus.PENDING_DELETION
+            artifact_id, ArtifactStatus.PENDING_DELETION
         )
         return url
 
     async def request_satellite_download_url(
         self,
         orbit_id: UUID,
-        model_artifact_id: UUID,
+        artifact_id: UUID,
     ) -> str:
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+        artifact = await self.__repository.get_artifact(artifact_id)
+        if not artifact:
+            raise ArtifactNotFoundError()
 
         collection = await self.__collection_repository.get_collection(
-            model_artifact.collection_id
+            artifact.collection_id
         )
         if not collection or collection.orbit_id != orbit_id:
-            raise ModelArtifactNotFoundError()
+            raise ArtifactNotFoundError()
 
         orbit = await self.__orbit_repository.get_orbit_by_id(orbit_id)
         if not orbit:
             raise OrbitNotFoundError()
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
-        return await storage_service.get_download_url(model_artifact.bucket_location)
+        return await storage_service.get_download_url(artifact.bucket_location)
 
     async def confirm_deletion(
         self,
@@ -345,38 +338,38 @@ class ModelArtifactHandler:
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
+        artifact_id: UUID,
     ) -> None:
-        model_artifact = await self._model_artifact_deletion_checks(
-            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        artifact = await self._artifact_deletion_checks(
+            user_id, organization_id, orbit_id, collection_id, artifact_id
         )
 
-        if model_artifact.status != ModelArtifactStatus.PENDING_DELETION:
+        if artifact.status != ArtifactStatus.PENDING_DELETION:
             raise InvalidStatusTransitionError(
-                f"Unable to confirm deletion with status '{model_artifact.status}'"
+                f"Unable to confirm deletion with status '{artifact.status}'"
             )
-        await self.__repository.delete_model_artifact(model_artifact_id)
+        await self.__repository.delete_artifact(artifact_id)
 
-    async def force_delete_model_artifact(
+    async def force_delete_artifact(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
+        artifact_id: UUID,
     ) -> None:
-        model_artifact = await self._model_artifact_deletion_checks(
-            user_id, organization_id, orbit_id, collection_id, model_artifact_id
+        artifact = await self._artifact_deletion_checks(
+            user_id, organization_id, orbit_id, collection_id, artifact_id
         )
 
-        if model_artifact.deployments:
-            await self.__deployment_repository.delete_deployments_by_model_id(
-                model_artifact_id
+        if artifact.deployments:
+            await self.__deployment_repository.delete_deployments_by_artifact_id(
+                artifact_id
             )
 
-        await self.__repository.delete_model_artifact(model_artifact_id)
+        await self.__repository.delete_artifact(artifact_id)
 
-    async def get_collection_model_artifacts(
+    async def get_collection_artifacts(
         self,
         user_id: UUID,
         organization_id: UUID,
@@ -386,11 +379,11 @@ class ModelArtifactHandler:
         limit: int = 100,
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
-    ) -> ModelArtifactsList:
+    ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.LIST,
             orbit_id,
         )
@@ -401,7 +394,7 @@ class ModelArtifactHandler:
         is_metric = await self._is_metric_sort(collection_id, sort_by)
         cursor = decode_cursor(cursor_str)
 
-        repo_sort_by = "metrics" if is_metric else sort_by
+        repo_sort_by = "extra_values" if is_metric else sort_by
         extra_sort_field = sort_by if is_metric else None
 
         use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
@@ -414,51 +407,51 @@ class ModelArtifactHandler:
             extra_sort_field=extra_sort_field,
         )
 
-        items = await self.__repository.get_collection_model_artifacts(
+        items = await self.__repository.get_collection_artifacts(
             collection_id, pagination
         )
 
-        return ModelArtifactsList(
+        return ArtifactsList(
             items=items[:limit],
             cursor=get_cursor(items, limit, sort_by, is_metric),
         )
 
-    async def get_model_artifact(
+    async def get_artifact(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
         collection_id: UUID,
-        model_artifact_id: UUID,
-    ) -> ModelArtifact:
+        artifact_id: UUID,
+    ) -> Artifact:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
-            Resource.MODEL,
+            Resource.ARTIFACT,
             Action.READ,
             orbit_id,
         )
         orbit, _ = await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact or model_artifact.collection_id != collection_id:
-            raise NotFoundError("Model Artifact not found")
-        return model_artifact
+        artifact = await self.__repository.get_artifact(artifact_id)
+        if not artifact or artifact.collection_id != collection_id:
+            raise NotFoundError("Artifact not found")
+        return artifact
 
-    async def get_satellite_model_artifact(
+    async def get_satellite_artifact(
         self,
         orbit_id: UUID,
-        model_artifact_id: UUID,
-    ) -> SatelliteModelArtifactResponse:
-        model_artifact = await self.__repository.get_model_artifact(model_artifact_id)
-        if not model_artifact:
-            raise ModelArtifactNotFoundError()
+        artifact_id: UUID,
+    ) -> SatelliteArtifactResponse:
+        artifact = await self.__repository.get_artifact(artifact_id)
+        if not artifact:
+            raise ArtifactNotFoundError()
 
         orbit = await self.__orbit_repository.get_orbit_by_id(orbit_id)
         if not orbit:
             raise OrbitNotFoundError()
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
-        url = await storage_service.get_download_url(model_artifact.bucket_location)
-        return SatelliteModelArtifactResponse(model=model_artifact, url=url)
+        url = await storage_service.get_download_url(artifact.bucket_location)
+        return SatelliteArtifactResponse(artifact=artifact, url=url)

@@ -6,23 +6,23 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from luml.models.base import Base, TimestampMixin
-from luml.schemas.model_artifacts import (
-    ModelArtifact,
-    ModelArtifactDetails,
-    ModelArtifactStatus,
+from luml.schemas.artifacts import (
+    Artifact,
+    ArtifactDetails,
+    ArtifactStatus,
 )
 
 
-class ModelArtifactOrm(TimestampMixin, Base):
-    __tablename__ = "model_artifacts"
+class ArtifactOrm(TimestampMixin, Base):
+    __tablename__ = "artifacts"
     __table_args__ = (
         Index(
-            "ix_model_artifacts_metrics_gin",
-            "metrics",
+            "ix_artifacts_extra_values_gin",
+            "extra_values",
             postgresql_using="gin",
         ),
         Index(
-            "ix_model_artifacts_tags_gin",
+            "ix_artifacts_tags_gin",
             "tags",
             postgresql_using="gin",
         ),
@@ -38,9 +38,9 @@ class ModelArtifactOrm(TimestampMixin, Base):
         index=True,
     )
     file_name: Mapped[str] = mapped_column(String, nullable=False)
-    model_name: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
-    metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    extra_values: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     file_hash: Mapped[str] = mapped_column(String, nullable=False)
     file_index: Mapped[dict[str, tuple[int, int]]] = mapped_column(
@@ -54,19 +54,20 @@ class ModelArtifactOrm(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(
         String,
         nullable=False,
-        default=ModelArtifactStatus.PENDING_UPLOAD.value,
+        default=ArtifactStatus.PENDING_UPLOAD.value,
     )
+    type: Mapped[str] = mapped_column(String, nullable=False)
 
     collection: Mapped[CollectionOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
-        "CollectionOrm", back_populates="models", lazy="selectin"
+        "CollectionOrm", back_populates="artifacts", lazy="selectin"
     )
-    deployments = relationship("DeploymentOrm", back_populates="models")
+    deployments = relationship("DeploymentOrm", back_populates="artifacts")
 
     def __repr__(self) -> str:
-        return f"ModelArtifact(id={self.id!r}, identifier={self.unique_identifier!r})"
+        return f"Artifact(id={self.id!r}, identifier={self.unique_identifier!r})"
 
-    def to_model_artifact(self) -> ModelArtifact:
-        return ModelArtifact.model_validate(self)
+    def to_artifact(self) -> Artifact:
+        return Artifact.model_validate(self)
 
-    def to_model_artifact_details(self) -> ModelArtifactDetails:
-        return ModelArtifactDetails.model_validate(self)
+    def to_artifact_details(self) -> ArtifactDetails:
+        return ArtifactDetails.model_validate(self)

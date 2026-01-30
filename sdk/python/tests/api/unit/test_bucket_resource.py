@@ -13,7 +13,7 @@ def test_bucket_secret_list(
     mock_sync_client: Mock, sample_bucket_secret: BucketSecret
 ) -> None:
     organization_id = mock_sync_client.organization
-    mock_sync_client.get.return_value = [sample_bucket_secret]
+    mock_sync_client.get.return_value = [sample_bucket_secret.model_dump()]
 
     resource = BucketSecretResource(mock_sync_client)
     secrets = resource.list()
@@ -30,7 +30,7 @@ def test_bucket_secret_get_by_id(
 ) -> None:
     organization_id = mock_sync_client.organization
     bucket_id = sample_bucket_secret.id
-    mock_sync_client.get.return_value = sample_bucket_secret
+    mock_sync_client.get.return_value = sample_bucket_secret.model_dump()
 
     resource = BucketSecretResource(mock_sync_client)
     secret = resource.get(bucket_id)
@@ -45,7 +45,7 @@ def test_bucket_secret_create(
     mock_sync_client: Mock, sample_bucket_secret: BucketSecret
 ) -> None:
     organization_id = mock_sync_client.organization
-    mock_sync_client.post.return_value = sample_bucket_secret
+    mock_sync_client.post.return_value = sample_bucket_secret.model_dump()
 
     expected_json = {
         "endpoint": "s3.amazonaws.com",
@@ -76,7 +76,7 @@ def test_bucket_secret_update(
     bucket_id = sample_bucket_secret.id
     update_data = {"endpoint": "new.endpoint.com"}
 
-    mock_sync_client.patch.return_value = sample_bucket_secret
+    mock_sync_client.patch.return_value = sample_bucket_secret.model_dump()
     mock_sync_client.filter_none.return_value = update_data
 
     resource = BucketSecretResource(mock_sync_client)
@@ -90,7 +90,7 @@ def test_bucket_secret_update(
 def test_bucket_secret_get_by_name(
     mock_sync_client: Mock, sample_bucket_secret: BucketSecret
 ) -> None:
-    mock_sync_client.get.return_value = [sample_bucket_secret]
+    mock_sync_client.get.return_value = [sample_bucket_secret.model_dump()]
 
     resource = BucketSecretResource(mock_sync_client)
     secret = resource.get(sample_bucket_secret.bucket_name)
@@ -127,7 +127,7 @@ async def test_async_bucket_secret_list(
     mock_async_client: AsyncMock, sample_bucket_secret: BucketSecret
 ) -> None:
     organization_id = mock_async_client.organization
-    mock_async_client.get.return_value = [sample_bucket_secret]
+    mock_async_client.get.return_value = [sample_bucket_secret.model_dump()]
 
     resource = AsyncBucketSecretResource(mock_async_client)
     secrets = await resource.list()
@@ -145,7 +145,7 @@ async def test_async_bucket_secret_get_by_id(
 ) -> None:
     organization_id = mock_async_client.organization
     secret_id = sample_bucket_secret.id
-    mock_async_client.get.return_value = sample_bucket_secret
+    mock_async_client.get.return_value = sample_bucket_secret.model_dump()
 
     resource = AsyncBucketSecretResource(mock_async_client)
     secret = await resource.get(secret_id)
@@ -160,7 +160,7 @@ async def test_async_bucket_secret_get_by_id(
 async def test_async_bucket_secret_get_by_name(
     mock_async_client: AsyncMock, sample_bucket_secret: BucketSecret
 ) -> None:
-    mock_async_client.get.return_value = [sample_bucket_secret]
+    mock_async_client.get.return_value = [sample_bucket_secret.model_dump()]
 
     resource = AsyncBucketSecretResource(mock_async_client)
     secret = await resource.get(sample_bucket_secret.bucket_name)
@@ -185,7 +185,7 @@ async def test_async_bucket_secret_create(
     mock_async_client: AsyncMock, sample_bucket_secret: BucketSecret
 ) -> None:
     organization_id = mock_async_client.organization
-    mock_async_client.post.return_value = sample_bucket_secret
+    mock_async_client.post.return_value = sample_bucket_secret.model_dump()
 
     expected_json = {
         "endpoint": "s3.amazonaws.com",
@@ -217,7 +217,7 @@ async def test_async_bucket_secret_update(
     secret_id = sample_bucket_secret.id
     update_data = {"endpoint": "new.endpoint.com"}
 
-    mock_async_client.patch.return_value = sample_bucket_secret
+    mock_async_client.patch.return_value = sample_bucket_secret.model_dump()
     mock_async_client.filter_none.return_value = update_data
 
     resource = AsyncBucketSecretResource(mock_async_client)

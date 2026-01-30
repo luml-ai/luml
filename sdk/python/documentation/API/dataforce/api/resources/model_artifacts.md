@@ -1,107 +1,157 @@
----
-sidebar_label: model_artifacts
-title: dataforce.api.resources.model_artifacts
+from luml.schemas.general import SortOrder---
+sidebar_label: artifacts
+title: dataforce.api.resources.artifacts
 ---
 
-## ModelArtifactResourceBase
+## ArtifactResourceBase
 
 ```python
-class ModelArtifactResourceBase(ABC)
+class ArtifactResourceBase(ABC)
 ```
 
-Abstract Resource for managing Model Artifacts.
+Abstract Resource for managing artifacts.
 
-## ModelArtifactResource
+## ArtifactResource
 
 ```python
-class ModelArtifactResource(ModelArtifactResourceBase)
+class ArtifactResource(ArtifactResourceBase)
 ```
 
-Resource for managing Model Artifacts.
+Resource for managing artifacts.
 
 #### get
 
 ```python
 @validate_collection
-def get(model_value: str,
-        *,
-        collection_id: str | None = None) -> ModelArtifact | None
+def get(
+    artifact_value: str, *, collection_id: str | None = None
+) -> Artifact | None
 ```
 
-Get model artifact by ID or name.
+Get artifact by ID or name.
 
-Retrieves model artifact details by its ID or name (model_name or file_name).
+Retrieves artifact details by its ID or name (name or file_name).
 Search by name is case-sensitive and matches exact model or file name.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_value` - The ID or exact name of the model artifact to retrieve.
+- `artifact_value` - The ID or exact name of the artifact to retrieve.
 - `collection_id` - ID of the collection to search in. If not provided,
   uses the default collection set in the client.
   
 
 **Returns**:
 
-  ModelArtifact object.
+  Artifact object.
   
-  Returns None if model artifact with the specified ID or name is not found.
+  Returns None if artifact with the specified ID or name is not found.
   
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several model artifacts
+- `MultipleResourcesFoundError` - If there are several artifacts
   with that name.
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
   
 
-**Example**:
-
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  ... model_by_name = dfs.model_artifacts.get(&quot;my_model&quot;)
-  ... model_by_id = dfs.model_artifacts.get(
-  ...     &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ... )
-  
-  Example response:
-  &gt;&gt;&gt; ModelArtifact(
-  ...     id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     model_name=&quot;my_model&quot;,
-  ...     file_name=&quot;model.fnnx&quot;,
-  ...     description=&quot;Trained model&quot;,
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...     status=ModelArtifactStatus.UPLOADED,
-  ...     tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...     created_at=&#x27;2025-01-15T10:30:00.123456Z&#x27;,
-  ...     updated_at=None
-  ... )
-
+**Example:**
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+artifact_by_name = luml.artifacts.get("my_model")
+artifact_by_id = luml.artifacts.get(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67"
+)
+```
+**Example response:**
+```python
+    Artifact(
+        id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+        name="my_model",
+        file_name="model.fnnx",
+        description="Trained model",
+        metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+        manifest={
+            "variant": "pipeline",
+            "name": None,
+            "version": None,
+            "description": "",
+            "producer_name": "falcon.beastbyte.ai",
+            "producer_version": "0.8.0",
+            "producer_tags": [
+                "falcon.beastbyte.ai::tabular_regression:v1",
+                "dataforce.studio::tabular_regression:v1",
+            ],
+            "inputs": [
+                {
+                    "name": "age",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                    "shape": ["batch", 1],
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "y_pred",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": None,
+                    "shape": ["batch", 1],
+                }
+            ],
+            "dynamic_attributes": [],
+            "env_vars": [],
+        },
+        bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+        file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+        file_index = {
+            "env.json": (3584, 2),
+            "ops.json": (7168, 1869),
+            "meta.json": (239616, 3279),
+            "dtypes.json": (238592, 2),
+            "manifest.json": (512, 2353),
+            "variant_config.json": (4608, 372),
+            "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+        },
+        size=245760,
+        unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+        status='pending_upload',
+        type='model',
+        tags=["ml", "production"],
+        created_at='2025-01-15T10:30:00.123456Z',
+        updated_at=None
+    )
+```
 #### list
 
 ```python
 @validate_collection
-def list(*, collection_id: str | None = None) -> list[ModelArtifact]
+def list(*, collection_id: str | None = None) -> list[Artifact]
 ```
 
-List all model artifacts in the collection.
+List all artifacts in the collection.
 
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
-  
+- `collection_id` - ID of the collection to list artifacts from. If not provided, uses the default collection set in the client.
+- `start_after`: ID of the artifact to start listing from.
+- `limit`: Limit number of models per page (default: 100).
+- `sort_by`: Field to sort by. Options: name, created_at, size, description, status and any metric key
+- `order`: Sort order - "asc" or "desc" (default: "desc").
 
 **Returns**:
 
-  List of ModelArtifact objects.
+  List of Artifact objects.
   
 
 **Raises**:
@@ -111,45 +161,152 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+# Default: sorted by creation time, newest first
+artifacts = luml.artifacts.list()
 
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; models = dfs.model_artifacts.list()
-  
-  Example response:
-  &gt;&gt;&gt; [
-  ...     ModelArtifact(
-  ...         id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...         model_name=&quot;my_model&quot;,
-  ...         file_name=&quot;model.fnnx&quot;,
-  ...         description=&quot;Trained model&quot;,
-  ...         collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...         status=ModelArtifactStatus.UPLOADED,
-  ...         tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...         created_at=&#x27;2025-01-15T10:30:00.123456Z&#x27;,
-  ...         updated_at=None
-  ...     )
-  ... ]
+# Sort by size
+artifacts = luml.artifacts.list(
+    sort_by="size", order="asc"
+)
 
+# Sort by a specific metric (e.g., F1 score)
+artifacts = luml.artifacts.list(
+    sort_by="F1",
+)
+```
+
+**Example response:**
+```python
+    ArtifactsList(
+        items=[
+            Artifact(
+                id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+                collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+                name="my_model",
+                file_name="model.fnnx",
+                description="Trained model",
+                metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+                manifest={
+                    "variant": "pipeline",
+                    "name": None,
+                    "version": None,
+                    "description": "",
+                    "producer_name": "falcon.beastbyte.ai",
+                    "producer_version": "0.8.0",
+                    "producer_tags": [
+                        "falcon.beastbyte.ai::tabular_regression:v1",
+                        "dataforce.studio::tabular_regression:v1",
+                    ],
+                    "inputs": [
+                        {
+                            "name": "age",
+                            "content_type": "NDJSON",
+                            "dtype": "Array[float32]",
+                            "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                            "shape": ["batch", 1],
+                        },
+                    ],
+                    "outputs": [
+                        {
+                            "name": "y_pred",
+                            "content_type": "NDJSON",
+                            "dtype": "Array[float32]",
+                            "tags": None,
+                            "shape": ["batch", 1],
+                        }
+                    ],
+                    "dynamic_attributes": [],
+                    "env_vars": [],
+                },
+                bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+                file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+                file_index = {
+                    "env.json": (3584, 2),
+                    "ops.json": (7168, 1869),
+                    "meta.json": (239616, 3279),
+                    "dtypes.json": (238592, 2),
+                    "manifest.json": (512, 2353),
+                    "variant_config.json": (4608, 372),
+                    "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+                },
+                size=245760,
+                unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+                status='pending_upload',
+                type='model',
+                tags=["ml", "production"],
+                created_at='2025-01-15T10:30:00.123456Z',
+                updated_at=None
+            )
+        ],
+        cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+    )
+```
+#### list_all
+
+```python
+@validate_collection
+def list_all(
+    self,
+    *,
+    collection_id: str | None = None,
+    limit: int | None = 100,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
+) -> Iterator[Artifact]
+```
+
+List all collection artifacts with auto-paging.
+
+**Arguments**:
+
+- `collection_id` - ID of the collection to list artifacts from. If not provided, uses the default collection set in the client.
+- `limit`: Page size (default: 100).
+- `sort_by`: Field to sort by. Options: name, created_at, size, description, status and any metric key
+- `order`: Sort order - "asc" or "desc" (default: "desc").
+
+**Returns**:
+
+  List of Artifact objects.
+
+**Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+
+# List all artifacts with default sorting
+for artifact in luml.artifacts.list_all(limit=50):
+    print(artifact.id)
+
+# List all artifacts sorted by F1 metric
+for artifact in luml.artifacts.list_all(sort_by="F1", order="desc", limit=50):
+    print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
+```
 #### download\_url
 
 ```python
 @validate_collection
-def download_url(model_id: str, *, collection_id: str | None = None) -> dict
+def download_url(artifact_id: str, *, collection_id: str | None = None) -> dict
 ```
 
-Get download URL for model artifact.
+Get download URL for artifact.
 
 Generates a secure download URL for the model file.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to download.
+- `artifact_id` - ID of the artifact to download.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client.
   
@@ -163,37 +320,37 @@ If collection_id is None, uses the default collection from client.
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
-
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  ... url_info = dfs.model_artifacts.download_url(
-  ...     &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ... )
-  ... download_url = url_info[&quot;url&quot;]
-
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+url_info = luml.artifacts.download_url(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67"
+)
+download_url = url_info["url"]
+```
 #### delete\_url
 
 ```python
 @validate_collection
-def delete_url(model_id: str, *, collection_id: str | None = None) -> dict
+def delete_url(artifact_id: str, *, collection_id: str | None = None) -> dict
 ```
 
-Get delete URL for model artifact.
+Get delete URL for artifact.
 
 Generates a secure delete URL for the model file in storage.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to delete from storage.
+- `artifact_id` - ID of the artifact to delete from storage.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client.
   
@@ -207,34 +364,36 @@ If collection_id is None, uses the default collection from client.
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
-
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  ... url_info = dfs.model_artifacts.delete_url(
-  ...     &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ... )
-
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+url_info = luml.artifacts.delete_url(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67"
+)
+```
 #### upload
 
 ```python
 @validate_collection
-def upload(file_path: str,
-           model_name: str,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None,
-           *,
-           collection_id: str | None = None) -> ModelArtifact
+def upload(
+    file_path: str,
+    name: str,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    *,
+    collection_id: str | None = None
+) -> Artifact
 ```
 
-Upload model artifact file to the collection.
+Upload artifact file to the collection.
 
 Uploads a model file (.fnnx, .pyfnx, or .dfs format) to the collection storage.
 If collection_id is None, uses the default collection from client.
@@ -242,16 +401,16 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `file_path` - Path to the local model file to upload.
-- `model_name` - Name for the model artifact.
+- `name` - Name for the artifact.
 - `description` - Optional description of the model.
-- `tags` - Optional list of tags for organizing models.
+- `tags` - Optional list of tags for organizing artifacts.
 - `collection_id` - ID of the collection to upload to. If not provided,
   uses the default collection set in the client.
   
 
 **Returns**:
 
-- `ModelArtifact` - Uploaded model artifact object with
+- `Artifact` - Uploaded artifact object with
   UPLOADED or UPLOAD_FAILED status.
   
 
@@ -264,70 +423,102 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
 
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; model = dfs.model_artifacts.upload(
-  ...     file_path=&quot;/path/to/model.fnnx&quot;,
-  ...     model_name=&quot;Production Model&quot;,
-  ...     description=&quot;Trained on latest dataset&quot;,
-  ...     tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  
+artifact = luml.artifacts.upload(
+    file_path="/path/to/model.fnnx",
+    name="Production Model",
+    description="Trained on latest dataset",
+    tags=["ml", "production"],
+    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+```
   Response object:
-  &gt;&gt;&gt; ModelArtifact(
-  ...     id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...     file_name=&quot;output.dfs&quot;,
-  ...     model_name=&quot;500mb&quot;,
-  ...     description=None,
-  ...     metrics={
-  ...         &#x27;F1&#x27;: 0.9598319029897976,
-  ...         &#x27;ACC&#x27;: 0.9600000000000002,
-  ...         &#x27;BACC&#x27;: 0.96,
-  ...         &#x27;B_F1&#x27;: 0.9598319029897976,
-  ...         &#x27;SCORE&#x27;: 0.96
-  ...     },
-  ...     manifest={
-  ...         &#x27;variant&#x27;: &#x27;pipeline&#x27;,
-  ...         &#x27;name&#x27;: None,
-  ...         &#x27;version&#x27;: None,
-  ...         &#x27;description&#x27;: &#x27;&#x27;,
-  ...         &#x27;producer_name&#x27;: &#x27;falcon.beastbyte.ai&#x27;,
-  ...         &#x27;producer_version&#x27;: &#x27;0.8.0&#x27;
-  ...     },
-  ...     file_hash=&#x27;b128c34757114835c4bf690a87e7cbe&#x27;,
-  ...     size=524062720,
-  ...     unique_identifier=&#x27;b31fa3cb54aa453d9ca625aa24617e7a&#x27;,
-  ...     status=ModelArtifactStatus.UPLOADED,
-  ...     tags=None,
-  ...     created_at=&#x27;2025-08-25T09:15:15.524206Z&#x27;,
-  ...     updated_at=&#x27;2025-08-25T09:16:05.816506Z&#x27;
-  ... )
-
+```python
+    Artifact(
+        id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+        name="my_model",
+        file_name="model.fnnx",
+        description="Trained model",
+        metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+        manifest={
+            "variant": "pipeline",
+            "name": None,
+            "version": None,
+            "description": "",
+            "producer_name": "falcon.beastbyte.ai",
+            "producer_version": "0.8.0",
+            "producer_tags": [
+                "falcon.beastbyte.ai::tabular_regression:v1",
+                "dataforce.studio::tabular_regression:v1",
+            ],
+            "inputs": [
+                {
+                    "name": "age",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                    "shape": ["batch", 1],
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "y_pred",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": None,
+                    "shape": ["batch", 1],
+                }
+            ],
+            "dynamic_attributes": [],
+            "env_vars": [],
+        },
+        bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+        file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+        file_index = {
+            "env.json": (3584, 2),
+            "ops.json": (7168, 1869),
+            "meta.json": (239616, 3279),
+            "dtypes.json": (238592, 2),
+            "manifest.json": (512, 2353),
+            "variant_config.json": (4608, 372),
+            "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+        },
+        size=245760,
+        unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+        status='pending_upload',
+        type='model',
+        tags=["ml", "production"],
+        created_at='2025-01-15T10:30:00.123456Z',
+        updated_at=None
+    )
+```
 #### download
 
 ```python
 @validate_collection
-def download(model_id: str,
-             file_path: str | None = None,
-             *,
-             collection_id: str | None = None) -> None
+def download(
+    artifact_id: str,
+    file_path: str | None = None,
+    *,
+    collection_id: str | None = None
+) -> None
 ```
 
-Download model artifact file from the collection.
+Download artifact file from the collection.
 
 Downloads the model file to local storage with progress tracking.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to download.
+- `artifact_id` - ID of the artifact to download.
 - `file_path` - Local path to save the downloaded file. If None,
   uses the original file name.
 - `collection_id` - ID of the collection containing the model. If not provided,
@@ -347,63 +538,64 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
 
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; # Download with original filename
-  &gt;&gt;&gt; dfs.model_artifacts.download(&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;)
-  
-  &gt;&gt;&gt; # Download to specific path
-  &gt;&gt;&gt; dfs.model_artifacts.download(
-  ...     &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     file_path=&quot;/local/path/downloaded_model.fnnx&quot;,
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
+# Download with original filename
+luml.artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e67")
 
+# Download to specific path
+luml.artifacts.download(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67",
+    file_path="/local/path/downloaded_model.fnnx",
+    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+```
 #### create
 
 ```python
 @validate_collection
 def create(
-        collection_id: str | None,
-        file_name: str,
-        metrics: dict,
-        manifest: dict,
-        file_hash: str,
-        file_index: dict[str, tuple[int, int]],
-        size: int,
-        model_name: str | None = None,
-        description: str | None = None,
-        tags: builtins.list[str] | None = None
-) -> dict[str, str | ModelArtifact]
+    collection_id: str | None,
+    file_name: str,
+    extra_values: dict,
+    manifest: dict,
+    file_hash: str,
+    file_index: dict[str, tuple[int, int]],
+    size: int,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None
+) -> CreatedArtifact
 ```
 
-Create new model artifact record with upload URL.
+Create new artifact record with upload URL.
 
-Creates a model artifact record and returns an upload URL for file storage.
+Creates a artifact record and returns an upload URL for file storage.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
 - `collection_id` - ID of the collection to create model in.
 - `file_name` - Name of the model file.
-- `metrics` - Model performance metrics.
+- `extra_values` - Model performance extra_values.
 - `manifest` - Model manifest with metadata.
 - `file_hash` - SHA hash of the model file.
 - `file_index` - File index mapping for efficient access.
 - `size` - Size of the model file in bytes.
-- `model_name` - Optional name for the model.
+- `name` - Optional name for the model.
 - `description` - Optional description.
 - `tags` - Optional list of tags.
   
 
 **Returns**:
 
-  Dictionary containing upload URL and created ModelArtifact object.
+  Dictionary containing upload URL and created Artifact object.
   
 
 **Raises**:
@@ -413,98 +605,235 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
 
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; result = dfs.model_artifacts.create(
-  ...     file_name=&quot;model.fnnx&quot;,
-  ...     metrics={&quot;accuracy&quot;: 0.95},
-  ...     manifest={&quot;version&quot;: &quot;1.0&quot;},
-  ...     file_hash=&quot;abc123&quot;,
-  ...     file_index={&quot;layer1&quot;: (0, 1024)},
-  ...     size=1048576,
-  ...     model_name=&quot;Test Model&quot;
-  ... )
-  &gt;&gt;&gt; upload_url = result[&quot;url&quot;]
-  &gt;&gt;&gt; model = result[&quot;model&quot;]
+result = luml.artifacts.create(
+    file_name="model.fnnx",
+    extra_values={"accuracy": 0.95},
+    manifest={"version": "1.0"},
+    file_hash="abc123",
+    file_index={"layer1": (0, 1024)},
+    size=1048576,
+    name="Test Model"
+)
 
+upload_url = result.url
+artifact = result.artifact
+```
+
+
+Response object:
+```python
+CreatedArtifact(
+    artifact=Artifact(
+        id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+        name="my_model",
+        file_name="model.fnnx",
+        description="Trained model",
+        metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+        manifest={
+            "variant": "pipeline",
+            "name": None,
+            "version": None,
+            "description": "",
+            "producer_name": "falcon.beastbyte.ai",
+            "producer_version": "0.8.0",
+            "producer_tags": [
+                "falcon.beastbyte.ai::tabular_regression:v1",
+                "dataforce.studio::tabular_regression:v1",
+            ],
+            "inputs": [
+                {
+                    "name": "age",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                    "shape": ["batch", 1],
+                },
+            ],
+            "outputs": [
+                {
+                    "name": "y_pred",
+                    "content_type": "NDJSON",
+                    "dtype": "Array[float32]",
+                    "tags": None,
+                    "shape": ["batch", 1],
+                }
+            ],
+            "dynamic_attributes": [],
+            "env_vars": [],
+        },
+        bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+        file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+        file_index = {
+            "env.json": (3584, 2),
+            "ops.json": (7168, 1869),
+            "meta.json": (239616, 3279),
+            "dtypes.json": (238592, 2),
+            "manifest.json": (512, 2353),
+            "variant_config.json": (4608, 372),
+            "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+        },
+        size=245760,
+        unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+        status='pending_upload',
+        type='model',
+        tags=["ml", "production"],
+        created_at='2025-01-15T10:30:00.123456Z',
+        updated_at=None
+    ),
+    upload_details=UploadDetails(
+        url=" https://luml-models.s3.eu-north-1.amazonaws.com/my_llm_attachments.pyfnx",
+        multipart=False,
+        bucket_location="my_llm_attachments.pyfnx",
+        bucket_secret_id="0199c455-21ee-74c6-b747-19a82f1a1873"
+    )
+)
+```
 #### update
 
 ```python
 @validate_collection
-def update(model_id: str,
-           file_name: str | None = None,
-           model_name: str | None = None,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None,
-           status: ModelArtifactStatus | None = None,
-           *,
-           collection_id: str | None = None) -> ModelArtifact
+def update(
+    artifact_id: str,
+    file_name: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    status: ArtifactStatus | None = None,
+    *,
+    collection_id: str | None = None
+) -> Artifact
 ```
 
-Update model artifact metadata.
+Update artifact metadata.
 
-Updates the model artifact&#x27;s metadata. Only provided parameters will be
+Updates the artifact"s metadata. Only provided parameters will be
 updated, others remain unchanged. If collection_id is None,
 uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to update.
+- `artifact_id` - ID of the artifact to update.
 - `file_name` - New file name.
-- `model_name` - New model name.
+- `name` - New model name.
 - `description` - New description.
 - `tags` - New list of tags.
-- `status` - &quot;pending_upload&quot; | &quot;uploaded&quot; | &quot;upload_failed&quot; | &quot;deletion_failed&quot;
+- `status` - "pending_upload" | "uploaded" | "upload_failed" | "deletion_failed"
 - `collection_id` - ID of the collection containing the model. Optional.
   
 
 **Returns**:
 
-- `ModelArtifact` - Updated model artifact object.
+- `Artifact` - Updated artifact object.
   
 
 **Raises**:
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+artifact = luml.artifacts.update(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67",
+    name="Updated Model",
+    status="uploaded"
+)
+```
 
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; model = dfs.model_artifacts.update(
-  ...     &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     model_name=&quot;Updated Model&quot;,
-  ...     status=ModelArtifactStatus.UPLOADED
-  ... )
-
+Example response:
+```python
+Artifact(
+    id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+    name="my_model",
+    file_name="model.fnnx",
+    description="Trained model",
+    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+    manifest={
+        "variant": "pipeline",
+        "name": None,
+        "version": None,
+        "description": "",
+        "producer_name": "falcon.beastbyte.ai",
+        "producer_version": "0.8.0",
+        "producer_tags": [
+            "falcon.beastbyte.ai::tabular_regression:v1",
+            "dataforce.studio::tabular_regression:v1",
+        ],
+        "inputs": [
+            {
+                "name": "age",
+                "content_type": "NDJSON",
+                "dtype": "Array[float32]",
+                "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                "shape": ["batch", 1],
+            },
+        ],
+        "outputs": [
+            {
+                "name": "y_pred",
+                "content_type": "NDJSON",
+                "dtype": "Array[float32]",
+                "tags": None,
+                "shape": ["batch", 1],
+            }
+        ],
+        "dynamic_attributes": [],
+        "env_vars": [],
+    },
+    bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+    file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+    file_index = {
+        "env.json": (3584, 2),
+        "ops.json": (7168, 1869),
+        "meta.json": (239616, 3279),
+        "dtypes.json": (238592, 2),
+        "manifest.json": (512, 2353),
+        "variant_config.json": (4608, 372),
+        "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+    },
+    size=245760,
+    unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+    status='pending_upload',
+    type='model',
+    tags=["ml", "production"],
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at=None
+)
+```
 #### delete
 
 ```python
 @validate_collection
-def delete(model_id: str, *, collection_id: str | None = None) -> None
+def delete(artifact_id: str, *, collection_id: str | None = None) -> None
 ```
 
-Delete model artifact permanently.
+Delete artifact permanently.
 
-Permanently removes the model artifact record and associated file from storage.
+Permanently removes the artifact record and associated file from storage.
 This action cannot be undone. If collection_id is None,
 uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to delete.
+- `artifact_id` - ID of the artifact to delete.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client.
   
@@ -518,19 +847,19 @@ uses the default collection from client.
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
-
-  &gt;&gt;&gt; dfs = DataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; dfs.model_artifacts.delete(&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;)
-  
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
+```
 
 **Warnings**:
 
@@ -538,100 +867,151 @@ uses the default collection from client.
   will be permanently lost from database, but you can still
   find model in your storage.
 
-## AsyncModelArtifactResource
+## AsyncArtifactResource
 
 ```python
-class AsyncModelArtifactResource(ModelArtifactResourceBase)
+class AsyncArtifactResource(ArtifactResourceBase)
 ```
 
-Resource for managing Model Artifacts for async client.
+Resource for managing artifacts for async client.
 
 #### get
 
 ```python
 @validate_collection
-async def get(model_value: str,
-              *,
-              collection_id: str | None = None) -> ModelArtifact | None
+async def get(
+    artifact_value: str, *, collection_id: str | None = None
+) -> Artifact | None
 ```
 
-Get model artifact by ID or name.
+Get artifact by ID or name.
 
-Retrieves model artifact details by its ID or name (model_name or file_name).
+Retrieves artifact details by its ID or name (name or file_name).
 Search by name is case-sensitive and matches exact model or file name.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_value` - The ID or exact name of the model artifact to retrieve.
+- `artifact_value` - The ID or exact name of the artifact to retrieve.
 - `collection_id` - ID of the collection to search in. If not provided,
   uses the default collection set in the client.
   
 
 **Returns**:
 
-  ModelArtifact object.
+  Artifact object.
   
-  Returns None if model artifact with the specified ID or name is not found.
+  Returns None if artifact with the specified ID or name is not found.
   
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several model artifacts
+- `MultipleResourcesFoundError` - If there are several artifacts
   with that name.
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     model_by_name = await dfs.model_artifacts.get(&quot;my_model&quot;)
-  ...     model_by_id = await dfs.model_artifacts.get(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ...     )
-  
-  Example response:
-  &gt;&gt;&gt; ModelArtifact(
-  ...     id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     model_name=&quot;my_model&quot;,
-  ...     file_name=&quot;model.fnnx&quot;,
-  ...     description=&quot;Trained model&quot;,
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...     status=ModelArtifactStatus.UPLOADED,
-  ...     tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...     created_at=&#x27;2025-01-15T10:30:00.123456Z&#x27;,
-  ...     updated_at=None
-  ... )
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    artifact_by_name = await luml.artifacts.get("my_model")
+    artifact_by_id = await luml.artifacts.get(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67"
+    )
+```
 
+**Example response:**
+```python
+Artifact(
+    id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+    collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+    name="my_model",
+    file_name="model.fnnx",
+    description="Trained model",
+    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+    manifest={
+        "variant": "pipeline",
+        "name": None,
+        "version": None,
+        "description": "",
+        "producer_name": "falcon.beastbyte.ai",
+        "producer_version": "0.8.0",
+        "producer_tags": [
+            "falcon.beastbyte.ai::tabular_regression:v1",
+            "dataforce.studio::tabular_regression:v1",
+        ],
+        "inputs": [
+            {
+                "name": "age",
+                "content_type": "NDJSON",
+                "dtype": "Array[float32]",
+                "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                "shape": ["batch", 1],
+            },
+        ],
+        "outputs": [
+            {
+                "name": "y_pred",
+                "content_type": "NDJSON",
+                "dtype": "Array[float32]",
+                "tags": None,
+                "shape": ["batch", 1],
+            }
+        ],
+        "dynamic_attributes": [],
+        "env_vars": [],
+    },
+    bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+    file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+    file_index = {
+        "env.json": (3584, 2),
+        "ops.json": (7168, 1869),
+        "meta.json": (239616, 3279),
+        "dtypes.json": (238592, 2),
+        "manifest.json": (512, 2353),
+        "variant_config.json": (4608, 372),
+        "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+    },
+    size=245760,
+    unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+    status='pending_upload',
+    type='model',
+    tags=["ml", "production"],
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at=None
+)
+```
 #### list
 
 ```python
 @validate_collection
-async def list(*, collection_id: str | None = None) -> list[ModelArtifact]
+async def list(*, collection_id: str | None = None) -> list[Artifact]
 ```
 
-List all model artifacts in the collection.
+List all artifacts in the collection.
 
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
-  
+- `collection_id` - ID of the collection to list artifacts from. If not provided, uses the default collection set in the client.
+- `start_after`: ID of the artifact to start listing from.
+- `limit`: Limit number of models per page (default: 100).
+- `sort_by`: Field to sort by. Options: name, created_at, size, description, status and any metric key
+- `order`: Sort order - "asc" or "desc" (default: "desc").
 
 **Returns**:
 
-  List of ModelArtifact objects.
+  List of Artifact objects.
   
 
 **Raises**:
@@ -641,50 +1021,162 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    
+    # Default: sorted by creation time, newest first
+    artifacts = await luml.artifacts.list()
+    
+    # Sort by size
+    artifacts = await luml.artifacts.list(
+        sort_by="size", order="asc"
+    )
+    
+    # Sort by a specific metric (e.g., F1 score)
+    artifacts = await luml.artifacts.list(
+        sort_by="F1", order="desc"
+    )
+```
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     models = await dfs.model_artifacts.list()
-  
-  Example response:
-  &gt;&gt;&gt; [
-  ...     ModelArtifact(
-  ...         id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...         model_name=&quot;my_model&quot;,
-  ...         file_name=&quot;model.fnnx&quot;,
-  ...         description=&quot;Trained model&quot;,
-  ...         collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...         status=ModelArtifactStatus.UPLOADED,
-  ...         tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...         created_at=&#x27;2025-01-15T10:30:00.123456Z&#x27;,
-  ...         updated_at=None
-  ...     )
-  ... ]
+**Example response:**
+```python
+ArtifactsList(
+    items=[
+        Artifact(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+            collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="my_model",
+            file_name="model.fnnx",
+            description="Trained model",
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
+                "variant": "pipeline",
+                "name": None,
+                "version": None,
+                "description": "",
+                "producer_name": "falcon.beastbyte.ai",
+                "producer_version": "0.8.0",
+                "producer_tags": [
+                    "falcon.beastbyte.ai::tabular_regression:v1",
+                    "dataforce.studio::tabular_regression:v1",
+                ],
+                "inputs": [
+                    {
+                        "name": "age",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                        "shape": ["batch", 1],
+                    },
+                ],
+                "outputs": [
+                    {
+                        "name": "y_pred",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": None,
+                        "shape": ["batch", 1],
+                    }
+                ],
+                "dynamic_attributes": [],
+                "env_vars": [],
+            },
+            bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+            file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+            file_index = {
+                "env.json": (3584, 2),
+                "ops.json": (7168, 1869),
+                "meta.json": (239616, 3279),
+                "dtypes.json": (238592, 2),
+                "manifest.json": (512, 2353),
+                "variant_config.json": (4608, 372),
+                "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+            },
+            size=245760,
+            unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+            status='pending_upload',
+            type='model',
+            tags=["ml", "production"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        )
+    ],
+    cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+)
+```
+#### list_all
 
+```python
+@validate_collection
+def list_all(
+    self,
+    *,
+    collection_id: str | None = None,
+    limit: int | None = 100,
+    sort_by: str | None = None,
+    order: SortOrder = SortOrder.DESC,
+) -> AsyncIterator[Artifact]
+```
+
+List all collection artifacts with auto-paging.
+
+**Arguments**:
+
+- `collection_id` - ID of the collection to list artifacts from. If not provided, uses the default collection set in the client.
+- `limit`: Page size (default: 100).
+- `sort_by`: Field to sort by. Options: name, created_at, size, description, status and any metric key
+- `order`: Sort order - "asc" or "desc" (default: "desc").
+
+**Returns**:
+
+  List of Artifact objects.
+
+**Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+
+    # List all artifacts with default sorting
+    async for artifact in luml.artifacts.list_all(limit=50):
+        print(artifact.id)
+
+    # List all artifacts sorted by F1 metric
+    async for artifact in luml.artifacts.list_all(sort_by="F1", order="desc", limit=50):
+        print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
+```
 #### download\_url
 
 ```python
 @validate_collection
-async def download_url(model_id: str,
-                       *,
-                       collection_id: str | None = None) -> dict
+async def download_url(
+    artifact_id: str, *, collection_id: str | None = None
+) -> dict
 ```
 
-Get download URL for model artifact.
+Get download URL for artifact.
 
 Generates a secure download URL for the model file.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to download.
+- `artifact_id` - ID of the artifact to download.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client.
   
@@ -698,41 +1190,42 @@ If collection_id is None, uses the default collection from client.
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     url_info = await dfs.model_artifacts.download_url(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ...     )
-
+async def main():
+    await  luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    url_info = await luml.artifacts.download_url(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67"
+    )
+```
 #### delete\_url
 
 ```python
 @validate_collection
-async def delete_url(model_id: str,
-                     *,
-                     collection_id: str | None = None) -> dict
+async def delete_url(
+    artifact_id: str, *, collection_id: str | None = None
+) -> dict
 ```
 
-Get delete URL for model artifact.
+Get delete URL for artifact.
 
 Generates a secure delete URL for the model file in storage.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to delete from storage.
+- `artifact_id` - ID of the artifact to delete from storage.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client.
   
@@ -746,64 +1239,65 @@ If collection_id is None, uses the default collection from client.
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     url_info = await dfs.model_artifacts.delete_url(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ...     )
-
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    url_info = await luml.artifacts.delete_url(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67"
+    )
+```
 #### create
 
 ```python
 @validate_collection
 async def create(
-        collection_id: str | None,
-        file_name: str,
-        metrics: dict,
-        manifest: dict,
-        file_hash: str,
-        file_index: dict[str, tuple[int, int]],
-        size: int,
-        model_name: str | None = None,
-        description: str | None = None,
-        tags: builtins.list[str] | None = None
-) -> dict[str, str | ModelArtifact]
+    collection_id: str | None,
+    file_name: str,
+    extra_values: dict,
+    manifest: dict,
+    file_hash: str,
+    file_index: dict[str, tuple[int, int]],
+    size: int,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None
+) -> CreatedArtifact
 ```
 
-Create new model artifact record with upload URL.
+Create new artifact record with upload URL.
 
-Creates a model artifact record and returns an upload URL for file storage.
+Creates a artifact record and returns an upload URL for file storage.
 If collection_id is None, uses the default collection from client
 
 **Arguments**:
 
 - `collection_id` - ID of the collection to create model in.
 - `file_name` - Name of the model file.
-- `metrics` - Model performance metrics.
+- `extra_values` - Model performance extra_values.
 - `manifest` - Model manifest with metadata.
 - `file_hash` - SHA hash of the model file.
 - `file_index` - File index mapping for efficient access.
 - `size` - Size of the model file in bytes.
-- `model_name` - Optional name for the model.
+- `name` - Optional name for the model.
 - `description` - Optional description.
 - `tags` - Optional list of tags.
   
 
 **Returns**:
 
-  Dictionary containing upload URL and created ModelArtifact object.
+  Dictionary containing upload URL and created Artifact object.
   
 
 **Raises**:
@@ -813,39 +1307,112 @@ If collection_id is None, uses the default collection from client
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     result = await dfs.model_artifacts.create(
-  ...         file_name=&quot;model.fnnx&quot;,
-  ...         metrics={&quot;accuracy&quot;: 0.95},
-  ...         manifest={&quot;version&quot;: &quot;1.0&quot;},
-  ...         file_hash=&quot;abc123&quot;,
-  ...         file_index={&quot;layer1&quot;: (0, 1024)},
-  ...         size=1048576,
-  ...         model_name=&quot;Test Model&quot;
-  ...     )
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
 
+    result = await luml.artifacts.create(
+        file_name="model.fnnx",
+        extra_values={"accuracy": 0.95},
+        manifest={"version": "1.0"},
+        file_hash="abc123",
+        file_index={"layer1": (0, 1024)},
+        size=1048576,
+        name="Test Model"
+    )
+```
+Response object:
+```python
+    CreatedArtifact(
+        artifact=Artifact(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+            collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="my_model",
+            file_name="model.fnnx",
+            description="Trained model",
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
+                "variant": "pipeline",
+                "name": None,
+                "version": None,
+                "description": "",
+                "producer_name": "falcon.beastbyte.ai",
+                "producer_version": "0.8.0",
+                "producer_tags": [
+                    "falcon.beastbyte.ai::tabular_regression:v1",
+                    "dataforce.studio::tabular_regression:v1",
+                ],
+                "inputs": [
+                    {
+                        "name": "age",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                        "shape": ["batch", 1],
+                    },
+                ],
+                "outputs": [
+                    {
+                        "name": "y_pred",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": None,
+                        "shape": ["batch", 1],
+                    }
+                ],
+                "dynamic_attributes": [],
+                "env_vars": [],
+            },
+            bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+            file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+            file_index = {
+                "env.json": (3584, 2),
+                "ops.json": (7168, 1869),
+                "meta.json": (239616, 3279),
+                "dtypes.json": (238592, 2),
+                "manifest.json": (512, 2353),
+                "variant_config.json": (4608, 372),
+                "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+            },
+            size=245760,
+            unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+            status='pending_upload',
+            type='model',
+            tags=["ml", "production"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        ),
+        upload_details=UploadDetails(
+            url=" https://luml-models.s3.eu-north-1.amazonaws.com/my_llm_attachments.pyfnx",
+            multipart=False,
+            bucket_location="my_llm_attachments.pyfnx",
+            bucket_secret_id="0199c455-21ee-74c6-b747-19a82f1a1873"
+        )
+    )
+```
 #### upload
 
 ```python
 @validate_collection
-async def upload(file_path: str,
-                 model_name: str,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None,
-                 *,
-                 collection_id: str | None = None) -> ModelArtifact
+async def upload(
+    file_path: str,
+    name: str,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    *,
+    collection_id: str | None = None
+) -> Artifact
 ```
 
-Upload model artifact file to the collection.
+Upload artifact file to the collection.
 
 Uploads a model file (.fnnx, .pyfnx, or .dfs format) to the collection storage.
 Maximum file size is 5GB. If collection_id is None,
@@ -854,16 +1421,16 @@ uses the default collection from client.
 **Arguments**:
 
 - `file_path` - Path to the local model file to upload.
-- `model_name` - Name for the model artifact.
+- `name` - Name for the artifact.
 - `description` - Optional description of the model.
-- `tags` - Optional list of tags for organizing models.
+- `tags` - Optional list of tags for organizing artifacts.
 - `collection_id` - ID of the collection to upload to. If not provided,
   uses the default collection set in the client.
   
 
 **Returns**:
 
-- `ModelArtifact` - Uploaded model artifact object with
+- `Artifact` - Uploaded artifact object with
   UPLOADED or UPLOAD_FAILED status.
   
 
@@ -876,55 +1443,116 @@ uses the default collection from client.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     model = await dfs.model_artifacts.upload(
-  ...         file_path=&quot;/path/to/model.fnnx&quot;,
-  ...         model_name=&quot;Production Model&quot;,
-  ...         description=&quot;Trained on latest dataset&quot;,
-  ...         tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...         collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ...     )
-  
-  Response object:
-  &gt;&gt;&gt; ModelArtifact(
-  ...     id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...     model_name=&quot;Production Model&quot;,
-  ...     file_name=&quot;model.fnnx&quot;,
-  ...     description=&quot;Trained on latest dataset&quot;,
-  ...     collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;,
-  ...     status=ModelArtifactStatus.UPLOADED,
-  ...     tags=[&quot;ml&quot;, &quot;production&quot;],
-  ...     created_at=&#x27;2025-01-15T10:30:00.123456Z&#x27;,
-  ...     updated_at=&#x27;2025-01-15T10:35:00.123456Z&#x27;
-  ... )
+async def main():
+    luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    artifact = await luml.artifacts.upload(
+        file_path="/path/to/model.fnnx",
+        name="Production Model",
+        description="Trained on latest dataset",
+        tags=["ml", "production"],
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+```
 
+
+**Response object:**
+```python
+    CreatedArtifact(
+        artifact=Artifact(
+            id="0199c455-21ee-74c6-b747-19a82f1a1e67",
+            collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+            name="my_model",
+            file_name="model.fnnx",
+            description="Trained model",
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
+                "variant": "pipeline",
+                "name": None,
+                "version": None,
+                "description": "",
+                "producer_name": "falcon.beastbyte.ai",
+                "producer_version": "0.8.0",
+                "producer_tags": [
+                    "falcon.beastbyte.ai::tabular_regression:v1",
+                    "dataforce.studio::tabular_regression:v1",
+                ],
+                "inputs": [
+                    {
+                        "name": "age",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": ["falcon.beastbyte.ai::numeric:v1"],
+                        "shape": ["batch", 1],
+                    },
+                ],
+                "outputs": [
+                    {
+                        "name": "y_pred",
+                        "content_type": "NDJSON",
+                        "dtype": "Array[float32]",
+                        "tags": None,
+                        "shape": ["batch", 1],
+                    }
+                ],
+                "dynamic_attributes": [],
+                "env_vars": [],
+            },
+            bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
+            file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
+            file_index = {
+                "env.json": (3584, 2),
+                "ops.json": (7168, 1869),
+                "meta.json": (239616, 3279),
+                "dtypes.json": (238592, 2),
+                "manifest.json": (512, 2353),
+                "variant_config.json": (4608, 372),
+                "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
+            },
+            size=245760,
+            unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
+            status='pending_upload',
+            type='model',
+            tags=["ml", "production"],
+            created_at='2025-01-15T10:30:00.123456Z',
+            updated_at=None
+        ),
+        upload_details=UploadDetails(
+            url=" https://luml-models.s3.eu-north-1.amazonaws.com/my_llm_attachments.pyfnx",
+            multipart=False,
+            bucket_location="my_llm_attachments.pyfnx",
+            bucket_secret_id="0199c455-21ee-74c6-b747-19a82f1a1873"
+        )
+    )
+```
 #### download
 
 ```python
 @validate_collection
-async def download(model_id: str,
-                   file_path: str | None = None,
-                   *,
-                   collection_id: str | None = None) -> None
+async def download(
+    artifact_id: str,
+    file_path: str | None = None,
+    *,
+    collection_id: str | None = None
+) -> None
 ```
 
-Download model artifact file from the collection.
+Download artifact file from the collection.
 
 Downloads the model file to local storage with progress tracking.
 If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to download.
+- `artifact_id` - ID of the artifact to download.
 - `file_path` - Local path to save the downloaded file. If None,
   uses the original file name.
 - `collection_id` - ID of the collection containing the model. If not provided,
@@ -944,104 +1572,109 @@ If collection_id is None, uses the default collection from client.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  ...     # Download with original filename
-  ...     await dfs.model_artifacts.download(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ...     )
-  ...
-  ...     # Download to specific path
-  ...     await dfs.model_artifacts.download(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...         file_path=&quot;/local/path/downloaded_model.fnnx&quot;,
-  ...         collection_id=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ...     )
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
 
+    # Download with original filename
+    await luml.artifacts.download(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67"
+    )
+
+    # Download to specific path
+    await luml.artifacts.download(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67",
+        file_path="/local/path/downloaded_model.fnnx",
+        collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+```
 #### update
 
 ```python
 @validate_collection
-async def update(model_id: str,
-                 file_name: str | None = None,
-                 model_name: str | None = None,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None,
-                 status: ModelArtifactStatus | None = None,
-                 *,
-                 collection_id: str | None = None) -> ModelArtifact
+async def update(
+    artifact_id: str,
+    file_name: str | None = None,
+    name: str | None = None,
+    description: str | None = None,
+    tags: list[str] | None = None,
+    status: ArtifactStatus | None = None,
+    *,
+    collection_id: str | None = None
+) -> Artifact
 ```
 
-Update model artifact metadata.
+Update artifact metadata.
 
-Updates the model artifact&#x27;s metadata. Only provided parameters will be
+Updates the artifact"s metadata. Only provided parameters will be
 updated, others remain unchanged. If collection_id is None,
 uses the default collection from client.
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to update.
+- `artifact_id` - ID of the artifact to update.
 - `file_name` - New file name.
-- `model_name` - New model name.
+- `name` - New model name.
 - `description` - New description.
 - `tags` - New list of tags.
-- `status` - &quot;pending_upload&quot; | &quot;uploaded&quot; | &quot;upload_failed&quot; | &quot;deletion_failed&quot;
+- `status` - "pending_upload" | "uploaded" | "upload_failed" | "deletion_failed"
 - `collection_id` - ID of the collection containing the model. Optional.
   
 
 **Returns**:
 
-- `ModelArtifact` - Updated model artifact object.
+- `Artifact` - Updated artifact object.
   
 
 **Raises**:
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist.
+- `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  &gt;&gt;&gt; async def main():
-  &gt;&gt;&gt;     model = await dfs.model_artifacts.update(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;,
-  ...         model_name=&quot;Updated Model&quot;,
-  ...         status=ModelArtifactStatus.UPLOADED
-  ...     )
-
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    artifact = await luml.artifacts.update(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67",
+        name="Updated Model",
+        status="uploaded"
+    )
+```
 #### delete
 
 ```python
 @validate_collection
-async def delete(model_id: str, *, collection_id: str | None = None) -> None
+async def delete(artifact_id: str, *, collection_id: str | None = None) -> None
 ```
 
-Delete model artifact permanently.
+Delete artifact permanently.
 
-Permanently removes the model artifact record and associated file from storage.
+Permanently removes the artifact record and associated file from storage.
 This action cannot be undone. If collection_id is None,
 uses the default collection from client
 
 **Arguments**:
 
-- `model_id` - ID of the model artifact to delete.
+- `artifact_id` - ID of the artifact to delete.
 - `collection_id` - ID of the collection containing the model. If not provided,
   uses the default collection set in the client
   
@@ -1055,24 +1688,25 @@ uses the default collection from client
 
 - `ConfigurationError` - If collection_id not provided and
   no default collection set.
-- `NotFoundError` - If model artifact with specified ID doesn&#x27;t exist
+- `NotFoundError` - If artifact with specified ID doesn't exist
   
 
 **Example**:
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
 
-  &gt;&gt;&gt; dfs = AsyncDataForceClient(
-  ...     api_key=&quot;dfs_your_key&quot;,
-  ... )
-  ... dfs.setup_config(
-  ...     organization=&quot;0199c455-21ec-7c74-8efe-41470e29bae5&quot;,
-  ...     orbit=&quot;0199c455-21ed-7aba-9fe5-5231611220de&quot;,
-  ...     collection=&quot;0199c455-21ee-74c6-b747-19a82f1a1e75&quot;
-  ... )
-  ... async def main():
-  ...     await dfs.model_artifacts.delete(
-  ...         &quot;0199c455-21ee-74c6-b747-19a82f1a1e67&quot;
-  ...     )
-  
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    await luml.artifacts.delete(
+        "0199c455-21ee-74c6-b747-19a82f1a1e67"
+    )
+```
 
 **Warnings**:
 

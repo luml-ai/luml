@@ -5,8 +5,8 @@ from sqlalchemy import UUID, CheckConstraint, ForeignKey, String, select
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
+from luml.models.artifacts import ArtifactOrm
 from luml.models.base import Base, TimestampMixin
-from luml.models.model_artifacts import ModelArtifactOrm
 from luml.models.satellite import SatelliteOrm
 from luml.schemas.deployment import Deployment
 
@@ -38,19 +38,17 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(SatelliteOrm.id == satellite_id)
         .scalar_subquery()
     )
-    model_id: Mapped[uuid.UUID] = mapped_column(
+    artifact_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("model_artifacts.id", ondelete="RESTRICT"),
+        ForeignKey("artifacts.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    model_artifact_name: Mapped[str] = column_property(
-        select(ModelArtifactOrm.model_name)
-        .where(ModelArtifactOrm.id == model_id)
-        .scalar_subquery()
+    artifact_name: Mapped[str] = column_property(
+        select(ArtifactOrm.name).where(ArtifactOrm.id == artifact_id).scalar_subquery()
     )
     collection_id: Mapped[uuid.UUID] = column_property(
-        select(ModelArtifactOrm.collection_id)
-        .where(ModelArtifactOrm.id == model_id)
+        select(ArtifactOrm.collection_id)
+        .where(ArtifactOrm.id == artifact_id)
         .scalar_subquery()
     )
     inference_url: Mapped[str | None] = mapped_column(
@@ -85,7 +83,7 @@ class DeploymentOrm(TimestampMixin, Base):
 
     orbit = relationship("OrbitOrm", back_populates="deployments")
     satellite = relationship("SatelliteOrm", back_populates="deployments")
-    models = relationship("ModelArtifactOrm", back_populates="deployments")
+    artifacts = relationship("ArtifactOrm", back_populates="deployments")
 
     def to_deployment(self) -> Deployment:
         return Deployment.model_validate(self)

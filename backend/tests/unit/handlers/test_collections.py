@@ -5,8 +5,7 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.collections import CollectionHandler
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
-from luml.schemas.general import SortOrder
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
@@ -15,6 +14,7 @@ from luml.schemas.model_artifacts import (
     CollectionUpdate,
     CollectionUpdateIn,
 )
+from luml.schemas.general import SortOrder
 from luml.schemas.permissions import Action, Resource
 
 handler = CollectionHandler()
@@ -53,7 +53,7 @@ async def test_create_collection(
         id=collection_id,
         created_at=datetime.now(),
         orbit_id=orbit_id,
-        total_models=0,
+        total_artifacts=0,
         **data.model_dump(),
     )
 
@@ -279,7 +279,7 @@ async def test_update_collection(
         name="new",
         collection_type=CollectionType.MODEL,
         tags=None,
-        total_models=0,
+        total_artifacts=0,
         created_at=datetime.now(),
         updated_at=None,
     )
@@ -414,7 +414,7 @@ async def test_update_collection_orbit_wrong_org(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
@@ -441,7 +441,7 @@ async def test_delete_collection_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
-        total_models=0,
+        total_artifacts=0,
         created_at=datetime.now(),
         updated_at=None,
     )
@@ -474,7 +474,7 @@ async def test_delete_collection_empty(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
@@ -501,7 +501,7 @@ async def test_delete_collection_not_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
-        total_models=0,
+        total_artifacts=0,
         created_at=datetime.now(),
         updated_at=None,
     )
@@ -513,7 +513,7 @@ async def test_delete_collection_not_empty(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
-        total_models=0,
+        total_artifacts=0,
         created_at=datetime.now(),
         updated_at=None,
     )
@@ -589,7 +589,7 @@ async def test_delete_collection_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.collections.ModelArtifactRepository.get_collection_model_artifacts_count",
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
     new_callable=AsyncMock,
 )
 @patch(
@@ -616,7 +616,7 @@ async def test_delete_collection_orbit_wrong_org(
         name="n",
         collection_type=CollectionType.MODEL,
         tags=None,
-        total_models=0,
+        total_artifacts=0,
         created_at=datetime.now(),
         updated_at=None,
     )
@@ -672,7 +672,7 @@ async def test_get_orbit_collections_success(
             name="Collection 1",
             collection_type=CollectionType.MODEL,
             tags=None,
-            total_models=5,
+            total_artifacts=5,
             created_at=datetime.now(),
             updated_at=None,
         )

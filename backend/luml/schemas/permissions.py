@@ -15,7 +15,7 @@ class Resource(StrEnum):
     ORBIT_USER = "orbit_user"
     BILLING = "billing"
     BUCKET_SECRET = "bucket_secret"
-    MODEL = "model"
+    ARTIFACT = "artifact"
     COLLECTION = "collection"
     SATELLITE = "satellite"
     ORBIT_SECRET = "orbit_secret"
@@ -106,7 +106,7 @@ organization_permissions = {
             Action.UPDATE,
             Action.DELETE,
         ],
-        Resource.MODEL: [
+        Resource.ARTIFACT: [
             Action.LIST,
             Action.READ,
             Action.CREATE,
@@ -185,7 +185,7 @@ organization_permissions = {
             Action.DELETE,
             Action.DEPLOY,
         ],
-        Resource.MODEL: [
+        Resource.ARTIFACT: [
             Action.LIST,
             Action.READ,
             Action.CREATE,
@@ -216,7 +216,7 @@ orbit_permissions = {
             Action.DELETE,
             Action.READ,
         ],
-        Resource.MODEL: [
+        Resource.ARTIFACT: [
             Action.LIST,
             Action.READ,
             Action.CREATE,
@@ -255,7 +255,7 @@ orbit_permissions = {
     },
     OrbitRole.MEMBER: {
         Resource.ORBIT: [Action.LIST, Action.READ],
-        Resource.MODEL: [
+        Resource.ARTIFACT: [
             Action.LIST,
             Action.READ,
             Action.CREATE,

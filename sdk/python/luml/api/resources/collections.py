@@ -386,7 +386,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             name="Updated Dataset",
             collection_type='model',
             tags=["ml", "updated"],
-            total_models=43,
+            total_artifacts=43,
             created_at='2025-01-15T10:30:00.123456Z',
             updated_at='2025-01-15T14:22:30.987654Z'
         )
@@ -781,7 +781,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             name="Updated Dataset",
             collection_type='model',
             tags=["ml", "updated"],
-            total_models=43,
+            total_artifacts=43,
             created_at='2025-01-15T10:30:00.123456Z',
             updated_at='2025-01-15T14:22:30.987654Z'
         )
