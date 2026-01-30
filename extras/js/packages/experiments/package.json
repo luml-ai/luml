@@ -1,5 +1,5 @@
 {
-  "name": "luml-experiments",
+  "name": "@luml/experiments",
   "version": "0.1.1",
   "type": "module",
   "engines": {
@@ -51,7 +51,7 @@
       "require": "./dist/luml-experiments.umd.js",
       "types": "./dist/index.d.ts"
     },
-    "./dist/luml-experiments.css": "./dist/luml-experiments.css"
+    "./style.css": "./dist/experiments.css"
   },
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",

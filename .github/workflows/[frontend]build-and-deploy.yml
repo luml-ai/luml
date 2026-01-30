@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'extras/js/packages/**'
 
 jobs:
 
@@ -19,13 +20,18 @@ jobs:
         with:
           node-version: '18'
 
-      - name: Install dependencies
-        working-directory: frontend
-        run: npm install
+      - name: Build local packages
+        run: |
+          for pkg in extras/js/packages/*; do
+            echo "Building $pkg"
+            cd "$pkg"
+            npm install
+            npm run build
+            cd ../../../
+          done
 
-      - name: Ensure rollup binaries
-        working-directory: frontend
-        run: npm install rollup --force
+      - name: Install dependencies
+        run: npm install
 
       - name: Build Vue app
         working-directory: frontend

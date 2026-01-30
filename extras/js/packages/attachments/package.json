@@ -1,5 +1,5 @@
 {
-  "name": "luml-attachments",
+  "name": "@luml/attachments",
   "version": "0.1.1",
   "type": "module",
   "engines": {
@@ -51,7 +51,7 @@
       "require": "./dist/luml-attachments.umd.js",
       "types": "./dist/index.d.ts"
     },
-    "./dist/luml-attachments.css": "./dist/luml-attachments.css"
+    "./style.css": "./dist/attachments.css"
   },
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",
