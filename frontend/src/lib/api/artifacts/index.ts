@@ -33,10 +33,11 @@ export class ArtifactsApi {
     orbitId: string,
     collectionId: string,
     params: GetArtifactsListParams,
+    signal: AbortSignal,
   ) {
     const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
-      { params },
+      { params, signal },
     )
     return responseData
   }

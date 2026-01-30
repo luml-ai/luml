@@ -18,7 +18,7 @@
           class="table-white"
           scrollable
           scrollHeight="calc(100vh - 340px)"
-          :loading="isFirstPageLoading"
+          :loading="showLoader"
           :virtualScrollerOptions="virtualScrollerOptions"
           @row-click="onRowClick"
           @sort="onSort"
@@ -135,7 +135,7 @@ import {
   type GetArtifactsListParams,
   type Artifact,
 } from '@/lib/api/artifacts/interfaces'
-import { onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useRouter, useRoute } from 'vue-router'
@@ -156,13 +156,23 @@ const toast = useToast()
 const router = useRouter()
 const route = useRoute()
 const collectionsStore = useCollectionsStore()
-const { setRequestInfo, getInitialPage, list, reset, onLazyLoad, setSortData, isLoading } =
-  useArtifactsList()
+const {
+  setRequestInfo,
+  getInitialPage,
+  list,
+  reset,
+  onLazyLoad,
+  setSortData,
+  isLoading,
+  setLoading,
+} = useArtifactsList()
 
 const selectedArtifacts = ref<Artifact[]>([])
-const isFirstPageLoading = ref(true)
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
+const showLoader = computed(() => {
+  return isLoading.value && list.value.length === 0
+})
 
 const virtualScrollerOptions = ref<VirtualScrollerProps>({
   lazy: true,
@@ -197,9 +207,9 @@ async function getMetricsKeys() {
 
 async function initList() {
   try {
+    setLoading(true)
     reset()
     resetSelectedArtifacts()
-    isFirstPageLoading.value = true
     await getMetricsKeys()
     setRequestInfo({
       organizationId: String(route.params.organizationId),
@@ -210,7 +220,7 @@ async function initList() {
   } catch (e: any) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load artifacts')))
   } finally {
-    isFirstPageLoading.value = false
+    setLoading(false)
   }
 }
 
@@ -228,14 +238,13 @@ function onSort(event: DataTableSortEvent) {
     order: event.sortOrder === 1 ? 'asc' : ('desc' as GetArtifactsListParams['order']),
   }
   setSortData(sortData)
-  initList()
 }
 
 watch(list, (data) => {
   if (!selectedArtifacts.value.length) return
-  selectedArtifacts.value = selectedArtifacts.value
-    .map((artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id))
-    .filter((artifact) => !!artifact)
+  selectedArtifacts.value = selectedArtifacts.value.map(
+    (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) ?? artifact,
+  )
 })
 
 onBeforeMount(initList)
@@ -260,6 +269,10 @@ onBeforeMount(initList)
 .metric-column {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+:deep(.p-datatable:has(.p-datatable-mask) .p-datatable-tbody) {
+  opacity: 0;
 }
 
 @media (min-width: 768px) {
