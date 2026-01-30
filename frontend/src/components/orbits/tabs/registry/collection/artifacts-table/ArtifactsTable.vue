@@ -171,7 +171,7 @@ const selectedArtifacts = ref<Artifact[]>([])
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
 const showLoader = computed(() => {
-  return isLoading.value && modelsList.value.length === 0
+  return isLoading.value && list.value.length === 0
 })
 
 const virtualScrollerOptions = ref<VirtualScrollerProps>({
@@ -242,8 +242,9 @@ function onSort(event: DataTableSortEvent) {
 
 watch(list, (data) => {
   if (!selectedArtifacts.value.length) return
-  selectedArtifacts.value = selectedArtifacts.value
-    .map((artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) || artifact)
+  selectedArtifacts.value = selectedArtifacts.value.map(
+    (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) || artifact,
+  )
 })
 
 onBeforeMount(initList)

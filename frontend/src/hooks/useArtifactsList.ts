@@ -101,17 +101,7 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
   }
 
   async function onSortDataChange() {
-    setModelsList([])
-    savedCursors.value = []
-    getInitialPage()
-  }
-
-  function setLoading(value: boolean) {
-    isLoading.value = value
-  }
-
-  async function onSortDataChange() {
-    setModelsList([])
+    setList([])
     savedCursors.value = []
     getInitialPage()
   }
