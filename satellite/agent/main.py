@@ -1,16 +1,34 @@
 import asyncio
 from contextlib import suppress
+from typing import Any
 
 import uvicorn
+from luml_satellite_sdk import (
+    PeriodicController,
+    PlatformClient,
+    SatelliteManager,
+    SatelliteTaskType,
+    TaskHandler,
+)
 
 from agent.agent_api import create_agent_app
-from agent.agent_manager import SatelliteManager
-from agent.clients import DockerService, PlatformClient
-from agent.controllers import PeriodicController
-from agent.handlers.tasks import TaskHandler
-from agent.schemas import SatelliteTaskType
+from agent.clients import DockerService
 from agent.settings import config
 from agent.tasks import DeployTask, UndeployTask
+
+
+def get_capabilities() -> list[dict[str, Any]]:
+    """Return the capabilities supported by this satellite."""
+    return [
+        {
+            "deploy": {
+                "version": 1,
+                "supported_variants": ["pyfunc", "pipeline"],
+                "supported_tags_combinations": None,
+                "extra_fields_form_spec": None,
+            }
+        }
+    ]
 
 
 async def run_async() -> None:
@@ -37,10 +55,14 @@ async def run_async() -> None:
                 poll_interval_s=float(config.POLL_INTERVAL_SEC),
             )
             satellite_manager = SatelliteManager(platform)
+            satellite_manager.register_capabilities(get_capabilities())
             try:
                 await asyncio.sleep(0.1)
 
-                await satellite_manager.pair()
+                await satellite_manager.pair(
+                    base_url=config.BASE_URL.rstrip("/"),
+                    slug="docker-2026.01-v1-debian12",
+                )
 
                 await controller.run_forever()
             finally:

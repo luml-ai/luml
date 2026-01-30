@@ -11,6 +11,7 @@ from luml_satellite_sdk.exceptions import (
     TaskException,
 )
 from luml_satellite_sdk.handler import TaskHandler, TaskProtocol, TaskRegistry
+from luml_satellite_sdk.manager import SatelliteManager
 from luml_satellite_sdk.schemas import (
     Deployment,
     DeploymentStatus,
@@ -33,6 +34,7 @@ __all__ = [
     "BasePlatformClient",
     "PlatformClient",
     "PeriodicController",
+    "SatelliteManager",
     "TaskHandler",
     "TaskProtocol",
     "TaskRegistry",

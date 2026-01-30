@@ -49,8 +49,7 @@ docker compose up
 ```
 
 ### Agent Structure (`agent/`)
-- **main.py**: Entry point, orchestrates startup and polling loop
-- **agent_manager.py**: SatelliteManager handles pairing and capability reporting
+- **main.py**: Entry point, orchestrates startup and polling loop (uses SatelliteManager from SDK)
 - **clients/platform_client.py**: HTTP client for LUML backend API (tasks, deployments, secrets)
 - **clients/docker_client.py**: DockerService wrapper for aiodocker operations
 - **tasks/deploy.py**: DeployTask handles container creation, health checks, and status updates
