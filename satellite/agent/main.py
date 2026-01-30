@@ -8,7 +8,9 @@ from agent.agent_manager import SatelliteManager
 from agent.clients import DockerService, PlatformClient
 from agent.controllers import PeriodicController
 from agent.handlers.tasks import TaskHandler
+from agent.schemas import SatelliteTaskType
 from agent.settings import config
+from agent.tasks import DeployTask, UndeployTask
 
 
 async def run_async() -> None:
@@ -23,7 +25,12 @@ async def run_async() -> None:
         uv_server = uvicorn.Server(uv_config)
         uv_task = asyncio.create_task(uv_server.serve())
         async with DockerService() as docker:
-            handler = TaskHandler(platform=platform, docker=docker)
+            # Build task registry with satellite-specific task handlers
+            task_registry = {
+                SatelliteTaskType.DEPLOY: DeployTask(platform=platform, docker=docker),
+                SatelliteTaskType.UNDEPLOY: UndeployTask(platform=platform, docker=docker),
+            }
+            handler = TaskHandler(platform=platform, task_registry=task_registry)
             controller = PeriodicController(
                 platform=platform,
                 dispatch=handler.dispatch,
