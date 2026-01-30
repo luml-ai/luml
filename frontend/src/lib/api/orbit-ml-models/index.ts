@@ -33,10 +33,11 @@ export class MlModelsApi {
     orbitId: string,
     collectionId: string,
     params: GetModelsListParams,
+    signal: AbortSignal,
   ) {
     const { data: responseData } = await this.api.get<GetModelsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/model_artifacts`,
-      { params },
+      { params, signal },
     )
     return responseData
   }

@@ -1,4 +1,4 @@
-name: Tests and Linters
+name: Frontend Tests and Linters
 
 on:
   push:
