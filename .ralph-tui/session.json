@@ -1,0 +1,179 @@
+{
+  "version": 1,
+  "sessionId": "62b3c74b-a945-4cc1-ba8a-4df843471259",
+  "status": "running",
+  "startedAt": "2026-01-30T11:52:41.457Z",
+  "updatedAt": "2026-01-30T12:12:58.800Z",
+  "currentIteration": 4,
+  "maxIterations": 10,
+  "tasksCompleted": 4,
+  "isPaused": false,
+  "agentPlugin": "claude",
+  "trackerState": {
+    "plugin": "json",
+    "prdPath": "./tasks/prd.json",
+    "totalTasks": 19,
+    "tasks": [
+      {
+        "id": "US-001",
+        "title": "Create luml-satellite-sdk package structure",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-002",
+        "title": "Extract base abstractions to SDK",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-003",
+        "title": "Move PlatformClient to SDK",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-004",
+        "title": "Move PeriodicController to SDK",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-005",
+        "title": "Move TaskHandler and task registry to SDK",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-006",
+        "title": "Move SatelliteManager pairing logic to SDK",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-007",
+        "title": "Move base Settings class to SDK",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-008",
+        "title": "Move common schemas to SDK",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-009",
+        "title": "Move exception classes to SDK",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-010",
+        "title": "Create satellites/deploy directory structure",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-011",
+        "title": "Move Docker service to deploy satellite",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-012",
+        "title": "Move deployment tasks to deploy satellite",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-013",
+        "title": "Move model server components to deploy satellite",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-014",
+        "title": "Move agent API to deploy satellite",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-015",
+        "title": "Create deploy satellite Settings class",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-016",
+        "title": "Create deploy satellite main entry point",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-017",
+        "title": "Move and split tests",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-018",
+        "title": "Update CI configuration",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-019",
+        "title": "Remove old satellite directory",
+        "status": "open",
+        "completedInSession": false
+      }
+    ]
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Create luml-satellite-sdk package structure",
+      "taskCompleted": true,
+      "durationMs": 128841,
+      "startedAt": "2026-01-30T11:52:54.921Z",
+      "endedAt": "2026-01-30T11:55:03.762Z"
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "taskId": "US-002",
+      "taskTitle": "Extract base abstractions to SDK",
+      "taskCompleted": true,
+      "durationMs": 512331,
+      "startedAt": "2026-01-30T11:55:04.868Z",
+      "endedAt": "2026-01-30T12:03:37.199Z"
+    },
+    {
+      "iteration": 3,
+      "status": "completed",
+      "taskId": "US-007",
+      "taskTitle": "Move base Settings class to SDK",
+      "taskCompleted": true,
+      "durationMs": 126993,
+      "startedAt": "2026-01-30T12:04:35.354Z",
+      "endedAt": "2026-01-30T12:06:42.347Z"
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "taskId": "US-008",
+      "taskTitle": "Move common schemas to SDK",
+      "taskCompleted": true,
+      "durationMs": 234318,
+      "startedAt": "2026-01-30T12:06:43.490Z",
+      "endedAt": "2026-01-30T12:10:37.808Z"
+    }
+  ],
+  "skippedTaskIds": [],
+  "cwd": "/Users/nikitagonchar/dev/luml",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}
