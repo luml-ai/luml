@@ -13,6 +13,7 @@ from luml.schemas.collections import (
     CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionTypeFilter,
     CollectionUpdate,
     CollectionUpdateIn,
 )
@@ -61,6 +62,7 @@ class CollectionHandler:
         sort_by: CollectionSortBy = CollectionSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
+        collection_type: CollectionTypeFilter | None = None,
     ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -90,6 +92,7 @@ class CollectionHandler:
             orbit_id=orbit_id,
             pagination=pagination,
             search=search,
+            collection_type=collection_type,
         )
 
         return CollectionsList(

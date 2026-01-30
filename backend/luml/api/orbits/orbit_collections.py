@@ -12,6 +12,7 @@ from luml.schemas.collections import (
     CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionTypeFilter,
     CollectionUpdateIn,
 )
 from luml.schemas.general import SortOrder
@@ -55,6 +56,7 @@ async def get_orbit_collections(
     sort_by: Annotated[CollectionSortBy, Query()] = CollectionSortBy.CREATED_AT,
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     search: str | None = None,
+    type: CollectionTypeFilter | None = None,  # noqa: A002
 ) -> CollectionsList:
     return await collection_handler.get_orbit_collections(
         request.user.id,
@@ -65,6 +67,7 @@ async def get_orbit_collections(
         sort_by,
         order,
         search,
+        type,
     )
 
 
