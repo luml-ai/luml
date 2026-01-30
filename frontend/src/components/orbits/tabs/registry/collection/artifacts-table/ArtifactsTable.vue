@@ -243,7 +243,7 @@ function onSort(event: DataTableSortEvent) {
 watch(list, (data) => {
   if (!selectedArtifacts.value.length) return
   selectedArtifacts.value = selectedArtifacts.value.map(
-    (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) ?? artifact,
+    (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) || artifact,
   )
 })
 
