@@ -12,6 +12,7 @@ interface RequestInfo {
 
 export const useArtifactsList = (limit = 20, syncStore = true) => {
   const artifactsStore = useArtifactsStore()
+  const abortController = ref<AbortController | null>(null)
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
@@ -52,11 +53,14 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
 
   async function getData(cursor: string | null) {
     if (!requestInfo.value) throw new Error('Request info not set')
+    abortController.value?.abort()
+    abortController.value = new AbortController()
     return await api.artifacts.getList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.collectionId,
       { cursor, limit, ...sortData.value },
+      abortController.value.signal,
     )
   }
 
@@ -96,6 +100,26 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
     }
   }
 
+  async function onSortDataChange() {
+    setModelsList([])
+    savedCursors.value = []
+    getInitialPage()
+  }
+
+  function setLoading(value: boolean) {
+    isLoading.value = value
+  }
+
+  async function onSortDataChange() {
+    setModelsList([])
+    savedCursors.value = []
+    getInitialPage()
+  }
+
+  function setLoading(value: boolean) {
+    isLoading.value = value
+  }
+
   if (syncStore) {
     watch(
       () => artifactsStore.artifactsList,
@@ -105,6 +129,8 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
       { immediate: true },
     )
   }
+
+  watch(sortData, onSortDataChange)
 
   return {
     setRequestInfo,
@@ -117,5 +143,6 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
     addItemsToList,
     setSortData,
     onLazyLoad,
+    setLoading,
   }
 }
