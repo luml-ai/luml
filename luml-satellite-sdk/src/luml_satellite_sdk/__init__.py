@@ -2,6 +2,11 @@
 
 from luml_satellite_sdk.base import BaseSatellite
 from luml_satellite_sdk.client import BasePlatformClient
+from luml_satellite_sdk.schemas import (
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
+)
 from luml_satellite_sdk.settings import BaseSettings
 from luml_satellite_sdk.task import BaseTask
 
@@ -13,4 +18,7 @@ __all__ = [
     "BaseSettings",
     "BaseTask",
     "BasePlatformClient",
+    "SatelliteTaskType",
+    "SatelliteTaskStatus",
+    "SatelliteQueueTask",
 ]
