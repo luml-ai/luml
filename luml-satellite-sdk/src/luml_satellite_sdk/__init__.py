@@ -2,6 +2,7 @@
 
 from luml_satellite_sdk.base import BaseSatellite
 from luml_satellite_sdk.client import BasePlatformClient
+from luml_satellite_sdk.settings import BaseSettings
 from luml_satellite_sdk.task import BaseTask
 
 __version__ = "0.1.0"
@@ -9,6 +10,7 @@ __version__ = "0.1.0"
 __all__ = [
     "__version__",
     "BaseSatellite",
+    "BaseSettings",
     "BaseTask",
     "BasePlatformClient",
 ]

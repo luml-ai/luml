@@ -24,7 +24,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
     "Typing :: Typed",
 ]
-dependencies = []
+dependencies = [
+    "pydantic-settings>=2.0.0",
+]
 
 [project.optional-dependencies]
 dev = [
