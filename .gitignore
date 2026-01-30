@@ -11,3 +11,4 @@ __pycache__/
 /sdk/python/venv/
 /.idea/
 /satellite/.env
+node_modules

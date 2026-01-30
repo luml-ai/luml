@@ -8,7 +8,7 @@ import type {
   MlModelCreator,
   UpdateMlModelPayload,
 } from '@/lib/api/orbit-ml-models/interfaces'
-import type { ExperimentSnapshotProvider } from '@/modules/experiment-snapshot'
+import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import type { ModelMetadata, ModelStore } from './model.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/vue3'
-import ExperimentSnapshot from '@/modules/experiment-snapshot/ExperimentSnapshot.vue'
+import { ExperimentSnapshot } from '@luml/experiments'
 import type {
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
@@ -7,7 +7,7 @@ import type {
   ModelsInfo,
   EvalsInfo,
   SpansParams,
-} from '@/modules/experiment-snapshot/interfaces/interfaces'
+} from '@luml/experiments'
 import { Toast } from 'primevue'
 import StorybookPageWrapper from './StorybookPageWrapper.vue'
 

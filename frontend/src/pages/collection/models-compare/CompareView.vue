@@ -21,25 +21,26 @@
       :provider="modelsStore.experimentSnapshotProvider"
       :models-ids="modelIdsList"
       :models-info="modelsInfo"
+      :theme="themeStore.getCurrentTheme"
     ></ExperimentSnapshot>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { ModelsInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
 import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelsInfo } from '@luml/experiments'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ComparisonHeader } from '@/modules/experiment-snapshot'
-import { ComparisonModelsList } from '@/modules/experiment-snapshot'
+import { ComparisonHeader, ComparisonModelsList, ExperimentSnapshot } from '@luml/experiments'
 import { useModelsStore } from '@/stores/models'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
 import { Skeleton } from 'primevue'
-import { ExperimentSnapshot } from '@/modules/experiment-snapshot'
-import { getModelColorByIndex } from '@/modules/experiment-snapshot/helpers/helpers'
+import { getModelColorByIndex } from '@/helpers/helpers'
+import { useThemeStore } from '@/stores/theme'
 
 const route = useRoute()
 const modelsStore = useModelsStore()
+const themeStore = useThemeStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
 
 const loading = ref(false)

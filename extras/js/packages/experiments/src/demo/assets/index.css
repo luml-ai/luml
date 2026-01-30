@@ -1,0 +1,23 @@
+@import './theme/light-theme.css';
+@import './theme/dark-theme.css';
+@import './null.css';
+
+body {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
+}
+
+.link {
+  color: var(--p-primary-color);
+}

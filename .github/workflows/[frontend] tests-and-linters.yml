@@ -22,10 +22,9 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: ./package-lock.json
       
       - name: Install dependencies
-        working-directory: frontend
         run: npm install
       
       - name: Run linting (non-blocking)
@@ -48,15 +47,10 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: ./package-lock.json
       
       - name: Install dependencies
-        working-directory: frontend
         run: npm install
-
-      - name: Ensure rollup binaries
-        working-directory: frontend
-        run: npm install rollup --force
       
       - name: Run tests
         working-directory: frontend

@@ -1,3 +1,4 @@
+import { MODELS_COLORS } from '@/constants/colors'
 import type { Validator } from '@/lib/api/satellites/interfaces'
 import {
   Tasks,
@@ -239,4 +240,22 @@ export function combineValidators(validators: z.ZodTypeAny[], required: boolean)
   }
 
   return schema
+}
+
+export const getModelColorByIndex = (index: number) => {
+  const color = MODELS_COLORS[index]
+  if (color) {
+    return color
+  } else {
+    return getRandomHexColor()
+  }
+}
+
+const getRandomHexColor = () => {
+  return (
+    '#' +
+    Math.floor(Math.random() * 16777215)
+      .toString(16)
+      .padStart(6, '0')
+  )
 }

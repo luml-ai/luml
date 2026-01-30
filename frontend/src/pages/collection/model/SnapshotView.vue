@@ -14,20 +14,23 @@
     :provider="modelsStore.experimentSnapshotProvider"
     :models-ids="[String(modelsStore.currentModel.id)]"
     :models-info="modelsInfo"
+    :theme="themeStore.getCurrentTheme"
   ></ExperimentSnapshot>
 </template>
 
 <script setup lang="ts">
-import type { ModelInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
-import { ExperimentSnapshot } from '@/modules/experiment-snapshot'
+import type { ModelInfo } from '@luml/experiments'
+import { ExperimentSnapshot } from '@luml/experiments'
 import { computed, onMounted, ref } from 'vue'
 import { useModelsStore } from '@/stores/models'
 import { Skeleton } from 'primevue'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
-import { getModelColorByIndex } from '@/modules/experiment-snapshot/helpers/helpers'
+import { getModelColorByIndex } from '@/helpers/helpers'
+import { useThemeStore } from '@/stores/theme'
 
 const modelsStore = useModelsStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
+const themeStore = useThemeStore()
 
 const loading = ref(false)
 
