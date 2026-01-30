@@ -5,7 +5,7 @@
 configVersion = "2.1"
 tracker = "json"
 agent = "claude"
-maxIterations = 10
+maxIterations = 5
 autoCommit = true
 
 [trackerOptions]
