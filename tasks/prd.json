@@ -141,14 +141,15 @@
         "Export BaseSettings from SDK's __init__.py"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-001"
       ],
       "labels": [
         "sdk",
         "settings"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-008",
@@ -410,6 +411,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T12:03:37.207Z"
+    "updatedAt": "2026-01-30T12:06:42.357Z"
   }
 }
