@@ -32,11 +32,17 @@ class BucketType(StrEnum):
 
 class CollectionType(StrEnum):
     """
-    Options: "model", "dataset".
+    Options: "model", "dataset", "experiment", "model_dataset",
+    "dataset_experiment", "model_experiment", "mixed".
     """
 
     MODEL = "model"
     DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MODEL_DATASET = "model_dataset"
+    DATASET_EXPERIMENT = "dataset_experiment"
+    MODEL_EXPERIMENT = "model_experiment"
+    MIXED = "mixed"
 
 
 class ArtifactType(StrEnum):

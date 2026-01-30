@@ -36,6 +36,7 @@ class ArtifactSortBy(StrEnum):
     SIZE = "size"
     DESCRIPTION = "description"
     STATUS = "status"
+    TYPE = "type"
 
 
 class ArtifactType(StrEnum):
@@ -101,7 +102,7 @@ class LumlArtifactManifest(BaseModel):
     producer_version: str
     producer_tags: list[str]
 
-    payload: dict
+    payload: dict[str, Any]
 
 
 class ArtifactCreate(BaseModel):

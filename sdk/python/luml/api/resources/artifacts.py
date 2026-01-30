@@ -8,6 +8,7 @@ from luml.api._types import (
     Artifact,
     ArtifactsList,
     ArtifactStatus,
+    ArtifactType,
     CreatedArtifact,
     SortOrder,
     is_uuid,
@@ -260,6 +261,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
+        artifact_type: ArtifactType | None = None,
     ) -> Iterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -272,6 +274,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
+            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             Artifact objects from all pages.
@@ -296,6 +299,10 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             limit=50
         ):
             print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
+
+        # Filter by artifact type
+        for artifact in luml.artifacts.list_all(artifact_type=ArtifactType.MODEL):
+            print(artifact.name)
         ```
         """
         return self._auto_paginate(
@@ -304,6 +311,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             limit=limit,
             sort_by=sort_by,
             order=order,
+            artifact_type=artifact_type,
         )
 
     @validate_collection
@@ -315,6 +323,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
+        artifact_type: ArtifactType | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -330,6 +339,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
+            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             ArtifactList object.
@@ -360,6 +370,9 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             sort_by="F1",
             order="desc"
         )
+
+        # Filter by artifact type
+        artifacts = luml.artifacts.list(artifact_type=ArtifactType.MODEL)
         ```
 
         Example response:
@@ -437,6 +450,12 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             params["cursor"] = start_after
         if sort_by:
             params["sort_by"] = sort_by
+        if artifact_type:
+            params["type"] = (
+                artifact_type.value
+                if isinstance(artifact_type, ArtifactType)
+                else artifact_type
+            )
 
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
@@ -1210,6 +1229,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
+        artifact_type: ArtifactType | None = None,
     ) -> AsyncIterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -1222,6 +1242,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
+            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             Artifact objects from all pages.
@@ -1250,6 +1271,12 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 limit=50
             ):
                 print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
+
+            # Filter by artifact type
+            async for artifact in luml.artifacts.list_all(
+                artifact_type=ArtifactType.MODEL
+            ):
+                print(artifact.name)
         ```
         """
         return self._auto_paginate_async(
@@ -1258,6 +1285,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             limit=limit,
             sort_by=sort_by,
             order=order,
+            artifact_type=artifact_type,
         )
 
     @validate_collection
@@ -1269,6 +1297,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
+        artifact_type: ArtifactType | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -1284,6 +1313,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
+            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             ArtifactsList object.
@@ -1318,6 +1348,9 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 sort_by="F1",
                 order="desc"
             )
+
+            # Filter by artifact type
+            artifacts = await luml.artifacts.list(artifact_type=ArtifactType.MODEL)
         ```
 
         Example response:
@@ -1393,6 +1426,12 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             params["cursor"] = start_after
         if sort_by:
             params["sort_by"] = sort_by
+        if artifact_type:
+            params["type"] = (
+                artifact_type.value
+                if isinstance(artifact_type, ArtifactType)
+                else artifact_type
+            )
 
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",

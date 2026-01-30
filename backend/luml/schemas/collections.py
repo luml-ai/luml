@@ -17,6 +17,13 @@ class CollectionType(StrEnum):
     MIXED = "mixed"
 
 
+class CollectionTypeFilter(StrEnum):
+    MODEL = "model"
+    DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MIXED = "mixed"
+
+
 class CollectionSortBy(StrEnum):
     CREATED_AT = "created_at"
     NAME = "name"

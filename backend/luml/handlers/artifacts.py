@@ -34,7 +34,8 @@ from luml.schemas.artifacts import (
     ArtifactUpdate,
     ArtifactUpdateIn,
     CreateArtifactResponse,
-    SatelliteArtifactResponse, LumlArtifactManifest,
+    LumlArtifactManifest,
+    SatelliteArtifactResponse,
 )
 from luml.schemas.bucket_secrets import BucketSecret
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
@@ -140,22 +141,22 @@ class ArtifactHandler:
         return True
 
     @staticmethod
-    def _define_artifact_type(artifact) -> ArtifactType:
+    def _define_artifact_type(artifact: ArtifactIn) -> ArtifactType:
         structure = artifact.file_index.keys()
         model_structure_files = [
-            "dtypes.json"
-            "env.json"
-            "manifest.json"
-            "meta.json"
-            "ops.json"
-            "variant_config.json"
+            "dtypes.json",
+            "env.json",
+            "manifest.json",
+            "meta.json",
+            "ops.json",
+            "variant_config.json",
         ]
 
         try:
             if isinstance(artifact.manifest, LumlArtifactManifest):
                 return ArtifactType(artifact.manifest.type)
-        except Exception:
-            raise ArtifactTypeMismatchError("Unsupported LUML Artifact type.")
+        except Exception as e:
+            raise ArtifactTypeMismatchError("Unsupported LUML Artifact type.") from e
 
         if all(file in structure for file in model_structure_files):
             return ArtifactType.MODEL
@@ -422,6 +423,7 @@ class ArtifactHandler:
         limit: int = 100,
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
+        artifact_type: ArtifactType | None = None,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -446,7 +448,7 @@ class ArtifactHandler:
         )
 
         items, cursor = await self.__repository.get_collection_artifacts(
-            collection_id, pagination
+            collection_id, pagination, artifact_type
         )
 
         return ArtifactsList(
