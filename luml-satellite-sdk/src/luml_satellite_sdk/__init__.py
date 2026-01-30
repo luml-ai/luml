@@ -2,6 +2,13 @@
 
 from luml_satellite_sdk.base import BaseSatellite
 from luml_satellite_sdk.client import BasePlatformClient
+from luml_satellite_sdk.exceptions import (
+    ContainerNotFoundError,
+    ContainerNotRunningError,
+    PairingException,
+    SatelliteException,
+    TaskException,
+)
 from luml_satellite_sdk.schemas import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
@@ -21,4 +28,9 @@ __all__ = [
     "SatelliteTaskType",
     "SatelliteTaskStatus",
     "SatelliteQueueTask",
+    "SatelliteException",
+    "PairingException",
+    "TaskException",
+    "ContainerNotFoundError",
+    "ContainerNotRunningError",
 ]
