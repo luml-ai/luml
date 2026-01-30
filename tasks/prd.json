@@ -1,0 +1,414 @@
+{
+  "name": "Split Satellite into SDK and Deploy Satellite",
+  "branchName": "feature/split-satellite-sdk",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create luml-satellite-sdk package structure",
+      "description": "As a developer, I want the SDK package scaffolded with proper Python packaging so that it can be installed as an independent dependency.",
+      "acceptanceCriteria": [
+        "Create luml-satellite-sdk/ directory in monorepo root",
+        "Create pyproject.toml with package metadata (name: luml-satellite-sdk)",
+        "Create src/luml_satellite_sdk/ source directory (src layout)",
+        "Create __init__.py with version and public exports",
+        "Create py.typed marker for type checking support",
+        "Package is installable via uv pip install -e ./luml-satellite-sdk"
+      ],
+      "priority": 1,
+      "passes": true,
+      "dependsOn": [],
+      "labels": [
+        "sdk",
+        "setup"
+      ],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Extract base abstractions to SDK",
+      "description": "As a developer, I want abstract base classes in the SDK so that satellites can implement their specific behavior.",
+      "acceptanceCriteria": [
+        "Create src/luml_satellite_sdk/base.py with BaseSatellite abstract class",
+        "Create src/luml_satellite_sdk/task.py with BaseTask abstract class",
+        "Create src/luml_satellite_sdk/client.py with BasePlatformClient abstract class",
+        "BaseSatellite defines abstract methods: start(), stop(), register_capabilities()",
+        "BaseTask defines abstract methods: execute(), get_task_type()",
+        "BasePlatformClient defines abstract methods for API communication",
+        "All abstract classes use Python's abc.ABC and @abstractmethod"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ],
+      "labels": [
+        "sdk",
+        "abstractions"
+      ]
+    },
+    {
+      "id": "US-003",
+      "title": "Move PlatformClient to SDK",
+      "description": "As a developer, I want the platform client in the SDK so that all satellites can communicate with the LUML backend.",
+      "acceptanceCriteria": [
+        "Move PlatformClient class from satellite/ to luml-satellite-sdk/src/luml_satellite_sdk/client.py",
+        "PlatformClient extends BasePlatformClient with concrete implementations",
+        "HTTP methods for task polling, status updates, secrets retrieval are preserved",
+        "Authentication logic (API key, satellite ID) is preserved",
+        "Export PlatformClient from SDK's __init__.py"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": [
+        "US-002"
+      ],
+      "labels": [
+        "sdk",
+        "client"
+      ]
+    },
+    {
+      "id": "US-004",
+      "title": "Move PeriodicController to SDK",
+      "description": "As a developer, I want the polling controller in the SDK so that satellites can use the same polling pattern.",
+      "acceptanceCriteria": [
+        "Move PeriodicController class to luml-satellite-sdk/src/luml_satellite_sdk/controller.py",
+        "Preserve the async polling loop logic",
+        "Preserve configurable polling interval",
+        "Export PeriodicController from SDK's __init__.py"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": [
+        "US-002"
+      ],
+      "labels": [
+        "sdk",
+        "controller"
+      ]
+    },
+    {
+      "id": "US-005",
+      "title": "Move TaskHandler and task registry to SDK",
+      "description": "As a developer, I want the task dispatcher in the SDK so that satellites can register and dispatch their task types.",
+      "acceptanceCriteria": [
+        "Move TaskHandler class to luml-satellite-sdk/src/luml_satellite_sdk/handler.py",
+        "Preserve task type registry pattern",
+        "Preserve task dispatch logic",
+        "Make task registry configurable (satellites pass their task mappings)",
+        "Export TaskHandler from SDK's __init__.py"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": [
+        "US-002"
+      ],
+      "labels": [
+        "sdk",
+        "handler"
+      ]
+    },
+    {
+      "id": "US-006",
+      "title": "Move SatelliteManager pairing logic to SDK",
+      "description": "As a developer, I want satellite pairing in the SDK so that all satellites can pair with orbits.",
+      "acceptanceCriteria": [
+        "Move SatelliteManager to luml-satellite-sdk/src/luml_satellite_sdk/manager.py",
+        "Preserve pairing flow with LUML backend",
+        "Add register_capabilities(capabilities: list) method that satellites call",
+        "Capability list is passed by the satellite, not hardcoded",
+        "Export SatelliteManager from SDK's __init__.py"
+      ],
+      "priority": 3,
+      "passes": false,
+      "dependsOn": [
+        "US-003"
+      ],
+      "labels": [
+        "sdk",
+        "manager"
+      ]
+    },
+    {
+      "id": "US-007",
+      "title": "Move base Settings class to SDK",
+      "description": "As a developer, I want base configuration in the SDK so that satellites extend it with their specific settings.",
+      "acceptanceCriteria": [
+        "Create luml-satellite-sdk/src/luml_satellite_sdk/settings.py with BaseSettings class",
+        "Include common settings: api_url, api_key, satellite_id, polling_interval",
+        "Use Pydantic Settings for environment variable loading",
+        "Export BaseSettings from SDK's __init__.py"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ],
+      "labels": [
+        "sdk",
+        "settings"
+      ]
+    },
+    {
+      "id": "US-008",
+      "title": "Move common schemas to SDK",
+      "description": "As a developer, I want shared schemas in the SDK so that all satellites use consistent data models.",
+      "acceptanceCriteria": [
+        "Create luml-satellite-sdk/src/luml_satellite_sdk/schemas.py",
+        "Move SatelliteQueueTask schema",
+        "Move SatelliteTaskType enum (as base, extensible by satellites)",
+        "Move SatelliteTaskStatus enum",
+        "Move any other shared Pydantic models used in API communication",
+        "Export schemas from SDK's __init__.py"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ],
+      "labels": [
+        "sdk",
+        "schemas"
+      ]
+    },
+    {
+      "id": "US-009",
+      "title": "Move exception classes to SDK",
+      "description": "As a developer, I want common exceptions in the SDK so that error handling is consistent.",
+      "acceptanceCriteria": [
+        "Create luml-satellite-sdk/src/luml_satellite_sdk/exceptions.py",
+        "Move SatelliteException base class",
+        "Move PairingException, TaskException, and other common exceptions",
+        "Export exceptions from SDK's __init__.py"
+      ],
+      "priority": 2,
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ],
+      "labels": [
+        "sdk",
+        "exceptions"
+      ]
+    },
+    {
+      "id": "US-010",
+      "title": "Create satellites/deploy directory structure",
+      "description": "As a developer, I want the deploy satellite in its own package so that it's separate from the SDK.",
+      "acceptanceCriteria": [
+        "Create satellites/deploy/ directory",
+        "Create pyproject.toml with dependency on luml-satellite-sdk",
+        "Create src/deploy_satellite/ source directory",
+        "Create __init__.py with version",
+        "Dependency on SDK uses path: luml-satellite-sdk = {path = \"../../luml-satellite-sdk\"}"
+      ],
+      "priority": 4,
+      "passes": false,
+      "dependsOn": [
+        "US-001"
+      ],
+      "labels": [
+        "deploy",
+        "setup"
+      ]
+    },
+    {
+      "id": "US-011",
+      "title": "Move Docker service to deploy satellite",
+      "description": "As a developer, I want Docker management in the deploy satellite since it's deployment-specific.",
+      "acceptanceCriteria": [
+        "Move DockerService class to satellites/deploy/src/deploy_satellite/docker.py",
+        "Preserve all container lifecycle methods (create, start, stop, remove)",
+        "Preserve aiodocker usage",
+        "Update imports to use SDK base classes where applicable"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": [
+        "US-010"
+      ],
+      "labels": [
+        "deploy",
+        "docker"
+      ]
+    },
+    {
+      "id": "US-012",
+      "title": "Move deployment tasks to deploy satellite",
+      "description": "As a developer, I want deployment task implementations in the deploy satellite.",
+      "acceptanceCriteria": [
+        "Move DeployTask to satellites/deploy/src/deploy_satellite/tasks/deploy.py",
+        "Move UndeployTask to satellites/deploy/src/deploy_satellite/tasks/undeploy.py",
+        "Tasks extend BaseTask from SDK",
+        "Tasks implement execute() and get_task_type() methods",
+        "Create satellites/deploy/src/deploy_satellite/tasks/__init__.py with exports"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": [
+        "US-010",
+        "US-002"
+      ],
+      "labels": [
+        "deploy",
+        "tasks"
+      ]
+    },
+    {
+      "id": "US-013",
+      "title": "Move model server components to deploy satellite",
+      "description": "As a developer, I want model server handling in the deploy satellite since it's deployment-specific.",
+      "acceptanceCriteria": [
+        "Move ModelServerHandler to satellites/deploy/src/deploy_satellite/model_server/handler.py",
+        "Move ModelServerClient to satellites/deploy/src/deploy_satellite/model_server/client.py",
+        "Move entire model_server/ directory structure",
+        "Preserve all inference proxying logic",
+        "Update imports appropriately"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": [
+        "US-010"
+      ],
+      "labels": [
+        "deploy",
+        "model-server"
+      ]
+    },
+    {
+      "id": "US-014",
+      "title": "Move agent API to deploy satellite",
+      "description": "As a developer, I want the FastAPI app in the deploy satellite since it exposes deployment-specific endpoints.",
+      "acceptanceCriteria": [
+        "Move agent_api.py to satellites/deploy/src/deploy_satellite/api.py",
+        "Preserve all FastAPI routes for inference",
+        "Move OpenAPIHandler to deploy satellite",
+        "Update imports to use SDK for base functionality"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": [
+        "US-010",
+        "US-013"
+      ],
+      "labels": [
+        "deploy",
+        "api"
+      ]
+    },
+    {
+      "id": "US-015",
+      "title": "Create deploy satellite Settings class",
+      "description": "As a developer, I want deploy-specific settings that extend the SDK base settings.",
+      "acceptanceCriteria": [
+        "Create satellites/deploy/src/deploy_satellite/settings.py",
+        "Create DeploySettings class extending SDK's BaseSettings",
+        "Add deployment-specific settings (Docker config, model server config, etc.)",
+        "Preserve all existing environment variable names for backwards compatibility"
+      ],
+      "priority": 5,
+      "passes": false,
+      "dependsOn": [
+        "US-007",
+        "US-010"
+      ],
+      "labels": [
+        "deploy",
+        "settings"
+      ]
+    },
+    {
+      "id": "US-016",
+      "title": "Create deploy satellite main entry point",
+      "description": "As a developer, I want a main entry point that wires everything together.",
+      "acceptanceCriteria": [
+        "Create satellites/deploy/src/deploy_satellite/__main__.py",
+        "Instantiate SDK components (PlatformClient, PeriodicController, TaskHandler)",
+        "Register deploy and undeploy tasks with TaskHandler",
+        "Register deployment capabilities via SatelliteManager",
+        "Preserve python -m deploy_satellite as the run command",
+        "Current python -m agent command should map to new structure"
+      ],
+      "priority": 6,
+      "passes": false,
+      "dependsOn": [
+        "US-003",
+        "US-004",
+        "US-005",
+        "US-006",
+        "US-011",
+        "US-012",
+        "US-014",
+        "US-015"
+      ],
+      "labels": [
+        "deploy",
+        "entrypoint"
+      ]
+    },
+    {
+      "id": "US-017",
+      "title": "Move and split tests",
+      "description": "As a developer, I want tests organized by package so that each package is independently testable.",
+      "acceptanceCriteria": [
+        "Create luml-satellite-sdk/tests/ directory",
+        "Move tests for SDK components (client, controller, handler, manager) to SDK tests",
+        "Create satellites/deploy/tests/ directory",
+        "Move tests for deployment components (docker, tasks, model server) to deploy tests",
+        "Both test suites pass independently",
+        "Update any test fixtures and mocks for new import paths"
+      ],
+      "priority": 7,
+      "passes": false,
+      "dependsOn": [
+        "US-016"
+      ],
+      "labels": [
+        "testing"
+      ]
+    },
+    {
+      "id": "US-018",
+      "title": "Update CI configuration",
+      "description": "As a developer, I want CI to test both packages so that quality is maintained.",
+      "acceptanceCriteria": [
+        "Update CI workflow to run SDK quality checks",
+        "Update CI workflow to run deploy satellite quality checks",
+        "Both packages must pass formatting, linting, and type checking",
+        "Tests run for both packages"
+      ],
+      "priority": 8,
+      "passes": false,
+      "dependsOn": [
+        "US-017"
+      ],
+      "labels": [
+        "ci"
+      ]
+    },
+    {
+      "id": "US-019",
+      "title": "Remove old satellite directory",
+      "description": "As a developer, I want the old satellite directory cleaned up after migration.",
+      "acceptanceCriteria": [
+        "Verify all code has been migrated to SDK or deploy satellite",
+        "Verify all tests pass in new locations",
+        "Remove satellite/ directory",
+        "Update any documentation references to new paths",
+        "Update root-level scripts or configs that reference old path"
+      ],
+      "priority": 9,
+      "passes": false,
+      "dependsOn": [
+        "US-017",
+        "US-018"
+      ],
+      "labels": [
+        "cleanup"
+      ]
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-01-30T11:55:03.771Z"
+  }
+}
