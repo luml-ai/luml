@@ -185,14 +185,15 @@
         "Export exceptions from SDK's __init__.py"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-001"
       ],
       "labels": [
         "sdk",
         "exceptions"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-010",
@@ -412,6 +413,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T12:10:37.817Z"
+    "updatedAt": "2026-01-30T12:12:58.784Z"
   }
 }
