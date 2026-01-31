@@ -1,0 +1,40 @@
+[project]
+name = "luml-model-server"
+version = "0.1.0"
+description = "Model server runtime for deploy satellite"
+requires-python = ">=3.13"
+dependencies = [
+    "uvicorn==0.30.6",
+    "httpx==0.27.2",
+    "fnnx",
+    "cloudpickle",
+    "numpy",
+    "onnxruntime",
+    "pydantic",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+indent-width = 4
+src = ["model_server"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"
+]
+ignore = [
+    "ANN002", # *args
+    "ANN003", # **kwargs
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["model_server"]
+split-on-trailing-comma = true
