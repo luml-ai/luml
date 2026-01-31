@@ -19,3 +19,27 @@ class Secret(BaseModel):
 
     name: str
     value: str
+
+
+class InferenceAccessIn(BaseModel):
+    """Request schema for inference access authorization."""
+
+    api_key: str
+
+
+class InferenceAccessOut(BaseModel):
+    """Response schema for inference access authorization."""
+
+    authorized: bool
+
+
+class DeploymentInfo(BaseModel):
+    """Basic deployment information for API responses."""
+
+    deployment_id: str
+
+
+class Healthz(BaseModel):
+    """Health check response schema."""
+
+    status: str = "healthy"
