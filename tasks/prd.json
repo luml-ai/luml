@@ -344,7 +344,7 @@
         "Current python -m agent command should map to new structure"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-003",
         "US-004",
@@ -358,7 +358,8 @@
       "labels": [
         "deploy",
         "entrypoint"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-017",
@@ -423,6 +424,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-31T19:32:44.084Z"
+    "updatedAt": "2026-01-31T19:36:24.176Z"
   }
 }
