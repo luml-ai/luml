@@ -3,10 +3,10 @@
   "sessionId": "62b3c74b-a945-4cc1-ba8a-4df843471259",
   "status": "running",
   "startedAt": "2026-01-30T11:52:41.457Z",
-  "updatedAt": "2026-01-31T19:36:24.264Z",
-  "currentIteration": 2,
+  "updatedAt": "2026-01-31T19:45:36.669Z",
+  "currentIteration": 3,
   "maxIterations": 10,
-  "tasksCompleted": 16,
+  "tasksCompleted": 17,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -113,8 +113,8 @@
       {
         "id": "US-017",
         "title": "Move and split tests",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-018",
@@ -450,6 +450,16 @@
       "durationMs": 218947,
       "startedAt": "2026-01-31T19:32:45.218Z",
       "endedAt": "2026-01-31T19:36:24.165Z"
+    },
+    {
+      "iteration": 3,
+      "status": "completed",
+      "taskId": "US-017",
+      "taskTitle": "Move and split tests",
+      "taskCompleted": true,
+      "durationMs": 551250,
+      "startedAt": "2026-01-31T19:36:25.274Z",
+      "endedAt": "2026-01-31T19:45:36.524Z"
     }
   ],
   "skippedTaskIds": [],
