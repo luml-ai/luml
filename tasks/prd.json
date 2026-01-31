@@ -415,17 +415,18 @@
         "Update root-level scripts or configs that reference old path"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-017",
         "US-018"
       ],
       "labels": [
         "cleanup"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-31T19:51:11.007Z"
+    "updatedAt": "2026-01-31T19:55:47.039Z"
   }
 }
