@@ -89,8 +89,8 @@ class DockerService:
         }
 
         container = await self.client.containers.create_or_replace(
-            config=config,
-            name=name,  # type: ignore[arg-type]
+            config=config,  # type: ignore[arg-type]
+            name=name,
         )
         await container.start()
 

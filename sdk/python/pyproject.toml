@@ -96,3 +96,10 @@ combine-as-imports = true
 force-wrap-aliases = true
 known-first-party = ["luml"]
 split-on-trailing-comma = true
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = false
+warn_unused_configs = true
+# Ignore missing imports for optional dependencies
+ignore_missing_imports = true

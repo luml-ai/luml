@@ -53,7 +53,7 @@ class LangGraphFunc(PyFunc):
 
             with open(graph_creator_callable_path, "rb") as f:
                 graph_creator_callable = cloudpickle.load(f)
-            self.graph: Pregel = graph_creator_callable()
+            self.graph = graph_creator_callable()
         else:
             raise ValueError(
                 "graph_path or graph_creator_callable.pkl not found in fnnx_context"

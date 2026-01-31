@@ -260,28 +260,29 @@ def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
         if is_site_package:
             top_level = mod_name.split(".")[0]
 
-            dist_name = module_to_dist.get(top_level)
+            maybe_dist_name = module_to_dist.get(top_level)
 
             pkg_version = None
-            for name in [dist_name, top_level]:
+            resolved_dist_name: str | None = None
+            for name in [maybe_dist_name, top_level]:
                 if name is None:
                     continue
                 try:
                     pkg_version = version(name)
-                    dist_name = name
+                    resolved_dist_name = name
                     break
                 except Exception:
                     pass
 
-            if pkg_version is None or dist_name is None:
+            if pkg_version is None or resolved_dist_name is None:
                 continue
 
-            key = dist_name.lower().replace("_", "-")
+            key = resolved_dist_name.lower().replace("_", "-")
 
             if key not in pip_packages:
-                marker = _get_platform_marker(dist_name)
+                marker = _get_platform_marker(resolved_dist_name)
                 pip_packages[key] = Dependency(
-                    name=dist_name,
+                    name=resolved_dist_name,
                     version=pkg_version,
                     marker=marker,
                 )

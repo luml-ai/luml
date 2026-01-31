@@ -211,7 +211,7 @@ class ModelCardBuilder:
     def _markdown_to_html(markdown: str) -> str:  # noqa: C901
         html_lines = []
         in_code_block = False
-        code_block_lines = []
+        code_block_lines: list[str] = []
         in_list = False
 
         for line in markdown.split("\n"):

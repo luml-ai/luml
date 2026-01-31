@@ -143,8 +143,8 @@ class SyncBaseClient(BaseClient):
                 error_detail = f": {body['detail']}"
 
             raise self._make_status_error(
-                f"Error response {response.status_code} "
-                f"while requesting {response.request.method} {response.url}{error_detail}",
+                f"Error response {response.status_code} while requesting "
+                f"{response.request.method} {response.url}{error_detail}",
                 body=body,
                 response=response,
             )
@@ -216,8 +216,8 @@ class AsyncBaseClient(BaseClient):
                 error_detail = f": {body['detail']}"
 
             raise self._make_status_error(
-                f"Error response {response.status_code} "
-                f"while requesting {response.request.method} {response.url}{error_detail}",
+                f"Error response {response.status_code} while requesting "
+                f"{response.request.method} {response.url}{error_detail}",
                 body=body,
                 response=response,
             )
