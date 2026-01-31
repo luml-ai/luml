@@ -254,7 +254,7 @@
         "Create satellites/deploy/src/deploy_satellite/tasks/__init__.py with exports"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-010",
         "US-002"
@@ -262,7 +262,8 @@
       "labels": [
         "deploy",
         "tasks"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-013",
@@ -419,6 +420,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-30T19:19:10.011Z"
+    "updatedAt": "2026-01-31T08:17:00.910Z"
   }
 }

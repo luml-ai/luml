@@ -3,10 +3,10 @@
   "sessionId": "62b3c74b-a945-4cc1-ba8a-4df843471259",
   "status": "running",
   "startedAt": "2026-01-30T11:52:41.457Z",
-  "updatedAt": "2026-01-30T19:14:55.260Z",
-  "currentIteration": 4,
+  "updatedAt": "2026-01-31T08:13:43.664Z",
+  "currentIteration": 3,
   "maxIterations": 10,
-  "tasksCompleted": 10,
+  "tasksCompleted": 11,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -77,8 +77,8 @@
       {
         "id": "US-011",
         "title": "Move Docker service to deploy satellite",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-012",
@@ -270,10 +270,80 @@
       "durationMs": 140415,
       "startedAt": "2026-01-30T19:12:34.738Z",
       "endedAt": "2026-01-30T19:14:55.153Z"
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "taskId": "US-011",
+      "taskTitle": "Move Docker service to deploy satellite",
+      "taskCompleted": true,
+      "durationMs": 253735,
+      "startedAt": "2026-01-30T19:14:56.268Z",
+      "endedAt": "2026-01-30T19:19:10.003Z"
+    },
+    {
+      "iteration": 6,
+      "status": "failed",
+      "taskId": "US-012",
+      "taskTitle": "Move deployment tasks to deploy satellite",
+      "taskCompleted": false,
+      "durationMs": 23186,
+      "startedAt": "2026-01-30T19:19:11.106Z",
+      "endedAt": "2026-01-30T19:19:34.292Z"
+    },
+    {
+      "iteration": 7,
+      "status": "failed",
+      "taskId": "US-013",
+      "taskTitle": "Move model server components to deploy satellite",
+      "taskCompleted": false,
+      "durationMs": 3518,
+      "startedAt": "2026-01-30T19:19:35.308Z",
+      "endedAt": "2026-01-30T19:19:38.826Z"
+    },
+    {
+      "iteration": 8,
+      "status": "failed",
+      "taskId": "US-015",
+      "taskTitle": "Create deploy satellite Settings class",
+      "taskCompleted": false,
+      "durationMs": 4071,
+      "startedAt": "2026-01-30T19:19:39.835Z",
+      "endedAt": "2026-01-30T19:19:43.906Z"
+    },
+    {
+      "iteration": 1,
+      "status": "failed",
+      "taskId": "US-012",
+      "taskTitle": "Move deployment tasks to deploy satellite",
+      "taskCompleted": false,
+      "durationMs": 3740,
+      "startedAt": "2026-01-30T19:20:07.773Z",
+      "endedAt": "2026-01-30T19:20:11.513Z"
+    },
+    {
+      "iteration": 2,
+      "status": "failed",
+      "taskId": "US-013",
+      "taskTitle": "Move model server components to deploy satellite",
+      "taskCompleted": false,
+      "durationMs": 3370,
+      "startedAt": "2026-01-30T19:20:12.526Z",
+      "endedAt": "2026-01-30T19:20:15.896Z"
+    },
+    {
+      "iteration": 3,
+      "status": "failed",
+      "taskId": "US-015",
+      "taskTitle": "Create deploy satellite Settings class",
+      "taskCompleted": false,
+      "durationMs": 3748,
+      "startedAt": "2026-01-30T19:20:16.907Z",
+      "endedAt": "2026-01-30T19:20:20.655Z"
     }
   ],
   "skippedTaskIds": [],
   "cwd": "/Users/nikitagonchar/dev/luml",
   "activeTaskIds": [],
-  "subagentPanelVisible": false
+  "subagentPanelVisible": true
 }
