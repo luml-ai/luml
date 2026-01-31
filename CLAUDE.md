@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LUML is an open-source MLOps/LLMOps platform for building, managing, and deploying AI/ML models. The codebase is organized as a monorepo with four main components: backend (FastAPI), frontend (Vue 3), satellite (worker agent), and SDK (Python client).
+LUML is an open-source MLOps/LLMOps platform for building, managing, and deploying AI/ML models. The codebase is organized as a monorepo with the following main components: backend (FastAPI), frontend (Vue 3), satellites (worker agents in `satellites/` directory), satellite SDK (`luml-satellite-sdk/`), and SDK (Python client in `sdk/`).
 
 ## Build/Test/Lint Commands
 
@@ -34,12 +34,19 @@ npm run test:ci          # Vitest tests
 npm run storybook        # Component stories
 ```
 
-### Satellite (Worker Agent)
+### Satellite SDK (Shared Library)
 ```bash
-cd satellite
+cd luml-satellite-sdk
 uv venv && source .venv/bin/activate && uv sync
-python -m agent          # Run satellite agent
 uv run pytest            # Run tests
+```
+
+### Deploy Satellite (Worker Agent)
+```bash
+cd satellites/deploy
+uv venv && source .venv/bin/activate && uv sync
+python -m deploy_satellite  # Run deploy satellite
+uv run pytest               # Run tests
 ```
 
 ### SDK
@@ -98,7 +105,9 @@ uv run pytest            # Run tests
 
 **Frontend**: Vue 3, TypeScript, Vite, Pinia, PrimeVue, Axios, Vitest (Node 22)
 
-**Satellite**: FastAPI, aiodocker, Pydantic Settings
+**Satellite SDK**: Pydantic, Httpx (shared library for all satellites)
+
+**Deploy Satellite**: FastAPI, aiodocker, Pydantic Settings (model deployment worker)
 
 **SDK**: Pydantic, Httpx, FNNX
 
