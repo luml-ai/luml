@@ -320,7 +320,7 @@
         "Preserve all existing environment variable names for backwards compatibility"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "dependsOn": [
         "US-007",
         "US-010"
@@ -328,7 +328,8 @@
       "labels": [
         "deploy",
         "settings"
-      ]
+      ],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-016",
@@ -422,6 +423,6 @@
     }
   ],
   "metadata": {
-    "updatedAt": "2026-01-31T08:33:32.448Z"
+    "updatedAt": "2026-01-31T19:32:44.084Z"
   }
 }
