@@ -3,10 +3,10 @@
   "sessionId": "62b3c74b-a945-4cc1-ba8a-4df843471259",
   "status": "running",
   "startedAt": "2026-01-30T11:52:41.457Z",
-  "updatedAt": "2026-01-31T08:13:43.664Z",
-  "currentIteration": 3,
+  "updatedAt": "2026-01-31T08:17:01.021Z",
+  "currentIteration": 1,
   "maxIterations": 10,
-  "tasksCompleted": 11,
+  "tasksCompleted": 12,
   "isPaused": false,
   "agentPlugin": "claude",
   "trackerState": {
@@ -83,8 +83,8 @@
       {
         "id": "US-012",
         "title": "Move deployment tasks to deploy satellite",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-013",
@@ -340,6 +340,16 @@
       "durationMs": 3748,
       "startedAt": "2026-01-30T19:20:16.907Z",
       "endedAt": "2026-01-30T19:20:20.655Z"
+    },
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-012",
+      "taskTitle": "Move deployment tasks to deploy satellite",
+      "taskCompleted": true,
+      "durationMs": 195521,
+      "startedAt": "2026-01-31T08:13:45.378Z",
+      "endedAt": "2026-01-31T08:17:00.899Z"
     }
   ],
   "skippedTaskIds": [],
