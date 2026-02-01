@@ -2,10 +2,14 @@ import uuid
 import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from luml.artifacts._base import DiskFile, FileMap
+from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
-from luml.modelref import ArtifactMap, DiskArtifact, ModelReference
+
+if TYPE_CHECKING:
+    from luml.artifacts.experiment import ExperimentReference
 
 
 class ExperimentTracker:
@@ -335,7 +339,7 @@ class ExperimentTracker:
         with NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
             zip_path = temp_zip.name
 
-        if isinstance(exp_db, DiskArtifact):
+        if isinstance(exp_db, DiskFile):
             path = exp_db.path
             with zipfile.ZipFile(
                 zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=1
@@ -346,16 +350,16 @@ class ExperimentTracker:
                 "Only DiskArtifact is supported for exp_db at the moment."
             )
 
-        zipped_exp_db = DiskArtifact(zip_path)
+        zipped_exp_db = DiskFile(zip_path)
 
         model_reference._append_metadata(
             idx=None,
             tags=[tag],
             payload={},
             data=[
-                ArtifactMap(artifact=zipped_exp_db, remote_path="exp.db.zip"),
-                ArtifactMap(artifact=attachments, remote_path="attachments.tar"),
-                ArtifactMap(artifact=index, remote_path="attachments.index.json"),
+                FileMap(file=zipped_exp_db, remote_path="exp.db.zip"),
+                FileMap(file=attachments, remote_path="attachments.tar"),
+                FileMap(file=index, remote_path="attachments.index.json"),
             ],
             prefix=tag,
         )
@@ -381,3 +385,28 @@ class ExperimentTracker:
 
         setup_tracing()
         set_experiment_tracker(self)
+
+    def export(
+        self, output_path: str, experiment_id: str | None = None
+    ) -> "ExperimentReference":
+        """
+        Export the entire experiment tracking data and save as an artifact.
+
+        Args:
+            output_path: Path to save the exported artifact.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        # Log data...
+        tracker.end_experiment()
+        tracker.export("experiment_data.tar", experiment_id=exp_id)
+        ```
+        """
+        from luml.artifacts.experiment import save_experiment
+
+        experiment_id = experiment_id or self.current_experiment_id
+        if experiment_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return save_experiment(self, experiment_id, output_path=output_path)
