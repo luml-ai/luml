@@ -13,6 +13,7 @@ export enum ArtifactStatusEnum {
 export enum ArtifactTypeEnum {
   model = 'model',
   dataset = 'dataset',
+  experiment = 'experiment',
 }
 
 export interface CreateArtifactPayload {
