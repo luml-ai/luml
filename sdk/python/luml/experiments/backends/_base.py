@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from luml.modelref import _BaseArtifact
+from luml.artifacts._base import _BaseFile
 
 
 class Backend(ABC):
@@ -112,11 +112,11 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def export_experiment_db(self, experiment_id: str) -> _BaseArtifact:
+    def export_experiment_db(self, experiment_id: str) -> _BaseFile:
         pass
 
     @abstractmethod
     def export_attachments(
         self, experiment_id: str
-    ) -> tuple[_BaseArtifact, _BaseArtifact] | None:
+    ) -> tuple[_BaseFile, _BaseFile] | None:
         pass
