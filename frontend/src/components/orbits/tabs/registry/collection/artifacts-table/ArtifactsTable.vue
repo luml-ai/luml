@@ -44,6 +44,15 @@
             </template>
           </Column>
           <Column
+            field="type"
+            header="Type"
+            :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
+          >
+            <template #body="{ data }: { data: Artifact }">
+              <TypeColumnBody :data="data" />
+            </template>
+          </Column>
+          <Column
             field="created_at"
             header="Creation time"
             sortable
@@ -148,6 +157,7 @@ import TableToolbar from './TableToolbar.vue'
 import TagsList from './TagsList.vue'
 import NameColumnBody from './NameColumnBody.vue'
 import StatusColumnBody from './StatusColumnBody.vue'
+import TypeColumnBody from './TypeColumnBody.vue'
 
 const INITIAL_VISIBLE_METRICS_COUNT = 20
 
@@ -262,6 +272,7 @@ onBeforeMount(initList)
 .description {
   display: -webkit-box;
   -webkit-line-clamp: 2;
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }

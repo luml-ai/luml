@@ -1,5 +1,6 @@
 import type { DataTablePassThroughOptions } from 'primevue'
-import { ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
+import { ArtifactStatusEnum, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import { CircuitBoard, FileChartColumn, FlaskConical } from 'lucide-vue-next'
 
 export const TABLE_PT: DataTablePassThroughOptions = {
   root: {
@@ -34,3 +35,21 @@ export const STATUS_TAGS_CONFIG = {
 }
 
 export const columnBodyStyle = 'white-space: nowrap; overflow:hidden; text-overflow: ellipsis;'
+
+export const ARTIFACT_TYPE_TAGS_CONFIG = {
+  [ArtifactTypeEnum.model]: {
+    severity: 'secondary',
+    text: 'Model',
+    icon: CircuitBoard,
+  },
+  [ArtifactTypeEnum.experiment]: {
+    severity: 'info',
+    text: 'Experiment',
+    icon: FlaskConical,
+  },
+  [ArtifactTypeEnum.dataset]: {
+    severity: 'warn',
+    text: 'Dataset',
+    icon: FileChartColumn,
+  },
+}

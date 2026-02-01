@@ -20,6 +20,7 @@ export const useArtifactUpload = () => {
   async function upload(
     file: File,
     name: string,
+    type: ArtifactTypeEnum,
     description: string,
     tags: string[],
     requestInfo?: { organizationId: string; orbitId: string; collectionId: string },
@@ -32,7 +33,7 @@ export const useArtifactUpload = () => {
     const fileHash = await getSha256(modelBuffer)
 
     const payload: CreateArtifactPayload = {
-      type: ArtifactTypeEnum.model, // TODO: change to dataset if needed
+      type,
       extra_values: metrics,
       manifest,
       file_index: Object.fromEntries(fileIndex.entries()),

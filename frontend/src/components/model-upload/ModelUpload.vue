@@ -77,6 +77,7 @@ import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { useArtifactUpload } from '@/hooks/useArtifactUpload'
 import { modelUploadResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import ArtifactUploadCollectionSelect from './ModelUploadCollectionSelect.vue'
 
 type Props = {
@@ -167,6 +168,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     await upload(
       file,
       formData.value.name,
+      ArtifactTypeEnum.model,
       formData.value.description,
       [...formData.value.tags],
       ids,
