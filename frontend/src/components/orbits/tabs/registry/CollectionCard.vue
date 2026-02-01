@@ -7,9 +7,13 @@
           <History :size="12" />
           <span>{{ updatedText }}</span>
         </div>
-        <div v-if="data.collection_type === OrbitCollectionTypeEnum.model" class="info-item">
-          <CircuitBoard :size="12" />
-          <span>Model</span>
+        <div class="info-item">
+          <component
+            v-if="COLLECTION_TYPE_CONFIG[data.collection_type]"
+            :is="COLLECTION_TYPE_CONFIG[data.collection_type].icon"
+            :size="12"
+          />
+          <span>{{ COLLECTION_TYPE_CONFIG[data.collection_type]?.label ?? 'Unknown type' }}</span>
         </div>
         <div class="info-item">
           <Database :size="12" />
@@ -39,16 +43,14 @@
 </template>
 
 <script setup lang="ts">
-import {
-  OrbitCollectionTypeEnum,
-  type OrbitCollection,
-} from '@/lib/api/orbit-collections/interfaces'
+import { type OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { Button, Tag } from 'primevue'
-import { EllipsisVertical, History, Database, Tag as TagIcon, CircuitBoard } from 'lucide-vue-next'
+import { EllipsisVertical, History, Database, Tag as TagIcon } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import CollectionEditor from './CollectionEditor.vue'
 import { useRouter } from 'vue-router'
 import { getLastUpdateText } from '@/helpers/helpers'
+import { COLLECTION_TYPE_CONFIG } from './collection.const'
+import CollectionEditor from './CollectionEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
 
 type Props = {

@@ -4,7 +4,7 @@
     header="Create a new collection"
     modal
     :draggable="false"
-    :pt="dialogPt"
+    :pt="COLLECTION_CREATOR_DIALOG_PT"
   >
     <Form :initial-values="formData" :resolver="collectionCreatorResolver" @submit="onSubmit">
       <div class="inputs">
@@ -22,15 +22,13 @@
           <label for="collection_type" class="label required">Type</label>
           <Select
             v-model="formData.collection_type"
-            :options="[OrbitCollectionTypeEnum.model]"
+            :options="COLLECTION_TYPE_OPTIONS"
+            option-label="label"
+            option-value="value"
+            option-disabled="disabled"
             placeholder="Select artifact types"
             name="collection_type"
             id="collection_type"
-            :pt="{
-              option: {
-                style: 'text-transform: capitalize',
-              },
-            }"
           ></Select>
         </div>
         <div class="field">
@@ -64,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import type { DialogPassThroughOptions, AutoCompleteCompleteEvent } from 'primevue'
+import type { AutoCompleteCompleteEvent } from 'primevue'
 import { Dialog, Button, InputText, Select, AutoComplete, Textarea, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { computed, ref } from 'vue'
@@ -75,6 +73,7 @@ import {
 import { useCollectionsStore } from '@/stores/collections'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { collectionCreatorResolver } from '@/utils/forms/resolvers'
+import { COLLECTION_CREATOR_DIALOG_PT, COLLECTION_TYPE_OPTIONS } from './collection.const'
 
 type Props = {
   organizationId?: string
@@ -82,18 +81,6 @@ type Props = {
 }
 
 const props = defineProps<Props>()
-
-const dialogPt: DialogPassThroughOptions = {
-  root: {
-    style: 'max-width: 500px; width: 100%;',
-  },
-  header: {
-    style: 'padding: 28px; text-transform: uppercase; font-size: 20px;',
-  },
-  content: {
-    style: 'padding: 0 28px 28px;',
-  },
-}
 
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
