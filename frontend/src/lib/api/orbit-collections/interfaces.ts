@@ -1,6 +1,8 @@
 export enum OrbitCollectionTypeEnum {
   model = 'model',
   dataset = 'dataset',
+  experiment = 'experiment',
+  mixed = 'mixed',
 }
 
 export interface OrbitCollection {
