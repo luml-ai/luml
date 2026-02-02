@@ -1,11 +1,15 @@
 import os
 import tempfile
-from typing import Any, Literal, TYPE_CHECKING
+from typing import Any, Literal, TYPE_CHECKING, Union
 from warnings import warn
 
 import xgboost as xgb
-import numpy as np  
 from xgboost import Booster
+
+try:
+    from xgboost.sklearn import XGBModel
+except ImportError:
+    XGBModel = None  # type: ignore[assignment, misc]
 
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
@@ -13,7 +17,7 @@ from pydantic import BaseModel, create_model
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.modelref import ModelReference
-from luml.utils.deps import find_dependencies, has_dependency
+from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
     extract_top_level_modules,
     get_version,
@@ -25,19 +29,7 @@ from luml.integrations.sklearn.packaging import save_sklearn
 
 
 if TYPE_CHECKING:
-    from xgboost import DMatrix  
-
-try:
-    import pandas as pd  # type: ignore[import-untyped]
-except ImportError:
-    pd = None  # type: ignore[assignment]
-
-try:
-    import scipy.sparse  # type: ignore[import-untyped]
-    HAS_SCIPY = True
-except ImportError:
-    HAS_SCIPY = False
-
+    from xgboost import DMatrix
 
 class _DMatrixInputSchema(BaseModel):
     data: list[list[float]] | list[float]
@@ -51,6 +43,7 @@ class _DMatrixInputSchema(BaseModel):
     missing: float | None = None
     feature_names: list[str] | None = None
     feature_types: list[str] | None = None
+    categorical_features: list[str] | None = None
 
 
 
@@ -84,8 +77,6 @@ def _build_input_schema() -> type[BaseModel]:
 def _build_output_schema() -> type[BaseModel]:
     output_fields = {
         "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
-        "num_features": (int, ...),
-        "num_boosted_rounds": (int, ...),
     }
 
     output_schema = create_model(
@@ -108,9 +99,8 @@ def _add_io(builder: PyfuncBuilder) -> None:
 def _get_default_deps() -> list[str]:
     return [
         "xgboost==" + get_version("xgboost"),
-        "scipy==" + get_version("scipy"),
         "numpy==" + get_version("numpy"),
-        "pydantic==" + get_version("pydantic"),
+        "scipy==" + get_version("scipy"), 
     ]
 
 
@@ -162,8 +152,8 @@ def _is_xgboost_sklearn_estimator(obj: object) -> bool:
 
 
 def save_xgboost_model(  # noqa: C901
-    estimator: "Booster",
-    inputs: Any,  # noqa: ANN401
+    estimator: "Union[Booster, xgb.XGBModel]", 
+    inputs: Any | None = None, 
     path: str | None = None,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",  
     extra_dependencies: list[str] | None = None,
@@ -198,6 +188,15 @@ def save_xgboost_model(  # noqa: C901
             "Delegating to save_sklearn().",
             UserWarning,
         )
+
+        xgboost_dep = f"xgboost=={get_version('xgboost')}"
+
+        if extra_dependencies is None:
+            extra_dependencies = [xgboost_dep]
+        else:
+            extra_dependencies = list(extra_dependencies)
+            if not any('xgboost' in dep.lower() for dep in extra_dependencies):
+                extra_dependencies.append(xgboost_dep)
 
         return save_sklearn(
             estimator=estimator,

@@ -2,15 +2,9 @@ from typing import Any
 
 import numpy as np
 import xgboost as xgb
+import scipy.sparse
 
 from fnnx.variants.pyfunc import PyFunc
-
-try:
-    import scipy.sparse  # type: ignore[import-untyped]
-    HAS_SCIPY = True
-except ImportError:
-    HAS_SCIPY = False
-
 
 class XGBoostFunc(PyFunc):
     
@@ -28,8 +22,13 @@ class XGBoostFunc(PyFunc):
         data = dmatrix_input["data"]
         missing = dmatrix_input.get("missing")
         feature_names = dmatrix_input.get("feature_names")
+
         feature_types = dmatrix_input.get("feature_types")
-        
+
+        if "categorical_features" in dmatrix_input and feature_names:
+            cat_set = set(dmatrix_input["categorical_features"])
+            feature_types = ["c" if name in cat_set else "q" for name in feature_names]
+
         if data_format == "dense":
             data_array = np.asarray(data)
         elif data_format == "csr":
@@ -37,9 +36,7 @@ class XGBoostFunc(PyFunc):
             missing_fields = [f for f in required_fields if dmatrix_input.get(f) is None]
             if missing_fields:
                 raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
-            if not HAS_SCIPY:
-                raise RuntimeError("scipy is required for sparse input")
-            
+
             data_array = scipy.sparse.csr_matrix(
                 (
                     np.asarray(data),
@@ -85,8 +82,6 @@ class XGBoostFunc(PyFunc):
         
         return {
             "predictions": to_json_serializable(predictions),
-            "num_features": int(self.model.num_features()),  
-            "num_boosted_rounds": int(self.model.num_boosted_rounds()),
         }
     
     def _response(self, outputs: dict) -> dict:
