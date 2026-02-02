@@ -46,7 +46,7 @@ async def test_create_collection(
     data = CollectionCreateIn(
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["t1"],
     )
     expected = Collection(
@@ -103,7 +103,7 @@ async def test_create_collection_orbit_not_found(
     data = CollectionCreateIn(
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["t1"],
     )
 
@@ -227,7 +227,7 @@ async def test_create_collection_orbit_wrong_org(
     data = CollectionCreateIn(
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["t1"],
     )
 
@@ -277,7 +277,7 @@ async def test_update_collection(
         orbit_id=orbit_id,
         description="d",
         name="new",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=None,
         total_artifacts=0,
         created_at=datetime.now(),
@@ -439,7 +439,7 @@ async def test_delete_collection_empty(
         orbit_id=orbit_id,
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=None,
         total_artifacts=0,
         created_at=datetime.now(),
@@ -499,7 +499,7 @@ async def test_delete_collection_not_empty(
         orbit_id=orbit_id,
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=None,
         total_artifacts=0,
         created_at=datetime.now(),
@@ -511,7 +511,7 @@ async def test_delete_collection_not_empty(
         orbit_id=orbit_id,
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=None,
         total_artifacts=0,
         created_at=datetime.now(),
@@ -614,7 +614,7 @@ async def test_delete_collection_orbit_wrong_org(
         orbit_id=orbit_id,
         description="d",
         name="n",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=None,
         total_artifacts=0,
         created_at=datetime.now(),
@@ -670,7 +670,7 @@ async def test_get_orbit_collections_success(
             orbit_id=orbit_id,
             description="Test collection 1",
             name="Collection 1",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=None,
             total_artifacts=5,
             created_at=datetime.now(),

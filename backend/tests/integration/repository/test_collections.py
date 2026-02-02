@@ -21,7 +21,7 @@ async def test_create_collection(create_orbit: OrbitFixtureData) -> None:
         orbit_id=orbit.id,
         description="desc",
         name="model-1",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
     )
     created = await repo.create_collection(collection)
 
@@ -43,7 +43,7 @@ async def test_get_collection(create_collection: CollectionFixtureData) -> None:
     assert fetched_collection.id == collection.id
     assert fetched_collection.name == collection.name
     assert fetched_collection.description == collection.description
-    assert fetched_collection.collection_type == collection.collection_type
+    assert fetched_collection.type == collection.type
     assert fetched_collection.tags == collection.tags
 
 
@@ -60,7 +60,7 @@ async def test_get_orbit_collections(create_orbit: OrbitFixtureData) -> None:
             orbit_id=orbit.id,
             description="Collection",
             name="collection",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=["tag"],
         )
         created = await repo.create_collection(collection_data)
@@ -121,21 +121,21 @@ async def test_get_orbit_collections_search_by_name(
             orbit_id=orbit.id,
             description="First collection",
             name="my-model-collection",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=["tag1"],
         ),
         CollectionCreate(
             orbit_id=orbit.id,
             description="Second collection",
             name="dataset-collection",
-            collection_type=CollectionType.DATASET,
+            type=CollectionType.DATASET,
             tags=["tag2"],
         ),
         CollectionCreate(
             orbit_id=orbit.id,
             description="Third collection",
             name="another-model",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=["tag3"],
         ),
     ]
@@ -168,21 +168,21 @@ async def test_get_orbit_collections_search_by_tags(
             orbit_id=orbit.id,
             description="Collection 1",
             name="collection-1",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=["production", "ml-model"],
         ),
         CollectionCreate(
             orbit_id=orbit.id,
             description="Collection 2",
             name="collection-2",
-            collection_type=CollectionType.DATASET,
+            type=CollectionType.DATASET,
             tags=["staging", "dataset"],
         ),
         CollectionCreate(
             orbit_id=orbit.id,
             description="Collection 3",
             name="collection-3",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=["production", "dataset"],
         ),
     ]

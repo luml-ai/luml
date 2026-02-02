@@ -37,7 +37,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
         orbit_id: UUID,
         pagination: PaginationParams,
         search: str | None = None,
-        collection_type: CollectionTypeFilter | None = None,
+        type: CollectionTypeFilter | None = None,  # noqa: A002
     ) -> list[Collection]:
         async with self._get_session() as session:
             conditions = [CollectionOrm.orbit_id == orbit_id]
@@ -51,10 +51,8 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                     )
                 )
 
-            if collection_type is not None:
-                conditions.append(
-                    CollectionOrm.collection_type.contains(collection_type.value)
-                )
+            if type is not None:
+                conditions.append(CollectionOrm.type.contains(type.value))
 
             db_collections = await self.get_models_with_pagination(
                 session,

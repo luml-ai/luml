@@ -129,7 +129,7 @@ def demo_collections() -> None:
     collection = luml.collections.create(
         name="Production artifacts",
         description="Trained artifacts ready for production deployment",
-        collection_type=CollectionType.artifact,
+        type=CollectionType.artifact,
         tags=["production", "ml", "artifacts"],
     )
     print(f"Created collection: {collection}")

@@ -148,9 +148,7 @@ async def test_get_orbit_with_collections_tags(create_orbit: OrbitFixtureData) -
             orbit_id=orbit.id,
             description=f"Collection {i}",
             name=f"collection-{i}",
-            collection_type=CollectionType.MODEL
-            if i % 2 == 0
-            else CollectionType.DATASET,
+            type=CollectionType.MODEL if i % 2 == 0 else CollectionType.DATASET,
             tags=all_tags
             if i == 0
             else random.sample(all_tags, k=random.randint(0, 3)),
@@ -196,7 +194,7 @@ async def test_get_orbit_with_collections_without_tags(
             orbit_id=orbit.id,
             description=f"Collection {i}",
             name=f"collection-{i}",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=None,
         )
         await collection_repo.create_collection(collection)
