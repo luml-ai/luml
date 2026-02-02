@@ -9,7 +9,7 @@ import type {
   Satellite,
   SatelliteField,
 } from '@/lib/api/satellites/interfaces'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { ref } from 'vue'
 
 export const useSatelliteFields = () => {
@@ -126,7 +126,7 @@ export const useSatelliteFields = () => {
 
   function setFields(
     satellite: Satellite | null,
-    model: MlModel | null,
+    model: ModelArtifact | null,
     currentValues: Record<string, any>,
   ) {
     if (!satellite || !model) {

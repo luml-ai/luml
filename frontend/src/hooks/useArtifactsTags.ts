@@ -1,7 +1,7 @@
 import { api } from '@/lib/api'
 import { ref } from 'vue'
 
-export const useModelsTags = () => {
+export const useArtifactsTags = () => {
   const tags = ref<string[]>([])
 
   async function loadTags(organizationId: string, orbitId: string, collectionId: string) {
@@ -10,7 +10,7 @@ export const useModelsTags = () => {
       orbitId,
       collectionId,
     )
-    tags.value = collectionDetails.models_tags
+    tags.value = collectionDetails.artifacts_tags
   }
 
   function getTagsByQuery(query: string) {

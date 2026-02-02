@@ -1,8 +1,8 @@
-import type { GetModelsListParams, MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { GetArtifactsListParams, Artifact } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 
 interface RequestInfo {
   organizationId: string
@@ -10,18 +10,19 @@ interface RequestInfo {
   collectionId: string
 }
 
-export const useModelsList = (limit = 20, syncStore = true) => {
-  const modelsStore = useModelsStore()
+export const useArtifactsList = (limit = 20, syncStore = true) => {
+  const artifactsStore = useArtifactsStore()
+  const abortController = ref<AbortController | null>(null)
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
   const isLoading = ref(false)
-  const sortData = ref<Pick<GetModelsListParams, 'sort_by' | 'order'>>({
+  const sortData = ref<Pick<GetArtifactsListParams, 'sort_by' | 'order'>>({
     sort_by: undefined,
     order: undefined,
   })
 
-  const modelsList = ref<MlModel[]>([])
+  const list = ref<Artifact[]>([])
 
   const pageIndex = computed(() => {
     return savedCursors.value.length
@@ -34,8 +35,8 @@ export const useModelsList = (limit = 20, syncStore = true) => {
   async function getInitialPage() {
     isLoading.value = true
     const cursor = null
-    const response = await getModelsData(cursor)
-    addModelsToList(response.items)
+    const response = await getData(cursor)
+    addItemsToList(response.items)
     savedCursors.value.push(response.cursor)
     isLoading.value = false
   }
@@ -44,19 +45,22 @@ export const useModelsList = (limit = 20, syncStore = true) => {
     const cursor = getNextPageCursor()
     if (!cursor) return
     isLoading.value = true
-    const response = await getModelsData(cursor)
-    addModelsToList(response.items)
+    const response = await getData(cursor)
+    addItemsToList(response.items)
     savedCursors.value.push(response.cursor)
     isLoading.value = false
   }
 
-  async function getModelsData(cursor: string | null) {
+  async function getData(cursor: string | null) {
     if (!requestInfo.value) throw new Error('Request info not set')
-    return await api.mlModels.getModelsList(
+    abortController.value?.abort()
+    abortController.value = new AbortController()
+    return await api.artifacts.getList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.collectionId,
       { cursor, limit, ...sortData.value },
+      abortController.value.signal,
     )
   }
 
@@ -65,18 +69,18 @@ export const useModelsList = (limit = 20, syncStore = true) => {
   }
 
   function reset() {
-    setModelsList([])
+    setList([])
     savedCursors.value = []
     requestInfo.value = null
   }
 
-  function addModelsToList(models: MlModel[]) {
-    const existingModelsIds = modelsList.value.map((model) => model.id)
-    const newModels = models.filter((model) => !existingModelsIds.includes(model.id))
-    setModelsList([...modelsList.value, ...newModels])
+  function addItemsToList(artifacts: Artifact[]) {
+    const existingArtifactsIds = list.value.map((artifact) => artifact.id)
+    const newArtifacts = artifacts.filter((artifact) => !existingArtifactsIds.includes(artifact.id))
+    setList([...list.value, ...newArtifacts])
   }
 
-  function setSortData(data: Pick<GetModelsListParams, 'sort_by' | 'order'>) {
+  function setSortData(data: Pick<GetArtifactsListParams, 'sort_by' | 'order'>) {
     sortData.value = data
   }
 
@@ -88,34 +92,47 @@ export const useModelsList = (limit = 20, syncStore = true) => {
     }
   }
 
-  function setModelsList(models: MlModel[]) {
+  function setList(artifacts: Artifact[]) {
     if (syncStore) {
-      modelsStore.setModelsList(models)
+      artifactsStore.setArtifactsList(artifacts)
     } else {
-      modelsList.value = models
+      list.value = artifacts
     }
+  }
+
+  async function onSortDataChange() {
+    setList([])
+    savedCursors.value = []
+    getInitialPage()
+  }
+
+  function setLoading(value: boolean) {
+    isLoading.value = value
   }
 
   if (syncStore) {
     watch(
-      () => modelsStore.modelsList,
-      (storeModelsList) => {
-        modelsList.value = storeModelsList
+      () => artifactsStore.artifactsList,
+      (storedList) => {
+        list.value = storedList
       },
       { immediate: true },
     )
   }
 
+  watch(sortData, onSortDataChange)
+
   return {
     setRequestInfo,
     getInitialPage,
-    modelsList,
+    list,
     getNextPage,
     isLoading,
     pageIndex,
     reset,
-    addModelsToList,
+    addItemsToList,
     setSortData,
     onLazyLoad,
+    setLoading,
   }
 }

@@ -17,8 +17,8 @@
       <Skeleton style="height: 210px; margin-bottom: 20px"></Skeleton>
     </div>
     <ExperimentSnapshot
-      v-else-if="modelsStore.experimentSnapshotProvider"
-      :provider="modelsStore.experimentSnapshotProvider"
+      v-else-if="artifactsStore.experimentSnapshotProvider"
+      :provider="artifactsStore.experimentSnapshotProvider"
       :models-ids="modelIdsList"
       :models-info="modelsInfo"
     ></ExperimentSnapshot>
@@ -27,19 +27,19 @@
 
 <script setup lang="ts">
 import type { ModelsInfo } from '@/modules/experiment-snapshot/interfaces/interfaces'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ComparisonHeader } from '@/modules/experiment-snapshot'
 import { ComparisonModelsList } from '@/modules/experiment-snapshot'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
 import { Skeleton } from 'primevue'
 import { ExperimentSnapshot } from '@/modules/experiment-snapshot'
 import { getModelColorByIndex } from '@/modules/experiment-snapshot/helpers/helpers'
 
 const route = useRoute()
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
 
 const loading = ref(false)
@@ -52,11 +52,11 @@ const modelIdsList = computed(() => {
   return [String(route.query.models)]
 })
 
-const modelsList = ref<MlModel[]>([])
+const modelsList = ref<ModelArtifact[]>([])
 
 const modelsInfo = computed(() => {
   return modelsList.value.reduce((acc: ModelsInfo, model, index) => {
-    const name = model.model_name
+    const name = model.name
     const color = getModelColorByIndex(index)
     acc[model.id] = { name, color }
     return acc
@@ -66,10 +66,10 @@ const modelsInfo = computed(() => {
 async function onModelIdsChange(newModelIds: string[]) {
   try {
     loading.value = true
-    modelsStore.resetExperimentSnapshotProvider()
+    artifactsStore.resetExperimentSnapshotProvider()
     modelsList.value = []
     const promises = await Promise.allSettled(
-      newModelIds.map((modelId) => modelsStore.getModel(modelId)),
+      newModelIds.map((modelId) => artifactsStore.getArtifact(modelId)),
     )
     const models = promises
       .map((promise) => (promise.status === 'fulfilled' ? promise.value : null))
@@ -84,7 +84,7 @@ async function onModelIdsChange(newModelIds: string[]) {
 }
 
 onUnmounted(() => {
-  modelsStore.resetExperimentSnapshotProvider()
+  artifactsStore.resetExperimentSnapshotProvider()
 })
 
 watch(modelIdsList, onModelIdsChange, { immediate: true, deep: true })

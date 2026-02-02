@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { FileIndex } from '../api/orbit-ml-models/interfaces'
+import type { FileIndex } from '../api/artifacts/interfaces'
 
 export class ModelDownloader {
   url: string
