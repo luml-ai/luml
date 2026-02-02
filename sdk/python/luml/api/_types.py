@@ -68,7 +68,7 @@ class ArtifactStatus(StrEnum):
 
 class ArtifactSortBy(StrEnum):
     """
-    Options: "created_at", "name", "description", "size", "status", "metrics"
+    Options: "created_at", "name", "description", "size", "status", "type"
     """
 
     CREATED_AT = "created_at"
@@ -76,7 +76,7 @@ class ArtifactSortBy(StrEnum):
     SIZE = "size"
     DESCRIPTION = "description"
     STATUS = "status"
-    METRICS = "metrics"
+    TYPE = "type"
 
 
 class SortOrder(StrEnum):
@@ -90,12 +90,12 @@ class SortOrder(StrEnum):
 
 class CollectionSortBy(StrEnum):
     """
-    Options: "created_at", "name", "description", "collection_type", "total_artifacts"
+    Options: "created_at", "name", "description", "type", "total_artifacts"
     """
 
     CREATED_AT = "created_at"
     NAME = "name"
-    COLLECTION_TYPE = "collection_type"
+    type = "type"
     DESCRIPTION = "description"
     TOTAL_ARTIFACTS = "total_artifacts"
 
@@ -156,7 +156,7 @@ class Collection(BaseModel):
     orbit_id: str
     description: str
     name: str
-    collection_type: str
+    type: str
     tags: list[str] | None = None
     total_artifacts: int = 0
     created_at: str

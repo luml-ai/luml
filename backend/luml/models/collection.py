@@ -23,7 +23,7 @@ class CollectionOrm(TimestampMixin, Base):
     )
     description: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)
-    collection_type: Mapped[str] = mapped_column("type", String, nullable=False)
+    type: Mapped[str] = mapped_column("type", String, nullable=False)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
 
     orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821

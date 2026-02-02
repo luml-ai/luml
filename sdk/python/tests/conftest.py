@@ -82,7 +82,7 @@ def sample_collection() -> Collection:
         id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
         name="Test Collection",
         description="Test collection description",
-        collection_type="model",
+        type="model",
         orbit_id="0199c337-09f3-753e-9def-b27745e69be6",
         total_artifacts=0,
         created_at="2024-01-01T00:00:00Z",
