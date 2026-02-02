@@ -11,7 +11,7 @@ export interface CreateDeploymentPayload {
   name: string
   description: string
   satellite_id: string
-  model_artifact_id: string
+  artifact_id: string
   satellite_parameters: Record<string, string | number | boolean>
   dynamic_attributes_secrets: Record<string, string>
   env_variables_secrets: Record<string, string>
@@ -23,7 +23,7 @@ export interface Deployment {
   id: string
   orbit_id: string
   satellite_id: string
-  model_id: string
+  artifact_id: string
   inference_url: string
   status: DeploymentStatusEnum
   secrets: Record<string, string>
@@ -36,7 +36,7 @@ export interface Deployment {
   description: string
   collection_id: string
   dynamic_attributes_secrets: Record<string, string>
-  model_artifact_name: string
+  artifact_name: string
   error_message: DeploymentErrorMessage | null
   schemas: object
 }

@@ -2,68 +2,69 @@
   <div v-if="loading" class="loading-block">
     <ProgressSpinner></ProgressSpinner>
   </div>
-  <div v-else-if="modelsStore.currentModelMetadata && modelsStore.currentModelTag">
+  <div v-else-if="artifactsStore.currentModelMetadata && artifactsStore.currentModelTag">
     <CollectionModelCardTabular
-      v-if="isTabular && 'metrics' in modelsStore.currentModelMetadata"
-      :metrics="modelsStore.currentModelMetadata.metrics"
-      :tag="modelsStore.currentModelTag"
+      v-if="isTabular && 'metrics' in artifactsStore.currentModelMetadata"
+      :metrics="artifactsStore.currentModelMetadata.metrics"
+      :tag="artifactsStore.currentModelTag"
     ></CollectionModelCardTabular>
     <CollectionModelCardPromptOptimization
-      v-else-if="isPromptOptimization && 'edges' in modelsStore.currentModelMetadata"
-      :data="modelsStore.currentModelMetadata"
+      v-else-if="isPromptOptimization && 'edges' in artifactsStore.currentModelMetadata"
+      :data="artifactsStore.currentModelMetadata"
     ></CollectionModelCardPromptOptimization>
     <div v-else class="card">
       <header class="card-header">
         <h3 class="card-title card-title--medium">Inputs and outputs</h3>
       </header>
-      <div>{{ modelsStore.currentModel?.manifest.producer_tags }}</div>
+      <div>{{ artifactsStore.currentArtifact?.manifest.producer_tags }}</div>
     </div>
   </div>
   <CollectionModelCardHtml
-    v-else-if="modelsStore.currentModelHtmlBlobUrl"
-    :url="modelsStore.currentModelHtmlBlobUrl"
+    v-else-if="artifactsStore.currentModelHtmlBlobUrl"
+    :url="artifactsStore.currentModelHtmlBlobUrl"
   >
   </CollectionModelCardHtml>
 </template>
 
 <script setup lang="ts">
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { computed, onMounted, ref } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { ProgressSpinner } from 'primevue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 import { ModelDownloader } from '@/lib/bucket-service'
 import JSZip from 'jszip'
-import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardTabular.vue'
-import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardPromptOptimization.vue'
-import CollectionModelCardHtml from '@/components/orbits/tabs/registry/collection/model/card/CollectionModelCardHtml.vue'
+import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardTabular.vue'
+import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardPromptOptimization.vue'
+import CollectionModelCardHtml from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardHtml.vue'
 
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 
 const loading = ref(false)
 
 const isTabular = computed(
-  () => modelsStore.currentModelTag && FnnxService.isTabularTag(modelsStore.currentModelTag),
+  () => artifactsStore.currentModelTag && FnnxService.isTabularTag(artifactsStore.currentModelTag),
 )
 const isPromptOptimization = computed(
   () =>
-    modelsStore.currentModelTag && FnnxService.isPromptOptimizationTag(modelsStore.currentModelTag),
+    artifactsStore.currentModelTag &&
+    FnnxService.isPromptOptimizationTag(artifactsStore.currentModelTag),
 )
 
 function setTabularMetadata(file: any) {
   const metrics = FnnxService.getTabularMetrics(file)
-  modelsStore.setCurrentModelMetadata({ metrics })
+  artifactsStore.setCurrentModelMetadata({ metrics })
 }
 
 function setPromptOptimizationMetadata(file: any) {
   const data = FnnxService.getPromptOptimizationData(file)
-  modelsStore.setCurrentModelMetadata(data)
+  artifactsStore.setCurrentModelMetadata(data)
 }
 
-async function setHtmlData(model: MlModel) {
+async function setHtmlData(model: ModelArtifact) {
   const htmlArchiveName = FnnxService.findHtmlCard(model.file_index)
   if (!htmlArchiveName) return
-  const url = await modelsStore.getDownloadUrl(model.id)
+  const url = await artifactsStore.getDownloadUrl(model.id)
   const modelDownloader = new ModelDownloader(url)
   const arrayBuffer = await modelDownloader.getFileFromBucket<ArrayBuffer>(
     model.file_index,
@@ -84,14 +85,14 @@ async function setHtmlData(model: MlModel) {
   }
   const blob = new Blob([fileString], { type: 'text/html' })
   const blobUrl = URL.createObjectURL(blob)
-  modelsStore.setCurrentModelHtmlBlobUrl(blobUrl)
+  artifactsStore.setCurrentModelHtmlBlobUrl(blobUrl)
 }
 
-async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: MlModel) {
+async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: ModelArtifact) {
   const metadataFileName = FnnxService.getModelMetadataFileName(model.file_index)
   if (!metadataFileName) return
-  modelsStore.setCurrentModelTag(tag)
-  const url = await modelsStore.getDownloadUrl(model.id)
+  artifactsStore.setCurrentModelTag(tag)
+  const url = await artifactsStore.getDownloadUrl(model.id)
   const modelDownloader = new ModelDownloader(url)
   const file = await modelDownloader.getFileFromBucket(model.file_index, metadataFileName)
   if (FnnxService.isTabularTag(tag)) {
@@ -102,7 +103,7 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: MlM
 }
 
 async function setMetadata() {
-  const model = modelsStore.currentModel
+  const model = artifactsStore.currentArtifact
   if (!model) throw new Error('Current model does not exist')
   const currentTag = FnnxService.getTypeTag(model.manifest)
   if (currentTag) {
@@ -124,7 +125,7 @@ async function init() {
 }
 
 onMounted(async () => {
-  if (modelsStore.currentModelMetadata || modelsStore.currentModelHtmlBlobUrl) return
+  if (artifactsStore.currentModelMetadata || artifactsStore.currentModelHtmlBlobUrl) return
   init()
 })
 </script>

@@ -4,6 +4,7 @@ import type { Orbit } from '@/lib/api/api.interfaces'
 import { combineValidators, getSatelliteValidator } from '@/helpers/helpers'
 import type { CreateDeploymentForm } from '@/components/deployments/deployments.interfaces'
 import type { Ref } from 'vue'
+import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 
 export const signInResolver = zodResolver(
   z.object({
@@ -98,16 +99,17 @@ export const collectionEditorResolver = zodResolver(
   }),
 )
 
-export const modelCreatorResolver = zodResolver(
+export const artifactCreateResolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),
+    type: z.nativeEnum(ArtifactTypeEnum),
     file: z.instanceof(FileList).refine((file) => file?.length == 1, 'File is required.'),
     tags: z.array(z.string()),
   }),
 )
 
-export const modelEditorResolver = zodResolver(
+export const artifactEditResolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),

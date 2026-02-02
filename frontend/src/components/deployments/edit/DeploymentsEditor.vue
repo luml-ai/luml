@@ -127,7 +127,7 @@ import { createDeploymentResolver } from '@/utils/forms/resolvers'
 import { Form, FormField } from '@primevue/forms'
 import { useCollectionsStore } from '@/stores/collections'
 import { useSecretsStore } from '@/stores/orbit-secrets'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { useRoute } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { useDeploymentsStore } from '@/stores/deployments'
@@ -161,7 +161,7 @@ const visible = defineModel<boolean>('visible')
 const toast = useToast()
 const collectionsStore = useCollectionsStore()
 const secretsStore = useSecretsStore()
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const route = useRoute()
 const deploymentsStore = useDeploymentsStore()
 
@@ -172,7 +172,7 @@ const initialValues = ref<FormValues>({
   description: props.data.description,
   tags: props.data.tags,
   collectionId: props.data.collection_id,
-  modelId: props.data.model_id,
+  modelId: props.data.artifact_id,
   secretDynamicAttributes: [],
 })
 
@@ -264,7 +264,7 @@ onBeforeMount(async () => {
       orbitId: props.data.orbit_id,
       collectionId: props.data.collection_id,
     }
-    const currentModel = await modelsStore.getModel(props.data.model_id, requestInfo)
+    const currentModel = await artifactsStore.getArtifact(props.data.artifact_id, requestInfo)
     if (!currentModel) return
     const { secrets } = FnnxService.getDynamicAttributes(currentModel.manifest)
     setSecrets(secrets)
