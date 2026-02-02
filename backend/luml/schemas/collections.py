@@ -27,7 +27,7 @@ class CollectionTypeFilter(StrEnum):
 class CollectionSortBy(StrEnum):
     CREATED_AT = "created_at"
     NAME = "name"
-    COLLECTION_TYPE = "collection_type"
+    type = "type"
     DESCRIPTION = "description"
     TOTAL_ARTIFACTS = "total_artifacts"
 
@@ -36,14 +36,14 @@ class CollectionCreate(BaseModel):
     orbit_id: UUID
     description: str
     name: str
-    collection_type: CollectionType
+    type: CollectionType
     tags: list[str] | None = None
 
 
 class CollectionCreateIn(BaseModel):
     description: str
     name: str
-    collection_type: CollectionType
+    type: CollectionType
     tags: list[str] | None = None
 
 
@@ -52,7 +52,7 @@ class Collection(BaseModel, BaseOrmConfig):
     orbit_id: UUID
     description: str
     name: str
-    collection_type: CollectionType
+    type: CollectionType
     tags: list[str] | None = None
     total_artifacts: int
     created_at: datetime
@@ -84,7 +84,7 @@ class CollectionsList(BaseModel):
 
 def is_artifact_type_allowed(
     collection_type: CollectionType, artifact_type: str
-) -> bool:
+) -> bool:  # noqa: A002
     if collection_type == CollectionType.MIXED:
         return True
     return artifact_type in collection_type.value

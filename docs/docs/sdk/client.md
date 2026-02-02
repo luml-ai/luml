@@ -1,27 +1,29 @@
-<a id="dataforce.api._client"></a>
+<a id="luml.api._client"></a>
 
-# dataforce.api.\_client
+# luml.api.\_client
 
-<a id="dataforce.api._client.AsyncDataForceClient"></a>
+<a id="luml.api._client.AsyncLumlClient"></a>
 
-## AsyncDataForceClient Objects
+## AsyncLumlClient Objects
 
 ```python
-class AsyncDataForceClient(DataForceClientBase, AsyncBaseClient)
+class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 ```
 
-<a id="dataforce.api._client.AsyncDataForceClient.setup_config"></a>
+<a id="luml.api._client.AsyncLumlClient.setup_config"></a>
 
 #### setup\_config
 
 ```python
-async def setup_config(*,
-                       organization: str | None = None,
-                       orbit: str | None = None,
-                       collection: str | None = None) -> None
+async def setup_config(
+    *,
+    organization: str | None = None,
+    orbit: str | None = None,
+    collection: str | None = None
+) -> None
 ```
 
-Method for setting default values for AsyncDataForceClient
+Method for setting default values for AsyncLumlClient
 
 **Arguments**:
 
@@ -35,15 +37,17 @@ Method for setting default values for AsyncDataForceClient
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(api_key="dfs_api_key")
-  >>> async def main():
-  ...     await dfs.setup_config(
-  ...         "0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...         "0199c455-21ed-7aba-9fe5-5231611220de",
-  ...         "0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ...     )
+```python
+luml = AsyncLumlClient(api_key="luml_api_key")
+async def main():
+    await luml.setup_config(
+        "0199c455-21ec-7c74-8efe-41470e29bae5",
+        "0199c455-21ed-7aba-9fe5-5231611220de",
+        "0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+```
 
-<a id="dataforce.api._client.AsyncDataForceClient.organizations"></a>
+<a id="luml.api._client.AsyncLumlClient.organizations"></a>
 
 #### organizations
 
@@ -54,7 +58,7 @@ def organizations() -> "AsyncOrganizationResource"
 
 Organizations interface.
 
-<a id="dataforce.api._client.AsyncDataForceClient.bucket_secrets"></a>
+<a id="luml.api._client.AsyncLumlClient.bucket_secrets"></a>
 
 #### bucket\_secrets
 
@@ -65,7 +69,7 @@ def bucket_secrets() -> "AsyncBucketSecretResource"
 
 Bucket Secrets interface.
 
-<a id="dataforce.api._client.AsyncDataForceClient.orbits"></a>
+<a id="luml.api._client.AsyncLumlClient.orbits"></a>
 
 #### orbits
 
@@ -76,7 +80,7 @@ def orbits() -> "AsyncOrbitResource"
 
 Orbits interface.
 
-<a id="dataforce.api._client.AsyncDataForceClient.collections"></a>
+<a id="luml.api._client.AsyncLumlClient.collections"></a>
 
 #### collections
 
@@ -87,26 +91,26 @@ def collections() -> "AsyncCollectionResource"
 
 Collections interface.
 
-<a id="dataforce.api._client.AsyncDataForceClient.model_artifacts"></a>
+<a id="luml.api._client.AsyncLumlClient.artifacts"></a>
 
-#### model\_artifacts
+#### artifacts
 
 ```python
 @cached_property
-def model_artifacts() -> "AsyncModelArtifactResource"
+def artifacts() -> "AsyncArtifactResource"
 ```
 
-Model Artifacts interface.
+Artifacts interface.
 
-<a id="dataforce.api._client.DataForceClient"></a>
+<a id="luml.api._client.LumlClient"></a>
 
-## DataForceClient Objects
+## LumlClient Objects
 
 ```python
-class DataForceClient(DataForceClientBase, SyncBaseClient)
+class LumlClient(LumlClientBase, SyncBaseClient)
 ```
 
-<a id="dataforce.api._client.DataForceClient.organizations"></a>
+<a id="luml.api._client.LumlClient.organizations"></a>
 
 #### organizations
 
@@ -117,7 +121,7 @@ def organizations() -> "OrganizationResource"
 
 Organizations interface.
 
-<a id="dataforce.api._client.DataForceClient.bucket_secrets"></a>
+<a id="luml.api._client.LumlClient.bucket_secrets"></a>
 
 #### bucket\_secrets
 
@@ -128,7 +132,7 @@ def bucket_secrets() -> "BucketSecretResource"
 
 Bucket Secrets interface.
 
-<a id="dataforce.api._client.DataForceClient.orbits"></a>
+<a id="luml.api._client.LumlClient.orbits"></a>
 
 #### orbits
 
@@ -139,7 +143,7 @@ def orbits() -> "OrbitResource"
 
 Orbits interface.
 
-<a id="dataforce.api._client.DataForceClient.collections"></a>
+<a id="luml.api._client.LumlClient.collections"></a>
 
 #### collections
 
@@ -150,14 +154,14 @@ def collections() -> "CollectionResource"
 
 Collections interface.
 
-<a id="dataforce.api._client.DataForceClient.model_artifacts"></a>
+<a id="luml.api._client.LumlClient.artifacts"></a>
 
-#### model\_artifacts
+#### artifacts
 
 ```python
 @cached_property
-def model_artifacts() -> "ModelArtifactResource"
+def artifacts() -> "ArtifactResource"
 ```
 
-Model Artifacts interface.
+Artifacts interface.
 

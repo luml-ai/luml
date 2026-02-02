@@ -1,8 +1,8 @@
-<a id="dataforce.api.resources.bucket_secrets"></a>
+<a id="luml.api.resources.bucket_secrets"></a>
 
-# dataforce.api.resources.bucket\_secrets
+# luml.api.resources.bucket\_secrets
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource"></a>
 
 ## BucketSecretResource Objects
 
@@ -12,7 +12,7 @@ class BucketSecretResource(BucketSecretResourceBase)
 
 Resource for managing Bucket Secrets.
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource.get"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.get"></a>
 
 #### get
 
@@ -45,31 +45,35 @@ Search by name is case-sensitive and matches exact bucket name.
 
 **Example**:
 
-  >>> dfs = DataForceClient(
-  ...     api_key="dfs_your_key",
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  ... bucket_by_name = dfs.bucket_secrets.get("default-bucket")
-  ... bucket_by_id = dfs.bucket_secrets.get(
-  ...     "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
-  ...)
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+bucket_by_name = luml.bucket_secrets.get("default-bucket")
+bucket_by_id = luml.bucket_secrets.get(
+    "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
+    )
+```
   
   Example response:
-  >>> BucketSecret(
-  ...    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...    endpoint='default-endpoint',
-  ...    bucket_name='default-bucket',
-  ...    secure=None,
-  ...    region=None,
-  ...    cert_check=None,
-  ...    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...    created_at='2025-05-21T19:35:17.340408Z',
-  ...    updated_at='2025-08-13T22:44:58.035731Z'
-  ...)
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint='default-endpoint',
+    bucket_name='default-bucket',
+    secure=None,
+    region=None,
+    cert_check=None,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-05-21T19:35:17.340408Z',
+    updated_at='2025-08-13T22:44:58.035731Z'
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource.list"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.list"></a>
 
 #### list
 
@@ -86,42 +90,48 @@ List all bucket secrets in the default organization.
 
 **Example**:
 
-  >>> dfs = DataForceClient(
-  ...     api_key="dfs_your_key",
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> secrets = dfs.bucket_secrets.list()
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+secrets = luml.bucket_secrets.list()
+```
   
   Example response:
-  >>> [
-  ...     BucketSecret(
-  ...         id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...         endpoint='default-endpoint',
-  ...         bucket_name='default-bucket',
-  ...         secure=None,
-  ...         region=None,
-  ...         cert_check=None,
-  ...         organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...         created_at='2025-06-18T12:44:54.443715Z',
-  ...         updated_at=None
-  ...     )
-  ...]
+```python
+[
+    BucketSecret(
+        id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+        endpoint='default-endpoint',
+        bucket_name='default-bucket',
+        secure=None,
+        region=None,
+        cert_check=None,
+        organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+        created_at='2025-06-18T12:44:54.443715Z',
+        updated_at=None
+    )
+]
+```
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource.create"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.create"></a>
 
 #### create
 
 ```python
-def create(endpoint: str,
-           bucket_name: str,
-           access_key: str | None = None,
-           secret_key: str | None = None,
-           session_token: str | None = None,
-           secure: bool | None = None,
-           region: str | None = None,
-           cert_check: bool | None = None) -> BucketSecret
+def create(
+    endpoint: str,
+    bucket_name: str,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    session_token: str | None = None,
+    secure: bool | None = None,
+    region: str | None = None,
+    cert_check: bool | None = None
+) -> BucketSecret
 ```
 
 Create new bucket secret in the default organization.
@@ -147,48 +157,54 @@ Create new bucket secret in the default organization.
 
 **Example**:
 
-  >>> dfs = DataForceClient(
-  ...     api_key="dfs_your_key",
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> bucket_secret = dfs.bucket_secrets.create(
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="my-data-bucket",
-  ...     access_key="AKIAIOSFODNN7EXAMPLE",
-  ...     secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-  ...     region="us-east-1",
-  ...     secure=True
-  ... )
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+bucket_secret = luml.bucket_secrets.create(
+    endpoint="s3.amazonaws.com",
+    bucket_name="my-data-bucket",
+    access_key="AKIAIOSFODNN7EXAMPLE",
+    secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+    region="us-east-1",
+    secure=True
+)
+```
   
   Response object:
-  >>> BucketSecret(
-  ...     id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="my-data-bucket",
-  ...     secure=True,
-  ...     region="us-east-1",
-  ...     cert_check=True,
-  ...     organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     created_at='2025-01-15T10:30:00.123456Z',
-  ...     updated_at=None
-  ... )
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint="s3.amazonaws.com",
+    bucket_name="my-data-bucket",
+    secure=True,
+    region="us-east-1",
+    cert_check=True,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at=None
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource.update"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.update"></a>
 
 #### update
 
 ```python
-def update(secret_id: str,
-           endpoint: str | None = None,
-           bucket_name: str | None = None,
-           access_key: str | None = None,
-           secret_key: str | None = None,
-           session_token: str | None = None,
-           secure: bool | None = None,
-           region: str | None = None,
-           cert_check: bool | None = None) -> BucketSecret
+def update(
+    secret_id: str,
+    endpoint: str | None = None,
+    bucket_name: str | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    session_token: str | None = None,
+    secure: bool | None = None,
+    region: str | None = None,
+    cert_check: bool | None = None
+) -> BucketSecret
 ```
 
 Update existing bucket secret.
@@ -216,34 +232,38 @@ updated, others remain unchanged.
 
 **Example**:
 
-  >>> dfs = DataForceClient(
-  ...     api_key="dfs_your_key",
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> bucket_secret = dfs.bucket_secrets.update(
-  ...     secret_id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="updated-bucket",
-  ...     region="us-west-2",
-  ...     secure=True
-  ... )
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+bucket_secret = luml.bucket_secrets.update(
+    secret_id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint="s3.amazonaws.com",
+    bucket_name="updated-bucket",
+    region="us-west-2",
+    secure=True
+)
+```
   
   Response object:
-  >>> BucketSecret(
-  ...     id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="updated-bucket",
-  ...     secure=True,
-  ...     region="us-west-2",
-  ...     cert_check=True,
-  ...     organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     created_at='2025-01-15T10:30:00.123456Z',
-  ...     updated_at='2025-01-15T14:22:30.987654Z'
-  ... )
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint="s3.amazonaws.com",
+    bucket_name="updated-bucket",
+    secure=True,
+    region="us-west-2",
+    cert_check=True,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at='2025-01-15T14:22:30.987654Z'
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.BucketSecretResource.delete"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.delete"></a>
 
 #### delete
 
@@ -269,13 +289,15 @@ to their storage.
 
 **Example**:
 
-  >>> dfs = DataForceClient(
-  ...     api_key="dfs_your_key",
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> dfs.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
+```python
+luml = LumlClient(
+    api_key="luml_your_key",
+    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+)
+luml.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
+```
   
 
 **Warnings**:
@@ -284,7 +306,61 @@ to their storage.
   will lose access to their storage. Ensure no active orbits depend
   on this bucket secret before deletion.
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
+<a id="luml.api.resources.bucket_secrets.BucketSecretResource.get_multipart_upload_urls"></a>
+
+#### get\_multipart\_upload\_urls
+
+```python
+def get_multipart_upload_urls(
+    bucket_id: str,
+    bucket_location: str,
+    size: int,
+    upload_id: str | None = None
+) -> MultiPartUploadDetails
+```
+
+Get presigned URLs for multipart upload parts.
+
+After initiating a multipart upload and receiving an upload_id,
+use this method to get presigned URLs for uploading each part.
+
+**Arguments**:
+
+- `bucket_id` - ID of the bucket secret.
+- `bucket_location` - Location/path in the bucket.
+- `size` - Total file size in bytes.
+- `upload_id` - Upload ID received from multipart initiation.
+  
+
+**Returns**:
+
+  MultiPartUploadDetails with parts URLs and complete URL.
+  
+  
+
+**Example**:
+
+```python
+luml = AsyncDataForceClient(api_key="luml_your_key")
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+
+    bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+    bucket_location =  "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+
+    multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
+        bucket_secret_id,
+        bucket_location,
+        3874658765,
+        "some_upload_id"
+    )
+```
+
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
 
 ## AsyncBucketSecretResource Objects
 
@@ -294,7 +370,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase)
 
 Resource for managing Bucket Secrets for async client.
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource.get"></a>
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.get"></a>
 
 #### get
 
@@ -327,34 +403,39 @@ Search by name is case-sensitive and matches exact bucket name.
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(
-  ...     api_key="dfs_your_key",
-  ... )
-  ... dfs.setup_config(
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> async def main():
-  ...     bucket_by_name = await dfs.bucket_secrets.get("default-bucket")
-  ...     bucket_by_id = await dfs.bucket_secrets.get(
-  ...         "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
-  ...     )
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+         organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+         orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+         collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    bucket_by_name = await luml.bucket_secrets.get("default-bucket")
+    bucket_by_id = await luml.bucket_secrets.get(
+        "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+    )
+```
   
   Example response:
-  >>> BucketSecret(
-  ...         id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...         endpoint='default-endpoint',
-  ...         bucket_name='default-bucket',
-  ...         secure=None,
-  ...         region=None,
-  ...         cert_check=None,
-  ...         organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...         created_at='2025-05-21T19:35:17.340408Z',
-  ...         updated_at='2025-08-13T22:44:58.035731Z'
-  ... )
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint='default-endpoint',
+    bucket_name='default-bucket',
+    secure=None,
+    region=None,
+    cert_check=None,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-05-21T19:35:17.340408Z',
+    updated_at='2025-08-13T22:44:58.035731Z'
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource.list"></a>
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.list"></a>
 
 #### list
 
@@ -371,45 +452,106 @@ List all bucket secrets in the default organization.
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(
-  ...     api_key="dfs_your_key",
-  ... )
-  ... dfs.setup_config(
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> async def main():
-  ...     secrets = await dfs.bucket_secrets.list()
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    secrets = await luml.bucket_secrets.list()
+```
   
   Example response:
-  >>> [
-  ...     BucketSecret(
-  ...         id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...         endpoint='default-endpoint',
-  ...         bucket_name='default-bucket',
-  ...         secure=None,
-  ...         region=None,
-  ...         cert_check=None,
-  ...         organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...         created_at='2025-06-18T12:44:54.443715Z',
-  ...         updated_at=None
-  ...     )
-  ...]
+```python
+[
+    BucketSecret(
+        id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+        endpoint='default-endpoint',
+        bucket_name='default-bucket',
+        secure=None,
+        region=None,
+        cert_check=None,
+        organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+        created_at='2025-06-18T12:44:54.443715Z',
+        updated_at=None
+    )
+]
+```
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.get_multipart_upload_urls"></a>
+
+#### get\_multipart\_upload\_urls
+
+```python
+async def get_multipart_upload_urls(
+    bucket_id: str,
+    bucket_location: str,
+    size: int,
+    upload_id: str | None = None
+) -> MultiPartUploadDetails
+```
+
+Get presigned URLs for multipart upload parts.
+
+After initiating a multipart upload and receiving an upload_id,
+use this method to get presigned URLs for uploading each part.
+
+**Arguments**:
+
+- `bucket_id` - ID of the bucket secret.
+- `bucket_location` - Location/path in the bucket.
+- `size` - Total file size in bytes.
+- `upload_id` - Upload ID received from multipart initiation.
+  
+
+**Returns**:
+
+  MultiPartUploadDetails with parts URLs and complete URL.
+  
+  
+
+**Example**:
+
+```python
+luml = AsyncDataForceClient(api_key="luml_your_key")
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+
+    bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+    bucket_location = "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+
+    multipart_data = await luml.bucket_secrets.get_multipart_upload_urls(
+        bucket_secret_id,
+        bucket_location,
+        3874658765,
+        "some_upload_id"
+    )
+```
+
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>
 
 #### create
 
 ```python
-async def create(endpoint: str,
-                 bucket_name: str,
-                 access_key: str | None = None,
-                 secret_key: str | None = None,
-                 session_token: str | None = None,
-                 secure: bool | None = None,
-                 region: str | None = None,
-                 cert_check: bool | None = None) -> BucketSecret
+async def create(
+    endpoint: str,
+    bucket_name: str,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    session_token: str | None = None,
+    secure: bool | None = None,
+    region: str | None = None,
+    cert_check: bool | None = None
+) -> BucketSecret
 ```
 
 Create new bucket secret in the default organization.
@@ -435,51 +577,58 @@ Create new bucket secret in the default organization.
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(
-  ...     api_key="dfs_your_key",
-  ... )
-  ... dfs.setup_config(
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> async def main():
-  ...     bucket_secret = await dfs.bucket_secrets.create(
-  ...         endpoint="s3.amazonaws.com",
-  ...         bucket_name="my-data-bucket",
-  ...         access_key="AKIAIOSFODNN7EXAMPLE",
-  ...         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-  ...         region="us-east-1",
-  ...         secure=True
-  ...     )
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+     )
+    bucket_secret = await luml.bucket_secrets.create(
+        endpoint="s3.amazonaws.com",
+        bucket_name="my-data-bucket",
+        access_key="AKIAIOSFODNN7EXAMPLE",
+        secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        region="us-east-1",
+        secure=True
+    )
+```
   
   Response object:
-  >>> BucketSecret(
-  ...     id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="my-data-bucket",
-  ...     secure=True,
-  ...     region="us-east-1",
-  ...     cert_check=True,
-  ...     organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     created_at='2025-01-15T10:30:00.123456Z',
-  ...     updated_at=None
-  ... )
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint="s3.amazonaws.com",
+    bucket_name="my-data-bucket",
+    secure=True,
+    region="us-east-1",
+    cert_check=True,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at=None
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource.update"></a>
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.update"></a>
 
 #### update
 
 ```python
-async def update(secret_id: str,
-                 endpoint: str | None = None,
-                 bucket_name: str | None = None,
-                 access_key: str | None = None,
-                 secret_key: str | None = None,
-                 session_token: str | None = None,
-                 secure: bool | None = None,
-                 region: str | None = None,
-                 cert_check: bool | None = None) -> BucketSecret
+async def update(
+    secret_id: str,
+    endpoint: str | None = None,
+    bucket_name: str | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    session_token: str | None = None,
+    secure: bool | None = None,
+    region: str | None = None,
+    cert_check: bool | None = None
+) -> BucketSecret
 ```
 
 Update existing bucket secret.
@@ -507,37 +656,42 @@ updated, others remain unchanged.
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(
-  ...     api_key="dfs_your_key",
-  ... )
-  ... dfs.setup_config(
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> async def main():
-  ...     bucket_secret = await dfs.bucket_secrets.update(
-  ...         id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...         endpoint="s3.amazonaws.com",
-  ...         bucket_name="updated-bucket",
-  ...         region="us-west-2",
-  ...         secure=True
-  ...     )
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    bucket_secret = await luml.bucket_secrets.update(
+        id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+        endpoint="s3.amazonaws.com",
+        bucket_name="updated-bucket",
+        region="us-west-2",
+        secure=True
+    )
+```
   
   Response object:
-  >>> BucketSecret(
-  ...     id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
-  ...     endpoint="s3.amazonaws.com",
-  ...     bucket_name="updated-bucket",
-  ...     secure=True,
-  ...     region="us-west-2",
-  ...     cert_check=True,
-  ...     organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     created_at='2025-01-15T10:30:00.123456Z',
-  ...     updated_at='2025-01-15T14:22:30.987654Z'
-  ... )
+```python
+BucketSecret(
+    id="0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    endpoint="s3.amazonaws.com",
+    bucket_name="updated-bucket",
+    secure=True,
+    region="us-west-2",
+    cert_check=True,
+    organization_id="0199c455-21ec-7c74-8efe-41470e29bae5",
+    created_at='2025-01-15T10:30:00.123456Z',
+    updated_at='2025-01-15T14:22:30.987654Z'
+)
+```
 
-<a id="dataforce.api.resources.bucket_secrets.AsyncBucketSecretResource.delete"></a>
+<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.delete"></a>
 
 #### delete
 
@@ -563,18 +717,21 @@ to their storage.
 
 **Example**:
 
-  >>> dfs = AsyncDataForceClient(
-  ...     api_key="dfs_your_key",
-  ... )
-  ... dfs.setup_config(
-  ...     organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-  ...     orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-  ...     collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-  ... )
-  >>> async def main():
-  ...     await dfs.bucket_secrets.delete(
-  ...         "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
-  ...     )
+```python
+luml = AsyncLumlClient(
+    api_key="luml_your_key",
+)
+
+async def main():
+    await luml.setup_config(
+        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+    )
+    await luml.bucket_secrets.delete(
+        "0199c455-21ef-79d9-9dfc-fec3d72bf4b5"
+    )
+```
   
 
 **Warnings**:

@@ -184,7 +184,7 @@ class ArtifactHandler:
 
         artifact_type = self._define_artifact_type(artifact)
 
-        if not is_artifact_type_allowed(collection.collection_type, artifact_type):
+        if not is_artifact_type_allowed(collection.type, artifact_type):
             raise ArtifactTypeMismatchError()
 
         await self._check_organization_artifacts_limit(organization_id)

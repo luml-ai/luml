@@ -1,7 +1,7 @@
 import builtins
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List
 
 from luml.api._exceptions import FileError, FileUploadError
 from luml.api._types import (
@@ -69,7 +69,7 @@ class ArtifactResourceBase(ABC):
         file_path: str,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         *,
         collection_id: str | None = None,
     ) -> Artifact | Coroutine[Any, Any, Artifact]:
@@ -97,7 +97,7 @@ class ArtifactResourceBase(ABC):
         size: int,
         name: str,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
     ) -> (
         dict[str, str | CreatedArtifact]
         | Coroutine[Any, Any, dict[str, str | CreatedArtifact]]
@@ -111,7 +111,7 @@ class ArtifactResourceBase(ABC):
         file_name: str | None = None,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         status: ArtifactStatus | None = None,
         *,
         collection_id: str | None = None,
@@ -261,7 +261,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        artifact_type: ArtifactType | None = None,
+        type: ArtifactType | None = None,
     ) -> Iterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -274,7 +274,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
-            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
+            type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             Artifact objects from all pages.
@@ -301,7 +301,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
 
         # Filter by artifact type
-        for artifact in luml.artifacts.list_all(artifact_type=ArtifactType.MODEL):
+        for artifact in luml.artifacts.list_all(type=ArtifactType.MODEL):
             print(artifact.name)
         ```
         """
@@ -311,7 +311,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             limit=limit,
             sort_by=sort_by,
             order=order,
-            artifact_type=artifact_type,
+            type=type,
         )
 
     @validate_collection
@@ -323,7 +323,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        artifact_type: ArtifactType | None = None,
+        type: ArtifactType | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -339,7 +339,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
-            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
+            type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             ArtifactList object.
@@ -372,7 +372,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
 
         # Filter by artifact type
-        artifacts = luml.artifacts.list(artifact_type=ArtifactType.MODEL)
+        artifacts = luml.artifacts.list(type=ArtifactType.MODEL)
         ```
 
         Example response:
@@ -450,11 +450,11 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             params["cursor"] = start_after
         if sort_by:
             params["sort_by"] = sort_by
-        if artifact_type:
+        if type:
             params["type"] = (
-                artifact_type.value
-                if isinstance(artifact_type, ArtifactType)
-                else artifact_type
+                type.value
+                if isinstance(type, ArtifactType)
+                else type
             )
 
         response = self._client.get(
@@ -550,7 +550,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         file_path: str,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         *,
         collection_id: str | None = None,
     ) -> Artifact:
@@ -787,7 +787,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         size: int,
         name: str,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
     ) -> CreatedArtifact:
         """Create new artifact record with upload URL.
 
@@ -927,7 +927,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         file_name: str | None = None,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         status: ArtifactStatus | None = None,
         *,
         collection_id: str | None = None,
@@ -1229,7 +1229,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        artifact_type: ArtifactType | None = None,
+        type: ArtifactType | None = None,
     ) -> AsyncIterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -1242,7 +1242,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
-            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
+            type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             Artifact objects from all pages.
@@ -1274,7 +1274,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
 
             # Filter by artifact type
             async for artifact in luml.artifacts.list_all(
-                artifact_type=ArtifactType.MODEL
+                type=ArtifactType.MODEL
             ):
                 print(artifact.name)
         ```
@@ -1285,7 +1285,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             limit=limit,
             sort_by=sort_by,
             order=order,
-            artifact_type=artifact_type,
+            type=type,
         )
 
     @validate_collection
@@ -1297,7 +1297,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        artifact_type: ArtifactType | None = None,
+        type: ArtifactType | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -1313,7 +1313,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 Options: name, created_at, size, description, status
                 and any metric key
             order: Sort order - "asc" or "desc" (default: "desc").
-            artifact_type: Filter by artifact type: "model", "dataset", or "experiment".
+            type: Filter by artifact type: "model", "dataset", or "experiment".
 
         Returns:
             ArtifactsList object.
@@ -1350,7 +1350,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
 
             # Filter by artifact type
-            artifacts = await luml.artifacts.list(artifact_type=ArtifactType.MODEL)
+            artifacts = await luml.artifacts.list(type=ArtifactType.MODEL)
         ```
 
         Example response:
@@ -1426,11 +1426,11 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             params["cursor"] = start_after
         if sort_by:
             params["sort_by"] = sort_by
-        if artifact_type:
+        if type:
             params["type"] = (
-                artifact_type.value
-                if isinstance(artifact_type, ArtifactType)
-                else artifact_type
+                type.value
+                if isinstance(type, ArtifactType)
+                else type
             )
 
         response = await self._client.get(
@@ -1542,7 +1542,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         size: int,
         name: str,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
     ) -> CreatedArtifact:
         """
         Create new artifact record with upload URL.
@@ -1685,7 +1685,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         file_path: str,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         *,
         collection_id: str | None = None,
     ) -> Artifact:
@@ -1936,7 +1936,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         file_name: str | None = None,
         name: str | None = None,
         description: str | None = None,
-        tags: builtins.list[str] | None = None,
+        tags: List[str] | None = None,
         status: ArtifactStatus | None = None,
         *,
         collection_id: str | None = None,

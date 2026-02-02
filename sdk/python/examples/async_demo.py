@@ -122,7 +122,7 @@ async def demo_collections() -> None:
     collection = await luml.collections.create(
         name="Production Models",
         description="Trained models ready for production deployment",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["production", "ml", "models"],
     )
     print(f"Created collection: {collection}")

@@ -14,3 +14,4 @@ __pycache__/
 /lumlflow/frontend/node_modules
 /lumlflow/frontend/dist
 /lumlflow/lumlflow/static
+/sdk/python/sdk_docs_generate.py

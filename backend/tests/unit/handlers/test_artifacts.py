@@ -301,7 +301,7 @@ async def test_create_artifact(
     mock_create_artifact.return_value = artifact
     mock_check_orbit_and_collection_access.return_value = (
         Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
-        Mock(orbit_id=orbit_id, collection_type=CollectionType.MODEL),
+        Mock(orbit_id=orbit_id, type=CollectionType.MODEL),
     )
     mock_storage_client = AsyncMock()
     mock_upload_data = S3UploadDetails(
@@ -608,7 +608,7 @@ async def test_request_delete_url(
             orbit_id=orbit_id,
             name="Test Collection",
             description="Test Description",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=[],
             total_artifacts=1,
             created_at=now,
@@ -728,7 +728,7 @@ async def test_request_delete_url_with_deployments(
             orbit_id=orbit_id,
             name="Test Collection",
             description="Test Description",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=[],
             total_artifacts=1,
             created_at=now,
@@ -1373,7 +1373,7 @@ async def test_request_delete_url_orbit_not_found(
             orbit_id=orbit_id,
             name="Test Collection",
             description="Test Description",
-            collection_type=CollectionType.MODEL,
+            type=CollectionType.MODEL,
             tags=[],
             total_artifacts=1,
             created_at=now,
@@ -2014,7 +2014,7 @@ async def test_create_artifact_type_not_allowed(
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
-        Mock(orbit_id=orbit_id, collection_type=CollectionType.DATASET),
+        Mock(orbit_id=orbit_id, type=CollectionType.DATASET),
     )
 
     artifact_in = ArtifactIn(
@@ -2083,7 +2083,7 @@ async def test_create_artifact_user_not_found(
 
     mock_check_orbit_and_collection_access.return_value = (
         Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
-        Mock(orbit_id=orbit_id, collection_type=CollectionType.MODEL),
+        Mock(orbit_id=orbit_id, type=CollectionType.MODEL),
     )
     mock_get_public_user_by_id.return_value = None
 

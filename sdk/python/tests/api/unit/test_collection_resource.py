@@ -78,14 +78,14 @@ def test_collection_create(
     collection = resource.create(
         description="Test Description",
         name="Test Collection",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["tag1", "tag2"],
     )
 
     expected_json = {
         "description": "Test Description",
         "name": "Test Collection",
-        "collection_type": CollectionType.MODEL,
+        "type": CollectionType.MODEL,
         "tags": ["tag1", "tag2"],
     }
 
@@ -107,13 +107,13 @@ def test_collection_create_no_tags(
     collection = resource.create(
         description="Test Description",
         name="Test Collection",
-        collection_type=CollectionType.DATASET,
+        type=CollectionType.DATASET,
     )
 
     expected_json = {
         "description": "Test Description",
         "name": "Test Collection",
-        "collection_type": CollectionType.DATASET,
+        "type": CollectionType.DATASET,
         "tags": None,
     }
 
@@ -270,14 +270,14 @@ async def test_async_collection_create(
     collection = await resource.create(
         description="Test Description",
         name="Test Collection",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["tag1", "tag2"],
     )
 
     expected_json = {
         "description": "Test Description",
         "name": "Test Collection",
-        "collection_type": CollectionType.MODEL,
+        "type": CollectionType.MODEL,
         "tags": ["tag1", "tag2"],
     }
 
@@ -300,13 +300,13 @@ async def test_async_collection_create_no_tags(
     collection = await resource.create(
         description="Test Description",
         name="Test Collection",
-        collection_type=CollectionType.DATASET,
+        type=CollectionType.DATASET,
     )
 
     expected_json = {
         "description": "Test Description",
         "name": "Test Collection",
-        "collection_type": CollectionType.DATASET,
+        "type": CollectionType.DATASET,
         "tags": None,
     }
 

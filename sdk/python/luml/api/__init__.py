@@ -16,6 +16,7 @@ from luml.api._exceptions import (
     UnprocessableEntityError,
 )
 from luml.api._types import (
+    ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,
     CollectionSortBy,
@@ -39,9 +40,10 @@ __all__ = [
     "ConflictError",
     "UnprocessableEntityError",
     "InternalServerError",
-    "ArtifactType",
+    "ArtifactSortBy",
     "ArtifactStatus",
-    "CollectionType",
+    "ArtifactType",
     "CollectionSortBy",
+    "CollectionType",
     "SortOrder",
 ]

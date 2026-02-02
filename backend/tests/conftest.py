@@ -593,7 +593,7 @@ async def create_collection(
         orbit_id=data.orbit.id,
         description="description",
         name="name",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["tag1", "tag2"],
     )
 
