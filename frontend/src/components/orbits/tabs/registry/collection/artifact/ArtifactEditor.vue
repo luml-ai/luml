@@ -9,13 +9,13 @@
     <template #header>
       <h2 class="dialog-title">
         <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>Model settings</span>
+        <span>Artifact settings</span>
       </h2>
     </template>
     <Form
       id="orbit-edit-form"
       :initialValues
-      :resolver="modelEditorResolver"
+      :resolver="artifactEditResolver"
       class="form"
       @submit="saveChanges"
     >
@@ -29,7 +29,7 @@
           v-model="initialValues.description"
           name="description"
           id="description"
-          placeholder="Describe your model"
+          placeholder="Describe your artifact"
           style="height: 72px; resize: none"
         ></Textarea>
       </div>
@@ -50,13 +50,13 @@
     <template #footer>
       <div>
         <Button
-          v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.delete)"
+          v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)"
           variant="outlined"
           severity="warn"
           :disabled="loading"
           @click="onDeleteClick"
         >
-          delete model
+          delete artifact
         </Button>
       </div>
       <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import type { MlModel, UpdateMlModelPayload } from '@/lib/api/orbit-ml-models/interfaces'
+import type { Artifact, UpdateArtifactPayload } from '@/lib/api/artifacts/interfaces'
 import { ref, watch } from 'vue'
 import {
   type DialogPassThroughOptions,
@@ -81,12 +81,12 @@ import {
 import { Bolt } from 'lucide-vue-next'
 import { Form } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
-import { modelEditorResolver } from '@/utils/forms/resolvers'
+import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
+import { artifactEditResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
-import { useModelsStore } from '@/stores/models'
-import { useModelsTags } from '@/hooks/useModelsTags'
+import { useArtifactsStore } from '@/stores/artifacts'
+import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
 
 const dialogPT: DialogPassThroughOptions = {
@@ -96,12 +96,12 @@ const dialogPT: DialogPassThroughOptions = {
 }
 
 type Props = {
-  data: MlModel
+  data: Artifact
 }
 
 type Emits = {
-  (e: 'updateModel', model: MlModel): void
-  (e: 'modelDeleted'): void
+  (e: 'updateArtifact', artifact: Artifact): void
+  (e: 'artifactDeleted'): void
 }
 
 const props = defineProps<Props>()
@@ -113,11 +113,11 @@ const visible = defineModel<boolean>('visible')
 const toast = useToast()
 const confirm = useConfirm()
 const orbitsStore = useOrbitsStore()
-const modelsStore = useModelsStore()
-const { getTagsByQuery, loadTags } = useModelsTags()
+const artifactsStore = useArtifactsStore()
+const { getTagsByQuery, loadTags } = useArtifactsTags()
 
 const initialValues = ref({
-  name: props.data.model_name,
+  name: props.data.name,
   description: props.data.description,
   tags: [...(props.data.tags || [])],
 })
@@ -131,50 +131,50 @@ function searchTags(event: AutoCompleteCompleteEvent) {
 async function saveChanges() {
   try {
     loading.value = true
-    const payload: UpdateMlModelPayload = {
+    const payload: UpdateArtifactPayload = {
       id: props.data.id,
       file_name: props.data.file_name,
-      model_name: initialValues.value.name,
+      name: initialValues.value.name,
       description: initialValues.value.description,
       tags: initialValues.value.tags,
     }
-    const newModel = await modelsStore.updateModel(payload)
-    emit('updateModel', newModel)
-    toast.add(simpleSuccessToast('Model successfully updated'))
+    const result = await artifactsStore.updateArtifact(payload)
+    emit('updateArtifact', result)
+    toast.add(simpleSuccessToast('Artifact successfully updated'))
     visible.value = false
   } catch (e) {
-    toast.add(simpleErrorToast('Failed to update model'))
+    toast.add(simpleErrorToast('Failed to update artifact'))
   } finally {
     loading.value = false
   }
 }
 
 function onDeleteClick() {
-  confirm.require(deleteModelConfirmOptions(deleteModel, 1))
+  confirm.require(deleteArtifactConfirmOptions(deleteArtifact, 1))
 }
 
-async function deleteModel() {
+async function deleteArtifact() {
   try {
     loading.value = true
-    const result = await modelsStore.deleteModels([props.data.id])
+    const result = await artifactsStore.deleteArtifacts([props.data.id])
     if (result.deleted?.length) {
       toast.add(
-        simpleSuccessToast(`Model "${props.data.model_name}" was removed from the collection.`),
+        simpleSuccessToast(`Artifact "${props.data.name}" was removed from the collection.`),
       )
       visible.value = false
-      emit('modelDeleted')
+      emit('artifactDeleted')
     } else if (result.failed?.length) {
-      toast.add(simpleErrorToast(`Failed to delete model "${props.data.model_name}".`))
+      toast.add(simpleErrorToast(`Failed to delete artifact "${props.data.name}".`))
     }
   } catch (e) {
-    toast.add(simpleErrorToast('Failed to delete model'))
+    toast.add(simpleErrorToast('Failed to delete artifact'))
   } finally {
     loading.value = false
   }
 }
 
 watch(
-  () => modelsStore.requestInfo,
+  () => artifactsStore.requestInfo,
   async (info) => {
     try {
       autocompleteItems.value = []

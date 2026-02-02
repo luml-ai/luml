@@ -10,9 +10,9 @@
     <Skeleton style="height: 210px; margin-bottom: 20px"></Skeleton>
   </div>
   <ExperimentSnapshot
-    v-if="modelsStore.experimentSnapshotProvider && modelsStore.currentModel"
-    :provider="modelsStore.experimentSnapshotProvider"
-    :models-ids="[String(modelsStore.currentModel.id)]"
+    v-if="artifactsStore.experimentSnapshotProvider && artifactsStore.currentArtifact"
+    :provider="artifactsStore.experimentSnapshotProvider"
+    :models-ids="[String(artifactsStore.currentArtifact.id)]"
     :models-info="modelsInfo"
     :theme="themeStore.getCurrentTheme"
   ></ExperimentSnapshot>
@@ -22,13 +22,13 @@
 import type { ModelInfo } from '@luml/experiments'
 import { ExperimentSnapshot } from '@luml/experiments'
 import { computed, onMounted, ref } from 'vue'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { Skeleton } from 'primevue'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
 import { getModelColorByIndex } from '@/helpers/helpers'
 import { useThemeStore } from '@/stores/theme'
 
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
 const themeStore = useThemeStore()
 
@@ -36,9 +36,9 @@ const loading = ref(false)
 
 const modelsInfo = computed(() => {
   const data: Record<string, ModelInfo> = {}
-  if (modelsStore.currentModel) {
-    data[modelsStore.currentModel.id] = {
-      name: modelsStore.currentModel.model_name,
+  if (artifactsStore.currentArtifact) {
+    data[artifactsStore.currentArtifact.id] = {
+      name: artifactsStore.currentArtifact.name,
       color: getModelColorByIndex(0),
     }
   }
@@ -46,11 +46,11 @@ const modelsInfo = computed(() => {
 })
 
 onMounted(async () => {
-  if (modelsStore.experimentSnapshotProvider) return
+  if (artifactsStore.experimentSnapshotProvider) return
   try {
     loading.value = true
-    if (!modelsStore.currentModel) throw new Error('Current model does not exist')
-    await init([modelsStore.currentModel])
+    if (!artifactsStore.currentArtifact) throw new Error('Current model does not exist')
+    await init([artifactsStore.currentArtifact])
   } catch (e) {
     console.error(e)
   } finally {

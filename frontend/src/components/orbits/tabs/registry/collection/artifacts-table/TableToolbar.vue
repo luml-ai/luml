@@ -1,13 +1,13 @@
 <template>
   <div class="toolbar">
     <div class="toolbar-left">
-      <div class="counter">{{ selectedModels.length }} Selected</div>
+      <div class="counter">{{ selectedArtifacts.length }} Selected</div>
       <Button
-        v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.delete)"
+        v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)"
         variant="text"
         severity="secondary"
         v-tooltip="'Delete'"
-        :disabled="!selectedModels.length"
+        :disabled="!selectedArtifacts.length"
         @click="onDeleteClick"
       >
         <template #icon>
@@ -15,11 +15,11 @@
         </template>
       </Button>
       <Button
-        v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.update)"
+        v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.update)"
         variant="text"
         severity="secondary"
         v-tooltip="'Settings'"
-        :disabled="selectedModels.length !== 1"
+        :disabled="selectedArtifacts.length !== 1"
         @click="openModelEditor"
       >
         <template #icon>
@@ -41,7 +41,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Deploy'"
-        :disabled="selectedModels.length !== 1"
+        :disabled="selectedArtifacts.length !== 1"
         @click="onDeployClick"
       >
         <template #icon>
@@ -64,12 +64,12 @@
       <MetricsSelect v-model="selectedMetrics" :metrics="metrics" />
     </div>
   </div>
-  <CollectionModelEditor
+  <ArtifactEditor
     v-if="modelForEdit"
     :visible="!!modelForEdit"
     :data="modelForEdit"
     @update:visible="modelForEdit = null"
-  ></CollectionModelEditor>
+  ></ArtifactEditor>
   <ForceDeleteConfirmDialog
     v-model:visible="isForceDeleting"
     :title="forceDeleteTitle"
@@ -91,15 +91,15 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useOrbitsStore } from '@/stores/orbits'
 import { Bolt, Download, Repeat, Rocket, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { MlModelStatusEnum, type MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import { ArtifactStatusEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { Button, useConfirm, useToast } from 'primevue'
 import { useRouter } from 'vue-router'
-import { deleteModelConfirmOptions } from '@/lib/primevue/data/confirm'
+import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
-import CollectionModelEditor from '../model/CollectionModelEditor.vue'
+import ArtifactEditor from '../artifact/ArtifactEditor.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import MetricsSelect from './MetricsSelect.vue'
@@ -108,17 +108,17 @@ const FORCE_DELETE_TEXT =
   'This action will permanently delete the models. If your bucket still contains the model files, the storage space will not be freed until you remove them manually. <br /> If you are sure, then write "delete" below'
 
 type Props = {
-  selectedModels: MlModel[]
+  selectedArtifacts: Artifact[]
   metrics: string[]
 }
 
 type Emits = {
-  clearSelectedModels: []
+  clearSelectedArtifacts: []
 }
 
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const router = useRouter()
 const confirm = useConfirm()
 const toast = useToast()
@@ -130,45 +130,47 @@ const selectedMetrics = defineModel<string[] | null>('selectedMetrics')
 
 const loading = ref(false)
 const isForceDeleting = ref(false)
-const modelForEdit = ref<MlModel | null>(null)
+const modelForEdit = ref<Artifact | null>(null)
 const modelForDeployment = ref<string | null>(null)
 
-const downloadButtonDisabled = computed(() => !props.selectedModels.length)
+const downloadButtonDisabled = computed(() => !props.selectedArtifacts.length)
 
 const compareButtonDisabled = computed(() => {
-  if (props.selectedModels.length < 2) return true
-  const hasInvalidStatus = props.selectedModels.some(
-    (model) => model.status !== MlModelStatusEnum.uploaded,
+  if (props.selectedArtifacts.length < 2) return true
+  const hasInvalidStatus = props.selectedArtifacts.some(
+    (artifact) => artifact.status !== ArtifactStatusEnum.uploaded,
   )
   if (hasInvalidStatus) return true
-  const hasAllExperimentSnapshots = props.selectedModels.every((selectedModel) => {
-    const archiveName = FnnxService.findExperimentSnapshotArchiveName(selectedModel.file_index)
+  const hasAllExperimentSnapshots = props.selectedArtifacts.every((selectedArtifact) => {
+    const archiveName = FnnxService.findExperimentSnapshotArchiveName(selectedArtifact.file_index)
     return !!archiveName
   })
   return !hasAllExperimentSnapshots
 })
 
 const forceDeleteTitle = computed(() => {
-  return props.selectedModels.length > 1 ? 'Force delete these models?' : 'Force delete this model?'
+  return props.selectedArtifacts.length > 1
+    ? 'Force delete these artifacts?'
+    : 'Force delete this artifact?'
 })
 
 async function onDeleteClick() {
-  if (!props.selectedModels.length || loading.value) return
-  const hasFailedStatus = props.selectedModels.some(
-    (model) => model.status !== MlModelStatusEnum.uploaded,
+  if (!props.selectedArtifacts.length || loading.value) return
+  const hasFailedStatus = props.selectedArtifacts.some(
+    (artifact) => artifact.status !== ArtifactStatusEnum.uploaded,
   )
   if (hasFailedStatus) {
     isForceDeleting.value = true
   } else {
-    confirm.require(deleteModelConfirmOptions(confirmDelete, props.selectedModels.length))
+    confirm.require(deleteArtifactConfirmOptions(confirmDelete, props.selectedArtifacts.length))
   }
 }
 
 async function confirmDelete() {
   try {
-    const modelsForDelete = props.selectedModels.map((model: any) => model.id) || []
+    const artifactsForDelete = props.selectedArtifacts.map((artifact: any) => artifact.id) || []
     loading.value = true
-    const result = await modelsStore.deleteModels(modelsForDelete)
+    const result = await artifactsStore.deleteArtifacts(artifactsForDelete)
     if (result.deleted?.length) {
       showSuccessDeleteToast(result.deleted)
     }
@@ -176,18 +178,18 @@ async function confirmDelete() {
       showErrorDeleteToast(result.failed)
     }
   } catch {
-    toast.add(simpleErrorToast('Failed to delete models'))
+    toast.add(simpleErrorToast('Failed to delete artifacts'))
   } finally {
-    emits('clearSelectedModels')
+    emits('clearSelectedArtifacts')
     loading.value = false
   }
 }
 
 async function onForceDelete() {
   try {
-    const modelsForDelete = props.selectedModels.map((model: any) => model.id) || []
+    const artifactsForDelete = props.selectedArtifacts.map((artifact: any) => artifact.id) || []
     loading.value = true
-    const result = await modelsStore.forceDeleteModels(modelsForDelete)
+    const result = await artifactsStore.forceDeleteArtifacts(artifactsForDelete)
     if (result.deleted?.length) {
       showSuccessDeleteToast(result.deleted)
     }
@@ -195,52 +197,52 @@ async function onForceDelete() {
       showErrorDeleteToast(result.failed)
     }
   } catch {
-    toast.add(simpleErrorToast('Failed to delete models'))
+    toast.add(simpleErrorToast('Failed to delete artifacts'))
   } finally {
-    emits('clearSelectedModels')
+    emits('clearSelectedArtifacts')
     loading.value = false
     isForceDeleting.value = false
   }
 }
 
-function showSuccessDeleteToast(models: string[]) {
+function showSuccessDeleteToast(artifacts: string[]) {
   toast.add(
-    simpleSuccessToast(`Models: ${models} has been removed from the collection successfully`),
+    simpleSuccessToast(`Artifacts: ${artifacts} has been removed from the collection successfully`),
   )
 }
 
-function showErrorDeleteToast(models: string[]) {
-  toast.add(simpleErrorToast(`Failed to delete the models: ${models}`))
+function showErrorDeleteToast(artifacts: string[]) {
+  toast.add(simpleErrorToast(`Failed to delete the artifacts: ${artifacts}`))
 }
 
 function openModelEditor() {
-  if (!props.selectedModels.length) return
-  modelForEdit.value = props.selectedModels[0]
+  if (!props.selectedArtifacts.length) return
+  modelForEdit.value = props.selectedArtifacts[0]
 }
 
 function compareClick() {
-  if (!props.selectedModels.length) return
-  const selectedModelsIds = props.selectedModels.map((model) => model.id)
-  router.push({ name: 'compare', query: { models: selectedModelsIds } })
+  if (!props.selectedArtifacts.length) return
+  const selectedArtifactsIds = props.selectedArtifacts.map((artifact) => artifact.id)
+  router.push({ name: 'compare', query: { artifacts: selectedArtifactsIds } })
 }
 
 async function downloadClick() {
-  if (!props.selectedModels.length) throw new Error('Select model before')
-  if (!props.selectedModels[0]?.id || loading.value) return
+  if (!props.selectedArtifacts.length) throw new Error('Select artifact before')
+  if (!props.selectedArtifacts[0]?.id || loading.value) return
   loading.value = true
   try {
-    const model = props.selectedModels[0]
-    await modelsStore.downloadModel(model.id, model.file_name)
+    const artifact = props.selectedArtifacts[0]
+    await artifactsStore.downloadArtifact(artifact.id, artifact.file_name)
   } catch (e) {
-    toast.add(simpleErrorToast('Failed to load models'))
+    toast.add(simpleErrorToast('Failed to load artifacts'))
   } finally {
-    emits('clearSelectedModels')
+    emits('clearSelectedArtifacts')
     loading.value = false
   }
 }
 
 function onDeployClick() {
-  const modelId = props.selectedModels[0].id
+  const modelId = props.selectedArtifacts[0].id
   modelForDeployment.value = modelId
 }
 

@@ -162,12 +162,12 @@
 
 <script setup lang="ts">
 import type { FieldInfo } from '../../deployments.interfaces'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import type { Manifest, Var } from '@fnnx/common/dist/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import {
   useToast,
   Accordion,
@@ -193,7 +193,7 @@ type Props = {
 }
 
 type Emits = {
-  modelChanged: [MlModel | null]
+  modelChanged: [ModelArtifact | null]
 }
 
 const props = defineProps<Props>()
@@ -201,7 +201,7 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const collectionsStore = useCollectionsStore()
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const secretsStore = useSecretsStore()
 const toast = useToast()
 const route = useRoute()
@@ -227,7 +227,7 @@ const customVariables = defineModel<Omit<FieldInfo<string>, 'label'>[]>('customV
   default: [],
 })
 
-const selectedModel = ref<MlModel | null>(null)
+const selectedModel = ref<ModelArtifact | null>(null)
 
 async function getSecrets() {
   try {
@@ -251,7 +251,7 @@ async function onModelIdChange(modelId: string | null | undefined) {
         orbitId: String(route.params.id),
         collectionId: collectionId.value,
       }
-      const model = await modelsStore.getModel(modelId, requestInfo)
+      const model = await artifactsStore.getArtifact(modelId, requestInfo)
       selectedModel.value = model
     } else {
       selectedModel.value = null
@@ -261,7 +261,7 @@ async function onModelIdChange(modelId: string | null | undefined) {
   }
 }
 
-function onSelectedModelChange(model: MlModel | null) {
+function onSelectedModelChange(model: ModelArtifact | null) {
   emit('modelChanged', model)
   customVariables.value = []
   if (model) {

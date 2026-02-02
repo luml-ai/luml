@@ -12,7 +12,7 @@
             <span class="breadcrumb-separator">></span>
             <span class="breadcrumb-item" disabled>page</span>
           </div>
-          <h2>Model details</h2>
+          <h2>Artifact details</h2>
 
           <Tabs :value="$route.name as string">
             <TabList :pt="tabsListPT">
@@ -74,7 +74,7 @@ const items = computed(() => [
   },
   {
     label: 'Experiment snapshot',
-    routeName: 'model-snapshot',
+    routeName: 'experiment-snapshot',
     icon: ScanEye,
   },
 ])

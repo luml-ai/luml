@@ -1,6 +1,8 @@
 export enum OrbitCollectionTypeEnum {
   model = 'model',
   dataset = 'dataset',
+  experiment = 'experiment',
+  mixed = 'mixed',
 }
 
 export interface OrbitCollection {
@@ -10,14 +12,14 @@ export interface OrbitCollection {
   name: string
   collection_type: OrbitCollectionTypeEnum
   tags: string[]
-  total_models: number
+  total_artifacts: number
   created_at: Date
   updated_at: Date
 }
 
 export interface ExtendedOrbitCollection extends OrbitCollection {
-  models_metrics: string[]
-  models_tags: string[]
+  artifacts_extra_values: string[]
+  artifacts_tags: string[]
 }
 
 export interface OrbitCollectionCreator {
@@ -35,7 +37,7 @@ export interface GetCollectionsListResponse {
 export interface GetCollectionsListParams {
   cursor: string | null
   limit?: number
-  sort_by?: 'created_at' | 'name' | 'collection_type' | 'description' | 'total_models'
+  sort_by?: 'created_at' | 'name' | 'collection_type' | 'description' | 'total_artifacts'
   order?: 'asc' | 'desc'
   search?: string
 }

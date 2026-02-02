@@ -3,13 +3,13 @@ import type {
   PromptOptimizationModelMetadataPayload,
   TabularModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
-import type {
-  MlModel,
-  MlModelCreator,
-  UpdateMlModelPayload,
-} from '@/lib/api/orbit-ml-models/interfaces'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
-import type { ModelMetadata, ModelStore } from './model.interface'
+import type {
+  Artifact,
+  CreateArtifactPayload,
+  UpdateArtifactPayload,
+} from '@/lib/api/artifacts/interfaces'
+import type { ModelMetadata, ArtifactsStore } from './artifacts.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/lib/api'
@@ -17,23 +17,23 @@ import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
 import axios from 'axios'
 
-export const useModelsStore = defineStore('models', (): ModelStore => {
+export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => {
   const route = useRoute()
 
-  const currentModel = ref<MlModel | null>(null)
+  const currentArtifact = ref<Artifact | null>(null)
 
-  const modelsList = ref<MlModel[]>([])
+  const artifactsList = ref<Artifact[]>([])
 
-  const setModelsList = (list: MlModel[]) => {
-    modelsList.value = list
+  const setArtifactsList = (list: Artifact[]) => {
+    artifactsList.value = list
   }
 
-  function setCurrentModel(model: MlModel) {
-    currentModel.value = model
+  function setCurrentArtifact(artifact: Artifact) {
+    currentArtifact.value = artifact
   }
 
-  function resetCurrentModel() {
-    currentModel.value = null
+  function resetCurrentArtifact() {
+    currentArtifact.value = null
   }
 
   const currentModelTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
@@ -54,32 +54,35 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     }
   })
 
-  function initiateCreateModel(data: MlModelCreator, requestData?: typeof requestInfo.value) {
-    const info = requestData ? requestData : requestInfo.value
-    return api.mlModels.createModel(info.organizationId, info.orbitId, info.collectionId, data)
-  }
-
-  async function confirmModelUpload(
-    payload: UpdateMlModelPayload,
+  function initiateCreateArtifact(
+    data: CreateArtifactPayload,
     requestData?: typeof requestInfo.value,
   ) {
     const info = requestData ? requestData : requestInfo.value
-    const model = await api.mlModels.updateModel(
+    return api.artifacts.create(info.organizationId, info.orbitId, info.collectionId, data)
+  }
+
+  async function confirmArtifactUpload(
+    payload: UpdateArtifactPayload,
+    requestData?: typeof requestInfo.value,
+  ) {
+    const info = requestData ? requestData : requestInfo.value
+    const result = await api.artifacts.update(
       info.organizationId,
       info.orbitId,
       info.collectionId,
       payload.id,
       payload,
     )
-    setModelsList([...modelsList.value, model])
+    setArtifactsList([...artifactsList.value, result])
   }
 
-  async function cancelModelUpload(
-    payload: UpdateMlModelPayload,
+  async function cancelArtifactUpload(
+    payload: UpdateArtifactPayload,
     requestData?: typeof requestInfo.value,
   ) {
     const info = requestData ? requestData : requestInfo.value
-    await api.mlModels.updateModel(
+    await api.artifacts.update(
       info.organizationId,
       info.orbitId,
       info.collectionId,
@@ -88,48 +91,38 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     )
   }
 
-  async function deleteModels(modelsIds: string[]) {
-    const results = await Promise.allSettled(modelsIds.map((id) => deleteModel(id).then(() => id)))
+  async function deleteArtifacts(ids: string[]) {
+    const results = await Promise.allSettled(ids.map((id) => deleteArtifact(id).then(() => id)))
     const deleted: string[] = []
     const failed: string[] = []
     results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         deleted.push(result.value)
       } else {
-        failed.push(modelsIds[index])
+        failed.push(ids[index])
       }
     })
-    removeModelsFromList(deleted)
+    removeArtifactsFromList(deleted)
     return { deleted, failed }
   }
 
-  async function deleteModel(modelId: string) {
+  async function deleteArtifact(id: string) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const { url } = await api.mlModels.getModelDeleteUrl(
-      organizationId,
-      orbitId,
-      collectionId,
-      modelId,
-    )
+    const { url } = await api.artifacts.getDeleteUrl(organizationId, orbitId, collectionId, id)
     await axios.delete(url)
-    await api.mlModels.confirmModelDelete(organizationId, orbitId, collectionId, modelId)
+    await api.artifacts.confirmDelete(organizationId, orbitId, collectionId, id)
   }
 
-  async function downloadModel(modelId: string, name: string) {
-    const url = await getDownloadUrl(modelId)
+  async function downloadArtifact(id: string, name: string) {
+    const url = await getDownloadUrl(id)
     const response = await fetch(url)
     const blob = await response.blob()
     downloadFileFromBlob(blob, name)
   }
 
-  async function getDownloadUrl(modelId: string) {
+  async function getDownloadUrl(id: string) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const { url } = await api.mlModels.getModelDownloadUrl(
-      organizationId,
-      orbitId,
-      collectionId,
-      modelId,
-    )
+    const { url } = await api.artifacts.getDownloadUrl(organizationId, orbitId, collectionId, id)
     return url
   }
 
@@ -167,25 +160,25 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     experimentSnapshotProvider.value = null
   }
 
-  async function updateModel(payload: UpdateMlModelPayload) {
+  async function updateArtifact(payload: UpdateArtifactPayload) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const model = await api.mlModels.updateModel(
+    const result = await api.artifacts.update(
       organizationId,
       orbitId,
       collectionId,
       payload.id,
       payload,
     )
-    const newModelsList = modelsList.value.map((m) => (m.id === model.id ? model : m))
-    setModelsList(newModelsList)
-    return model
+    const newArtifactsList = artifactsList.value.map((a) => (a.id === result.id ? result : a))
+    setArtifactsList(newArtifactsList)
+    return result
   }
 
-  async function forceDeleteModels(modelsIds: string[]) {
+  async function forceDeleteArtifacts(ids: string[]) {
     const { organizationId, orbitId, collectionId } = requestInfo.value
     const results = await Promise.allSettled(
-      modelsIds.map((id) =>
-        api.mlModels.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
+      ids.map((id) =>
+        api.artifacts.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
       ),
     )
     const deleted: string[] = []
@@ -194,48 +187,48 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
       if (result.status === 'fulfilled') {
         deleted.push(result.value)
       } else {
-        failed.push(modelsIds[index])
+        failed.push(ids[index])
       }
     })
-    removeModelsFromList(deleted)
+    removeArtifactsFromList(deleted)
     return { deleted, failed }
   }
 
-  async function getModelsMetrics(requestData?: typeof requestInfo.value) {
+  async function getArtifactsExtraValues(requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
     const collectionDetails = await api.orbitCollections.getCollection(
       info.organizationId,
       info.orbitId,
       info.collectionId,
     )
-    return collectionDetails.models_metrics
+    return collectionDetails.artifacts_extra_values
   }
 
-  function getModel(modelId: string, requestData?: typeof requestInfo.value) {
+  function getArtifact(id: string, requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
     const { organizationId, orbitId, collectionId } = info
-    return api.mlModels.getModelById(organizationId, orbitId, collectionId, modelId)
+    return api.artifacts.getById(organizationId, orbitId, collectionId, id)
   }
 
-  function removeModelsFromList(modelsIds: string[]) {
-    const newModelsList = modelsList.value.filter((model) => !modelsIds.includes(model.id))
-    setModelsList(newModelsList)
+  function removeArtifactsFromList(ids: string[]) {
+    const newArtifactsList = artifactsList.value.filter((a) => !ids.includes(a.id))
+    setArtifactsList(newArtifactsList)
   }
 
   return {
-    currentModel,
-    setCurrentModel,
-    resetCurrentModel,
+    currentArtifact,
+    setCurrentArtifact,
+    resetCurrentArtifact,
     requestInfo,
     currentModelTag,
     currentModelMetadata,
     currentModelHtmlBlobUrl,
     experimentSnapshotProvider,
-    initiateCreateModel,
-    confirmModelUpload,
-    cancelModelUpload,
-    deleteModels,
-    downloadModel,
+    initiateCreateArtifact,
+    confirmArtifactUpload,
+    cancelArtifactUpload,
+    deleteArtifacts,
+    downloadArtifact,
     getDownloadUrl,
     setCurrentModelTag,
     resetCurrentModelTag,
@@ -245,11 +238,11 @@ export const useModelsStore = defineStore('models', (): ModelStore => {
     resetCurrentModelHtmlBlobUrl,
     setExperimentSnapshotProvider,
     resetExperimentSnapshotProvider,
-    updateModel,
-    forceDeleteModels,
-    getModelsMetrics,
-    getModel,
-    modelsList,
-    setModelsList,
+    updateArtifact,
+    forceDeleteArtifacts,
+    getArtifactsExtraValues,
+    getArtifact,
+    artifactsList,
+    setArtifactsList,
   }
 })
