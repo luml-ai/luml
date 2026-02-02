@@ -2,7 +2,7 @@ import type { Manifest } from '@fnnx/common/dist/interfaces'
 
 export interface FileIndex extends Record<string, [number, number]> {}
 
-export enum MlModelStatusEnum {
+export enum ArtifactStatusEnum {
   pending_upload = 'pending_upload',
   uploaded = 'uploaded',
   pending_deletion = 'pending_deletion',
@@ -10,25 +10,33 @@ export enum MlModelStatusEnum {
   deletion_failed = 'deletion_failed',
 }
 
-export interface MlModelCreator {
-  metrics: Record<string, object>
+export enum ArtifactTypeEnum {
+  model = 'model',
+  dataset = 'dataset',
+  experiment = 'experiment',
+}
+
+export interface CreateArtifactPayload {
+  type: ArtifactTypeEnum
+  extra_values: Record<string, object>
   manifest: Manifest
   file_index: FileIndex
   file_hash: string
   size: number
   file_name: string
-  model_name: string
+  name: string
   description: string
   tags: string[]
 }
 
-export interface MlModel {
+export interface Artifact {
+  type: ArtifactTypeEnum
   id: string
   collection_id: string
   file_name: string
-  model_name: string
+  name: string
   description: string
-  metrics: Record<string, number | string>
+  extra_values: Record<string, number | string>
   manifest: Manifest
   file_hash: string
   file_index: FileIndex
@@ -36,22 +44,22 @@ export interface MlModel {
   size: number
   unique_identifier: string
   tags?: string[]
-  status: MlModelStatusEnum
+  status: ArtifactStatusEnum
   created_at: string
   updated_at: string
 }
 
-export interface UpdateMlModelPayload {
+export interface UpdateArtifactPayload {
   id: string
   file_name: string
-  model_name: string
+  name: string
   description: string
   tags: string[]
-  status?: MlModelStatusEnum
+  status?: ArtifactStatusEnum
 }
 
-export interface CreateModelResponse {
-  model: MlModel
+export interface CreateArtifactResponse {
+  artifact: Artifact
   upload_details: {
     url: string
     multipart: boolean
@@ -60,14 +68,16 @@ export interface CreateModelResponse {
   }
 }
 
-export interface GetModelsListResponse {
+export interface GetArtifactsListResponse {
   cursor: string | null
-  items: MlModel[]
+  items: Artifact[]
 }
 
-export interface GetModelsListParams {
+export interface GetArtifactsListParams {
   cursor: string | null
   limit?: number
-  sort_by?: 'created_at' | 'model_name' | 'size' | 'description' | 'status'
+  sort_by?: 'created_at' | 'name' | 'size' | 'description' | 'status'
   order?: 'asc' | 'desc'
 }
+
+export type ModelArtifact = Artifact

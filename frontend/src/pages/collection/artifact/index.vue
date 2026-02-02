@@ -1,10 +1,10 @@
 <template>
-  <div v-if="modelsStore.currentModel">
+  <div v-if="artifactsStore.currentArtifact">
     <div class="header">
-      <div class="title">Model details</div>
+      <div class="title">Artifact details</div>
       <div class="toolbar">
         <Button
-          v-if="orbitsStore.getCurrentOrbitPermissions?.model.includes(PermissionEnum.update)"
+          v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.update)"
           variant="text"
           severity="secondary"
           v-tooltip="'Settings'"
@@ -26,11 +26,11 @@
         </Button>
       </div>
     </div>
-    <CollectionModelTabs
+    <ArtifactTabs
       :show-model-card="isModelCardAvailable"
       :show-experiment-snapshot="isExperimentSnapshotCardAvailable"
       :show-model-attachments="isModelAttachmentsAvailable"
-    ></CollectionModelTabs>
+    ></ArtifactTabs>
     <div class="view-wrapper">
       <RouterView v-slot="{ Component }">
         <component :is="Component" />
@@ -45,19 +45,19 @@
     @update:visible="onUpdateModelDeploymentVisible"
   ></DeploymentsCreateModal>
 
-  <CollectionModelEditor
+  <ArtifactEditor
     v-if="modelForEdit"
     :visible="!!modelForEdit"
     :data="modelForEdit"
     @update:visible="onUpdateModelEditorVisible"
-    @updateModel="onUpdateModel"
-    @modelDeleted="onModelDeleted"
-  ></CollectionModelEditor>
+    @updateArtifact="onUpdateModel"
+    @artifactDeleted="onModelDeleted"
+  ></ArtifactEditor>
 </template>
 
 <script setup lang="ts">
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
-import { useModelsStore } from '@/stores/models'
+import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
@@ -68,11 +68,11 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
-import CollectionModelTabs from '@/components/orbits/tabs/registry/collection/model/CollectionModelTabs.vue'
+import ArtifactTabs from '@/components/orbits/tabs/registry/collection/artifact/ArtifactTabs.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
-import CollectionModelEditor from '@/components/orbits/tabs/registry/collection/model/CollectionModelEditor.vue'
+import ArtifactEditor from '@/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue'
 
-const modelsStore = useModelsStore()
+const artifactsStore = useArtifactsStore()
 const route = useRoute()
 const router = useRouter()
 const orbitsStore = useOrbitsStore()
@@ -80,36 +80,36 @@ const collectionsStore = useCollectionsStore()
 const toast = useToast()
 
 const modelForDeployment = ref<string | null>(null)
-const modelForEdit = ref<MlModel | null>(null)
+const modelForEdit = ref<Artifact | null>(null)
 
 const isModelCardAvailable = computed(() => {
-  if (!modelsStore.currentModel) return false
-  const fileIndex = modelsStore.currentModel.file_index
-  const includeSupportedTag = FnnxService.getTypeTag(modelsStore.currentModel.manifest)
+  if (!artifactsStore.currentArtifact) return false
+  const fileIndex = artifactsStore.currentArtifact.file_index
+  const includeSupportedTag = FnnxService.getTypeTag(artifactsStore.currentArtifact.manifest)
   return !!(includeSupportedTag || FnnxService.findHtmlCard(fileIndex))
 })
 
 const isExperimentSnapshotCardAvailable = computed(() => {
-  if (!modelsStore.currentModel) return false
-  const fileIndex = modelsStore.currentModel.file_index
+  if (!artifactsStore.currentArtifact) return false
+  const fileIndex = artifactsStore.currentArtifact.file_index
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
 })
 
 const isModelAttachmentsAvailable = computed(() => {
-  if (!modelsStore.currentModel) return false
-  const fileIndex = modelsStore.currentModel.file_index
+  if (!artifactsStore.currentArtifact) return false
+  const fileIndex = artifactsStore.currentArtifact.file_index
   if (!fileIndex) return false
   return FnnxService.hasAttachments(fileIndex)
 })
 
 function initDeploy() {
-  if (modelsStore.currentModel) {
-    modelForDeployment.value = modelsStore.currentModel.id
+  if (artifactsStore.currentArtifact) {
+    modelForDeployment.value = artifactsStore.currentArtifact.id
   }
 }
 
 function openModelEditor() {
-  const m = modelsStore.currentModel
+  const m = artifactsStore.currentArtifact
   if (!m) return
   modelForEdit.value = {
     ...m,
@@ -125,15 +125,15 @@ function onUpdateModelEditorVisible(val?: boolean) {
 }
 
 function onModelDeleted() {
-  modelsStore.resetCurrentModel()
-  navigateToCollectionModels()
+  artifactsStore.resetCurrentArtifact()
+  navigateToArtifactsList()
 }
 
-function onUpdateModel(model: MlModel) {
-  modelsStore.setCurrentModel(model)
+function onUpdateModel(model: Artifact) {
+  artifactsStore.setCurrentArtifact(model)
 }
 
-function navigateToCollectionModels() {
+function navigateToArtifactsList() {
   router.replace({
     name: 'collection',
     params: {
@@ -145,39 +145,42 @@ function navigateToCollectionModels() {
 }
 
 async function downloadClick() {
-  if (!modelsStore.currentModel) return
+  if (!artifactsStore.currentArtifact) return
   try {
-    await modelsStore.downloadModel(modelsStore.currentModel.id, modelsStore.currentModel.file_name)
+    await artifactsStore.downloadArtifact(
+      artifactsStore.currentArtifact.id,
+      artifactsStore.currentArtifact.file_name,
+    )
   } catch (e) {
     console.error('Download failed', e)
   }
 }
 
-async function onModelIdChange(modelId: string | string[] | null) {
+async function onArtifactIdChange(artifactId: string | string[] | null) {
   try {
-    modelsStore.resetCurrentModel()
-    if (typeof modelId !== 'string') return
+    artifactsStore.resetCurrentArtifact()
+    if (typeof artifactId !== 'string') return
     const requestInfo = {
       organizationId: route.params.organizationId as string,
       orbitId: route.params.id as string,
       collectionId: route.params.collectionId as string,
     }
-    const model = await modelsStore.getModel(modelId, requestInfo)
-    modelsStore.setCurrentModel(model)
+    const artifact = await artifactsStore.getArtifact(artifactId, requestInfo)
+    artifactsStore.setCurrentArtifact(artifact)
   } catch (e) {
-    const message = getErrorMessage(e, 'Failed to set current model')
+    const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))
   }
 }
 
-watch(() => route.params.modelId, onModelIdChange, { immediate: true })
+watch(() => route.params.artifactId, onArtifactIdChange, { immediate: true })
 
 onUnmounted(() => {
-  modelsStore.resetCurrentModel()
-  modelsStore.resetCurrentModelTag()
-  modelsStore.resetCurrentModelMetadata()
-  modelsStore.resetCurrentModelHtmlBlobUrl()
-  modelsStore.resetExperimentSnapshotProvider()
+  artifactsStore.resetCurrentArtifact()
+  artifactsStore.resetCurrentModelTag()
+  artifactsStore.resetCurrentModelMetadata()
+  artifactsStore.resetCurrentModelHtmlBlobUrl()
+  artifactsStore.resetExperimentSnapshotProvider()
 })
 </script>
 

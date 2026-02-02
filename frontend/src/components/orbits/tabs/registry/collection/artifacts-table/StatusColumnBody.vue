@@ -7,12 +7,12 @@
 </template>
 
 <script setup lang="ts">
-import type { MlModelStatusEnum } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 import { STATUS_TAGS_CONFIG } from './models-table.data'
 import { Tag } from 'primevue'
 
 type Props = {
-  status: MlModelStatusEnum
+  status: ArtifactStatusEnum
 }
 
 const props = defineProps<Props>()

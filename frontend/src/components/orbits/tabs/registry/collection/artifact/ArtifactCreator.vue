@@ -1,12 +1,12 @@
 <template>
   <Dialog
     v-model:visible="visible"
-    header="add a new model"
+    header="add a new artifact"
     modal
     :draggable="false"
     :pt="dialogPt"
   >
-    <Form :initial-values="formData" :resolver="modelCreatorResolver" @submit="onSubmit">
+    <Form :initial-values="formData" :resolver="artifactCreateResolver" @submit="onSubmit">
       <div class="inputs">
         <div class="field">
           <label for="name" class="label required">Name</label>
@@ -14,9 +14,22 @@
             v-model="formData.name"
             id="name"
             name="name"
-            placeholder="Name your model"
+            placeholder="Name your artifact"
             fluid
           />
+        </div>
+        <div class="field">
+          <label for="collection_type" class="label required">Type</label>
+          <Select
+            v-model="formData.type"
+            :options="ARTIFACT_TYPE_OPTIONS"
+            option-label="label"
+            option-value="value"
+            option-disabled="disabled"
+            placeholder="Select artifact types"
+            name="type"
+            id="type"
+          ></Select>
         </div>
         <div class="field">
           <label for="description" class="label">Description</label>
@@ -24,7 +37,7 @@
             v-model="formData.description"
             name="description"
             id="description"
-            placeholder="Describe your model"
+            placeholder="Describe your artifact"
             style="height: 72px; resize: none"
           ></Textarea>
         </div>
@@ -43,17 +56,17 @@
         </div>
       </div>
       <FileInput
-        id="model-file"
+        id="artifact-file"
         :file="fileInfo"
         :error="fileError"
-        accept-text="Accepts .luml, .dfs, .fnnx, .pyfnx file type"
-        upload-text="upload model file"
+        :accept-text="fileInputAcceptText"
+        upload-text="upload artifact file"
         class="file-field"
         @select-file="onSelectFile"
         @remove-file="onRemoveFile"
       />
       <div v-if="progress !== null" class="upload-section">
-        <p class="upload-description">Model uploading</p>
+        <p class="upload-description">Artifact uploading</p>
         <ProgressBar :value="progress" showValue />
       </div>
       <Button type="submit" fluid rounded :loading="loading">Add</Button>
@@ -66,17 +79,29 @@ import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primev
 import type { FormSubmitEvent } from '@primevue/forms'
 import { useRoute } from 'vue-router'
 import { computed, ref, watch } from 'vue'
-import { modelCreatorResolver } from '@/utils/forms/resolvers'
+import { artifactCreateResolver } from '@/utils/forms/resolvers'
 import { Form } from '@primevue/forms'
-import { Dialog, Button, InputText, Textarea, AutoComplete, useToast, ProgressBar } from 'primevue'
-import { useModelUpload } from '@/hooks/useModelUpload'
+import {
+  Dialog,
+  Button,
+  InputText,
+  Textarea,
+  AutoComplete,
+  useToast,
+  ProgressBar,
+  Select,
+} from 'primevue'
+import { useArtifactUpload } from '@/hooks/useArtifactUpload'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { useModelsTags } from '@/hooks/useModelsTags'
+import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
+import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import { isCorrectFileName, isDatasetFile, isExperimentFile, isModelFile } from '@/helpers/files'
 import FileInput from '@/components/ui/FileInput.vue'
 
 interface FormData {
   name: string
+  type: ArtifactTypeEnum
   description: string
   file: File | null
   tags: string[]
@@ -94,19 +119,28 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-const { upload, progress } = useModelUpload()
+const initialFormData = {
+  name: '',
+  type: ArtifactTypeEnum.model,
+  description: '',
+  file: null,
+  tags: [],
+}
+
+const ARTIFACT_TYPE_OPTIONS = [
+  { label: 'Model', value: ArtifactTypeEnum.model, disabled: false },
+  { label: 'Dataset', value: ArtifactTypeEnum.dataset, disabled: true },
+  { label: 'Experiment', value: ArtifactTypeEnum.experiment, disabled: true },
+]
+
+const { upload, progress } = useArtifactUpload()
+const { getTagsByQuery, loadTags } = useArtifactsTags()
 const toast = useToast()
-const { getTagsByQuery, loadTags } = useModelsTags()
 const route = useRoute()
 
 const visible = defineModel<boolean>('visible')
 const loading = ref(false)
-const formData = ref<FormData>({
-  name: '',
-  description: '',
-  file: null,
-  tags: [],
-})
+const formData = ref<FormData>(initialFormData)
 const fileError = ref(false)
 const autocompleteItems = ref<string[]>([])
 
@@ -119,6 +153,16 @@ const fileInfo = computed(() => {
   }
 })
 
+const fileInputAcceptText = computed(() => {
+  if (formData.value.type === ArtifactTypeEnum.model) {
+    return 'Accepts .luml, .dfs, .fnnx, .pyfnx file type'
+  } else if (formData.value.type === ArtifactTypeEnum.experiment) {
+    return 'Accepts experiment file type'
+  } else if (formData.value.type === ArtifactTypeEnum.dataset) {
+    return 'Accepts dataset file type'
+  } else return ''
+})
+
 function searchTags(event: AutoCompleteCompleteEvent) {
   autocompleteItems.value = getTagsByQuery(event.query)
 }
@@ -129,8 +173,7 @@ function checkFileSize(size: number) {
 
 function onSelectFile(event: File) {
   fileError.value = false
-  const regex = /^[^:\"*\`~#%;'^]+\.[^\s:\"*\`~#%;'^]+$/
-  const isFileNameCorrect = regex.test(event.name)
+  const isFileNameCorrect = isCorrectFileName(event.name)
   const isCorrectFileFormat = checkFileFormat(event.name)
   const fileSizeCorrect = checkFileSize(event.size)
   if (isCorrectFileFormat && isFileNameCorrect && fileSizeCorrect) {
@@ -142,11 +185,14 @@ function onSelectFile(event: File) {
 }
 
 function checkFileFormat(fileName: string) {
-  const isDfs = fileName.endsWith('.dfs')
-  const isFnnx = fileName.endsWith('.fnnx')
-  const isPyfnx = fileName.endsWith('.pyfnx')
-  const isLuml = fileName.endsWith('.luml')
-  return isDfs || isFnnx || isPyfnx || isLuml
+  if (formData.value.type === ArtifactTypeEnum.model) {
+    return isModelFile(fileName)
+  } else if (formData.value.type === ArtifactTypeEnum.experiment) {
+    return isExperimentFile(fileName)
+  } else if (formData.value.type === ArtifactTypeEnum.dataset) {
+    return isDatasetFile(fileName)
+  }
+  return false
 }
 
 function onRemoveFile() {
@@ -163,19 +209,17 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     await upload(
       formData.value.file,
       formData.value.name,
+      formData.value.type,
       formData.value.description,
       formData.value.tags,
     )
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${formData.value.name}has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
+      detail: `${formData.value.name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
       life: 5000,
     })
-    formData.value.description = ''
-    formData.value.file = null
-    formData.value.name = ''
-    formData.value.tags = []
+    reset()
     visible.value = false
   } catch (e: any) {
     toast.add(simpleErrorToast(e?.response?.data?.detail || e?.message || 'Failed file upload'))
@@ -185,12 +229,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 }
 
 function reset() {
-  formData.value = {
-    name: '',
-    description: '',
-    file: null,
-    tags: [],
-  }
+  formData.value = initialFormData
+  resetFile()
+}
+
+function resetFile() {
+  formData.value.file = null
   fileError.value = false
 }
 
@@ -210,6 +254,8 @@ async function initTags() {
 watch(visible, (val) => {
   val ? initTags() : reset()
 })
+
+watch(() => formData.value.type, resetFile)
 </script>
 
 <style scoped>
@@ -219,21 +265,26 @@ watch(visible, (val) => {
   flex-direction: column;
   gap: 16px;
 }
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 7px;
 }
+
 .label {
   align-self: flex-start;
   font-size: 14px;
 }
+
 .file-field {
   margin-bottom: 28px;
 }
+
 .upload-section {
   margin-bottom: 28px;
 }
+
 .upload-description {
   margin-bottom: 8px;
 }

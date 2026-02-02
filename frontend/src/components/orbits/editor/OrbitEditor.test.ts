@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { createPinia } from 'pinia'
 import OrbitSettingsDialog from './OrbitEditor.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
-import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { PermissionEnum, type Orbit } from '@/lib/api/api.interfaces'
 
 vi.mock('@/stores/buckets', () => ({
   useBucketsStore: () => ({
@@ -62,7 +62,7 @@ describe('OrbitSettingsDialog', () => {
 
   const pinia = createPinia()
 
-  const orbit = {
+  const orbit: Orbit = {
     id: 'orbit-aaaa-bbbb-cccc-dddd-000000000001',
     name: 'Test Orbit',
     organization_id: 'org-1111-aaaa-bbbb-cccc-000000000001',
@@ -72,10 +72,11 @@ describe('OrbitSettingsDialog', () => {
     bucket_secret_id: 'bucket-1111-aaaa-bbbb-cccc-000000000001',
     total_collections: 5,
     role: OrbitRoleEnum.member,
+    total_artifacts: 0,
     permissions: {
       orbit: PermissionEnum.delete,
       orbit_user: PermissionEnum.read,
-      model: PermissionEnum.create,
+      artifact: PermissionEnum.create,
       collection: PermissionEnum.create,
     },
   }

@@ -1,12 +1,12 @@
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { ExperimentSnapshotWorkerProxy } from '@luml/experiments'
-import { useModelsStore } from '@/stores/models'
+import { useArtifactsStore } from '@/stores/artifacts'
 import { onUnmounted } from 'vue'
 
 export const useExperimentSnapshotsDatabaseProvider = () => {
-  const modelsStore = useModelsStore()
+  const artifactsStore = useArtifactsStore()
 
   let abortControllers: Record<string, AbortController> = {}
 
@@ -40,7 +40,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     })
   }
 
-  async function init(models: MlModel[]) {
+  async function init(models: ModelArtifact[]) {
     const payload = await Promise.all(
       models.map(async (model) => ({
         modelId: model.id,
@@ -54,18 +54,18 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     })
 
     const provider = new ExperimentSnapshotWorkerProxy(worker)
-    modelsStore.setExperimentSnapshotProvider(provider)
+    artifactsStore.setExperimentSnapshotProvider(provider)
   }
 
-  async function loadArchiveBuffer(model: MlModel) {
+  async function loadArchiveBuffer(model: ModelArtifact) {
     abortControllers[model.id]?.abort()
     abortControllers[model.id] = new AbortController()
     const { signal } = abortControllers[model.id]
 
     const archiveName = FnnxService.findExperimentSnapshotArchiveName(model.file_index)
     if (!archiveName)
-      throw new Error(`Experiment snapshot data for model '${model.model_name}' was not found`)
-    const url = await modelsStore.getDownloadUrl(model.id)
+      throw new Error(`Experiment snapshot data for model '${model.name}' was not found`)
+    const url = await artifactsStore.getDownloadUrl(model.id)
     const modelDownloader = new ModelDownloader(url)
     return modelDownloader.getFileFromBucket<ArrayBuffer>(
       model.file_index,

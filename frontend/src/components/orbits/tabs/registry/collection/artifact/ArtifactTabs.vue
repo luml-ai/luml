@@ -39,7 +39,7 @@ const props = defineProps<Props>()
 const items = computed(() => [
   {
     label: 'Overview',
-    routeName: 'model',
+    routeName: 'artifact',
     icon: LayoutDashboard,
   },
   {
@@ -50,13 +50,13 @@ const items = computed(() => [
   },
   {
     label: 'Experiment snapshot',
-    routeName: 'model-snapshot',
+    routeName: 'experiment-snapshot',
     icon: ScanEye,
     disabled: !props.showExperimentSnapshot,
   },
   {
     label: 'Attachments',
-    routeName: 'model-attachments',
+    routeName: 'attachments',
     icon: Paperclip,
     disabled: !props.showModelAttachments,
   },
