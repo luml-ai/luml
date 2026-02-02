@@ -142,9 +142,9 @@ LUML uses a client-side data transfer model where file operations occur exclusiv
 <h3 align="center">──────── 🧩 Modules ────────</h3>
 
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-orbits-light.png?raw=true" >
+  <source media="(prefers-color-scheme: light)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-registry-light.png?raw=true" >
   <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-registry-dark.png?raw=true">
-  <img alt="Image" src="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-orbits-light.png?raw=true">
+  <img alt="Image" src="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-registry-light.png?raw=true">
 </picture>
 
 
