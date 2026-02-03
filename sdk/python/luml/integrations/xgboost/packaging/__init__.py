@@ -43,8 +43,6 @@ class _DMatrixInputSchema(BaseModel):
     missing: float | None = None
     feature_names: list[str] | None = None
     feature_types: list[str] | None = None
-    categorical_features: list[str] | None = None
-
 
 
 class _PredictConfigSchema(BaseModel):
@@ -151,7 +149,7 @@ def _is_xgboost_sklearn_estimator(obj: object) -> bool:
     return isinstance(obj, xgb.XGBModel)
 
 
-def save_xgboost_model(  # noqa: C901
+def save_xgboost(  # noqa: C901
     estimator: "Union[Booster, xgb.XGBModel]", 
     inputs: Any | None = None, 
     path: str | None = None,
@@ -215,7 +213,6 @@ def save_xgboost_model(  # noqa: C901
             f"Provided model must be an XGBoost Booster or XGBModel, got {type(estimator)}"
         )
     
-
 
     builder = PyfuncBuilder(
         XGBoostFunc,

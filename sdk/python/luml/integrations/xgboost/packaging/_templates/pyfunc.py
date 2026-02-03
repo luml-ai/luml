@@ -17,18 +17,14 @@ class XGBoostFunc(PyFunc):
         self.model = xgb.Booster()
         self.model.load_model(model_path)
     
+    
     def _prepare_dmatrix(self, dmatrix_input: dict) -> xgb.DMatrix:
         data_format = dmatrix_input.get("data_format", "dense")
         data = dmatrix_input["data"]
         missing = dmatrix_input.get("missing")
         feature_names = dmatrix_input.get("feature_names")
-
         feature_types = dmatrix_input.get("feature_types")
-
-        if "categorical_features" in dmatrix_input and feature_names:
-            cat_set = set(dmatrix_input["categorical_features"])
-            feature_types = ["c" if name in cat_set else "q" for name in feature_names]
-
+        
         if data_format == "dense":
             data_array = np.asarray(data)
         elif data_format == "csr":
@@ -36,7 +32,7 @@ class XGBoostFunc(PyFunc):
             missing_fields = [f for f in required_fields if dmatrix_input.get(f) is None]
             if missing_fields:
                 raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
-
+            
             data_array = scipy.sparse.csr_matrix(
                 (
                     np.asarray(data),
