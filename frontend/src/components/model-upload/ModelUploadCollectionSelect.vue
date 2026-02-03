@@ -9,7 +9,7 @@
       :disabled="!orbitId"
       fluid
       filter
-      :options="collectionsList"
+      :options="filteredCollectionsList"
       option-label="name"
       option-value="id"
       :virtualScrollerOptions="virtualScrollerOptions"
@@ -43,9 +43,10 @@ import { Select, Button, useToast, type SelectFilterEvent } from 'primevue'
 import { useCollectionsList } from '@/hooks/useCollectionsList'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { watch, ref } from 'vue'
+import { watch, ref, computed } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { Plus } from 'lucide-vue-next'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import CollectionCreator from '../orbits/tabs/registry/CollectionCreator.vue'
 
 type Props = {
@@ -61,13 +62,19 @@ const toast = useToast()
 const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, setSearchQuery } =
   useCollectionsList()
 
-const virtualScrollerOptions = {
-  lazy: true,
-  onLazyLoad: onLazyLoad,
-  itemSize: 38,
-}
-
 const collectionCreatorVisible = ref(false)
+
+const filteredCollectionsList = computed(() => {
+  return collectionsList.value.filter((collection) => {
+    const availableTypes = [OrbitCollectionTypeEnum.model, OrbitCollectionTypeEnum.mixed]
+    return availableTypes.includes(collection.collection_type)
+  })
+})
+
+const virtualScrollerOptions = computed(() => {
+  if (filteredCollectionsList.value.length < 10) return undefined
+  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 38 }
+})
 
 async function onRequestInfoChange() {
   try {
