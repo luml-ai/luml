@@ -9,9 +9,9 @@ import weakref
 from pathlib import Path
 from typing import Any
 
+from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.utils import guess_span_type
-from luml.modelref import DiskArtifact, _BaseArtifact
 from luml.utils.tar import create_and_index_tar
 
 _DDL_META_CREATE_EXPERIMENTS = """
@@ -647,15 +647,15 @@ class SQLiteBackend(Backend):
 
         self.pool.mark_experiment_inactive(experiment_id)
 
-    def export_experiment_db(self, experiment_id: str) -> DiskArtifact:
+    def export_experiment_db(self, experiment_id: str) -> DiskFile:
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
         with sqlite3.connect(db_path, check_same_thread=False) as conn:
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
-        return DiskArtifact(db_path)
+        return DiskFile(db_path)
 
     def export_attachments(
         self, experiment_id: str
-    ) -> tuple[_BaseArtifact, _BaseArtifact] | None:
+    ) -> tuple[_BaseFile, _BaseFile] | None:
         return create_and_index_tar(self._get_attachments_dir(experiment_id))

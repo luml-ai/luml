@@ -5,57 +5,21 @@ import json
 import tarfile
 import uuid
 import zipfile
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from fnnx.extras.reader import Reader
 
+from luml.artifacts._base import (
+    DiskReference,
+    FileMap,
+    MemoryFile,
+    PathSeparators,
+)
 from luml.model_card.builder import ModelCardBuilder
 
 
-class PathSeparators(str, Enum):
-    COLON = "~c~"
-    SLASH = "~s~"
-    ENDTAG = "~~et~~"
-
-
-class _BaseArtifact(ABC):
-    @abstractmethod
-    def get_artifact(self) -> bytes:
-        pass
-
-
-class DiskArtifact(_BaseArtifact):
-    def __init__(self, path: str | Path) -> None:
-        self.path = path
-
-    def get_artifact(self) -> bytes:
-        with open(self.path, "rb") as f:
-            return f.read()
-
-
-class MemoryArtifact(_BaseArtifact):
-    def __init__(self, data: bytes) -> None:
-        self.data = data
-
-    def get_artifact(self) -> bytes:
-        return self.data
-
-
-@dataclass
-class ArtifactMap:
-    artifact: _BaseArtifact
-    remote_path: str
-
-
-class ModelReference:
-    def __init__(self, path: str) -> None:
-        self.path = path
-
+class ModelReference(DiskReference):
     def validate(self) -> bool:
         try:
             self.read()
@@ -68,8 +32,8 @@ class ModelReference:
         self,
         idx: str | None,
         tags: list[str],
-        payload: dict[str, Any],  # noqa: ANN401
-        data: list[ArtifactMap],
+        payload: dict[str, Any],
+        data: list[FileMap],
         prefix: str | None = None,
     ) -> None:
         idx = idx or uuid.uuid4().hex
@@ -92,7 +56,7 @@ class ModelReference:
             info.size = len(body_str)
             tar.addfile(info, fileobj=io.BytesIO(body_str))
             for _, item in enumerate(data):
-                file_content = item.artifact.get_artifact()
+                file_content = item.file.get_content()
                 file_info = tarfile.TarInfo(
                     name=f"{artifact_path_prefix}{item.remote_path}"
                 )
@@ -100,16 +64,7 @@ class ModelReference:
                 tar.addfile(file_info, fileobj=io.BytesIO(file_content))
 
     def add_model_card(self, html_content: str | ModelCardBuilder) -> None:
-        """
-        Add a model card to the model artifact.
-
-        Args:
-            html_content: Either an HTML string or a ModelCardBuilder instance
-        """
-        # Handle ModelCardBuilder
         if not isinstance(html_content, str):
-            # Runtime import to avoid circular dependency
-
             if isinstance(html_content, ModelCardBuilder):
                 html_content = html_content.build()
             else:
@@ -125,14 +80,14 @@ class ModelReference:
             zip_file.writestr("index.html", html_content)
 
         zip_buffer.seek(0)
-        artifact = MemoryArtifact(zip_buffer.read())
+        file = MemoryFile(zip_buffer.read())
 
         self._append_metadata(
             idx=None,
             tags=[tag],
             payload={},
             prefix=tag,
-            data=[ArtifactMap(artifact=artifact, remote_path="model_card.zip")],
+            data=[FileMap(file=file, remote_path="model_card.zip")],
         )
 
     def read(self) -> Reader:
