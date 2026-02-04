@@ -8,8 +8,8 @@ from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import NDJSON
 
 from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
-from luml.modelref import ModelReference
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
 from luml.utils.time import get_epoch

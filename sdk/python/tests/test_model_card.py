@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from luml.artifacts.model import ModelReference
 from luml.model_card import ModelCardBuilder
-from luml.modelref import ModelReference
 
 
 def test_basic_builder() -> None:
@@ -247,7 +247,7 @@ def test_model_reference_type_error() -> None:
         model_ref = ModelReference(str(tar_path))
 
         with pytest.raises(TypeError, match="must be a string or ModelCardBuilder"):
-            model_ref.add_model_card(12345)  # Invalid type
+            model_ref.add_model_card(12345)  # Invalid type # type: ignore
 
     finally:
         tar_path.unlink()

@@ -10,9 +10,9 @@ from langgraph.pregel import Pregel
 from pydantic import BaseModel, create_model
 
 from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
 from luml.integrations.langgraph.packaging._templates.mermaid import create_mermaid_html
 from luml.integrations.langgraph.packaging._templates.pyfunc import LangGraphFunc
-from luml.modelref import ModelReference
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import (
     dyn_import,

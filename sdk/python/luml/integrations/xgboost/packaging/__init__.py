@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import Any, Literal, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Literal, Union
 from warnings import warn
 
 import xgboost as xgb
@@ -16,7 +16,9 @@ from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
 
 from luml._constants import FNNX_PRODUCER_NAME
-from luml.modelref import ModelReference
+from luml.artifacts.model import ModelReference
+from luml.integrations.sklearn.packaging import save_sklearn
+from luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
 from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
     extract_top_level_modules,
@@ -24,12 +26,9 @@ from luml.utils.imports import (
 )
 from luml.utils.time import get_epoch
 
-from luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
-from luml.integrations.sklearn.packaging import save_sklearn
-
-
 if TYPE_CHECKING:
     from xgboost import DMatrix
+
 
 class _DMatrixInputSchema(BaseModel):
     data: list[list[float]] | list[float]
@@ -57,7 +56,6 @@ class _PredictConfigSchema(BaseModel):
     strict_shape: bool = False
 
 
-
 def _build_input_schema() -> type[BaseModel]:
     input_fields = {
         "dmatrix": (_DMatrixInputSchema, ...),
@@ -65,9 +63,9 @@ def _build_input_schema() -> type[BaseModel]:
     }
 
     input_schema = create_model(
-        "XGBoostInputModel", 
-        __base__=BaseModel, 
-        **input_fields  # type: ignore[arg-type]
+        "XGBoostInputModel",
+        __base__=BaseModel,
+        **input_fields,  # type: ignore[arg-type]
     )
     return input_schema
 
@@ -78,11 +76,12 @@ def _build_output_schema() -> type[BaseModel]:
     }
 
     output_schema = create_model(
-        "XGBoostOutputModel", 
-        __base__=BaseModel, 
-        **output_fields  # type: ignore[arg-type]
+        "XGBoostOutputModel",
+        __base__=BaseModel,
+        **output_fields,  # type: ignore[arg-type]
     )
     return output_schema
+
 
 def _add_io(builder: PyfuncBuilder) -> None:
     input_schema = _build_input_schema()
@@ -94,11 +93,12 @@ def _add_io(builder: PyfuncBuilder) -> None:
         JSON(name="xgboost_output", content_type="JSON", dtype="ext::output")
     )
 
+
 def _get_default_deps() -> list[str]:
     return [
         "xgboost==" + get_version("xgboost"),
         "numpy==" + get_version("numpy"),
-        "scipy==" + get_version("scipy"), 
+        "scipy==" + get_version("scipy"),
     ]
 
 
@@ -114,7 +114,7 @@ def _add_dependencies(
 ) -> None:
     auto_pip_dependencies = []
     auto_local_dependencies = []
-    
+
     if dependencies == "all" or extra_code_modules == "auto":
         auto_pip_dependencies, auto_local_dependencies = find_dependencies()
 
@@ -135,25 +135,27 @@ def _add_dependencies(
 
     for dep in pip_deps:
         builder.add_runtime_dependency(dep)
-    
+
     if extra_dependencies:
         for dep in extra_dependencies:
             builder.add_runtime_dependency(dep)
-    
+
     local_dependencies = extract_top_level_modules(local_dependencies)
     for module in local_dependencies:
         builder.add_module(module)
 
 
 def _is_xgboost_sklearn_estimator(obj: object) -> bool:
+    if XGBModel is None:
+        return False
     return isinstance(obj, xgb.XGBModel)
 
 
 def save_xgboost(  # noqa: C901
-    estimator: "Union[Booster, xgb.XGBModel]", 
-    inputs: Any | None = None, 
+    estimator: "Union[Booster, xgb.XGBModel]",  # noqa: UP007
+    inputs: Any | None = None,  # noqa: ANN401
     path: str | None = None,
-    dependencies: Literal["default"] | Literal["all"] | list[str] = "default",  
+    dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
     manifest_model_name: str | None = None,
@@ -177,13 +179,12 @@ def save_xgboost(  # noqa: C901
 
     Returns:
         ModelReference: Reference to the saved model."""
-    
+
     path = path or f"xgboost_model_{get_epoch()}.luml"
 
     if _is_xgboost_sklearn_estimator(estimator):
         warn(
-            "Detected XGBoost scikit-learn estimator. "
-            "Delegating to save_sklearn().",
+            "Detected XGBoost scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
         )
 
@@ -193,11 +194,11 @@ def save_xgboost(  # noqa: C901
             extra_dependencies = [xgboost_dep]
         else:
             extra_dependencies = list(extra_dependencies)
-            if not any('xgboost' in dep.lower() for dep in extra_dependencies):
+            if not any("xgboost" in dep.lower() for dep in extra_dependencies):
                 extra_dependencies.append(xgboost_dep)
 
         return save_sklearn(
-            estimator=estimator,
+            estimator=estimator,  # type: ignore[arg-type]
             inputs=inputs,
             path=path,
             dependencies=dependencies,
@@ -212,15 +213,13 @@ def save_xgboost(  # noqa: C901
         raise TypeError(
             f"Provided model must be an XGBoost Booster or XGBModel, got {type(estimator)}"
         )
-    
 
     builder = PyfuncBuilder(
         XGBoostFunc,
-        model_name = manifest_model_name,
-        model_description = manifest_model_description,
-        model_version = manifest_model_version
+        model_name=manifest_model_name,
+        model_description=manifest_model_description,
+        model_version=manifest_model_version,
     )
-
 
     builder.set_producer_info(
         name=FNNX_PRODUCER_NAME,
@@ -228,18 +227,14 @@ def save_xgboost(  # noqa: C901
         tags=_get_default_tags() + (manifest_extra_producer_tags or []),
     )
 
+    model_filename = "model.json"
 
-    model_filename = "model.json" 
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=f".json") as tmp_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp_file:
         estimator.save_model(tmp_file.name)
         tmp_model_path = tmp_file.name
-    
+
     builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({
-        "input_order": ["payload"],
-        "model_path": model_filename
-    })
+    builder.set_extra_values({"input_order": ["payload"], "model_path": model_filename})
 
     _add_io(builder)
 

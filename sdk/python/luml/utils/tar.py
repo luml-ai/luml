@@ -3,7 +3,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from luml.modelref import DiskArtifact
+from luml.artifacts._base import DiskFile
 
 
 def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:
@@ -15,7 +15,7 @@ def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:
     return index
 
 
-def create_and_index_tar(source_dir: str | Path) -> tuple[DiskArtifact, DiskArtifact]:
+def create_and_index_tar(source_dir: str | Path) -> tuple[DiskFile, DiskFile]:
     source_dir = Path(source_dir)
     if not source_dir.is_dir():
         raise ValueError(
@@ -30,12 +30,12 @@ def create_and_index_tar(source_dir: str | Path) -> tuple[DiskArtifact, DiskArti
     with tarfile.open(tar_path, "r") as tar:
         index_data = generate_index(tar)
 
-    artifact = DiskArtifact(tar_path)
+    artifact = DiskFile(tar_path)
 
     index_path = tar_path.with_suffix(".index.json")
     with open(index_path, "w+") as index_file:
         json.dump(index_data, index_file)
 
-    index_artifact = DiskArtifact(index_path)
+    index_artifact = DiskFile(index_path)
 
     return artifact, index_artifact
