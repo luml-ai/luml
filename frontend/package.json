@@ -40,6 +40,8 @@
     "idb": "^8.0.3",
     "jszip": "^3.10.1",
     "lucide-vue-next": "^0.460.0",
+    "@luml/experiments": "*",
+    "@luml/attachments": "*",
     "marked": "^16.2.0",
     "mock-json-schema": "^1.1.2",
     "pinia": "^2.2.6",

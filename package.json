@@ -1,0 +1,8 @@
+{
+	"name": "@luml/workspace",
+	"private": true,
+	"workspaces": [
+		"frontend",
+		"extras/js/packages/*"
+	]
+}
