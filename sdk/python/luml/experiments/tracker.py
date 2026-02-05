@@ -47,9 +47,9 @@ class ExperimentTracker:
 
     def start_experiment(
         self,
+        group: str,
         experiment_id: str | None = None,
         name: str | None = None,
-        group: str | None = None,
         tags: list[str] | None = None,
     ) -> str:
         """
@@ -77,7 +77,7 @@ class ExperimentTracker:
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
 
-        self.backend.initialize_experiment(experiment_id, name, group, tags)
+        self.backend.initialize_experiment(experiment_id, group, name, tags)
         self.current_experiment_id = experiment_id
         return experiment_id
 
@@ -296,8 +296,8 @@ class ExperimentTracker:
     def delete_experiment(self, experiment_id: str) -> None:
         self.backend.delete_experiment(experiment_id)
 
-    def create_group(self, name: str, description: str | None = None) -> None:
-        self.backend.create_group(name, description)
+    def create_group(self, name: str, description: str | None = None) -> str:
+        return self.backend.create_group(name, description)
 
     def list_groups(self) -> list[dict[str, Any]]:  # noqa: ANN401
         return self.backend.list_groups()
