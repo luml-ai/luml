@@ -272,10 +272,6 @@ class SQLiteBackend(Backend):
         name: str | None = None,
         tags: list[str] | None = None,
     ) -> None:
-        if not group:
-            raise ValueError(
-                "Group is required. Use create_group() to create a group first."
-            )
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
