@@ -27,6 +27,7 @@ core = [
 
 [project.scripts]
 generate-docs = "generate_docs:main"
+luml-migrations = "luml.experiments.backends.migrations.__main__:main"
 
 [build-system]
 requires = ["hatchling"]
