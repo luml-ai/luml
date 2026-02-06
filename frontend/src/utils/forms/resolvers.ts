@@ -100,11 +100,7 @@ export const collectionEditorResolver: Resolver = zodResolver(
   }),
 )
 
-<<<<<<< Updated upstream
-export const modelCreatorResolver = zodResolver(
-=======
-export const artifactCreateResolver: Resolver = zodResolver(
->>>>>>> Stashed changes
+export const modelCreatorResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),
@@ -113,11 +109,7 @@ export const artifactCreateResolver: Resolver = zodResolver(
   }),
 )
 
-<<<<<<< Updated upstream
-export const modelEditorResolver = zodResolver(
-=======
-export const artifactEditResolver: Resolver = zodResolver(
->>>>>>> Stashed changes
+export const modelEditorResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string(),
