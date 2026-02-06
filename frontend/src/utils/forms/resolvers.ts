@@ -5,14 +5,16 @@ import { combineValidators, getSatelliteValidator } from '@/helpers/helpers'
 import type { CreateDeploymentForm } from '@/components/deployments/deployments.interfaces'
 import type { Ref } from 'vue'
 
-export const signInResolver = zodResolver(
+type Resolver = ReturnType<typeof zodResolver>
+
+export const signInResolver: Resolver = zodResolver(
   z.object({
     email: z.string().email({ message: 'Email is incorrect' }),
     password: z.string().min(8, { message: 'Minimum password length 8 characters' }),
   }),
 )
 
-export const signUpResolver = zodResolver(
+export const signUpResolver: Resolver = zodResolver(
   z.object({
     username: z.string().min(3, { message: 'Username is required.' }),
     email: z.string().email('Email incorrect'),
@@ -20,13 +22,13 @@ export const signUpResolver = zodResolver(
   }),
 )
 
-export const forgotPasswordResolver = zodResolver(
+export const forgotPasswordResolver: Resolver = zodResolver(
   z.object({
     email: z.string().email({ message: 'Email is incorrect' }),
   }),
 )
 
-export const resetPasswordResolver = zodResolver(
+export const resetPasswordResolver: Resolver = zodResolver(
   z
     .object({
       password: z.string().min(8, { message: 'The password must be more than 8 characters' }),
@@ -40,14 +42,14 @@ export const resetPasswordResolver = zodResolver(
     }),
 )
 
-export const userSettingResolver = zodResolver(
+export const userSettingResolver: Resolver = zodResolver(
   z.object({
     username: z.string().min(3, { message: 'Name must be more 3 characters' }),
     email: z.string().email({ message: 'Email is incorrect' }),
   }),
 )
 
-export const userChangePasswordResolver = zodResolver(
+export const userChangePasswordResolver: Resolver = zodResolver(
   z
     .object({
       current_password: z
@@ -64,7 +66,7 @@ export const userChangePasswordResolver = zodResolver(
     }),
 )
 
-export const orbitCreatorResolver = (orbitsList: Orbit[]) =>
+export const orbitCreatorResolver = (orbitsList: Orbit[]): Resolver =>
   zodResolver(
     z.object({
       name: z
@@ -83,7 +85,7 @@ export const orbitCreatorResolver = (orbitsList: Orbit[]) =>
     }),
   )
 
-export const collectionCreatorResolver = zodResolver(
+export const collectionCreatorResolver: Resolver = zodResolver(
   z.object({
     description: z.string(),
     name: z.string().min(1),
@@ -91,14 +93,18 @@ export const collectionCreatorResolver = zodResolver(
   }),
 )
 
-export const collectionEditorResolver = zodResolver(
+export const collectionEditorResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
     bucket_secret_id: z.string(),
   }),
 )
 
+<<<<<<< Updated upstream
 export const modelCreatorResolver = zodResolver(
+=======
+export const artifactCreateResolver: Resolver = zodResolver(
+>>>>>>> Stashed changes
   z.object({
     name: z.string().min(1),
     description: z.string(),
@@ -107,7 +113,11 @@ export const modelCreatorResolver = zodResolver(
   }),
 )
 
+<<<<<<< Updated upstream
 export const modelEditorResolver = zodResolver(
+=======
+export const artifactEditResolver: Resolver = zodResolver(
+>>>>>>> Stashed changes
   z.object({
     name: z.string().min(1),
     description: z.string(),
@@ -115,7 +125,7 @@ export const modelEditorResolver = zodResolver(
   }),
 )
 
-export const modelUploadResolver = zodResolver(
+export const modelUploadResolver: Resolver = zodResolver(
   z.object({
     orbit: z.string(),
     collection: z.string(),
@@ -125,14 +135,14 @@ export const modelUploadResolver = zodResolver(
   }),
 )
 
-export const satellitesResolver = zodResolver(
+export const satellitesResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
     description: z.string().optional(),
   }),
 )
 
-export const createSecretResolver = zodResolver(
+export const createSecretResolver: Resolver = zodResolver(
   z.object({
     name: z.string().trim().min(1, 'Name is required'),
     value: z.string().trim().min(1, 'Secret value is required'),
@@ -140,7 +150,7 @@ export const createSecretResolver = zodResolver(
   }),
 )
 
-export const updateSecretResolver = zodResolver(
+export const updateSecretResolver: Resolver = zodResolver(
   z.object({
     name: z.string().optional(),
     value: z.string().trim().optional(),
@@ -161,7 +171,7 @@ const valueSchema = z.object({
   ]),
 })
 
-export const createDeploymentResolver = (formData: Ref<CreateDeploymentForm>) =>
+export const createDeploymentResolver = (formData: Ref<CreateDeploymentForm>): Resolver =>
   zodResolver(
     z.object({
       name: z.string().min(1),
