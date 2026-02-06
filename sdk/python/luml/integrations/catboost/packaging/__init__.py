@@ -1,24 +1,16 @@
 import os
 import tempfile
 from typing import Any, Literal, Union
-from warnings import warn
 
-import lightgbm as lgb
-from lightgbm import Booster
-
-try:
-    from lightgbm.sklearn import LGBMModel
-except ImportError:
-    LGBMModel = None  # type: ignore[assignment, misc]
-
+import catboost as ctb
+from catboost import CatBoost
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
-from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
-from luml.integrations.sklearn.packaging import save_sklearn
+from luml.integrations.catboost.packaging._templates.pyfunc import CatBoostFunc
 from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
     extract_top_level_modules,
@@ -33,7 +25,11 @@ class _DataInputSchema(BaseModel):
 
     # Feature metadata
     feature_names: list[str] | None = None
+
+    # CatBoost-specific feature types
     categorical_features: list[str] | list[int] | None = None
+    text_features: list[str] | list[int] | None = None
+    embedding_features: list[str] | list[int] | None = None
 
     # Sparse (CSR)
     indices: list[int] | None = None
@@ -42,12 +38,14 @@ class _DataInputSchema(BaseModel):
 
 
 class _PredictConfigSchema(BaseModel):
-    start_iteration: int = 0
-    num_iteration: int | None = None
-    raw_score: bool = False
-    pred_leaf: bool = False
-    pred_contrib: bool = False
-    validate_features: bool = False
+    prediction_type: Literal[
+        "RawFormulaVal", "Class", "Probability", "Exponent", "LogProbability"
+    ] = "RawFormulaVal"
+    ntree_start: int = 0
+    ntree_end: int = 0
+    thread_count: int = -1
+    verbose: bool | None = None
+    task_type: Literal["CPU", "GPU"] = "CPU"
 
 
 def _build_input_schema() -> type[BaseModel]:
@@ -57,7 +55,7 @@ def _build_input_schema() -> type[BaseModel]:
     }
 
     input_schema = create_model(
-        "LightGBMInputModel",
+        "CatBoostInputModel",
         __base__=BaseModel,
         **input_fields,  # type: ignore[call-overload]
     )
@@ -70,7 +68,7 @@ def _build_output_schema() -> type[BaseModel]:
     }
 
     output_schema = create_model(
-        "LightGBMOutputModel",
+        "CatBoostOutputModel",
         __base__=BaseModel,
         **output_fields,  # type: ignore[call-overload]
     )
@@ -80,26 +78,24 @@ def _build_output_schema() -> type[BaseModel]:
 def _add_io(builder: PyfuncBuilder) -> None:
     input_schema = _build_input_schema()
     output_schema = _build_output_schema()
-
     builder.define_dtype("ext::input", input_schema)
     builder.define_dtype("ext::output", output_schema)
     builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
     builder.add_output(
-        JSON(name="lightgbm_output", content_type="JSON", dtype="ext::output")
+        JSON(name="catboost_output", content_type="JSON", dtype="ext::output")
     )
 
 
 def _get_default_deps() -> list[str]:
     return [
-        "lightgbm==" + get_version("lightgbm"),
+        "catboost==" + get_version("catboost"),
         "numpy==" + get_version("numpy"),
-        "pandas==" + get_version("pandas"),
         "scipy==" + get_version("scipy"),
     ]
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::lightgbm:v1"]
+    return [FNNX_PRODUCER_NAME + "::catboost:v1"]
 
 
 def _add_dependencies(
@@ -141,15 +137,8 @@ def _add_dependencies(
         builder.add_module(module)
 
 
-def _is_lightgbm_sklearn_estimator(obj: object) -> bool:
-    if LGBMModel is None:
-        return False
-    return isinstance(obj, LGBMModel)
-
-
-def save_lightgbm(  # noqa: C901
-    estimator: "Union[Booster, lgb.LGBMModel]",  # noqa: UP007
-    inputs: Any | None = None,  # noqa: ANN401
+def save_catboost(
+    estimator: "Union[CatBoost, ctb.CatBoostClassifier, ctb.CatBoostRegressor]",  # noqa: UP007
     path: str | None = None,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
@@ -159,44 +148,15 @@ def save_lightgbm(  # noqa: C901
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
 ) -> ModelReference:
-    path = path or f"lgbm_model_{get_epoch()}.luml"
+    path = path or f"catboost_model_{get_epoch()}.luml"
 
-    if _is_lightgbm_sklearn_estimator(estimator):
-        warn(
-            "Detected LGBM scikit-learn estimator. Delegating to save_sklearn().",
-            UserWarning,
-            stacklevel=2,
-        )
-
-        lgb_dep = f"lightgbm=={get_version('lightgbm')}"
-
-        if extra_dependencies is None:
-            extra_dependencies = [lgb_dep]
-        else:
-            extra_dependencies = list(extra_dependencies)
-            if not any("lightgbm" in dep.lower() for dep in extra_dependencies):
-                extra_dependencies.append(lgb_dep)
-
-        return save_sklearn(
-            estimator=estimator,
-            inputs=inputs,
-            path=path,
-            dependencies=dependencies,
-            extra_dependencies=extra_dependencies,
-            extra_code_modules=extra_code_modules,
-            manifest_model_name=manifest_model_name,
-            manifest_model_version=manifest_model_version,
-            manifest_model_description=manifest_model_description,
-        )
-
-    if not isinstance(estimator, lgb.Booster):
+    if not isinstance(estimator, ctb.CatBoost):
         raise TypeError(
-            f"Provided model must be a LightGBM Booster or LGBModel, "
-            f"got {type(estimator)}"
+            f"Provided model must be a CatBoost model, got {type(estimator)}"
         )
 
     builder = PyfuncBuilder(
-        LightGBMFunc,
+        CatBoostFunc,
         model_name=manifest_model_name,
         model_description=manifest_model_description,
         model_version=manifest_model_version,
@@ -211,11 +171,23 @@ def save_lightgbm(  # noqa: C901
     model_filename = "model.json"
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp_file:
-        estimator.save_model(tmp_file.name)
+        estimator.save_model(tmp_file.name, format="json")
         tmp_model_path = tmp_file.name
 
+    # Determine model type for default prediction_type
+    loss_function = estimator.get_all_params().get("loss_function", "")
+    classification_losses = [
+        "Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"
+    ]
+    model_type = "classifier" if loss_function in classification_losses else "regressor"
+
     builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({"input_order": ["payload"], "model_path": model_filename})
+    builder.set_extra_values({
+        "input_order": ["payload"],
+        "model_path": model_filename,
+        "model_type": model_type,
+        "loss_function": loss_function,
+    })
 
     _add_io(builder)
 
