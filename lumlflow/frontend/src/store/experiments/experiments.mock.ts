@@ -1,0 +1,65 @@
+import type { Experiment } from './experiments.interface'
+
+export const MOCK_EXPERIMENTS: Experiment[] = [
+  {
+    id: '1',
+    name: 'Experiment 1',
+    description: 'Description 1',
+    created_at: '2025-01-01',
+    duration: 100,
+    source: 'Source 1',
+    models: [
+      { id: '1', name: 'Model 1' },
+      { id: '2', name: 'Model 2' },
+      { id: '3', name: 'Model 3' },
+    ],
+    metrics: { metric1: 100, metric2: 200 },
+    status: 'completed',
+    tags: ['Tag 1', 'Tag 2'],
+  },
+  {
+    id: '2',
+    name: 'Experiment 2',
+    description: 'Description 2',
+    created_at: '2025-01-02',
+    duration: 200,
+    source: 'Source 2',
+    models: [
+      { id: '2', name: 'Model 2' },
+      { id: '3', name: 'Model 3' },
+    ],
+    metrics: { metric1: 100, metric2: 200 },
+    status: 'completed',
+    tags: ['Tag 1', 'Tag 2'],
+  },
+  {
+    id: '3',
+    name: 'Experiment 3',
+    description: 'Description 3',
+    created_at: '2025-01-03',
+    duration: 300,
+    source: 'Source 3',
+    models: [
+      { id: '4', name: 'Model 4' },
+      { id: '5', name: 'Model 5' },
+    ],
+    metrics: { metric1: 100, metric2: 200 },
+    status: 'completed',
+    tags: ['Tag 1', 'Tag 2'],
+  },
+  {
+    id: '4',
+    name: 'Experiment 4',
+    description: 'Description 4',
+    created_at: '2025-01-04',
+    duration: 400,
+    source: 'Source 4',
+    models: [
+      { id: '6', name: 'Model 6' },
+      { id: '7', name: 'Model 7' },
+    ],
+    metrics: { metric1: 100, metric2: 200 },
+    status: 'completed',
+    tags: ['Tag 1', 'Tag 2'],
+  },
+]

@@ -1,7 +1,7 @@
 <template>
   <div class="flex justify-between items-center gap-10 pb-2.5">
     <div class="flex items-center gap-8">
-      <div>{{ groupsStore.selectedGroups.length }} Selected</div>
+      <div class="tabular-nums">{{ groupsStore.selectedGroups.length }} Selected</div>
       <ExperimentsGroupButtons />
     </div>
     <div class="max-w-sm w-full">
