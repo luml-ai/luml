@@ -24,6 +24,16 @@ core = [
     "fnnx>=0.0.8,<0.1.0",
     "pydantic>=2.11.7,<3.0.0",
 ]
+datasets = [
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+]
+datasets-hf = [
+    "datasets>=2.14.0,<4.0.0",
+]
+datasets-polars = [
+    "polars>=1.0.0,<2.0.0",
+]
 
 [project.scripts]
 generate-docs = "generate_docs:main"
@@ -52,6 +62,10 @@ dev = [
     "ruff==0.11.5",
     "scikit-learn>=1.8.0",
     "types-passlib==1.7.7.20250408",
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+    "polars>=1.0.0,<2.0.0",
+    "datasets>=2.14.0,<4.0.0",
 ]
 
 [tool.ruff]
