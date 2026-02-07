@@ -46,7 +46,7 @@ class TestSaveHFDataset:
         assert isinstance(manifest.payload, HFDatasetPayload)
         assert manifest.payload.data_dir == "data/"
         assert "default" in manifest.payload.subsets
-        assert "default" in manifest.payload.subsets["default"]
+        assert "train" in manifest.payload.subsets["default"]
 
     def test_dataset_dict(
         self, sample_hf_dataset_dict: datasets.DatasetDict, tmp_path: Path
@@ -101,7 +101,77 @@ class TestSaveHFDataset:
         assert manifest.payload.library_version == datasets.__version__
 
 
+class TestSaveHFDatasetMultiConfig:
+    def test_multiple_configs(self, tmp_path: Path) -> None:
+        cola = datasets.DatasetDict(
+            {
+                "train": datasets.Dataset.from_dict(
+                    {"sentence": ["test1", "test2"], "label": [0, 1]}
+                ),
+                "validation": datasets.Dataset.from_dict(
+                    {"sentence": ["test3"], "label": [0]}
+                ),
+            }
+        )
+        sst2 = datasets.DatasetDict(
+            {
+                "train": datasets.Dataset.from_dict(
+                    {"sentence": ["positive"], "label": [1]}
+                ),
+                "validation": datasets.Dataset.from_dict(
+                    {"sentence": ["negative"], "label": [0]}
+                ),
+            }
+        )
+
+        ref = save_hf_dataset(
+            {"cola": cola, "sst2": sst2},
+            name="multi-config",
+            output_path=str(tmp_path / "ds.tar"),
+        )
+
+        manifest = ref.get_manifest()
+        assert isinstance(manifest.payload, HFDatasetPayload)
+        assert "cola" in manifest.payload.subsets
+        assert "sst2" in manifest.payload.subsets
+        assert manifest.payload.subsets["cola"] == ["train", "validation"]
+        assert manifest.payload.subsets["sst2"] == ["train", "validation"]
+
+    def test_mixed_dataset_types_in_configs(self, tmp_path: Path) -> None:
+        single_dataset = datasets.Dataset.from_dict({"a": [1, 2, 3]})
+        dataset_dict = datasets.DatasetDict(
+            {
+                "train": datasets.Dataset.from_dict({"a": [4, 5]}),
+                "test": datasets.Dataset.from_dict({"a": [6]}),
+            }
+        )
+
+        ref = save_hf_dataset(
+            {"config1": single_dataset, "config2": dataset_dict},
+            output_path=str(tmp_path / "ds.tar"),
+        )
+
+        manifest = ref.get_manifest()
+        assert isinstance(manifest.payload, HFDatasetPayload)
+        assert manifest.payload.subsets["config1"] == ["train"]
+        assert "train" in manifest.payload.subsets["config2"]
+        assert "test" in manifest.payload.subsets["config2"]
+
+    def test_invalid_config_value(self, tmp_path: Path) -> None:
+        with pytest.raises(
+            TypeError, match="Config 'bad' has unsupported type"
+        ):
+            save_hf_dataset(
+                {"bad": {"a": [1, 2]}},
+                output_path=str(tmp_path / "ds.tar"),
+            )
+
+
 class TestSaveHFDatasetErrors:
     def test_invalid_type(self, tmp_path: Path) -> None:
-        with pytest.raises(TypeError, match="Unsupported dataset type"):
+        with pytest.raises(TypeError, match="Config 'a' has unsupported type"):
             save_hf_dataset({"a": [1, 2]}, output_path=str(tmp_path / "ds.tar"))
+
+    def test_invalid_non_dict_type(self, tmp_path: Path) -> None:
+        with pytest.raises(TypeError, match="Unsupported dataset type"):
+            save_hf_dataset([1, 2, 3], output_path=str(tmp_path / "ds.tar"))

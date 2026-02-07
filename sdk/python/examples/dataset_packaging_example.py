@@ -50,7 +50,7 @@ def example_basic_pandas_dataset() -> None:
 
     print(f"Original DataFrame:\n{df}")  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "basic_dataset.tar"
 
         ref = save_tabular_dataset(
@@ -96,7 +96,7 @@ def example_polars_dataset() -> None:
 
     print(f"Original Polars DataFrame:\n{df}")  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "polars_dataset.tar"
 
         ref = save_tabular_dataset(
@@ -136,7 +136,7 @@ def example_chunked_dataset() -> None:
 
     print(f"Large DataFrame: {len(large_df)} rows")  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "chunked_dataset.tar"
 
         ref = save_tabular_dataset(
@@ -183,13 +183,14 @@ def example_subsets_and_splits() -> None:
         },
     }
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "structured_dataset.tar"
 
         ref = save_tabular_dataset(
             dataset_structure,
             name="structured-demo",
             output_path=str(output_path),
+            file_format="csv",
         )
 
         print("Dataset structure saved")  # noqa: T201
@@ -241,7 +242,7 @@ def example_huggingface_dataset() -> None:
 
     print(f"Original HuggingFace DatasetDict:\n{dataset_dict}")  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "hf_dataset.tar"
 
         ref = save_hf_dataset(
@@ -260,6 +261,104 @@ def example_huggingface_dataset() -> None:
 
         train_dataset = mat.to_hf_split(split="train")
         print(f"\nTrain split: {len(train_dataset)} samples")  # noqa: T201
+
+
+def example_huggingface_with_configs() -> None:
+    """Example 5b: HuggingFace datasets with multiple configs."""
+    try:
+        import datasets
+    except ImportError as e:
+        print(f"Skipping HuggingFace configs example: {e}")  # noqa: T201
+        return
+
+    from luml.artifacts.dataset import materialize, save_hf_dataset
+
+    print("\n" + "=" * 60)  # noqa: T201
+    print("Example 5b: HuggingFace dataset configs (multi-config)")  # noqa: T201
+    print("=" * 60)  # noqa: T201
+
+    cola_dataset = datasets.DatasetDict(
+        {
+            "train": datasets.Dataset.from_dict(
+                {
+                    "sentence": [
+                        "The book was written by John.",
+                        "Was the book written by John?",
+                    ],
+                    "label": [1, 1],
+                }
+            ),
+            "validation": datasets.Dataset.from_dict(
+                {
+                    "sentence": ["Book the was John by written."],
+                    "label": [0],
+                }
+            ),
+        }
+    )
+
+    sst2_dataset = datasets.DatasetDict(
+        {
+            "train": datasets.Dataset.from_dict(
+                {
+                    "sentence": [
+                        "This movie is great!",
+                        "I hated every minute.",
+                    ],
+                    "label": [1, 0],
+                }
+            ),
+            "validation": datasets.Dataset.from_dict(
+                {
+                    "sentence": ["It was okay."],
+                    "label": [1],
+                }
+            ),
+        }
+    )
+
+    print("Config 1: CoLA (Corpus of Linguistic Acceptability)")  # noqa: T201
+    print(f"{cola_dataset}\n")  # noqa: T201
+
+    print("Config 2: SST-2 (Sentiment Analysis)")  # noqa: T201
+    print(f"{sst2_dataset}\n")  # noqa: T201
+
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
+        print(  # noqa: T201
+            "Packaging multiple configs in a SINGLE archive..."
+        )
+
+        ref = save_hf_dataset(
+            {"cola": cola_dataset, "sst2": sst2_dataset},
+            name="glue-multi",
+            description="GLUE dataset with multiple configs",
+            output_path=str(Path(tmpdir) / "glue.tar"),
+        )
+
+        print(f"\nDataset saved to: {ref.path}")  # noqa: T201
+
+        manifest = ref.get_manifest()
+        print(f"\nConfigs in archive: {list(manifest.payload.subsets.keys())}")  # noqa: T201
+
+        mat = materialize(ref)
+        print(f"\nAvailable configs: {mat.subsets}")  # noqa: T201
+        print(f"CoLA splits: {mat.splits('cola')}")  # noqa: T201
+        print(f"SST-2 splits: {mat.splits('sst2')}")  # noqa: T201
+
+        print("\nLoading specific config:")  # noqa: T201
+        cola_loaded = mat.to_hf_config("cola")
+        print(f"CoLA config: {cola_loaded}")  # noqa: T201
+
+        print("\nLoading specific split from specific config:")  # noqa: T201
+        sst2_train = mat.to_hf_split(subset="sst2", split="train")
+        print(f"SST-2 train: {len(sst2_train)} samples")  # noqa: T201
+
+        print(  # noqa: T201
+            "\n✓ Multiple HF configs packaged in a single archive!"
+        )
+        print(  # noqa: T201
+            "✓ Each config preserves its splits (train/validation/test)"
+        )
 
 
 def example_format_conversion() -> None:
@@ -285,7 +384,7 @@ def example_format_conversion() -> None:
 
     print(f"Original pandas DataFrame:\n{original_df}\n")  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         output_path = Path(tmpdir) / "conversion_dataset.tar"
 
         ref = save_tabular_dataset(original_df, output_path=str(output_path))
@@ -319,7 +418,7 @@ def example_from_file_path() -> None:
     print("Example 7: Packaging from file paths")  # noqa: T201
     print("=" * 60)  # noqa: T201
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
         csv_path = Path(tmpdir) / "source.csv"
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         df.to_csv(csv_path, index=False)
@@ -348,6 +447,7 @@ def main() -> None:
     example_chunked_dataset()
     example_subsets_and_splits()
     example_huggingface_dataset()
+    example_huggingface_with_configs()
     example_format_conversion()
     example_from_file_path()
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tarfile
+from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -133,7 +134,7 @@ class MaterializedDataset:
 
         if isinstance(payload, HFDatasetPayload):
             hf_split = self.to_hf_split(subset, split)
-            return hf_split.to_pandas()
+            return self._hf_split_to_pandas(hf_split)
 
         msg = f"Unknown payload type: {type(payload).__name__}"
         raise TypeError(msg)
@@ -169,14 +170,58 @@ class MaterializedDataset:
 
         if isinstance(payload, HFDatasetPayload):
             hf_split = self.to_hf_split(subset, split)
-            return pl.from_pandas(hf_split.to_pandas())
+            return pl.from_pandas(self._hf_split_to_pandas(hf_split))
 
         msg = f"Unknown payload type: {type(payload).__name__}"
         raise TypeError(msg)
 
-    def to_hf(self) -> DatasetDict:
+    def to_hf(self) -> DatasetDict | dict[str, DatasetDict]:
+        payload = self._manifest.payload
+
+        if isinstance(payload, HFDatasetPayload):
+            configs = {}
+
+            for config_name in payload.subsets:
+                splits = payload.subsets[config_name]
+                configs[config_name] = self._load_hf_config(config_name, splits)
+
+            if len(configs) == 1 and "default" in configs:
+                return configs["default"]
+
+            return configs
+
+        msg = "to_hf() is only supported for HuggingFace dataset variants"
+        raise NotImplementedError(msg)
+
+    def _hf_split_to_pandas(self, hf_split: Dataset) -> pd.DataFrame:
         try:
-            from datasets import load_from_disk
+            import pandas as pd
+        except ImportError:
+            msg = (
+                "pandas is required for this operation. "
+                "Install with: pip install luml_sdk[datasets]"
+            )
+            raise ImportError(msg) from None
+
+        result = hf_split.to_pandas()
+        if isinstance(result, pd.DataFrame):
+            return result
+        if isinstance(result, Iterable):
+            frames = list(result)
+            if not frames:
+                return pd.DataFrame()
+            return pd.concat(frames, ignore_index=True)
+
+        msg = f"Unsupported pandas conversion type: {type(result).__name__}"
+        raise TypeError(msg)
+
+    def _load_hf_config(
+        self,
+        config: str,
+        splits: list[str],
+    ) -> DatasetDict:
+        try:
+            from datasets import Dataset, DatasetDict, load_from_disk
         except ImportError:
             msg = (
                 "The 'datasets' library is required for this operation. "
@@ -185,14 +230,45 @@ class MaterializedDataset:
             raise ImportError(msg) from None
 
         payload = self._manifest.payload
+        if not isinstance(payload, HFDatasetPayload):
+            msg = (
+                "HuggingFace dataset loading is only supported for "
+                "HuggingFace dataset variants"
+            )
+            raise NotImplementedError(msg)
+
+        data_dir = self._cache_dir / payload.data_dir
+        config_path = data_dir / config
+        loaded = load_from_disk(str(config_path))
+
+        if isinstance(loaded, DatasetDict):
+            return loaded
+
+        if isinstance(loaded, Dataset):
+            if len(splits) != 1:
+                msg = (
+                    f"Config '{config}' expected {len(splits)} splits "
+                    "but load_from_disk returned a single dataset"
+                )
+                raise ValueError(msg)
+            return DatasetDict({splits[0]: loaded})
+
+        msg = f"Unsupported HuggingFace dataset type: {type(loaded).__name__}"
+        raise TypeError(msg)
+
+    def to_hf_config(self, config: str = "default") -> DatasetDict:
+        payload = self._manifest.payload
 
         if isinstance(payload, HFDatasetPayload):
-            data_path = self._cache_dir / payload.data_dir
-            return load_from_disk(str(data_path))
+            if config not in payload.subsets:
+                available = list(payload.subsets.keys())
+                msg = f"Config '{config}' not found. Available: {available}"
+                raise KeyError(msg)
 
-        msg = (
-            "to_hf() is only supported for HuggingFace dataset variants"
-        )
+            splits = payload.subsets[config]
+            return self._load_hf_config(config, splits)
+
+        msg = "to_hf_config() is only supported for HuggingFace dataset variants"
         raise NotImplementedError(msg)
 
     def to_hf_split(
@@ -200,27 +276,23 @@ class MaterializedDataset:
         subset: str = "default",
         split: str = "train",
     ) -> Dataset:
-        dataset_dict = self.to_hf()
         payload = self._manifest.payload
 
         if isinstance(payload, HFDatasetPayload):
             subset_splits = payload.subsets.get(subset)
             if subset_splits is None:
-                msg = f"Subset '{subset}' not found"
+                available = list(payload.subsets.keys())
+                msg = f"Config '{subset}' not found. Available: {available}"
                 raise KeyError(msg)
 
             if split not in subset_splits:
-                msg = (
-                    f"Split '{split}' not found in subset '{subset}'"
-                )
+                msg = f"Split '{split}' not found in config '{subset}'"
                 raise KeyError(msg)
 
+            dataset_dict = self.to_hf_config(subset)
             return dataset_dict[split]
 
-        msg = (
-            "to_hf_split() is only supported for "
-            "HuggingFace dataset variants"
-        )
+        msg = "to_hf_split() is only supported for HuggingFace dataset variants"
         raise NotImplementedError(msg)
 
     def info(self) -> dict[str, Any]:

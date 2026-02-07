@@ -3,7 +3,7 @@ from __future__ import annotations
 import tarfile
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from luml.artifacts._helpers import add_bytes_to_tar
 from luml.artifacts.dataset._manifest import (
@@ -12,9 +12,12 @@ from luml.artifacts.dataset._manifest import (
 )
 from luml.artifacts.dataset._reference import DatasetReference
 
+if TYPE_CHECKING:
+    import datasets
+
 
 def save_hf_dataset(
-    dataset: Any,  # noqa: ANN401
+    dataset: datasets.Dataset | datasets.DatasetDict | dict[str, datasets.DatasetDict],
     name: str | None = None,
     description: str | None = None,
     version: str | None = None,
@@ -32,25 +35,45 @@ def save_hf_dataset(
     from luml import __version__ as luml_sdk_version
     from luml._constants import PRODUCER_NAME
 
+    configs: dict[str, Any] = {}
+
     if isinstance(dataset, datasets.Dataset):
-        dataset_dict = datasets.DatasetDict({"default": dataset})
+        configs["default"] = datasets.DatasetDict({"train": dataset})
     elif isinstance(dataset, datasets.DatasetDict):
-        dataset_dict = dataset
+        configs["default"] = dataset
+    elif isinstance(dataset, dict):
+        for config_name, config_data in dataset.items():
+            if isinstance(config_data, datasets.Dataset):
+                configs[config_name] = datasets.DatasetDict({"train": config_data})
+            elif isinstance(config_data, datasets.DatasetDict):
+                configs[config_name] = config_data
+            else:
+                msg = (
+                    f"Config '{config_name}' has unsupported type: "
+                    f"{type(config_data).__name__}. "
+                    "Expected datasets.Dataset or datasets.DatasetDict."
+                )
+                raise TypeError(msg)
     else:
         msg = (
             f"Unsupported dataset type: {type(dataset).__name__}. "
-            "Expected datasets.Dataset or datasets.DatasetDict."
+            "Expected datasets.Dataset, datasets.DatasetDict, or "
+            "dict[str, DatasetDict]."
         )
         raise TypeError(msg)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         work_dir = Path(tmpdir)
         data_dir = work_dir / "data"
-        dataset_dict.save_to_disk(str(data_dir))
+        data_dir.mkdir(parents=True, exist_ok=True)
 
         subset_splits: dict[str, list[str]] = {}
-        for split_name in dataset_dict:
-            subset_splits.setdefault("default", []).append(split_name)
+
+        for config_name, dataset_dict in configs.items():
+            config_data_dir = data_dir / config_name
+            dataset_dict.save_to_disk(str(config_data_dir))
+
+            subset_splits[config_name] = list(dataset_dict.keys())
 
         payload = HFDatasetPayload(
             subsets=subset_splits,
@@ -71,9 +94,7 @@ def save_hf_dataset(
         )
 
         if output_path is None:
-            with tempfile.NamedTemporaryFile(
-                suffix=".tar", delete=False
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as tmp:
                 output_path = tmp.name
 
         manifest_bytes = manifest.model_dump_json(indent=2).encode("utf-8")
