@@ -133,7 +133,7 @@ class JEDIOptimizer(BaseOptimizer):
 
         scores = await asyncio.gather(
             *[
-                metric.score([v.output for v in val], predictions, llm=self.teacher)
+                metric.score(predictions, [v.output for v in val], llm=self.teacher)
                 for metric in self.metrics
             ]
         )
