@@ -21,13 +21,21 @@ FullInput = dict[str, SubsetDict]
 
 
 def _is_pandas_dataframe(obj: object) -> bool:
-    mod = type(obj).__module__
-    return mod.startswith("pandas") and type(obj).__name__ == "DataFrame"
+    try:
+        import pandas as pd
+
+        return isinstance(obj, pd.DataFrame)
+    except ImportError:
+        return False
 
 
 def _is_polars_dataframe(obj: object) -> bool:
-    mod = type(obj).__module__
-    return mod.startswith("polars") and type(obj).__name__ == "DataFrame"
+    try:
+        import polars as pl
+
+        return isinstance(obj, pl.DataFrame)
+    except ImportError:
+        return False
 
 
 def _is_dataframe(obj: object) -> bool:
@@ -41,9 +49,17 @@ def _normalize_input(
         return {"default": {"train": data}}
 
     if isinstance(data, dict):
-        first_value = next(iter(data.values()), None)
-        if isinstance(first_value, dict):
-            return data  # type: ignore[return-value]
+        values = list(data.values())
+        all_dicts = all(isinstance(v, dict) for v in values)
+        any_dict = any(isinstance(v, dict) for v in values)
+        if all_dicts:
+            return data
+        if any_dict:
+            msg = (
+                "Invalid input structure: mixture of dict and non-dict values. "
+                "Expected either a dict of splits or a dict of subsets with split dicts."  # noqa: E501
+            )
+            raise ValueError(msg)
         return {"default": data}
 
     msg = (
@@ -118,9 +134,7 @@ def _process_split(
         if not src_path.exists():
             msg = f"File not found: {src_path}"
             raise FileNotFoundError(msg)
-        arc_name = (
-            f"data/{subset_name}/{split_name}/chunk_000.{file_format}"
-        )
+        arc_name = f"data/{subset_name}/{split_name}/chunk_000.{file_format}"
         dest = split_dir / f"chunk_000.{file_format}"
         shutil.copy2(src_path, dest)
         files.append((arc_name, dest))
@@ -223,9 +237,7 @@ def save_tabular_dataset(
         )
 
         if output_path is None:
-            with tempfile.NamedTemporaryFile(
-                suffix=".tar", delete=False
-            ) as tmp:
+            with tempfile.NamedTemporaryFile(suffix=".tar", delete=False) as tmp:
                 output_path = tmp.name
 
         manifest_bytes = manifest.model_dump_json(indent=2).encode("utf-8")

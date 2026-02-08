@@ -418,7 +418,7 @@ def example_from_file_path() -> None:
     print("Example 7: Packaging from file paths")
     print("=" * 60)
 
-    with tempfile.TemporaryDirectory(delete=True) as tmpdir:
+    with tempfile.TemporaryDirectory(delete=False) as tmpdir:
         csv_path = Path(tmpdir) / "source.csv"
         df = pd.DataFrame({"a": [1, 2, 3], "b": [4, 5, 6]})
         df.to_csv(csv_path, index=False)
@@ -442,13 +442,13 @@ def main() -> None:
     print("Dataset Packaging Examples")
     print("=" * 60)
 
-    example_basic_pandas_dataset()
-    example_polars_dataset()
-    example_chunked_dataset()
-    example_subsets_and_splits()
-    example_huggingface_dataset()
-    example_huggingface_with_configs()
-    example_format_conversion()
+    # example_basic_pandas_dataset()
+    # example_polars_dataset()
+    # example_chunked_dataset()
+    # example_subsets_and_splits()
+    # example_huggingface_dataset()
+    # example_huggingface_with_configs()
+    # example_format_conversion()
     example_from_file_path()
 
     print("\n" + "=" * 60)

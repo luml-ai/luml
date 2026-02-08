@@ -8,7 +8,7 @@ from luml.artifacts.dataset._manifest import (
 )
 from luml.artifacts.dataset._materializer import (
     MaterializedDataset,
-    materialize,
+    load_dataset,
 )
 from luml.artifacts.dataset._reference import DatasetReference
 from luml.artifacts.dataset._tabular import save_tabular_dataset
@@ -21,7 +21,7 @@ __all__ = [
     "TabularDatasetPayload",
     "TabularSplitInfo",
     "TabularSubsetInfo",
-    "materialize",
+    "load_dataset",
     "save_hf_dataset",
     "save_tabular_dataset",
 ]

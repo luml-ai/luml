@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tarfile
 from collections.abc import Iterable
 from pathlib import Path
@@ -17,7 +18,8 @@ from luml.artifacts.dataset import (
     DatasetReference,
     HFDatasetPayload,
     MaterializedDataset,
-    materialize,
+    _materializer as dataset_materializer,
+    load_dataset,
     save_hf_dataset,
     save_tabular_dataset,
 )
@@ -75,27 +77,25 @@ class TestMaterializeTabular:
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
         cache = tmp_path / "cache"
-        mat = materialize(pandas_ref, cache_dir=cache)
+        mat = load_dataset(pandas_ref, cache_dir=cache)
         assert isinstance(mat, MaterializedDataset)
         assert (cache / "manifest.json").exists()
 
-    def test_variant(
-        self, pandas_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+    def test_variant(self, pandas_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         assert mat.variant == "tabular"
 
     def test_subsets_and_splits(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         assert mat.subsets == ["default"]
         assert "train" in mat.splits("default")
 
     def test_to_pandas_parquet(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         df = mat.to_pandas()
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 5
@@ -104,7 +104,7 @@ class TestMaterializeTabular:
     def test_to_pandas_csv(
         self, pandas_csv_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_csv_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_csv_ref, cache_dir=tmp_path / "cache")
         df = mat.to_pandas()
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 3
@@ -112,7 +112,7 @@ class TestMaterializeTabular:
     def test_to_polars_parquet(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         df = mat.to_polars()
         assert isinstance(df, pl.DataFrame)
         assert df.height == 5
@@ -120,7 +120,7 @@ class TestMaterializeTabular:
     def test_to_pandas_chunked(
         self, chunked_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(chunked_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(chunked_ref, cache_dir=tmp_path / "cache")
         df = mat.to_pandas()
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 10
@@ -128,7 +128,7 @@ class TestMaterializeTabular:
     def test_to_polars_chunked(
         self, chunked_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(chunked_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(chunked_ref, cache_dir=tmp_path / "cache")
         df = mat.to_polars()
         assert isinstance(df, pl.DataFrame)
         assert df.height == 10
@@ -137,21 +137,21 @@ class TestMaterializeTabular:
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
         cache = tmp_path / "cache"
-        mat1 = materialize(pandas_ref, cache_dir=cache)
-        mat2 = materialize(pandas_ref, cache_dir=cache)
+        mat1 = load_dataset(pandas_ref, cache_dir=cache)
+        mat2 = load_dataset(pandas_ref, cache_dir=cache)
         assert mat1.to_pandas().equals(mat2.to_pandas())
 
     def test_to_hf_raises_not_implemented(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         with pytest.raises(NotImplementedError):
             mat.to_hf()
 
     def test_missing_subset_raises(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         with pytest.raises(KeyError, match="Subset 'nonexistent' not found"):
             mat.splits("nonexistent")
 
@@ -161,22 +161,18 @@ class TestMaterializeHF:
         self, hf_ref: DatasetReference, tmp_path: Path
     ) -> None:
         cache = tmp_path / "cache"
-        mat = materialize(hf_ref, cache_dir=cache)
+        mat = load_dataset(hf_ref, cache_dir=cache)
         assert isinstance(mat, MaterializedDataset)
         assert mat.variant == "hf"
 
-    def test_subsets_and_splits(
-        self, hf_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+    def test_subsets_and_splits(self, hf_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         assert mat.subsets == ["default"]
         assert "train" in mat.splits("default")
         assert "test" in mat.splits("default")
 
-    def test_to_hf(
-        self, hf_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+    def test_to_hf(self, hf_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         ds_dict = mat.to_hf()
         assert isinstance(ds_dict, datasets.DatasetDict)
         assert "train" in ds_dict
@@ -184,17 +180,13 @@ class TestMaterializeHF:
         assert len(ds_dict["train"]) == 2
         assert len(ds_dict["test"]) == 1
 
-    def test_to_hf_split(
-        self, hf_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+    def test_to_hf_split(self, hf_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         ds = mat.to_hf_split(split="train")
         assert isinstance(ds, datasets.Dataset)
         assert len(ds) == 2
 
-    def test_to_hf_single_dataset_from_disk(
-        self, tmp_path: Path
-    ) -> None:
+    def test_to_hf_single_dataset_from_disk(self, tmp_path: Path) -> None:
         ds = datasets.Dataset.from_dict({"a": [1, 2]})
         work_dir = tmp_path / "work"
         data_dir = work_dir / "data" / "default"
@@ -220,14 +212,12 @@ class TestMaterializeHF:
 
         tar_path = tmp_path / "hf-single.tar"
         with tarfile.open(tar_path, "w") as tar:
-            manifest_bytes = manifest.model_dump_json(
-                indent=2
-            ).encode("utf-8")
+            manifest_bytes = manifest.model_dump_json(indent=2).encode("utf-8")
             add_bytes_to_tar(tar, "manifest.json", manifest_bytes)
             tar.add(str(work_dir / "data"), arcname="data")
 
         ref = DatasetReference(str(tar_path))
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
         result = mat.to_hf()
         assert isinstance(result, datasets.DatasetDict)
         assert "train" in result
@@ -236,10 +226,8 @@ class TestMaterializeHF:
         train = mat.to_hf_split(split="train")
         assert len(train) == 2
 
-    def test_to_pandas(
-        self, hf_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+    def test_to_pandas(self, hf_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         df = mat.to_pandas(split="train")
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
@@ -250,7 +238,7 @@ class TestMaterializeHF:
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
 
         def fake_to_pandas(
             self: datasets.Dataset,
@@ -267,10 +255,8 @@ class TestMaterializeHF:
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 2
 
-    def test_to_polars(
-        self, hf_ref: DatasetReference, tmp_path: Path
-    ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+    def test_to_polars(self, hf_ref: DatasetReference, tmp_path: Path) -> None:
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         df = mat.to_polars(split="train")
         assert isinstance(df, pl.DataFrame)
         assert df.height == 2
@@ -278,7 +264,7 @@ class TestMaterializeHF:
     def test_missing_split_raises(
         self, hf_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(hf_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(hf_ref, cache_dir=tmp_path / "cache")
         with pytest.raises(KeyError, match="Split 'nonexistent' not found"):
             mat.to_hf_split(split="nonexistent")
 
@@ -287,10 +273,53 @@ class TestMaterializeInfo:
     def test_info_returns_manifest(
         self, pandas_ref: DatasetReference, tmp_path: Path
     ) -> None:
-        mat = materialize(pandas_ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(pandas_ref, cache_dir=tmp_path / "cache")
         info = mat.info()
         assert info["artifact_type"] == "dataset"
         assert info["variant"] == "tabular"
+
+
+class TestMaterializeCaching:
+    def test_default_cache_uses_archive_content_hash(
+        self,
+        pandas_ref: DatasetReference,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        cache_root = tmp_path / "cache-root"
+        monkeypatch.setattr(dataset_materializer, "_DEFAULT_CACHE_ROOT", cache_root)
+
+        copied_tar = tmp_path / "copied-pandas.tar"
+        shutil.copyfile(pandas_ref.path, copied_tar)
+        copied_ref = DatasetReference(str(copied_tar))
+
+        mat_original = load_dataset(pandas_ref)
+        mat_copied = load_dataset(copied_ref)
+
+        assert mat_original._cache_dir == mat_copied._cache_dir
+
+    def test_requires_completion_marker_before_reusing_cache(
+        self,
+        pandas_ref: DatasetReference,
+        tmp_path: Path,
+    ) -> None:
+        cache = tmp_path / "cache"
+        load_dataset(pandas_ref, cache_dir=cache)
+
+        manifest = pandas_ref.get_manifest()
+        chunk_rel_path = (
+            manifest.payload.subsets["default"].splits["train"].chunk_files[0]  # type: ignore
+        )
+        chunk_path = cache / chunk_rel_path
+        original_bytes = chunk_path.read_bytes()
+
+        chunk_path.write_bytes(b"corrupted")
+        (cache / ".materialized.ok").unlink()
+        assert (cache / "manifest.json").exists()
+
+        load_dataset(pandas_ref, cache_dir=cache)
+
+        assert chunk_path.read_bytes() == original_bytes
 
 
 class TestMaterializeHFMultiConfig:
@@ -315,7 +344,7 @@ class TestMaterializeHFMultiConfig:
             output_path=str(tmp_path / "ds.tar"),
         )
 
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
 
         assert "cola" in mat.subsets
         assert "sst2" in mat.subsets
@@ -323,19 +352,15 @@ class TestMaterializeHFMultiConfig:
         assert mat.splits("sst2") == ["train"]
 
     def test_to_hf_returns_dict(self, tmp_path: Path) -> None:
-        cola = datasets.DatasetDict(
-            {"train": datasets.Dataset.from_dict({"a": [1]})}
-        )
-        sst2 = datasets.DatasetDict(
-            {"train": datasets.Dataset.from_dict({"a": [2]})}
-        )
+        cola = datasets.DatasetDict({"train": datasets.Dataset.from_dict({"a": [1]})})
+        sst2 = datasets.DatasetDict({"train": datasets.Dataset.from_dict({"a": [2]})})
 
         ref = save_hf_dataset(
             {"cola": cola, "sst2": sst2},
             output_path=str(tmp_path / "ds.tar"),
         )
 
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
         result = mat.to_hf()
 
         assert isinstance(result, dict)
@@ -357,7 +382,7 @@ class TestMaterializeHFMultiConfig:
             output_path=str(tmp_path / "ds.tar"),
         )
 
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
 
         cola_loaded = mat.to_hf_config("cola")
         assert isinstance(cola_loaded, datasets.DatasetDict)
@@ -374,16 +399,14 @@ class TestMaterializeHFMultiConfig:
                 "test": datasets.Dataset.from_dict({"a": [2]}),
             }
         )
-        sst2 = datasets.DatasetDict(
-            {"train": datasets.Dataset.from_dict({"a": [3]})}
-        )
+        sst2 = datasets.DatasetDict({"train": datasets.Dataset.from_dict({"a": [3]})})
 
         ref = save_hf_dataset(
             {"cola": cola, "sst2": sst2},
             output_path=str(tmp_path / "ds.tar"),
         )
 
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
 
         cola_train = mat.to_hf_split(subset="cola", split="train")
         assert len(cola_train) == 1
@@ -393,29 +416,23 @@ class TestMaterializeHFMultiConfig:
         assert len(sst2_train) == 1
         assert sst2_train[0]["a"] == 3
 
-    def test_single_default_config_backward_compat(
-        self, tmp_path: Path
-    ) -> None:
+    def test_single_default_config_backward_compat(self, tmp_path: Path) -> None:
         ds = datasets.DatasetDict(
             {"train": datasets.Dataset.from_dict({"a": [1, 2, 3]})}
         )
 
         ref = save_hf_dataset(ds, output_path=str(tmp_path / "ds.tar"))
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
 
         result = mat.to_hf()
         assert isinstance(result, datasets.DatasetDict)
         assert len(result["train"]) == 3
 
     def test_missing_config_raises(self, tmp_path: Path) -> None:
-        cola = datasets.DatasetDict(
-            {"train": datasets.Dataset.from_dict({"a": [1]})}
-        )
+        cola = datasets.DatasetDict({"train": datasets.Dataset.from_dict({"a": [1]})})
 
-        ref = save_hf_dataset(
-            {"cola": cola}, output_path=str(tmp_path / "ds.tar")
-        )
-        mat = materialize(ref, cache_dir=tmp_path / "cache")
+        ref = save_hf_dataset({"cola": cola}, output_path=str(tmp_path / "ds.tar"))
+        mat = load_dataset(ref, cache_dir=tmp_path / "cache")
 
         with pytest.raises(KeyError, match="Config 'sst2' not found"):
             mat.to_hf_config("sst2")

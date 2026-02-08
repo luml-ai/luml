@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import tarfile
 from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from luml.artifacts._cache import default_cache_dir_for_archive, extract_archive_cached
 from luml.artifacts.dataset._manifest import (
     DatasetArtifactManifest,
     HFDatasetPayload,
@@ -22,24 +21,22 @@ if TYPE_CHECKING:
 _DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "luml" / "datasets"
 
 
-def materialize(
+def load_dataset(
     reference: DatasetReference,
     cache_dir: str | Path | None = None,
 ) -> MaterializedDataset:
     tar_path = Path(reference.path).resolve()
-    path_hash = hashlib.sha256(str(tar_path).encode()).hexdigest()[:16]
 
     if cache_dir is None:
-        cache_dir = _DEFAULT_CACHE_ROOT / path_hash
+        cache_dir = default_cache_dir_for_archive(
+            archive_path=tar_path,
+            cache_root=_DEFAULT_CACHE_ROOT,
+            namespace="dataset",
+        )
     else:
         cache_dir = Path(cache_dir)
 
-    cache_dir.mkdir(parents=True, exist_ok=True)
-
-    manifest_marker = cache_dir / "manifest.json"
-    if not manifest_marker.exists():
-        with tarfile.open(str(tar_path), "r") as tar:
-            tar.extractall(path=str(cache_dir), filter="data")  # noqa: S202
+    extract_archive_cached(archive_path=tar_path, cache_dir=cache_dir)
 
     manifest = reference.get_manifest()
     return MaterializedDataset(manifest, cache_dir)
