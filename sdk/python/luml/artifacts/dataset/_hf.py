@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 
 
 def save_hf_dataset(
-    dataset: datasets.Dataset | datasets.DatasetDict | dict[str, datasets.DatasetDict],
+    dataset: datasets.Dataset
+    | datasets.DatasetDict
+    | dict[str, datasets.DatasetDict]
+    | dict[str, datasets.Dataset],
     name: str | None = None,
     description: str | None = None,
     version: str | None = None,
