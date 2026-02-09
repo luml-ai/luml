@@ -21,6 +21,7 @@ from luml.api._types import (
     ArtifactType,
     CollectionSortBy,
     CollectionType,
+    CollectionTypeFilter,
     SortOrder,
 )
 
@@ -45,5 +46,6 @@ __all__ = [
     "ArtifactType",
     "CollectionSortBy",
     "CollectionType",
+    "CollectionTypeFilter",
     "SortOrder",
 ]

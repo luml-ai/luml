@@ -142,7 +142,7 @@ def list_all(
     limit: int | None = 100,
     sort_by: str | None = None,
     order: SortOrder = SortOrder.DESC,
-    type: ArtifactType | None = None
+    types: list[ArtifactType] | None = None
 ) -> Iterator[Artifact]
 ```
 
@@ -157,7 +157,7 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `type` - Filter by artifact type: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -187,8 +187,10 @@ for artifact in luml.artifacts.list_all(
 ):
     print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
 
-# Filter by artifact type
-for artifact in luml.artifacts.list_all(type=ArtifactType.MODEL):
+# Filter by artifact types
+for artifact in luml.artifacts.list_all(
+    types=[ArtifactType.MODEL, ArtifactType.DATASET]
+):
     print(artifact.name)
 ```
 
@@ -205,7 +207,7 @@ def list(
     limit: int | None = 100,
     sort_by: str | None = None,
     order: SortOrder = SortOrder.DESC,
-    type: ArtifactType | None = None
+    types: list[ArtifactType] | None = None
 ) -> ArtifactsList
 ```
 
@@ -223,7 +225,7 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `type` - Filter by artifact type: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -261,8 +263,10 @@ artifacts = luml.artifacts.list(
     order="desc"
 )
 
-# Filter by artifact type
-artifacts = luml.artifacts.list(type=ArtifactType.MODEL)
+# Filter by artifact types
+artifacts = luml.artifacts.list(
+    types=[ArtifactType.MODEL, ArtifactType.DATASET]
+)
 ```
   
   Example response:
@@ -1075,7 +1079,7 @@ def list_all(
     limit: int | None = 100,
     sort_by: str | None = None,
     order: SortOrder = SortOrder.DESC,
-    type: ArtifactType | None = None
+    types: list[ArtifactType] | None = None
 ) -> AsyncIterator[Artifact]
 ```
 
@@ -1087,9 +1091,10 @@ List all collection artifacts with auto-paging.
   uses the default collection set in the client.
 - `limit` - Page size (default: 100).
 - `sort_by` - Field to sort by.
-- `Options` - name, created_at, size, description, status and any metric key
+- `Options` - name, created_at, size, description, status
+  and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `type` - Filter by artifact type: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -1123,9 +1128,9 @@ async def main():
     ):
         print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
 
-    # Filter by artifact type
+    # Filter by artifact types
     async for artifact in luml.artifacts.list_all(
-        type=ArtifactType.MODEL
+        types=[ArtifactType.MODEL, ArtifactType.DATASET]
     ):
         print(artifact.name)
 ```
@@ -1143,7 +1148,7 @@ async def list(
     limit: int | None = 100,
     sort_by: str | None = None,
     order: SortOrder = SortOrder.DESC,
-    type: ArtifactType | None = None
+    types: list[ArtifactType] | None = None
 ) -> ArtifactsList
 ```
 
@@ -1161,7 +1166,7 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `type` - Filter by artifact type: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -1203,8 +1208,10 @@ async def main():
         order="desc"
     )
 
-    # Filter by artifact type
-    artifacts = await luml.artifacts.list(type=ArtifactType.MODEL)
+    # Filter by artifact types
+    artifacts = await luml.artifacts.list(
+        types=[ArtifactType.MODEL, ArtifactType.DATASET]
+    )
 ```
   
   Example response:

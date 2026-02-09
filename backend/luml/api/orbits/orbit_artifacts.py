@@ -81,7 +81,7 @@ async def get_artifacts(
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
     sort_by: str = "created_at",
     order: SortOrder = SortOrder.DESC,
-    type: ArtifactType | None = None,  # noqa: A002
+    types: Annotated[list[ArtifactType] | None, Query()] = None,  # noqa: A002
 ) -> ArtifactsList:
     return await artifacts_handler.get_collection_artifacts(
         request.user.id,
@@ -92,7 +92,7 @@ async def get_artifacts(
         limit,
         sort_by,
         order,
-        type,
+        types,
     )
 
 

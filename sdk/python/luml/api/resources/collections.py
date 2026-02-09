@@ -1,7 +1,7 @@
 import builtins
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
-from typing import TYPE_CHECKING, Any, List
+from typing import TYPE_CHECKING, Any
 
 from luml.api._exceptions import NotFoundError
 from luml.api._types import (
@@ -10,6 +10,7 @@ from luml.api._types import (
     CollectionsList,
     CollectionSortBy,
     CollectionType,
+    CollectionTypeFilter,
     SortOrder,
     is_uuid,
 )
@@ -60,7 +61,7 @@ class CollectionResourceBase(ABC):
         description: str,
         name: str,
         type: CollectionType,  # noqa: A002
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
     ) -> Collection | Coroutine[Any, Any, Collection]:
         raise NotImplementedError()
 
@@ -69,7 +70,7 @@ class CollectionResourceBase(ABC):
         self,
         name: str | None = None,
         description: str | None = None,
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
         *,
         collection_id: str,
     ) -> Collection | Coroutine[Any, Any, Collection]:
@@ -159,7 +160,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
-        type: CollectionType | None = None,  # noqa: A002
+        types: list[CollectionTypeFilter] | None = None,
     ) -> Iterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -169,7 +170,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             sort_by: Field to sort by. Options: name, description, created_at.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
-            type: Filter by collection type: "model" or "dataset".
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             Collection objects from all pages.
@@ -189,9 +191,9 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         for collection in luml.collections.list_all(search="model"):
             print(collection.name)
 
-        # Filter by collection type
+        # Filter by collection types
         for collection in luml.collections.list_all(
-            type=CollectionType.MODEL
+            types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
         ):
             print(collection.name)
         ```
@@ -202,7 +204,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             search=search,
-            type=type,
+            types=types,
         )
 
     def list(
@@ -213,7 +215,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
-        type: CollectionType | None = None,  # noqa: A002
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -225,7 +227,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                 If not provided, sorts by creation time.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
-            type: Filter by collection type: "model" or "dataset".
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             CollectionsList object with items and cursor.
@@ -246,8 +249,10 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         # Search by name or tags
         result = luml.collections.list(search="model")
 
-        # Filter by collection type
-        result = luml.collections.list(type=CollectionType.MODEL)
+        # Filter by collection types
+        result = luml.collections.list(
+            types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+        )
         ```
 
         Example response:
@@ -281,8 +286,10 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             )
         if search:
             params["search"] = search
-        if type:
-            params["type"] = type.value if isinstance(type, CollectionType) else type
+        if types:
+            params["types"] = [
+                t.value if isinstance(t, CollectionTypeFilter) else t for t in types
+            ]
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             params=params,
@@ -297,7 +304,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         description: str,
         name: str,
         type: CollectionType,  # noqa: A002
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
     ) -> Collection:
         """
         Create new collection in the default orbit.
@@ -353,7 +360,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         self,
         name: str | None = None,
         description: str | None = None,
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
     ) -> Collection:
@@ -551,7 +558,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
-        type: CollectionType | None = None,  # noqa: A002
+        types: list[CollectionTypeFilter] | None = None,
     ) -> AsyncIterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -561,7 +568,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             sort_by: Field to sort by. Options: name, description, created_at.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
-            type: Filter by collection type: "model" or "dataset".
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             Collection objects from all pages.
@@ -585,9 +593,9 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             async for collection in luml.collections.list_all(search="model"):
                 print(collection.name)
 
-            # Filter by collection type
+            # Filter by collection types
             async for collection in luml.collections.list_all(
-                type=CollectionType.MODEL
+                types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
             ):
                 print(collection.name)
         ```
@@ -598,7 +606,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             search=search,
-            type=type,
+            types=types,
         )
 
     async def list(
@@ -609,7 +617,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
-        type: CollectionType | None = None,  # noqa: A002
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -621,7 +629,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                 If not provided, sorts by creation time.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
-            type: Filter by collection type: "model" or "dataset".
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             CollectionsList object with items and cursor.
@@ -647,8 +656,10 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             # Search by name or tags
             result = await luml.collections.list(search="model")
 
-            # Filter by collection type
-            result = await luml.collections.list(type=CollectionType.MODEL)
+            # Filter by collection types
+            result = await luml.collections.list(
+                types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+            )
         ```
 
         Example response:
@@ -682,8 +693,10 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             )
         if search:
             params["search"] = search
-        if type:
-            params["type"] = type.value if isinstance(type, CollectionType) else type
+        if types:
+            params["types"] = [
+                t.value if isinstance(t, CollectionTypeFilter) else t for t in types
+            ]
 
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
@@ -699,7 +712,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         description: str,
         name: str,
         type: CollectionType,  # noqa: A002
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
     ) -> Collection:
         """
         Create new collection in the default orbit.
@@ -761,7 +774,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         self,
         name: str | None = None,
         description: str | None = None,
-        tags: List[str] | None = None,
+        tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
     ) -> Collection:

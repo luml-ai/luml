@@ -56,7 +56,7 @@ async def get_orbit_collections(
     sort_by: Annotated[CollectionSortBy, Query()] = CollectionSortBy.CREATED_AT,
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     search: str | None = None,
-    type: CollectionTypeFilter | None = None,  # noqa: A002
+    types: Annotated[list[CollectionTypeFilter] | None, Query()] = None,
 ) -> CollectionsList:
     return await collection_handler.get_orbit_collections(
         request.user.id,
@@ -67,7 +67,7 @@ async def get_orbit_collections(
         sort_by,
         order,
         search,
-        type,
+        types,
     )
 
 

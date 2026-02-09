@@ -423,7 +423,7 @@ class ArtifactHandler:
         limit: int = 100,
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
-        artifact_type: ArtifactType | None = None,
+        artifact_types: list[ArtifactType] | None = None,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -448,7 +448,7 @@ class ArtifactHandler:
         )
 
         items, cursor = await self.__repository.get_collection_artifacts(
-            collection_id, pagination, artifact_type
+            collection_id, pagination, artifact_types
         )
 
         return ArtifactsList(
