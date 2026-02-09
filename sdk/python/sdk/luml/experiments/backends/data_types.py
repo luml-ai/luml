@@ -9,6 +9,10 @@ class TraceState(IntEnum):
     OK = 1
     ERROR = 2
     IN_PROGRESS = 3
+@dataclass
+class PaginationCursor:
+    id: str
+    value: str | None
 
 
 @dataclass
@@ -43,6 +47,7 @@ class Experiment:
     id: str
     name: str
     status: str
+    group_id: str
     created_at: datetime
     tags: list[str] = field(default_factory=list)
     models: list[Model] = field(default_factory=list)
@@ -50,8 +55,8 @@ class Experiment:
     description: str | None = None
     group_id: str | None = None
     group_name: str | None = None
-    static_params: dict[str, Any] | None = None
-    dynamic_params: dict[str, Any] | None = None
+    static_params: dict[str, Any] = field(default_factory=dict)
+    dynamic_params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
