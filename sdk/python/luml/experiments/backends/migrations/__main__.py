@@ -20,9 +20,7 @@ from luml.experiments.backends.migrations import MIGRATIONS_DIR
 def get_default_db_path() -> Path:
     import os
 
-    base = os.environ.get(
-        "LUML_EXPERIMENTS_PATH", Path.home() / "experiments"
-    )
+    base = os.environ.get("LUML_EXPERIMENTS_PATH", Path.home() / "experiments")
     return Path(base) / "meta.db"
 
 
