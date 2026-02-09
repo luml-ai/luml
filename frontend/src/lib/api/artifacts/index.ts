@@ -7,6 +7,7 @@ import type {
   CreateArtifactPayload,
   UpdateArtifactPayload,
 } from './interfaces'
+import qs from 'qs'
 
 export class ArtifactsApi {
   private api: AxiosInstance
@@ -37,7 +38,11 @@ export class ArtifactsApi {
   ) {
     const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
-      { params, signal },
+      {
+        params,
+        signal,
+        paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+      },
     )
     return responseData
   }

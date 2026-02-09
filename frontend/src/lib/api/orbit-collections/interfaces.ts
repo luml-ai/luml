@@ -40,4 +40,5 @@ export interface GetCollectionsListParams {
   sort_by?: 'created_at' | 'name' | 'collection_type' | 'description' | 'total_artifacts'
   order?: 'asc' | 'desc'
   search?: string
+  types?: OrbitCollectionTypeEnum[]
 }

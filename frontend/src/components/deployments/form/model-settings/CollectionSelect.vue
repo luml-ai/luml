@@ -26,7 +26,8 @@ import { Select, useToast } from 'primevue'
 import { useCollectionsStore } from '@/stores/collections'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 
 type Props = {
   disabled: boolean
@@ -35,18 +36,19 @@ type Props = {
   initialCollectionId?: string
 }
 
+const COLLECTION_TYPES = [OrbitCollectionTypeEnum.mixed, OrbitCollectionTypeEnum.model]
+
 const props = defineProps<Props>()
 
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
 const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, addCollectionsToList } =
-  useCollectionsList(20, false)
+  useCollectionsList(20, false, COLLECTION_TYPES)
 
-const virtualScrollerOptions = {
-  lazy: true,
-  onLazyLoad: onLazyLoad,
-  itemSize: 38,
-}
+const virtualScrollerOptions = computed(() => {
+  if (collectionsList.value.length < 10) return undefined
+  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 38 }
+})
 
 const modelValue = defineModel<string | null>('modelValue')
 

@@ -1,4 +1,4 @@
-import type { GetArtifactsListParams, Artifact } from '@/lib/api/artifacts/interfaces'
+import type { GetArtifactsListParams, Artifact, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
@@ -10,7 +10,7 @@ interface RequestInfo {
   collectionId: string
 }
 
-export const useArtifactsList = (limit = 20, syncStore = true) => {
+export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactTypeEnum[]) => {
   const artifactsStore = useArtifactsStore()
   const abortController = ref<AbortController | null>(null)
 
@@ -59,7 +59,7 @@ export const useArtifactsList = (limit = 20, syncStore = true) => {
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.collectionId,
-      { cursor, limit, ...sortData.value },
+      { cursor, limit, ...sortData.value, types },
       abortController.value.signal,
     )
   }
