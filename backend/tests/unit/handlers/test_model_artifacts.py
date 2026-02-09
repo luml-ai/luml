@@ -217,6 +217,7 @@ async def test_get_collection_model_artifacts(
         PaginationParams(
             cursor=None,
             sort_by="created_at",
+            scope_id=collection_id,
             order=SortOrder.DESC,
             limit=100,
             extra_sort_field=None,

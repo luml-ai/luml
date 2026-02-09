@@ -693,7 +693,11 @@ async def test_get_orbit_collections_success(
     mock_get_collections.assert_awaited_once_with(
         orbit_id=orbit_id,
         pagination=PaginationParams(
-            cursor=None, sort_by="created_at", order=SortOrder.DESC, limit=100
+            cursor=None,
+            sort_by="created_at",
+            order=SortOrder.DESC,
+            limit=100,
+            scope_id=orbit_id,
         ),
         search=None,
     )
