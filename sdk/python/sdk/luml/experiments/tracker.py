@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
-from luml.experiments.backends._data_types import (
+from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
     Group,
