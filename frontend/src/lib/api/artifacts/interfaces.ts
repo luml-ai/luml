@@ -78,6 +78,7 @@ export interface GetArtifactsListParams {
   limit?: number
   sort_by?: 'created_at' | 'name' | 'size' | 'description' | 'status'
   order?: 'asc' | 'desc'
+  types?: ArtifactTypeEnum[]
 }
 
 export type ModelArtifact = Artifact
