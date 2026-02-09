@@ -51,6 +51,15 @@ class CollectionHandler:
         )
         return await self.__repository.create_collection(collection_create)
 
+    @staticmethod
+    def _sorting_changed(self, cursor, sort_by):
+        result = cursor if cursor and cursor.sort_by == sort_by.value else None
+        if cursor:
+            if cursor.sort_by == sort_by.value and
+
+        return result
+
+
     async def get_orbit_collections(
         self,
         user_id: UUID,

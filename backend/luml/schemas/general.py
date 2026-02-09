@@ -18,6 +18,7 @@ class Cursor(BaseModel):
     id: UUID
     value: CursorType | None
     sort_by: str = "created_at"
+    order: SortOrder = SortOrder.DESC
 
 
 class PaginationParams(BaseModel):

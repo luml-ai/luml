@@ -203,6 +203,7 @@ class CrudMixin:
             id=cursor_rec.id,  # type: ignore[attr-defined]
             value=getattr(cursor_rec, pagination.sort_by, None),
             sort_by=pagination.sort_by,
+            order=pagination.order,
         )
 
     @staticmethod
