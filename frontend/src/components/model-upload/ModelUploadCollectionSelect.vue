@@ -9,7 +9,7 @@
       :disabled="!orbitId"
       fluid
       filter
-      :options="filteredCollectionsList"
+      :options="collectionsList"
       option-label="name"
       option-value="id"
       :virtualScrollerOptions="virtualScrollerOptions"
@@ -54,25 +54,20 @@ type Props = {
   orbitId: string | null
 }
 
+const COLLECTION_TYPES = [OrbitCollectionTypeEnum.model, OrbitCollectionTypeEnum.mixed]
+
 const props = defineProps<Props>()
 
 const modelValue = defineModel<string | null>('modelValue')
 
 const toast = useToast()
 const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, setSearchQuery } =
-  useCollectionsList()
+  useCollectionsList(20, false, COLLECTION_TYPES)
 
 const collectionCreatorVisible = ref(false)
 
-const filteredCollectionsList = computed(() => {
-  return collectionsList.value.filter((collection) => {
-    const availableTypes = [OrbitCollectionTypeEnum.model, OrbitCollectionTypeEnum.mixed]
-    return availableTypes.includes(collection.collection_type)
-  })
-})
-
 const virtualScrollerOptions = computed(() => {
-  if (filteredCollectionsList.value.length < 10) return undefined
+  if (collectionsList.value.length < 10) return undefined
   return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 38 }
 })
 
