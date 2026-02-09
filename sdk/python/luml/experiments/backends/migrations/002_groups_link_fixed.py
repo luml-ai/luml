@@ -60,11 +60,24 @@ def up(conn: sqlite3.Connection) -> None:
             WHERE eg.name = experiments.group_name
         )
     """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS models (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            path TEXT
+        )
+    """)
+
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_name")
     cursor.execute("ALTER TABLE experiments ADD COLUMN static_params TEXT")
     cursor.execute("ALTER TABLE experiments ADD COLUMN dynamic_params TEXT")
+    cursor.execute(
+        "ALTER TABLE experiments ADD COLUMN model_id TEXT REFERENCES models(id)"
+    )
 
-    # Make group name unique
     cursor.execute(
         "CREATE UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name)"
     )
@@ -88,5 +101,7 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_id")
     cursor.execute("ALTER TABLE experiments DROP COLUMN static_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
+    cursor.execute("ALTER TABLE experiments DROP COLUMN model_id")
+    cursor.execute("DROP TABLE IF EXISTS models")
 
     conn.commit()
