@@ -1,6 +1,6 @@
 import os
 import tempfile
-from typing import TYPE_CHECKING, Any, Literal, Union
+from typing import Any, Literal, Union
 from warnings import warn
 
 import xgboost as xgb
@@ -25,9 +25,6 @@ from luml.utils.imports import (
     get_version,
 )
 from luml.utils.time import get_epoch
-
-if TYPE_CHECKING:
-    from xgboost import DMatrix
 
 
 class _DMatrixInputSchema(BaseModel):
@@ -62,12 +59,11 @@ def _build_input_schema() -> type[BaseModel]:
         "predict_config": (_PredictConfigSchema | None, None),
     }
 
-    input_schema = create_model(
+    return create_model(
         "XGBoostInputModel",
         __base__=BaseModel,
-        **input_fields,  # type: ignore[arg-type]
+        **input_fields,  # type: ignore[call-overload]
     )
-    return input_schema
 
 
 def _build_output_schema() -> type[BaseModel]:
@@ -75,12 +71,11 @@ def _build_output_schema() -> type[BaseModel]:
         "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
     }
 
-    output_schema = create_model(
+    return create_model(
         "XGBoostOutputModel",
         __base__=BaseModel,
-        **output_fields,  # type: ignore[arg-type]
+        **output_fields,  # type: ignore[call-overload]
     )
-    return output_schema
 
 
 def _add_io(builder: PyfuncBuilder) -> None:
@@ -112,8 +107,8 @@ def _add_dependencies(
     extra_dependencies: list[str] | None,
     extra_code_modules: list[str] | Literal["auto"] | None,
 ) -> None:
-    auto_pip_dependencies = []
-    auto_local_dependencies = []
+    auto_pip_dependencies: list[str] = []
+    auto_local_dependencies: list[str] = []
 
     if dependencies == "all" or extra_code_modules == "auto":
         auto_pip_dependencies, auto_local_dependencies = find_dependencies()
@@ -186,6 +181,7 @@ def save_xgboost(  # noqa: C901
         warn(
             "Detected XGBoost scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
+            stacklevel=2,
         )
 
         xgboost_dep = f"xgboost=={get_version('xgboost')}"
@@ -211,7 +207,8 @@ def save_xgboost(  # noqa: C901
 
     if not isinstance(estimator, xgb.Booster):
         raise TypeError(
-            f"Provided model must be an XGBoost Booster or XGBModel, got {type(estimator)}"
+            f"Provided model must be an XGBoost Booster or XGBModel, "
+            f"got {type(estimator)}"
         )
 
     builder = PyfuncBuilder(

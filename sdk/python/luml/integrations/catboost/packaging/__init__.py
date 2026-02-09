@@ -54,12 +54,11 @@ def _build_input_schema() -> type[BaseModel]:
         "predict_config": (_PredictConfigSchema | None, None),
     }
 
-    input_schema = create_model(
+    return create_model(
         "CatBoostInputModel",
         __base__=BaseModel,
         **input_fields,  # type: ignore[call-overload]
     )
-    return input_schema
 
 
 def _build_output_schema() -> type[BaseModel]:
@@ -67,12 +66,11 @@ def _build_output_schema() -> type[BaseModel]:
         "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
     }
 
-    output_schema = create_model(
+    return create_model(
         "CatBoostOutputModel",
         __base__=BaseModel,
         **output_fields,  # type: ignore[call-overload]
     )
-    return output_schema
 
 
 def _add_io(builder: PyfuncBuilder) -> None:
