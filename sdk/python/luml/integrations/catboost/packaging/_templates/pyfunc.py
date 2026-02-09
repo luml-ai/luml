@@ -70,6 +70,11 @@ class CatBoostFunc(PyFunc):
             return np.asarray(raw_data)
 
         if data_format == "csr":
+            required_fields = ["data", "indices", "indptr", "shape"]
+            missing_fields = [f for f in required_fields if data_input.get(f) is None]
+            if missing_fields:
+                raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
+
             sparse_data = scipy.sparse.csr_matrix(
                 (data_input["data"], data_input["indices"], data_input["indptr"]),
                 shape=data_input["shape"],

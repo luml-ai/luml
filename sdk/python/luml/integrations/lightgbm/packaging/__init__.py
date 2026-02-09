@@ -159,6 +159,22 @@ def save_lightgbm(  # noqa: C901
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
 ) -> ModelReference:
+    """Save a LightGBM model as a Luml model.
+
+    Args:
+        estimator: The LightGBM model to save (Booster or LGBMModel).
+        inputs: Example input data for the model.
+        path: Path where the model will be saved. Auto-generated if None.
+        dependencies: Dependency management strategy ("default", "all", or list).
+        extra_dependencies: Additional pip dependencies to include.
+        extra_code_modules: Local code modules to package ("auto" or list).
+        manifest_model_name: Optional name for the model in manifest.
+        manifest_model_version: Optional version for the model in manifest.
+        manifest_model_description: Optional description for the model.
+        manifest_extra_producer_tags: Additional producer tags for model lineage.
+
+    Returns:
+        ModelReference: Reference to the saved model."""
     path = path or f"lgbm_model_{get_epoch()}.luml"
 
     if _is_lightgbm_sklearn_estimator(estimator):

@@ -40,7 +40,7 @@ class _DataInputSchema(BaseModel):
 class _PredictConfigSchema(BaseModel):
     prediction_type: Literal[
         "RawFormulaVal", "Class", "Probability", "Exponent", "LogProbability"
-    ] = "RawFormulaVal"
+    ] | None = None
     ntree_start: int = 0
     ntree_end: int = 0
     thread_count: int = -1
@@ -148,6 +148,22 @@ def save_catboost(
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
 ) -> ModelReference:
+    """Save a CatBoost model as a Luml model.
+
+    Args:
+        estimator: The CatBoost model to save (CatBoost, CatBoostClassifier,
+            or CatBoostRegressor).
+        path: Path where the model will be saved. Auto-generated if None.
+        dependencies: Dependency management strategy ("default", "all", or list).
+        extra_dependencies: Additional pip dependencies to include.
+        extra_code_modules: Local code modules to package ("auto" or list).
+        manifest_model_name: Optional name for the model in manifest.
+        manifest_model_version: Optional version for the model in manifest.
+        manifest_model_description: Optional description for the model.
+        manifest_extra_producer_tags: Additional producer tags for model lineage.
+
+    Returns:
+        ModelReference: Reference to the saved model."""
     path = path or f"catboost_model_{get_epoch()}.luml"
 
     if not isinstance(estimator, ctb.CatBoost):

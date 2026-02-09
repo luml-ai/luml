@@ -38,7 +38,7 @@ class LightGBMFunc(PyFunc):
     def _response(self, outputs: dict) -> dict:
         return {"lightgbm_output": outputs}
 
-    def _prepare_inputs(
+    def _prepare_inputs(  # noqa: C901
         self, data_input: dict
     ) -> np.ndarray | pd.DataFrame | scipy.sparse.csr_matrix:
         data_format = data_input.get("data_format", "dense")
@@ -49,7 +49,26 @@ class LightGBMFunc(PyFunc):
             raw_data = data_input["data"]
 
             if categorical_features:
-                df = pd.DataFrame(raw_data, columns=feature_names)
+                if feature_names is None:
+                    raise ValueError(
+                        "feature_names must be provided when categorical_features "
+                        "is specified for dense data_format"
+                    )
+                # Validate that categorical_features are consistent with feature_names
+                feature_names_seq = list(feature_names)
+                num_features = len(feature_names_seq)
+                for col in categorical_features:
+                    if isinstance(col, int) and (col < 0 or col >= num_features):
+                        raise ValueError(
+                            f"categorical_features index {col} is out of bounds "
+                            f"for {num_features} features"
+                        )
+                    if isinstance(col, str) and col not in feature_names_seq:
+                        raise ValueError(
+                            f"categorical feature name '{col}' not found in "
+                            f"feature_names"
+                        )
+                df = pd.DataFrame(raw_data, columns=feature_names_seq)
 
                 # Convert categorical_features indices to column names if needed
                 cat_columns = []
@@ -66,6 +85,11 @@ class LightGBMFunc(PyFunc):
             return np.asarray(raw_data)
 
         if data_format == "csr":
+            required_fields = ["data", "indices", "indptr", "shape"]
+            missing_fields = [f for f in required_fields if data_input.get(f) is None]
+            if missing_fields:
+                raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
+
             return scipy.sparse.csr_matrix(
                 (data_input["data"], data_input["indices"], data_input["indptr"]),
                 shape=data_input["shape"],
