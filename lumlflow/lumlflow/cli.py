@@ -1,3 +1,4 @@
+import os
 import threading
 import time
 import webbrowser
@@ -13,13 +14,18 @@ app = typer.Typer(
 
 @app.command()
 def ui(
+    path: str = typer.Option(
+        "sqlite://./experiments",
+        "--path",
+        help="Backend store URI (e.g. sqlite://./experiments)",
+    ),
     host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),
     port: int = typer.Option(5000, "--port", "-p", help="Port to bind to"),
     no_browser: bool = typer.Option(
         False, "--no-browser", help="Don't open browser automatically"
     ),
 ) -> None:
-    """Start the lumlflow UI server."""
+    os.environ["BACKEND_STORE_URI"] = path
     url = f"http://{host}:{port}"
 
     def open_browser_delayed() -> None:

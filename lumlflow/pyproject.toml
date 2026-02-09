@@ -8,6 +8,8 @@ dependencies = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
+    "luml-sdk[core]>=0.1.0rc3",
+    "pydantic-settings>=2.12.0",
 ]
 
 [project.optional-dependencies]

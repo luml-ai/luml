@@ -8,6 +8,41 @@ DEFAULT_GROUP_NAME = "Default group"
 
 
 def up(conn: sqlite3.Connection) -> None:
+    """
+    experiment_groups (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name);
+
+    models (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        tags TEXT,
+        path TEXT
+    );
+
+    experiments (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'active',
+        tags TEXT,
+        group_id TEXT REFERENCES experiment_groups(id),
+        static_params TEXT,
+        dynamic_params TEXT,
+        model_id TEXT REFERENCES models(id)
+    );
+
+    schema_migrations (
+        version INTEGER PRIMARY KEY,
+        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    """
     cursor = conn.cursor()
 
     cursor.execute("SELECT rowid, name FROM experiment_groups WHERE id IS NULL")

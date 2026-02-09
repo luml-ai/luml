@@ -4,6 +4,18 @@ from typing import Any
 
 
 @dataclass
+class PaginationCursor:
+    id: str
+    value: str | None
+
+
+@dataclass
+class PaginatedResponse[T]:
+    items: list[T]
+    cursor: PaginationCursor | None
+
+
+@dataclass
 class Group:
     id: str
     name: str

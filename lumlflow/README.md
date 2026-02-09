@@ -1,9 +1,10 @@
 ## Usage
 
 ```bash
-lumlflow ui                    # Start UI at localhost:5000
-lumlflow ui --port 8080        # Custom port
-lumlflow ui --no-browser       # Don't open browser
+lumlflow ui                                        # Start UI at localhost:5000 (default: sqlite://./experiments)
+lumlflow ui --path sqlite://./my_experiments       # Custom experiments path
+lumlflow ui --port 8080                            # Custom port
+lumlflow ui --no-browser                           # Don't open browser
 ```
 
 ## Development
