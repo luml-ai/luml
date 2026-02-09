@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from sdk.luml.artifacts._base import _BaseFile
-from luml.experiments.backends._data_types import (
+from luml.artifacts._base import _BaseFile
+from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
     Group,
