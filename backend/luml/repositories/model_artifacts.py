@@ -105,6 +105,7 @@ class ModelArtifactRepository(RepositoryBase, CrudMixin):
             value=value,
             sort_by=pagination.sort_by,
             order=pagination.order,
+            scope_id=pagination.scope_id,
         )
 
     async def get_collection_model_artifacts(

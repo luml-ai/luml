@@ -22,7 +22,7 @@ from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CreateModelArtifactResponse,
@@ -376,6 +376,18 @@ class ModelArtifactHandler:
 
         await self.__repository.delete_model_artifact(model_artifact_id)
 
+    @staticmethod
+    def _validate_cursor(
+        cursor: Cursor | None, sort_by: str, order: SortOrder, collection_id: UUID
+    ) -> Cursor | None:
+        if cursor and (
+            cursor.sort_by == sort_by
+            and cursor.order == order.value
+            and cursor.scope_id == collection_id
+        ):
+            return cursor
+        return None
+
     async def get_collection_model_artifacts(
         self,
         user_id: UUID,
@@ -399,13 +411,14 @@ class ModelArtifactHandler:
         )
 
         cursor = decode_cursor(cursor_str)
-        use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
+        use_cursor = self._validate_cursor(cursor, sort_by, order, collection_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
             sort_by=sort_by,
             order=order,
             limit=limit,
+            scope_id=collection_id,
         )
 
         items, cursor = await self.__repository.get_collection_model_artifacts(

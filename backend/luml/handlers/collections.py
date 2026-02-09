@@ -6,7 +6,7 @@ from luml.infra.exceptions import CollectionDeleteError, NotFoundError
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
@@ -52,13 +52,19 @@ class CollectionHandler:
         return await self.__repository.create_collection(collection_create)
 
     @staticmethod
-    def _sorting_changed(self, cursor, sort_by):
-        result = cursor if cursor and cursor.sort_by == sort_by.value else None
-        if cursor:
-            if cursor.sort_by == sort_by.value and
-
-        return result
-
+    def _validate_cursor(
+        cursor: Cursor | None,
+        sort_by: CollectionSortBy,
+        order: SortOrder,
+        orbit_id: UUID,
+    ) -> Cursor | None:
+        if cursor and (
+            cursor.sort_by == sort_by.value
+            and cursor.order == order.value
+            and cursor.scope_id == orbit_id
+        ):
+            return cursor
+        return None
 
     async def get_orbit_collections(
         self,
@@ -85,13 +91,14 @@ class CollectionHandler:
             raise NotFoundError("Orbit not found")
 
         cursor = decode_cursor(cursor_str)
-        use_cursor = cursor if cursor and cursor.sort_by == sort_by.value else None
+        use_cursor = self._validate_cursor(cursor, sort_by, order, orbit_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
             sort_by=str(sort_by.value),
             order=order,
             limit=limit,
+            scope_id=orbit_id,
         )
 
         items, cursor = await self.__repository.get_orbit_collections(

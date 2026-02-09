@@ -204,6 +204,7 @@ class CrudMixin:
             value=getattr(cursor_rec, pagination.sort_by, None),
             sort_by=pagination.sort_by,
             order=pagination.order,
+            scope_id=pagination.scope_id,
         )
 
     @staticmethod
