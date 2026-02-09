@@ -1,4 +1,4 @@
-import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
+import type { OrbitCollection, OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
@@ -9,7 +9,7 @@ interface RequestInfo {
   orbitId: string
 }
 
-export const useCollectionsList = (limit = 20, syncStore = true) => {
+export const useCollectionsList = (limit = 20, syncStore = true, types?: OrbitCollectionTypeEnum[]) => {
   const collectionsStore = useCollectionsStore()
 
   const savedCursors = ref<Array<string | null>>([])
@@ -51,7 +51,7 @@ export const useCollectionsList = (limit = 20, syncStore = true) => {
     return await api.orbitCollections.getCollectionsList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
-      { cursor, limit, search: searchQuery.value },
+      { cursor, limit, search: searchQuery.value, types },
     )
   }
 
