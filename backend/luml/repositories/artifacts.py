@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
@@ -76,12 +76,14 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         self,
         collection_id: UUID,
         pagination: PaginationParams,
-        artifact_type: ArtifactType | None = None,
+        artifact_types: list[ArtifactType] | None = None,
     ) -> list[Artifact]:
         async with self._get_session() as session:
             conditions = [ArtifactOrm.collection_id == collection_id]
-            if artifact_type is not None:
-                conditions.append(ArtifactOrm.type == artifact_type.value)
+            if artifact_types:
+                conditions.append(
+                    or_(*[ArtifactOrm.type == t.value for t in artifact_types])
+                )
 
             db_artifacts = await self.get_models_with_pagination(
                 session,

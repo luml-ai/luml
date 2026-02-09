@@ -77,7 +77,7 @@ def list_all(
     sort_by: CollectionSortBy | None = None,
     order: SortOrder | None = SortOrder.DESC,
     search: str | None = None,
-    type: CollectionType | None = None
+    types: list[CollectionTypeFilter] | None = None
 ) -> Iterator[Collection]
 ```
 
@@ -89,7 +89,7 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `type` - Filter by collection type: "model" or "dataset".
+- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -113,9 +113,9 @@ for collection in luml.collections.list_all(limit=50):
 for collection in luml.collections.list_all(search="model"):
     print(collection.name)
 
-# Filter by collection type
+# Filter by collection types
 for collection in luml.collections.list_all(
-    type=CollectionType.MODEL
+    types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
 ):
     print(collection.name)
 ```
@@ -132,7 +132,7 @@ def list(
     sort_by: CollectionSortBy | None = None,
     order: SortOrder | None = SortOrder.DESC,
     search: str | None = None,
-    type: CollectionType | None = None
+    types: list[CollectionTypeFilter] | None = None
 ) -> CollectionsList
 ```
 
@@ -146,7 +146,7 @@ List all collections in the default orbit.
   If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `type` - Filter by collection type: "model" or "dataset".
+- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -171,8 +171,10 @@ result = luml.collections.list(
 # Search by name or tags
 result = luml.collections.list(search="model")
 
-# Filter by collection type
-result = luml.collections.list(type=CollectionType.MODEL)
+# Filter by collection types
+result = luml.collections.list(
+    types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+)
 ```
   
   Example response:
@@ -452,7 +454,7 @@ def list_all(
     sort_by: CollectionSortBy | None = None,
     order: SortOrder | None = SortOrder.DESC,
     search: str | None = None,
-    type: CollectionType | None = None
+    types: list[CollectionTypeFilter] | None = None
 ) -> AsyncIterator[Collection]
 ```
 
@@ -464,7 +466,7 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `type` - Filter by collection type: "model" or "dataset".
+- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -492,9 +494,9 @@ async def main():
     async for collection in luml.collections.list_all(search="model"):
         print(collection.name)
 
-    # Filter by collection type
+    # Filter by collection types
     async for collection in luml.collections.list_all(
-        type=CollectionType.MODEL
+        types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
     ):
         print(collection.name)
 ```
@@ -511,7 +513,7 @@ async def list(
     sort_by: CollectionSortBy | None = None,
     order: SortOrder | None = SortOrder.DESC,
     search: str | None = None,
-    type: CollectionType | None = None
+    types: list[CollectionTypeFilter] | None = None
 ) -> CollectionsList
 ```
 
@@ -525,7 +527,7 @@ List all collections in the default orbit.
   If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `type` - Filter by collection type: "model" or "dataset".
+- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -555,8 +557,10 @@ async def main():
     # Search by name or tags
     result = await luml.collections.list(search="model")
 
-    # Filter by collection type
-    result = await luml.collections.list(type=CollectionType.MODEL)
+    # Filter by collection types
+    result = await luml.collections.list(
+        types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+    )
 ```
   
   Example response:

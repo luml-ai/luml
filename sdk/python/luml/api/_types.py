@@ -45,6 +45,17 @@ class CollectionType(StrEnum):
     MIXED = "mixed"
 
 
+class CollectionTypeFilter(StrEnum):
+    """
+    Options: "model", "dataset", "experiment", "mixed".
+    """
+
+    MODEL = "model"
+    DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MIXED = "mixed"
+
+
 class ArtifactType(StrEnum):
     """
     Options: "model", "experiment", "dataset"

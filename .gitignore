@@ -15,3 +15,10 @@ __pycache__/
 /lumlflow/frontend/dist
 /lumlflow/lumlflow/static
 /sdk/python/sdk_docs_generate.py
+/lumlflow/.idea/inspectionProfiles/profiles_settings.xml
+/lumlflow/.idea/inspectionProfiles/Project_Default.xml
+/lumlflow/.idea/.gitignore
+/lumlflow/.idea/lumlflow.iml
+/lumlflow/.idea/misc.xml
+/lumlflow/.idea/modules.xml
+/lumlflow/.idea/vcs.xml
