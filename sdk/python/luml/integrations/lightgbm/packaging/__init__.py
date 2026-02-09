@@ -3,13 +3,13 @@ import tempfile
 from typing import Any, Literal, Union
 from warnings import warn
 
-import xgboost as xgb
-from xgboost import Booster
+import lightgbm as lgb
+from lightgbm import Booster
 
 try:
-    from xgboost.sklearn import XGBModel
+    from lightgbm.sklearn import LGBMModel
 except ImportError:
-    XGBModel = None  # type: ignore[assignment, misc]
+    LGBMModel = None  # type: ignore[assignment, misc]
 
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
@@ -17,8 +17,8 @@ from pydantic import BaseModel, create_model
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
+from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
 from luml.integrations.sklearn.packaging import save_sklearn
-from luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
 from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
     extract_top_level_modules,
@@ -27,40 +27,37 @@ from luml.utils.imports import (
 from luml.utils.time import get_epoch
 
 
-class _DMatrixInputSchema(BaseModel):
-    data: list[list[float]] | list[float]
+class _DataInputSchema(BaseModel):
+    data: list[list[Any]] | list[Any]
     data_format: Literal["dense", "csr"] = "dense"
 
-    # sparse (CSR)
+    # Feature metadata
+    feature_names: list[str] | None = None
+    categorical_features: list[str] | list[int] | None = None
+
+    # Sparse (CSR)
     indices: list[int] | None = None
     indptr: list[int] | None = None
     shape: tuple[int, int] | None = None
 
-    missing: float | None = None
-    feature_names: list[str] | None = None
-    feature_types: list[str] | None = None
-
 
 class _PredictConfigSchema(BaseModel):
-    iteration_range: tuple[int, int] | None = None
-    output_margin: bool = False
+    start_iteration: int = 0
+    num_iteration: int | None = None
+    raw_score: bool = False
     pred_leaf: bool = False
-    pred_contribs: bool = False
-    approx_contribs: bool = False
-    pred_interactions: bool = False
-    validate_features: bool = True
-    training: bool = False
-    strict_shape: bool = False
+    pred_contrib: bool = False
+    validate_features: bool = False
 
 
 def _build_input_schema() -> type[BaseModel]:
     input_fields = {
-        "dmatrix": (_DMatrixInputSchema, ...),
+        "data": (_DataInputSchema, ...),
         "predict_config": (_PredictConfigSchema | None, None),
     }
 
     return create_model(
-        "XGBoostInputModel",
+        "LightGBMInputModel",
         __base__=BaseModel,
         **input_fields,  # type: ignore[call-overload]
     )
@@ -72,7 +69,7 @@ def _build_output_schema() -> type[BaseModel]:
     }
 
     return create_model(
-        "XGBoostOutputModel",
+        "LightGBMOutputModel",
         __base__=BaseModel,
         **output_fields,  # type: ignore[call-overload]
     )
@@ -81,24 +78,26 @@ def _build_output_schema() -> type[BaseModel]:
 def _add_io(builder: PyfuncBuilder) -> None:
     input_schema = _build_input_schema()
     output_schema = _build_output_schema()
+
     builder.define_dtype("ext::input", input_schema)
     builder.define_dtype("ext::output", output_schema)
     builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
     builder.add_output(
-        JSON(name="xgboost_output", content_type="JSON", dtype="ext::output")
+        JSON(name="lightgbm_output", content_type="JSON", dtype="ext::output")
     )
 
 
 def _get_default_deps() -> list[str]:
     return [
-        "xgboost==" + get_version("xgboost"),
+        "lightgbm==" + get_version("lightgbm"),
         "numpy==" + get_version("numpy"),
+        "pandas==" + get_version("pandas"),
         "scipy==" + get_version("scipy"),
     ]
 
 
 def _get_default_tags() -> list[str]:
-    return [FNNX_PRODUCER_NAME + "::xgboost:v1"]
+    return [FNNX_PRODUCER_NAME + "::lightgbm:v1"]
 
 
 def _add_dependencies(
@@ -140,14 +139,14 @@ def _add_dependencies(
         builder.add_module(module)
 
 
-def _is_xgboost_sklearn_estimator(obj: object) -> bool:
-    if XGBModel is None:
+def _is_lightgbm_sklearn_estimator(obj: object) -> bool:
+    if LGBMModel is None:
         return False
-    return isinstance(obj, xgb.XGBModel)
+    return isinstance(obj, LGBMModel)
 
 
-def save_xgboost(  # noqa: C901
-    estimator: "Union[Booster, xgb.XGBModel]",  # noqa: UP007
+def save_lightgbm(  # noqa: C901
+    estimator: "Union[Booster, lgb.LGBMModel]",  # noqa: UP007
     inputs: Any | None = None,  # noqa: ANN401
     path: str | None = None,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
@@ -158,10 +157,10 @@ def save_xgboost(  # noqa: C901
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
 ) -> ModelReference:
-    """Save an XGBoost Booster model as a Luml model.
+    """Save a LightGBM model as a Luml model.
 
     Args:
-        estimator: The XGBoost Booster or XGBModel to save.
+        estimator: The LightGBM model to save (Booster or LGBMModel).
         inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
         dependencies: Dependency management strategy ("default", "all", or list).
@@ -174,27 +173,26 @@ def save_xgboost(  # noqa: C901
 
     Returns:
         ModelReference: Reference to the saved model."""
+    path = path or f"lgbm_model_{get_epoch()}.luml"
 
-    path = path or f"xgboost_model_{get_epoch()}.luml"
-
-    if _is_xgboost_sklearn_estimator(estimator):
+    if _is_lightgbm_sklearn_estimator(estimator):
         warn(
-            "Detected XGBoost scikit-learn estimator. Delegating to save_sklearn().",
+            "Detected LGBM scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
             stacklevel=2,
         )
 
-        xgboost_dep = f"xgboost=={get_version('xgboost')}"
+        lgb_dep = f"lightgbm=={get_version('lightgbm')}"
 
         if extra_dependencies is None:
-            extra_dependencies = [xgboost_dep]
+            extra_dependencies = [lgb_dep]
         else:
             extra_dependencies = list(extra_dependencies)
-            if not any("xgboost" in dep.lower() for dep in extra_dependencies):
-                extra_dependencies.append(xgboost_dep)
+            if not any("lightgbm" in dep.lower() for dep in extra_dependencies):
+                extra_dependencies.append(lgb_dep)
 
         return save_sklearn(
-            estimator=estimator,  # type: ignore[arg-type]
+            estimator=estimator,
             inputs=inputs,
             path=path,
             dependencies=dependencies,
@@ -205,14 +203,14 @@ def save_xgboost(  # noqa: C901
             manifest_model_description=manifest_model_description,
         )
 
-    if not isinstance(estimator, xgb.Booster):
+    if not isinstance(estimator, lgb.Booster):
         raise TypeError(
-            f"Provided model must be an XGBoost Booster or XGBModel, "
+            f"Provided model must be a LightGBM Booster or LGBModel, "
             f"got {type(estimator)}"
         )
 
     builder = PyfuncBuilder(
-        XGBoostFunc,
+        LightGBMFunc,
         model_name=manifest_model_name,
         model_description=manifest_model_description,
         model_version=manifest_model_version,
