@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
-from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.experiments.backends.data_types import Experiment, ExperimentData, Group
 
 if TYPE_CHECKING:
     from luml.artifacts.experiment import ExperimentReference
