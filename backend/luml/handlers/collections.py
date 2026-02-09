@@ -62,7 +62,7 @@ class CollectionHandler:
         sort_by: CollectionSortBy = CollectionSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
-        type: CollectionTypeFilter | None = None,  # noqa: A002
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -92,7 +92,7 @@ class CollectionHandler:
             orbit_id=orbit_id,
             pagination=pagination,
             search=search,
-            type=type,
+            types=types,
         )
 
         return CollectionsList(
