@@ -1,4 +1,8 @@
-import type { GetArtifactsListParams, Artifact, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import type {
+  GetArtifactsListParams,
+  Artifact,
+  ArtifactTypeEnum,
+} from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
