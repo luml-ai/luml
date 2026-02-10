@@ -24,7 +24,8 @@ def up(conn: sqlite3.Connection) -> None:
     duplicate_names = [r[0] for r in cursor.fetchall()]
     for dup_name in duplicate_names:
         cursor.execute(
-            "SELECT rowid, created_at FROM experiment_groups WHERE name = ? ORDER BY created_at",
+            "SELECT rowid, created_at FROM experiment_groups "
+            "WHERE name = ? ORDER BY created_at",
             (dup_name,),
         )
         rows = cursor.fetchall()
@@ -46,12 +47,14 @@ def up(conn: sqlite3.Connection) -> None:
             (default_group_id, DEFAULT_GROUP_NAME),
         )
         cursor.execute(
-            "UPDATE experiments SET group_name = ? WHERE group_name IS NULL OR group_name = ''",
+            "UPDATE experiments SET group_name = ? "
+            "WHERE group_name IS NULL OR group_name = ''",
             (DEFAULT_GROUP_NAME,),
         )
 
     cursor.execute(
-        "ALTER TABLE experiments ADD COLUMN group_id TEXT REFERENCES experiment_groups(id)"
+        "ALTER TABLE experiments ADD COLUMN group_id TEXT "
+        "REFERENCES experiment_groups(id)"
     )
     cursor.execute("""
         UPDATE experiments
