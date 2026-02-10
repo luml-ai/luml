@@ -4,9 +4,9 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
-from lumlflow.infra.exceptions import ApplicationError
 
 from lumlflow.api.general import general_router
+from lumlflow.infra.exceptions import ApplicationError
 
 
 class AppService(FastAPI):
