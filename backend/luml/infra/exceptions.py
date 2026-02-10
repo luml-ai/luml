@@ -185,7 +185,7 @@ class CollectionNotFoundError(ApplicationError):
 
 
 class ArtifactNotFoundError(ApplicationError):
-    def __init__(self, message: str = "Model Artifact model not found") -> None:
+    def __init__(self, message: str = "Artifact not found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 

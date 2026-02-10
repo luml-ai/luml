@@ -106,7 +106,7 @@ class CollectionSortBy(StrEnum):
 
     CREATED_AT = "created_at"
     NAME = "name"
-    type = "type"
+    TYPE = "type"
     DESCRIPTION = "description"
     TOTAL_ARTIFACTS = "total_artifacts"
 
