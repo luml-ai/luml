@@ -21,7 +21,7 @@ def tracker(tmp_path: Path) -> ExperimentTracker:
 def experiment_with_data(
     tracker: ExperimentTracker,
 ) -> tuple[ExperimentTracker, str]:
-    exp_id = tracker.start_experiment(name="test-experiment", tags=["test", "unit"])
+    exp_id = tracker.start_experiment(group="test-group", name="test-experiment", tags=["test", "unit"])
     tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.5, step=0, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.3, step=1, experiment_id=exp_id)
@@ -92,7 +92,7 @@ def test_reference_validates(
 
 
 def test_save_without_attachments(tracker: ExperimentTracker, tmp_path: Path) -> None:
-    exp_id = tracker.start_experiment(name="no-attachments")
+    exp_id = tracker.start_experiment(group="test-group", name="no-attachments")
     tracker.log_static("key", "value", experiment_id=exp_id)
     tracker.end_experiment(exp_id)
 

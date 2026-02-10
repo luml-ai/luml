@@ -67,13 +67,13 @@ class XGBoostFunc(PyFunc):
         def to_json_serializable(obj: Any) -> Any:  # noqa: ANN401
             if isinstance(obj, np.ndarray):
                 return obj.tolist()
-            elif isinstance(obj, np.integer):
+            if isinstance(obj, np.integer):
                 return int(obj)
-            elif isinstance(obj, np.floating):
+            if isinstance(obj, np.floating):
                 return float(obj)
-            elif isinstance(obj, list | tuple):
+            if isinstance(obj, list | tuple):
                 return [to_json_serializable(item) for item in obj]
-            elif isinstance(obj, dict):
+            if isinstance(obj, dict):
                 return {key: to_json_serializable(value) for key, value in obj.items()}
             return obj
 

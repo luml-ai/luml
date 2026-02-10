@@ -6,11 +6,18 @@ import sqlite3
 import threading
 import uuid
 import weakref
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
+from luml.experiments.backends._data_types import (
+    Experiment,
+    ExperimentData,
+    ExperimentMetaData,
+    Group,
+)
 from luml.experiments.backends.migration_runner import MigrationRunner
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
@@ -221,7 +228,9 @@ class SQLiteBackend(Backend):
         return self._get_experiment_dir(experiment_id) / "attachments"
 
     @staticmethod
-    def _convert_static_param_value(value: Any, value_type: Any) -> Any:
+    def _convert_static_param_value(
+        value: str, value_type: str
+    ) -> str | int | float | bool | list | dict:
         if value_type == "json":
             return json.loads(value)
         if value_type == "int":
@@ -258,7 +267,7 @@ class SQLiteBackend(Backend):
     def initialize_experiment(
         self,
         experiment_id: str,
-        group: str = "",
+        group: str = "Default group",
         name: str | None = None,
         tags: list[str] | None = None,
     ) -> None:
@@ -269,13 +278,21 @@ class SQLiteBackend(Backend):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
+        cursor.execute("SELECT id FROM experiment_groups WHERE name = ?", (group,))
+
+        if row := cursor.fetchone():
+            group_id = row[0]
+        else:
+            created_group = self.create_group(group)
+            group_id = created_group.id
+
         tags_str = json.dumps(tags) if tags else None
         cursor.execute(
             """
             INSERT OR REPLACE INTO experiments (id, name, group_id, tags)
             VALUES (?, ?, ?, ?)
         """,
-            (experiment_id, name or experiment_id, group, tags_str),
+            (experiment_id, name or experiment_id, group_id, tags_str),
         )
 
         conn.commit()
@@ -498,7 +515,7 @@ class SQLiteBackend(Backend):
 
         conn.commit()
 
-    def get_experiment_data(self, experiment_id: str) -> dict[str, Any]:  # noqa: ANN401, C901
+    def get_experiment_data(self, experiment_id: str) -> ExperimentData:  # noqa: ANN401, C901
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
@@ -538,21 +555,21 @@ class SQLiteBackend(Backend):
 
         metadata = {}
         if meta_row:
-            metadata = {
-                "name": meta_row[0],
-                "created_at": meta_row[1],
-                "status": meta_row[2],
-                "group_id": meta_row[3],
-                "tags": json.loads(meta_row[4]) if meta_row[4] else [],
-            }
+            metadata = ExperimentMetaData(
+                name=meta_row[0],
+                created_at=meta_row[1],
+                status=meta_row[2],
+                group_id=meta_row[3],
+                tags=json.loads(meta_row[4]) if meta_row[4] else [],
+            )
 
-        return {
-            "experiment_id": experiment_id,
-            "metadata": metadata,
-            "static_params": static_params,
-            "dynamic_metrics": dynamic_metrics,
-            "attachments": attachments,
-        }
+        return ExperimentData(
+            experiment_id=experiment_id,
+            metadata=metadata,
+            static_params=static_params,
+            dynamic_metrics=dynamic_metrics,
+            attachments=attachments,
+        )
 
     def get_attachment(self, experiment_id: str, name: str) -> Any:  # noqa: ANN401
         self._ensure_experiment_initialized(experiment_id)
@@ -568,7 +585,7 @@ class SQLiteBackend(Backend):
         with file_path.open("rb") as f:
             return f.read()
 
-    def list_experiments(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_experiments(self) -> list[Experiment]:  # noqa: ANN401
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -579,16 +596,16 @@ class SQLiteBackend(Backend):
         experiments = []
         for row in cursor.fetchall():
             experiments.append(
-                {
-                    "id": row[0],
-                    "name": row[1],
-                    "created_at": row[2],
-                    "status": row[3],
-                    "group_id": row[4],
-                    "tags": json.loads(row[5]) if row[5] else [],
-                    "static_params": json.loads(row[6]) if row[6] else {},
-                    "dynamic_params": json.loads(row[7]) if row[7] else {},
-                }
+                Experiment(
+                    id=row[0],
+                    name=row[1],
+                    created_at=row[2],
+                    status=row[3],
+                    group_id=row[4],
+                    tags=json.loads(row[5]) if row[5] else [],
+                    static_params=json.loads(row[6]) if row[6] else {},
+                    dynamic_params=json.loads(row[7]) if row[7] else {},
+                )
             )
         return experiments
 
@@ -606,14 +623,22 @@ class SQLiteBackend(Backend):
 
             shutil.rmtree(exp_dir)
 
-    def create_group(self, name: str, description: str | None = None) -> str:
+    def create_group(self, name: str, description: str | None = None) -> Group:
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id FROM experiment_groups WHERE name = ?", (name,))
+        cursor.execute(
+            "SELECT id, name, description, created_at FROM experiment_groups WHERE name = ?",
+            (name,),
+        )
         existing = cursor.fetchone()
         if existing:
-            return existing[0]
+            return Group(
+                id=existing[0],
+                name=existing[1],
+                description=existing[2],
+                created_at=existing[3],
+            )
 
         group_id = str(uuid.uuid4())
         cursor.execute(
@@ -621,9 +646,14 @@ class SQLiteBackend(Backend):
             (group_id, name, description),
         )
         conn.commit()
-        return group_id
+        return Group(
+            id=group_id,
+            name=name,
+            description=description,
+            created_at=datetime.now(UTC),
+        )
 
-    def list_groups(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_groups(self) -> list[Group]:  # noqa: ANN401
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -632,12 +662,12 @@ class SQLiteBackend(Backend):
         groups = []
         for row in cursor.fetchall():
             groups.append(
-                {
-                    "id": row[0],
-                    "name": row[1],
-                    "description": row[2],
-                    "created_at": row[3],
-                }
+                Group(
+                    id=row[0],
+                    name=row[1],
+                    description=row[2],
+                    created_at=row[3],
+                )
             )
         return groups
 
@@ -656,7 +686,7 @@ class SQLiteBackend(Backend):
             WHERE step = (SELECT MAX(step) FROM dynamic_metrics dm2 WHERE dm2.key = dm1.key)
             """
         )
-        dynamic_params = {key: value for key, value in exp_cursor.fetchall()}
+        dynamic_params = dict(exp_cursor.fetchall())
 
         meta_conn = self._get_meta_connection()
         meta_cursor = meta_conn.cursor()
