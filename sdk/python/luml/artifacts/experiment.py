@@ -48,21 +48,21 @@ def save_experiment(
     from luml._constants import PRODUCER_NAME
 
     exp_data = tracker.get_experiment(experiment_id)
-    metadata = exp_data.get("metadata", {})
+    metadata = exp_data.metadata
 
     manifest = ExperimentArtifactManifest(
         artifact_type="experiment",
         variant="default",
-        name=metadata.get("name"),
+        name=metadata.name,
         version="1",
         producer_name=PRODUCER_NAME,
         producer_version=luml_sdk_version,
         producer_tags=[f"{PRODUCER_NAME}::experiment_snapshot:v1"],
         payload=ExperimentManifestPayload(
             local_experiment_id=experiment_id,
-            status=metadata.get("status"),
-            group=metadata.get("group"),
-            tags=metadata.get("tags", []),
+            status=metadata.status,
+            group=metadata.group_id,
+            tags=metadata.tags,
         ),
     )
 

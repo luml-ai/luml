@@ -3,9 +3,11 @@ CLI for managing meta.db migrations.
 
 Usage:
     python -m luml.experiments.backends.migrations status [--db PATH]
-    python -m luml.experiments.backends.migrations migrate [--db PATH] [--target VERSION]
-    python -m luml.experiments.backends.migrations rollback [--db PATH] [--target VERSION]
     python -m luml.experiments.backends.migrations list
+    python -m luml.experiments.backends.migrations migrate \
+        [--db PATH] [--target VERSION]
+    python -m luml.experiments.backends.migrations rollback \
+        [--db PATH] [--target VERSION]
 """
 
 import argparse
@@ -28,32 +30,32 @@ def cmd_status(args: argparse.Namespace) -> None:
     db_path = Path(args.db)
 
     if not db_path.exists():
-        print(f"Database not found: {db_path}")
-        print("Run your experiment code first to create the database.")
+        print(f"Database not found: {db_path}")  # noqa: T201
+        print("Run your experiment code first to create the database.")  # noqa: T201
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
     runner = MigrationRunner(conn)
     status = runner.get_status()
 
-    print(f"Database: {db_path}")
-    print(f"Current version: {status['current_version']}")
-    print(f"Applied migrations: {status['applied_count']}")
-    print(f"Pending migrations: {status['pending_count']}")
+    print(f"Database: {db_path}")  # noqa: T201
+    print(f"Current version: {status['current_version']}")  # noqa: T201
+    print(f"Applied migrations: {status['applied_count']}")  # noqa: T201
+    print(f"Pending migrations: {status['pending_count']}")  # noqa: T201
 
     if status["applied_versions"]:
-        print("\nApplied:")
+        print("\nApplied:")  # noqa: T201
         cursor = conn.cursor()
         cursor.execute(
             "SELECT version, applied_at FROM schema_migrations ORDER BY version"
         )
         for version, applied_at in cursor.fetchall():
-            print(f"  [{version}] (applied: {applied_at})")
+            print(f"  [{version}] (applied: {applied_at})")  # noqa: T201
 
     if status["pending_versions"]:
-        print("\nPending:")
+        print("\nPending:")  # noqa: T201
         for m in runner.get_pending_migrations():
-            print(f"  [{m['version']}] {m['description']} ({m['file']})")
+            print(f"  [{m['version']}] {m['description']} ({m['file']})")  # noqa: T201
 
     conn.close()
 
@@ -62,7 +64,7 @@ def cmd_migrate(args: argparse.Namespace) -> None:
     db_path = Path(args.db)
 
     if not db_path.exists():
-        print(f"Database not found: {db_path}")
+        print(f"Database not found: {db_path}")  # noqa: T201
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
@@ -70,7 +72,7 @@ def cmd_migrate(args: argparse.Namespace) -> None:
 
     pending = runner.get_pending_migrations()
     if not pending:
-        print("No pending migrations.")
+        print("No pending migrations.")  # noqa: T201
         conn.close()
         return
 
@@ -78,15 +80,15 @@ def cmd_migrate(args: argparse.Namespace) -> None:
     if target:
         pending = [m for m in pending if m["version"] <= target]
 
-    print(f"Applying {len(pending)} migration(s)...")
+    print(f"Applying {len(pending)} migration(s)...")  # noqa: T201
     for m in pending:
-        print(f"  [{m['version']}] {m['description']}")
+        print(f"  [{m['version']}] {m['description']}")  # noqa: T201
 
     try:
         applied = runner.migrate(target_version=target)
-        print(f"\nSuccessfully applied {len(applied)} migration(s).")
+        print(f"\nSuccessfully applied {len(applied)} migration(s).")  # noqa: T201
     except RuntimeError as e:
-        print(f"\nMigration failed: {e}")
+        print(f"\nMigration failed: {e}")  # noqa: T201
         sys.exit(1)
     finally:
         conn.close()
@@ -96,7 +98,7 @@ def cmd_rollback(args: argparse.Namespace) -> None:
     db_path = Path(args.db)
 
     if not db_path.exists():
-        print(f"Database not found: {db_path}")
+        print(f"Database not found: {db_path}")  # noqa: T201
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
@@ -106,25 +108,25 @@ def cmd_rollback(args: argparse.Namespace) -> None:
     target = args.target
 
     if current <= target:
-        print(f"Current version ({current}) is already at or below target ({target}).")
+        print(f"Current version ({current}) is already at or below target ({target}).")  # noqa: T201
         conn.close()
         return
 
     to_rollback = [v for v in runner.get_applied_migrations() if v > target]
-    print(f"Rolling back {len(to_rollback)} migration(s) to version {target}...")
+    print(f"Rolling back {len(to_rollback)} migration(s) to version {target}...")  # noqa: T201
 
     try:
         rolled_back = runner.rollback(target_version=target)
-        print(f"\nSuccessfully rolled back {len(rolled_back)} migration(s).")
+        print(f"\nSuccessfully rolled back {len(rolled_back)} migration(s).")  # noqa: T201
     except RuntimeError as e:
-        print(f"\nRollback failed: {e}")
+        print(f"\nRollback failed: {e}")  # noqa: T201
         sys.exit(1)
     finally:
         conn.close()
 
 
 def cmd_list(args: argparse.Namespace) -> None:
-    print(f"Migrations directory: {MIGRATIONS_DIR}\n")
+    print(f"Migrations directory: {MIGRATIONS_DIR}\n")  # noqa: T201
 
     import importlib
 
@@ -143,19 +145,19 @@ def cmd_list(args: argparse.Namespace) -> None:
                     }
                 )
         except ImportError as e:
-            print(f"  [!] Error loading {file_path.name}: {e}")
+            print(f"  [!] Error loading {file_path.name}: {e}")  # noqa: T201
 
     if not migrations:
-        print("No migrations found.")
+        print("No migrations found.")  # noqa: T201
         return
 
-    print("Available migrations:")
+    print("Available migrations:")  # noqa: T201
     for m in sorted(migrations, key=lambda x: x["version"]):
         rollback_indicator = "↩" if m["has_down"] else " "
-        print(f"  [{m['version']:03d}] {rollback_indicator} {m['description']}")
-        print(f"         {m['file']}")
+        print(f"  [{m['version']:03d}] {rollback_indicator} {m['description']}")  # noqa: T201
+        print(f"         {m['file']}")  # noqa: T201
 
-    print("\n↩ = supports rollback")
+    print("\n↩ = supports rollback")  # noqa: T201
 
 
 def main() -> None:

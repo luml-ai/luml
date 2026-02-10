@@ -29,7 +29,8 @@ class MigrationRunner:
             return
 
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='experiment_groups'"
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='experiment_groups'"
         )
         if cursor.fetchone() is None:
             return
@@ -103,7 +104,8 @@ class MigrationRunner:
             except Exception as e:
                 self.conn.rollback()
                 raise RuntimeError(
-                    f"Migration {migration['version']} ({migration['file']}) failed: {e}"
+                    f"Migration {migration['version']} "
+                    f"({migration['file']}) failed: {e}"
                 ) from e
 
         return applied_versions

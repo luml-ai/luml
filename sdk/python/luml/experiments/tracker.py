@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
+from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
 
 if TYPE_CHECKING:
     from luml.artifacts.experiment import ExperimentReference
@@ -47,7 +48,7 @@ class ExperimentTracker:
 
     def start_experiment(
         self,
-        group: str,
+        group: str = "Default group",
         experiment_id: str | None = None,
         name: str | None = None,
         tags: list[str] | None = None,
@@ -86,7 +87,8 @@ class ExperimentTracker:
         End an active experiment tracking session.
 
         Args:
-            experiment_id: ID of experiment to end. Uses current experiment if not specified.
+            experiment_id: ID of experiment to end.
+            Uses current experiment if not specified.
 
         Example:
         ```python
@@ -267,7 +269,7 @@ class ExperimentTracker:
             raise ValueError("No active experiment. Call start_experiment() first.")
         self.backend.log_attachment(exp_id, name, data, binary)
 
-    def get_experiment(self, experiment_id: str) -> dict[str, Any]:  # noqa: ANN401
+    def get_experiment(self, experiment_id: str) -> ExperimentData:
         return self.backend.get_experiment_data(experiment_id)
 
     def get_attachment(self, name: str, experiment_id: str | None = None) -> Any:  # noqa: ANN401
@@ -276,19 +278,19 @@ class ExperimentTracker:
             raise ValueError("No active experiment. Call start_experiment() first.")
         return self.backend.get_attachment(exp_id, name)
 
-    def list_experiments(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_experiments(self) -> list[Experiment]:
         """
         List all experiments in the backend.
 
         Returns:
-            List of experiment dictionaries with metadata.
+            List of Experiment objects with metadata.
 
         Example:
         ```python
         tracker = ExperimentTracker()
         experiments = tracker.list_experiments()
         for exp in experiments:
-            print(f"{exp['id']}: {exp['name']}")
+            print(f"{exp.id}: {exp.name}")
         ```
         """
         return self.backend.list_experiments()
@@ -296,10 +298,10 @@ class ExperimentTracker:
     def delete_experiment(self, experiment_id: str) -> None:
         self.backend.delete_experiment(experiment_id)
 
-    def create_group(self, name: str, description: str | None = None) -> str:
+    def create_group(self, name: str, description: str | None = None) -> Group:
         return self.backend.create_group(name, description)
 
-    def list_groups(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_groups(self) -> list[Group]:
         return self.backend.list_groups()
 
     def link_to_model(
