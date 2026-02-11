@@ -2,9 +2,9 @@ import { mount } from '@vue/test-utils'
 import { describe, it, expect, vi } from 'vitest'
 import OrbitCard from './OrbitCard.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
-import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { PermissionEnum, type Orbit } from '@/lib/api/api.interfaces'
 
-const mockData = {
+const mockData: Orbit = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Test Orbit',
   organization_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -14,10 +14,11 @@ const mockData = {
   bucket_secret_id: '00000000-0000-0000-0000-000000000000',
   total_collections: 5,
   role: OrbitRoleEnum.member,
+  total_artifacts: 0,
   permissions: {
     orbit: PermissionEnum.read,
     orbit_user: PermissionEnum.read,
-    model: PermissionEnum.create,
+    artifact: PermissionEnum.create,
     collection: PermissionEnum.create,
   },
 }

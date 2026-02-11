@@ -144,9 +144,9 @@ export interface OrganizationDetails extends Omit<Organization, 'role'> {
   total_members: number
   members_by_role: Record<OrganizationRoleEnum, number>
   satellites_limit: number
-  model_artifacts_limit: number
+  artifacts_limit: number
   total_satellites: number
-  total_model_artifacts: number
+  total_artifacts: number
 }
 
 export interface Member {
@@ -185,6 +185,7 @@ export interface Orbit {
   total_collections: number
   role: OrbitRoleEnum
   permissions: OrbitPermissions
+  total_artifacts: number
 }
 
 export interface CreateOrbitPayload {
@@ -234,7 +235,7 @@ export interface OrganizationPermissions {
 export interface OrbitPermissions {
   orbit: Omit<PermissionEnum, PermissionEnum.deploy>
   orbit_user: Omit<PermissionEnum, PermissionEnum.deploy>
-  model: PermissionEnum
+  artifact: PermissionEnum
   collection: PermissionEnum
 }
 

@@ -1,6 +1,6 @@
 
 from luml.api import LumlClient
-from luml.api._types import CollectionType, ModelArtifactStatus
+from luml.api._types import CollectionType, ArtifactStatus
 
 # Will use LUML API Production url "https://api.luml.ai"
 # And search for LUML_API_KEY in .env
@@ -66,7 +66,7 @@ def demo_bucket_secrets() -> None:
     # Create a new bucket secret
     bucket_secret = luml.bucket_secrets.create(
         endpoint="s3.amazonaws.com",
-        bucket_name="my-ml-models-bucket",
+        bucket_name="my-ml-artifacts-bucket",
         access_key="AKIAIOSFODNN7EXAMPLE",
         secret_key="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
         secure=True,
@@ -79,7 +79,7 @@ def demo_bucket_secrets() -> None:
     print(f"Bucket secrets: {secrets}")
 
     # Get bucket secret by name
-    secret = luml.bucket_secrets.get("my-ml-models-bucket")
+    secret = luml.bucket_secrets.get("my-ml-artifacts-bucket")
     print(f"Bucket secret by name: {secret}")
 
     # Get bucket secret by id
@@ -125,12 +125,12 @@ def demo_orbits() -> None:
 
 
 def demo_collections() -> None:
-    # Create a model collection
+    # Create a artifact collection
     collection = luml.collections.create(
-        name="Production Models",
-        description="Trained models ready for production deployment",
-        collection_type=CollectionType.MODEL,
-        tags=["production", "ml", "models"],
+        name="Production artifacts",
+        description="Trained artifacts ready for production deployment",
+        type=CollectionType.MODEL,
+        tags=["production", "ml", "artifacts"],
     )
     print(f"Created collection: {collection}")
 
@@ -139,7 +139,7 @@ def demo_collections() -> None:
     print(f"Get Default Collection Details: {default_collection}")
 
     # Get collection by name
-    collection_by_name = luml.collections.get("Production Models")
+    collection_by_name = luml.collections.get("Production artifacts")
     print(f"Collection by name: {collection_by_name}")
 
     # Get collection by id
@@ -153,7 +153,7 @@ def demo_collections() -> None:
     # Update collection with new tags
     updated_collection = luml.collections.update(
         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-        description="Updated: Production-ready ML models",
+        description="Updated: Production-ready ML artifacts",
     )
     print(f"Updated collection: {updated_collection}")
 
@@ -161,73 +161,73 @@ def demo_collections() -> None:
     luml.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
-def demo_model_artifacts() -> None:
-    # Create new model artifact record with upload URL
-    model_created = luml.model_artifacts.create(
-        file_name="customer_churn_model.fnnx",
-        metrics={"accuracy": 0.95, "precision": 0.92, "recall": 0.88},
+def demo_artifacts() -> None:
+    # Create new artifact artifact record with upload URL
+    artifact_created = luml.artifacts.create(
+        file_name="customer_churn_artifact.fnnx",
+        extra_values={"accuracy": 0.95, "precision": 0.92, "recall": 0.88},
         manifest={"version": "1.0", "framework": "xgboost"},
         file_hash="abc123def456",
         file_index={"layer1": (0, 1024), "layer2": (1024, 2048)},
         size=1048576,
-        model_name="Customer Churn Predictor",
-        description="XGBoost model predicting customer churn probability",
+        name="Customer Churn Predictor",
+        description="XGBoost artifact predicting customer churn probability",
         tags=["xgboost", "churn", "production"],
     )
-    print(f"Created model: {model_created}")
+    print(f"Created artifact: {artifact_created}")
 
-    # List all model artifacts in the collection
-    models = luml.model_artifacts.list()
-    print(f"All models in collection: {models}")
+    # List all artifact artifacts in the collection
+    artifacts = luml.artifacts.list()
+    print(f"All artifacts in collection: {artifacts}")
 
-    # Get model by ID
-    model_by_id = luml.model_artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
-    print(f"Model by id: {model_by_id}")
+    # Get artifact by ID
+    artifact_by_id = luml.artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    print(f"artifact by id: {artifact_by_id}")
 
-    # Get model by name
-    model_by_name = luml.model_artifacts.get("Customer Churn Predictor")
-    print(f"Model by name: {model_by_name}")
+    # Get artifact by name
+    artifact_by_name = luml.artifacts.get("Customer Churn Predictor")
+    print(f"artifact by name: {artifact_by_name}")
 
-    # Get model from specific collection
-    model_by_id_collection = luml.model_artifacts.get(
+    # Get artifact from specific collection
+    artifact_by_id_collection = luml.artifacts.get(
         "0199c455-21ee-74c6-b747-19a82f1a1e75",
         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     )
-    print(f"Model by id: {model_by_id_collection}")
+    print(f"artifact by id: {artifact_by_id_collection}")
 
-    # Update model metadata
-    updated_model = luml.model_artifacts.update(
-        model_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
-        description="Updated: Advanced churn prediction model",
+    # Update artifact metadata
+    updated_artifact = luml.artifacts.update(
+        artifact_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+        description="Updated: Advanced churn prediction artifact",
         tags=["xgboost", "churn", "production", "v2.1"],
-        status=ModelArtifactStatus.UPLOADED,
+        status=ArtifactStatus.UPLOADED,
     )
-    print(f"Updated model: {updated_model}")
+    print(f"Updated artifact: {updated_artifact}")
 
     # Get download URL
-    download_url = luml.model_artifacts.download_url(
+    download_url = luml.artifacts.download_url(
         "0199c455-21ee-74c6-b747-19a82f1a1e75"
     )
-    print(f"Model Download URL: {download_url}")
+    print(f"artifact Download URL: {download_url}")
 
     # Get delete URL
-    delete_url = luml.model_artifacts.delete_url("0199c455-21ee-74c6-b747-19a82f1a1e75")
-    print(f"Model Delete URL: {delete_url}")
+    delete_url = luml.artifacts.delete_url("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    print(f"artifact Delete URL: {delete_url}")
 
-    # Upload a model file (example - file should exist)
-    uploaded_model = luml.model_artifacts.upload(
-        file_path="/path/to/your/model.dfs",
-        model_name="Customer Churn Predictor",
-        description="XGBoost model predicting customer churn probability",
+    # Upload a artifact file (example - file should exist)
+    uploaded_artifact = luml.artifacts.upload(
+        file_path="/path/to/your/artifact.dfs",
+        name="Customer Churn Predictor",
+        description="XGBoost artifact predicting customer churn probability",
         tags=["xgboost", "churn", "production"],
     )
-    print(f"Uploaded model: {uploaded_model}")
+    print(f"Uploaded artifact: {uploaded_artifact}")
 
-    # Download model
-    luml.model_artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e75", "output.dfs")
+    # Download artifact
+    luml.artifacts.download("0199c455-21ee-74c6-b747-19a82f1a1e75", "output.dfs")
 
-    # Delete model permanently
-    luml.model_artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    # Delete artifact permanently
+    luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
 if __name__ == "__main__":
@@ -242,4 +242,4 @@ if __name__ == "__main__":
     print("\n--------------------------------\n")
     demo_collections()
     print("\n--------------------------------\n")
-    demo_model_artifacts()
+    demo_artifacts()

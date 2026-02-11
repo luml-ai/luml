@@ -127,7 +127,7 @@ class PermissionsHandler:
                 [
                     Resource.ORBIT,
                     Resource.ORBIT_USER,
-                    Resource.MODEL,
+                    Resource.ARTIFACT,
                     Resource.COLLECTION,
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
@@ -143,7 +143,7 @@ class PermissionsHandler:
             [
                 Resource.ORBIT,
                 Resource.ORBIT_USER,
-                Resource.MODEL,
+                Resource.ARTIFACT,
                 Resource.COLLECTION,
                 Resource.SATELLITE,
                 Resource.ORBIT_SECRET,

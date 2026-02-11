@@ -1,26 +1,34 @@
 <a id="luml.api._client"></a>
+<a id="luml.api._client"></a>
 
 # luml.api._client
 
 <a id="luml.api._client.AsyncLumlClient"></a>
+<a id="luml.api._client.AsyncLumlClient"></a>
 
+## AsyncLumlClient Objects
 ## AsyncLumlClient Objects
 
 ```python
 class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
+class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 ```
 
+<a id="luml.api._client.AsyncLumlClient.setup_config"></a>
 <a id="luml.api._client.AsyncLumlClient.setup_config"></a>
 
 #### setup_config
 
 ```python
-async def setup_config(*,
-                       organization: str | None = None,
-                       orbit: str | None = None,
-                       collection: str | None = None) -> None
+async def setup_config(
+    *,
+    organization: str | None = None,
+    orbit: str | None = None,
+    collection: str | None = None
+) -> None
 ```
 
+Method for setting default values for AsyncLumlClient
 Method for setting default values for AsyncLumlClient
 
 **Arguments**:
@@ -89,16 +97,16 @@ def collections() -> "AsyncCollectionResource"
 
 Collections interface.
 
-<a id="luml.api._client.AsyncLumlClient.model_artifacts"></a>
+<a id="luml.api._client.AsyncLumlClient.artifacts"></a>
 
-#### model_artifacts
+#### artifacts
 
 ```python
 @cached_property
-def model_artifacts() -> "AsyncModelArtifactResource"
+def artifacts() -> "AsyncArtifactResource"
 ```
 
-Model Artifacts interface.
+Artifacts interface.
 
 <a id="luml.api._client.LumlClient"></a>
 
@@ -152,14 +160,14 @@ def collections() -> "CollectionResource"
 
 Collections interface.
 
-<a id="luml.api._client.LumlClient.model_artifacts"></a>
+<a id="luml.api._client.LumlClient.artifacts"></a>
 
-#### model_artifacts
+#### artifacts
 
 ```python
 @cached_property
-def model_artifacts() -> "ModelArtifactResource"
+def artifacts() -> "ArtifactResource"
 ```
 
-Model Artifacts interface.
+Artifacts interface.
 

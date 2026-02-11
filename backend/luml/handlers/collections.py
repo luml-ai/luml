@@ -3,20 +3,21 @@ from uuid import UUID
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
-from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.schemas.general import PaginationParams, SortOrder
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
     CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionTypeFilter,
     CollectionUpdate,
     CollectionUpdateIn,
 )
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.utils.pagination import decode_cursor, get_cursor
 
@@ -25,7 +26,7 @@ class CollectionHandler:
     __repository = CollectionRepository(engine)
     __orbit_repository = OrbitRepository(engine)
     __permissions_handler = PermissionsHandler()
-    __models_repository = ModelArtifactRepository(engine)
+    __artifacts_repository = ArtifactRepository(engine)
 
     async def create_collection(
         self,
@@ -61,6 +62,7 @@ class CollectionHandler:
         sort_by: CollectionSortBy = CollectionSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -90,6 +92,7 @@ class CollectionHandler:
             orbit_id=orbit_id,
             pagination=pagination,
             search=search,
+            types=types,
         )
 
         return CollectionsList(
@@ -117,14 +120,18 @@ class CollectionHandler:
         if not collection or collection.orbit_id != orbit_id:
             raise NotFoundError("Collection not found")
 
-        metrics = await self.__models_repository.get_collection_model_artifacts_metrics(
-            collection_id
+        extra_values = (
+            await self.__artifacts_repository.get_collection_artifacts_extra_values(
+                collection_id
+            )
         )
-        tags = await self.__models_repository.get_collection_model_artifacts_tags(
+        tags = await self.__artifacts_repository.get_collection_artifacts_tags(
             collection_id
         )
         return CollectionDetails(
-            **collection.model_dump(), models_metrics=metrics, models_tags=tags
+            **collection.model_dump(),
+            artifacts_extra_values=extra_values,
+            artifacts_tags=tags,
         )
 
     async def update_collection(
@@ -182,11 +189,11 @@ class CollectionHandler:
         collection = await self.__repository.get_collection(collection_id)
         if not collection:
             raise NotFoundError("Collection not found")
-        models_count = (
-            await self.__models_repository.get_collection_model_artifacts_count(
+        artifacts_count = (
+            await self.__artifacts_repository.get_collection_artifacts_count(
                 collection_id
             )
         )
-        if models_count:
-            raise CollectionDeleteError("Collection has models and cant be deleted")
+        if artifacts_count:
+            raise CollectionDeleteError("Collection has artifacts and cant be deleted")
         await self.__repository.delete_collection(collection_id)

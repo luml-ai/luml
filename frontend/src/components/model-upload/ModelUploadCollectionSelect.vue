@@ -43,9 +43,10 @@ import { Select, Button, useToast, type SelectFilterEvent } from 'primevue'
 import { useCollectionsList } from '@/hooks/useCollectionsList'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { watch, ref } from 'vue'
+import { watch, ref, computed } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
 import { Plus } from 'lucide-vue-next'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import CollectionCreator from '../orbits/tabs/registry/CollectionCreator.vue'
 
 type Props = {
@@ -53,21 +54,22 @@ type Props = {
   orbitId: string | null
 }
 
+const COLLECTION_TYPES = [OrbitCollectionTypeEnum.model, OrbitCollectionTypeEnum.mixed]
+
 const props = defineProps<Props>()
 
 const modelValue = defineModel<string | null>('modelValue')
 
 const toast = useToast()
 const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, setSearchQuery } =
-  useCollectionsList()
-
-const virtualScrollerOptions = {
-  lazy: true,
-  onLazyLoad: onLazyLoad,
-  itemSize: 38,
-}
+  useCollectionsList(20, false, COLLECTION_TYPES)
 
 const collectionCreatorVisible = ref(false)
+
+const virtualScrollerOptions = computed(() => {
+  if (collectionsList.value.length < 10) return undefined
+  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 38 }
+})
 
 async function onRequestInfoChange() {
   try {

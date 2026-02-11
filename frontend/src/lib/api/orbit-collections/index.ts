@@ -6,6 +6,7 @@ import type {
   OrbitCollectionCreator,
   ExtendedOrbitCollection,
 } from './interfaces'
+import qs from 'qs'
 
 export class OrbitCollectionsApi {
   private api: AxiosInstance
@@ -21,7 +22,7 @@ export class OrbitCollectionsApi {
   ) {
     const { data: responseData } = await this.api.get<GetCollectionsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections`,
-      { params },
+      { params, paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }) },
     )
     return responseData
   }
@@ -38,7 +39,7 @@ export class OrbitCollectionsApi {
     organizationId: string,
     orbitId: string,
     collectionId: string,
-    data: Omit<OrbitCollectionCreator, 'collection_type'>,
+    data: Omit<OrbitCollectionCreator, 'type'>,
   ) {
     const { data: responseData } = await this.api.patch<ExtendedOrbitCollection>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,

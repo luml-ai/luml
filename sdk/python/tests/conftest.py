@@ -8,11 +8,12 @@ import pytest_asyncio
 
 from luml.api._client import AsyncLumlClient, LumlClient
 from luml.api._types import (
-    BucketSecret,
+    Artifact,
+    ArtifactType,
     Collection,
-    ModelArtifact,
     Orbit,
     Organization,
+    S3BucketSecret,
 )
 
 TEST_BASE_URL = "http://127.0.0.1:8000"
@@ -81,41 +82,48 @@ def sample_collection() -> Collection:
         id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
         name="Test Collection",
         description="Test collection description",
-        collection_type="model",
+        type="model",
         orbit_id="0199c337-09f3-753e-9def-b27745e69be6",
-        total_models=0,
+        total_artifacts=0,
         created_at="2024-01-01T00:00:00Z",
     )
 
 
 @pytest.fixture
-def sample_bucket_secret() -> BucketSecret:
-    return BucketSecret(
+def sample_bucket_secret() -> S3BucketSecret:
+    return S3BucketSecret(
         id="0199c337-09f4-7a01-9f5f-5f68a562cf70",
         endpoint="test.endpoint.com",
         bucket_name="test-bucket",
+        region="us-east-1",
         organization_id="0199c337-09f2-7af1-af5e-83fd7a5b51a0",
         created_at=str(datetime.datetime.now()),
     )
 
 
 @pytest.fixture
-def sample_model_artifact() -> ModelArtifact:
-    return ModelArtifact(
+def sample_model_artifact() -> Artifact:
+    return Artifact(
         id="0199c337-09f4-7a01-9f5f-5f68a562cf70",
         file_name="model.pkl",
-        model_name="test-model",
+        name="test-model",
         collection_id="0199c337-09f4-7a01-9f5f-5f68db62cf70",
         size=1024,
         file_hash="abc123",
         created_at=str(datetime.datetime.now()),
-        metrics={},
+        extra_values={},
         manifest={},
         file_index={},
         bucket_location="location",
         unique_identifier="unique_identifier",
-        status="status",
+        status="uploaded",
+        type=ArtifactType.MODEL,
     )
+
+
+@pytest.fixture
+def sample_artifact(sample_model_artifact: Artifact) -> Artifact:
+    return sample_model_artifact
 
 
 @pytest.fixture
@@ -137,7 +145,12 @@ def mock_initialization_requests(
 
     respx_mock.get(
         f"/organizations/{organization_id}/orbits/{sample_orbit.id}/collections"
-    ).mock(return_value=httpx.Response(200, json=[sample_collection.model_dump()]))
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={"items": [sample_collection.model_dump()], "cursor": None},
+        )
+    )
 
     return {
         "organization": sample_organization,

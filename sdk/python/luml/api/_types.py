@@ -2,9 +2,13 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from luml.api.resources._listed_resource import PaginatedList
+
+
+class BaseOrmConfig:
+    model_config = ConfigDict(use_enum_values=True)
 
 
 def is_uuid(value: str | None) -> bool:
@@ -17,6 +21,96 @@ def is_uuid(value: str | None) -> bool:
         return False
 
 
+class BucketType(StrEnum):
+    """
+    Options: "s3", "azure
+    """
+
+    S3 = "s3"
+    AZURE = "azure"
+
+
+class CollectionType(StrEnum):
+    """
+    Options: "model", "dataset", "experiment", "model_dataset",
+    "dataset_experiment", "model_experiment", "mixed".
+    """
+
+    MODEL = "model"
+    DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MODEL_DATASET = "model_dataset"
+    DATASET_EXPERIMENT = "dataset_experiment"
+    MODEL_EXPERIMENT = "model_experiment"
+    MIXED = "mixed"
+
+
+class CollectionTypeFilter(StrEnum):
+    """
+    Options: "model", "dataset", "experiment", "mixed".
+    """
+
+    MODEL = "model"
+    DATASET = "dataset"
+    EXPERIMENT = "experiment"
+    MIXED = "mixed"
+
+
+class ArtifactType(StrEnum):
+    """
+    Options: "model", "experiment", "dataset"
+    """
+
+    MODEL = "model"
+    EXPERIMENT = "experiment"
+    DATASET = "dataset"
+
+
+class ArtifactStatus(StrEnum):
+    """
+    Options: "pending_upload", "uploaded", "upload_failed", "deletion_failed"
+    """
+
+    PENDING_UPLOAD = "pending_upload"
+    UPLOADED = "uploaded"
+    UPLOAD_FAILED = "upload_failed"
+    DELETION_FAILED = "deletion_failed"
+
+
+class ArtifactSortBy(StrEnum):
+    """
+    Options: "created_at", "name", "description", "size", "status", "type"
+    """
+
+    CREATED_AT = "created_at"
+    NAME = "name"
+    SIZE = "size"
+    DESCRIPTION = "description"
+    STATUS = "status"
+    TYPE = "type"
+
+
+class SortOrder(StrEnum):
+    """
+    Options: "asc", "desc"
+    """
+
+    ASC = "asc"
+    DESC = "desc"
+
+
+class CollectionSortBy(StrEnum):
+    """
+    Options: "created_at", "name", "description", "type", "total_artifacts"
+    """
+
+    CREATED_AT = "created_at"
+    NAME = "name"
+    TYPE = "type"
+    DESCRIPTION = "description"
+    TOTAL_ARTIFACTS = "total_artifacts"
+
+
 class Organization(BaseModel):
     id: str
     name: str
@@ -25,12 +119,7 @@ class Organization(BaseModel):
     updated_at: str | None = None
 
 
-class BucketType(StrEnum):
-    S3 = "s3"
-    AZURE = "azure"
-
-
-class S3BucketSecret(BaseModel):
+class S3BucketSecret(BaseModel, BaseOrmConfig):
     id: str
     type: Literal[BucketType.S3] = BucketType.S3
     endpoint: str
@@ -43,7 +132,7 @@ class S3BucketSecret(BaseModel):
     updated_at: str | None = None
 
 
-class AzureBucketSecret(BaseModel):
+class AzureBucketSecret(BaseModel, BaseOrmConfig):
     id: str
     type: Literal[BucketType.AZURE] = BucketType.AZURE
     endpoint: str
@@ -73,71 +162,34 @@ class Orbit(BaseModel):
     updated_at: str | None = None
 
 
-class CollectionType(StrEnum):
-    """
-    Options: "model", "dataset".
-    """
-
-    MODEL = "model"
-    DATASET = "dataset"
-
-
-class ModelArtifactStatus(StrEnum):
-    PENDING_UPLOAD = "pending_upload"
-    UPLOADED = "uploaded"
-    UPLOAD_FAILED = "upload_failed"
-    DELETION_FAILED = "deletion_failed"
-
-
-class SortOrder(StrEnum):
-    """
-    Options: "asc", "desc"
-    """
-
-    ASC = "asc"
-    DESC = "desc"
-
-
-class CollectionSortBy(StrEnum):
-    """
-    Options: "created_at", "name", "description", "collection_type", "total_models"
-    """
-
-    CREATED_AT = "created_at"
-    NAME = "name"
-    COLLECTION_TYPE = "collection_type"
-    DESCRIPTION = "description"
-    TOTAL_MODELS = "total_models"
-
-
 class Collection(BaseModel):
     id: str
     orbit_id: str
     description: str
     name: str
-    collection_type: str
+    type: str
     tags: list[str] | None = None
-    total_models: int
+    total_artifacts: int = 0
     created_at: str
     updated_at: str | None = None
 
 
 class CollectionDetails(Collection):
-    models_tags: list[str] | None = None
-    models_metrics: list[str] | None = None
+    artifacts_tags: list[str] | None = None
+    artifacts_extra_values: list[str] | None = None
 
 
 class CollectionsList(PaginatedList[Collection]):
     pass
 
 
-class ModelArtifact(BaseModel):
+class Artifact(BaseModel, BaseOrmConfig):
     id: str
     collection_id: str
     file_name: str
-    model_name: str | None = None
+    name: str
     description: str | None = None
-    metrics: dict
+    extra_values: dict
     manifest: dict
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -146,17 +198,18 @@ class ModelArtifact(BaseModel):
     unique_identifier: str
     tags: list[str] | None = None
     status: str
+    type: ArtifactType
     created_at: str
     updated_at: str | None = None
 
 
-class ModelArtifactsList(PaginatedList[ModelArtifact]):
+class ArtifactsList(PaginatedList[Artifact]):
     pass
 
 
-class ModelDetails(BaseModel):
+class ArtifactFileDetails(BaseModel):
     file_name: str
-    metrics: dict
+    extra_values: dict
     manifest: dict
     file_hash: str
     file_index: dict[str, tuple[int, int]]
@@ -177,7 +230,7 @@ class PartDetails(BaseModel):
     part_size: int
 
 
-class UploadDetails(BaseModel):
+class UploadDetails(BaseModel, BaseOrmConfig):
     type: BucketType
     url: str | None = None
     multipart: bool = False
@@ -185,7 +238,7 @@ class UploadDetails(BaseModel):
     bucket_secret_id: str
 
 
-class MultiPartUploadDetails(BaseModel):
+class MultiPartUploadDetails(BaseModel, BaseOrmConfig):
     type: BucketType
     upload_id: str | None = None
     parts: list[PartDetails]
@@ -199,6 +252,6 @@ class BucketMultipartUpload(BaseModel):
     upload_id: str
 
 
-class CreatedModel(BaseModel):
+class CreatedArtifact(BaseModel):
     upload_details: UploadDetails
-    model: ModelArtifact
+    artifact: Artifact

@@ -198,9 +198,9 @@ class CrudMixin:
         if sort_by is None:
             return orm_class.created_at  # type: ignore[attr-defined]
 
-        if extra_sort_field and sort_by == "metrics":
+        if extra_sort_field and sort_by == "extra_values":
             return cast(
-                orm_class.metrics[extra_sort_field].astext,  # type: ignore[attr-defined]
+                orm_class.extra_values[extra_sort_field].astext,  # type: ignore[attr-defined]
                 Float,
             )
         return getattr(orm_class, sort_by, orm_class.created_at)  # type: ignore[attr-defined]

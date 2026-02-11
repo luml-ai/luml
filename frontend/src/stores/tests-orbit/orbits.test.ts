@@ -37,10 +37,11 @@ const baseOrbit: Orbit = {
   bucket_secret_id: '0',
   total_collections: 0,
   role: OrbitRoleEnum.member,
+  total_artifacts: 0,
   permissions: {
     orbit: PermissionEnum.read,
     orbit_user: PermissionEnum.read,
-    model: PermissionEnum.create,
+    artifact: PermissionEnum.create,
     collection: PermissionEnum.create,
   },
 }
@@ -364,7 +365,7 @@ describe('OrbitsStore', () => {
       const perm = {
         orbit: PermissionEnum.read,
         orbit_user: PermissionEnum.update,
-        model: PermissionEnum.create,
+        artifact: PermissionEnum.create,
         collection: PermissionEnum.delete,
       }
 

@@ -4,12 +4,13 @@ from sqlalchemy import String, cast, or_
 
 from luml.models import CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
-from luml.schemas.general import PaginationParams
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
+    CollectionTypeFilter,
     CollectionUpdate,
 )
+from luml.schemas.general import PaginationParams
 
 
 class CollectionRepository(RepositoryBase, CrudMixin):
@@ -36,6 +37,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
         orbit_id: UUID,
         pagination: PaginationParams,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> list[Collection]:
         async with self._get_session() as session:
             conditions = [CollectionOrm.orbit_id == orbit_id]
@@ -48,6 +50,9 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                         cast(CollectionOrm.tags, String).ilike(search_pattern),
                     )
                 )
+
+            if types:
+                conditions.append(or_(*[CollectionOrm.type == t.value for t in types]))
 
             db_collections = await self.get_models_with_pagination(
                 session,

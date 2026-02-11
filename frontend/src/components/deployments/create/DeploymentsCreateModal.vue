@@ -56,7 +56,7 @@
 import type { CreateDeploymentForm, FieldInfo } from '../deployments.interfaces'
 import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
 import type { FormSubmitEvent } from '@primevue/forms'
-import type { MlModel } from '@/lib/api/orbit-ml-models/interfaces'
+import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { Dialog, Button, useToast } from 'primevue'
 import { Form } from '@primevue/forms'
 import { dialogPt, getInitialFormData } from '../deployments.const'
@@ -85,7 +85,7 @@ const visible = defineModel<boolean>('visible')
 
 const formRef = ref<any>()
 const loading = ref(false)
-const selectedModel = ref<MlModel | null>(null)
+const selectedModel = ref<ModelArtifact | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
 const resolver = ref(createDeploymentResolver(initialValues))
 
@@ -152,7 +152,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
     name: form.name,
     description: form.description,
     satellite_id: form.satelliteId,
-    model_artifact_id: form.modelId,
+    artifact_id: form.modelId,
     satellite_parameters: fieldsToRecord<string | number | boolean>(form.satelliteFields, (v) => v),
     dynamic_attributes_secrets: fieldsToRecord(
       form.secretDynamicAttributes,
@@ -178,7 +178,7 @@ function fieldsToRecord<T extends string | number | boolean>(
   )
 }
 
-function onModelChanged(model: MlModel | null) {
+function onModelChanged(model: ModelArtifact | null) {
   selectedModel.value = model
 }
 </script>

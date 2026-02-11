@@ -8,23 +8,26 @@ from uuid import uuid7
 import asyncpg  # type: ignore[import-untyped]
 import pytest_asyncio
 from luml.models import OrganizationOrm
+from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.invites import InviteRepository
-from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.repositories.users import UserRepository
-from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
-from luml.schemas.model_artifacts import (
+from luml.schemas.artifacts import (
     NDJSON,
+    Artifact,
+    ArtifactCreate,
+    ArtifactStatus,
+    ArtifactType,
+    Manifest,
+)
+from luml.schemas.bucket_secrets import S3BucketSecret, S3BucketSecretCreate
+from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionType,
-    Manifest,
-    ModelArtifact,
-    ModelArtifactCreate,
-    ModelArtifactStatus,
 )
 from luml.schemas.orbit import (
     Orbit,
@@ -130,7 +133,7 @@ class CollectionFixtureData(OrbitFixtureData):
 
 @dataclass
 class SatelliteFixtureData(OrbitFixtureData):
-    model: ModelArtifact
+    model: Artifact
     satellite: Satellite
 
 
@@ -374,14 +377,14 @@ async def test_bucket() -> AsyncGenerator[S3BucketSecret]:
 
 
 @pytest_asyncio.fixture
-async def test_model_artifact(
+async def test_artifact(
     manifest_example: Manifest,
-) -> AsyncGenerator[ModelArtifactCreate]:
-    yield ModelArtifactCreate(
+) -> AsyncGenerator[ArtifactCreate]:
+    yield ArtifactCreate(
         collection_id=uuid7(),
         file_name="model.luml",
-        model_name="Test Model",
-        metrics={"accuracy": 0.95, "precision": 0.92},
+        name="Test Model",
+        extra_values={"accuracy": 0.95, "precision": 0.92},
         manifest=manifest_example,
         file_hash=str(uuid.uuid4()),
         file_index={"model": (0, 1000)},
@@ -389,8 +392,9 @@ async def test_model_artifact(
         size=1000,
         unique_identifier="test_uid_123",
         tags=["test", "model"],
-        status=ModelArtifactStatus.PENDING_UPLOAD,
+        status=ArtifactStatus.PENDING_UPLOAD,
         created_by_user="User FullName",
+        type=ArtifactType.MODEL,
     )
 
 
@@ -589,7 +593,7 @@ async def create_collection(
         orbit_id=data.orbit.id,
         description="description",
         name="name",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["tag1", "tag2"],
     )
 
@@ -610,11 +614,11 @@ async def create_collection(
 
 @pytest_asyncio.fixture(scope="function")
 async def create_satellite(
-    create_collection: CollectionFixtureData, test_model_artifact: ModelArtifactCreate
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> SatelliteFixtureData:
     data = create_collection
     repo = SatelliteRepository(data.engine)
-    model_artifact_repo = ModelArtifactRepository(data.engine)
+    artifact_repo = ArtifactRepository(data.engine)
     orbit, collection = data.orbit, data.collection
 
     assert orbit is not None, "Orbit should not be None in create_satellite fixture"
@@ -622,12 +626,12 @@ async def create_satellite(
         "Collection should not be None in create_satellite fixture"
     )
 
-    model_data = test_model_artifact.model_copy()
-    model_data.collection_id = collection.id
+    artifact_data = test_artifact.model_copy()
+    artifact_data.collection_id = collection.id
 
-    model = await model_artifact_repo.create_model_artifact(model_data)
-    assert model is not None, (
-        "ModelArtifact should not be None in create_satellite fixture"
+    artifact = await artifact_repo.create_artifact(artifact_data)
+    assert artifact is not None, (
+        "Artifact should not be None in create_satellite fixture"
     )
 
     satellite_data = SatelliteCreate(
@@ -645,6 +649,6 @@ async def create_satellite(
         orbit=data.orbit,
         bucket_secret=data.bucket_secret,
         user=data.user,
-        model=model,
+        model=artifact,
         satellite=satellite,
     )
