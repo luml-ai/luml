@@ -1,39 +1,16 @@
 <template>
   <div>
-    <div class="search-container">
-      <IconField>
-        <InputText
-          :model-value="searchQuery"
-          size="small"
-          placeholder="Search"
-          @update:model-value="onSearch"
-        />
-        <InputIcon>
-          <Search :size="12" />
-        </InputIcon>
-      </IconField>
-    </div>
+    <CollectionsToolbar
+      :types="typesQuery"
+      :search="searchQuery"
+      @update:search="onSearch"
+      @update:types="setTypesQuery"
+    ></CollectionsToolbar>
     <div v-if="loading" class="loading-container">
       <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
     </div>
-    <div v-else-if="collectionsList.length === 0" class="content">
-      <Folders :size="35" color="var(--p-primary-color)" />
-      <h3 class="label">Welcome to the Registry</h3>
-      <div class="text">
-        <p>
-          Organize your best model checkpoints into collections for easy access, versioning, and
-          collaboration.
-        </p>
-        <p>Start by creating your first collection.</p>
-      </div>
-    </div>
-    <CollectionsList
-      v-else
-      :list="collectionsList"
-      :search="searchQuery"
-      @update:search="onSearch"
-      @lazy-load="onLazyLoad"
-    ></CollectionsList>
+    <CollectionsWelcome v-else-if="collectionsList.length === 0" />
+    <CollectionsList v-else :list="collectionsList" @lazy-load="onLazyLoad"></CollectionsList>
   </div>
   <CollectionCreator
     :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
@@ -44,9 +21,8 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, onUnmounted, ref } from 'vue'
-import { Skeleton, useToast, IconField, InputText, InputIcon } from 'primevue'
-import { Folders, Search } from 'lucide-vue-next'
+import { onBeforeMount, onUnmounted, ref, watch } from 'vue'
+import { Skeleton, useToast } from 'primevue'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
@@ -54,6 +30,8 @@ import { useCollectionsList } from '@/hooks/useCollectionsList'
 import { useDebounceFn } from '@vueuse/core'
 import CollectionsList from '@/components/orbits/tabs/registry/CollectionsList.vue'
 import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
+import CollectionsToolbar from '@/components/orbits/tabs/registry/CollectionsToolbar.vue'
+import CollectionsWelcome from '@/components/orbits/tabs/registry/CollectionsWelcome.vue'
 
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
@@ -66,6 +44,8 @@ const {
   searchQuery,
   setSearchQuery,
   onLazyLoad,
+  typesQuery,
+  setTypesQuery,
 } = useCollectionsList()
 
 const loading = ref(false)
@@ -76,7 +56,6 @@ function updateCreatorVisible(visible: boolean | undefined) {
 
 function onSearch(value: string | undefined) {
   setSearchQuery(value?.trim() ?? '')
-  debouncedFirstPage()
 }
 
 async function getFirstCollectionsPage() {
@@ -97,6 +76,8 @@ async function getFirstCollectionsPage() {
 
 const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 
+watch([searchQuery, typesQuery], debouncedFirstPage)
+
 onBeforeMount(async () => {
   await getFirstCollectionsPage()
 })
@@ -107,48 +88,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.search-container {
-  margin-bottom: 16px;
-}
-
-.content {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  min-height: 150px;
-  border-radius: 8px;
-  box-shadow: var(--card-shadow);
-  border: 1px solid var(--p-content-border-color);
-  background-color: var(--p-card-background);
-}
-
-.label {
-  font-weight: 500;
-}
-
-.text {
-  font-size: 12px;
-  color: var(--p-text-muted-color);
-}
-
 .loading-container {
   display: flex;
   flex-direction: column;
   gap: 24px;
-}
-
-:deep(.p-iconfield) {
-  max-width: 237px;
-}
-
-:deep(.p-iconfield .p-inputicon:last-child) {
-  inset-inline-end: 9px;
-}
-
-:deep(.p-iconfield .p-inputtext) {
-  width: 100%;
 }
 </style>

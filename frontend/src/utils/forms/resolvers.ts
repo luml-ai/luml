@@ -90,7 +90,7 @@ export const collectionCreatorResolver: Resolver = zodResolver(
   z.object({
     description: z.string(),
     name: z.string().min(1),
-    collection_type: z.string().min(1),
+    type: z.string().min(1),
   }),
 )
 

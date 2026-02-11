@@ -10,7 +10,7 @@ export interface OrbitCollection {
   orbit_id: string
   description: string
   name: string
-  collection_type: OrbitCollectionTypeEnum
+  type: OrbitCollectionTypeEnum
   tags: string[]
   total_artifacts: number
   created_at: Date
@@ -25,7 +25,7 @@ export interface ExtendedOrbitCollection extends OrbitCollection {
 export interface OrbitCollectionCreator {
   description: string
   name: string
-  collection_type?: OrbitCollectionTypeEnum
+  type?: OrbitCollectionTypeEnum
   tags: string[]
 }
 
@@ -37,7 +37,7 @@ export interface GetCollectionsListResponse {
 export interface GetCollectionsListParams {
   cursor: string | null
   limit?: number
-  sort_by?: 'created_at' | 'name' | 'collection_type' | 'description' | 'total_artifacts'
+  sort_by?: 'created_at' | 'name' | 'type' | 'description' | 'total_artifacts'
   order?: 'asc' | 'desc'
   search?: string
   types?: OrbitCollectionTypeEnum[]

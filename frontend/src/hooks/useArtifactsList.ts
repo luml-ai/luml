@@ -7,6 +7,7 @@ import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
+import { useDebounceFn } from '@vueuse/core'
 
 interface RequestInfo {
   organizationId: string
@@ -25,6 +26,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     sort_by: undefined,
     order: undefined,
   })
+  const typesQuery = ref<ArtifactTypeEnum[]>(types ?? [])
 
   const list = ref<Artifact[]>([])
 
@@ -63,7 +65,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.collectionId,
-      { cursor, limit, ...sortData.value, types },
+      { cursor, limit, ...sortData.value, types: typesQuery.value },
       abortController.value.signal,
     )
   }
@@ -110,8 +112,14 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     getInitialPage()
   }
 
+  const debouncedOnSortDataChange = useDebounceFn(onSortDataChange, 500)
+
   function setLoading(value: boolean) {
     isLoading.value = value
+  }
+
+  function setTypesQuery(types: ArtifactTypeEnum[]) {
+    typesQuery.value = types
   }
 
   if (syncStore) {
@@ -124,7 +132,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     )
   }
 
-  watch(sortData, onSortDataChange)
+  watch([sortData, typesQuery], debouncedOnSortDataChange)
 
   return {
     setRequestInfo,
@@ -138,5 +146,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     setSortData,
     onLazyLoad,
     setLoading,
+    setTypesQuery,
+    typesQuery,
   }
 }

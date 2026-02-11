@@ -20,7 +20,6 @@ export class OrbitCollectionsApi {
     orbitId: string,
     params: GetCollectionsListParams,
   ) {
-    console.log('params', params)
     const { data: responseData } = await this.api.get<GetCollectionsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections`,
       { params, paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }) },
@@ -40,7 +39,7 @@ export class OrbitCollectionsApi {
     organizationId: string,
     orbitId: string,
     collectionId: string,
-    data: Omit<OrbitCollectionCreator, 'collection_type'>,
+    data: Omit<OrbitCollectionCreator, 'type'>,
   ) {
     const { data: responseData } = await this.api.patch<ExtendedOrbitCollection>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
