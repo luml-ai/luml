@@ -1,4 +1,4 @@
-import type { DialogPassThroughOptions } from 'primevue'
+import type { DialogPassThroughOptions, MultiSelectPassThroughOptions } from 'primevue'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import { CircuitBoard, FileChartColumn, FlaskConical, Package } from 'lucide-vue-next'
 
@@ -11,6 +11,15 @@ export const COLLECTION_CREATOR_DIALOG_PT: DialogPassThroughOptions = {
   },
   content: {
     style: 'padding: 0 28px 28px;',
+  },
+}
+
+export const COLLECTION_TYPE_SELECT_PT: MultiSelectPassThroughOptions = {
+  root: {
+    style: 'width: 230px;',
+  },
+  header: {
+    style: 'display: none;',
   },
 }
 

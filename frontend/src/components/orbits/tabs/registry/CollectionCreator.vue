@@ -19,16 +19,16 @@
           />
         </div>
         <div class="field">
-          <label for="collection_type" class="label required">Type</label>
+          <label for="type" class="label required">Type</label>
           <Select
-            v-model="formData.collection_type"
+            v-model="formData.type"
             :options="COLLECTION_TYPE_OPTIONS"
             option-label="label"
             option-value="value"
             option-disabled="disabled"
             placeholder="Select artifact types"
-            name="collection_type"
-            id="collection_type"
+            name="type"
+            id="type"
           ></Select>
         </div>
         <div class="field">
@@ -90,7 +90,7 @@ const visible = defineModel<boolean>('visible')
 const formData = ref<OrbitCollectionCreator>({
   description: '',
   name: '',
-  collection_type: OrbitCollectionTypeEnum.model,
+  type: OrbitCollectionTypeEnum.model,
   tags: [],
 })
 const loading = ref(false)

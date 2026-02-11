@@ -19,7 +19,7 @@
           />
         </div>
         <div class="field">
-          <label for="collection_type" class="label required">Type</label>
+          <label for="type" class="label required">Type</label>
           <Select
             v-model="formData.type"
             :options="ARTIFACT_TYPE_OPTIONS"

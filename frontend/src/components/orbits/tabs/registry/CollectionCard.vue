@@ -9,11 +9,11 @@
         </div>
         <div class="info-item">
           <component
-            v-if="COLLECTION_TYPE_CONFIG[data.collection_type]"
-            :is="COLLECTION_TYPE_CONFIG[data.collection_type].icon"
+            v-if="COLLECTION_TYPE_CONFIG[data.type]"
+            :is="COLLECTION_TYPE_CONFIG[data.type].icon"
             :size="12"
           />
-          <span>{{ COLLECTION_TYPE_CONFIG[data.collection_type]?.label ?? 'Unknown type' }}</span>
+          <span>{{ COLLECTION_TYPE_CONFIG[data.type]?.label ?? 'Unknown type' }}</span>
         </div>
         <div class="info-item">
           <Database :size="12" />

@@ -23,6 +23,7 @@ export const useCollectionsList = (
   const requestInfo = ref<RequestInfo | null>(null)
   const isLoading = ref(false)
   const searchQuery = ref<string>('')
+  const typesQuery = ref<OrbitCollectionTypeEnum[]>(types ?? [])
 
   const collectionsList = ref<OrbitCollection[]>([])
 
@@ -58,7 +59,7 @@ export const useCollectionsList = (
     return await api.orbitCollections.getCollectionsList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
-      { cursor, limit, search: searchQuery.value, types },
+      { cursor, limit, search: searchQuery.value, types: typesQuery.value },
     )
   }
 
@@ -100,6 +101,10 @@ export const useCollectionsList = (
     }
   }
 
+  function setTypesQuery(types: OrbitCollectionTypeEnum[]) {
+    typesQuery.value = types
+  }
+
   if (syncStore) {
     watch(
       () => collectionsStore.collectionsList,
@@ -122,5 +127,7 @@ export const useCollectionsList = (
     searchQuery,
     setSearchQuery,
     onLazyLoad,
+    typesQuery,
+    setTypesQuery,
   }
 }

@@ -11,6 +11,8 @@
       <div>
         <DataTable
           v-model:selection="selectedArtifacts"
+          v-model:filters="filters"
+          filter-display="menu"
           :value="list"
           :pt="TABLE_PT"
           selection-mode="multiple"
@@ -46,11 +48,17 @@
           <Column
             field="type"
             header="Type"
-            :pt="{ columnHeaderContent: { style: 'width: 100px' } }"
+            :pt="TYPE_COLUMN_PT"
+            :show-filter-operator="true"
+            :show-filter-menu="showTypeFilter"
           >
             <template #body="{ data }: { data: Artifact }">
               <TypeColumnBody :data="data" />
             </template>
+            <template #filterheader>
+              <TypeColumnFilter v-model="filters.type.value" />
+            </template>
+            <template #filter></template>
           </Column>
           <Column
             field="created_at"
@@ -144,20 +152,23 @@ import {
   type GetArtifactsListParams,
   type Artifact,
 } from '@/lib/api/artifacts/interfaces'
-import { computed, onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useRouter, useRoute } from 'vue-router'
 import { useCollectionsStore } from '@/stores/collections'
-import { columnBodyStyle, TABLE_PT } from './models-table.data'
+import { columnBodyStyle, TABLE_PT, TYPE_COLUMN_PT } from './models-table.data'
 import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { getErrorMessage, getSizeText } from '@/helpers/helpers'
 import { useDebounceFn } from '@vueuse/core'
+import { FilterMatchMode } from '@primevue/core/api'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import TableToolbar from './TableToolbar.vue'
 import TagsList from './TagsList.vue'
 import NameColumnBody from './NameColumnBody.vue'
 import StatusColumnBody from './StatusColumnBody.vue'
 import TypeColumnBody from './TypeColumnBody.vue'
+import TypeColumnFilter from './TypeColumnFilter.vue'
 
 const INITIAL_VISIBLE_METRICS_COUNT = 20
 
@@ -175,13 +186,21 @@ const {
   setSortData,
   isLoading,
   setLoading,
+  setTypesQuery,
 } = useArtifactsList()
 
 const selectedArtifacts = ref<Artifact[]>([])
 const allMetricsKeys = ref<string[]>([])
 const visibleMetrics = ref<string[]>([])
+const filters = reactive({
+  type: { value: [], matchMode: FilterMatchMode.CONTAINS },
+})
+
 const showLoader = computed(() => {
   return isLoading.value && list.value.length === 0
+})
+const showTypeFilter = computed(() => {
+  return collectionsStore.currentCollection?.type === OrbitCollectionTypeEnum.mixed
 })
 
 const virtualScrollerOptions = ref<VirtualScrollerProps>({
@@ -255,6 +274,10 @@ watch(list, (data) => {
   selectedArtifacts.value = selectedArtifacts.value.map(
     (artifact) => data.find((updatedArtifact) => artifact.id === updatedArtifact.id) || artifact,
   )
+})
+
+watch(filters, (newFilters) => {
+  setTypesQuery(newFilters.type.value)
 })
 
 onBeforeMount(initList)
