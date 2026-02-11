@@ -22,7 +22,7 @@ from luml.repositories.model_artifacts import ModelArtifactRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CreateModelArtifactResponse,
@@ -39,7 +39,7 @@ from luml.schemas.model_artifacts import (
 )
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
-from luml.utils.pagination import decode_cursor, get_cursor
+from luml.utils.pagination import decode_cursor, encode_cursor
 
 
 class ModelArtifactHandler:
@@ -376,6 +376,18 @@ class ModelArtifactHandler:
 
         await self.__repository.delete_model_artifact(model_artifact_id)
 
+    @staticmethod
+    def _validate_cursor(
+        cursor: Cursor | None, sort_by: str, order: SortOrder, collection_id: UUID
+    ) -> Cursor | None:
+        if cursor and (
+            cursor.sort_by == sort_by
+            and cursor.order == order.value
+            and cursor.scope_id == collection_id
+        ):
+            return cursor
+        return None
+
     async def get_collection_model_artifacts(
         self,
         user_id: UUID,
@@ -398,30 +410,22 @@ class ModelArtifactHandler:
             organization_id, orbit_id, collection_id
         )
 
-        is_metric = await self._is_metric_sort(collection_id, sort_by)
         cursor = decode_cursor(cursor_str)
-
-        repo_sort_by = "metrics" if is_metric else sort_by
-        extra_sort_field = sort_by if is_metric else None
-
-        use_cursor = cursor if cursor and cursor.sort_by == sort_by else None
+        use_cursor = self._validate_cursor(cursor, sort_by, order, collection_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
-            sort_by=repo_sort_by,
+            sort_by=sort_by,
             order=order,
             limit=limit,
-            extra_sort_field=extra_sort_field,
+            scope_id=collection_id,
         )
 
-        items = await self.__repository.get_collection_model_artifacts(
+        items, cursor = await self.__repository.get_collection_model_artifacts(
             collection_id, pagination
         )
 
-        return ModelArtifactsList(
-            items=items[:limit],
-            cursor=get_cursor(items, limit, sort_by, is_metric),
-        )
+        return ModelArtifactsList(items=items, cursor=encode_cursor(cursor))
 
     async def get_model_artifact(
         self,

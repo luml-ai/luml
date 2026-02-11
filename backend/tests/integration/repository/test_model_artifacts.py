@@ -83,7 +83,9 @@ async def test_get_collection_model_artifacts(
     created_model2 = await repo.create_model_artifact(model_data2)
 
     pagination = PaginationParams(limit=limit)
-    models = await repo.get_collection_model_artifacts(collection.id, pagination)
+    models, cursor = await repo.get_collection_model_artifacts(
+        collection.id, pagination
+    )
 
     assert len(models) == 2
     model_ids = [m.id for m in models]
