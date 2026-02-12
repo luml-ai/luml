@@ -27,11 +27,8 @@ def up(conn: sqlite3.Connection) -> None:
         )
     """)
 
-    conn.commit()
-
 
 def down(conn: sqlite3.Connection) -> None:
     cursor = conn.cursor()
     cursor.execute("DROP TABLE IF EXISTS experiments")
     cursor.execute("DROP TABLE IF EXISTS experiment_groups")
-    conn.commit()
