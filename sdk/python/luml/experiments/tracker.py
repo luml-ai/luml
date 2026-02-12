@@ -27,7 +27,9 @@ class ExperimentTracker:
     Example:
     ```python
     tracker = ExperimentTracker("sqlite://./my_experiments")
-    exp_id = tracker.start_experiment(name="my_experiment", tags=["baseline"])
+    exp_id = tracker.start_experiment(
+        "my_group", name="my_experiment", tags=["baseline"]
+    )
     tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
     tracker.end_experiment(exp_id)
@@ -48,7 +50,7 @@ class ExperimentTracker:
 
     def start_experiment(
         self,
-        group: str = "Default group",
+        group: str,
         experiment_id: str | None = None,
         name: str | None = None,
         tags: list[str] | None = None,
@@ -57,9 +59,9 @@ class ExperimentTracker:
         Start a new experiment tracking session.
 
         Args:
+            group: Group name to organize related experiments.
             experiment_id: Unique experiment ID. Auto-generated if not provided.
             name: Human-readable experiment name.
-            group: Group name to organize related experiments.
             tags: List of tags for categorizing the experiment.
 
         Returns:
@@ -69,8 +71,8 @@ class ExperimentTracker:
         ```python
         tracker = ExperimentTracker()
         exp_id = tracker.start_experiment(
+            "image_classification",
             name="baseline_model",
-            group="image_classification",
             tags=["resnet", "baseline"]
         )
         ```
@@ -93,7 +95,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment(name="my_exp")
+        exp_id = tracker.start_experiment("my_group", name="my_exp")
         tracker.end_experiment(exp_id)
         ```
         """
@@ -123,7 +125,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment()
+        exp_id = tracker.start_experiment("my_group")
         tracker.log_static("learning_rate", 0.001)
         tracker.log_static("model_architecture", "resnet50")
         tracker.log_static("batch_size", 32)
@@ -153,7 +155,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment()
+        exp_id = tracker.start_experiment("my_group")
         for epoch in range(10):
             loss = train_epoch()
             tracker.log_dynamic("train_loss", loss, step=epoch)
@@ -259,7 +261,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment()
+        exp_id = tracker.start_experiment("my_group")
         tracker.log_attachment("model_config.json", config_json)
         tracker.log_attachment("plot.png", image_bytes, binary=True)
         ```
@@ -322,7 +324,7 @@ class ExperimentTracker:
         from luml.integrations.sklearn import save_sklearn
 
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment(name="sklearn_model")
+        exp_id = tracker.start_experiment("my_group", name="sklearn_model")
         tracker.log_static("model_type", "RandomForest")
 
         model_ref = save_sklearn(model, X_train)
@@ -379,7 +381,7 @@ class ExperimentTracker:
         ```python
         tracker = ExperimentTracker()
         tracker.enable_tracing()
-        exp_id = tracker.start_experiment()
+        exp_id = tracker.start_experiment("my_group")
         # All traced functions will be logged to this experiment
         ```
         """
@@ -400,7 +402,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment()
+        exp_id = tracker.start_experiment("my_group")
         # Log data...
         tracker.end_experiment()
         tracker.export("experiment_data.tar", experiment_id=exp_id)

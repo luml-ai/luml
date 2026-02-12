@@ -94,6 +94,7 @@ class MigrationRunner:
 
         for migration in pending:
             try:
+                cursor.execute("BEGIN")
                 migration["up"](self.conn)
                 cursor.execute(
                     "INSERT INTO schema_migrations (version) VALUES (?)",
@@ -127,6 +128,7 @@ class MigrationRunner:
                 raise RuntimeError(f"Migration {version} does not support rollback")
 
             try:
+                cursor.execute("BEGIN")
                 migration["down"](self.conn)
                 cursor.execute(
                     "DELETE FROM schema_migrations WHERE version = ?",

@@ -41,11 +41,17 @@ def up(conn: sqlite3.Connection) -> None:
     )
     orphan_count = cursor.fetchone()[0]
     if orphan_count > 0:
-        default_group_id = str(uuid.uuid4())
         cursor.execute(
-            "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
-            (default_group_id, DEFAULT_GROUP_NAME),
+            "SELECT id FROM experiment_groups WHERE name = ?",
+            (DEFAULT_GROUP_NAME,),
         )
+        existing = cursor.fetchone()
+        if existing is None:
+            default_group_id = str(uuid.uuid4())
+            cursor.execute(
+                "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
+                (default_group_id, DEFAULT_GROUP_NAME),
+            )
         cursor.execute(
             "UPDATE experiments SET group_name = ? "
             "WHERE group_name IS NULL OR group_name = ''",
@@ -82,10 +88,9 @@ def up(conn: sqlite3.Connection) -> None:
     )
 
     cursor.execute(
-        "CREATE UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name)"
+        "CREATE UNIQUE INDEX "
+        "IF NOT EXISTS idx_experiment_groups_name ON experiment_groups(name)"
     )
-
-    conn.commit()
 
 
 def down(conn: sqlite3.Connection) -> None:
@@ -106,5 +111,3 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN model_id")
     cursor.execute("DROP TABLE IF EXISTS models")
-
-    conn.commit()
