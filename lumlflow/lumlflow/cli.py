@@ -19,7 +19,6 @@ def ui(
         False, "--no-browser", help="Don't open browser automatically"
     ),
 ) -> None:
-    """Start the lumlflow UI server."""
     url = f"http://{host}:{port}"
 
     def open_browser_delayed() -> None:
