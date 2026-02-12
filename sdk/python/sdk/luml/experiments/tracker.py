@@ -95,7 +95,17 @@ class ExperimentTracker:
                 Can be None if no tags are necessary.
 
         Returns:
-            str: The unique identifier of the started experiment.
+            str: The experiment ID.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment(
+            "image_classification",
+            name="baseline_model",
+            tags=["resnet", "baseline"]
+        )
+        ```
         """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
