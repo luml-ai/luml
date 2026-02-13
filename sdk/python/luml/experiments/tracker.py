@@ -91,7 +91,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group", name="my_exp")
+        exp_id = tracker.start_experiment(name="my_exp")
         tracker.end_experiment(exp_id)
         ```
         """
@@ -121,7 +121,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group")
+        exp_id = tracker.start_experiment()
         tracker.log_static("learning_rate", 0.001)
         tracker.log_static("model_architecture", "resnet50")
         tracker.log_static("batch_size", 32)
@@ -151,7 +151,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group")
+        exp_id = tracker.start_experiment()
         for epoch in range(10):
             loss = train_epoch()
             tracker.log_dynamic("train_loss", loss, step=epoch)
@@ -257,7 +257,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group")
+        exp_id = tracker.start_experiment()
         tracker.log_attachment("model_config.json", config_json)
         tracker.log_attachment("plot.png", image_bytes, binary=True)
         ```
@@ -320,7 +320,7 @@ class ExperimentTracker:
         from luml.integrations.sklearn import save_sklearn
 
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group", name="sklearn_model")
+        exp_id = tracker.start_experiment(name="sklearn_model")
         tracker.log_static("model_type", "RandomForest")
 
         model_ref = save_sklearn(model, X_train)
@@ -377,7 +377,7 @@ class ExperimentTracker:
         ```python
         tracker = ExperimentTracker()
         tracker.enable_tracing()
-        exp_id = tracker.start_experiment("my_group")
+        exp_id = tracker.start_experiment()
         # All traced functions will be logged to this experiment
         ```
         """
@@ -398,7 +398,7 @@ class ExperimentTracker:
         Example:
         ```python
         tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment("my_group")
+        exp_id = tracker.start_experiment()
         # Log data...
         tracker.end_experiment()
         tracker.export("experiment_data.tar", experiment_id=exp_id)
