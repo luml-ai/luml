@@ -18,6 +18,7 @@ class Model:
     created_at: datetime
     tags: list[str] = field(default_factory=list)
     path: str | None = None
+    experiment_id: str | None = None
 
 
 @dataclass
@@ -30,7 +31,6 @@ class Experiment:
     tags: list[str] = field(default_factory=list)
     static_params: dict[str, Any] = field(default_factory=dict)
     dynamic_params: dict[str, Any] = field(default_factory=dict)
-    model_id: str | None = None
 
 
 @dataclass

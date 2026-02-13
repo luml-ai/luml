@@ -267,7 +267,7 @@ class SQLiteBackend(Backend):
     def initialize_experiment(
         self,
         experiment_id: str,
-        group: str = "Default group",
+        group: str = "default",
         name: str | None = None,
         tags: list[str] | None = None,
     ) -> None:

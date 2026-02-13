@@ -52,7 +52,7 @@ class ExperimentTracker:
     def start_experiment(
         self,
         name: str | None = None,
-        group: str = "Default group",
+        group: str = "default",
         experiment_id: str | None = None,
         tags: list[str] | None = None,
     ) -> str:
@@ -61,10 +61,10 @@ class ExperimentTracker:
         the experiment's metadata.
 
         Args:
-            name (str | None): The name of the experiment. If not provided, the experiment
-                will be initialized without a specific name.
+            name (str | None): The name of the experiment. If not provided,
+                the experiment will be initialized without a specific name
             group (str): The group to which the experiment belongs. Defaults to
-                "Default group".
+                "default".
             experiment_id (str | None): A unique identifier for the experiment. If not
                 provided, a new UUID will be generated as the experiment ID.
             tags (list[str] | None): A list of tags to associate with the experiment.
