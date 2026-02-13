@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
@@ -17,6 +18,8 @@ class Cursor(BaseModel):
     id: UUID
     value: CursorType | None
     sort_by: str = "created_at"
+    order: SortOrder = SortOrder.DESC
+    scope_id: UUID | None = None
 
 
 class PaginationParams(BaseModel):
@@ -25,3 +28,9 @@ class PaginationParams(BaseModel):
     order: SortOrder = SortOrder.DESC
     limit: int = 100
     extra_sort_field: str | None = None
+    scope_id: UUID | None = None
+
+
+class PaginatedSequenceResponse[T](BaseModel):
+    items: Sequence[T]
+    has_more: bool = False

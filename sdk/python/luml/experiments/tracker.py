@@ -2,13 +2,37 @@ import uuid
 import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
+from luml.artifacts._base import DiskFile, FileMap
+from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
-from luml.modelref import ArtifactMap, DiskArtifact, ModelReference
+
+if TYPE_CHECKING:
+    from luml.artifacts.experiment import ExperimentReference
 
 
 class ExperimentTracker:
+    """
+    Local experiment tracking for ML experiments.
+
+    Tracks metrics, parameters, artifacts, and traces for machine learning experiments.
+    Supports multiple backend storage options via connection strings.
+
+    Args:
+        connection_string: Backend connection string. Format: 'backend://config'.
+            Default is 'sqlite://./experiments' for local SQLite storage.
+
+    Example:
+    ```python
+    tracker = ExperimentTracker("sqlite://./my_experiments")
+    exp_id = tracker.start_experiment(name="my_experiment", tags=["baseline"])
+    tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
+    tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
+    tracker.end_experiment(exp_id)
+    ```
+    """
+
     def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
@@ -28,6 +52,28 @@ class ExperimentTracker:
         group: str | None = None,
         tags: list[str] | None = None,
     ) -> str:
+        """
+        Start a new experiment tracking session.
+
+        Args:
+            experiment_id: Unique experiment ID. Auto-generated if not provided.
+            name: Human-readable experiment name.
+            group: Group name to organize related experiments.
+            tags: List of tags for categorizing the experiment.
+
+        Returns:
+            str: The experiment ID.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment(
+            name="baseline_model",
+            group="image_classification",
+            tags=["resnet", "baseline"]
+        )
+        ```
+        """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
 
@@ -36,6 +82,19 @@ class ExperimentTracker:
         return experiment_id
 
     def end_experiment(self, experiment_id: str | None = None) -> None:
+        """
+        End an active experiment tracking session.
+
+        Args:
+            experiment_id: ID of experiment to end. Uses current experiment if not specified.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment(name="my_exp")
+        tracker.end_experiment(exp_id)
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment to end.")
@@ -51,6 +110,23 @@ class ExperimentTracker:
         value: Any,  # noqa: ANN401
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Log static parameters or metadata (values that don't change during training).
+
+        Args:
+            key: Parameter name.
+            value: Parameter value (can be any serializable type).
+            experiment_id: Experiment ID. Uses current experiment if not specified.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_static("learning_rate", 0.001)
+        tracker.log_static("model_architecture", "resnet50")
+        tracker.log_static("batch_size", 32)
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -63,6 +139,24 @@ class ExperimentTracker:
         step: int | None = None,
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Log time-series metrics (values that change during training).
+
+        Args:
+            key: Metric name.
+            value: Metric value (numeric).
+            step: Training step/epoch number.
+            experiment_id: Experiment ID. Uses current experiment if not specified.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        for epoch in range(10):
+            loss = train_epoch()
+            tracker.log_dynamic("train_loss", loss, step=epoch)
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -151,6 +245,23 @@ class ExperimentTracker:
         binary: bool = False,
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Log files or artifacts to the experiment.
+
+        Args:
+            name: Attachment name/filename.
+            data: Data to attach (string, bytes, or file path).
+            binary: Whether data is binary. Default is False.
+            experiment_id: Experiment ID. Uses current experiment if not specified.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_attachment("model_config.json", config_json)
+        tracker.log_attachment("plot.png", image_bytes, binary=True)
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -166,6 +277,20 @@ class ExperimentTracker:
         return self.backend.get_attachment(exp_id, name)
 
     def list_experiments(self) -> list[dict[str, Any]]:  # noqa: ANN401
+        """
+        List all experiments in the backend.
+
+        Returns:
+            List of experiment dictionaries with metadata.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        experiments = tracker.list_experiments()
+        for exp in experiments:
+            print(f"{exp['id']}: {exp['name']}")
+        ```
+        """
         return self.backend.list_experiments()
 
     def delete_experiment(self, experiment_id: str) -> None:
@@ -180,6 +305,28 @@ class ExperimentTracker:
     def link_to_model(
         self, model_reference: ModelReference, experiment_id: str | None = None
     ) -> None:
+        """
+        Link experiment data to a saved model.
+
+        Attaches experiment tracking data (metrics, parameters, artifacts) to a model
+        for reproducibility and model versioning.
+
+        Args:
+            model_reference: ModelReference object to link to.
+            experiment_id: Experiment ID. Uses current experiment if not specified.
+
+        Example:
+        ```python
+        from luml.integrations.sklearn import save_sklearn
+
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment(name="sklearn_model")
+        tracker.log_static("model_type", "RandomForest")
+
+        model_ref = save_sklearn(model, X_train)
+        tracker.link_to_model(model_ref)
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -192,7 +339,7 @@ class ExperimentTracker:
         with NamedTemporaryFile(suffix=".zip", delete=False) as temp_zip:
             zip_path = temp_zip.name
 
-        if isinstance(exp_db, DiskArtifact):
+        if isinstance(exp_db, DiskFile):
             path = exp_db.path
             with zipfile.ZipFile(
                 zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=1
@@ -203,16 +350,16 @@ class ExperimentTracker:
                 "Only DiskArtifact is supported for exp_db at the moment."
             )
 
-        zipped_exp_db = DiskArtifact(zip_path)
+        zipped_exp_db = DiskFile(zip_path)
 
         model_reference._append_metadata(
             idx=None,
             tags=[tag],
             payload={},
             data=[
-                ArtifactMap(artifact=zipped_exp_db, remote_path="exp.db.zip"),
-                ArtifactMap(artifact=attachments, remote_path="attachments.tar"),
-                ArtifactMap(artifact=index, remote_path="attachments.index.json"),
+                FileMap(file=zipped_exp_db, remote_path="exp.db.zip"),
+                FileMap(file=attachments, remote_path="attachments.tar"),
+                FileMap(file=index, remote_path="attachments.index.json"),
             ],
             prefix=tag,
         )
@@ -220,7 +367,46 @@ class ExperimentTracker:
         Path(zip_path).unlink(missing_ok=True)
 
     def enable_tracing(self) -> None:
+        """
+        Enable OpenTelemetry tracing for the experiment.
+
+        Sets up automatic tracing of function calls and links traces to the experiment.
+        Useful for tracking execution flow in ML pipelines.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.enable_tracing()
+        exp_id = tracker.start_experiment()
+        # All traced functions will be logged to this experiment
+        ```
+        """
         from luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
 
         setup_tracing()
         set_experiment_tracker(self)
+
+    def export(
+        self, output_path: str, experiment_id: str | None = None
+    ) -> "ExperimentReference":
+        """
+        Export the entire experiment tracking data and save as an artifact.
+
+        Args:
+            output_path: Path to save the exported artifact.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        # Log data...
+        tracker.end_experiment()
+        tracker.export("experiment_data.tar", experiment_id=exp_id)
+        ```
+        """
+        from luml.artifacts.experiment import save_experiment
+
+        experiment_id = experiment_id or self.current_experiment_id
+        if experiment_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return save_experiment(self, experiment_id, output_path=output_path)

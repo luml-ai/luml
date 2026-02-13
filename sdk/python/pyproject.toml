@@ -24,6 +24,16 @@ core = [
     "fnnx>=0.0.8,<0.1.0",
     "pydantic>=2.11.7,<3.0.0",
 ]
+datasets = [
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+]
+datasets-hf = [
+    "datasets>=2.14.0,<4.0.0",
+]
+datasets-polars = [
+    "polars>=1.0.0,<2.0.0",
+]
 
 [project.scripts]
 generate-docs = "generate_docs:main"
@@ -39,6 +49,10 @@ packages = ["luml"]
 
 [dependency-groups]
 dev = [
+    "langchain-core>=1.2.7",
+    "langchain-openai>=1.1.7",
+    "langgraph>=1.0.7",
+    "matplotlib>=3.10.8",
     "mypy==1.15.0",
     "pydoc-markdown>=4.8.2",
     "pytest==8.3.5",
@@ -46,7 +60,12 @@ dev = [
     "pytest-cov==6.0.0",
     "respx==0.22.0",
     "ruff==0.11.5",
+    "scikit-learn>=1.8.0",
     "types-passlib==1.7.7.20250408",
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+    "polars>=1.0.0,<2.0.0",
+    "datasets>=2.14.0,<4.0.0",
 ]
 
 [tool.ruff]
@@ -83,6 +102,9 @@ ignore = [
     "ANN002",  # Missing type annotation for *args
     "ANN003",  # Missing type annotation for **kwargs
 ]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**/*.py" = ["T201"]
 
 [tool.ruff.format]
 # Black-compatible formatting settings

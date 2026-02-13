@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
 import type { CallPayload, InitPayloadItem } from './interfaces'
-import { ExperimentSnapshotDatabaseProvider } from '@/modules/experiment-snapshot/providers/ExperimentSnapshotDatabaseProvider'
+import { ExperimentSnapshotDatabaseProvider } from '@luml/experiments'
 
 let provider: ExperimentSnapshotDatabaseProvider | null = null
 
@@ -9,7 +9,7 @@ const activeRequests = new Set<string>()
 
 async function init(payload: InitPayloadItem[], requestId: string) {
   provider = new ExperimentSnapshotDatabaseProvider()
-  await provider.init(payload)
+  await provider.init(payload, { wasmUrl: '/sql-wasm.wasm' })
   self.postMessage({ type: 'result', requestId, data: true })
 }
 

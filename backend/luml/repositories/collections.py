@@ -4,7 +4,7 @@ from sqlalchemy import String, cast, or_
 
 from luml.models import CollectionOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
-from luml.schemas.general import PaginationParams
+from luml.schemas.general import Cursor, PaginationParams
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
@@ -36,7 +36,7 @@ class CollectionRepository(RepositoryBase, CrudMixin):
         orbit_id: UUID,
         pagination: PaginationParams,
         search: str | None = None,
-    ) -> list[Collection]:
+    ) -> tuple[list[Collection], Cursor | None]:
         async with self._get_session() as session:
             conditions = [CollectionOrm.orbit_id == orbit_id]
 
@@ -49,13 +49,19 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                     )
                 )
 
-            db_collections = await self.get_models_with_pagination(
+            result = await self.get_models_with_pagination(
                 session,
                 CollectionOrm,
                 *conditions,
                 pagination=pagination,
             )
-            return [mc.to_collection() for mc in db_collections]
+            db_collections = result.items
+            cursor = (
+                None
+                if not result.has_more
+                else self._get_cursor_from_record(db_collections[-1], pagination)
+            )
+            return [mc.to_collection() for mc in db_collections], cursor
 
     async def update_collection(
         self, collection_id: UUID, collection: CollectionUpdate

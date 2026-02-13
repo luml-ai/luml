@@ -13,8 +13,9 @@ An **Instance** is the core unit of the module. It represents a local, browser-b
 
 **⚠️ Important data persistence warning**  
 
-Notebook instances are fully local. All files, notebooks, and generated artifacts are stored in the browser’s local storage. They are not scoped to a user account or organization, and they do not sync across devices or browsers. Switching users within the platform does not remove or reset existing notebook data. Clearing browser data, using a different browser, or switching machines will result in data loss unless the content has been explicitly backed up or exported.
-Automatic Model Discovery (`.luml`)
+Notebook instances are fully local. All files, notebooks, and generated artifacts are stored in the browser's local storage. They are not scoped to a user account or organization, and they do not sync across devices or browsers. Switching users within the platform does not remove or reset existing notebook data. Clearing browser data, using a different browser, or switching machines will result in data loss unless the content has been explicitly backed up or exported.
+
+### Automatic Model Discovery
 The module includes automatic discovery of models created in notebooks. When a user saves an object in the .luml format, the platform immediately detects it within the instance’s virtual file system and surfaces it in the platform UI. From there, the model can be inspected, downloaded, or promoted to the global Registry. This allows notebook-generated models to be treated as first-class platform entities without requiring manual export steps.
 
 

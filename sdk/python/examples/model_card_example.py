@@ -114,10 +114,10 @@ def example_comprehensive_card() -> None:
     try:
         import matplotlib.pyplot as plt
     except ImportError as e:
-        print(f"Skipping comprehensive example due to missing dependency: {e}")  # noqa: T201
+        print(f"Skipping comprehensive example due to missing dependency: {e}")
         return
 
-    print("Example: Comprehensive model card with all content types")  # noqa: T201
+    print("Example: Comprehensive model card with all content types")
 
     builder = ModelCardBuilder(title="Complete Model Card Demo")
 
@@ -239,18 +239,18 @@ def example_comprehensive_card() -> None:
     # Save the card
     with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False) as f:
         f.write(builder.build())
-        print(f"Comprehensive card saved to: {f.name}")  # noqa: T201
-        print(f"Open in browser: file://{f.name}")  # noqa: T201
+        print(f"Comprehensive card saved to: {f.name}")
+        print(f"Open in browser: file://{f.name}")
 
 
 if __name__ == "__main__":
-    print("=" * 60)  # noqa: T201
-    print("Model Card Builder Example")  # noqa: T201
-    print("=" * 60)  # noqa: T201
+    print("=" * 60)
+    print("Model Card Builder Example")
+    print("=" * 60)
 
     example_comprehensive_card()
-    print()  # noqa: T201
+    print()
 
-    print("=" * 60)  # noqa: T201
-    print("Example completed!")  # noqa: T201
-    print("=" * 60)  # noqa: T201
+    print("=" * 60)
+    print("Example completed!")
+    print("=" * 60)

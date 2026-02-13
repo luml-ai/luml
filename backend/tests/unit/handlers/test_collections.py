@@ -5,7 +5,7 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.collections import CollectionHandler
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
-from luml.schemas.general import SortOrder
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.model_artifacts import (
     Collection,
     CollectionCreate,
@@ -683,23 +683,24 @@ async def test_get_orbit_collections_success(
     )
 
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
-    mock_get_collections.return_value = expected_collections
+    mock_get_collections.return_value = (expected_collections, None)
 
     result = await handler.get_orbit_collections(user_id, organization_id, orbit_id)
 
     assert result == expected
 
     mock_get_orbit_simple.assert_awaited_once_with(orbit_id, organization_id)
-
-    # Check that pagination params were passed correctly
-    call_args = mock_get_collections.await_args
-    assert call_args.kwargs["orbit_id"] == orbit_id
-    assert call_args.kwargs["search"] is None
-    pagination = call_args.kwargs["pagination"]
-    assert pagination.sort_by == "created_at"
-    assert pagination.order == SortOrder.DESC
-    assert pagination.limit == 100
-    assert pagination.cursor is None
+    mock_get_collections.assert_awaited_once_with(
+        orbit_id=orbit_id,
+        pagination=PaginationParams(
+            cursor=None,
+            sort_by="created_at",
+            order=SortOrder.DESC,
+            limit=100,
+            scope_id=orbit_id,
+        ),
+        search=None,
+    )
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,

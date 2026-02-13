@@ -1,9 +1,6 @@
 import { ref } from 'vue'
-import {
-  TarAttachmentsProvider,
-  type TarAttachmentsProviderConfig,
-} from '@/modules/model-attachments/models/TarAttachmentsProvider'
-import type { ModelAttachmentsProvider } from '@/modules/model-attachments'
+import { TarAttachmentsProvider, type TarAttachmentsProviderConfig } from '@luml/attachments'
+import type { ModelAttachmentsProvider } from '@luml/attachments'
 
 export function useTarAttachmentsProvider() {
   const provider = ref<ModelAttachmentsProvider | null>(null)
