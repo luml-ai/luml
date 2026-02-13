@@ -1,0 +1,45 @@
+{
+  "name": "lumlflow-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --build && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --build --force",
+    "lint": "eslint . --fix --cache",
+    "format": "prettier --write --experimental-cli src/",
+    "style": "npx style-dictionary build --config style-dictionary.config.mjs"
+  },
+  "dependencies": {
+    "@primeuix/themes": "^2.0.3",
+    "@primevue/forms": "^4.5.4",
+    "@tailwindcss/vite": "^4.1.18",
+    "@vueuse/core": "^14.1.0",
+    "axios": "^1.7.7",
+    "lucide-vue-next": "^0.563.0",
+    "pinia": "^3.0.4",
+    "primevue": "^4.5.4",
+    "tailwindcss": "^4.1.18",
+    "tailwindcss-primeui": "^0.6.1",
+    "vue": "^3.5.12",
+    "vue-router": "^5.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.0",
+    "@types/node": "^22.9.0",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.6.0",
+    "@vue/tsconfig": "^0.5.1",
+    "eslint": "^9.39.2",
+    "eslint-plugin-vue": "^10.7.0",
+    "prettier": "^3.8.1",
+    "style-dictionary": "^5.2.0",
+    "typescript": "^5.9.2",
+    "vite": "^6.4.1",
+    "vue-tsc": "^2.1.10"
+  }
+}
