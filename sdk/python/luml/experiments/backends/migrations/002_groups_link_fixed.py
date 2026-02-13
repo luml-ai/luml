@@ -4,7 +4,7 @@ import uuid
 VERSION = 2
 DESCRIPTION = "Fixed experiment and group relationship"
 
-DEFAULT_GROUP_NAME = "Default group"
+DEFAULT_GROUP_NAME = "default"
 
 
 def up(conn: sqlite3.Connection) -> None:
@@ -76,16 +76,14 @@ def up(conn: sqlite3.Connection) -> None:
             name TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             tags TEXT,
-            path TEXT
+            path TEXT,
+            experiment_id TEXT REFERENCES experiments(id)
         )
     """)
 
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_name")
     cursor.execute("ALTER TABLE experiments ADD COLUMN static_params TEXT")
     cursor.execute("ALTER TABLE experiments ADD COLUMN dynamic_params TEXT")
-    cursor.execute(
-        "ALTER TABLE experiments ADD COLUMN model_id TEXT REFERENCES models(id)"
-    )
 
     cursor.execute(
         "CREATE UNIQUE INDEX "
@@ -109,5 +107,4 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_id")
     cursor.execute("ALTER TABLE experiments DROP COLUMN static_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
-    cursor.execute("ALTER TABLE experiments DROP COLUMN model_id")
     cursor.execute("DROP TABLE IF EXISTS models")

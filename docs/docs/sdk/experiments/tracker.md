@@ -37,7 +37,7 @@ tracker.end_experiment(exp_id)
 
 ```python
 def start_experiment(name: str | None = None,
-                     group: str = "Default group",
+                     group: str = "default",
                      experiment_id: str | None = None,
                      tags: list[str] | None = None) -> str
 ```
@@ -47,7 +47,7 @@ Start a new experiment tracking session.
 **Arguments**:
 
 - `name` - Human-readable experiment name. Optional.
-- `group` - Group name to organize related experiments. Defaults to "Default group".
+- `group` - Group name to organize related experiments. Defaults to "default".
 - `experiment_id` - Unique experiment ID. Auto-generated if not provided.
 - `tags` - List of tags for categorizing the experiment.
   
