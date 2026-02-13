@@ -40,7 +40,8 @@ class ExperimentTracker:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
 
-    def _parse_connection_string(self, connection_string: str) -> Backend:
+    @staticmethod
+    def _parse_connection_string(connection_string: str) -> Backend:
         if "://" not in connection_string:
             raise ValueError("Invalid connection string format. Use 'backend://config'")
 
@@ -50,32 +51,27 @@ class ExperimentTracker:
 
     def start_experiment(
         self,
-        group: str,
-        experiment_id: str | None = None,
         name: str | None = None,
+        group: str = "Default group",
+        experiment_id: str | None = None,
         tags: list[str] | None = None,
     ) -> str:
         """
-        Start a new experiment tracking session.
+        Starts a new experiment by initializing it with the backend and setting
+        the experiment's metadata.
 
         Args:
-            group: Group name to organize related experiments.
-            experiment_id: Unique experiment ID. Auto-generated if not provided.
-            name: Human-readable experiment name.
-            tags: List of tags for categorizing the experiment.
+            name (str | None): The name of the experiment. If not provided, the experiment
+                will be initialized without a specific name.
+            group (str): The group to which the experiment belongs. Defaults to
+                "Default group".
+            experiment_id (str | None): A unique identifier for the experiment. If not
+                provided, a new UUID will be generated as the experiment ID.
+            tags (list[str] | None): A list of tags to associate with the experiment.
+                Can be None if no tags are necessary.
 
         Returns:
-            str: The experiment ID.
-
-        Example:
-        ```python
-        tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment(
-            "image_classification",
-            name="baseline_model",
-            tags=["resnet", "baseline"]
-        )
-        ```
+            str: The unique identifier of the started experiment.
         """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
