@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from luml.api._types import (
     BucketSecret,
+    BucketType,
     MultiPartUploadDetails,
     is_uuid,
     model_validate_bucket_secret,
@@ -44,11 +45,12 @@ class BucketSecretResourceBase(ABC):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
         raise NotImplementedError()
@@ -186,17 +188,19 @@ class BucketSecretResource(BucketSecretResourceBase):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret:
         """
         Create new bucket secret in the default organization.
 
         Args:
+            type: "s3" or "azure"
             endpoint: S3-compatible storage endpoint URL (e.g., 's3.amazonaws.com').
             bucket_name: Name of the storage bucket.
             access_key: Access key for bucket authentication.
@@ -256,6 +260,7 @@ class BucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
+                    "type": type,
                 }
             ),
         )
@@ -615,11 +620,12 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret:
         """
@@ -689,6 +695,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
+                    "type": type,
                 }
             ),
         )
