@@ -17,6 +17,7 @@ from luml.experiments.backends._data_types import (
     ExperimentData,
     ExperimentMetaData,
     Group,
+    Model,
 )
 from luml.experiments.backends.migration_runner import MigrationRunner
 from luml.experiments.utils import guess_span_type
@@ -670,6 +671,89 @@ class SQLiteBackend(Backend):
                 )
             )
         return groups
+
+    def log_model(
+        self,
+        experiment_id: str,
+        model_path: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> tuple[Model, str]:
+        self._ensure_experiment_initialized(experiment_id)
+
+        import shutil
+
+        exp_dir = self._get_experiment_dir(experiment_id)
+        models_dir = exp_dir / "models"
+        models_dir.mkdir(exist_ok=True)
+
+        source = Path(model_path)
+        dest = models_dir / source.name
+        shutil.copy2(source, dest)
+
+        model_id = str(uuid.uuid4())
+        tags_json = json.dumps(tags) if tags else None
+
+        rel_path = str(dest.relative_to(self.base_path))
+
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO models (id, name, tags, path, experiment_id) VALUES (?, ?, ?, ?, ?)",
+            (model_id, name or source.stem, tags_json, rel_path, experiment_id),
+        )
+        conn.commit()
+
+        now = datetime.now(UTC)
+        model = Model(
+            id=model_id,
+            name=name or source.stem,
+            created_at=now,
+            tags=tags or [],
+            path=rel_path,
+            experiment_id=experiment_id,
+        )
+        return model, str(dest)
+
+    def get_models(self, experiment_id: str) -> list[Model]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
+            (experiment_id,),
+        )
+        models = []
+        for row in cursor.fetchall():
+            models.append(
+                Model(
+                    id=row[0],
+                    name=row[1],
+                    created_at=row[2],
+                    tags=json.loads(row[3]) if row[3] else [],
+                    path=row[4],
+                    experiment_id=row[5],
+                )
+            )
+        return models
+
+    def get_model(self, model_id: str) -> Model:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE id = ?",
+            (model_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Model {model_id} not found")
+        return Model(
+            id=row[0],
+            name=row[1],
+            created_at=row[2],
+            tags=json.loads(row[3]) if row[3] else [],
+            path=row[4],
+            experiment_id=row[5],
+        )
 
     def end_experiment(self, experiment_id: str) -> None:
         exp_conn = self._get_experiment_connection(experiment_id)

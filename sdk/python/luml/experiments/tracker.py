@@ -1,16 +1,38 @@
+import importlib
 import uuid
 import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
-from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.experiments.backends._data_types import (
+    Experiment,
+    ExperimentData,
+    Group,
+    Model,
+)
 
 if TYPE_CHECKING:
     from luml.artifacts.experiment import ExperimentReference
+
+_FLAVOR_REGISTRY: dict[str, tuple[str, str]] = {
+    "sklearn": ("luml.integrations.sklearn.packaging", "save_sklearn"),
+    "xgboost": ("luml.integrations.xgboost.packaging", "save_xgboost"),
+    "lightgbm": ("luml.integrations.lightgbm.packaging", "save_lightgbm"),
+    "catboost": ("luml.integrations.catboost.packaging", "save_catboost"),
+    "langgraph": ("luml.integrations.langgraph.packaging", "save_langgraph"),
+}
+
+_MODULE_PREFIX_TO_FLAVOR: dict[str, str] = {
+    "sklearn": "sklearn",
+    "xgboost": "xgboost",
+    "lightgbm": "lightgbm",
+    "catboost": "catboost",
+    "langgraph": "langgraph",
+}
 
 
 class ExperimentTracker:
@@ -28,10 +50,10 @@ class ExperimentTracker:
     ```python
     tracker = ExperimentTracker("sqlite://./my_experiments")
     exp_id = tracker.start_experiment(
-        "my_group", name="my_experiment", tags=["baseline"]
+        name="my_experiment", group="my_group", tags=["baseline"]
     )
-    tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
-    tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
+    tracker.log_static("learning_rate", 0.001)
+    tracker.log_dynamic("loss", 0.5, step=1)
     tracker.end_experiment(exp_id)
     ```
     """
@@ -179,6 +201,56 @@ class ExperimentTracker:
         trace_flags: int = 0,
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Log an OpenTelemetry-compatible span to the experiment.
+
+        Records a single span representing a unit of work within a trace.
+        Spans can be nested via ``parent_span_id`` to form a trace tree.
+
+        Args:
+            trace_id (str): Unique identifier for the trace this span belongs to.
+            span_id (str): Unique identifier for this span.
+            name (str): Human-readable name describing the operation.
+            start_time_unix_nano (int): Span start time in nanoseconds since Unix epoch.
+            end_time_unix_nano (int): Span end time in nanoseconds since Unix epoch.
+            parent_span_id (str | None): Span ID of the parent span, or ``None`` for
+                root spans.
+            kind (int): Span kind following the OpenTelemetry spec (0=INTERNAL,
+                1=SERVER, 2=CLIENT, 3=PRODUCER, 4=CONSUMER). Defaults to 0.
+            status_code (int): Status code (0=UNSET, 1=OK, 2=ERROR). Defaults to 0.
+            status_message (str | None): Optional status description, typically set
+                for error spans.
+            attributes (dict[str, Any] | None): Key-value pairs of span attributes.
+            events (list[dict[str, Any]] | None): Timestamped event records attached
+                to the span.
+            links (list[dict[str, Any]] | None): Links to other spans, each containing
+                at minimum ``trace_id`` and ``span_id`` keys.
+            trace_flags (int): W3C trace flags. Defaults to 0.
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+
+        Example:
+        ```python
+        import time
+
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        start = time.time_ns()
+        # ... do work ...
+        end = time.time_ns()
+        tracker.log_span(
+            trace_id="abc123",
+            span_id="span_1",
+            name="data_preprocessing",
+            start_time_unix_nano=start,
+            end_time_unix_nano=end,
+            attributes={"input_rows": 1000},
+        )
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -210,6 +282,44 @@ class ExperimentTracker:
         metadata: dict[str, Any] | None = None,  # noqa: ANN401
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Log a single evaluation sample to the experiment.
+
+        Records one data point from a model evaluation run, including its inputs,
+        model outputs, ground-truth references, computed scores, and optional metadata.
+
+        Args:
+            eval_id (str): Unique identifier for this evaluation sample.
+            dataset_id (str): Identifier of the evaluation dataset this sample
+                belongs to.
+            inputs (dict[str, Any]): Input data fed to the model for this sample.
+            outputs (dict[str, Any] | None): Model outputs/predictions for this sample.
+            references (dict[str, Any] | None): Ground-truth or reference values to
+                compare against.
+            scores (dict[str, Any] | None): Computed evaluation scores (e.g. accuracy,
+                F1, BLEU).
+            metadata (dict[str, Any] | None): Additional metadata for the sample (e.g.
+                latency, token counts).
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_eval_sample(
+            eval_id="sample_001",
+            dataset_id="test_set_v2",
+            inputs={"prompt": "Summarize this text..."},
+            outputs={"response": "The text discusses..."},
+            references={"expected": "A summary of..."},
+            scores={"bleu": 0.72, "rouge_l": 0.65},
+        )
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -231,6 +341,40 @@ class ExperimentTracker:
         trace_id: str,
         experiment_id: str | None = None,
     ) -> None:
+        """
+        Link an evaluation sample to a trace.
+
+        Associates a previously logged evaluation sample with an execution trace,
+        enabling correlation between evaluation results and the traced execution
+        that produced them.
+
+        Args:
+            eval_dataset_id (str): Identifier of the evaluation dataset the sample
+                belongs to.
+            eval_id (str): Identifier of the evaluation sample to link.
+            trace_id (str): Identifier of the trace to link to.
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_eval_sample(
+            eval_id="sample_001",
+            dataset_id="test_set_v2",
+            inputs={"prompt": "Hello"},
+        )
+        tracker.link_eval_sample_to_trace(
+            eval_dataset_id="test_set_v2",
+            eval_id="sample_001",
+            trace_id="trace_abc",
+        )
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -268,9 +412,55 @@ class ExperimentTracker:
         self.backend.log_attachment(exp_id, name, data, binary)
 
     def get_experiment(self, experiment_id: str) -> ExperimentData:
+        """
+        Retrieve full experiment data by ID.
+
+        Returns the complete experiment record including metadata, static parameters,
+        dynamic metrics, and attachment information.
+
+        Args:
+            experiment_id (str): Unique identifier of the experiment to retrieve.
+
+        Returns:
+            ExperimentData: Complete experiment data containing ``experiment_id``,
+                ``metadata``, ``static_params``, ``dynamic_metrics``, and
+                ``attachments``.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        data = tracker.get_experiment("my-experiment-id")
+        print(data.metadata.name)
+        print(data.static_params)
+        print(data.dynamic_metrics)
+        ```
+        """
         return self.backend.get_experiment_data(experiment_id)
 
     def get_attachment(self, name: str, experiment_id: str | None = None) -> Any:  # noqa: ANN401
+        """
+        Retrieve a previously logged attachment by name.
+
+        Args:
+            name (str): Name of the attachment as specified during
+                :meth:`log_attachment`.
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+
+        Returns:
+            Any: The attachment data as bytes.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_attachment("config.json", '{"lr": 0.001}')
+        config = tracker.get_attachment("config.json")
+        ```
+        """
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
@@ -294,13 +484,264 @@ class ExperimentTracker:
         return self.backend.list_experiments()
 
     def delete_experiment(self, experiment_id: str) -> None:
+        """
+        Delete an experiment and all its associated data.
+
+        Permanently removes the experiment record along with its static parameters,
+        dynamic metrics, spans, evaluation samples, attachments, and models from
+        the backend.
+
+        Args:
+            experiment_id (str): Unique identifier of the experiment to delete.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.delete_experiment("old-experiment-id")
+        ```
+        """
         self.backend.delete_experiment(experiment_id)
 
     def create_group(self, name: str, description: str | None = None) -> Group:
+        """
+        Create a new experiment group.
+
+        Groups organize related experiments (e.g. by project, task, or hypothesis).
+        Experiments are assigned to a group via the ``group`` parameter of
+        :meth:`start_experiment`.
+
+        Args:
+            name (str): Unique name for the group.
+            description (str | None): Optional human-readable description of the group's
+                purpose.
+
+        Returns:
+            Group: The created group with ``id``, ``name``, ``description``, and
+                ``created_at`` fields.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        group = tracker.create_group(
+            "hyperparameter_search", description="LR sweep experiments"
+        )
+        exp_id = tracker.start_experiment(group=group.name)
+        ```
+        """
         return self.backend.create_group(name, description)
 
     def list_groups(self) -> list[Group]:
+        """
+        List all experiment groups in the backend.
+
+        Returns:
+            list[Group]: List of Group objects, each containing ``id``, ``name``,
+                ``description``, and ``created_at`` fields.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        groups = tracker.list_groups()
+        for group in groups:
+            print(f"{group.name}: {group.description}")
+        ```
+        """
         return self.backend.list_groups()
+
+    @staticmethod
+    def _detect_flavor(model: Any) -> str:  # noqa: ANN401
+        module = type(model).__module__ or ""
+        for prefix, flavor in _MODULE_PREFIX_TO_FLAVOR.items():
+            if module.startswith(prefix):
+                return flavor
+        supported = ", ".join(sorted(_FLAVOR_REGISTRY.keys()))
+        raise ValueError(
+            f"Cannot auto-detect flavor for {type(model).__qualname__} "
+            f"(module: {module}). Supported flavors: {supported}. "
+            f"Pass flavor= explicitly or save the model first "
+            f"and pass a ModelReference."
+        )
+
+    @staticmethod
+    def _save_model_with_flavor(
+        model: Any,  # noqa: ANN401
+        inputs: Any,  # noqa: ANN401
+        flavor: str,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> ModelReference:
+        if flavor not in _FLAVOR_REGISTRY:
+            supported = ", ".join(sorted(_FLAVOR_REGISTRY.keys()))
+            raise ValueError(f"Unknown flavor '{flavor}'. Supported: {supported}")
+        module_path, func_name = _FLAVOR_REGISTRY[flavor]
+        module = importlib.import_module(module_path)
+        save_fn = getattr(module, func_name)
+        if inputs is not None:
+            return save_fn(model, inputs, **kwargs)
+        return save_fn(model, **kwargs)
+
+    def log_model(
+        self,
+        model: ModelReference | Any,  # noqa: ANN401
+        *,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        flavor: str | None = None,
+        inputs: Any = None,  # noqa: ANN401
+        experiment_id: str | None = None,
+        dependencies: Literal["default", "all"] | list[str] = "default",
+        extra_dependencies: list[str] | None = None,
+        extra_code_modules: list[str] | Literal["auto"] | None = None,
+        manifest_model_name: str | None = None,
+        manifest_model_version: str | None = None,
+        manifest_model_description: str | None = None,
+        manifest_extra_producer_tags: list[str] | None = None,
+        **save_kwargs: Any,  # noqa: ANN401
+    ) -> ModelReference:
+        """
+        Log a model to the experiment.
+
+        Accepts either a pre-saved ``ModelReference`` or a raw model object. When a
+        raw model is provided, it is serialized automatically using the detected or
+        explicitly specified flavor. The serialized artifact is stored in the backend
+        and the temporary file is cleaned up.
+
+        Args:
+            model (ModelReference | Any): A ``ModelReference`` pointing to an
+                already-saved model, or a raw model object to be serialized.
+            name (str | None): Optional display name for the model.
+            tags (list[str] | None): Optional tags to associate with the model.
+            flavor (str | None): Serialization flavor (e.g. ``"sklearn"``,
+                ``"xgboost"``). Auto-detected from the model's module if not
+                provided. Supported flavors: sklearn, xgboost, lightgbm, catboost,
+                langgraph.
+            inputs (Any): Sample input data used for model signature inference.
+                Required by ``sklearn``, optional for ``xgboost`` and ``lightgbm``,
+                and not used by ``catboost`` or ``langgraph``.
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+            dependencies (Literal["default", "all"] | list[str]): Dependency capture
+                strategy. ``"default"`` captures direct dependencies, ``"all"``
+                captures the full environment, or pass an explicit list of package
+                names.
+            extra_dependencies (list[str] | None): Additional package dependencies
+                to include beyond those captured by ``dependencies``.
+            extra_code_modules (list[str] | Literal["auto"] | None): Extra Python
+                modules to bundle with the model. ``"auto"`` attempts automatic
+                detection.
+            manifest_model_name (str | None): Model name for the artifact manifest.
+            manifest_model_version (str | None): Model version for the artifact
+                manifest.
+            manifest_model_description (str | None): Model description for the
+                artifact manifest.
+            manifest_extra_producer_tags (list[str] | None): Additional producer
+                tags for the artifact manifest.
+            **save_kwargs (Any): Additional keyword arguments forwarded to the
+                flavor-specific save function.
+
+        Returns:
+            ModelReference: Reference to the stored model in the backend.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not
+                provided, or if the flavor cannot be auto-detected.
+
+        Example:
+        ```python
+        from sklearn.ensemble import RandomForestClassifier
+
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        model = RandomForestClassifier().fit(X_train, y_train)
+        model_ref = tracker.log_model(model, name="rf_v1", inputs=X_train)
+        ```
+        """
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+
+        temp_ref: ModelReference | None = None
+
+        if isinstance(model, ModelReference):
+            model_ref = model
+        else:
+            if flavor is None:
+                flavor = self._detect_flavor(model)
+            save_kwargs.update(
+                {
+                    k: v
+                    for k, v in {
+                        "dependencies": dependencies,
+                        "extra_dependencies": extra_dependencies,
+                        "extra_code_modules": extra_code_modules,
+                        "manifest_model_name": manifest_model_name,
+                        "manifest_model_version": manifest_model_version,
+                        "manifest_model_description": manifest_model_description,
+                        "manifest_extra_producer_tags": manifest_extra_producer_tags,
+                    }.items()
+                    if v is not None and v != "default"
+                }
+            )
+            model_ref = self._save_model_with_flavor(
+                model, inputs, flavor, **save_kwargs
+            )
+            temp_ref = model_ref
+
+        _, stored_path = self.backend.log_model(exp_id, str(model_ref.path), name, tags)
+
+        if temp_ref is not None:
+            Path(temp_ref.path).unlink(missing_ok=True)
+
+        return ModelReference(stored_path)
+
+    def get_models(self, experiment_id: str | None = None) -> list[Model]:
+        """
+        List all models logged to an experiment.
+
+        Args:
+            experiment_id (str | None): Experiment ID. Uses current experiment if
+                not specified.
+
+        Returns:
+            list[Model]: List of Model objects, each containing ``id``, ``name``,
+                ``created_at``, ``tags``, ``path``, and ``experiment_id`` fields.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_model(model, name="rf_v1", inputs=X_train)
+        models = tracker.get_models()
+        for m in models:
+            print(f"{m.name} logged at {m.created_at}")
+        ```
+        """
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.get_models(exp_id)
+
+    def get_model(self, model_id: str) -> Model:
+        """
+        Retrieve a single model by its ID.
+
+        Args:
+            model_id (str): Unique identifier of the model to retrieve.
+
+        Returns:
+            Model: The model record containing ``id``, ``name``, ``created_at``,
+                ``tags``, ``path``, and ``experiment_id`` fields.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        model = tracker.get_model("model-uuid-123")
+        print(f"{model.name}: {model.path}")
+        ```
+        """
+        return self.backend.get_model(model_id)
 
     def link_to_model(
         self, model_reference: ModelReference, experiment_id: str | None = None
