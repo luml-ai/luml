@@ -21,7 +21,7 @@ def tracker(tmp_path: Path) -> ExperimentTracker:
 def experiment_with_data(
     tracker: ExperimentTracker,
 ) -> tuple[ExperimentTracker, str]:
-    exp_id = tracker.start_experiment(tags=["test", "unit"])
+    exp_id = tracker.start_experiment(name="test-exp", tags=["test", "unit"])
     tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.5, step=0, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.3, step=1, experiment_id=exp_id)
@@ -78,7 +78,7 @@ def test_manifest_content(
     manifest = ref.get_manifest()
     assert isinstance(manifest, ArtifactManifest)
     assert manifest.artifact_type == "experiment"
-    assert manifest.name is None
+    assert manifest.name == "test-exp"
     assert manifest.payload.local_experiment_id == exp_id
     assert manifest.payload.tags == ["test", "unit"]
 
