@@ -502,7 +502,12 @@ class ExperimentTracker:
         """
         self.backend.delete_experiment(experiment_id)
 
-    def create_group(self, name: str, description: str | None = None) -> Group:
+    def create_group(
+        self,
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group:
         """
         Create a new experiment group.
 
@@ -514,21 +519,24 @@ class ExperimentTracker:
             name (str): Unique name for the group.
             description (str | None): Optional human-readable description of the group's
                 purpose.
+            tags (list[str] | None): Optional tags to associate with the group.
 
         Returns:
-            Group: The created group with ``id``, ``name``, ``description``, and
-                ``created_at`` fields.
+            Group: The created group with ``id``, ``name``, ``description``,
+                ``created_at``, and ``tags`` fields.
 
         Example:
         ```python
         tracker = ExperimentTracker()
         group = tracker.create_group(
-            "hyperparameter_search", description="LR sweep experiments"
+            "hyperparameter_search",
+            description="LR sweep experiments",
+            tags=["production", "v2"],
         )
         exp_id = tracker.start_experiment(group=group.name)
         ```
         """
-        return self.backend.create_group(name, description)
+        return self.backend.create_group(name, description, tags)
 
     def list_groups(self) -> list[Group]:
         """

@@ -562,6 +562,49 @@ class TestGroups:
         assert isinstance(groups, list)
         assert len(groups) == 0
 
+    def test_create_group_with_tags(
+        self, tracker: ExperimentTracker, tmp_path: Path
+    ) -> None:
+        group = tracker.create_group(
+            "tagged_group", description="has tags", tags=["prod", "v2"]
+        )
+
+        assert group.tags == ["prod", "v2"]
+
+        conn = _meta_db(tmp_path)
+        row = conn.execute(
+            "SELECT tags FROM experiment_groups WHERE name = ?",
+            ("tagged_group",),
+        ).fetchone()
+        conn.close()
+
+        assert row is not None
+        assert json.loads(row[0]) == ["prod", "v2"]
+
+    def test_create_group_without_tags_defaults_empty(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        group = tracker.create_group("no_tags_group")
+        assert group.tags == []
+
+    def test_create_group_idempotent_returns_tags(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        g1 = tracker.create_group("tagged_idem", tags=["a", "b"])
+        g2 = tracker.create_group("tagged_idem")
+
+        assert g1.id == g2.id
+        assert g2.tags == ["a", "b"]
+
+    def test_list_groups_includes_tags(self, tracker: ExperimentTracker) -> None:
+        tracker.create_group("g_with_tags", tags=["x"])
+        tracker.create_group("g_no_tags")
+
+        groups = tracker.list_groups()
+        by_name = {g.name: g for g in groups}
+        assert by_name["g_with_tags"].tags == ["x"]
+        assert by_name["g_no_tags"].tags == []
+
 
 class TestGetModels:
     def test_get_models_requires_experiment(self, tracker: ExperimentTracker) -> None:

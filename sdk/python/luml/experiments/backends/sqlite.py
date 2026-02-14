@@ -624,12 +624,17 @@ class SQLiteBackend(Backend):
 
             shutil.rmtree(exp_dir)
 
-    def create_group(self, name: str, description: str | None = None) -> Group:
+    def create_group(
+        self,
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group:
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT id, name, description, created_at FROM experiment_groups WHERE name = ?",
+            "SELECT id, name, description, created_at, tags FROM experiment_groups WHERE name = ?",
             (name,),
         )
         existing = cursor.fetchone()
@@ -639,12 +644,14 @@ class SQLiteBackend(Backend):
                 name=existing[1],
                 description=existing[2],
                 created_at=existing[3],
+                tags=json.loads(existing[4]) if existing[4] else [],
             )
 
         group_id = str(uuid.uuid4())
+        tags_json = json.dumps(tags) if tags else None
         cursor.execute(
-            """INSERT INTO experiment_groups (id, name, description) VALUES (?, ?, ?)""",
-            (group_id, name, description),
+            """INSERT INTO experiment_groups (id, name, description, tags) VALUES (?, ?, ?, ?)""",
+            (group_id, name, description, tags_json),
         )
         conn.commit()
         return Group(
@@ -652,13 +659,14 @@ class SQLiteBackend(Backend):
             name=name,
             description=description,
             created_at=datetime.now(UTC),
+            tags=tags or [],
         )
 
     def list_groups(self) -> list[Group]:  # noqa: ANN401
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, description, created_at FROM experiment_groups"
+            "SELECT id, name, description, created_at, tags FROM experiment_groups"
         )
         groups = []
         for row in cursor.fetchall():
@@ -668,6 +676,7 @@ class SQLiteBackend(Backend):
                     name=row[1],
                     description=row[2],
                     created_at=row[3],
+                    tags=json.loads(row[4]) if row[4] else [],
                 )
             )
         return groups

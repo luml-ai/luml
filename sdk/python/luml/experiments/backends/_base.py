@@ -106,7 +106,12 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def create_group(self, name: str, description: str | None = None) -> Group:
+    def create_group(
+        self,
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group:
         pass
 
     @abstractmethod
