@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
+from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
 
 if TYPE_CHECKING:
     from luml.artifacts.experiment import ExperimentReference
@@ -26,7 +27,9 @@ class ExperimentTracker:
     Example:
     ```python
     tracker = ExperimentTracker("sqlite://./my_experiments")
-    exp_id = tracker.start_experiment(name="my_experiment", tags=["baseline"])
+    exp_id = tracker.start_experiment(
+        "my_group", name="my_experiment", tags=["baseline"]
+    )
     tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
     tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
     tracker.end_experiment(exp_id)
@@ -37,7 +40,8 @@ class ExperimentTracker:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
 
-    def _parse_connection_string(self, connection_string: str) -> Backend:
+    @staticmethod
+    def _parse_connection_string(connection_string: str) -> Backend:
         if "://" not in connection_string:
             raise ValueError("Invalid connection string format. Use 'backend://config'")
 
@@ -47,37 +51,32 @@ class ExperimentTracker:
 
     def start_experiment(
         self,
-        experiment_id: str | None = None,
         name: str | None = None,
-        group: str | None = None,
+        group: str = "default",
+        experiment_id: str | None = None,
         tags: list[str] | None = None,
     ) -> str:
         """
-        Start a new experiment tracking session.
+        Starts a new experiment by initializing it with the backend and setting
+        the experiment's metadata.
 
         Args:
-            experiment_id: Unique experiment ID. Auto-generated if not provided.
-            name: Human-readable experiment name.
-            group: Group name to organize related experiments.
-            tags: List of tags for categorizing the experiment.
+            name (str | None): The name of the experiment. If not provided,
+                the experiment will be initialized without a specific name
+            group (str): The group to which the experiment belongs. Defaults to
+                "default".
+            experiment_id (str | None): A unique identifier for the experiment. If not
+                provided, a new UUID will be generated as the experiment ID.
+            tags (list[str] | None): A list of tags to associate with the experiment.
+                Can be None if no tags are necessary.
 
         Returns:
-            str: The experiment ID.
-
-        Example:
-        ```python
-        tracker = ExperimentTracker()
-        exp_id = tracker.start_experiment(
-            name="baseline_model",
-            group="image_classification",
-            tags=["resnet", "baseline"]
-        )
-        ```
+            str: The unique identifier of the started experiment.
         """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
 
-        self.backend.initialize_experiment(experiment_id, name, group, tags)
+        self.backend.initialize_experiment(experiment_id, group, name, tags)
         self.current_experiment_id = experiment_id
         return experiment_id
 
@@ -86,7 +85,8 @@ class ExperimentTracker:
         End an active experiment tracking session.
 
         Args:
-            experiment_id: ID of experiment to end. Uses current experiment if not specified.
+            experiment_id: ID of experiment to end.
+            Uses current experiment if not specified.
 
         Example:
         ```python
@@ -267,7 +267,7 @@ class ExperimentTracker:
             raise ValueError("No active experiment. Call start_experiment() first.")
         self.backend.log_attachment(exp_id, name, data, binary)
 
-    def get_experiment(self, experiment_id: str) -> dict[str, Any]:  # noqa: ANN401
+    def get_experiment(self, experiment_id: str) -> ExperimentData:
         return self.backend.get_experiment_data(experiment_id)
 
     def get_attachment(self, name: str, experiment_id: str | None = None) -> Any:  # noqa: ANN401
@@ -276,19 +276,19 @@ class ExperimentTracker:
             raise ValueError("No active experiment. Call start_experiment() first.")
         return self.backend.get_attachment(exp_id, name)
 
-    def list_experiments(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_experiments(self) -> list[Experiment]:
         """
         List all experiments in the backend.
 
         Returns:
-            List of experiment dictionaries with metadata.
+            List of Experiment objects with metadata.
 
         Example:
         ```python
         tracker = ExperimentTracker()
         experiments = tracker.list_experiments()
         for exp in experiments:
-            print(f"{exp['id']}: {exp['name']}")
+            print(f"{exp.id}: {exp.name}")
         ```
         """
         return self.backend.list_experiments()
@@ -296,10 +296,10 @@ class ExperimentTracker:
     def delete_experiment(self, experiment_id: str) -> None:
         self.backend.delete_experiment(experiment_id)
 
-    def create_group(self, name: str, description: str | None = None) -> None:
-        self.backend.create_group(name, description)
+    def create_group(self, name: str, description: str | None = None) -> Group:
+        return self.backend.create_group(name, description)
 
-    def list_groups(self) -> list[dict[str, Any]]:  # noqa: ANN401
+    def list_groups(self) -> list[Group]:
         return self.backend.list_groups()
 
     def link_to_model(

@@ -25,7 +25,7 @@ Supports multiple backend storage options via connection strings.
 
 ```python
 tracker = ExperimentTracker("sqlite://./my_experiments")
-exp_id = tracker.start_experiment(name="my_experiment", tags=["baseline"])
+exp_id = tracker.start_experiment(tags=["baseline"])
 tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
 tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
 tracker.end_experiment(exp_id)
@@ -36,9 +36,9 @@ tracker.end_experiment(exp_id)
 #### start_experiment
 
 ```python
-def start_experiment(experiment_id: str | None = None,
-                     name: str | None = None,
-                     group: str | None = None,
+def start_experiment(name: str | None = None,
+                     group: str = "default",
+                     experiment_id: str | None = None,
                      tags: list[str] | None = None) -> str
 ```
 
@@ -46,9 +46,9 @@ Start a new experiment tracking session.
 
 **Arguments**:
 
+- `name` - Human-readable experiment name. Optional.
+- `group` - Group name to organize related experiments. Defaults to "default".
 - `experiment_id` - Unique experiment ID. Auto-generated if not provided.
-- `name` - Human-readable experiment name.
-- `group` - Group name to organize related experiments.
 - `tags` - List of tags for categorizing the experiment.
   
 
@@ -62,8 +62,6 @@ Start a new experiment tracking session.
 ```python
 tracker = ExperimentTracker()
 exp_id = tracker.start_experiment(
-    name="baseline_model",
-    group="image_classification",
     tags=["resnet", "baseline"]
 )
 ```
@@ -87,7 +85,7 @@ End an active experiment tracking session.
 
 ```python
 tracker = ExperimentTracker()
-exp_id = tracker.start_experiment(name="my_exp")
+exp_id = tracker.start_experiment()
 tracker.end_experiment(exp_id)
 ```
 
@@ -229,7 +227,7 @@ for reproducibility and model versioning.
 from luml.integrations.sklearn import save_sklearn
 
 tracker = ExperimentTracker()
-exp_id = tracker.start_experiment(name="sklearn_model")
+exp_id = tracker.start_experiment()
 tracker.log_static("model_type", "RandomForest")
 
 model_ref = save_sklearn(model, X_train)
