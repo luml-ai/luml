@@ -1,0 +1,11 @@
+import { zodResolver } from '@primevue/forms/resolvers/zod'
+import { z } from 'zod'
+import { emptyToUndefined } from './helpers'
+
+export const experimentGroupResolver = zodResolver(
+  z.object({
+    name: z.string().min(3).max(255),
+    description: emptyToUndefined(z.string().min(3).max(255).optional()),
+    tags: emptyToUndefined(z.array(z.string().min(3).max(255))).optional(),
+  }),
+)

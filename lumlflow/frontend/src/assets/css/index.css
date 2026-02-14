@@ -1,0 +1,13 @@
+@import './fonts';
+@import './tailwind';
+@import './theme';
+@import './primevue';
+
+html {
+  font-size: 14px;
+}
+
+body {
+  color: var(--p-text-color);
+  background: var(--p-content-background);
+}
