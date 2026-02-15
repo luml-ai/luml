@@ -1,4 +1,4 @@
-import { Model } from '@fnnx/web'
+import { Model } from '@fnnx-ai/web'
 import { computed, ref } from 'vue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker'

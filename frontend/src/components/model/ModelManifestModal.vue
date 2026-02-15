@@ -21,7 +21,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Manifest } from '@fnnx/common/dist/interfaces'
+import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
 import { Dialog, type DialogPassThroughOptions } from 'primevue'
 import { FileJson2 } from 'lucide-vue-next'
 import { ContentTypeEnum } from '../ui/multi-type-text/interfaces'

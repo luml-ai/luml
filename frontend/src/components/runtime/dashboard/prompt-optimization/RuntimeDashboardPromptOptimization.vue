@@ -22,10 +22,10 @@
 </template>
 
 <script setup lang="ts">
-import type { Model } from '@fnnx/web'
+import type { Model } from '@fnnx-ai/web'
 import type { PromptNode } from '@/components/express-tasks/prompt-fusion/interfaces'
 import type { Edge } from '@vue-flow/core'
-import type { MetaEntry } from '@fnnx/common/dist/interfaces'
+import type { MetaEntry } from '@fnnx-ai/common/dist/interfaces'
 import {
   ProviderAttributesMap,
   ProviderDynamicAttributesTagsEnum,

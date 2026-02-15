@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Model } from '@fnnx/web'
+import type { Model } from '@fnnx-ai/web'
 import { computed, watch } from 'vue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import TabularTask from './tabular/index.vue'

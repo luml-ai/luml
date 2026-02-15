@@ -163,7 +163,7 @@
 <script setup lang="ts">
 import type { FieldInfo } from '../../deployments.interfaces'
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
-import type { Manifest, Var } from '@fnnx/common/dist/interfaces'
+import type { Manifest, Var } from '@fnnx-ai/common/dist/interfaces'
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'

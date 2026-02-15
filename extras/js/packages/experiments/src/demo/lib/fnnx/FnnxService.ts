@@ -1,4 +1,4 @@
-import { Model } from '@fnnx/web'
+import { Model } from '@fnnx-ai/web'
 
 interface ModelFile {
   relpath: string

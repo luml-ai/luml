@@ -119,7 +119,7 @@ import {
   type UpdateDeploymentPayload,
 } from '@/lib/api/deployments/interfaces'
 import type { FieldInfo } from '../deployments.interfaces'
-import type { Var } from '@fnnx/common/dist/interfaces'
+import type { Var } from '@fnnx-ai/common/dist/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { ChevronDown, ChevronUp, HelpCircle, Rocket } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'

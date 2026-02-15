@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import type { ExperimentSnapshotProvider, ModelInfo } from '@/interfaces/interfaces'
-import type { Model } from '@fnnx/web'
+import type { Model } from '@fnnx-ai/web'
 import { ref } from 'vue'
 import { Button, Toast } from 'primevue'
 import { FnnxService } from './lib/fnnx/FnnxService'

@@ -1,10 +1,10 @@
-import { Model } from '@fnnx/web'
+import { Model } from '@fnnx-ai/web'
 import {
   type ClassificationMetrics,
   type RegressionMetrics,
   type TabularMetrics,
 } from '../data-processing/interfaces'
-import type { Manifest, MetaEntry, Var } from '@fnnx/common/dist/interfaces'
+import type { Manifest, MetaEntry, Var } from '@fnnx-ai/common/dist/interfaces'
 import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
 import type { FileIndex } from '../api/artifacts/interfaces'
 

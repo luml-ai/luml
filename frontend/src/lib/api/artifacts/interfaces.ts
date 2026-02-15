@@ -1,4 +1,4 @@
-import type { Manifest } from '@fnnx/common/dist/interfaces'
+import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
 
 export interface FileIndex extends Record<string, [number, number]> {}
 

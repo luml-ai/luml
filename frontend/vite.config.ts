@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   optimizeDeps: {
-    exclude: ['@fnnx/web', '@fnnx/common', 'onnxruntime-web'],
+    exclude: ['onnxruntime-web'],
   },
   server: {
     headers: {
