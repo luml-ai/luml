@@ -1,28 +1,35 @@
 [project]
-name = "df-satellite"
+name = "luml-satellite-kit"
 version = "0.1.0"
-description = "Dataforce Satellite Agent"
-readme = "README.md"
+description = "SDK for building Luml satellite task runners"
 requires-python = ">=3.14"
 dependencies = [
-    "aiodocker==0.24.0",
-    "uvicorn==0.38.0",
-    "luml-satellite-kit",
+    "httpx>=0.27,<1",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.7,<3",
+    "fastapi>=0.115,<1",
+    "cashews>=7,<8",
 ]
-
-[tool.uv.sources]
-luml-satellite-kit = { path = "../satellite-kit", editable = true }
 
 [dependency-groups]
 dev = [
     "ruff==0.14.5",
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["luml_satellite_kit"]
 
 [tool.ruff]
 target-version = "py314"
 line-length = 100
 indent-width = 4
-src = ["agent"]
+src = ["luml_satellite_kit"]
 
 [tool.ruff.lint]
 select = [
@@ -30,8 +37,8 @@ select = [
 ]
 ignore = [
     "ANN101",
-    "ANN002", # *args
-    "ANN003", # **kwargs
+    "ANN002",
+    "ANN003",
 ]
 
 [tool.ruff.format]
@@ -42,5 +49,5 @@ line-ending = "auto"
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["agent", "luml_satellite_kit"]
+known-first-party = ["luml_satellite_kit"]
 split-on-trailing-comma = true

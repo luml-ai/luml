@@ -1,5 +1,6 @@
 import logging
 
+from agent.clients import DockerService
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
     DeploymentStatus,
@@ -7,13 +8,18 @@ from agent.schemas import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
 )
-from agent.schemas.deployments import ErrorMessage
-from agent.tasks.base import Task
+from luml_satellite_kit import BaseSatelliteTask, ErrorMessage, PlatformClient, SatelliteTaskType
 
 logger = logging.getLogger(__name__)
 
 
-class UndeployTask(Task):
+class UndeployTask(BaseSatelliteTask):
+    task_type = SatelliteTaskType.UNDEPLOY
+
+    def __init__(self, *, platform: PlatformClient, docker: DockerService) -> None:
+        self.platform = platform
+        self.docker = docker
+
     async def run(self, task: SatelliteQueueTask) -> None:
         await self.platform.update_task_status(task.id, SatelliteTaskStatus.RUNNING)
 

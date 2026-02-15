@@ -5,16 +5,16 @@ from typing import Any
 from uuid import UUID
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
-from agent.clients import ModelServerClient, PlatformClient
-from agent.clients.docker_client import DockerService
-from agent.schemas import (
+from agent.clients import DockerService, ModelServerClient
+from agent.schemas import LocalDeployment
+from agent.settings import config
+from luml_satellite_kit import (
     Deployment,
     DeploymentStatus,
     DeploymentUpdate,
-    LocalDeployment,
+    PlatformClient,
     Secret,
 )
-from agent.settings import config
 
 logger = logging.getLogger(__name__)
 

@@ -1,21 +1,11 @@
 from functools import lru_cache
 
-from pydantic import AnyHttpUrl
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from luml_satellite_kit import BaseSatelliteSettings
 
 
-class Settings(BaseSettings):
-    SATELLITE_TOKEN: str
-    PLATFORM_URL: AnyHttpUrl = "https://api.luml.ai"
-    BASE_URL: str = "http://localhost"
+class Settings(BaseSatelliteSettings):
     MODEL_IMAGE: str = "df-random-svc:latest"
-    POLL_INTERVAL_SEC: float = 2.0
     MODEL_SERVER_PORT: int = 8080
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        extra="ignore",
-    )
 
 
 @lru_cache

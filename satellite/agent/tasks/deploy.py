@@ -9,7 +9,7 @@ from aiodocker.containers import DockerContainer
 from aiodocker.exceptions import DockerError
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
-from agent.clients import ModelServerClient
+from agent.clients import DockerService, ModelServerClient
 from agent.handlers.handler_instances import ms_handler
 from agent.schemas import (
     Deployment,
@@ -18,15 +18,19 @@ from agent.schemas import (
     SatelliteQueueTask,
     SatelliteTaskStatus,
 )
-from agent.schemas.deployments import ErrorMessage
 from agent.settings import config
-from agent.tasks.base import Task
+from luml_satellite_kit import BaseSatelliteTask, ErrorMessage, PlatformClient, SatelliteTaskType
 
 logger = logging.getLogger(__name__)
 
 
-class DeployTask(Task):
+class DeployTask(BaseSatelliteTask):
+    task_type = SatelliteTaskType.DEPLOY
     default_health_check_timeout = 1800
+
+    def __init__(self, *, platform: PlatformClient, docker: DockerService) -> None:
+        self.platform = platform
+        self.docker = docker
 
     async def _handle_healthcheck_timeout(
         self, container: DockerContainer, task_id: str, dep_id: str

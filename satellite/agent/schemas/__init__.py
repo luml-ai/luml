@@ -1,15 +1,20 @@
 from agent.schemas.deployments import (
-    Deployment,
     DeploymentInfo,
-    DeploymentStatus,
-    DeploymentUpdate,
     Healthz,
     InferenceAccessIn,
     InferenceAccessOut,
     LocalDeployment,
+)
+from luml_satellite_kit import (
+    Deployment,
+    DeploymentStatus,
+    DeploymentUpdate,
+    ErrorMessage,
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
     Secret,
 )
-from agent.schemas.task import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 
 __all__ = [
     "SatelliteTaskStatus",
@@ -18,6 +23,7 @@ __all__ = [
     "Deployment",
     "DeploymentStatus",
     "DeploymentUpdate",
+    "ErrorMessage",
     "Secret",
     "LocalDeployment",
     "DeploymentInfo",

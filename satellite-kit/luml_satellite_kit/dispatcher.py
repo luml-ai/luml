@@ -4,21 +4,26 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agent.clients import DockerService, PlatformClient
-from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
-from agent.tasks import DeployTask, Task, UndeployTask
+from luml_satellite_kit.clients.platform import PlatformClient
+from luml_satellite_kit.schemas.task import (
+    SatelliteQueueTask,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
+)
+from luml_satellite_kit.task import BaseSatelliteTask
 
 logger = logging.getLogger("satellite")
 
 
-class TaskHandler:
-    def __init__(self, platform: PlatformClient, docker: DockerService) -> None:
+class TaskDispatcher:
+    def __init__(
+        self,
+        *,
+        handlers: dict[SatelliteTaskType, BaseSatelliteTask],
+        platform: PlatformClient,
+    ) -> None:
+        self.handlers = handlers
         self.platform = platform
-        self.docker = docker
-        self._handlers: dict[SatelliteTaskType, Task] = {
-            SatelliteTaskType.DEPLOY: DeployTask(platform=platform, docker=docker),
-            SatelliteTaskType.UNDEPLOY: UndeployTask(platform=platform, docker=docker),
-        }
 
     async def dispatch(self, raw_task: dict[str, Any]) -> None:
         logger.info(
@@ -28,7 +33,6 @@ class TaskHandler:
 
         try:
             task = SatelliteQueueTask.model_validate(raw_task)
-
         except ValidationError as e:
             logger.error(f"[dispatch] Task validation failed: {e}")
             with contextlib.suppress(Exception):
@@ -39,7 +43,7 @@ class TaskHandler:
                 )
             return
 
-        handler = self._handlers.get(task.type)
+        handler = self.handlers.get(task.type)
         if handler is None:
             logger.error(f"[dispatch] Unknown task type: {task.type}")
             await self.platform.update_task_status(

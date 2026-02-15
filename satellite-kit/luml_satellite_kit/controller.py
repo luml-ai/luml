@@ -2,8 +2,8 @@ import asyncio
 import logging
 from contextlib import suppress
 
-from agent.handlers import TaskHandler
-from agent.schemas import SatelliteTaskStatus
+from luml_satellite_kit.dispatcher import TaskDispatcher
+from luml_satellite_kit.schemas.task import SatelliteTaskStatus
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -11,7 +11,7 @@ logger = logging.getLogger("satellite")
 
 
 class PeriodicController:
-    def __init__(self, *, handler: TaskHandler, poll_interval_s: float) -> None:
+    def __init__(self, *, handler: TaskDispatcher, poll_interval_s: float) -> None:
         self.handler = handler
         self.poll_interval_s = poll_interval_s
         self._stopped = False

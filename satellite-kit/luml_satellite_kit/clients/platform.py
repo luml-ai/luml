@@ -5,8 +5,12 @@ from uuid import UUID
 import httpx
 from cashews import cache
 
-from agent.schemas import Deployment, DeploymentUpdate, SatelliteTaskStatus
-from agent.schemas.deployments import ErrorMessage
+from luml_satellite_kit.schemas import (
+    Deployment,
+    DeploymentUpdate,
+    SatelliteTaskStatus,
+)
+from luml_satellite_kit.schemas.deployments import ErrorMessage
 
 logger = logging.getLogger("satellite")
 
@@ -46,8 +50,7 @@ class PlatformClient:
         params = {"status": status.value if status else None}
         r = await self._session.get(self._url("/satellites/v1/tasks"), params=params)
         r.raise_for_status()
-        tasks = r.json()
-        return tasks
+        return r.json()
 
     async def update_task_status(
         self,
@@ -152,6 +155,7 @@ class PlatformClient:
     async def update_deployment(
         self, deployment_id: str, deployment: DeploymentUpdate
     ) -> Deployment:
+        assert self._session is not None
         r = await self._session.patch(
             self._url(f"/satellites/v1/deployments/{deployment_id}"),
             json=deployment.model_dump(exclude_unset=True),

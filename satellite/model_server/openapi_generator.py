@@ -41,11 +41,9 @@ class OpenAPIGenerator:
     @property
     def security_schema(self) -> dict[str, dict[str, str]]:
         return {
-            "ApiKeyAuth": {
-                "type": "apiKey",
-                "in": "header",
-                "name": "Authorization",
-                "description": "Authorization: Bearer your_api_key_here",
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
             }
         }
 
@@ -373,7 +371,7 @@ class OpenAPIGenerator:
         compute["summary"] = "Run model inference"
         compute["description"] = None
         compute["tags"] = ["model"]
-        compute["security"] = [{"ApiKeyAuth": []}]
+        compute["security"] = [{"BearerAuth": []}]
 
     def get_openapi_schema(self) -> dict[str, Any]:  # noqa: ANN401
         if not self.manifest:

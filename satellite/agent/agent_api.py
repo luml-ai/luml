@@ -1,9 +1,7 @@
-import asyncio
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from contextlib import asynccontextmanager
+from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -11,7 +9,6 @@ from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.schemas import (
     DeploymentInfo,
-    Healthz,
     InferenceAccessIn,
     InferenceAccessOut,
 )
@@ -44,17 +41,8 @@ class OpenAPISchemaBuilder:
         }
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
-    asyncio.create_task(ms_handler.sync_deployments())
-
-    yield
-
-    # await model_server_handler.shutdown()
-
-
-def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
+def create_deploy_router(authorize_access: Callable[[str], Awaitable[bool]]) -> APIRouter:
+    router = APIRouter()
     security = HTTPBearer()
 
     async def verify_token(
@@ -70,7 +58,7 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
         except Exception as error:
             raise HTTPException(status_code=502, detail="Authorization failed") from error
 
-    @app.post("/satellites/deployments/inference-access", response_model=InferenceAccessOut)
+    @router.post("/satellites/deployments/inference-access", response_model=InferenceAccessOut)
     async def authorize_inference_access(body: InferenceAccessIn) -> InferenceAccessOut:  # noqa: D401
         try:
             authorized = bool(await authorize_access(body.api_key))
@@ -80,16 +68,12 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
                 status_code=502, detail=f"Authorization check failed: {str(err)}"
             ) from err
 
-    @app.get("/healthz", response_model=Healthz)
-    def healthz() -> dict:
-        return {"status": "healthy"}
-
-    @app.get("/deployments", response_model=list[DeploymentInfo])
+    @router.get("/deployments", response_model=list[DeploymentInfo])
     async def deployments(authorized: bool = Depends(verify_token)) -> list[dict]:  # noqa: B008
         local_deployments = await ms_handler.list_active_deployments()
         return [{"deployment_id": deployment.deployment_id} for deployment in local_deployments]
 
-    @app.post("/deployments/{deployment_id}/compute", response_model=dict)
+    @router.post("/deployments/{deployment_id}/compute", response_model=dict)
     async def compute(
         deployment_id: str,
         body: dict,
@@ -100,6 +84,10 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
         except Exception as error:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(error)}") from error
 
+    return router
+
+
+def setup_custom_openapi(app: FastAPI) -> None:
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema:
             return app.openapi_schema
@@ -117,4 +105,3 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
     ms_handler.register_openapi_cache_invalidation_callback(invalidate_openapi_cache)
 
     app.openapi = custom_openapi
-    return app
