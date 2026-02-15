@@ -1,14 +1,14 @@
-name: Satellite Tests and Linters
+name: Deploy Satellite Tests and Linters
 
 on:
   push:
     branches: [ main ]
     paths:
-      - 'satellite/**'
+      - 'deploy-satellite/**'
   pull_request:
     branches: [ main ]
     paths:
-      - 'satellite/**'
+      - 'deploy-satellite/**'
   workflow_dispatch:
 
 jobs:
@@ -24,15 +24,15 @@ jobs:
           python-version: '3.14'
 
       - name: Install dependencies with uv
-        working-directory: satellite
+        working-directory: deploy-satellite
         run: |
           python -m pip install --upgrade uv
           uv sync --group dev
 
       - name: Check formatting with Ruff
-        working-directory: satellite
+        working-directory: deploy-satellite
         run: uv run ruff format --check agent model_server
 
       - name: Lint with Ruff
-        working-directory: satellite
+        working-directory: deploy-satellite
         run: uv run ruff check agent model_server

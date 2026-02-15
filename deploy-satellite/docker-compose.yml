@@ -16,7 +16,7 @@ services:
     image: df-satellite-agent:latest
     build:
       context: ..
-      dockerfile: satellite/Dockerfile
+      dockerfile: /Dockerfile
     networks:
       - satellite-network
     environment:
