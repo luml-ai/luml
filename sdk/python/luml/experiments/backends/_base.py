@@ -115,7 +115,7 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def list_groups(self) -> list[Group]| list[dict[str, Any]]:
+    def list_groups(self) -> list[Group]:
         pass
 
     @abstractmethod
