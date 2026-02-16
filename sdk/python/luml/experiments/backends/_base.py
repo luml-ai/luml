@@ -85,7 +85,9 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_experiment_data(self, experiment_id: str) -> ExperimentData| dict[str, Any]:
+    def get_experiment_data(
+        self, experiment_id: str
+    ) -> ExperimentData | dict[str, Any]:
         pass
 
     @abstractmethod
@@ -93,7 +95,7 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def list_experiments(self) -> list[Experiment]| list[dict[str, Any]]:
+    def list_experiments(self) -> list[Experiment] | list[dict[str, Any]]:
         pass
 
     @abstractmethod
@@ -101,11 +103,13 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def create_group(self, name: str, description: str | None = None) -> Group | dict[str, Any]:
+    def create_group(
+        self, name: str, description: str | None = None
+    ) -> Group | dict[str, Any]:
         pass
 
     @abstractmethod
-    def list_groups(self) -> list[Group]| list[dict[str, Any]]:
+    def list_groups(self) -> list[Group] | list[dict[str, Any]]:
         pass
 
     @abstractmethod

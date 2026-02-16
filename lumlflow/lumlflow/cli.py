@@ -19,7 +19,7 @@ def ui(
         "--path",
         help="Backend store URI (e.g. sqlite://./experiments)",
     ),
-    host: str = typer.Option("127.0.0.1", "--host", "-h", help="Host to bind to"),
+    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind to"),
     port: int = typer.Option(5000, "--port", "-p", help="Port to bind to"),
     no_browser: bool = typer.Option(
         False, "--no-browser", help="Don't open browser automatically"
