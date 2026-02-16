@@ -324,9 +324,7 @@ def example_huggingface_with_configs() -> None:
     print(f"{sst2_dataset}\n")
 
     with tempfile.TemporaryDirectory(delete=True) as tmpdir:
-        print(
-            "Packaging multiple configs in a SINGLE archive..."
-        )
+        print("Packaging multiple configs in a SINGLE archive...")
 
         ref = save_hf_dataset(
             {"cola": cola_dataset, "sst2": sst2_dataset},
@@ -353,12 +351,8 @@ def example_huggingface_with_configs() -> None:
         sst2_train = mat.to_hf_split(subset="sst2", split="train")
         print(f"SST-2 train: {len(sst2_train)} samples")
 
-        print(
-            "\n✓ Multiple HF configs packaged in a single archive!"
-        )
-        print(
-            "✓ Each config preserves its splits (train/validation/test)"
-        )
+        print("\n✓ Multiple HF configs packaged in a single archive!")
+        print("✓ Each config preserves its splits (train/validation/test)")
 
 
 def example_format_conversion() -> None:

@@ -61,9 +61,7 @@ class TestSaveHFDataset:
         assert "train" in manifest.payload.subsets["default"]
         assert "test" in manifest.payload.subsets["default"]
 
-    def test_auto_output_path(
-        self, sample_hf_dataset: datasets.Dataset
-    ) -> None:
+    def test_auto_output_path(self, sample_hf_dataset: datasets.Dataset) -> None:
         ref = save_hf_dataset(sample_hf_dataset)
         assert Path(ref.path).exists()
         Path(ref.path).unlink()
@@ -158,9 +156,7 @@ class TestSaveHFDatasetMultiConfig:
         assert "test" in manifest.payload.subsets["config2"]
 
     def test_invalid_config_value(self, tmp_path: Path) -> None:
-        with pytest.raises(
-            TypeError, match="Config 'bad' has unsupported type"
-        ):
+        with pytest.raises(TypeError, match="Config 'bad' has unsupported type"):
             save_hf_dataset(
                 {"bad": {"a": [1, 2]}},
                 output_path=str(tmp_path / "ds.tar"),

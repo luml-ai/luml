@@ -37,8 +37,8 @@ class ExperimentGroupsHandler:
                 limit=limit,
                 cursor_id=str(use_cursor.id) if use_cursor else None,
                 cursor_value=use_cursor.value if use_cursor else None,
-                sort_by=str(sort_by),
-                order=str(order),
+                sort_by=str(sort_by.value),
+                order=str(order.value),
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
