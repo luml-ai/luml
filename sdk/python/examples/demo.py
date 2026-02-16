@@ -1,4 +1,3 @@
-
 from luml.api import LumlClient
 from luml.api._types import CollectionType, ArtifactStatus
 

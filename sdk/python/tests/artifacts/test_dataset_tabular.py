@@ -57,9 +57,7 @@ class TestSaveTabularDatasetPandas:
         assert isinstance(manifest.payload, TabularDatasetPayload)
         assert manifest.payload.file_format == "csv"
 
-    def test_split_dict(
-        self, sample_pandas_df: pd.DataFrame, tmp_path: Path
-    ) -> None:
+    def test_split_dict(self, sample_pandas_df: pd.DataFrame, tmp_path: Path) -> None:
         ref = save_tabular_dataset(
             {"train": sample_pandas_df, "test": sample_pandas_df},
             output_path=str(tmp_path / "ds.tar"),
@@ -86,9 +84,7 @@ class TestSaveTabularDatasetPandas:
         assert "subset_b" in manifest.payload.subsets
         assert "val" in manifest.payload.subsets["subset_b"].splits
 
-    def test_chunking(
-        self, sample_pandas_df: pd.DataFrame, tmp_path: Path
-    ) -> None:
+    def test_chunking(self, sample_pandas_df: pd.DataFrame, tmp_path: Path) -> None:
         ref = save_tabular_dataset(
             sample_pandas_df,
             chunk_size=2,
@@ -105,9 +101,7 @@ class TestSaveTabularDatasetPandas:
         assert Path(ref.path).exists()
         Path(ref.path).unlink()
 
-    def test_validate(
-        self, sample_pandas_df: pd.DataFrame, tmp_path: Path
-    ) -> None:
+    def test_validate(self, sample_pandas_df: pd.DataFrame, tmp_path: Path) -> None:
         ref = save_tabular_dataset(
             sample_pandas_df,
             output_path=str(tmp_path / "ds.tar"),
@@ -153,9 +147,7 @@ class TestSaveTabularDatasetPolars:
         assert isinstance(manifest.payload, TabularDatasetPayload)
         assert manifest.payload.file_format == "csv"
 
-    def test_chunking(
-        self, sample_polars_df: pl.DataFrame, tmp_path: Path
-    ) -> None:
+    def test_chunking(self, sample_polars_df: pl.DataFrame, tmp_path: Path) -> None:
         ref = save_tabular_dataset(
             sample_polars_df,
             chunk_size=2,
