@@ -3,6 +3,10 @@ from luml.experiments.backends.sqlite import SQLiteBackend
 from lumlflow.infra.exceptions import ApplicationError
 from lumlflow.schemas.base import Cursor, SortOrder
 from lumlflow.schemas.experiment_groups import Group, GroupsSortBy, PaginatedGroups
+from lumlflow.schemas.experiments import (
+    ExperimentSimple,
+    PaginatedExperiments,
+)
 from lumlflow.settings import config
 from lumlflow.utils.pagination import decode_cursor, get_cursor
 
@@ -48,5 +52,30 @@ class ExperimentGroupsHandler:
             cursor=get_cursor(items, limit, str(sort_by), order),
         )
 
-    def get_experiment_group(self, group_id):
-        return self.db.get_group(group_id)
+    def get_experiment_group(
+        self,
+        group_id,
+        limit: int = 100,
+        cursor_str: str | None = None,
+        sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
+        order: SortOrder = SortOrder.DESC,
+    ) -> PaginatedExperiments:
+        cursor = decode_cursor(cursor_str)
+        use_cursor = self._validate_cursor(cursor, sort_by, order)
+
+        try:
+            experiments = self.db.list_group_experiments_pagination(
+                group_id,
+                limit=limit,
+                cursor_id=str(use_cursor.id) if use_cursor else None,
+                cursor_value=use_cursor.value if use_cursor else None,
+                sort_by=sort_by,
+                order=order,
+            )
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return PaginatedExperiments(
+            items=[ExperimentSimple.model_validate(e) for e in experiments[:limit]],
+            cursor=get_cursor(experiments, limit, str(sort_by), order),
+        )
