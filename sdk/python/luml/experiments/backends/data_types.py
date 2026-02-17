@@ -47,6 +47,22 @@ class Experiment:
 
 
 @dataclass
+class ModelSimple:
+    id: str
+    name: str
+
+
+@dataclass
+class ExperimentSimple:
+    id: str
+    name: str
+    status: str
+    created_at: datetime
+    tags: list[str] = field(default_factory=list)
+    models: list[ModelSimple] = field(default_factory=list)
+
+
+@dataclass
 class ExperimentMetaData:
     name: str
     created_at: datetime
