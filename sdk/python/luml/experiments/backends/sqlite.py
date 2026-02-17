@@ -192,10 +192,22 @@ class ConnectionPool:
 
 class SQLitePaginationMixin:
     @staticmethod
+    def _parse_value(v: Any) -> Any:
+        if isinstance(v, str) and v and v[0] in ("{", "["):
+            try:
+                return json.loads(v)
+            except (json.JSONDecodeError, ValueError):
+                return v
+        return v
+
+    @classmethod
     def _items_to_dict(
-        columns: list[str], rows: list[sqlite3.Row]
+        cls, columns: list[str], rows: list[sqlite3.Row]
     ) -> list[dict[str, Any]]:
-        return [dict(zip(columns, row, strict=True)) for row in rows]
+        return [
+            {col: cls._parse_value(val) for col, val in zip(columns, row, strict=True)}
+            for row in rows
+        ]
 
     @staticmethod
     def _build_cursor_clause(
@@ -228,8 +240,7 @@ class SQLitePaginationMixin:
         order: str,
         cursor_id: str | None = None,
         cursor_value: str | None = None,
-        extra_where: str = "",
-        extra_params: list[Any] | None = None,
+        where: list[tuple[str, list[Any]]] | None = None,
     ) -> list[sqlite3.Row]:
         where_clause, params = self._build_cursor_clause(
             sort_by,
@@ -238,12 +249,13 @@ class SQLitePaginationMixin:
             cursor_value,
         )
 
-        if extra_where:
-            if where_clause:
-                where_clause += f" AND ({extra_where})"
-            else:
-                where_clause = f"WHERE {extra_where}"
-            params.extend(extra_params or [])
+        if where:
+            for clause, clause_params in where:
+                if where_clause:
+                    where_clause += f" AND ({clause})"
+                else:
+                    where_clause = f"WHERE ({clause})"
+                params.extend(clause_params)
 
         null_order = "LAST" if order == "desc" else "FIRST"
         cols = ", ".join(columns)
@@ -1129,6 +1141,122 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 created_at=row[3],
             )
         return None
+
+    def list_batch_experiments_models(self, experiment_ids: list[str]) -> dict[str, list[Model]]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+
+        models_by_experiment: dict[str, list[Model]] = {}
+        if experiment_ids:
+            placeholders = ", ".join("?" for _ in experiment_ids)
+
+            cursor.execute(
+                f"SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id IN ({placeholders})",
+                experiment_ids,
+            )
+            for row in cursor.fetchall():
+                models_by_experiment.setdefault(row[5], []).append(
+                    Model(
+                        id=row[0],
+                        name=row[1],
+                        created_at=row[2],
+                        tags=json.loads(row[3]) if row[3] else [],
+                        path=row[4],
+                        experiment_id=row[5],
+                    )
+                )
+
+        return models_by_experiment
+
+    def list_experiment_models(self, experiment_id: str) -> list[Model]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            f"SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
+            experiment_id,
+        )
+
+        return [
+            Model(
+                id=row[0],
+                name=row[1],
+                created_at=row[2],
+                tags=json.loads(row[3]) if row[3] else [],
+                path=row[4],
+                experiment_id=row[5],
+            )
+            for row in cursor.fetchall()
+        ]
+
+    def list_group_experiments_pagination(
+        self,
+        group_id: str,
+        limit: int = 20,
+        cursor_id: str | None = None,
+        cursor_value: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+    ) -> list[Experiment]:  # noqa: ANN401
+        """
+        Retrieves a paginated list of experiment records belonging to a specific group, with options
+        for sorting, ordering, and cursor-based pagination.
+
+        Args:
+            group_id (str): The unique identifier of the group whose experiments are to be retrieved.
+            limit (int, optional): The maximum number of records to fetch per page. Defaults to 20.
+            cursor_id (str | None, optional): The identifier of the last record from the previous page,
+                used for cursor-based pagination. Defaults to None.
+            cursor_value (str | None, optional): The value of the last record's sort key from the
+                previous page, used for cursor-based pagination. Defaults to None.
+            sort_by (str, optional): The column by which to sort results. Available options are
+                "created_at", "name", "status", and "tags". Defaults to "created_at".
+            order (str, optional): The sorting order, which can be either "asc" for ascending or "desc"
+                for descending. Defaults to "desc".
+
+        Returns:
+            list[ExperimentSimple]: A list of ExperimentSimple objects corresponding
+            to the group and pagination settings specified.
+        """
+
+        sort_by, order = self._sanitize_pagination_params(
+            sort_by,
+            order,
+            {"name", "created_at", "status", "tags"},
+        )
+        columns = ["id", "name", "created_at", "status", "tags"]
+
+        conn = self._get_meta_connection()
+
+        rows = self._execute_paginated_query(
+            conn=conn,
+            table="experiments",
+            columns=columns,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            cursor_id=cursor_id,
+            cursor_value=cursor_value,
+            where=[
+                ("group_id = ?", [group_id]),
+            ],
+        )
+
+        experiments = self._items_to_dict(columns, rows)
+
+        models_by_experiment = self.list_batch_experiments_models([e["id"] for e in experiments])
+
+        return [
+            ExperimentSimple(
+                id=e["id"],
+                name=e["name"],
+                created_at=e["created_at"],
+                status=e["status"],
+                tags=e["tags"] if e["tags"] else [],
+                models=models_by_experiment.get(e["id"], []),
+            )
+            for e in experiments
+        ]
 
     def end_experiment(self, experiment_id: str) -> None:
         """
