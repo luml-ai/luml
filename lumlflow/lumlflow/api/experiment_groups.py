@@ -2,7 +2,12 @@ from fastapi import APIRouter, Query
 
 from lumlflow.handlers.experiment_groups import ExperimentGroupsHandler
 from lumlflow.schemas.base import SortOrder
-from lumlflow.schemas.experiment_groups import GroupsSortBy, PaginatedGroups
+from lumlflow.schemas.experiment_groups import (
+    Group,
+    GroupsSortBy,
+    PaginatedGroups,
+    UpdateGroup,
+)
 from lumlflow.schemas.experiments import PaginatedExperiments
 
 experiment_groups_router = APIRouter(
@@ -16,10 +21,10 @@ groups_handler = ExperimentGroupsHandler()
 @experiment_groups_router.get("", response_model=PaginatedGroups)
 def get_experiment_groups(
     limit: int = Query(20, ge=1, le=100),
-    cursor: str | None = Query(None),
+    cursor: str | None = None,
     sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
     order: SortOrder = SortOrder.DESC,
-    search: str | None = Query(None),
+    search: str | None = None,
 ) -> PaginatedGroups:
     return groups_handler.get_experiment_groups(
         limit=limit,
@@ -28,6 +33,16 @@ def get_experiment_groups(
         order=order,
         search=search,
     )
+
+
+@experiment_groups_router.get("/{group_id}/details", response_model=Group)
+def get_experiment_group_details(group_id: str) -> Group:
+    return groups_handler.get_experiment_group_details(group_id)
+
+
+@experiment_groups_router.patch("/{group_id}", response_model=Group)
+def update_experiment_group(group_id: str, group: UpdateGroup) -> Group:
+    return groups_handler.update_experiment_group(group_id, group)
 
 
 @experiment_groups_router.get("/{group_id}", response_model=PaginatedExperiments)

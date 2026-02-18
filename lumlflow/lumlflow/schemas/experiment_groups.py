@@ -15,6 +15,12 @@ class Group(BaseModel, BaseOrmConfig):
     last_modified: datetime | None = None
 
 
+class UpdateGroup(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+
+
 class PaginatedGroups(BaseModel):
     items: list[Group]
     cursor: str | None = None
