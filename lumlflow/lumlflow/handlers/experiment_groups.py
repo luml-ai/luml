@@ -32,6 +32,7 @@ class ExperimentGroupsHandler:
         cursor_str: str | None = None,
         sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
+        search: str | None = None,
     ) -> PaginatedGroups:
         cursor = decode_cursor(cursor_str)
         use_cursor = self._validate_cursor(cursor, sort_by, order)
@@ -43,6 +44,7 @@ class ExperimentGroupsHandler:
                 cursor_value=use_cursor.value if use_cursor else None,
                 sort_by=str(sort_by.value),
                 order=str(order.value),
+                search=search,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e

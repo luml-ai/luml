@@ -13,7 +13,9 @@ def up(conn: sqlite3.Connection) -> None:
         id TEXT PRIMARY KEY,
         name TEXT,
         description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        tags TEXT,
+        last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name);
 
@@ -34,7 +36,9 @@ def up(conn: sqlite3.Connection) -> None:
         group_id TEXT REFERENCES experiment_groups(id),
         static_params TEXT,
         dynamic_params TEXT,
-        model_id TEXT REFERENCES models(id)
+        model_id TEXT REFERENCES models(id),
+        duration REAL,
+        description TEXT
     );
 
     schema_migrations (
@@ -127,6 +131,16 @@ def up(conn: sqlite3.Connection) -> None:
         "IF NOT EXISTS idx_experiment_groups_name ON experiment_groups(name)"
     )
 
+    cursor.execute(
+        "ALTER TABLE experiment_groups ADD COLUMN tags TEXT"
+    )
+    cursor.execute(
+        "ALTER TABLE experiment_groups ADD COLUMN last_modified "
+        "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    )
+    cursor.execute("ALTER TABLE experiments ADD COLUMN duration REAL")
+    cursor.execute("ALTER TABLE experiments ADD COLUMN description TEXT")
+
 
 def down(conn: sqlite3.Connection) -> None:
     cursor = conn.cursor()
@@ -146,4 +160,8 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_id")
     cursor.execute("ALTER TABLE experiments DROP COLUMN static_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
+    cursor.execute("ALTER TABLE experiments DROP COLUMN duration")
+    cursor.execute("ALTER TABLE experiments DROP COLUMN description")
     cursor.execute("DROP TABLE IF EXISTS models")
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN tags")
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN last_modified")
