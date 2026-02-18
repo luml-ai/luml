@@ -1,10 +1,15 @@
 from luml.experiments.backends.sqlite import SQLiteBackend
 
-from lumlflow.infra.exceptions import ApplicationError
+from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.base import Cursor, SortOrder
-from lumlflow.schemas.experiment_groups import Group, GroupsSortBy, PaginatedGroups
+from lumlflow.schemas.experiment_groups import (
+    Group,
+    GroupsSortBy,
+    PaginatedGroups,
+    UpdateGroup,
+)
 from lumlflow.schemas.experiments import (
-    ExperimentSimple,
+    ExperimentListed,
     PaginatedExperiments,
 )
 from lumlflow.settings import config
@@ -54,6 +59,33 @@ class ExperimentGroupsHandler:
             cursor=get_cursor(items, limit, str(sort_by), order),
         )
 
+    def get_experiment_group_details(self, group_id: str) -> Group:
+        try:
+            group = self.db.get_group(group_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        if not group:
+            raise NotFound("Group not found")
+
+        return Group.model_validate(group)
+
+    def update_experiment_group(self, group_id: str, body: UpdateGroup) -> Group:
+        try:
+            group = self.db.update_group(
+                group_id,
+                name=body.name,
+                description=body.description,
+                tags=body.tags,
+            )
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        if not group:
+            raise NotFound("Group not found")
+
+        return Group.model_validate(group)
+
     def get_experiment_group(
         self,
         group_id,
@@ -78,6 +110,6 @@ class ExperimentGroupsHandler:
             raise ApplicationError(str(e), status_code=500) from e
 
         return PaginatedExperiments(
-            items=[ExperimentSimple.model_validate(e) for e in experiments[:limit]],
+            items=[ExperimentListed.model_validate(e) for e in experiments[:limit]],
             cursor=get_cursor(experiments, limit, str(sort_by), order),
         )
