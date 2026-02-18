@@ -22,6 +22,7 @@ class Backend(ABC):
         group: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> None:
         pass
 
