@@ -4,15 +4,9 @@ from typing import Any
 
 
 @dataclass
-class PaginationCursor:
-    id: str
-    value: str | None
-
-
-@dataclass
 class PaginatedResponse[T]:
     items: list[T]
-    cursor: PaginationCursor | None
+    cursor: str | None
 
 
 @dataclass
@@ -74,3 +68,27 @@ class ExperimentData:
     static_params: dict[str, Any] = field(default_factory=dict)
     dynamic_metrics: dict[str, Any] = field(default_factory=dict)
     attachments: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class SpanRecord:
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None
+    name: str
+    kind: int
+    dfs_span_type: int
+    start_time_unix_nano: int
+    end_time_unix_nano: int
+    status_code: int | None
+    status_message: str | None
+    attributes: dict[str, Any] | None
+    events: list[dict[str, Any]] | None
+    links: list[dict[str, Any]] | None
+    trace_flags: int | None
+
+
+@dataclass
+class TraceRecord:
+    trace_id: str
+    spans: list[SpanRecord] = field(default_factory=list)
