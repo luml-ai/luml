@@ -890,6 +890,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         return experiments
 
+    def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+        experiment_ids = [row[0] for row in cursor.fetchall()]
+
+        keys: set[str] = set()
+        for experiment_id in experiment_ids:
+            db_path = self._get_experiment_db_path(experiment_id)
+            if not db_path.exists():
+                continue
+            exp_conn = self._get_experiment_connection(experiment_id)
+            exp_cursor = exp_conn.cursor()
+            exp_cursor.execute("SELECT DISTINCT key FROM static_params")
+            keys.update(row[0] for row in exp_cursor.fetchall())
+
+        return sorted(keys)
+
+    def get_group_experiments_dynamic_metrics_keys(self, group_id: str) -> list[str]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+        experiment_ids = [row[0] for row in cursor.fetchall()]
+
+        keys: set[str] = set()
+        for experiment_id in experiment_ids:
+            db_path = self._get_experiment_db_path(experiment_id)
+            if not db_path.exists():
+                continue
+            exp_conn = self._get_experiment_connection(experiment_id)
+            exp_cursor = exp_conn.cursor()
+            exp_cursor.execute("SELECT DISTINCT key FROM dynamic_metrics")
+            keys.update(row[0] for row in exp_cursor.fetchall())
+
+        return sorted(keys)
+
     def get_experiment(self, experiment_id: str) -> Experiment | None:
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -1363,7 +1399,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             order,
             {"name", "created_at", "status", "tags"},
         )
-        columns = ["id", "name", "created_at", "status", "tags", "duration", "description"]
+        columns = ["id", "name", "created_at", "status", "tags", "duration", "description", "static_params", "dynamic_params"]
 
         conn = self._get_meta_connection()
 
@@ -1396,6 +1432,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 models=models_by_experiment.get(e["id"], []),
                 duration=e["duration"],
                 description=e["description"],
+                static_params=json.loads(e["static_params"]) if e["static_params"] else None,
+                dynamic_params=json.loads(e["dynamic_params"]) if e["dynamic_params"] else None,
             )
             for e in experiments
         ]

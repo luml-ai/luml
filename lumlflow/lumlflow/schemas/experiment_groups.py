@@ -15,6 +15,11 @@ class Group(BaseModel, BaseOrmConfig):
     last_modified: datetime | None = None
 
 
+class GroupDetails(Group):
+    static_params: list[str] | None = None
+    dynamic_params: list[str] | None = None
+
+
 class UpdateGroup(BaseModel):
     name: str | None = None
     description: str | None = None
