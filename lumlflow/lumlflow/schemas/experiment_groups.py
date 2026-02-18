@@ -16,8 +16,8 @@ class Group(BaseModel, BaseOrmConfig):
 
 
 class GroupDetails(Group):
-    static_params: list[str] | None = None
-    dynamic_params: list[str] | None = None
+    experiments_static_params: list[str] | None = None
+    experiments_dynamic_params: list[str] | None = None
 
 
 class UpdateGroup(BaseModel):

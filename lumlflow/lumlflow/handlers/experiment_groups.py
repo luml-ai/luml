@@ -1,7 +1,7 @@
 from luml.experiments.backends.sqlite import SQLiteBackend
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
-from lumlflow.schemas.base import Cursor, SortOrder
+from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiment_groups import (
     Group,
     GroupDetails,
@@ -14,23 +14,12 @@ from lumlflow.schemas.experiments import (
     PaginatedExperiments,
 )
 from lumlflow.settings import config
-from lumlflow.utils.pagination import decode_cursor, get_cursor
 
 
 class ExperimentGroupsHandler:
     def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
         self._db_path = db_path
         self.db = SQLiteBackend(self._db_path)
-
-    @staticmethod
-    def _validate_cursor(
-        cursor: Cursor | None,
-        sort_by: GroupsSortBy,
-        order: SortOrder,
-    ) -> Cursor | None:
-        if cursor and (cursor.sort_by == sort_by.value and cursor.order == order.value):
-            return cursor
-        return None
 
     def get_experiment_groups(
         self,
@@ -40,24 +29,20 @@ class ExperimentGroupsHandler:
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
     ) -> PaginatedGroups:
-        cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by, order)
-
         try:
-            items = self.db.list_groups_pagination(
+            result = self.db.list_groups_pagination(
                 limit=limit,
-                cursor_id=str(use_cursor.id) if use_cursor else None,
-                cursor_value=use_cursor.value if use_cursor else None,
-                sort_by=str(sort_by.value),
-                order=str(order.value),
+                cursor_str=cursor_str,
+                sort_by=sort_by.value,
+                order=order.value,
                 search=search,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
         return PaginatedGroups(
-            items=[Group.model_validate(g) for g in items[:limit]],
-            cursor=get_cursor(items, limit, str(sort_by), order),
+            items=[Group.model_validate(g) for g in result.items],
+            cursor=result.cursor,
         )
 
     def get_experiment_group_details(self, group_id: str) -> GroupDetails:
@@ -80,15 +65,15 @@ class ExperimentGroupsHandler:
             created_at=group.created_at,
             tags=group.tags,
             last_modified=group.last_modified,
-            static_params=static_params,
-            dynamic_params=dynamic_params,
+            experiments_static_params=static_params,
+            experiments_dynamic_params=dynamic_params,
         )
 
     def delete_experiment_group(self, group_id: str) -> None:
         if not self.db.get_group(group_id):
             raise NotFound("Group not found")
-        experiments = self.db.list_group_experiments_pagination(group_id, limit=1)
-        if experiments:
+        result = self.db.list_group_experiments_pagination(group_id, limit=1)
+        if result.items:
             raise ApplicationError(
                 "Cannot delete a group that has linked experiments", status_code=409
             )
@@ -115,30 +100,32 @@ class ExperimentGroupsHandler:
 
     def get_experiment_group(
         self,
-        group_id,
+        group_id: str,
         limit: int = 100,
         cursor_str: str | None = None,
-        sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
+        sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
     ) -> PaginatedExperiments:
-        cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by, order)
+        try:
+            json_sort_column = self.db.resolve_experiment_sort_column(group_id, sort_by)
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
 
         try:
-            experiments = self.db.list_group_experiments_pagination(
+            result = self.db.list_group_experiments_pagination(
                 group_id,
                 limit=limit,
-                cursor_id=str(use_cursor.id) if use_cursor else None,
-                cursor_value=use_cursor.value if use_cursor else None,
+                cursor_str=cursor_str,
                 sort_by=sort_by,
-                order=order,
+                order=order.value,
                 search=search,
+                json_sort_column=json_sort_column,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
         return PaginatedExperiments(
-            items=[ExperimentListed.model_validate(e) for e in experiments[:limit]],
-            cursor=get_cursor(experiments, limit, str(sort_by), order),
+            items=[ExperimentListed.model_validate(e) for e in result.items],
+            cursor=result.cursor,
         )
