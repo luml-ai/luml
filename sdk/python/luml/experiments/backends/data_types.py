@@ -22,6 +22,7 @@ class Group:
     description: str | None
     created_at: datetime
     tags: list[str] = field(default_factory=list)
+    last_modified: datetime | None = None
 
 
 @dataclass
@@ -44,6 +45,8 @@ class Experiment:
     tags: list[str] = field(default_factory=list)
     static_params: dict[str, Any] = field(default_factory=dict)
     dynamic_params: dict[str, Any] = field(default_factory=dict)
+    duration: float | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -60,6 +63,8 @@ class ExperimentSimple:
     created_at: datetime
     tags: list[str] = field(default_factory=list)
     models: list[ModelSimple] = field(default_factory=list)
+    duration: float | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -69,6 +74,8 @@ class ExperimentMetaData:
     status: str
     group_id: str
     tags: list[str] = field(default_factory=list)
+    duration: float | None = None
+    description: str | None = None
 
 
 @dataclass
