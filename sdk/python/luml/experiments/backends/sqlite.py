@@ -890,6 +890,23 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         return experiments
 
+    def get_experiment(self, experiment_id: str) -> Experiment | None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, created_at, status, tags, duration, description, group_id "
+            "FROM experiments WHERE id = ?",
+            (experiment_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return Experiment(
+            id=row[0], name=row[1], created_at=row[2], status=row[3],
+            tags=json.loads(row[4]) if row[4] else [],
+            duration=row[5], description=row[6], group_id=row[7],
+        )
+
     def delete_experiment(self, experiment_id: str) -> None:
         """
         Deletes a specified experiment from the database and cleans up associated files
@@ -916,6 +933,65 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             import shutil
 
             shutil.rmtree(exp_dir)
+
+    def update_experiment(
+        self,
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Experiment | None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+
+        fields: list[str] = []
+        values: list[Any] = []
+
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if description is not None:
+            fields.append("description = ?")
+            values.append(description)
+        if tags is not None:
+            fields.append("tags = ?")
+            values.append(json.dumps(tags))
+
+        if not fields:
+            cursor.execute(
+                "SELECT id, name, created_at, status, tags, duration, description "
+                "FROM experiments WHERE id = ?",
+                (experiment_id,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return Experiment(
+                id=row[0], name=row[1], created_at=row[2], status=row[3],
+                tags=json.loads(row[4]) if row[4] else [],
+                duration=row[5], description=row[6],
+            )
+
+        values.append(experiment_id)
+        cursor.execute(
+            f"UPDATE experiments SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+            values,
+        )
+        conn.commit()
+
+        cursor.execute(
+            "SELECT id, name, created_at, status, tags, duration, description "
+            "FROM experiments WHERE id = ?",
+            (experiment_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return Experiment(
+            id=row[0], name=row[1], created_at=row[2], status=row[3],
+            tags=json.loads(row[4]) if row[4] else [],
+            duration=row[5], description=row[6],
+        )
 
     def create_group(
         self,
@@ -1009,6 +1085,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn.commit()
 
         return self.get_group(group_id)
+
+    def delete_group(self, group_id: str) -> None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM experiment_groups WHERE id = ?", (group_id,))
+        conn.commit()
 
     def list_groups(self) -> list[Group]:  # noqa: ANN401
         """
@@ -1253,6 +1335,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor_value: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
+        search: str | None = None,
     ) -> list[Experiment]:  # noqa: ANN401
         """
         Retrieves a paginated list of experiment records belonging to a specific group, with options
@@ -1295,6 +1378,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             cursor_value=cursor_value,
             where=[
                 ("group_id = ?", [group_id]),
+                *([("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])] if search else []),
             ],
         )
 
