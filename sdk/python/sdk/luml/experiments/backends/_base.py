@@ -111,6 +111,16 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def update_group(
+        self,
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group | dict[str, Any] | None:
+        pass
+
+    @abstractmethod
     def list_groups(self) -> list[Group]:
         pass
 
