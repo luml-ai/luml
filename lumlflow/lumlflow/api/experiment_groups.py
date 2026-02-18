@@ -51,16 +51,22 @@ def delete_experiment_group(group_id: str) -> None:
     groups_handler.delete_experiment_group(group_id)
 
 
-@experiment_groups_router.get("/{group_id}", response_model=PaginatedExperiments)
+@experiment_groups_router.get(
+    "/{group_id}/experiments", response_model=PaginatedExperiments
+)
 def get_group_experiments(
     group_id: str,
     limit: int = Query(20, ge=1, le=100),
     cursor: str | None = None,
+    sort_by: str = "created_at",
+    order: SortOrder = SortOrder.DESC,
     search: str | None = None,
 ) -> PaginatedExperiments:
     return groups_handler.get_experiment_group(
         group_id,
         limit=limit,
         cursor_str=cursor,
+        sort_by=sort_by,
+        order=order,
         search=search,
     )
