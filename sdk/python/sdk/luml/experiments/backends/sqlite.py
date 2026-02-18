@@ -12,6 +12,16 @@ from typing import Any
 
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
+from luml.experiments.backends._cursor import Cursor
+from luml.experiments.backends._sqlite_experiment_ddl import (
+    _DDL_EXPERIMENT_CREATE_ATTACHMENTS,
+    _DDL_EXPERIMENT_CREATE_DYNAMIC,
+    _DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE,
+    _DDL_EXPERIMENT_CREATE_EVALS,
+    _DDL_EXPERIMENT_CREATE_SPANS,
+    _DDL_EXPERIMENT_CREATE_STATIC,
+)
+from luml.experiments.backends._sqlite_pagination_mixin import SQLitePaginationMixin
 from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
@@ -19,92 +29,14 @@ from luml.experiments.backends.data_types import (
     Group,
     PaginationCursor,
     Model,
+    Model,
+    PaginatedResponse,
+    SpanRecord,
+    TraceRecord,
 )
 from luml.experiments.backends.migration_runner import MigrationRunner
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
-
-_DDL_EXPERIMENT_CREATE_STATIC = """
-    CREATE TABLE IF NOT EXISTS static_params (
-        key TEXT PRIMARY KEY,
-        value TEXT,
-        value_type TEXT
-    )
-"""
-_DDL_EXPERIMENT_CREATE_DYNAMIC = """
-    CREATE TABLE IF NOT EXISTS dynamic_metrics (
-        key TEXT,
-        value REAL,
-        step INTEGER,
-        logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (key, step)
-    )
-"""
-_DDL_EXPERIMENT_CREATE_ATTACHMENTS = """
-    CREATE TABLE IF NOT EXISTS attachments (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        file_path TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-"""
-
-_DDL_EXPERIMENT_CREATE_SPANS = """
-    CREATE TABLE IF NOT EXISTS spans (
-        -- OTEL identifiers
-        trace_id TEXT NOT NULL,
-        span_id TEXT NOT NULL,
-        parent_span_id TEXT,
-
-        -- span details
-        name TEXT NOT NULL,  -- OTEL uses 'name' instead of 'operation_name'
-        kind INTEGER,        -- SpanKind: 0=UNSPECIFIED, 1=INTERNAL, 2=SERVER, 3=CLIENT, 4=PRODUCER, 5=CONSUMER
-        dfs_span_type INTEGER NOT NULL DEFAULT 0,  -- SpanType: 0=DEFAULT
-
-        -- Timing
-        start_time_unix_nano BIGINT NOT NULL,
-        end_time_unix_nano BIGINT NOT NULL,
-
-        -- Status
-        status_code INTEGER,    -- StatusCode: 0=UNSET, 1=OK, 2=ERROR
-        status_message TEXT,
-
-        -- Span data
-        attributes TEXT,       -- JSON
-        events TEXT,           -- JSON
-        links TEXT,            -- JSON
-
-        trace_flags INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-        PRIMARY KEY (trace_id, span_id)
-    );
-"""
-
-_DDL_EXPERIMENT_CREATE_EVALS = """
-    CREATE TABLE IF NOT EXISTS evals (
-        id TEXT NOT NULL,
-        dataset_id TEXT NOT NULL,
-        inputs TEXT NOT NULL, -- JSON
-        outputs TEXT, -- JSON
-        refs TEXT, -- JSON
-        scores TEXT, -- JSON
-        metadata TEXT, -- JSON
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (dataset_id, id)
-    )
-"""
-
-_DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE = """
-    CREATE TABLE IF NOT EXISTS eval_traces_bridge (
-        id TEXT PRIMARY KEY,
-        eval_dataset_id TEXT NOT NULL,
-        eval_id TEXT NOT NULL,
-        trace_id TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-"""
 
 
 class ConnectionPool:
@@ -190,114 +122,15 @@ class ConnectionPool:
             }
 
 
-class SQLitePaginationMixin:
-    @staticmethod
-    def _parse_value(v: Any) -> Any:
-        if isinstance(v, str) and v and v[0] in ("{", "["):
-            try:
-                return json.loads(v)
-            except (json.JSONDecodeError, ValueError):
-                return v
-        return v
-
-    @classmethod
-    def _items_to_dict(
-        cls, columns: list[str], rows: list[sqlite3.Row]
-    ) -> list[dict[str, Any]]:
-        return [
-            {col: cls._parse_value(val) for col, val in zip(columns, row, strict=True)}
-            for row in rows
-        ]
-
-    @staticmethod
-    def _build_cursor_clause(
-        sort_by: str,
-        order: str,
-        cursor_id: str | None,
-        cursor_value: str | None,
-    ) -> tuple[str, list[Any]]:
-        if cursor_id is None:
-            return "", []
-
-        op = "<" if order == "desc" else ">"
-
-        if cursor_value is not None:
-            clause = f"""
-                WHERE ({sort_by} {op} ?)
-                   OR ({sort_by} = ? AND id {op} ?)
-            """
-            return clause, [cursor_value, cursor_value, cursor_id]
-
-        return f"WHERE id {op} ?", [cursor_id]
-
-    def _execute_paginated_query(
-        self,
-        conn: sqlite3.Connection,
-        table: str,
-        columns: list[str],
-        limit: int,
-        sort_by: str,
-        order: str,
-        cursor_id: str | None = None,
-        cursor_value: str | None = None,
-        where: list[tuple[str, list[Any]]] | None = None,
-    ) -> list[sqlite3.Row]:
-        where_clause, params = self._build_cursor_clause(
-            sort_by,
-            order,
-            cursor_id,
-            cursor_value,
-        )
-
-        if where:
-            for clause, clause_params in where:
-                if where_clause:
-                    where_clause += f" AND ({clause})"
-                else:
-                    where_clause = f"WHERE ({clause})"
-                params.extend(clause_params)
-
-        null_order = "LAST" if order == "desc" else "FIRST"
-        cols = ", ".join(columns)
-        query = f"""
-            SELECT {cols}
-            FROM {table}
-            {where_clause}
-            ORDER BY {sort_by} {order.upper()} NULLS {null_order}, id {order.upper()}
-            LIMIT ?
-        """
-        params.append(limit + 1)
-
-        db_cursor = conn.cursor()
-        db_cursor.execute(query, params)
-        return db_cursor.fetchall()
-
-    @staticmethod
-    def _build_cursor(
-        items: list[dict[str, Any]],
-        has_next: bool,
-        sort_by: str,
-    ) -> PaginationCursor | None:
-        if has_next and items:
-            last = items[-1]
-            return PaginationCursor(id=last["id"], value=last.get(sort_by))
-        return None
-
-    @staticmethod
-    def _sanitize_pagination_params(
-        sort_by: str,
-        order: str,
-        allowed_sort_columns: set[str],
-    ) -> tuple[str, str]:
-        if sort_by not in allowed_sort_columns:
-            sort_by = "created_at"
-        order = order.lower()
-        if order not in ("asc", "desc"):
-            order = "desc"
-        return sort_by, order
-
-
 class SQLiteBackend(Backend, SQLitePaginationMixin):
+    _STANDARD_EXPERIMENT_SORT_COLUMNS = {
+        "name",
+        "created_at",
+        "status",
+        "tags",
+        "duration",
+    }
+
     def __init__(
         self,
         config: str,
@@ -926,21 +759,50 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         return sorted(keys)
 
+    def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
+        """
+        Resolves the json_sort_column for list_group_experiments_pagination.
+
+        Specific to experiments: checks dynamic_params and static_params keys.
+        - None              → sort_by is a standard experiment column
+        - "dynamic_params"  → sort_by is a dynamic metric key
+        - "static_params"   → sort_by is a static param key
+        - raises ValueError → sort_by is unknown
+        """
+        if sort_by in self._STANDARD_EXPERIMENT_SORT_COLUMNS:
+            return None
+        if sort_by in self.get_group_experiments_dynamic_metrics_keys(group_id):
+            return "dynamic_params"
+        if sort_by in self.get_group_experiments_static_params_keys(group_id):
+            return "static_params"
+        raise ValueError(
+            f"Invalid sort_by '{sort_by}'. Must be one of "
+            f"{sorted(self._STANDARD_EXPERIMENT_SORT_COLUMNS)} "
+            "or a valid dynamic metric / static param key."
+        )
+
     def get_experiment(self, experiment_id: str) -> Experiment | None:
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id "
-            "FROM experiments WHERE id = ?",
+            "SELECT id, name, created_at, status, tags, duration, description, group_id, "
+            "static_params, dynamic_params FROM experiments WHERE id = ?",
             (experiment_id,),
         )
         row = cursor.fetchone()
         if not row:
             return None
         return Experiment(
-            id=row[0], name=row[1], created_at=row[2], status=row[3],
+            id=row[0],
+            name=row[1],
+            created_at=row[2],
+            status=row[3],
             tags=json.loads(row[4]) if row[4] else [],
-            duration=row[5], description=row[6], group_id=row[7],
+            duration=row[5],
+            description=row[6],
+            group_id=row[7],
+            static_params=json.loads(row[8]) if row[8] else None,
+            dynamic_params=json.loads(row[9]) if row[9] else None,
         )
 
     def delete_experiment(self, experiment_id: str) -> None:
@@ -1003,9 +865,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             if not row:
                 return None
             return Experiment(
-                id=row[0], name=row[1], created_at=row[2], status=row[3],
+                id=row[0],
+                name=row[1],
+                created_at=row[2],
+                status=row[3],
                 tags=json.loads(row[4]) if row[4] else [],
-                duration=row[5], description=row[6],
+                duration=row[5],
+                description=row[6],
             )
 
         values.append(experiment_id)
@@ -1024,9 +890,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not row:
             return None
         return Experiment(
-            id=row[0], name=row[1], created_at=row[2], status=row[3],
+            id=row[0],
+            name=row[1],
+            created_at=row[2],
+            status=row[3],
             tags=json.loads(row[4]) if row[4] else [],
-            duration=row[5], description=row[6],
+            duration=row[5],
+            description=row[6],
         )
 
     def create_group(
@@ -1243,17 +1113,37 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def list_groups_pagination(
         self,
         limit: int = 20,
-        cursor_id: str | None = None,
-        cursor_value: str | None = None,
+        cursor_str: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
         search: str | None = None,
-    ) -> list[Group]:
+    ) -> PaginatedResponse[Group]:
+        """
+        Retrieves a paginated list of experiment groups from the database. Supports optional
+        filtering, sorting, and cursor-based pagination mechanisms to improve query efficiency
+        and usability.
+
+        Args:
+            limit (int): The maximum number of items to include in the response. Defaults to 20.
+            cursor_str (str | None): An optional encoded cursor string to specify the starting
+                point for the query. Used for cursor-based pagination.
+            sort_by (str): The attribute by which to sort the results. Must be one of
+                "created_at", "name", or "last_modified". Defaults to "created_at".
+            order (str): The sort order for the results. Must be either "asc" or "desc".
+                Defaults to "desc".
+            search (str | None): An optional search term to filter groups based on name or tags.
+
+        Returns:
+            PaginatedResponse[Group]: A paginated response object containing a list of
+                Group objects and pagination metadata.
+        """
         sort_by, order = self._sanitize_pagination_params(
             sort_by,
             order,
             {"created_at", "name", "last_modified"},
         )
+
+        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
         conn = self._get_meta_connection()
         columns = ["id", "name", "description", "created_at", "tags", "last_modified"]
@@ -1265,12 +1155,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             limit=limit,
             sort_by=sort_by,
             order=order,
-            cursor_id=cursor_id,
-            cursor_value=cursor_value,
-            where=[("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])] if search else None,
+            cursor_id=use_cursor.id if use_cursor else None,
+            cursor_value=use_cursor.value if use_cursor else None,
+            where=[("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])]
+            if search
+            else None,
         )
 
-        return [
+        items = [
             Group(
                 id=d["id"],
                 name=d["name"],
@@ -1281,6 +1173,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
             for d in self._items_to_dict(columns, rows)
         ]
+        return PaginatedResponse(
+            items=items[:limit],
+            cursor=Cursor.get_cursor(items, limit, sort_by, order),
+        )
 
     def get_group(self, group_id: str) -> Group | None:  # noqa: ANN401
         """
@@ -1316,7 +1212,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         return None
 
-    def list_batch_experiments_models(self, experiment_ids: list[str]) -> dict[str, list[Model]]:
+    def list_batch_experiments_models(
+        self, experiment_ids: list[str]
+    ) -> dict[str, list[Model]]:
+        """
+        Retrieves models associated with a list of experiment IDs. Models are organized into a dictionary
+        where the key is the experiment ID, and the value is a list of `Model` objects belonging to that
+        experiment. If no experiment IDs are provided, an empty dictionary is returned.
+
+        Args:
+            experiment_ids (list[str]): A list of experiment IDs for which models need to be fetched.
+
+        Returns:
+            dict[str, list[Model]]: A dictionary where keys are experiment IDs and values are lists of
+            models associated with those experiment IDs.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
@@ -1343,12 +1253,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return models_by_experiment
 
     def list_experiment_models(self, experiment_id: str) -> list[Model]:
+        """
+        Fetches a list of models associated with the specified experiment.
+
+        This method queries the database for all models tied to an experiment identified
+        by the provided `experiment_id`. Each model is returned as an instance of the
+        `Model` class. The models include details such as their IDs, names, creation
+        timestamps, tags, associated paths, and experiment IDs.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment whose
+                models are to be retrieved.
+
+        Returns:
+            list[Model]: A list of `Model` instances representing the models
+                associated with the specified experiment.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
         cursor.execute(
-            f"SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
-            experiment_id,
+            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
+            (experiment_id,),
         )
 
         return [
@@ -1367,39 +1293,73 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self,
         group_id: str,
         limit: int = 20,
-        cursor_id: str | None = None,
-        cursor_value: str | None = None,
+        cursor_str: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
         search: str | None = None,
-    ) -> list[Experiment]:  # noqa: ANN401
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
         """
-        Retrieves a paginated list of experiment records belonging to a specific group, with options
-        for sorting, ordering, and cursor-based pagination.
+        Fetches a paginated list of experiments within a specified group, supporting various
+        sorting, filtering, and cursor-based pagination options.
+
+        This method retrieves experiments associated with a specific group ID, ordering and
+        filtering them based on the provided parameters. It supports sorting by both standard
+        columns and specific JSON fields, as well as filtering based on search terms and
+        integrating with a cursor-based pagination approach.
 
         Args:
-            group_id (str): The unique identifier of the group whose experiments are to be retrieved.
-            limit (int, optional): The maximum number of records to fetch per page. Defaults to 20.
-            cursor_id (str | None, optional): The identifier of the last record from the previous page,
-                used for cursor-based pagination. Defaults to None.
-            cursor_value (str | None, optional): The value of the last record's sort key from the
-                previous page, used for cursor-based pagination. Defaults to None.
-            sort_by (str, optional): The column by which to sort results. Available options are
-                "created_at", "name", "status", and "tags". Defaults to "created_at".
-            order (str, optional): The sorting order, which can be either "asc" for ascending or "desc"
-                for descending. Defaults to "desc".
+            group_id (str): The unique identifier for the group whose experiments are being
+                listed.
+            limit (int, optional): The maximum number of records to retrieve per page. Default
+                is 20.
+            cursor_str (str | None, optional): The encoded cursor string for implementing
+                pagination. Default is None.
+            sort_by (str, optional): The column name to sort the results by. Default is
+                "created_at".
+            order (str, optional): The order of sorting, either "asc" (ascending) or "desc"
+                (descending). Default is "desc".
+            search (str | None, optional): The search string for filtering experiments by name
+                or tags. Default is None.
+            json_sort_column (str | None, optional): A JSON column (either "static_params" or
+                "dynamic_params") to use for sorting. Default is None.
 
         Returns:
-            list[Experiment]: A list of Experiment objects corresponding
-            to the group and pagination settings specified.
-        """
+            PaginatedResponse[Experiment]: A paginated response object containing the list of
+                Experiment objects and pagination-related metadata.
 
-        sort_by, order = self._sanitize_pagination_params(
-            sort_by,
-            order,
-            {"name", "created_at", "status", "tags"},
-        )
-        columns = ["id", "name", "created_at", "status", "tags", "duration", "description", "static_params", "dynamic_params"]
+        Raises:
+            ValueError: If the provided `json_sort_column` is not one of the allowed values
+                ("static_params", "dynamic_params").
+        """
+        allowed_columns = {"static_params", "dynamic_params"}
+
+        if json_sort_column is not None:
+            if json_sort_column not in allowed_columns:
+                raise ValueError(f"json_sort_column must be one of {allowed_columns}")
+            order = order.lower()
+            if order not in ("asc", "desc"):
+                order = "desc"
+        else:
+            sort_by, order = self._sanitize_pagination_params(
+                sort_by,
+                order,
+                {"name", "created_at", "status", "tags", "duration"},
+            )
+
+        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
+
+        columns = [
+            "id",
+            "name",
+            "created_at",
+            "status",
+            "tags",
+            "duration",
+            "description",
+            "static_params",
+            "dynamic_params",
+        ]
 
         conn = self._get_meta_connection()
 
@@ -1410,19 +1370,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             limit=limit,
             sort_by=sort_by,
             order=order,
-            cursor_id=cursor_id,
-            cursor_value=cursor_value,
+            cursor_id=use_cursor.id if use_cursor else None,
+            cursor_value=str(use_cursor.value)
+            if use_cursor and use_cursor.value is not None
+            else None,
             where=[
                 ("group_id = ?", [group_id]),
-                *([("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])] if search else []),
+                *(
+                    [("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])]
+                    if search
+                    else []
+                ),
             ],
+            json_sort_column=json_sort_column,
         )
 
-        experiments = self._items_to_dict(columns, rows)
+        experiments_dicts = self._items_to_dict(columns, rows)
+        models_by_experiment = self.list_batch_experiments_models(
+            [e["id"] for e in experiments_dicts]
+        )
 
-        models_by_experiment = self.list_batch_experiments_models([e["id"] for e in experiments])
-
-        return [
+        items = [
             Experiment(
                 id=e["id"],
                 name=e["name"],
@@ -1432,11 +1400,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 models=models_by_experiment.get(e["id"], []),
                 duration=e["duration"],
                 description=e["description"],
-                static_params=json.loads(e["static_params"]) if e["static_params"] else None,
-                dynamic_params=json.loads(e["dynamic_params"]) if e["dynamic_params"] else None,
+                static_params=e["static_params"] or None,
+                dynamic_params=e["dynamic_params"] or None,
             )
-            for e in experiments
+            for e in experiments_dicts
         ]
+        return PaginatedResponse(
+            items=items[:limit],
+            cursor=Cursor.get_cursor(items, limit, sort_by, order, json_sort_column),
+        )
 
     def end_experiment(self, experiment_id: str) -> None:
         """
@@ -1471,7 +1443,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         meta_cursor.execute(
             """
             UPDATE experiments
-            SET status = 'completed', static_params = ?, dynamic_params = ?
+            SET status = 'completed',
+                static_params = ?,
+                dynamic_params = ?,
+                duration = (julianday('now') - julianday(created_at)) * 86400.0
             WHERE id = ?
             """,
             (
@@ -1541,3 +1516,138 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 found.
         """
         return create_and_index_tar(self._get_attachments_dir(experiment_id))
+
+    def get_experiment_metric_history(
+        self, experiment_id: str, key: str
+    ) -> list[dict[str, Any]]:
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+        conn = self._get_experiment_connection(experiment_id)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step ASC",
+            (key,),
+        )
+        return [
+            {"value": value, "step": step, "logged_at": logged_at}
+            for value, step, logged_at in cursor.fetchall()
+        ]
+
+    def get_experiment_traces(
+        self, experiment_id: str, limit: int = 20, cursor_str: str | None = None
+    ) -> PaginatedResponse[TraceRecord]:
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.cursor()
+
+        cursor_id: str | None = None
+        cursor_value: int | None = None
+        if cursor_str:
+            decoded = Cursor.decode(cursor_str)
+            if decoded:
+                cursor_id = decoded.id
+                cursor_value = decoded.value
+
+        if cursor_id is not None and cursor_value is not None:
+            cur.execute(
+                """
+                SELECT trace_id, MIN(start_time_unix_nano) AS trace_start
+                FROM spans
+                GROUP BY trace_id
+                HAVING trace_start < ?
+                    OR (trace_start = ? AND trace_id < ?)
+                ORDER BY trace_start DESC, trace_id DESC
+                LIMIT ?
+                """,
+                (cursor_value, cursor_value, cursor_id, limit + 1),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT trace_id, MIN(start_time_unix_nano) AS trace_start
+                FROM spans
+                GROUP BY trace_id
+                ORDER BY trace_start DESC, trace_id DESC
+                LIMIT ?
+                """,
+                (limit + 1,),
+            )
+
+        trace_rows = cur.fetchall()
+        has_more = len(trace_rows) > limit
+        trace_rows = trace_rows[:limit]
+
+        if not trace_rows:
+            return PaginatedResponse(items=[], cursor=None)
+
+        page_trace_ids = [row[0] for row in trace_rows]
+        last_trace_start = trace_rows[-1][1]
+
+        placeholders = ", ".join("?" for _ in page_trace_ids)
+        cur.execute(
+            f"""
+            SELECT trace_id, span_id, parent_span_id, name, kind, dfs_span_type,
+                   start_time_unix_nano, end_time_unix_nano,
+                   status_code, status_message, attributes, events, links, trace_flags
+            FROM spans
+            WHERE trace_id IN ({placeholders})
+            ORDER BY trace_id, start_time_unix_nano ASC
+            """,
+            page_trace_ids,
+        )
+
+        traces_map: dict[str, TraceRecord] = {
+            tid: TraceRecord(trace_id=tid) for tid in page_trace_ids
+        }
+        for row in cur.fetchall():
+            (
+                trace_id,
+                span_id,
+                parent_span_id,
+                name,
+                kind,
+                dfs_span_type,
+                start_ns,
+                end_ns,
+                status_code,
+                status_message,
+                attributes_json,
+                events_json,
+                links_json,
+                trace_flags,
+            ) = row
+            span = SpanRecord(
+                trace_id=trace_id,
+                span_id=span_id,
+                parent_span_id=parent_span_id,
+                name=name,
+                kind=kind,
+                dfs_span_type=dfs_span_type,
+                start_time_unix_nano=start_ns,
+                end_time_unix_nano=end_ns,
+                status_code=status_code,
+                status_message=status_message,
+                attributes=json.loads(attributes_json) if attributes_json else None,
+                events=json.loads(events_json) if events_json else None,
+                links=json.loads(links_json) if links_json else None,
+                trace_flags=trace_flags,
+            )
+            traces_map[trace_id].spans.append(span)
+
+        items = [traces_map[tid] for tid in page_trace_ids]
+
+        next_cursor: str | None = None
+        if has_more and items:
+            last_trace_id = items[-1].trace_id
+            c = Cursor(
+                id=last_trace_id,
+                value=last_trace_start,
+                sort_by="trace_start",
+                order="desc",
+            )
+            next_cursor = c.encode()
+
+        return PaginatedResponse(items=items, cursor=next_cursor)

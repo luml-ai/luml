@@ -6,6 +6,8 @@ from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
     Group,
+    PaginatedResponse,
+    TraceRecord,
     Model,
 )
 
@@ -177,4 +179,16 @@ class Backend(ABC):
     def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseFile, _BaseFile] | None:
+        pass
+
+    @abstractmethod
+    def get_experiment_metric_history(
+        self, experiment_id: str, key: str
+    ) -> list[dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def get_experiment_traces(
+        self, experiment_id: str, limit: int = 20, cursor_str: str | None = None
+    ) -> PaginatedResponse[TraceRecord]:
         pass
