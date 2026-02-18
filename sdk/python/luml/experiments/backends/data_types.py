@@ -36,27 +36,13 @@ class Model:
 
 
 @dataclass
-class Experiment:
-    id: str
-    name: str
-    status: str
-    group_id: str
-    created_at: datetime
-    tags: list[str] = field(default_factory=list)
-    static_params: dict[str, Any] = field(default_factory=dict)
-    dynamic_params: dict[str, Any] = field(default_factory=dict)
-    duration: float | None = None
-    description: str | None = None
-
-
-@dataclass
 class ModelSimple:
     id: str
     name: str
 
 
 @dataclass
-class ExperimentSimple:
+class Experiment:
     id: str
     name: str
     status: str
@@ -65,6 +51,9 @@ class ExperimentSimple:
     models: list[ModelSimple] = field(default_factory=list)
     duration: float | None = None
     description: str | None = None
+    group_id: str | None = None
+    static_params: dict[str, Any] | None = None
+    dynamic_params: dict[str, Any] | None = None
 
 
 @dataclass

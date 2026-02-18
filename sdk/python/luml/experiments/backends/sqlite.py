@@ -973,6 +973,43 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             last_modified=datetime.now(UTC),
         )
 
+    def update_group(
+        self,
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group | None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+
+        fields: list[str] = []
+        values: list[Any] = []
+
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if description is not None:
+            fields.append("description = ?")
+            values.append(description)
+        if tags is not None:
+            fields.append("tags = ?")
+            values.append(json.dumps(tags))
+
+        if not fields:
+            return self.get_group(group_id)
+
+        fields.append("last_modified = CURRENT_TIMESTAMP")
+        values.append(group_id)
+
+        cursor.execute(
+            f"UPDATE experiment_groups SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+            values,
+        )
+        conn.commit()
+
+        return self.get_group(group_id)
+
     def list_groups(self) -> list[Group]:  # noqa: ANN401
         """
         Retrieves a list of all experiment groups from the database and returns them as a list
@@ -1216,7 +1253,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor_value: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
-    ) -> list[ExperimentSimple]:  # noqa: ANN401
+    ) -> list[Experiment]:  # noqa: ANN401
         """
         Retrieves a paginated list of experiment records belonging to a specific group, with options
         for sorting, ordering, and cursor-based pagination.
@@ -1234,7 +1271,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 for descending. Defaults to "desc".
 
         Returns:
-            list[ExperimentSimple]: A list of ExperimentSimple objects corresponding
+            list[Experiment]: A list of Experiment objects corresponding
             to the group and pagination settings specified.
         """
 
@@ -1266,7 +1303,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         models_by_experiment = self.list_batch_experiments_models([e["id"] for e in experiments])
 
         return [
-            ExperimentSimple(
+            Experiment(
                 id=e["id"],
                 name=e["name"],
                 created_at=e["created_at"],

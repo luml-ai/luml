@@ -10,3 +10,8 @@ class ApplicationError(Exception):
         self.message = message
         self.status_code = status_code
         super().__init__(self.message)
+
+
+class NotFound(ApplicationError):
+    def __init__(self, message: str = "Not Found") -> None:
+        super().__init__(message, status.HTTP_404_NOT_FOUND)
