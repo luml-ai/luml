@@ -6,6 +6,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from lumlflow.api.experiment_groups import experiment_groups_router
+from lumlflow.api.experiments import experiments_router
 from lumlflow.api.general import general_router
 from lumlflow.infra.exceptions import ApplicationError
 
@@ -16,6 +17,7 @@ class AppService(FastAPI):
 
         self.include_router(router=general_router)
         self.include_router(router=experiment_groups_router)
+        self.include_router(router=experiments_router)
         self.include_error_handlers()
         self.custom_openapi()
 
