@@ -4,6 +4,7 @@ from typing import Any, Literal, Union
 from warnings import warn
 
 import lightgbm as lgb
+import numpy as np
 from lightgbm import Booster
 
 try:
@@ -11,88 +12,143 @@ try:
 except ImportError:
     LGBMModel = None  # type: ignore[assignment, misc]
 
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import JSON
-from pydantic import BaseModel, create_model
-from sdk.luml._constants import FNNX_PRODUCER_NAME
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
-from sdk.luml.integrations.sklearn.packaging import save_sklearn
-from sdk.luml.utils.deps import find_dependencies
-from sdk.luml.utils.imports import (
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore[assignment]
+
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
+    JSON,
+    NDJSON,
+)
+from pydantic import BaseModel
+
+from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
+from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
+from luml.integrations.sklearn.packaging import save_sklearn
+from luml.utils.deps import find_dependencies
+from luml.utils.imports import (
     extract_top_level_modules,
     get_version,
 )
-from sdk.luml.utils.time import get_epoch
+from luml.utils.time import get_epoch
 
 
-class _DataInputSchema(BaseModel):
-    data: list[list[Any]] | list[Any]
-    data_format: Literal["dense", "csr"] = "dense"
-
-    # Feature metadata
-    feature_names: list[str] | None = None
-    categorical_features: list[str] | list[int] | None = None
-
-    # Sparse (CSR)
-    indices: list[int] | None = None
-    indptr: list[int] | None = None
-    shape: tuple[int, int] | None = None
+class SparseCsrInput(BaseModel):
+    data: list[float]
+    indices: list[int]
+    indptr: list[int]
+    shape: list[int]
 
 
-class _PredictConfigSchema(BaseModel):
-    start_iteration: int = 0
-    num_iteration: int | None = None
-    raw_score: bool = False
-    pred_leaf: bool = False
-    pred_contrib: bool = False
-    validate_features: bool = False
+def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
+    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
+        return "str"
+    if np.issubdtype(dtype, np.floating):
+        return "float"
+    if np.issubdtype(dtype, np.integer):
+        return "int"
+    return "str"
 
 
-def _build_input_schema() -> type[BaseModel]:
-    input_fields = {
-        "data": (_DataInputSchema, ...),
-        "predict_config": (_PredictConfigSchema | None, None),
+def _add_io(
+    builder: PyfuncBuilder,
+    estimator: Booster,
+    inputs: Any,  # noqa: ANN401
+    support_sparse: bool = False,
+) -> None:
+    categorical_features: dict[str, list[str]] = {}
+
+    x: object
+    if pd is not None and isinstance(inputs, pd.DataFrame):
+        input_order = list(inputs.columns)
+        for col in input_order:
+            dtype_val = inputs[col].dtype
+
+            if isinstance(dtype_val, pd.CategoricalDtype):
+                categorical_features[col] = list(dtype_val.categories)
+        x = inputs
+    else:
+        example = np.asarray(inputs)
+        if example.ndim < 2:
+            raise ValueError(
+                "Input example must be at least 2D for batch dimension inference."
+            )
+        input_order = [f"x{i}" for i in range(example.shape[1])]
+        x = example
+
+    if support_sparse:
+        builder.define_dtype("ext::sparse_csr", SparseCsrInput)
+        builder.add_input(
+            JSON(
+                name="sparse_input",
+                content_type="JSON",
+                dtype="ext::sparse_csr",
+            )
+        )
+    else:
+        if pd is not None and isinstance(inputs, pd.DataFrame):
+            for col in input_order:
+                dtype = _resolve_dtype(inputs[col].dtype)
+                builder.add_input(
+                    NDJSON(
+                        name=col,
+                        content_type="NDJSON",
+                        dtype=f"Array[{dtype}]",
+                        shape=["batch"],
+                    )
+                )
+        else:
+            for i, name in enumerate(input_order):
+                col_dtype_str = _resolve_dtype(np.asarray(inputs)[:, i].dtype)
+                builder.add_input(
+                    NDJSON(
+                        name=name,
+                        content_type="NDJSON",
+                        dtype=f"Array[{col_dtype_str}]",
+                        shape=["batch"],
+                    )
+                )
+
+    extra_values: dict[str, Any] = {
+        "input_order": input_order,
+        "support_sparse": support_sparse,
     }
+    if categorical_features:
+        extra_values["categorical_features"] = categorical_features
 
-    return create_model(
-        "LightGBMInputModel",
-        __base__=BaseModel,
-        **input_fields,  # type: ignore[call-overload]
-    )
+    builder.set_extra_values(extra_values)
 
+    y_pred = estimator.predict(x)
+    y_array = np.asarray(y_pred)
+    y_shape = ["batch"] + list(y_array.shape[1:])
+    y_dtype = _resolve_dtype(y_array.dtype)
 
-def _build_output_schema() -> type[BaseModel]:
-    output_fields = {
-        "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
-    }
-
-    return create_model(
-        "LightGBMOutputModel",
-        __base__=BaseModel,
-        **output_fields,  # type: ignore[call-overload]
-    )
-
-
-def _add_io(builder: PyfuncBuilder) -> None:
-    input_schema = _build_input_schema()
-    output_schema = _build_output_schema()
-
-    builder.define_dtype("ext::input", input_schema)
-    builder.define_dtype("ext::output", output_schema)
-    builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
     builder.add_output(
-        JSON(name="lightgbm_output", content_type="JSON", dtype="ext::output")
+        NDJSON(
+            name="y",
+            content_type="NDJSON",
+            dtype=f"Array[{y_dtype}]",
+            shape=y_shape,  # type: ignore
+        )
     )
 
 
-def _get_default_deps() -> list[str]:
-    return [
+def _get_default_deps(
+    needs_pandas: bool = False,
+    needs_scipy: bool = False,
+) -> list[str]:
+    deps = [
         "lightgbm==" + get_version("lightgbm"),
         "numpy==" + get_version("numpy"),
-        "pandas==" + get_version("pandas"),
-        "scipy==" + get_version("scipy"),
     ]
+    if needs_pandas:
+        deps.append("pandas==" + get_version("pandas"))
+    if needs_scipy:
+        deps.append("scipy==" + get_version("scipy"))
+    return deps
 
 
 def _get_default_tags() -> list[str]:
@@ -104,6 +160,8 @@ def _add_dependencies(
     dependencies: Literal["default"] | Literal["all"] | list[str],
     extra_dependencies: list[str] | None,
     extra_code_modules: list[str] | Literal["auto"] | None,
+    needs_pandas: bool = False,
+    needs_scipy: bool = False,
 ) -> None:
     auto_pip_dependencies: list[str] = []
     auto_local_dependencies: list[str] = []
@@ -115,7 +173,7 @@ def _add_dependencies(
     if dependencies == "all":
         pip_deps = auto_pip_dependencies
     elif dependencies == "default":
-        pip_deps = _get_default_deps()
+        pip_deps = _get_default_deps(needs_pandas=needs_pandas, needs_scipy=needs_scipy)
         builder.add_fnnx_runtime_dependency()
     else:
         pip_deps = dependencies
@@ -146,8 +204,9 @@ def _is_lightgbm_sklearn_estimator(obj: object) -> bool:
 
 def save_lightgbm(  # noqa: C901
     estimator: "Union[Booster, lgb.LGBMModel]",  # noqa: UP007
-    inputs: Any | None = None,  # noqa: ANN401
+    inputs: Any,  # noqa: ANN401
     path: str | None = None,
+    support_sparse: bool = False,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -162,6 +221,7 @@ def save_lightgbm(  # noqa: C901
         estimator: The LightGBM model to save (Booster or LGBMModel).
         inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
+        support_sparse: Whether to enable sparse matrix input support.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -208,6 +268,12 @@ def save_lightgbm(  # noqa: C901
             f"got {type(estimator)}"
         )
 
+    if inputs is None:
+        raise ValueError(
+            "inputs is required for LightGBM Booster. "
+            "Please provide example input data (numpy array or DataFrame)."
+        )
+
     builder = PyfuncBuilder(
         LightGBMFunc,
         model_name=manifest_model_name,
@@ -228,15 +294,21 @@ def save_lightgbm(  # noqa: C901
         tmp_model_path = tmp_file.name
 
     builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({"input_order": ["payload"], "model_path": model_filename})
 
-    _add_io(builder)
+    _add_io(builder, estimator, inputs, support_sparse=support_sparse)
+
+    # Determine which optional dependencies are needed
+    is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
+    needs_pandas = is_dataframe
+    needs_scipy = support_sparse
 
     _add_dependencies(
         builder,
         dependencies,
         extra_dependencies,
         extra_code_modules,
+        needs_pandas=needs_pandas,
+        needs_scipy=needs_scipy,
     )
 
     builder.save(path)
