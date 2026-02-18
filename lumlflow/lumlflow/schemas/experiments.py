@@ -5,7 +5,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from lumlflow.schemas.base import BaseOrmConfig
-from lumlflow.schemas.models import ModelSimple
+from lumlflow.schemas.models import Model
 
 
 class Experiment(BaseModel, BaseOrmConfig):
@@ -45,17 +45,16 @@ class ExperimentsSortBy(StrEnum):
     CREATED_AT = "created_at"
 
 
-class ExperimentSimple(BaseModel, BaseOrmConfig):
+class ExperimentListed(BaseModel, BaseOrmConfig):
     id: str
     name: str
-    status: str
     created_at: datetime
     tags: list[str] | None = None
-    models: list[ModelSimple] | None = None
+    models: list[Model] | None = None
     duration: float | None = None
     description: str | None = None
 
 
 class PaginatedExperiments(BaseModel):
-    items: list[ExperimentSimple]
+    items: list[ExperimentListed]
     cursor: str | None = None
