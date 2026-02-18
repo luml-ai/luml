@@ -18,6 +18,8 @@ class Experiment(BaseModel, BaseOrmConfig):
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
     model_id: str | None = None
+    duration: float | None = None
+    description: str | None = None
 
 
 class ExperimentMetaData(BaseModel, BaseOrmConfig):
@@ -26,6 +28,8 @@ class ExperimentMetaData(BaseModel, BaseOrmConfig):
     status: str
     group_id: str
     tags: list[str] | None = None
+    duration: float | None = None
+    description: str | None = None
 
 
 class ExperimentData(BaseModel, BaseOrmConfig):
@@ -48,6 +52,8 @@ class ExperimentSimple(BaseModel, BaseOrmConfig):
     created_at: datetime
     tags: list[str] | None = None
     models: list[ModelSimple] | None = None
+    duration: float | None = None
+    description: str | None = None
 
 
 class PaginatedExperiments(BaseModel):
