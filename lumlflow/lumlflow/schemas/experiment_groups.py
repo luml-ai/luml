@@ -11,6 +11,8 @@ class Group(BaseModel, BaseOrmConfig):
     name: str
     description: str | None
     created_at: datetime
+    tags: list[str] | None = None
+    last_modified: datetime | None = None
 
 
 class PaginatedGroups(BaseModel):
@@ -22,3 +24,4 @@ class GroupsSortBy(StrEnum):
     NAME = "name"
     DESCRIPTION = "description"
     CREATED_AT = "created_at"
+    LAST_MODIFIED = "last_modified"

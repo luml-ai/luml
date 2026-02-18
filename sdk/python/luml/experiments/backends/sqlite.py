@@ -379,6 +379,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         group: str = "default",
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> None:
         """
         Initializes an experiment by associating it with a group and storing its metadata in the database.
@@ -390,6 +391,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             name: Optional name of the experiment. If not provided, the `experiment_id` will
                 be used as the name.
             tags: Optional list of tags associated with the experiment.
+            description: Optional description of the experiment.
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -405,10 +407,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         tags_str = json.dumps(tags) if tags else None
         cursor.execute(
             """
-            INSERT OR REPLACE INTO experiments (id, name, group_id, tags)
-            VALUES (?, ?, ?, ?)
+            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description)
+            VALUES (?, ?, ?, ?, ?)
         """,
-            (experiment_id, name or experiment_id, group_id, tags_str),
+            (experiment_id, name or experiment_id, group_id, tags_str, description),
         )
 
         conn.commit()
@@ -790,7 +792,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         meta_conn = self._get_meta_connection()
         meta_cursor = meta_conn.cursor()
         meta_cursor.execute(
-            "SELECT name, created_at, status, group_id, tags FROM experiments WHERE id = ?",
+            "SELECT name, created_at, status, group_id, tags, duration, description "
+            "FROM experiments WHERE id = ?",
             (experiment_id,),
         )
         meta_row = meta_cursor.fetchone()
@@ -803,6 +806,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 status=meta_row[2],
                 group_id=meta_row[3],
                 tags=json.loads(meta_row[4]) if meta_row[4] else [],
+                duration=meta_row[5],
+                description=meta_row[6],
             )
 
         return ExperimentData(
@@ -864,7 +869,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params FROM experiments
+            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description FROM experiments
             """
         )
         experiments = []
@@ -879,6 +884,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     tags=json.loads(row[5]) if row[5] else [],
                     static_params=json.loads(row[6]) if row[6] else {},
                     dynamic_params=json.loads(row[7]) if row[7] else {},
+                    duration=row[8],
+                    description=row[9],
                 )
             )
         return experiments
@@ -926,6 +933,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             name: The name of the experiment group to create or retrieve.
             description: Optional. Additional details about the group. If not provided, defaults to None.
+            tags: Optional list of tags for the group.
 
         Returns:
             Group: An instance of the Group class containing the data for the retrieved or newly created group.
@@ -934,7 +942,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT id, name, description, created_at, tags FROM experiment_groups WHERE name = ?",
+            "SELECT id, name, description, created_at, tags, last_modified "
+            "FROM experiment_groups WHERE name = ?",
             (name,),
         )
         existing = cursor.fetchone()
@@ -945,13 +954,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 description=existing[2],
                 created_at=existing[3],
                 tags=json.loads(existing[4]) if existing[4] else [],
+                last_modified=existing[5],
             )
 
         group_id = str(uuid.uuid4())
-        tags_json = json.dumps(tags) if tags else None
+        tags_str = json.dumps(tags) if tags else None
         cursor.execute(
-            """INSERT INTO experiment_groups (id, name, description, tags) VALUES (?, ?, ?, ?)""",
-            (group_id, name, description, tags_json),
+            "INSERT INTO experiment_groups (id, name, description, tags) VALUES (?, ?, ?, ?)",
+            (group_id, name, description, tags_str),
         )
         conn.commit()
         return Group(
@@ -960,6 +970,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description=description,
             created_at=datetime.now(UTC),
             tags=tags or [],
+            last_modified=datetime.now(UTC),
         )
 
     def list_groups(self) -> list[Group]:  # noqa: ANN401
@@ -975,7 +986,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, description, created_at, tags FROM experiment_groups"
+            "SELECT id, name, description, created_at, tags, last_modified FROM experiment_groups"
         )
         groups = []
         for row in cursor.fetchall():
@@ -986,6 +997,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     description=row[2],
                     created_at=row[3],
                     tags=json.loads(row[4]) if row[4] else [],
+                    last_modified=row[5],
                 )
             )
         return groups
@@ -1080,15 +1092,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor_value: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
+        search: str | None = None,
     ) -> list[Group]:
         sort_by, order = self._sanitize_pagination_params(
             sort_by,
             order,
-            {"created_at", "name"},
+            {"created_at", "name", "last_modified"},
         )
 
         conn = self._get_meta_connection()
-        columns = ["id", "name", "description", "created_at"]
+        columns = ["id", "name", "description", "created_at", "tags", "last_modified"]
 
         rows = self._execute_paginated_query(
             conn=conn,
@@ -1099,6 +1112,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             order=order,
             cursor_id=cursor_id,
             cursor_value=cursor_value,
+            where=[("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])] if search else None,
         )
 
         return [
@@ -1107,6 +1121,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 name=d["name"],
                 description=d["description"],
                 created_at=d["created_at"],
+                tags=d["tags"] if d["tags"] else [],
+                last_modified=d["last_modified"],
             )
             for d in self._items_to_dict(columns, rows)
         ]
@@ -1129,7 +1145,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, description, created_at FROM experiment_groups WHERE id = ?",
+            "SELECT id, name, description, created_at, tags, last_modified "
+            "FROM experiment_groups WHERE id = ?",
             (group_id,),
         )
 
@@ -1139,6 +1156,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 name=row[1],
                 description=row[2],
                 created_at=row[3],
+                tags=json.loads(row[4]) if row[4] else [],
+                last_modified=row[5],
             )
         return None
 
@@ -1197,7 +1216,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor_value: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
-    ) -> list[Experiment]:  # noqa: ANN401
+    ) -> list[ExperimentSimple]:  # noqa: ANN401
         """
         Retrieves a paginated list of experiment records belonging to a specific group, with options
         for sorting, ordering, and cursor-based pagination.
@@ -1224,7 +1243,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             order,
             {"name", "created_at", "status", "tags"},
         )
-        columns = ["id", "name", "created_at", "status", "tags"]
+        columns = ["id", "name", "created_at", "status", "tags", "duration", "description"]
 
         conn = self._get_meta_connection()
 
@@ -1254,6 +1273,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 status=e["status"],
                 tags=e["tags"] if e["tags"] else [],
                 models=models_by_experiment.get(e["id"], []),
+                duration=e["duration"],
+                description=e["description"],
             )
             for e in experiments
         ]
@@ -1300,6 +1321,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 experiment_id,
             ),
         )
+
+        meta_cursor.execute(
+            """
+            UPDATE experiment_groups
+            SET last_modified = CURRENT_TIMESTAMP
+            WHERE id = (SELECT group_id FROM experiments WHERE id = ?)
+            """,
+            (experiment_id,),
+        )
+
         meta_conn.commit()
 
         self.pool.mark_experiment_inactive(experiment_id)
