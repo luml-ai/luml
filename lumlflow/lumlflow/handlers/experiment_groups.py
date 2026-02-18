@@ -4,6 +4,7 @@ from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.base import Cursor, SortOrder
 from lumlflow.schemas.experiment_groups import (
     Group,
+    GroupDetails,
     GroupsSortBy,
     PaginatedGroups,
     UpdateGroup,
@@ -59,16 +60,29 @@ class ExperimentGroupsHandler:
             cursor=get_cursor(items, limit, str(sort_by), order),
         )
 
-    def get_experiment_group_details(self, group_id: str) -> Group:
+    def get_experiment_group_details(self, group_id: str) -> GroupDetails:
         try:
             group = self.db.get_group(group_id)
+            static_params = self.db.get_group_experiments_static_params_keys(group_id)
+            dynamic_params = self.db.get_group_experiments_dynamic_metrics_keys(
+                group_id
+            )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
         if not group:
             raise NotFound("Group not found")
 
-        return Group.model_validate(group)
+        return GroupDetails(
+            id=group.id,
+            name=group.name,
+            description=group.description,
+            created_at=group.created_at,
+            tags=group.tags,
+            last_modified=group.last_modified,
+            static_params=static_params,
+            dynamic_params=dynamic_params,
+        )
 
     def delete_experiment_group(self, group_id: str) -> None:
         if not self.db.get_group(group_id):

@@ -4,6 +4,7 @@ from lumlflow.handlers.experiment_groups import ExperimentGroupsHandler
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiment_groups import (
     Group,
+    GroupDetails,
     GroupsSortBy,
     PaginatedGroups,
     UpdateGroup,
@@ -35,8 +36,8 @@ def get_experiment_groups(
     )
 
 
-@experiment_groups_router.get("/{group_id}/details", response_model=Group)
-def get_experiment_group_details(group_id: str) -> Group:
+@experiment_groups_router.get("/{group_id}/details", response_model=GroupDetails)
+def get_group_details(group_id: str) -> GroupDetails:
     return groups_handler.get_experiment_group_details(group_id)
 
 
