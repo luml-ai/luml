@@ -131,9 +131,7 @@ def up(conn: sqlite3.Connection) -> None:
         "IF NOT EXISTS idx_experiment_groups_name ON experiment_groups(name)"
     )
 
-    cursor.execute(
-        "ALTER TABLE experiment_groups ADD COLUMN tags TEXT"
-    )
+    cursor.execute("ALTER TABLE experiment_groups ADD COLUMN tags TEXT")
     cursor.execute(
         "ALTER TABLE experiment_groups ADD COLUMN last_modified "
         "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"

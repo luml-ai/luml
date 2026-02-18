@@ -14,12 +14,11 @@ class Experiment(BaseModel, BaseOrmConfig):
     status: str
     group_id: str
     created_at: datetime
+    duration: float | None = None
+    description: str | None = None
     tags: list[str] | None = None
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
-    model_id: str | None = None
-    duration: float | None = None
-    description: str | None = None
 
 
 class ExperimentMetaData(BaseModel, BaseOrmConfig):
@@ -40,6 +39,10 @@ class ExperimentData(BaseModel, BaseOrmConfig):
     attachments: dict[str, Any] | None = None
 
 
+class ExperimentDetails(Experiment):
+    models: list[Model] | None = None
+
+
 class UpdateExperiment(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -49,6 +52,8 @@ class UpdateExperiment(BaseModel):
 class ExperimentsSortBy(StrEnum):
     NAME = "name"
     CREATED_AT = "created_at"
+    DURATION = "duration"
+    MODELS = "models"
 
 
 class ExperimentListed(BaseModel, BaseOrmConfig):
@@ -67,4 +72,43 @@ class ExperimentListed(BaseModel, BaseOrmConfig):
 
 class PaginatedExperiments(BaseModel):
     items: list[ExperimentListed]
+    cursor: str | None = None
+
+
+class MetricPoint(BaseModel):
+    value: float
+    step: int
+    logged_at: datetime | None = None
+
+
+class ExperimentMetricHistory(BaseModel):
+    experiment_id: str
+    key: str
+    history: list[MetricPoint]
+
+
+class Span(BaseModel, BaseOrmConfig):
+    span_id: str
+    parent_span_id: str | None = None
+    name: str
+    kind: int
+    dfs_span_type: int
+    start_time_unix_nano: int
+    end_time_unix_nano: int
+    status_code: int | None = None
+    status_message: str | None = None
+    attributes: dict[str, Any] | None = None
+    events: list[dict[str, Any]] | None = None
+    links: list[dict[str, Any]] | None = None
+    trace_flags: int | None = None
+
+
+class Trace(BaseModel):
+    trace_id: str
+    root_span: Span | None = None
+    spans: list[Span]
+
+
+class PaginatedTraces(BaseModel):
+    items: list[Trace]
     cursor: str | None = None
