@@ -103,7 +103,21 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_experiment(self, experiment_id: str) -> Experiment | dict[str, Any] | None:
+        pass
+
+    @abstractmethod
     def delete_experiment(self, experiment_id: str) -> None:
+        pass
+
+    @abstractmethod
+    def update_experiment(
+        self,
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Experiment | dict[str, Any] | None:
         pass
 
     @abstractmethod
@@ -123,6 +137,10 @@ class Backend(ABC):
         description: str | None = None,
         tags: list[str] | None = None,
     ) -> Group | dict[str, Any] | None:
+        pass
+
+    @abstractmethod
+    def delete_group(self, group_id: str) -> None:
         pass
 
     @abstractmethod

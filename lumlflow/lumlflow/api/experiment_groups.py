@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, status
 
 from lumlflow.handlers.experiment_groups import ExperimentGroupsHandler
 from lumlflow.schemas.base import SortOrder
@@ -45,6 +45,21 @@ def update_experiment_group(group_id: str, group: UpdateGroup) -> Group:
     return groups_handler.update_experiment_group(group_id, group)
 
 
+@experiment_groups_router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_experiment_group(group_id: str) -> None:
+    groups_handler.delete_experiment_group(group_id)
+
+
 @experiment_groups_router.get("/{group_id}", response_model=PaginatedExperiments)
-def get_group_experiments(group_id: str) -> PaginatedExperiments:
-    return groups_handler.get_experiment_group(group_id)
+def get_group_experiments(
+    group_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    cursor: str | None = None,
+    search: str | None = None,
+) -> PaginatedExperiments:
+    return groups_handler.get_experiment_group(
+        group_id,
+        limit=limit,
+        cursor_str=cursor,
+        search=search,
+    )
