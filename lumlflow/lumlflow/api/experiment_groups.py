@@ -19,12 +19,14 @@ def get_experiment_groups(
     cursor: str | None = Query(None),
     sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
     order: SortOrder = SortOrder.DESC,
+    search: str | None = Query(None),
 ) -> PaginatedGroups:
     return groups_handler.get_experiment_groups(
         limit=limit,
         cursor_str=cursor,
         sort_by=sort_by,
         order=order,
+        search=search,
     )
 
 
