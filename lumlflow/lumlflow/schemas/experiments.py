@@ -40,6 +40,12 @@ class ExperimentData(BaseModel, BaseOrmConfig):
     attachments: dict[str, Any] | None = None
 
 
+class UpdateExperiment(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+
+
 class ExperimentsSortBy(StrEnum):
     NAME = "name"
     CREATED_AT = "created_at"
