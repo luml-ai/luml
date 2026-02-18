@@ -70,6 +70,19 @@ class ExperimentGroupsHandler:
 
         return Group.model_validate(group)
 
+    def delete_experiment_group(self, group_id: str) -> None:
+        if not self.db.get_group(group_id):
+            raise NotFound("Group not found")
+        experiments = self.db.list_group_experiments_pagination(group_id, limit=1)
+        if experiments:
+            raise ApplicationError(
+                "Cannot delete a group that has linked experiments", status_code=409
+            )
+        try:
+            self.db.delete_group(group_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
     def update_experiment_group(self, group_id: str, body: UpdateGroup) -> Group:
         try:
             group = self.db.update_group(
@@ -93,6 +106,7 @@ class ExperimentGroupsHandler:
         cursor_str: str | None = None,
         sort_by: GroupsSortBy = GroupsSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
+        search: str | None = None,
     ) -> PaginatedExperiments:
         cursor = decode_cursor(cursor_str)
         use_cursor = self._validate_cursor(cursor, sort_by, order)
@@ -105,6 +119,7 @@ class ExperimentGroupsHandler:
                 cursor_value=use_cursor.value if use_cursor else None,
                 sort_by=sort_by,
                 order=order,
+                search=search,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
