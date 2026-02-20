@@ -11,3 +11,8 @@ class Model(BaseModel, BaseOrmConfig):
     created_at: datetime
     tags: list[str] | None = None
     path: str | None = None
+
+
+class UpdateModel(BaseModel):
+    name: str | None = None
+    tags: list[str] | None = None
