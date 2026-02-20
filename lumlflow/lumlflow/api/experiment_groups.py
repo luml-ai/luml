@@ -12,7 +12,7 @@ from lumlflow.schemas.experiment_groups import (
 from lumlflow.schemas.experiments import PaginatedExperiments
 
 experiment_groups_router = APIRouter(
-    prefix="/experiment-groups",
+    prefix="/api/experiment-groups",
     tags=["experiment-groups"],
 )
 
