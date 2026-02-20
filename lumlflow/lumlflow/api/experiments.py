@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, status
 
 from lumlflow.handlers.experiments import ExperimentsHandler
+from lumlflow.handlers.models import ModelsHandler
 from lumlflow.schemas.experiments import (
     Experiment,
     ExperimentDetails,
@@ -8,13 +9,15 @@ from lumlflow.schemas.experiments import (
     PaginatedTraces,
     UpdateExperiment,
 )
+from lumlflow.schemas.models import Model
 
 experiments_router = APIRouter(
-    prefix="/experiments",
+    prefix="/api/experiments",
     tags=["experiments"],
 )
 
 experiments_handler = ExperimentsHandler()
+models_handler = ModelsHandler()
 
 
 @experiments_router.get("/{experiment_id}", response_model=ExperimentDetails)
@@ -39,6 +42,11 @@ def get_experiment_metric_history(
     experiment_id: str, key: str
 ) -> ExperimentMetricHistory:
     return experiments_handler.get_experiment_metric_history(experiment_id, key)
+
+
+@experiments_router.get("/{experiment_id}/models", response_model=list[Model])
+def list_experiment_models(experiment_id: str) -> list[Model]:
+    return models_handler.list_experiment_models(experiment_id)
 
 
 @experiments_router.get("/{experiment_id}/traces", response_model=PaginatedTraces)
