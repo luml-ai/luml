@@ -119,6 +119,7 @@ function onCreateClick() {
 
 async function onOrganizationClick(organizationId: string) {
   await organizationStore.setCurrentOrganizationId(organizationId)
+  popover.value.hide()
 }
 </script>
 
