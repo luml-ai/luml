@@ -105,7 +105,7 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_experiment(self, experiment_id: str) -> Experiment | dict[str, Any] | None:
+    def get_experiment(self, experiment_id: str) -> Experiment | None:
         pass
 
     @abstractmethod
@@ -119,7 +119,7 @@ class Backend(ABC):
         name: str | None = None,
         description: str | None = None,
         tags: list[str] | None = None,
-    ) -> Experiment | dict[str, Any] | None:
+    ) -> Experiment | None:
         pass
 
     @abstractmethod
@@ -138,7 +138,7 @@ class Backend(ABC):
         name: str | None = None,
         description: str | None = None,
         tags: list[str] | None = None,
-    ) -> Group | dict[str, Any] | None:
+    ) -> Group | None:
         pass
 
     @abstractmethod
