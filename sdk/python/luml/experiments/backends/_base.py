@@ -2,7 +2,12 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from luml.artifacts._base import _BaseFile
-from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.experiments.backends._data_types import (
+    Experiment,
+    ExperimentData,
+    Group,
+    Model,
+)
 
 
 class Backend(ABC):
@@ -101,7 +106,12 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def create_group(self, name: str, description: str | None = None) -> Group:
+    def create_group(
+        self,
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group:
         pass
 
     @abstractmethod
@@ -110,6 +120,24 @@ class Backend(ABC):
 
     @abstractmethod
     def end_experiment(self, experiment_id: str) -> None:
+        pass
+
+    @abstractmethod
+    def log_model(
+        self,
+        experiment_id: str,
+        model_path: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> tuple[Model, str]:
+        pass
+
+    @abstractmethod
+    def get_models(self, experiment_id: str) -> list[Model]:
+        pass
+
+    @abstractmethod
+    def get_model(self, model_id: str) -> Model:
         pass
 
     @abstractmethod
