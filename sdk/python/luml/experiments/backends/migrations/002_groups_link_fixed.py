@@ -85,6 +85,8 @@ def up(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments ADD COLUMN static_params TEXT")
     cursor.execute("ALTER TABLE experiments ADD COLUMN dynamic_params TEXT")
 
+    cursor.execute("ALTER TABLE experiment_groups ADD COLUMN tags TEXT")
+
     cursor.execute(
         "CREATE UNIQUE INDEX "
         "IF NOT EXISTS idx_experiment_groups_name ON experiment_groups(name)"
@@ -95,6 +97,8 @@ def down(conn: sqlite3.Connection) -> None:
     cursor = conn.cursor()
 
     cursor.execute("DROP INDEX IF EXISTS idx_experiment_groups_name")
+
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN tags")
 
     cursor.execute("ALTER TABLE experiments ADD COLUMN group_name TEXT")
     cursor.execute("""
