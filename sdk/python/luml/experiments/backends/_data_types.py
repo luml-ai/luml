@@ -9,6 +9,7 @@ class Group:
     name: str
     description: str | None
     created_at: datetime
+    tags: list[str] = field(default_factory=list)
 
 
 @dataclass
