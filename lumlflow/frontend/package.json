@@ -10,7 +10,7 @@
     "type-check": "vue-tsc --build --force"
   },
   "dependencies": {
-    "axios": "^1.7.7",
+    "axios": "^1.13.5",
     "vue": "^3.5.12"
   },
   "devDependencies": {
@@ -20,6 +20,6 @@
     "@vue/tsconfig": "^0.5.1",
     "typescript": "^5.9.2",
     "vite": "^6.4.1",
-    "vue-tsc": "^2.1.10"
+    "vue-tsc": "^3.2.5"
   }
 }
