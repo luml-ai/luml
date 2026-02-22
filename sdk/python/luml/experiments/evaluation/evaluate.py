@@ -23,7 +23,7 @@ def _call_scorer(
     scorer: BaseScorer,
     eval_item: EvalItem,
     model_response: Any,  # noqa: ANN401
-) -> dict[str, Any]:
+) -> dict[str, Any]:  # noqa: ANN401
     if isinstance(scorer, SupervisedScorer):
         if eval_item.expected_output is None:
             raise ValueError(
@@ -54,7 +54,7 @@ def _call_scorer(
 
 def evaluate(
     eval_dataset: list[EvalItem],
-    inference_fn: Callable[[dict[str, Any]], Any],
+    inference_fn: Callable[[dict[str, Any]], Any],  # noqa: ANN401
     scorers: list[BaseScorer],
     dataset_id: str,
     experiment_tracker: ExperimentTracker,
@@ -89,14 +89,12 @@ def evaluate(
 
 def _evaluate_single_item(
     eval_item: EvalItem,
-    inference_fn: Callable[[dict[str, Any]], Any],
+    inference_fn: Callable[[dict[str, Any]], Any],  # noqa: ANN401
     scorers: list[BaseScorer],
     dataset_id: str,
     experiment_tracker: ExperimentTracker,
     tracer: Tracer,
 ) -> EvalResult:
-    trace_id = None
-
     with tracer.start_as_current_span(name="eval_request") as span:
         trace_id = f"{span.context.trace_id:032x}"  # type: ignore
 
@@ -124,7 +122,7 @@ def _evaluate_single_item(
                             f"scorer_error_{scorer_name}",
                             {"error": str(e)},
                         )
-                        all_scores[f"{scorer_name}_error"] = str(e)
+                        all_scores[f"__error__{scorer_name}"] = str(e)
 
                 for score_name, score_value in all_scores.items():
                     if isinstance(score_value, int | float | bool):
@@ -181,7 +179,7 @@ def _aggregate_scores(results: list[EvalResult]) -> dict[str, float | int]:
     aggregated: dict[str, float | int] = {}
 
     for score_name in score_names:
-        if "error" in score_name:
+        if score_name == "error" or score_name.startswith("__error__"):
             continue
 
         values = []

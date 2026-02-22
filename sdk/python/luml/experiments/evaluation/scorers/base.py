@@ -16,7 +16,7 @@ class UnsupervisedScorer(BaseScorer):
     @abstractmethod
     def score(
         self, inputs: dict[str, Any], output: Any  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]: # noqa: ANN401
         pass
 
 
@@ -24,7 +24,7 @@ class SupervisedScorer(BaseScorer):
     @abstractmethod
     def score(
         self, inputs: dict[str, Any], expected_output: Any, output: Any  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]: # noqa: ANN401
         pass
 
 
@@ -35,7 +35,7 @@ class UnsupervisedFuncScorer(UnsupervisedScorer):
 
     def score(
         self, inputs: dict[str, Any], output: Any  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]: # noqa: ANN401
         return self.score_fn(inputs, output)
 
     def get_name(self) -> str:
@@ -49,7 +49,7 @@ class SupervisedFuncScorer(SupervisedScorer):
 
     def score(
         self, inputs: dict[str, Any], expected_output: Any, output: Any  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]: # noqa: ANN401
         return self.score_fn(inputs, expected_output, output)
 
     def get_name(self) -> str:

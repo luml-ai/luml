@@ -1,3 +1,4 @@
+import threading
 import warnings
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -186,13 +187,13 @@ class TestAggregateScores:
             EvalResult(
                 eval_item=eval_item,
                 model_response="response",
-                scores={"accuracy": 0.9, "scorer_error": "Something went wrong"},
+                scores={"accuracy": 0.9, "__error__scorer": "Something went wrong"},
                 trace_id="trace-001",
             )
         ]
         aggregated = _aggregate_scores(results)
 
-        assert "scorer_error_mean" not in aggregated
+        assert "__error__scorer_mean" not in aggregated
         assert "accuracy_mean" in aggregated
 
     def test_aggregate_handles_bool_values(self) -> None:
@@ -358,8 +359,8 @@ class TestEvaluateSingleItem:
             tracer=mock_tracer,
         )
 
-        assert "failing_scorer_error" in result.scores
-        assert "Scoring failed" in str(result.scores["failing_scorer_error"])
+        assert "__error__failing_scorer" in result.scores
+        assert "Scoring failed" in str(result.scores["__error__failing_scorer"])
 
     @patch("luml.experiments.evaluation.evaluate.trace")
     def test_duplicate_score_keys_warning(self, mock_trace: Mock) -> None:
@@ -509,10 +510,12 @@ class TestEvaluate:
         scorer = MockUnsupervisedScorer()
 
         call_count = 0
+        call_count_lock = threading.Lock()
 
         def inference_fn(inputs: dict[str, Any]) -> str:
             nonlocal call_count
-            call_count += 1
+            with call_count_lock:
+                call_count += 1
             return "response"
 
         results = evaluate(

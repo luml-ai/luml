@@ -14,7 +14,7 @@ class EvalItem:
 class EvalResult:
     eval_item: EvalItem
     model_response: Any
-    scores: dict[str, bool | float | int | str]
+    scores: dict[str, Any]
     trace_id: str
 
 
