@@ -172,6 +172,19 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def update_model(
+        self,
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Model | None:
+        pass
+
+    @abstractmethod
+    def delete_model(self, model_id: str) -> None:
+        pass
+
+    @abstractmethod
     def export_experiment_db(self, experiment_id: str) -> _BaseFile:
         pass
 
