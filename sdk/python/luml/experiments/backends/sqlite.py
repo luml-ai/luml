@@ -819,18 +819,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Args:
             experiment_id (str): The unique identifier of the experiment to delete.
         """
+        exp_dir = self._get_experiment_dir(experiment_id)
+        if exp_dir.exists():
+            import shutil
+            shutil.rmtree(exp_dir)
+
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
         conn.commit()
 
         self.pool.mark_experiment_inactive(experiment_id)
-
-        exp_dir = self._get_experiment_dir(experiment_id)
-        if exp_dir.exists():
-            import shutil
-
-            shutil.rmtree(exp_dir)
 
     def update_experiment(
         self,
@@ -857,7 +856,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         if not fields:
             cursor.execute(
-                "SELECT id, name, created_at, status, tags, duration, description "
+                "SELECT id, name, created_at, status, tags, duration, description, group_id "
                 "FROM experiments WHERE id = ?",
                 (experiment_id,),
             )
@@ -872,6 +871,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 tags=json.loads(row[4]) if row[4] else [],
                 duration=row[5],
                 description=row[6],
+                group_id=row[7],
             )
 
         values.append(experiment_id)
@@ -882,7 +882,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn.commit()
 
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description "
+            "SELECT id, name, created_at, status, tags, duration, description, group_id "
             "FROM experiments WHERE id = ?",
             (experiment_id,),
         )
@@ -897,6 +897,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             tags=json.loads(row[4]) if row[4] else [],
             duration=row[5],
             description=row[6],
+            group_id=row[7],
         )
 
     def create_group(
@@ -1140,13 +1141,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         sort_by, order = self._sanitize_pagination_params(
             sort_by,
             order,
-            {"created_at", "name", "last_modified"},
+            {"created_at", "name", "description", "last_modified"},
         )
 
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
         conn = self._get_meta_connection()
         columns = ["id", "name", "description", "created_at", "tags", "last_modified"]
+        where_conditions = []
+
+        if search:
+            where_conditions.append(
+                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
+            )
 
         rows = self._execute_paginated_query(
             conn=conn,
@@ -1157,9 +1164,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             order=order,
             cursor_id=use_cursor.id if use_cursor else None,
             cursor_value=use_cursor.value if use_cursor else None,
-            where=[("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])]
-            if search
-            else None,
+            where=where_conditions,
+            allowed_sort_columns={"created_at", "name", "description", "last_modified"},
         )
 
         items = [
@@ -1363,6 +1369,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         conn = self._get_meta_connection()
 
+        where_conditions = [("group_id = ?", [group_id])]
+
+        if search:
+            where_conditions.append(
+                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
+            )
+
         rows = self._execute_paginated_query(
             conn=conn,
             table="experiments",
@@ -1374,15 +1387,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             cursor_value=str(use_cursor.value)
             if use_cursor and use_cursor.value is not None
             else None,
-            where=[
-                ("group_id = ?", [group_id]),
-                *(
-                    [("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])]
-                    if search
-                    else []
-                ),
-            ],
+            where=where_conditions,
             json_sort_column=json_sort_column,
+            allowed_sort_columns={"name", "created_at", "status", "tags", "duration"},
         )
 
         experiments_dicts = self._items_to_dict(columns, rows)
