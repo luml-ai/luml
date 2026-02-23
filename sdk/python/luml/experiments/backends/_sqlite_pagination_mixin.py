@@ -23,9 +23,15 @@ class SQLitePaginationMixin:
         ]
 
     @staticmethod
-    def _build_sort_expr(sort_by: str, json_sort_column: str | None) -> str:
+    def _build_sort_expr(
+        sort_by: str,
+        json_sort_column: str | None,
+        allowed_sort_columns: set[str] | None = None,
+    ) -> str:
         if json_sort_column:
             return f"json_extract({json_sort_column}, '$.{sort_by}')"
+        if allowed_sort_columns and sort_by not in allowed_sort_columns:
+            sort_by = "created_at"
         return sort_by
 
     @classmethod
@@ -36,12 +42,15 @@ class SQLitePaginationMixin:
         cursor_id: str | None,
         cursor_value: str | None,
         json_sort_column: str | None = None,
+        allowed_sort_columns: set[str] | None = None,
     ) -> tuple[str, list[Any]]:
         if cursor_id is None:
             return "", []
 
         op = "<" if order == "desc" else ">"
-        sort_expr = cls._build_sort_expr(sort_by, json_sort_column)
+        sort_expr = cls._build_sort_expr(
+            sort_by, json_sort_column, allowed_sort_columns
+        )
 
         if cursor_value is not None:
             clause = f"""
@@ -64,6 +73,7 @@ class SQLitePaginationMixin:
         cursor_value: str | None = None,
         where: list[tuple[str, list[Any]]] | None = None,
         json_sort_column: str | None = None,
+        allowed_sort_columns: set[str] | None = None,
     ) -> list[sqlite3.Row]:
         where_clause, params = self._build_cursor_clause(
             sort_by,
@@ -71,6 +81,7 @@ class SQLitePaginationMixin:
             cursor_id,
             cursor_value,
             json_sort_column,
+            allowed_sort_columns,
         )
 
         if where:
@@ -81,7 +92,9 @@ class SQLitePaginationMixin:
                     where_clause = f"WHERE ({clause})"
                 params.extend(clause_params)
 
-        sort_expr = self._build_sort_expr(sort_by, json_sort_column)
+        sort_expr = self._build_sort_expr(
+            sort_by, json_sort_column, allowed_sort_columns
+        )
         null_order = "LAST" if order == "desc" else "FIRST"
         cols = ", ".join(columns)
         query = f"""

@@ -30,19 +30,13 @@ class Model:
 
 
 @dataclass
-class ModelSimple:
-    id: str
-    name: str
-
-
-@dataclass
 class Experiment:
     id: str
     name: str
     status: str
     created_at: datetime
     tags: list[str] = field(default_factory=list)
-    models: list[ModelSimple] = field(default_factory=list)
+    models: list[Model] = field(default_factory=list)
     duration: float | None = None
     description: str | None = None
     group_id: str | None = None
