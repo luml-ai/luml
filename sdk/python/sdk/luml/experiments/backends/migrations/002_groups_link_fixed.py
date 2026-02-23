@@ -9,42 +9,55 @@ DEFAULT_GROUP_NAME = "default"
 
 def up(conn: sqlite3.Connection) -> None:
     """
-    experiment_groups (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        tags TEXT,
-        last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name);
+    Executes a database migration for improving the schema and data integrity of the
+    experiments and experiment_groups tables. Adds new fields, resolves duplicate
+    entries, ensures data consistency, and creates supporting tables and indexes.
 
-    models (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        tags TEXT,
-        path TEXT
-    );
+    Args:
+        conn: SQLite3 database connection to the target database.
 
-    experiments (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        status TEXT DEFAULT 'active',
-        tags TEXT,
-        group_id TEXT REFERENCES experiment_groups(id),
-        static_params TEXT,
-        dynamic_params TEXT,
-        model_id TEXT REFERENCES models(id),
-        duration REAL,
-        description TEXT
-    );
+    Raises:
+        sqlite3.Error: If any database operation fails.
 
-    schema_migrations (
-        version INTEGER PRIMARY KEY,
-        applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+    Tables final schema:
+        experiment_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name);
+
+        models (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            path TEXT,
+            experiment_id TEXT REFERENCES experiments(id)
+        );
+
+        experiments (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'active',
+            tags TEXT,
+            group_id TEXT REFERENCES experiment_groups(id),
+            static_params TEXT,
+            dynamic_params TEXT,
+            model_id TEXT REFERENCES models(id),
+            duration REAL,
+            description TEXT
+        );
+
+        schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
 
     """
     cursor = conn.cursor()
@@ -116,7 +129,7 @@ def up(conn: sqlite3.Connection) -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             tags TEXT,
             path TEXT,
-            experiment_id TEXT REFERENCES experiments(id)
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE
         )
     """)
 
@@ -141,6 +154,7 @@ def up(conn: sqlite3.Connection) -> None:
 
 
 def down(conn: sqlite3.Connection) -> None:
+    """Reverses the effects of the up() migration."""
     cursor = conn.cursor()
 
     cursor.execute("DROP INDEX IF EXISTS idx_experiment_groups_name")
