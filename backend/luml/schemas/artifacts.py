@@ -32,7 +32,7 @@ class ArtifactStatus(StrEnum):
 
 class ArtifactSortBy(StrEnum):
     CREATED_AT = "created_at"
-    name = "name"
+    NAME = "name"
     SIZE = "size"
     DESCRIPTION = "description"
     STATUS = "status"
