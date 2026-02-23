@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 import importlib
 import uuid
 import zipfile
