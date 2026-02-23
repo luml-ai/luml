@@ -4,7 +4,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from luml.infra.exceptions import DatabaseConstraintError
+from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.models import ArtifactOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
@@ -15,7 +15,7 @@ from luml.schemas.artifacts import (
     ArtifactType,
     ArtifactUpdate,
 )
-from luml.schemas.general import PaginationParams
+from luml.schemas.general import Cursor, PaginationParams
 
 
 class ArtifactRepository(RepositoryBase, CrudMixin):
@@ -72,26 +72,74 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             tags_query_result = await session.execute(tags_query)
             return self.collect_unique_values_from_array_column(tags_query_result.all())
 
+    async def _is_extra_values_sort(self, collection_id: UUID, sort_by: str) -> bool:
+        if sort_by == "extra_values":
+            raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
+
+        if hasattr(ArtifactOrm, sort_by):
+            return False
+
+        metrics = await self.get_collection_artifacts_extra_values(collection_id)
+
+        if sort_by not in metrics:
+            raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
+        return True
+
+    @staticmethod
+    def _get_cursor_from_record(  # type: ignore[override]
+        cursor_rec: ArtifactOrm,
+        pagination: PaginationParams,
+        is_extra_value: bool = False,
+    ) -> Cursor:
+        if is_extra_value and pagination.extra_sort_field:
+            value = cursor_rec.extra_values.get(pagination.extra_sort_field)
+        else:
+            value = getattr(cursor_rec, pagination.sort_by, None)
+        return Cursor(
+            id=cursor_rec.id,
+            value=value,
+            sort_by=pagination.sort_by,
+            order=pagination.order,
+            scope_id=pagination.scope_id,
+        )
+
     async def get_collection_artifacts(
         self,
         collection_id: UUID,
         pagination: PaginationParams,
         artifact_types: list[ArtifactType] | None = None,
-    ) -> list[Artifact]:
+    ) -> tuple[list[Artifact], Cursor | None]:
         async with self._get_session() as session:
+            sort_by = pagination.sort_by
+            is_extra_values = await self._is_extra_values_sort(collection_id, sort_by)
+
+            if is_extra_values:
+                pagination.extra_sort_field = sort_by
+                pagination.sort_by = "extra_values"
+
             conditions = [ArtifactOrm.collection_id == collection_id]
             if artifact_types:
                 conditions.append(
                     or_(*[ArtifactOrm.type == t.value for t in artifact_types])
                 )
 
-            db_artifacts = await self.get_models_with_pagination(
+            result = await self.get_models_with_pagination(
                 session,
                 ArtifactOrm,
                 *conditions,
                 pagination=pagination,
             )
-            return [artifact.to_artifact() for artifact in db_artifacts]
+            db_models = result.items
+
+            cursor = (
+                None
+                if not result.has_more
+                else self._get_cursor_from_record(
+                    db_models[-1], pagination, is_extra_values
+                )
+            )
+
+            return [artifact.to_artifact() for artifact in db_models], cursor
 
     async def get_artifact(self, artifact_id: UUID) -> Artifact | None:
         async with self._get_session() as session:

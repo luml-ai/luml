@@ -38,9 +38,8 @@ from luml.schemas.artifacts import (
     SatelliteArtifactResponse,
 )
 from luml.schemas.bucket_secrets import BucketSecret
-from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.collections import Collection, is_artifact_type_allowed
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
 from luml.utils.pagination import decode_cursor, encode_cursor
@@ -451,9 +450,7 @@ class ArtifactHandler:
             collection_id, pagination, artifact_types
         )
 
-        return ArtifactsList(
-            items=items[:limit], cursor=encode_cursor(cursor)
-        )
+        return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
 
     async def get_artifact(
         self,

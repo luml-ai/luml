@@ -32,19 +32,6 @@ from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.collections import Collection, CollectionType
 from luml.schemas.deployment import Deployment, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
-from luml.schemas.model_artifacts import (
-    Collection,
-    CollectionType,
-    Manifest,
-    ModelArtifact,
-    ModelArtifactDetails,
-    ModelArtifactIn,
-    ModelArtifactsList,
-    ModelArtifactStatus,
-    ModelArtifactUpdate,
-    ModelArtifactUpdateIn,
-)
-from luml.schemas.general import SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.storage import S3UploadDetails
 
@@ -195,7 +182,6 @@ async def test_get_collection_artifacts(
     orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    pagination_limit = 100
 
     expected_models_list = [
         Artifact(
@@ -242,6 +228,7 @@ async def test_get_collection_artifacts(
             limit=100,
             extra_sort_field=None,
         ),
+        None,
     )
 
 

@@ -5,7 +5,6 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.collections import CollectionHandler
 from luml.infra.exceptions import CollectionDeleteError, NotFoundError
-from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.collections import (
     Collection,
     CollectionCreate,
@@ -15,7 +14,7 @@ from luml.schemas.collections import (
     CollectionUpdate,
     CollectionUpdateIn,
 )
-from luml.schemas.general import SortOrder
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 
 handler = CollectionHandler()
@@ -701,6 +700,7 @@ async def test_get_orbit_collections_success(
             scope_id=orbit_id,
         ),
         search=None,
+        types=None,
     )
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
