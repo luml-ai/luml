@@ -27,8 +27,6 @@ from luml.experiments.backends.data_types import (
     ExperimentData,
     ExperimentMetaData,
     Group,
-    PaginationCursor,
-    Model,
     Model,
     PaginatedResponse,
     SpanRecord,
@@ -822,6 +820,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         exp_dir = self._get_experiment_dir(experiment_id)
         if exp_dir.exists():
             import shutil
+
             shutil.rmtree(exp_dir)
 
         conn = self._get_meta_connection()

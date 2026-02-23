@@ -6,9 +6,9 @@ from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
     Group,
+    Model,
     PaginatedResponse,
     TraceRecord,
-    Model,
 )
 
 
