@@ -8,7 +8,7 @@
   >
     <div class="inputs">
       <div class="field">
-        <label for="endpoint" class="label">Endpoint</label>
+        <label for="endpoint" class="label required">Endpoint</label>
         <InputText
           v-model="initialValues.endpoint"
           id="endpoint"
@@ -58,7 +58,7 @@
         />
       </div>
       <div class="field">
-        <label for="region" class="label">
+        <label for="region" class="label required">
           Region
           <div
             v-tooltip.left="'If your provider doesn’t require a region, you may enter any value.'"
