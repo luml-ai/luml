@@ -158,6 +158,9 @@ function getPayload(values: { email: string; role: OrganizationRoleEnum }) {
   align-items: flex-start;
 }
 .form-input {
+  width: 100%;
+}
+.form-field {
   flex: 1 1 auto;
 }
 .form-select {
