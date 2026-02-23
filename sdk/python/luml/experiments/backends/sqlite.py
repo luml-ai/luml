@@ -1077,30 +1077,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
             (experiment_id,),
         )
-        models = []
-        for row in cursor.fetchall():
-            models.append(
-                Model(
-                    id=row[0],
-                    name=row[1],
-                    created_at=row[2],
-                    tags=json.loads(row[3]) if row[3] else [],
-                    path=row[4],
-                    experiment_id=row[5],
-                )
-            )
-        return models
+        return [self._row_to_model(row) for row in cursor.fetchall()]
 
-    def get_model(self, model_id: str) -> Model:
-        conn = self._get_meta_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE id = ?",
-            (model_id,),
-        )
-        row = cursor.fetchone()
-        if not row:
-            raise ValueError(f"Model {model_id} not found")
+    @staticmethod
+    def _row_to_model(row: sqlite3.Row) -> Model:
         return Model(
             id=row[0],
             name=row[1],
@@ -1109,6 +1089,65 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             path=row[4],
             experiment_id=row[5],
         )
+
+    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
+        cursor.execute(
+            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE id = ?",
+            (model_id,),
+        )
+        row = cursor.fetchone()
+        return self._row_to_model(row) if row else None
+
+    def get_model(self, model_id: str) -> Model:
+        conn = self._get_meta_connection()
+        model = self._fetch_model(conn.cursor(), model_id)
+        if not model:
+            raise ValueError(f"Model {model_id} not found")
+        return model
+
+    def update_model(
+        self,
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Model | None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+
+        fields: list[str] = []
+        values: list[Any] = []
+
+        if name is not None:
+            fields.append("name = ?")
+            values.append(name)
+        if tags is not None:
+            fields.append("tags = ?")
+            values.append(json.dumps(tags))
+
+        if not fields:
+            return self._fetch_model(cursor, model_id)
+
+        values.append(model_id)
+        cursor.execute(
+            f"UPDATE models SET {', '.join(fields)} WHERE id = ?",  # noqa: S608
+            values,
+        )
+        conn.commit()
+
+        return self._fetch_model(cursor, model_id)
+
+    def delete_model(self, model_id: str) -> None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT path FROM models WHERE id = ?", (model_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            model_file = self.base_path / row[0]
+            if model_file.exists():
+                model_file.unlink()
+
+        cursor.execute("DELETE FROM models WHERE id = ?", (model_id,))
+        conn.commit()
 
     def list_groups_pagination(
         self,
@@ -1245,14 +1284,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
             for row in cursor.fetchall():
                 models_by_experiment.setdefault(row[5], []).append(
-                    Model(
-                        id=row[0],
-                        name=row[1],
-                        created_at=row[2],
-                        tags=json.loads(row[3]) if row[3] else [],
-                        path=row[4],
-                        experiment_id=row[5],
-                    )
+                    self._row_to_model(row)
                 )
 
         return models_by_experiment
@@ -1282,17 +1314,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             (experiment_id,),
         )
 
-        return [
-            Model(
-                id=row[0],
-                name=row[1],
-                created_at=row[2],
-                tags=json.loads(row[3]) if row[3] else [],
-                path=row[4],
-                experiment_id=row[5],
-            )
-            for row in cursor.fetchall()
-        ]
+        return [self._row_to_model(row) for row in cursor.fetchall()]
 
     def list_group_experiments_pagination(
         self,
