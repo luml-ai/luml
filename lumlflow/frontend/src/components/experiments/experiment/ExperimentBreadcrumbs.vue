@@ -30,7 +30,7 @@ const breadcrumbs = computed(() => [
   { label: 'Experiments group ', route: { name: ROUTE_NAMES.HOME } },
   {
     label: props.experiment.name,
-    route: { name: ROUTE_NAMES.EXPERIMENT, params: { experimentId: props.experiment.id } },
+    route: { name: ROUTE_NAMES.EXPERIMENT, params: { groupId: props.experiment.id } },
   },
 ])
 </script>
