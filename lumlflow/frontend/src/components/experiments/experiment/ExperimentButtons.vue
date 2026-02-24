@@ -24,13 +24,15 @@
 </template>
 
 <script setup lang="ts">
-import { Button, useConfirm } from 'primevue'
+import { Button, useConfirm, useToast } from 'primevue'
 import { Trash2, Bolt, Repeat, Filter } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { deleteExperimentConfirmOptions } from '@/confirm/confirm'
 import { useExperimentsStore } from '@/store/experiments'
+import { errorToast } from '@/toasts'
 
 const confirm = useConfirm()
+const toast = useToast()
 const experimentsStore = useExperimentsStore()
 
 const deleteDisabled = computed(() => {
@@ -43,12 +45,20 @@ const settingsDisabled = computed(() => {
 
 function onDelete() {
   const ids = experimentsStore.selectedExperiments.map((experiment) => experiment.id)
+  const isMultiple = ids.length > 1
   confirm.require(
     deleteExperimentConfirmOptions(() => {
-      console.log('delete', ids)
-      experimentsStore.deleteExperiments(ids)
-    }, ids.length > 1),
+      onDeleteConfirm(ids)
+    }, isMultiple),
   )
+}
+
+async function onDeleteConfirm(ids: string[]) {
+  try {
+    await experimentsStore.deleteExperiments(ids)
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
 }
 
 function onSettings() {
