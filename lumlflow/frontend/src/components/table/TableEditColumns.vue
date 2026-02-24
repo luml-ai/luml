@@ -1,5 +1,5 @@
 <template>
-  <OverlayBadge v-if="hideColumnsCount" :value="hideColumnsCount">
+  <OverlayBadge v-if="hideColumnsCount" :value="hideColumnsCount" class="relative z-10">
     <Button
       severity="secondary"
       variant="outlined"
