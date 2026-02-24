@@ -5,3 +5,7 @@ export const durationToText = (duration: number) => {
   if (duration < 3600000) return `${duration / 3600000}h`
   return `${duration / 86400000}d`
 }
+
+export const dateToText = (date: string) => {
+  return new Date(date).toLocaleString()
+}
