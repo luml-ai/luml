@@ -39,9 +39,11 @@ def delete_experiment(experiment_id: str) -> None:
     "/{experiment_id}/metrics/{key}", response_model=ExperimentMetricHistory
 )
 def get_experiment_metric_history(
-    experiment_id: str, key: str
+    experiment_id: str, key: str, max_points: int = 1000
 ) -> ExperimentMetricHistory:
-    return experiments_handler.get_experiment_metric_history(experiment_id, key)
+    return experiments_handler.get_experiment_metric_history(
+        experiment_id, key, max_points
+    )
 
 
 @experiments_router.get("/{experiment_id}/models", response_model=list[Model])
