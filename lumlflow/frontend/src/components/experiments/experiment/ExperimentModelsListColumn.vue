@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center gap-2">
+  <div v-if="models.length" class="flex items-center gap-2">
     <CircuitBoardIcon :size="14" color="var(--p-primary-color)" />
     <div v-if="firstModel" class="max-w-[100px] text-nowrap overflow-hidden text-ellipsis">
       {{ firstModel.name }}
@@ -18,6 +18,7 @@
       </div>
     </Popover>
   </div>
+  <span v-else>-</span>
 </template>
 
 <script setup lang="ts">
