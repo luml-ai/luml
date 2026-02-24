@@ -2,33 +2,45 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from pydantic import AliasChoices, BaseModel, Field
+from pydantic import BaseModel
 
 from lumlflow.schemas.base import BaseOrmConfig
 from lumlflow.schemas.models import Model
 
 
-class Experiment(BaseModel, BaseOrmConfig):
+class ExperimentStatus(StrEnum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+
+
+class _ExperimentBase(BaseModel, BaseOrmConfig):
     id: str
     name: str
-    status: str
-    group_id: str
-    created_at: datetime
+    status: ExperimentStatus
     duration: float | None = None
     description: str | None = None
     tags: list[str] | None = None
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class Experiment(_ExperimentBase):
+    group_id: str
+
+
+class ExperimentListed(_ExperimentBase):
+    models: list[Model] | None = None
 
 
 class ExperimentMetaData(BaseModel, BaseOrmConfig):
     name: str
-    created_at: datetime
-    status: str
+    status: ExperimentStatus
     group_id: str
     tags: list[str] | None = None
     duration: float | None = None
     description: str | None = None
+    created_at: datetime
 
 
 class ExperimentData(BaseModel, BaseOrmConfig):
@@ -56,20 +68,6 @@ class ExperimentsSortBy(StrEnum):
     MODELS = "models"
 
 
-class ExperimentListed(BaseModel, BaseOrmConfig):
-    id: str
-    name: str
-    created_at: datetime
-    tags: list[str] | None = None
-    models: list[Model] | None = None
-    duration: float | None = None
-    description: str | None = None
-    static_params: dict[str, Any] | None = None
-    dynamic_metrics: dict[str, Any] | None = Field(
-        None, validation_alias=AliasChoices("dynamic_metrics", "dynamic_params")
-    )
-
-
 class PaginatedExperiments(BaseModel):
     items: list[ExperimentListed]
     cursor: str | None = None
@@ -84,6 +82,7 @@ class MetricPoint(BaseModel):
 class ExperimentMetricHistory(BaseModel):
     experiment_id: str
     key: str
+    subsampled: bool = False
     history: list[MetricPoint]
 
 

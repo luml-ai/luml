@@ -1,3 +1,5 @@
+from math import ceil
+
 from luml.experiments.backends.sqlite import SQLiteBackend
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
@@ -57,7 +59,7 @@ class ExperimentsHandler:
             raise ApplicationError(str(e), status_code=500) from e
 
     def get_experiment_metric_history(
-        self, experiment_id: str, key: str
+        self, experiment_id: str, key: str, max_points: int = 1000
     ) -> ExperimentMetricHistory:
         if not self.db.get_experiment(experiment_id):
             raise NotFound("Experiment not found")
@@ -65,9 +67,18 @@ class ExperimentsHandler:
             raw = self.db.get_experiment_metric_history(experiment_id, key)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
+
+        subsampled = False
+
+        if len(raw) > max_points:
+            step = ceil(len(raw) / max_points)
+            raw = raw[::step]
+            subsampled = True
+
         return ExperimentMetricHistory(
             experiment_id=experiment_id,
             key=key,
+            subsampled=subsampled,
             history=[MetricPoint(**p) for p in raw],
         )
 

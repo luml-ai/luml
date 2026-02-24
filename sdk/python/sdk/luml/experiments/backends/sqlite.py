@@ -780,6 +780,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
 
     def get_experiment(self, experiment_id: str) -> Experiment | None:
+        """
+        Fetches an experiment's details from the database by the given experiment ID.
+
+        This method queries the database to retrieve information about a specific experiment
+        based on its unique identifier. If no experiment is found, the method returns None.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment to retrieve.
+
+        Returns:
+            Experiment | None: An instance of the `Experiment` class containing the details of
+            the experiment if found, or None if no matching record exists.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -837,6 +850,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         description: str | None = None,
         tags: list[str] | None = None,
     ) -> Experiment | None:
+        """
+        Updates an existing experiment record in the database. Fields such as name, description,
+        and tags can be updated selectively. If no fields are updated, the function retrieves
+        the current experiment details.
+
+        Args:
+            experiment_id: Unique identifier of the experiment to update.
+            name: Optional new name for the experiment.
+            description: Optional new description for the experiment.
+            tags: Optional list of new tags associated with the experiment.
+
+        Returns:
+            Experiment: Updated experiment object if the update is successful or the record is retrieved.
+            None: If the experiment with the given ID does not exist.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
@@ -962,6 +990,22 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         description: str | None = None,
         tags: list[str] | None = None,
     ) -> Group | None:
+        """
+        Updates the attributes of an existing group identified by its group ID. If no
+        updates are provided, the method retrieves the existing group's details.
+
+        Args:
+            group_id: The unique identifier of the group to be updated.
+            name: The new name of the group. If None, the name remains unchanged.
+            description: The new description of the group. If None, the description
+                remains unchanged.
+            tags: A list of new tags associated with the group. If None, the tags
+                remain unchanged.
+
+        Returns:
+            An updated Group object if the update is successful. If there are no
+            updates provided, or the group ID doesn't exist, returns None.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
@@ -993,6 +1037,18 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return self.get_group(group_id)
 
     def delete_group(self, group_id: str) -> None:
+        """
+        Deletes a group from the experiment groups database.
+
+        This method removes the entry corresponding to the given group ID
+        from the 'experiment_groups' table in the database.
+
+        Args:
+            group_id (str): The unique identifier of the group to be deleted.
+
+        Returns:
+            None
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM experiment_groups WHERE id = ?", (group_id,))
@@ -1007,6 +1063,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             list[Group]: A list of `Group` objects representing all experiment groups in the
             database.
+
+        Example:
+            >>> backend.list_groups()
+            [
+                Group(
+                    id="group-123",
+                    name="cv_experiments",
+                    description="Computer vision experiments",
+                    created_at=datetime(2024, 6, 1, 10, 0, 0),
+                    tags=["cv", "production"],
+                    last_modified=datetime(2024, 6, 5, 15, 30, 0),
+                ),
+                Group(
+                    id="group-456",
+                    name="nlp_experiments",
+                    description=None,
+                    created_at=datetime(2024, 6, 2, 8, 0, 0),
+                    tags=[],
+                    last_modified=None,
+                ),
+            ]
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -1034,6 +1111,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         name: str | None = None,
         tags: list[str] | None = None,
     ) -> tuple[Model, str]:
+        """
+        Logs a machine learning model to the specified experiment by storing its metadata and
+        copying the model file to the appropriate storage location.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment to which the model
+                is logged.
+            model_path (str): The file path of the model to be logged.
+            name (str | None, optional): The name of the model. If not provided, the stem of
+                the model file name is used.
+            tags (list[str] | None, optional): A list of tags associated with the model to
+                provide metadata for organizational or informational purposes.
+
+        Returns:
+            tuple[Model, str]: A tuple containing the `Model` object representing the logged
+                model's metadata and the absolute destination path of the copied model file.
+
+        Example:
+            >>> model, dest_path = backend.log_model(
+            ...     experiment_id="exp-001",
+            ...     model_path="/tmp/resnet50.pt",
+            ...     name="resnet50_v1",
+            ...     tags=["production", "v1"],
+            ... )
+            >>> model
+            Model(
+                id="model-abc",
+                name="resnet50_v1",
+                created_at=datetime(2024, 6, 1, 12, 0, 0),
+                tags=["production", "v1"],
+                path="/storage/exp-001/models/resnet50_v1.pt",
+                experiment_id="exp-001",
+            )
+            >>> dest_path
+            "/storage/exp-001/models/resnet50_v1.pt"
+        """
         self._ensure_experiment_initialized(experiment_id)
 
         import shutil
@@ -1071,6 +1184,42 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return model, str(dest)
 
     def get_models(self, experiment_id: str) -> list[Model]:
+        """
+        Fetches all models associated with a given experiment ID.
+
+        This method queries the database for all models that are linked to the
+        specified experiment ID. Each row fetched from the database is converted
+        to a `Model` object and returned as part of a list.
+
+        Args:
+            experiment_id (str): The identifier of the experiment whose models
+                need to be fetched.
+
+        Returns:
+            list[Model]: A list of `Model` objects associated with the given
+                experiment ID.
+
+        Example:
+            >>> backend.get_models("exp-001")
+            [
+                Model(
+                    id="model-abc",
+                    name="resnet50_v1",
+                    created_at=datetime(2024, 6, 1, 12, 0, 0),
+                    tags=["production", "v1"],
+                    path="/artifacts/resnet50_v1.pt",
+                    experiment_id="exp-001",
+                ),
+                Model(
+                    id="model-def",
+                    name="resnet50_v2",
+                    created_at=datetime(2024, 6, 2, 9, 0, 0),
+                    tags=[],
+                    path=None,
+                    experiment_id="exp-001",
+                ),
+            ]
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
@@ -1099,6 +1248,35 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return self._row_to_model(row) if row else None
 
     def get_model(self, model_id: str) -> Model:
+        """
+        Retrieves a model instance based on the provided model ID.
+
+        Uses an internal meta connection to locate and fetch the model by the
+        given model ID. If the model does not exist, a ValueError is raised.
+
+        Args:
+            model_id (str): The unique identifier of the model to retrieve.
+
+        Returns:
+            Model: The retrieved model instance.
+
+        Raises:
+            ValueError: If the model with the specified ID is not found.
+
+        Example:
+            >>> backend.get_model("model-abc")
+            Model(
+                id="model-abc",
+                name="resnet50_v1",
+                created_at=datetime(2024, 6, 1, 12, 0, 0),
+                tags=["production", "v1"],
+                path="/artifacts/resnet50_v1.pt",
+                experiment_id="exp-001",
+            )
+
+            >>> backend.get_model("nonexistent-id")
+            ValueError: Model nonexistent-id not found
+        """
         conn = self._get_meta_connection()
         model = self._fetch_model(conn.cursor(), model_id)
         if not model:
@@ -1111,6 +1289,37 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         name: str | None = None,
         tags: list[str] | None = None,
     ) -> Model | None:
+        """
+        Updates the attributes of a model in the database given its model ID.
+
+        This method allows updating the name and tags of a model. If no fields are
+        provided for updating, it fetches and returns the original model. The tags,
+        if provided, are stored as a JSON string in the database.
+
+        Args:
+            model_id (str): The unique identifier of the model to update.
+            name (str | None): The new name for the model. Defaults to None.
+            tags (list[str] | None): A list of string tags to associate with the model.
+                Defaults to None.
+
+        Returns:
+            Model | None: The updated model as a `Model` object if the update is
+            successful, or None if the model with the given ID does not exist.
+
+        Example:
+            >>> backend.update_model("model-abc", name="resnet50_v2", tags=["production", "v2"])
+            Model(
+                id="model-abc",
+                name="resnet50_v2",
+                created_at=datetime(2024, 6, 1, 12, 0, 0),
+                tags=["production", "v2"],
+                path="/artifacts/resnet50_v1.pt",
+                experiment_id="exp-001",
+            )
+
+            >>> backend.update_model("nonexistent-id")
+            None
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
 
@@ -1137,6 +1346,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return self._fetch_model(cursor, model_id)
 
     def delete_model(self, model_id: str) -> None:
+        """
+        Deletes a model and its files from the database and filesystem.
+
+        The method removes a model entry from the database and, if a file path for the
+        model exists, deletes the associated file from the specified directory.
+
+        Args:
+            model_id (str): The unique identifier of the model to be deleted.
+        """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute("SELECT path FROM models WHERE id = ?", (model_id,))
@@ -1175,6 +1393,30 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             PaginatedResponse[Group]: A paginated response object containing a list of
                 Group objects and pagination metadata.
+
+        Example:
+            >>> backend.list_groups_pagination(limit=2, sort_by="created_at", order="desc")
+            PaginatedResponse(
+                items=[
+                    Group(
+                        id="group-123",
+                        name="cv_experiments",
+                        description="Computer vision experiments",
+                        created_at=datetime(2024, 6, 2, 10, 0, 0),
+                        tags=["cv", "production"],
+                        last_modified=datetime(2024, 6, 5, 15, 30, 0),
+                    ),
+                    Group(
+                        id="group-456",
+                        name="nlp_experiments",
+                        description=None,
+                        created_at=datetime(2024, 6, 1, 8, 0, 0),
+                        tags=[],
+                        last_modified=None,
+                    ),
+                ],
+                cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDEifQ==",
+            )
         """
         sort_by, order = self._sanitize_pagination_params(
             sort_by,
@@ -1236,6 +1478,20 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             Group | None: A `Group` object containing the details of the experiment
             group if found, otherwise `None`.
+
+        Example:
+            >>> backend.get_group("group-123")
+            Group(
+                id="group-123",
+                name="cv_experiments",
+                description="Computer vision experiments",
+                created_at=datetime(2024, 6, 1, 10, 0, 0),
+                tags=["cv", "production"],
+                last_modified=datetime(2024, 6, 5, 15, 30, 0),
+            )
+
+            >>> backend.get_group("nonexistent-id")
+            None
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -1270,6 +1526,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             dict[str, list[Model]]: A dictionary where keys are experiment IDs and values are lists of
             models associated with those experiment IDs.
+
+        Example:
+            >>> backend.list_batch_experiments_models(["exp-001", "exp-002"])
+            {
+                "exp-001": [
+                    Model(
+                        id="model-abc",
+                        name="resnet50_v1",
+                        created_at=datetime(2024, 6, 1, 12, 0, 0),
+                        tags=["production"],
+                        path="/artifacts/resnet50_v1.pt",
+                        experiment_id="exp-001",
+                    ),
+                ],
+                "exp-002": [
+                    Model(
+                        id="model-def",
+                        name="bert_base",
+                        created_at=datetime(2024, 6, 2, 9, 0, 0),
+                        tags=[],
+                        path=None,
+                        experiment_id="exp-002",
+                    ),
+                ],
+            }
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -1305,6 +1586,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Returns:
             list[Model]: A list of `Model` instances representing the models
                 associated with the specified experiment.
+
+        Example:
+            >>> backend.list_experiment_models("exp-001")
+            [
+                Model(
+                    id="model-abc",
+                    name="resnet50_v1",
+                    created_at=datetime(2024, 6, 1, 12, 0, 0),
+                    tags=["production", "v1"],
+                    path="/artifacts/resnet50_v1.pt",
+                    experiment_id="exp-001",
+                ),
+                Model(
+                    id="model-def",
+                    name="resnet50_v2",
+                    created_at=datetime(2024, 6, 1, 14, 30, 0),
+                    tags=[],
+                    path=None,
+                    experiment_id="exp-001",
+                ),
+            ]
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -1358,6 +1660,45 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the provided `json_sort_column` is not one of the allowed values
                 ("static_params", "dynamic_params").
+
+        Example:
+            >>> response = backend.list_group_experiments_pagination(
+            ...     group_id="group-123",
+            ...     limit=2,
+            ...     sort_by="created_at",
+            ...     order="desc",
+            ... )
+            PaginatedResponse(
+                items=[
+                    Experiment(
+                        id="exp-001",
+                        name="baseline_run",
+                        status="completed",
+                        created_at=datetime(2024, 6, 1, 12, 0, 0),
+                        tags=["baseline", "v1"],
+                        models=[],
+                        duration=42.3,
+                        description="Initial baseline experiment",
+                        group_id="group-123",
+                        static_params={"lr": 0.01, "epochs": 10},
+                        dynamic_params={"loss": 0.25, "accuracy": 0.91},
+                    ),
+                    Experiment(
+                        id="exp-002",
+                        name="tuned_run",
+                        status="active",
+                        created_at=datetime(2024, 6, 2, 9, 30, 0),
+                        tags=["tuned"],
+                        models=[],
+                        duration=None,
+                        description=None,
+                        group_id="group-123",
+                        static_params={"lr": 0.001, "epochs": 20},
+                        dynamic_params=None,
+                    ),
+                ],
+                cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ=="
+            )
         """
         allowed_columns = {"static_params", "dynamic_params"}
 
@@ -1548,6 +1889,25 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_experiment_metric_history(
         self, experiment_id: str, key: str
     ) -> list[dict[str, Any]]:
+        """
+        Retrieves the historical metrics data for a specific experiment and metric key. The data
+        is ordered by the step value in ascending order. Each metric record contains the value,
+        step, and timestamp when the metric was logged.
+
+        Args:
+            experiment_id: The unique identifier for the experiment whose metric history is
+                being retrieved.
+            key: The key for the metric whose history is being fetched.
+
+        Returns:
+            A list of dictionaries where each dictionary contains the following keys:
+                - 'value' (Any): The stored value of the metric.
+                - 'step' (int): The step or index associated with the metric value.
+                - 'logged_at' (datetime): A timestamp representing when the metric was logged.
+
+        Raises:
+            ValueError: If the experiment with the given `experiment_id` does not exist.
+        """
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
@@ -1565,6 +1925,35 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_experiment_traces(
         self, experiment_id: str, limit: int = 20, cursor_str: str | None = None
     ) -> PaginatedResponse[TraceRecord]:
+        """
+        Retrieve paginated traces for a given experiment.
+
+        This function fetches trace data from an underlying database associated with
+        a specific experiment, along with additional pagination metadata.
+        Traces include spans, which represent segments of distributed operations.
+        Pagination is implemented using cursors to efficiently query and retrieve
+        data in smaller subsets.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment for which
+                traces are being retrieved.
+            limit (int, optional): The maximum number of traces to return in the
+                current result set. Defaults to 20. The result set may contain
+                fewer items if there are insufficient traces in the database.
+            cursor_str (str | None, optional): A cursor string used for pagination
+                purposes. Specifies the starting point for retrieving the next set
+                of traces. If not provided, retrieval starts from the first available
+                item.
+
+        Returns:
+            PaginatedResponse[TraceRecord]: A structured response containing
+                a list of `TraceRecord` items and an optional cursor for fetching
+                subsequent traces.
+
+        Raises:
+            ValueError: If the specified experiment_id is not found in the database
+                or its corresponding database does not exist.
+        """
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
