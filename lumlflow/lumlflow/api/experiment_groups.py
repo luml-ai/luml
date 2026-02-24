@@ -62,7 +62,7 @@ def get_group_experiments(
     order: SortOrder = SortOrder.DESC,
     search: str | None = None,
 ) -> PaginatedExperiments:
-    return groups_handler.get_experiment_group(
+    return groups_handler.list_group_experiments(
         group_id,
         limit=limit,
         cursor_str=cursor,
