@@ -98,7 +98,7 @@ class ExperimentGroupsHandler:
 
         return Group.model_validate(group)
 
-    def get_experiment_group(
+    def list_group_experiments(
         self,
         group_id: str,
         limit: int = 100,
