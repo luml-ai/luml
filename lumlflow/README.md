@@ -12,8 +12,13 @@ lumlflow ui --no-browser                           # Don't open browser
 ### Backend
 
 ```bash
-uv sync --group dev
-uv run python -m uvicorn lumlflow.server:app --reload --port 5000
+uv sync
+
+uv pip install -e "your path to /dataforce.studio/sdk/python"
+
+source .venv/bin/activate 
+
+uvicorn lumlflow.server:app --reload --port 5000
 ```
 
 ### Frontend
