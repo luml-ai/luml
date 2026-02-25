@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 import json
 import sqlite3
 from typing import Any
@@ -16,7 +17,7 @@ class SQLitePaginationMixin:
     @classmethod
     def _items_to_dict(
         cls, columns: list[str], rows: list[sqlite3.Row]
-    ) -> list[dict[str, Any]]:
+    ) -> list[dict[str, Any]]:  # noqa: ANN401
         return [
             {col: cls._parse_value(val) for col, val in zip(columns, row, strict=True)}
             for row in rows
@@ -43,6 +44,7 @@ class SQLitePaginationMixin:
         cursor_value: str | None,
         json_sort_column: str | None = None,
         allowed_sort_columns: set[str] | None = None,
+        id_column: str = "id",
     ) -> tuple[str, list[Any]]:
         if cursor_id is None:
             return "", []
@@ -53,13 +55,10 @@ class SQLitePaginationMixin:
         )
 
         if cursor_value is not None:
-            clause = f"""
-                WHERE ({sort_expr} {op} ?)
-                   OR ({sort_expr} = ? AND id {op} ?)
-            """
+            clause = f"WHERE (({sort_expr} {op} ?) OR ({sort_expr} = ? AND {id_column} {op} ?))"
             return clause, [cursor_value, cursor_value, cursor_id]
 
-        return f"WHERE id {op} ?", [cursor_id]
+        return f"WHERE ({id_column} {op} ?)", [cursor_id]
 
     def _execute_paginated_query(
         self,
@@ -74,6 +73,7 @@ class SQLitePaginationMixin:
         where: list[tuple[str, list[Any]]] | None = None,
         json_sort_column: str | None = None,
         allowed_sort_columns: set[str] | None = None,
+        id_column: str = "id",
     ) -> list[sqlite3.Row]:
         where_clause, params = self._build_cursor_clause(
             sort_by,
@@ -82,6 +82,7 @@ class SQLitePaginationMixin:
             cursor_value,
             json_sort_column,
             allowed_sort_columns,
+            id_column,
         )
 
         if where:
@@ -101,7 +102,8 @@ class SQLitePaginationMixin:
             SELECT {cols}
             FROM {table}
             {where_clause}
-            ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, id {order.upper()}
+            ORDER BY {sort_expr} {order.upper()}
+            NULLS {null_order}, {id_column} {order.upper()}
             LIMIT ?
         """
         params.append(limit + 1)
@@ -109,6 +111,19 @@ class SQLitePaginationMixin:
         db_cursor = conn.cursor()
         db_cursor.execute(query, params)
         return db_cursor.fetchall()
+
+    @staticmethod
+    def _extract_cursor_value(
+        row: sqlite3.Row,
+        columns: list[str],
+        sort_by: str,
+        json_sort_column: str | None = None,
+    ) -> Any:  # noqa: ANN401
+        if json_sort_column:
+            col_raw = row[columns.index(json_sort_column)]
+            col_dict = json.loads(col_raw) if col_raw else {}
+            return col_dict.get(sort_by)
+        return row[columns.index(sort_by)]
 
     @staticmethod
     def _sanitize_pagination_params(

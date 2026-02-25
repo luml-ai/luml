@@ -1,16 +1,23 @@
 from math import ceil
 
+from luml.experiments.backends.data_types import TraceState
 from luml.experiments.backends.sqlite import SQLiteBackend
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
+from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
+    Eval,
+    EvalColumns,
     Experiment,
     ExperimentDetails,
     ExperimentMetricHistory,
     MetricPoint,
+    PaginatedEvals,
     PaginatedTraces,
     Span,
     Trace,
+    TraceDetails,
+    TracesSortBy,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
@@ -83,24 +90,90 @@ class ExperimentsHandler:
         )
 
     def get_experiment_traces(
-        self, experiment_id: str, limit: int = 20, cursor: str | None = None
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor: str | None = None,
+        sort_by: TracesSortBy = TracesSortBy.EXECUTION_TIME,
+        order: SortOrder = SortOrder.DESC,
+        search: str | None = None,
+        states: list[TraceState] | None = None,
     ) -> PaginatedTraces:
         if not self.db.get_experiment(experiment_id):
             raise NotFound("Experiment not found")
         try:
             result = self.db.get_experiment_traces(
-                experiment_id, limit=limit, cursor_str=cursor
+                experiment_id,
+                limit=limit,
+                cursor_str=cursor,
+                sort_by=sort_by,
+                order=order,
+                search=search,
+                states=states,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
-        traces = []
-        for tr in result.items:
-            pydantic_spans = [Span.model_validate(s) for s in tr.spans]
-            root = next((s for s in pydantic_spans if s.parent_span_id is None), None)
-            traces.append(
-                Trace(trace_id=tr.trace_id, root_span=root, spans=pydantic_spans)
+        return PaginatedTraces(
+            items=[Trace.model_validate(s) for s in result.items],
+            cursor=result.cursor,
+        )
+
+    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails:
+        if not self.db.get_experiment(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            result = self.db.get_trace(experiment_id, trace_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+        if result is None:
+            raise NotFound("Trace not found")
+        return TraceDetails(
+            trace_id=result.trace_id,
+            spans=[Span.model_validate(s) for s in result.spans],
+        )
+
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor: str | None = None,
+        sort_by: str = "created_at",
+        order: SortOrder = SortOrder.DESC,
+        dataset_id: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedEvals:
+        if not self.db.get_experiment(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            json_sort_column = self.db.resolve_evals_sort_column(experiment_id, sort_by)
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
+        try:
+            result = self.db.get_experiment_evals(
+                experiment_id,
+                limit=limit,
+                cursor_str=cursor,
+                sort_by=sort_by,
+                order=order,
+                dataset_id=dataset_id,
+                json_sort_column=json_sort_column,
+                search=search,
             )
-        return PaginatedTraces(items=traces, cursor=result.cursor)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+        return PaginatedEvals(
+            items=[Eval.model_validate(e) for e in result.items],
+            cursor=result.cursor,
+        )
+
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        if not self.db.get_experiment(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            result = self.db.get_experiment_eval_columns(experiment_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+        return EvalColumns.model_validate(result)
 
     def update_experiment(
         self, experiment_id: str, body: UpdateExperiment
