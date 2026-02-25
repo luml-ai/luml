@@ -108,6 +108,14 @@ class ExperimentGroupsHandler:
         search: str | None = None,
     ) -> PaginatedExperiments:
         try:
+            group = self.db.get_group(group_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        if not group:
+            raise NotFound("Group not found")
+
+        try:
             json_sort_column = self.db.resolve_experiment_sort_column(group_id, sort_by)
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
