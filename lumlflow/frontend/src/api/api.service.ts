@@ -22,7 +22,7 @@ export const apiService = {
   },
 
   getGroup: async (groupId: string) => {
-    const { data } = await api.get<Group>(`/experiment-groups/${groupId}`)
+    const { data } = await api.get<Group>(`/experiment-groups/${groupId}/details`)
     return data
   },
 
