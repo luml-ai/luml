@@ -10,6 +10,7 @@
     :pt="{
       emptyMessage: loading ? 'hidden' : '',
     }"
+    @row-click="onRowClick"
     @update:selection="experimentsStore.setSelectedExperiments"
   >
     <template #empty>
@@ -23,7 +24,13 @@
       field="name"
       header="Experiment name"
       class="w-[180px]"
-    ></Column>
+    >
+      <template #body="slotProps">
+        <div v-tooltip.top="slotProps.data.name.length > 14 ? slotProps.data.name : null">
+          {{ cutStringOnMiddle(slotProps.data.name, 14) }}
+        </div>
+      </template></Column
+    >
     <Column
       v-if="showColumn('Creation time')"
       field="created_at"
@@ -58,7 +65,9 @@
     </Column>
     <Column v-if="showColumn('Duration')" field="duration" header="Duration" class="w-[126px]">
       <template #body="slotProps">
-        <span v-if="slotProps.data.duration">{{ durationToText(slotProps.data.duration) }}</span>
+        <span v-if="typeof slotProps.data.duration === 'number'">
+          {{ durationToText(slotProps.data.duration) }}
+        </span>
         <span v-else>-</span>
       </template>
     </Column>
@@ -79,7 +88,7 @@
     <template v-for="metric in metricsColumns" :key="metric">
       <Column v-if="showColumn(metric)" :field="metric" :header="metric" class="w-[180px]">
         <template #body="slotProps">
-          <span>{{ slotProps.data.dynamic_metrics?.[metric] || '-' }}</span>
+          <span>{{ slotProps.data.dynamic_params?.[metric] || '-' }}</span>
         </template>
       </Column>
     </template>
@@ -87,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { DataTable, Column, type VirtualScrollerProps } from 'primevue'
+import { DataTable, Column, type VirtualScrollerProps, type DataTableRowClickEvent } from 'primevue'
 import { useExperimentsStore } from '@/store/experiments'
 import { useGroupsStore } from '@/store/groups'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -97,6 +106,9 @@ import { CONSTANTS_COLUMNS, getStatusIconInfo } from './experiment.const'
 import ColumnTags from '@/components/table/ColumnTags.vue'
 import ColumnDescription from '@/components/table/ColumnDescription.vue'
 import ExperimentModelsListColumn from './ExperimentModelsListColumn.vue'
+import { cutStringOnMiddle } from '@/helpers/string'
+import { ROUTE_NAMES } from '@/router/router.const'
+import { useRouter } from 'vue-router'
 
 interface Props {
   groupId: string
@@ -106,6 +118,7 @@ const props = defineProps<Props>()
 
 const experimentsStore = useExperimentsStore()
 const groupsStore = useGroupsStore()
+const router = useRouter()
 
 const loading = ref(true)
 
@@ -124,6 +137,18 @@ const metricsColumns = computed(() => {
 const showColumn = computed(() => (columnTitle: string) => {
   return experimentsStore.visibleColumns.includes(columnTitle)
 })
+
+function onRowClick(event: DataTableRowClickEvent) {
+  const target = event.originalEvent.target as HTMLElement
+  const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
+  if (rowIncludeCheckbox) return
+  const id = event.data.id
+  if (!id) return
+  router.push({
+    name: ROUTE_NAMES.EXPERIMENT_DETAILS,
+    params: { groupId: props.groupId, experimentId: String(id) },
+  })
+}
 
 watch(
   metricsColumns,
