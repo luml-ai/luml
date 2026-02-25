@@ -21,7 +21,13 @@
       <div class="text-center min-h-full">No experiments groups found</div>
     </template>
     <Column selectionMode="multiple" class="w-[40px]"></Column>
-    <Column field="name" header="Group name" sortable class="w-[180px]"></Column>
+    <Column field="name" header="Group name" sortable class="w-[180px]">
+      <template #body="slotProps">
+        <div v-tooltip.top="slotProps.data.name.length > 14 ? slotProps.data.name : null">
+          {{ cutStringOnMiddle(slotProps.data.name, 14) }}
+        </div>
+      </template>
+    </Column>
     <Column field="created_at" header="Creation time" sortable class="w-[180px]">
       <template #body="slotProps">
         <span>{{ dateToText(slotProps.data.created_at) }}</span>
@@ -54,9 +60,10 @@ import { ROUTE_NAMES } from '@/router/router.const'
 import { useRouter } from 'vue-router'
 import { onBeforeMount, ref } from 'vue'
 import { dateToText } from '@/helpers/date'
+import { errorToast } from '@/toasts'
+import { cutStringOnMiddle } from '@/helpers/string'
 import ColumnTags from '@/components/table/ColumnTags.vue'
 import ColumnDescription from '@/components/table/ColumnDescription.vue'
-import { errorToast } from '@/toasts'
 
 const toast = useToast()
 

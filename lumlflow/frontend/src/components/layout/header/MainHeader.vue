@@ -1,6 +1,8 @@
 <template>
   <header class="flex items-center justify-between px-4 py-2 bg-primary">
-    <router-link to="/">Logo</router-link>
+    <router-link to="/">
+      <img :src="logo" alt="Logo" class="w-[175px] h-7" />
+    </router-link>
     <div class="flex items-center gap-2">
       <Button @click="themeStore.toggleTheme">
         <template #icon>
@@ -22,6 +24,7 @@ import { useThemeStore } from '@/store/theme'
 import { THEME } from '@/store/theme/theme.const'
 import { Sun, Moon } from 'lucide-vue-next'
 import Button from 'primevue/button'
+import logo from '@/assets/img/logo.svg'
 
 const themeStore = useThemeStore()
 </script>
