@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import StrEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 from pydantic import BaseModel
@@ -102,12 +102,64 @@ class Span(BaseModel, BaseOrmConfig):
     trace_flags: int | None = None
 
 
-class Trace(BaseModel):
+class TraceDetails(BaseModel):
     trace_id: str
-    root_span: Span | None = None
     spans: list[Span]
+
+
+class TracesSortBy(StrEnum):
+    EXECUTION_TIME = "execution_time"
+    SPAN_COUNT = "span_count"
+    CREATED_AT = "created_at"
+
+
+class TraceState(IntEnum):
+    STATE_UNSPECIFIED = 0
+    OK = 1
+    ERROR = 2
+    IN_PROGRESS = 3
+
+
+class Trace(BaseModel, BaseOrmConfig):
+    trace_id: str
+    execution_time: float  # seconds
+    span_count: int
+    created_at: datetime
+    state: TraceState = TraceState.STATE_UNSPECIFIED
+    evals: list[str] = []
 
 
 class PaginatedTraces(BaseModel):
     items: list[Trace]
     cursor: str | None = None
+
+
+class EvalsSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    DATASET_ID = "dataset_id"
+
+
+class Eval(BaseModel, BaseOrmConfig):
+    id: str
+    dataset_id: str
+    inputs: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    outputs: dict[str, Any] | None = None
+    refs: dict[str, Any] | None = None
+    scores: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
+    trace_ids: list[str] = []
+
+
+class PaginatedEvals(BaseModel):
+    items: list[Eval]
+    cursor: str | None = None
+
+
+class EvalColumns(BaseModel, BaseOrmConfig):
+    inputs: list[str]
+    outputs: list[str]
+    refs: list[str]
+    scores: list[str]
