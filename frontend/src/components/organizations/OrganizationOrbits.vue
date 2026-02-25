@@ -72,7 +72,6 @@ const createAvailable = computed(() => {
 .label {
   font-size: 20px;
   font-weight: 500;
-  margin-bottom: 12px;
 }
 .toolbar {
   display: flex;
