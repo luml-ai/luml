@@ -18,8 +18,26 @@
         <p class="body-description">
           Enter the email and role to invite a new member to your organization.
         </p>
-        <Form id="createInviteForm" :initialValues :resolver @submit="onFormSubmit" class="form">
-          <InputText name="email" placeholder="Email" class="form-input" />
+        <Form
+          id="createInviteForm"
+          :initialValues
+          :resolver
+          v-slot="{ email }"
+          :validateOnValueUpdate="false"
+          @submit="onFormSubmit"
+          class="form"
+        >
+          <div class="form-field">
+            <InputText
+              name="email"
+              placeholder="Email"
+              class="form-input"
+              :invalid="email?.invalid"
+            />
+            <div v-if="email?.invalid" class="error-message">
+              Please enter a valid email address
+            </div>
+          </div>
           <Select
             :options="OPTIONS"
             option-label="label"
@@ -137,12 +155,21 @@ function getPayload(values: { email: string; role: OrganizationRoleEnum }) {
 .form {
   display: flex;
   gap: 13px;
+  align-items: flex-start;
 }
 .form-input {
+  width: 100%;
+}
+.form-field {
   flex: 1 1 auto;
 }
 .form-select {
   flex: 0 0 160px;
+}
+.error-message {
+  color: var(--p-red-500);
+  font-size: 12px;
+  margin-top: 4px;
 }
 @media (max-width: 768px) {
   .form {
