@@ -8,7 +8,7 @@ import uuid
 import weakref
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
@@ -23,6 +23,8 @@ from luml.experiments.backends._sqlite_experiment_ddl import (
 )
 from luml.experiments.backends._sqlite_pagination_mixin import SQLitePaginationMixin
 from luml.experiments.backends.data_types import (
+    EvalColumns,
+    EvalRecord,
     Experiment,
     ExperimentData,
     ExperimentMetaData,
@@ -30,7 +32,9 @@ from luml.experiments.backends.data_types import (
     Model,
     PaginatedResponse,
     SpanRecord,
+    TraceDetails,
     TraceRecord,
+    TraceState,
 )
 from luml.experiments.backends.migration_runner import MigrationRunner
 from luml.experiments.utils import guess_span_type
@@ -128,6 +132,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "tags",
         "duration",
     }
+    EVALS_STANDARD_SORT_COLUMNS: frozenset[str] = frozenset(
+        {"created_at", "updated_at", "dataset_id"}
+    )
 
     def __init__(
         self,
@@ -203,6 +210,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor.execute(_DDL_EXPERIMENT_CREATE_EVALS)
         cursor.execute(_DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE)
         conn.commit()
+
+    @staticmethod
+    def _row_to_model(row: sqlite3.Row) -> Model:
+        return Model(
+            id=row[0],
+            name=row[1],
+            created_at=row[2],
+            tags=json.loads(row[3]) if row[3] else [],
+            path=row[4],
+            size=row[5],
+            experiment_id=row[6],
+        )
+
+    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
+        cursor.execute(
+            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE id = ?",
+            (model_id,),
+        )
+        row = cursor.fetchone()
+        return self._row_to_model(row) if row else None
 
     def initialize_experiment(
         self,
@@ -1166,9 +1193,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         conn = self._get_meta_connection()
         cursor = conn.cursor()
+        size = dest.stat().st_size
+
         cursor.execute(
-            "INSERT INTO models (id, name, tags, path, experiment_id) VALUES (?, ?, ?, ?, ?)",
-            (model_id, name or source.stem, tags_json, rel_path, experiment_id),
+            "INSERT INTO models (id, name, tags, path, size, experiment_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (model_id, name or source.stem, tags_json, rel_path, size, experiment_id),
         )
         conn.commit()
 
@@ -1179,6 +1208,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             created_at=now,
             tags=tags or [],
             path=rel_path,
+            size=size,
             experiment_id=experiment_id,
         )
         return model, str(dest)
@@ -1223,29 +1253,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
+            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id = ?",
             (experiment_id,),
         )
         return [self._row_to_model(row) for row in cursor.fetchall()]
-
-    @staticmethod
-    def _row_to_model(row: sqlite3.Row) -> Model:
-        return Model(
-            id=row[0],
-            name=row[1],
-            created_at=row[2],
-            tags=json.loads(row[3]) if row[3] else [],
-            path=row[4],
-            experiment_id=row[5],
-        )
-
-    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
-        cursor.execute(
-            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE id = ?",
-            (model_id,),
-        )
-        row = cursor.fetchone()
-        return self._row_to_model(row) if row else None
 
     def get_model(self, model_id: str) -> Model:
         """
@@ -1560,7 +1571,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             placeholders = ", ".join("?" for _ in experiment_ids)
 
             cursor.execute(
-                f"SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id IN ({placeholders})",
+                f"SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id IN ({placeholders})",
                 experiment_ids,
             )
             for row in cursor.fetchall():
@@ -1612,7 +1623,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT id, name, created_at, tags, path, experiment_id FROM models WHERE experiment_id = ?",
+            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id = ?",
             (experiment_id,),
         )
 
@@ -1624,9 +1635,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
-        json_sort_column: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
     ) -> PaginatedResponse[Experiment]:
         """
         Fetches a paginated list of experiments within a specified group, supporting various
@@ -1922,149 +1933,435 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             for value, step, logged_at in cursor.fetchall()
         ]
 
+    def _fetch_bridge_ids(
+        self,
+        conn: sqlite3.Connection,
+        key_column: str,
+        value_column: str,
+        ids: list[str],
+    ) -> dict[str, list[str]]:
+        if not ids:
+            return {}
+        placeholders = ", ".join("?" for _ in ids)
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
+            f" WHERE {key_column} IN ({placeholders})",
+            ids,
+        )
+        result: dict[str, list[str]] = {}
+        for key, value in cur.fetchall():
+            result.setdefault(key, []).append(value)
+        return result
+
     def get_experiment_traces(
-        self, experiment_id: str, limit: int = 20, cursor_str: str | None = None
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal[
+            "execution_time", "span_count", "created_at"
+        ] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
         """
-        Retrieve paginated traces for a given experiment.
+        Retrieve paginated trace summaries for a given experiment.
 
-        This function fetches trace data from an underlying database associated with
-        a specific experiment, along with additional pagination metadata.
-        Traces include spans, which represent segments of distributed operations.
-        Pagination is implemented using cursors to efficiently query and retrieve
-        data in smaller subsets.
+        Returns an aggregated summary per trace: trace_id, execution_time
+        (MAX(end) - MIN(start) across all spans in seconds), span_count,
+        created_at, state, and linked eval IDs. Supports filtering by trace_id
+        substring and state, sorting by execution_time, span_count or created_at,
+        and cursor-based pagination.
 
         Args:
-            experiment_id (str): The unique identifier of the experiment for which
-                traces are being retrieved.
-            limit (int, optional): The maximum number of traces to return in the
-                current result set. Defaults to 20. The result set may contain
-                fewer items if there are insufficient traces in the database.
-            cursor_str (str | None, optional): A cursor string used for pagination
-                purposes. Specifies the starting point for retrieving the next set
-                of traces. If not provided, retrieval starts from the first available
-                item.
+            experiment_id: The unique identifier of the experiment.
+            limit: Maximum number of summaries to return. Defaults to 20.
+            cursor_str: Opaque pagination cursor from a previous response.
+            sort_by: Sort field — "execution_time", "span_count", or "created_at".
+            order: Sort direction — "asc" or "desc".
+            search: Substring to filter trace_id (LIKE %...%).
+            states: Filter by one or more TraceState values.
 
         Returns:
-            PaginatedResponse[TraceRecord]: A structured response containing
-                a list of `TraceRecord` items and an optional cursor for fetching
-                subsequent traces.
+            PaginatedResponse[TraceRecord]
 
         Raises:
-            ValueError: If the specified experiment_id is not found in the database
-                or its corresponding database does not exist.
+            ValueError: If experiment not found.
+
+        Example:
+            >>> backend.get_experiment_traces(
+            >>>    "exp-001", limit=2, sort_by="execution_time", order="desc"
+            >>> )
+            PaginatedResponse(
+                items=[
+                    TraceRecord(
+                        trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+                        execution_time=15.442,
+                        span_count=6,
+                        created_at=datetime(2024, 6, 1, 12, 0, 1),
+                        state=TraceState.OK,
+                        evals=["eval-001", "eval-002"],
+                    ),
+                ],
+                cursor="eyJ0cmFjZV9pZCI6ICJhM2NlOTI5ZC4uLiJ9",
+            )
         """
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
+
         conn = self._get_experiment_connection(experiment_id)
-        cur = conn.cursor()
 
-        cursor_id: str | None = None
-        cursor_value: int | None = None
-        if cursor_str:
-            decoded = Cursor.decode(cursor_str)
-            if decoded:
-                cursor_id = decoded.id
-                cursor_value = decoded.value
+        subquery = """(
+            SELECT
+                trace_id,
+                (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
+                COUNT(*) AS span_count,
+                MIN(created_at) AS created_at,
+                CASE
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
+                    ELSE 0
+                END AS state
+            FROM spans
+            GROUP BY trace_id
+        )"""
 
-        if cursor_id is not None and cursor_value is not None:
-            cur.execute(
-                """
-                SELECT trace_id, MIN(start_time_unix_nano) AS trace_start
-                FROM spans
-                GROUP BY trace_id
-                HAVING trace_start < ?
-                    OR (trace_start = ? AND trace_id < ?)
-                ORDER BY trace_start DESC, trace_id DESC
-                LIMIT ?
-                """,
-                (cursor_value, cursor_value, cursor_id, limit + 1),
+        where_conditions: list[tuple[str, list]] = []
+
+        if search:
+            where_conditions.append(("trace_id LIKE ?", [f"%{search}%"]))
+
+        if states:
+            where_conditions.append(
+                (
+                    f"state IN ({', '.join('?' for _ in states)})",
+                    [s.value for s in states],
+                )
             )
-        else:
-            cur.execute(
-                """
-                SELECT trace_id, MIN(start_time_unix_nano) AS trace_start
-                FROM spans
-                GROUP BY trace_id
-                ORDER BY trace_start DESC, trace_id DESC
-                LIMIT ?
-                """,
-                (limit + 1,),
-            )
+        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
-        trace_rows = cur.fetchall()
-        has_more = len(trace_rows) > limit
-        trace_rows = trace_rows[:limit]
+        columns = ["trace_id", "execution_time", "span_count", "created_at", "state"]
+        rows = self._execute_paginated_query(
+            conn=conn,
+            table=subquery,
+            columns=columns,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            cursor_id=use_cursor.id if use_cursor else None,
+            cursor_value=use_cursor.value if use_cursor else None,
+            where=where_conditions or None,
+            allowed_sort_columns={"execution_time", "span_count", "created_at"},
+            id_column="trace_id",
+        )
 
-        if not trace_rows:
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+
+        if not rows:
             return PaginatedResponse(items=[], cursor=None)
 
-        page_trace_ids = [row[0] for row in trace_rows]
-        last_trace_start = trace_rows[-1][1]
+        items = [
+            TraceRecord(
+                trace_id=row[0],
+                execution_time=row[1] / 1_000_000_000,
+                span_count=row[2],
+                created_at=row[3],
+                state=TraceState(row[4]),
+            )
+            for row in rows
+        ]
 
-        placeholders = ", ".join("?" for _ in page_trace_ids)
+        evals_by_trace = self._fetch_bridge_ids(
+            conn, "trace_id", "eval_id", [item.trace_id for item in items]
+        )
+        for item in items:
+            item.evals = evals_by_trace.get(item.trace_id, [])
+
+        cursor: str | None = None
+        if has_more:
+            cursor = Cursor(
+                id=items[-1].trace_id,
+                value=self._extract_cursor_value(rows[-1], columns, sort_by),
+                sort_by=sort_by,
+                order=order,
+            ).encode()
+
+        return PaginatedResponse(items=items, cursor=cursor)
+
+    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
+        """
+        Retrieves trace details for a given trace ID within an experiment.
+
+        This method queries the database associated with the specified experiment ID
+        to fetch detailed information about the trace, including span records and
+        their associated metadata. If the trace ID does not exist within the database,
+        the method returns None. Errors are raised if the experiment's database is not
+        found.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment whose trace
+                details are being retrieved.
+            trace_id (str): The unique identifier of the trace within the experiment.
+
+        Returns:
+            TraceDetails | None: A TraceDetails object containing the trace ID and
+            its associated spans if the trace is found; otherwise, None.
+
+        Raises:
+            ValueError: If the specified experiment ID does not have an associated
+            database or the database cannot be found.
+
+        Example:
+            >>> backend.get_trace("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
+            TraceDetails(
+                trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+                spans=[
+                    SpanRecord(
+                        trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+                        span_id="00f067aa0ba902b7",
+                        parent_span_id=None,
+                        name="agent.run",
+                        kind=1,
+                        dfs_span_type=2,
+                        start_time_unix_nano=1717200000000000000,
+                        end_time_unix_nano=1717200015442000000,
+                        status_code=1,
+                        status_message=None,
+                        attributes={"llm.model": "gpt-4o", "llm.token_count": 512},
+                        events=None,
+                        links=None,
+                        trace_flags=1,
+                    )
+                ]
+            )
+        """
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.cursor()
         cur.execute(
-            f"""
+            """
             SELECT trace_id, span_id, parent_span_id, name, kind, dfs_span_type,
                    start_time_unix_nano, end_time_unix_nano,
                    status_code, status_message, attributes, events, links, trace_flags
             FROM spans
-            WHERE trace_id IN ({placeholders})
-            ORDER BY trace_id, start_time_unix_nano ASC
+            WHERE trace_id = ?
+            ORDER BY start_time_unix_nano ASC
             """,
-            page_trace_ids,
+            (trace_id,),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return None
+
+        spans = [
+            SpanRecord(
+                trace_id=row[0],
+                span_id=row[1],
+                parent_span_id=row[2],
+                name=row[3],
+                kind=row[4],
+                dfs_span_type=row[5],
+                start_time_unix_nano=row[6],
+                end_time_unix_nano=row[7],
+                status_code=row[8],
+                status_message=row[9],
+                attributes=json.loads(row[10]) if row[10] else None,
+                events=json.loads(row[11]) if row[11] else None,
+                links=json.loads(row[12]) if row[12] else None,
+                trace_flags=row[13],
+            )
+            for row in rows
+        ]
+        return TraceDetails(trace_id=trace_id, spans=spans)
+
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedResponse[EvalRecord]:
+        """
+        Retrieve paginated eval samples for a given experiment.
+
+        Returns eval samples with their inputs, outputs, scores, and linked trace IDs.
+        Supports optional filtering by dataset_id, sorting by created_at, updated_at,
+        dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagination.
+
+        Args:
+            experiment_id: The unique identifier of the experiment.
+            limit: Maximum number of evals to return. Defaults to 20.
+            cursor_str: Opaque pagination cursor from a previous response.
+            sort_by: Sort field or JSON key name when json_sort_column is set.
+            order: Sort direction — "asc" or "desc".
+            dataset_id: Filter evals to a specific dataset.
+            json_sort_column: When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.{sort_by}').
+
+        Returns:
+            PaginatedResponse[EvalRecord]
+
+        Raises:
+            ValueError: If experiment not found.
+
+        Example:
+            >>> backend.get_experiment_evals("exp-001", limit=2)
+            PaginatedResponse(
+                items=[
+                    EvalRecord(
+                        id="eval-001",
+                        dataset_id="ds-abc",
+                        inputs={"question": "What is 2+2?"},
+                        outputs={"answer": "4"},
+                        scores={"accuracy": 1.0},
+                        created_at=datetime(2024, 6, 1, 12, 0, 0),
+                        updated_at=datetime(2024, 6, 1, 12, 0, 0),
+                        trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
+                    ),
+                ],
+                cursor="eyJpZCI6ICJldmFsLTAwMSJ9",
+            )
+        """
+        conn = self._get_experiment_connection(experiment_id)
+
+        where_conditions: list[tuple[str, list]] = []
+        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
+
+        if dataset_id:
+            where_conditions.append(("dataset_id = ?", [dataset_id]))
+
+        if search:
+            where_conditions.append(("id LIKE ?", [f"%{search}%"]))
+
+        columns = [
+            "id",
+            "dataset_id",
+            "inputs",
+            "outputs",
+            "refs",
+            "scores",
+            "metadata",
+            "created_at",
+            "updated_at",
+        ]
+        rows = self._execute_paginated_query(
+            conn=conn,
+            table="evals",
+            columns=columns,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            cursor_id=use_cursor.id if use_cursor else None,
+            cursor_value=use_cursor.value if use_cursor else None,
+            where=where_conditions or None,
+            allowed_sort_columns=self.EVALS_STANDARD_SORT_COLUMNS,
+            json_sort_column=json_sort_column,
+            id_column="id",
         )
 
-        traces_map: dict[str, TraceRecord] = {
-            tid: TraceRecord(trace_id=tid) for tid in page_trace_ids
-        }
-        for row in cur.fetchall():
-            (
-                trace_id,
-                span_id,
-                parent_span_id,
-                name,
-                kind,
-                dfs_span_type,
-                start_ns,
-                end_ns,
-                status_code,
-                status_message,
-                attributes_json,
-                events_json,
-                links_json,
-                trace_flags,
-            ) = row
-            span = SpanRecord(
-                trace_id=trace_id,
-                span_id=span_id,
-                parent_span_id=parent_span_id,
-                name=name,
-                kind=kind,
-                dfs_span_type=dfs_span_type,
-                start_time_unix_nano=start_ns,
-                end_time_unix_nano=end_ns,
-                status_code=status_code,
-                status_message=status_message,
-                attributes=json.loads(attributes_json) if attributes_json else None,
-                events=json.loads(events_json) if events_json else None,
-                links=json.loads(links_json) if links_json else None,
-                trace_flags=trace_flags,
+        has_more = len(rows) > limit
+        rows = rows[:limit]
+
+        if not rows:
+            return PaginatedResponse(items=[], cursor=None)
+
+        items = [
+            EvalRecord(
+                id=row[0],
+                dataset_id=row[1],
+                inputs=json.loads(row[2]) if row[2] else {},
+                outputs=json.loads(row[3]) if row[3] else None,
+                refs=json.loads(row[4]) if row[4] else None,
+                scores=json.loads(row[5]) if row[5] else None,
+                metadata=json.loads(row[6]) if row[6] else None,
+                created_at=row[7],
+                updated_at=row[8],
             )
-            traces_map[trace_id].spans.append(span)
+            for row in rows
+        ]
 
-        items = [traces_map[tid] for tid in page_trace_ids]
+        traces_by_eval = self._fetch_bridge_ids(
+            conn, "eval_id", "trace_id", [item.id for item in items]
+        )
+        for item in items:
+            item.trace_ids = traces_by_eval.get(item.id, [])
 
-        next_cursor: str | None = None
-        if has_more and items:
-            last_trace_id = items[-1].trace_id
-            c = Cursor(
-                id=last_trace_id,
-                value=last_trace_start,
-                sort_by="trace_start",
-                order="desc",
+        cursor: str | None = None
+        if has_more:
+            last = items[-1]
+            last_sort_val = self._extract_cursor_value(
+                rows[-1], columns, sort_by, json_sort_column
             )
-            next_cursor = c.encode()
+            cursor = Cursor(
+                id=last.id,
+                value=last_sort_val,
+                sort_by=sort_by,
+                order=order,
+            ).encode()
 
-        return PaginatedResponse(items=items, cursor=next_cursor)
+        return PaginatedResponse(items=items, cursor=cursor)
+
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        """
+        Returns all evals for the experiment with their inputs, outputs, refs, and scores.
+
+        Args:
+            experiment_id: The unique identifier of the experiment.
+
+        Returns:
+            list[EvalColumns]: All evals with scoring-relevant fields.
+
+        """
+        conn = self._get_experiment_connection(experiment_id)
+
+        def _keys(col: str) -> list[str]:
+            cur = conn.cursor()
+            cur.execute(
+                f"""
+                SELECT DISTINCT je.key
+                FROM evals, json_each(evals.{col}) AS je
+                WHERE evals.{col} IS NOT NULL
+                ORDER BY je.key
+                """
+            )
+            return [row[0] for row in cur.fetchall()]
+
+        return EvalColumns(
+            inputs=_keys("inputs"),
+            outputs=_keys("outputs"),
+            refs=_keys("refs"),
+            scores=_keys("scores"),
+        )
+
+    def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
+        """
+        Resolves the json_sort_column for get_experiment_evals.
+
+        - None        → sort_by is a standard evals column
+        - "scores"    → sort_by is a score key
+        - "inputs"    → sort_by is a input key
+        - "outputs"   → sort_by is a output key
+        - "refs"      → sort_by is a ref key
+        - raises ValueError → sort_by is unknown
+        """
+        if sort_by in self.EVALS_STANDARD_SORT_COLUMNS:
+            return None
+
+        json_keys = self.get_experiment_eval_columns(experiment_id)
+
+        for column, keys in vars(json_keys).items():
+            if sort_by in keys:
+                return column
+
+        raise ValueError(
+            f"Invalid sort_by '{sort_by}'. Must be one of "
+            f"{sorted(self.EVALS_STANDARD_SORT_COLUMNS)} or "
+            f"a valid scores / inputs / outputs / refs key."
+        )

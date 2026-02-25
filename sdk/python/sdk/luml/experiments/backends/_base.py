@@ -1,14 +1,18 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Literal
 
 from luml.artifacts._base import _BaseFile
 from luml.experiments.backends.data_types import (
+    EvalColumns,
+    EvalRecord,
     Experiment,
     ExperimentData,
     Group,
     Model,
     PaginatedResponse,
+    TraceDetails,
     TraceRecord,
+    TraceState,
 )
 
 
@@ -202,6 +206,41 @@ class Backend(ABC):
 
     @abstractmethod
     def get_experiment_traces(
-        self, experiment_id: str, limit: int = 20, cursor_str: str | None = None
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal[
+            "execution_time", "span_count", "created_at"
+        ] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        trace_id_search: str | None = None,
+        states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
+        pass
+
+    @abstractmethod
+    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
+        pass
+
+    @abstractmethod
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedResponse[EvalRecord]:
+        pass
+
+    @abstractmethod
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        pass
+
+    @abstractmethod
+    def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         pass
