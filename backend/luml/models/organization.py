@@ -35,7 +35,7 @@ class OrganizationOrm(TimestampMixin, Base):
         Integer, nullable=False, server_default="2"
     )
     model_artifacts_limit: Mapped[int] = mapped_column(
-        Integer, nullable=False, server_default="200"
+        Integer, nullable=False, server_default="50"
     )
 
     members: Mapped[list[OrganizationMemberOrm]] = relationship(
