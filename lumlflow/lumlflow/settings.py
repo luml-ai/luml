@@ -23,6 +23,18 @@ class Settings(BaseSettings):
             path = path.parent
         return str(path)
 
+    @field_validator("BACKEND_STORE_URI", mode="after")
+    @classmethod
+    def parse_uri(cls, v: str) -> str:
+        if "://" in v:
+            _, path_str = v.split("://", 1)
+        else:
+            path_str = v
+        path = Path(path_str).resolve()
+        if path.suffix == ".db":
+            path = path.parent
+        return str(path)
+
 
 @lru_cache
 def get_config() -> Settings:
