@@ -39,7 +39,6 @@ class RandomFewShotOptimizer(BaseOptimizer):
 
         for node in self.graph.nodes.values():
             if id(node) in trace._examples:
-                node_examples = trace._examples[id(node)]
-                random.shuffle(examples)
-                examples = examples[: self.max_examples_per_node]
-                node.set_examples(node_examples)
+                node_examples = trace._examples[id(node)][:]
+                random.shuffle(node_examples)
+                node.set_examples(node_examples[: self.max_examples_per_node])

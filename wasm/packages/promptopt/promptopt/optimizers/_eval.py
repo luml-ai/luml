@@ -26,7 +26,9 @@ class BaseMetric(ABC):
 
 
 class ExactMatch(BaseMetric):
-    def score(self, predictions: list[dict], targets: list[dict], **kwargs) -> float:
+    async def score(
+        self, predictions: list[dict], targets: list[dict], **kwargs
+    ) -> float:
         if len(predictions) != len(targets):
             raise ValueError("Prediction and target lists must have the same length.")
 

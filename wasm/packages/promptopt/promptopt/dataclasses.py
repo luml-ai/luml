@@ -89,11 +89,56 @@ class JsonModel:
 
         return schema
 
+    @staticmethod
+    def _validate_scalar_type(value: Any, field_type: str) -> bool:
+        if field_type in {"str", "string"}:
+            return isinstance(value, str)
+        if field_type in {"int", "integer"}:
+            return isinstance(value, int) and not isinstance(value, bool)
+        if field_type == "float":
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
+        if field_type == "bool":
+            return isinstance(value, bool)
+        if field_type == "list":
+            return isinstance(value, list)
+        if field_type == "dict":
+            return isinstance(value, dict)
+        return True
+
     def validate(self, data: dict[str, Any]) -> dict[str, Any]:
-        # TODO
-        for field in self.fields:
-            if field.name not in data:
-                raise ValueError(f"Field {field.name} is required.")
+        fields_by_name = {field.name: field for field in self.fields}
+
+        missing_fields = [field.name for field in self.fields if field.name not in data]
+        if missing_fields:
+            missing_joined = ", ".join(missing_fields)
+            raise ValueError(f"Missing required fields: {missing_joined}")
+
+        unexpected_fields = [key for key in data if key not in fields_by_name]
+        if unexpected_fields:
+            unexpected_joined = ", ".join(unexpected_fields)
+            raise ValueError(f"Unexpected fields: {unexpected_joined}")
+
+        for field_name, value in data.items():
+            field = fields_by_name[field_name]
+
+            if field.is_variadic:
+                if not isinstance(value, list):
+                    raise ValueError(f"Field {field.name} must be a list.")
+                values_to_validate = value
+            else:
+                values_to_validate = [value]
+
+            for item in values_to_validate:
+                if not self._validate_scalar_type(item, field.type):
+                    raise ValueError(
+                        f"Field {field.name} must be of type {field.type}."
+                    )
+
+                if field.allowed_values is not None and item not in field.allowed_values:
+                    raise ValueError(
+                        f"Field {field.name} must be one of {field.allowed_values}."
+                    )
+
         return data
 
 
