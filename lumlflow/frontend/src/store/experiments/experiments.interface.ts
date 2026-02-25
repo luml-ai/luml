@@ -7,9 +7,9 @@ export interface Experiment {
   duration: number
   description: string
   static_params: Record<string, string | number> | null
-  dynamic_metrics: Record<string, number | string> | null
+  dynamic_params: Record<string, number | string> | null
   status: 'active' | 'completed'
-  // source: string
+  source: string | null
 }
 
 export interface UpdateExperimentPayload {
@@ -44,6 +44,7 @@ export interface Model {
   created_at: string
   tags: string[] | null
   path: string | null
+  size: number | null
 }
 
 export interface Trace {
