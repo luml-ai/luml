@@ -1,16 +1,24 @@
-import type { Group, UpdateGroupPayload } from './groups.interface'
-import { ref } from 'vue'
+import type { GetGroupsParams } from '@/api/api.interface'
+import type { DetailedGroup, Group, UpdateGroupPayload } from './groups.interface'
+import { ref, watch } from 'vue'
 import { defineStore } from 'pinia'
-import { MOCK_GROUPS } from './groups.mock'
 import { useToast } from 'primevue'
-import { successToast } from '@/toasts'
+import { errorToast, successToast } from '@/toasts'
+import { usePagination } from '@/hooks/usePagination'
+import { apiService } from '@/api/api.service'
+import { useDebounceFn } from '@vueuse/core'
+
+const DEFAULT_LIMIT = 20
 
 export const useGroupsStore = defineStore('groups', () => {
   const toast = useToast()
+  const { data, getInitialPage, getNextPage, setParams, onLazyLoad, getParams, isLoading } =
+    usePagination<Group, GetGroupsParams>(apiService.getGroups)
 
-  const groups = ref<Group[]>(MOCK_GROUPS)
   const selectedGroups = ref<Group[]>([])
   const editableGroup = ref<Group | null>(null)
+  const queryParams = ref<Partial<GetGroupsParams>>({ limit: DEFAULT_LIMIT })
+  const detailedGroup = ref<DetailedGroup | null>(null)
 
   function setSelectedGroups(groups: Group[]) {
     selectedGroups.value = groups
@@ -21,32 +29,67 @@ export const useGroupsStore = defineStore('groups', () => {
   }
 
   async function deleteGroups(groupIds: string[]) {
-    groups.value = groups.value.filter((group) => !groupIds.includes(group.id))
-    setEditableGroup(null)
+    const promises = groupIds.map((groupId) => apiService.deleteGroup(groupId))
+    const results = await Promise.allSettled(promises)
+    const deletedGroupIds = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value.id)
     setSelectedGroups([])
-    const message =
-      groupIds.length > 1
-        ? `${groupIds.length} groups deleted successfully`
-        : 'Group deleted successfully'
-    toast.add(successToast(message))
+    setEditableGroup(null)
+    toast.add(successToast(`${deletedGroupIds.length} groups deleted successfully`))
+    await getInitialPage()
   }
 
   async function updateGroup(groupId: string, payload: UpdateGroupPayload) {
-    groups.value = groups.value.map((group) => {
-      if (group.id !== groupId) return group
-      return { ...group, ...payload }
-    })
+    await apiService.updateGroup(groupId, payload)
+    await getInitialPage()
     setSelectedGroups([])
     setEditableGroup(null)
+    toast.add(successToast('Group updated successfully'))
   }
 
+  function setQueryParams(params: Partial<GetGroupsParams>) {
+    queryParams.value = params
+  }
+
+  async function updatePaginationParams(params: typeof queryParams.value) {
+    setParams({ ...getParams(), ...params })
+    try {
+      await getInitialPage()
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
+  }
+
+  function getGroupById(groupId: string) {
+    return apiService.getGroupById(groupId)
+  }
+
+  function setDetailedGroup(group: DetailedGroup) {
+    detailedGroup.value = group
+  }
+
+  const debouncedUpdatePaginationParams = useDebounceFn(updatePaginationParams, 500)
+
+  watch(queryParams, debouncedUpdatePaginationParams)
+
   return {
-    groups,
     selectedGroups,
     setSelectedGroups,
     editableGroup,
     setEditableGroup,
     deleteGroups,
     updateGroup,
+    data,
+    getInitialPage,
+    getNextPage,
+    setParams,
+    onLazyLoad,
+    queryParams,
+    setQueryParams,
+    isLoading,
+    detailedGroup,
+    setDetailedGroup,
+    getGroupById,
   }
 })

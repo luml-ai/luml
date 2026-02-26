@@ -14,14 +14,16 @@
 </template>
 
 <script setup lang="ts">
-import type { Group } from '@/store/groups/groups.interface'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { computed } from 'vue'
 import { Breadcrumb } from 'primevue'
-import { BREADCRUMBS_PT } from './experiment.const'
+import { BREADCRUMBS_PT } from './details.const'
 
 interface Props {
-  experiment: Group
+  groupName: string
+  groupId: string
+  experimentName: string
+  experimentId: string
 }
 
 const props = defineProps<Props>()
@@ -29,8 +31,15 @@ const props = defineProps<Props>()
 const breadcrumbs = computed(() => [
   { label: 'Experiments group ', route: { name: ROUTE_NAMES.HOME } },
   {
-    label: props.experiment.name,
-    route: { name: ROUTE_NAMES.EXPERIMENT, params: { groupId: props.experiment.id } },
+    label: props.groupName,
+    route: { name: ROUTE_NAMES.EXPERIMENT, params: { groupId: props.groupId } },
+  },
+  {
+    label: props.experimentName,
+    route: {
+      name: ROUTE_NAMES.EXPERIMENT_DETAILS,
+      params: { groupId: props.groupId, experimentId: props.experimentId },
+    },
   },
 ])
 </script>
