@@ -119,13 +119,14 @@ const dialogPt: DialogPassThroughOptions = {
   },
 }
 
-const initialFormData = {
+const makeInitialFormData = (): FormData => ({
   name: '',
   type: ArtifactTypeEnum.model,
   description: '',
   file: null,
   tags: [],
-}
+})
+const initialFormData: FormData = makeInitialFormData()
 
 const ARTIFACT_TYPE_OPTIONS = [
   { label: 'Model', value: ArtifactTypeEnum.model, disabled: false },

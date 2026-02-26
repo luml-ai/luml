@@ -10,13 +10,13 @@ export const isCorrectFileName = (fileName: string) => {
 }
 
 export const isModelFile = (fileName: string) => {
-  return FILE_TYPES.model.some((type) => fileName.endsWith(type))
+  return FILE_TYPES.model.some((type) => fileName.endsWith('.' + type))
 }
 
 export const isExperimentFile = (fileName: string) => {
-  return FILE_TYPES.experiment.some((type) => fileName.endsWith(type))
+  return FILE_TYPES.experiment.some((type) => fileName.endsWith('.' + type))
 }
 
 export const isDatasetFile = (fileName: string) => {
-  return FILE_TYPES.dataset.some((type) => fileName.endsWith(type))
+  return FILE_TYPES.dataset.some((type) => fileName.endsWith('.' + type))
 }
