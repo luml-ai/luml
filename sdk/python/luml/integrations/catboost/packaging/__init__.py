@@ -12,10 +12,9 @@ from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untype
 )
 from pydantic import BaseModel
 
-try:
-    import pandas as pd
-except ImportError:
-    pd = None  # type: ignore[assignment]
+import pandas as pd
+
+import scipy
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
@@ -28,15 +27,34 @@ from luml.utils.imports import (
 from luml.utils.time import get_epoch
 
 
-class SparseCsrInput(BaseModel):
-    data: list[float]
-    indices: list[int]
-    indptr: list[int]
-    shape: list[int]
+class _CatBoostDataInputSchema(BaseModel):
+    data: list[list[float]] | list[float]
+    data_format: Literal["dense", "csr"] = "dense"
+
+    # sparse (CSR)
+    indices: list[int] | None = None
+    indptr: list[int] | None = None
+    shape: tuple[int, int] | None = None
+
+
+class _CatBoostPredictConfigSchema(BaseModel):
+    prediction_type: str | None = None  # "Probability", "Class", "RawFormulaVal", etc.
+    ntree_start: int = 0
+    ntree_end: int = 0
+    thread_count: int = -1
+
+
+class _CatBoostInputSchema(BaseModel):
+    pool: _CatBoostDataInputSchema
+    predict_config: _CatBoostPredictConfigSchema | None = None
+
+
+class _CatBoostOutputSchema(BaseModel):
+    predictions: list[float] | list[list[float]]
 
 
 def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
-    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
+    if isinstance(dtype, pd.CategoricalDtype):
         return "str"
     if np.issubdtype(dtype, np.floating):
         return "float"
@@ -49,18 +67,30 @@ def _add_io(
     builder: PyfuncBuilder,
     estimator: CatBoost,
     inputs: Any,  # noqa: ANN401
-    support_sparse: bool = False,
+    input_format: Literal["unified", "native"] = "unified",
 ) -> None:
     categorical_features: dict[str, list[str]] = {}
 
     x: object
-    if pd is not None and isinstance(inputs, pd.DataFrame):
+    if isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
             dtype_val = inputs[col].dtype
 
             if isinstance(dtype_val, pd.CategoricalDtype):
                 categorical_features[col] = list(dtype_val.categories)
+        x = inputs
+    elif scipy.sparse.issparse(inputs):
+        if input_format != "native":
+            raise ValueError(
+                "Sparse matrix inputs require input_format='native'. "
+                "Unified format cannot split a sparse matrix into per-feature columns."
+            )
+        if inputs.ndim < 2:
+            raise ValueError(
+                "Input example must be at least 2D for batch dimension inference."
+            )
+        input_order = [f"x{i}" for i in range(inputs.shape[1])]
         x = inputs
     else:
         example = np.asarray(inputs)
@@ -71,17 +101,32 @@ def _add_io(
         input_order = [f"x{i}" for i in range(example.shape[1])]
         x = example
 
-    if support_sparse:
-        builder.define_dtype("ext::sparse_csr", SparseCsrInput)
-        builder.add_input(
-            JSON(
-                name="sparse_input",
-                content_type="JSON",
-                dtype="ext::sparse_csr",
-            )
+    _classification_losses = {"Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"}
+    model_type = (
+        "classifier"
+        if estimator.get_all_params().get("loss_function", "") in _classification_losses
+        else "regressor"
+    )
+
+    extra_values: dict[str, Any] = {
+        "input_order": input_order,
+        "input_format": input_format,
+        "model_type": model_type,
+    }
+    if categorical_features:
+        extra_values["categorical_features"] = categorical_features
+
+    builder.set_extra_values(extra_values)
+
+    if input_format == "native":
+        builder.define_dtype("ext::input", _CatBoostInputSchema)
+        builder.define_dtype("ext::output", _CatBoostOutputSchema)
+        builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
+        builder.add_output(
+            JSON(name="catboost_output", content_type="JSON", dtype="ext::output")
         )
     else:
-        if pd is not None and isinstance(inputs, pd.DataFrame):
+        if isinstance(inputs, pd.DataFrame):
             for col in input_order:
                 dtype = _resolve_dtype(inputs[col].dtype)
                 builder.add_input(
@@ -93,6 +138,7 @@ def _add_io(
                     )
                 )
         else:
+            # inputs is a dense numpy array here (sparse is rejected for unified above)
             for i, name in enumerate(input_order):
                 col_dtype_str = _resolve_dtype(np.asarray(inputs)[:, i].dtype)
                 builder.add_input(
@@ -104,51 +150,28 @@ def _add_io(
                     )
                 )
 
-    loss_function = estimator.get_all_params().get("loss_function", "")
-    classification_losses = [
-        "Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"
-    ]
-    model_type = "classifier" if loss_function in classification_losses else "regressor"
+        y_pred = estimator.predict(x)
+        y_array = np.asarray(y_pred)
+        y_shape = ["batch"] + list(y_array.shape[1:])
+        y_dtype = _resolve_dtype(y_array.dtype)
 
-    extra_values: dict[str, Any] = {
-        "input_order": input_order,
-        "model_type": model_type,
-        "loss_function": loss_function,
-        "support_sparse": support_sparse,
-    }
-    if categorical_features:
-        extra_values["categorical_features"] = categorical_features
-
-    builder.set_extra_values(extra_values)
-
-    y_pred = estimator.predict(x)
-    y_array = np.asarray(y_pred)
-    y_shape = ["batch"] + list(y_array.shape[1:])
-    y_dtype = _resolve_dtype(y_array.dtype)
-
-    builder.add_output(
-        NDJSON(
-            name="y",
-            content_type="NDJSON",
-            dtype=f"Array[{y_dtype}]",
-            shape=y_shape,  # type: ignore
+        builder.add_output(
+            NDJSON(
+                name="y",
+                content_type="NDJSON",
+                dtype=f"Array[{y_dtype}]",
+                shape=y_shape,  # type: ignore
+            )
         )
-    )
 
 
-def _get_default_deps(
-    needs_pandas: bool = False,
-    needs_scipy: bool = False,
-) -> list[str]:
-    deps = [
+def _get_default_deps() -> list[str]:
+    return [
         "catboost==" + get_version("catboost"),
         "numpy==" + get_version("numpy"),
+        "pandas==" + get_version("pandas"),
+        "scipy==" + get_version("scipy"),
     ]
-    if needs_pandas:
-        deps.append("pandas==" + get_version("pandas"))
-    if needs_scipy:
-        deps.append("scipy==" + get_version("scipy"))
-    return deps
 
 
 def _get_default_tags() -> list[str]:
@@ -160,8 +183,6 @@ def _add_dependencies(
     dependencies: Literal["default"] | Literal["all"] | list[str],
     extra_dependencies: list[str] | None,
     extra_code_modules: list[str] | Literal["auto"] | None,
-    needs_pandas: bool = False,
-    needs_scipy: bool = False,
 ) -> None:
     auto_pip_dependencies: list[str] = []
     auto_local_dependencies: list[str] = []
@@ -173,7 +194,7 @@ def _add_dependencies(
     if dependencies == "all":
         pip_deps = auto_pip_dependencies
     elif dependencies == "default":
-        pip_deps = _get_default_deps(needs_pandas=needs_pandas, needs_scipy=needs_scipy)
+        pip_deps = _get_default_deps()
         builder.add_fnnx_runtime_dependency()
     else:
         pip_deps = dependencies
@@ -200,7 +221,7 @@ def save_catboost(
     estimator: "Union[CatBoost, ctb.CatBoostClassifier, ctb.CatBoostRegressor]",  # noqa: UP007
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
-    support_sparse: bool = False,
+    input_format: Literal["unified", "native"] = "unified",
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -216,7 +237,10 @@ def save_catboost(
             or CatBoostRegressor).
         inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
-        support_sparse: Whether to enable sparse matrix input support.
+        input_format: Input format for inference:
+            - "unified": per-feature NDJSON inputs (default).
+            - "native": single JSON payload with pool structure and optional
+              predict config; supports both dense row data and CSR sparse matrices.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -259,24 +283,20 @@ def save_catboost(
         estimator.save_model(tmp_file.name, format="json")
         tmp_model_path = tmp_file.name
 
-    builder.add_file(tmp_model_path, target_path=model_filename)
+    try:
+        builder.add_file(tmp_model_path, target_path=model_filename)
 
-    _add_io(builder, estimator, inputs, support_sparse=support_sparse)
+        _add_io(builder, estimator, inputs, input_format=input_format)
 
-    # Determine which optional dependencies are needed
-    is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
-    needs_pandas = is_dataframe
-    needs_scipy = support_sparse
+        _add_dependencies(
+            builder,
+            dependencies,
+            extra_dependencies,
+            extra_code_modules,
+        )
 
-    _add_dependencies(
-        builder,
-        dependencies,
-        extra_dependencies,
-        extra_code_modules,
-        needs_pandas=needs_pandas,
-        needs_scipy=needs_scipy,
-    )
+        builder.save(path)
+    finally:
+        os.remove(tmp_model_path)
 
-    builder.save(path)
-    os.remove(tmp_model_path)
     return ModelReference(path)
