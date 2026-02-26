@@ -4,36 +4,26 @@ from typing import Any, Literal, Union
 from warnings import warn
 
 import lightgbm as lgb
-import numpy as np
-from lightgbm import Booster
-
-try:
-    from lightgbm.sklearn import LGBMModel
-except ImportError:
-    LGBMModel = None  # type: ignore[assignment, misc]
-
-try:
-    import pandas as pd
-except ImportError:
-    pd = None  # type: ignore[assignment]
-
-import scipy
-
+import pandas as pd
 from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
-    JSON,
-    NDJSON,
-)
+from lightgbm import Booster
+from lightgbm.sklearn import LGBMModel
 from pydantic import BaseModel
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
 from luml.integrations.sklearn.packaging import save_sklearn
-from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
-    extract_top_level_modules,
     get_version,
+)
+from luml.utils.packaging import (
+    add_dependencies,
+    add_native_io,
+    add_unified_inputs,
+    add_unified_output,
+    is_sklearn_estimator,
+    normalize_inputs,
 )
 from luml.utils.time import get_epoch
 
@@ -66,168 +56,36 @@ class _LGBMOutputSchema(BaseModel):
     predictions: list[float] | list[list[float]] | list[list[list[float]]]
 
 
-def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
-    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
-        return "str"
-    if np.issubdtype(dtype, np.floating):
-        return "float"
-    if np.issubdtype(dtype, np.integer):
-        return "int"
-    return "str"
-
-
 def _add_io(
     builder: PyfuncBuilder,
     estimator: Booster,
-    inputs: Any,  # noqa: ANN401
+    inputs: Any,
     input_format: Literal["unified", "native"] = "unified",
 ) -> None:
-    categorical_features: dict[str, list[str]] = {}
-    x: object
+    x, input_order, categorical_features = normalize_inputs(inputs, input_format)
 
-    if pd is not None and isinstance(inputs, pd.DataFrame):
-        input_order = list(inputs.columns)
-        for col in input_order:
-            dtype_val = inputs[col].dtype
-            if isinstance(dtype_val, pd.CategoricalDtype):
-                categorical_features[col] = list(dtype_val.categories)
-        x = inputs
-    elif scipy.sparse.issparse(inputs):
-        if input_format != "native":
-            raise ValueError(
-                "Sparse matrix inputs require input_format='native'. "
-                "Unified format cannot split a sparse matrix into per-feature columns."
-            )
-        if inputs.ndim < 2:
-            raise ValueError(
-                "Input example must be at least 2D for batch dimension inference."
-            )
-        input_order = [f"x{i}" for i in range(inputs.shape[1])]
-        x = inputs
-    else:
-        example = np.asarray(inputs)
-        if example.ndim < 2:
-            raise ValueError(
-                "Input example must be at least 2D for batch dimension inference."
-            )
-        input_order = [f"x{i}" for i in range(example.shape[1])]
-        x = example
-
-    extra_values: dict[str, Any] = {
+    builder.set_extra_values({
         "input_order": input_order,
         "input_format": input_format,
-    }
-    if categorical_features:
-        extra_values["categorical_features"] = categorical_features
-
-    builder.set_extra_values(extra_values)
+        **({"categorical_features": categorical_features} if
+           categorical_features else {}),
+    })
 
     if input_format == "native":
-        builder.define_dtype("ext::input", _LGBMInputSchema)
-        builder.define_dtype("ext::output", _LGBMOutputSchema)
-        builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
-        builder.add_output(
-            JSON(name="lightgbm_output", content_type="JSON", dtype="ext::output")
+        add_native_io(
+            builder,
+            _LGBMInputSchema,
+            _LGBMOutputSchema,
+            "lightgbm_output",
         )
-    else:
-        if pd is not None and isinstance(inputs, pd.DataFrame):
-            for col in input_order:
-                dtype = _resolve_dtype(inputs[col].dtype)
-                builder.add_input(
-                    NDJSON(
-                        name=col,
-                        content_type="NDJSON",
-                        dtype=f"Array[{dtype}]",
-                        shape=["batch"],
-                    )
-                )
-        else:
-            # inputs is a dense numpy array here (sparse is rejected for unified above)
-            for i, name in enumerate(input_order):
-                col_dtype_str = _resolve_dtype(np.asarray(inputs)[:, i].dtype)
-                builder.add_input(
-                    NDJSON(
-                        name=name,
-                        content_type="NDJSON",
-                        dtype=f"Array[{col_dtype_str}]",
-                        shape=["batch"],
-                    )
-                )
+        return
 
-        y_pred = estimator.predict(x)
-        y_array = np.asarray(y_pred)
-        y_shape = ["batch"] + list(y_array.shape[1:])
-        y_dtype = _resolve_dtype(y_array.dtype)
-
-        builder.add_output(
-            NDJSON(
-                name="y",
-                content_type="NDJSON",
-                dtype=f"Array[{y_dtype}]",
-                shape=y_shape,  # type: ignore
-            )
-        )
-
-
-def _get_default_deps(needs_pandas: bool = False) -> list[str]:
-    deps = [
-        "lightgbm==" + get_version("lightgbm"),
-        "numpy==" + get_version("numpy"),
-        "scipy==" + get_version("scipy"),
-    ]
-    if needs_pandas:
-        deps.append("pandas==" + get_version("pandas"))
-    return deps
+    add_unified_inputs(builder, inputs, input_order, categorical_features)
+    add_unified_output(builder, estimator, x)
 
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::lightgbm:v1"]
-
-
-def _add_dependencies(
-    builder: PyfuncBuilder,
-    dependencies: Literal["default"] | Literal["all"] | list[str],
-    extra_dependencies: list[str] | None,
-    extra_code_modules: list[str] | Literal["auto"] | None,
-    needs_pandas: bool = False,
-) -> None:
-    auto_pip_dependencies: list[str] = []
-    auto_local_dependencies: list[str] = []
-
-    if dependencies == "all" or extra_code_modules == "auto":
-        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
-
-    pip_deps: list[str]
-    if dependencies == "all":
-        pip_deps = auto_pip_dependencies
-    elif dependencies == "default":
-        pip_deps = _get_default_deps(needs_pandas=needs_pandas)
-        builder.add_fnnx_runtime_dependency()
-    else:
-        pip_deps = dependencies
-
-    local_dependencies = []
-    if extra_code_modules == "auto":
-        local_dependencies.extend(auto_local_dependencies)
-    elif isinstance(extra_code_modules, list):
-        local_dependencies.extend(extra_code_modules)
-
-    for dep in pip_deps:
-        builder.add_runtime_dependency(dep)
-
-    if extra_dependencies:
-        for dep in extra_dependencies:
-            builder.add_runtime_dependency(dep)
-
-    local_dependencies = extract_top_level_modules(local_dependencies)
-    for module in local_dependencies:
-        builder.add_module(module)
-
-
-def _is_lightgbm_sklearn_estimator(obj: object) -> bool:
-    if LGBMModel is None:
-        return False
-    return isinstance(obj, LGBMModel)
 
 
 def save_lightgbm(  # noqa: C901
@@ -265,7 +123,7 @@ def save_lightgbm(  # noqa: C901
         ModelReference: Reference to the saved model."""
     path = path or f"lgbm_model_{get_epoch()}.luml"
 
-    if _is_lightgbm_sklearn_estimator(estimator):
+    if is_sklearn_estimator(estimator, LGBMModel):
         warn(
             "Detected LGBM scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
@@ -332,12 +190,13 @@ def save_lightgbm(  # noqa: C901
         is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
         needs_pandas = is_dataframe
 
-        _add_dependencies(
+        add_dependencies(
             builder,
             dependencies,
             extra_dependencies,
             extra_code_modules,
             needs_pandas=needs_pandas,
+            framework="lightgbm"
         )
 
         builder.save(path)

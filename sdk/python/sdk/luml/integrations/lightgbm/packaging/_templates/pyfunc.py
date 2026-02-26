@@ -1,13 +1,13 @@
 import lightgbm as lgb
 import numpy as np
-
-import scipy.sparse
+from scipy.sparse import csr_matrix
 
 try:
     import pandas as pd
 except ImportError:
     pd = None  # type: ignore[assignment]
 
+from typing import Union
 from fnnx.utils import to_thread  # type: ignore[import-untyped]
 from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
@@ -34,6 +34,8 @@ class LightGBMFunc(PyFunc):
         )
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
+        x : Union[np.ndarray, pd.DataFrame, csr_matrix]
+
         if self.input_format == "native":
             payload = inputs["payload"]
             ds_input = payload["dataset"]
@@ -41,7 +43,7 @@ class LightGBMFunc(PyFunc):
 
             data_format = ds_input.get("data_format", "dense")
             if data_format == "csr":
-                x = scipy.sparse.csr_matrix(
+                x = csr_matrix(
                     (
                         np.asarray(ds_input["data"]),
                         np.asarray(ds_input["indices"]),
@@ -55,7 +57,8 @@ class LightGBMFunc(PyFunc):
                     x = x.reshape(1, -1)
             else:
                 raise ValueError(
-                    f"Unsupported data_format: {data_format!r}. Expected 'dense' or 'csr'."
+                    f"Unsupported data_format: {data_format!r}. "
+                    f"Expected 'dense' or 'csr'."
                 )
 
             predict_kwargs: dict = {}
@@ -72,9 +75,12 @@ class LightGBMFunc(PyFunc):
                         predict_kwargs[key] = predict_config[key]
 
             predictions = self.model.predict(x, **predict_kwargs)
-            return {"lightgbm_output": {"predictions": np.asarray(predictions).tolist()}}
+            return {"lightgbm_output": {
+                "predictions": np.asarray(predictions).tolist()
+                }
+            }
 
-        elif self.categorical_features:
+        if self.categorical_features:
             if pd is None:
                 raise RuntimeError(
                     "pandas is required for categorical features but is not installed."

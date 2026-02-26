@@ -1,13 +1,13 @@
 import numpy as np
 import xgboost as xgb
-
-import scipy.sparse
+from scipy.sparse import csr_matrix
 
 try:
     import pandas as pd
 except ImportError:
     pd = None  # type: ignore[assignment]
 
+from typing import Union
 from fnnx.utils import to_thread  # type: ignore[import-untyped]
 from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
@@ -36,6 +36,8 @@ class XGBoostFunc(PyFunc):
         )
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
+        x : Union[np.ndarray, pd.DataFrame, csr_matrix]
+
         if self.input_format == "native":
             payload = inputs["payload"]
             dm_input = payload["dmatrix"]
@@ -43,7 +45,7 @@ class XGBoostFunc(PyFunc):
 
             data_format = dm_input.get("data_format", "dense")
             if data_format == "csr":
-                x = scipy.sparse.csr_matrix(
+                x = csr_matrix(
                     (
                         np.asarray(dm_input["data"]),
                         np.asarray(dm_input["indices"]),
@@ -57,7 +59,8 @@ class XGBoostFunc(PyFunc):
                     x = x.reshape(1, -1)
             else:
                 raise ValueError(
-                    f"Unsupported data_format: {data_format!r}. Expected 'dense' or 'csr'."
+                    f"Unsupported data_format: {data_format!r}. "
+                    f"Expected 'dense' or 'csr'."
                 )
 
             feature_names = dm_input.get("feature_names") or self.input_order
@@ -90,7 +93,7 @@ class XGBoostFunc(PyFunc):
             predictions = self.model.predict(dmatrix, **predict_kwargs)
             return {"xgboost_output": {"predictions": np.asarray(predictions).tolist()}}
 
-        elif self.categorical_features:
+        if self.categorical_features:
             if pd is None:
                 raise RuntimeError(
                     "pandas is required for categorical features but is not installed."

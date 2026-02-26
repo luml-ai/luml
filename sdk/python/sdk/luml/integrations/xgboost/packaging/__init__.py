@@ -4,36 +4,28 @@ from typing import Any, Literal, Union
 from warnings import warn
 
 import numpy as np
+import pandas as pd
+import scipy.sparse as sp
 import xgboost as xgb
-from xgboost import Booster
-
-try:
-    from xgboost.sklearn import XGBModel
-except ImportError:
-    XGBModel = None  # type: ignore[assignment, misc]
-
-try:
-    import pandas as pd
-except ImportError:
-    pd = None  # type: ignore[assignment]
-
-import scipy.sparse
-
 from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
-    JSON,
-    NDJSON,
-)
 from pydantic import BaseModel
+from xgboost import Booster
+from xgboost.sklearn import XGBModel
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging import save_sklearn
 from luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
-from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
-    extract_top_level_modules,
     get_version,
+)
+from luml.utils.packaging import (
+    add_dependencies,
+    add_native_io,
+    add_unified_inputs,
+    add_unified_output,
+    is_sklearn_estimator,
+    normalize_inputs,
 )
 from luml.utils.time import get_epoch
 
@@ -73,195 +65,58 @@ class _XGBoostOutputSchema(BaseModel):
     predictions: list[float] | list[list[float]] | list[list[list[float]]]
 
 
-def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
-    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
-        return "str"
-    if np.issubdtype(dtype, np.floating):
-        return "float"
-    if np.issubdtype(dtype, np.integer):
-        return "int"
-    return "str"
-
-
-def _add_io(  # noqa: C901
+def _add_io(
     builder: PyfuncBuilder,
-    estimator: Booster,
+    estimator: xgb.Booster,
     inputs: Any,  # noqa: ANN401
     input_format: Literal["unified", "native"] = "unified",
-    categorical_features: dict[str, list[str]] | None = None,
 ) -> None:
-    cat_features: dict[str, list[str]] = categorical_features or {}
-    feature_types: list[str] | None = None
-    x: object
+    x, input_order, categorical_features = normalize_inputs(
+        inputs, input_format, allow_dmatrix=True
+    )
 
-    if pd is not None and isinstance(inputs, pd.DataFrame):
-        input_order = list(inputs.columns)
-        for col in input_order:
-            col_dtype = inputs[col].dtype
-            if isinstance(col_dtype, pd.CategoricalDtype):
-                cat_features[col] = list(col_dtype.categories)
-        x = inputs
+    feature_types = (
+        list(inputs.feature_types)
+        if isinstance(inputs, xgb.DMatrix) and inputs.feature_types
+        else None
+    )
 
-    elif isinstance(inputs, xgb.DMatrix):
-        feature_names = inputs.feature_names
-        feature_types = list(inputs.feature_types) if inputs.feature_types else None
-        num_features = inputs.num_col()
-
-        if feature_names is None:
-            feature_names = [f"x{i}" for i in range(num_features)]
-
-        input_order = list(feature_names)
-        x = inputs
-
-    elif isinstance(inputs, np.ndarray):
-        if inputs.ndim < 2:
-            raise ValueError(
-                "Input example must be at least 2D for batch dimension inference."
-            )
-        input_order = [f"x{i}" for i in range(inputs.shape[1])]
-        x = inputs
-
-    elif scipy.sparse.issparse(inputs):
-        if input_format != "native":
-            raise ValueError(
-                "Sparse matrix inputs require input_format='native'. "
-                "Unified format cannot split a sparse matrix into per-feature columns."
-            )
-        if inputs.ndim < 2:
-            raise ValueError(
-                "Input example must be at least 2D for batch dimension inference."
-            )
-        input_order = [f"x{i}" for i in range(inputs.shape[1])]
-        x = inputs
-    else:
-        raise TypeError(
-            f"inputs must be xgb.DMatrix, numpy array, scipy.sparse matrix, "
-            f"or pandas DataFrame, got {type(inputs)}"
-        )
-
-    extra_values: dict[str, Any] = {
+    builder.set_extra_values({
         "input_order": input_order,
         "input_format": input_format,
-    }
-    if feature_types:
-        extra_values["feature_types"] = list(feature_types)
-    if cat_features:
-        extra_values["categorical_features"] = cat_features
-
-    builder.set_extra_values(extra_values)
+        "categorical_features": categorical_features,
+        **({"feature_types": feature_types} if feature_types else {}),
+    })
 
     if input_format == "native":
-        builder.define_dtype("ext::input", _XGBoostInputSchema)
-        builder.define_dtype("ext::output", _XGBoostOutputSchema)
-        builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
-        builder.add_output(
-            JSON(name="xgboost_output", content_type="JSON", dtype="ext::output")
+        add_native_io(
+            builder,
+            _XGBoostInputSchema,
+            _XGBoostOutputSchema,
+            "xgboost_output",
         )
-    else:
-        # Unified: separate NDJSON input per feature
-        for i, name in enumerate(input_order):
-            if name in cat_features:
-                dtype = "str"
-            elif pd is not None and isinstance(inputs, pd.DataFrame):
-                dtype = _resolve_dtype(inputs[name].dtype)
-            elif feature_types and i < len(feature_types):
-                ftype = feature_types[i]
-                if ftype in ("float", "f"):
-                    dtype = "float"
-                elif ftype in ("int", "i"):
-                    dtype = "int"
-                else:
-                    dtype = "str"
-            else:
-                dtype = "float"
+        return
 
-            builder.add_input(
-                NDJSON(
-                    name=name,
-                    content_type="NDJSON",
-                    dtype=f"Array[{dtype}]",
-                    shape=["batch"],
-                )
-            )
+    add_unified_inputs(
+        builder,
+        inputs,
+        input_order,
+        categorical_features,
+        feature_types
+    )
 
-        dmatrix_for_pred: xgb.DMatrix
-        if isinstance(x, xgb.DMatrix):
-            dmatrix_for_pred = x
-        else:
-            dmatrix_for_pred = xgb.DMatrix(
-                x,
-                feature_names=input_order,
-                enable_categorical=bool(cat_features),
-            )
-
-        y_pred = estimator.predict(dmatrix_for_pred)
-        y_array = np.asarray(y_pred)
-        y_shape = ["batch"] + list(y_array.shape[1:])
-        y_dtype = _resolve_dtype(y_array.dtype)
-
-        builder.add_output(
-            NDJSON(
-                name="y",
-                content_type="NDJSON",
-                dtype=f"Array[{y_dtype}]",
-                shape=y_shape,  # type: ignore
-            )
+    if not isinstance(x, xgb.DMatrix):
+        x = xgb.DMatrix(
+            x,
+            feature_names=input_order,
+            enable_categorical=bool(categorical_features),
         )
 
-
-def _get_default_deps(needs_pandas: bool = False) -> list[str]:
-    deps = [
-        "xgboost==" + get_version("xgboost"),
-        "numpy==" + get_version("numpy"),
-        "scipy==" + get_version("scipy"),
-    ]
-    if needs_pandas:
-        deps.append("pandas==" + get_version("pandas"))
-    return deps
+    add_unified_output(builder, estimator, x)
 
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::xgboost:v1"]
-
-
-def _add_dependencies(
-    builder: PyfuncBuilder,
-    dependencies: Literal["default"] | Literal["all"] | list[str],
-    extra_dependencies: list[str] | None,
-    extra_code_modules: list[str] | Literal["auto"] | None,
-    needs_pandas: bool = False,
-) -> None:
-    auto_pip_dependencies: list[str] = []
-    auto_local_dependencies: list[str] = []
-
-    if dependencies == "all" or extra_code_modules == "auto":
-        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
-
-    pip_deps: list[str]
-    if dependencies == "all":
-        pip_deps = auto_pip_dependencies
-    elif dependencies == "default":
-        pip_deps = _get_default_deps(needs_pandas=needs_pandas)
-        builder.add_fnnx_runtime_dependency()
-    else:
-        pip_deps = dependencies
-
-    local_dependencies = []
-    if extra_code_modules == "auto":
-        local_dependencies.extend(auto_local_dependencies)
-    elif isinstance(extra_code_modules, list):
-        local_dependencies.extend(extra_code_modules)
-
-    for dep in pip_deps:
-        builder.add_runtime_dependency(dep)
-
-    if extra_dependencies:
-        for dep in extra_dependencies:
-            builder.add_runtime_dependency(dep)
-
-    local_dependencies = extract_top_level_modules(local_dependencies)
-    for module in local_dependencies:
-        builder.add_module(module)
 
 
 def _is_xgboost_sklearn_estimator(obj: object) -> bool:
@@ -275,7 +130,6 @@ def save_xgboost(  # noqa: C901
     inputs: Any,  # noqa: ANN401
     path: str | None = None,
     input_format: Literal["unified", "native"] = "unified",
-    categorical_features: dict[str, list[str]] | None = None,
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -294,7 +148,6 @@ def save_xgboost(  # noqa: C901
             - "unified": per-feature NDJSON inputs (default).
             - "native": single JSON payload with DMatrix structure and optional
               predict config; supports both dense row data and CSR sparse matrices.
-        categorical_features: Dict mapping feature names to their category values.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -308,7 +161,7 @@ def save_xgboost(  # noqa: C901
 
     path = path or f"xgboost_model_{get_epoch()}.luml"
 
-    if _is_xgboost_sklearn_estimator(estimator):
+    if is_sklearn_estimator(estimator, XGBModel):
         warn(
             "Detected XGBoost scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
@@ -351,7 +204,7 @@ def save_xgboost(  # noqa: C901
 
     is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
     is_ndarray = isinstance(inputs, np.ndarray)
-    is_sparse = scipy.sparse.issparse(inputs)
+    is_sparse = sp.issparse(inputs)
     if (
         not isinstance(inputs, xgb.DMatrix)
         and not is_dataframe
@@ -390,17 +243,17 @@ def save_xgboost(  # noqa: C901
             estimator,
             inputs,
             input_format=input_format,
-            categorical_features=categorical_features,
         )
 
-        needs_pandas = is_dataframe or bool(categorical_features)
+        needs_pandas = pd is not None and isinstance(inputs, pd.DataFrame)
 
-        _add_dependencies(
+        add_dependencies(
             builder,
             dependencies,
             extra_dependencies,
             extra_code_modules,
             needs_pandas=needs_pandas,
+            framework="xgboost",
         )
 
         builder.save(path)
