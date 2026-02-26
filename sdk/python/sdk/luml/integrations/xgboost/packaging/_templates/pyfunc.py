@@ -1,7 +1,13 @@
 import numpy as np
-import pandas as pd
-import scipy.sparse
 import xgboost as xgb
+
+import scipy.sparse
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore[assignment]
+
 from fnnx.utils import to_thread  # type: ignore[import-untyped]
 from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
@@ -23,30 +29,77 @@ class XGBoostFunc(PyFunc):
                 "'input_order' in the fnnx context."
             )
 
+        self.input_format = self.fnnx_context.get_value("input_format") or "unified"
         self.feature_types = self.fnnx_context.get_value("feature_types")
-        self.support_sparse = self.fnnx_context.get_value("support_sparse") or False
         self.categorical_features = (
             self.fnnx_context.get_value("categorical_features") or {}
         )
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
-        x: object
-        if self.support_sparse:
-            sparse_input = inputs["sparse_input"]
-            sparse_data = np.asarray(sparse_input["data"])
-            indices = np.asarray(sparse_input["indices"])
-            indptr = np.asarray(sparse_input["indptr"])
-            shape = tuple(sparse_input["shape"])
+        if self.input_format == "native":
+            payload = inputs["payload"]
+            dm_input = payload["dmatrix"]
+            predict_config = payload.get("predict_config") or {}
 
-            x = scipy.sparse.csr_matrix((sparse_data, indices, indptr), shape=shape)
+            data_format = dm_input.get("data_format", "dense")
+            if data_format == "csr":
+                x = scipy.sparse.csr_matrix(
+                    (
+                        np.asarray(dm_input["data"]),
+                        np.asarray(dm_input["indices"]),
+                        np.asarray(dm_input["indptr"]),
+                    ),
+                    shape=tuple(dm_input["shape"]),
+                )
+            elif data_format == "dense":
+                x = np.asarray(dm_input["data"])
+                if x.ndim == 1:
+                    x = x.reshape(1, -1)
+            else:
+                raise ValueError(
+                    f"Unsupported data_format: {data_format!r}. Expected 'dense' or 'csr'."
+                )
+
+            feature_names = dm_input.get("feature_names") or self.input_order
+            dmatrix = xgb.DMatrix(
+                x,
+                missing=dm_input.get("missing"),
+                feature_names=feature_names,
+                feature_types=dm_input.get("feature_types") or self.feature_types,
+                enable_categorical=bool(self.categorical_features),
+            )
+
+            predict_kwargs: dict = {}
+            if predict_config:
+                iter_range = predict_config.get("iteration_range")
+                if iter_range is not None:
+                    predict_kwargs["iteration_range"] = tuple(iter_range)
+                for key in [
+                    "output_margin",
+                    "pred_leaf",
+                    "pred_contribs",
+                    "approx_contribs",
+                    "pred_interactions",
+                    "validate_features",
+                    "training",
+                    "strict_shape",
+                ]:
+                    if key in predict_config:
+                        predict_kwargs[key] = predict_config[key]
+
+            predictions = self.model.predict(dmatrix, **predict_kwargs)
+            return {"xgboost_output": {"predictions": np.asarray(predictions).tolist()}}
+
         elif self.categorical_features:
-            data: dict[str, object] = {}
+            if pd is None:
+                raise RuntimeError(
+                    "pandas is required for categorical features but is not installed."
+                )
+            data: dict = {}
             for col in self.input_order:
                 if col in self.categorical_features:
                     categories = self.categorical_features[col]
-                    data[col] = pd.Categorical(
-                        inputs[col], categories=categories
-                    )
+                    data[col] = pd.Categorical(inputs[col], categories=categories)
                 else:
                     data[col] = inputs[col]
             x = pd.DataFrame(data)
@@ -62,7 +115,7 @@ class XGBoostFunc(PyFunc):
         )
 
         predictions = self.model.predict(dmatrix)
-        return {"y": predictions.tolist()}
+        return {"y": np.asarray(predictions).tolist()}
 
     async def compute_async(self, inputs: dict, dynamic_attributes: dict) -> dict:
         executor = self.fnnx_context.executor
