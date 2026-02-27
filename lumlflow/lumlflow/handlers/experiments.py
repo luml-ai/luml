@@ -1,6 +1,5 @@
 from math import ceil
 
-from luml.experiments.backends.data_types import TraceState
 from luml.experiments.backends.sqlite import SQLiteBackend
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
@@ -18,6 +17,7 @@ from lumlflow.schemas.experiments import (
     Trace,
     TraceDetails,
     TracesSortBy,
+    TraceState,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
