@@ -1,7 +1,7 @@
 """Renamed artifacts index
 
-Revision ID: 031
-Revises: 030
+Revision ID: 032
+Revises: 031
 Create Date: 2026-02-02 16:41:28.410723
 
 """
@@ -11,8 +11,8 @@ from collections.abc import Sequence
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "031"
-down_revision: str | None = "030"
+revision: str = "032"
+down_revision: str | None = "031"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
