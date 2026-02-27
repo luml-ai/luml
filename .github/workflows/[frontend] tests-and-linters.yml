@@ -51,6 +51,9 @@ jobs:
       
       - name: Install dependencies
         run: npm ci --include=optional
+
+      - name: Install Linux Rollup binding
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
       
       - name: Run tests
         working-directory: frontend
