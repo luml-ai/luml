@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Query, status
-from luml.experiments.backends.data_types import TraceState
 
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
@@ -13,6 +12,7 @@ from lumlflow.schemas.experiments import (
     PaginatedTraces,
     TraceDetails,
     TracesSortBy,
+    TraceState,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model

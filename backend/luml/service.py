@@ -6,7 +6,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from starlette.middleware.authentication import AuthenticationMiddleware
 
-from luml.api.auth import auth_router
+from luml.api.auth import api_key_validate_router, auth_router
 from luml.api.bucket_secret_urls import bucket_secret_urls_router
 from luml.api.email_routes import email_routers
 from luml.api.organization.organization import organization_router
@@ -24,6 +24,7 @@ class AppService(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router, tags=["auth"])
+        self.include_router(router=api_key_validate_router)
         self.include_router(router=email_routers)
         self.include_router(router=users_routers)
         self.include_router(router=organization_router)
