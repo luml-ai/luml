@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
@@ -24,6 +24,17 @@ from luml.settings import config
 is_user_authenticated = UserAuthentication(["jwt"])
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
+
+api_key_validate_router = APIRouter(
+    prefix="/auth/api-keys",
+    tags=["api-keys"],
+    dependencies=[Depends(UserAuthentication(["api_key"]))],
+)
+
+
+@api_key_validate_router.get("/validate", status_code=status.HTTP_200_OK)
+async def validate_api_key() -> None:
+    return
 
 auth_handler = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
 google_auth_handler = AuthHandler(
