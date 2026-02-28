@@ -64,7 +64,7 @@ class FnnxServiceClass {
   getMetadataByTag(metaArray: Array<MetaEntry>, availableTags: FNNX_PRODUCER_TAGS_METADATA_ENUM[]) {
     // extracts the first available metadata entry that a metadata tag
     for (const meta of metaArray) {
-      const tag = meta.producer_tags.find((tag) =>
+      const tag = meta.producer_tags?.find((tag) =>
         availableTags.includes(tag as FNNX_PRODUCER_TAGS_METADATA_ENUM),
       )
       if (tag) return meta.payload
