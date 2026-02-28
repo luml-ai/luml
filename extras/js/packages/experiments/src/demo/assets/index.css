@@ -18,6 +18,10 @@ body {
     sans-serif;
 }
 
+html {
+  font-size: 14px;
+}
+
 .link {
   color: var(--p-primary-color);
 }

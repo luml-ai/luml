@@ -14,13 +14,14 @@
     />
   </div>
   <Toast position="top-right" />
+  <ConfirmDialog />
 </template>
 
 <script setup lang="ts">
 import type { ExperimentSnapshotProvider, ModelInfo } from '@/interfaces/interfaces'
 import type { Model } from '@fnnx-ai/web'
 import { ref } from 'vue'
-import { Button, Toast } from 'primevue'
+import { Button, Toast, ConfirmDialog } from 'primevue'
 import { FnnxService } from './lib/fnnx/FnnxService'
 import { ExperimentSnapshotDatabaseProvider } from '@/providers/ExperimentSnapshotDatabaseProvider'
 import { getModelColorByIndex } from '@/helpers/helpers'
