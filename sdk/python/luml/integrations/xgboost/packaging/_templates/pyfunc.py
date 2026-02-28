@@ -1,10 +1,15 @@
-from typing import Any
-
 import numpy as np
-import scipy.sparse
 import xgboost as xgb
-from fnnx.utils import to_thread
-from fnnx.variants.pyfunc import PyFunc
+from scipy.sparse import csr_matrix
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore[assignment]
+
+from typing import Union
+from fnnx.utils import to_thread  # type: ignore[import-untyped]
+from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
 
 class XGBoostFunc(PyFunc):
@@ -17,94 +22,103 @@ class XGBoostFunc(PyFunc):
         self.model = xgb.Booster()
         self.model.load_model(model_path)
 
-    def _prepare_dmatrix(self, dmatrix_input: dict) -> xgb.DMatrix:
-        data_format = dmatrix_input.get("data_format", "dense")
-        data = dmatrix_input["data"]
-        missing = dmatrix_input.get("missing")
-        feature_names = dmatrix_input.get("feature_names")
-        feature_types = dmatrix_input.get("feature_types")
-
-        if data_format == "dense":
-            data_array = np.asarray(data)
-        elif data_format == "csr":
-            required_fields = ["indices", "indptr", "shape"]
-            missing_fields = [
-                f for f in required_fields if dmatrix_input.get(f) is None
-            ]
-            if missing_fields:
-                raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
-
-            data_array = scipy.sparse.csr_matrix(
-                (
-                    np.asarray(data),
-                    np.asarray(dmatrix_input["indices"]),
-                    np.asarray(dmatrix_input["indptr"]),
-                ),
-                shape=dmatrix_input["shape"],
+        self.input_order = self.fnnx_context.get_value("input_order")
+        if not self.input_order:
+            raise RuntimeError(
+                "Input order not found. Make sure to have "
+                "'input_order' in the fnnx context."
             )
+
+        self.input_format = self.fnnx_context.get_value("input_format") or "unified"
+        self.feature_types = self.fnnx_context.get_value("feature_types")
+        self.categorical_features = (
+            self.fnnx_context.get_value("categorical_features") or {}
+        )
+
+    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
+        x : Union[np.ndarray, pd.DataFrame, csr_matrix]
+
+        if self.input_format == "native":
+            payload = inputs["payload"]
+            dm_input = payload["dmatrix"]
+            predict_config = payload.get("predict_config") or {}
+
+            data_format = dm_input.get("data_format", "dense")
+            if data_format == "csr":
+                x = csr_matrix(
+                    (
+                        np.asarray(dm_input["data"]),
+                        np.asarray(dm_input["indices"]),
+                        np.asarray(dm_input["indptr"]),
+                    ),
+                    shape=tuple(dm_input["shape"]),
+                )
+            elif data_format == "dense":
+                x = np.asarray(dm_input["data"])
+                if x.ndim == 1:
+                    x = x.reshape(1, -1)
+            else:
+                raise ValueError(
+                    f"Unsupported data_format: {data_format!r}. "
+                    f"Expected 'dense' or 'csr'."
+                )
+
+            feature_names = dm_input.get("feature_names") or self.input_order
+            dmatrix = xgb.DMatrix(
+                x,
+                missing=dm_input.get("missing"),
+                feature_names=feature_names,
+                feature_types=dm_input.get("feature_types") or self.feature_types,
+                enable_categorical=bool(self.categorical_features),
+            )
+
+            predict_kwargs: dict = {}
+            if predict_config:
+                iter_range = predict_config.get("iteration_range")
+                if iter_range is not None:
+                    predict_kwargs["iteration_range"] = tuple(iter_range)
+                for key in [
+                    "output_margin",
+                    "pred_leaf",
+                    "pred_contribs",
+                    "approx_contribs",
+                    "pred_interactions",
+                    "validate_features",
+                    "training",
+                    "strict_shape",
+                ]:
+                    if key in predict_config:
+                        predict_kwargs[key] = predict_config[key]
+
+            predictions = self.model.predict(dmatrix, **predict_kwargs)
+            return {"xgboost_output": {"predictions": np.asarray(predictions).tolist()}}
+
+        if self.categorical_features:
+            if pd is None:
+                raise RuntimeError(
+                    "pandas is required for categorical features but is not installed."
+                )
+            data: dict = {}
+            for col in self.input_order:
+                if col in self.categorical_features:
+                    categories = self.categorical_features[col]
+                    data[col] = pd.Categorical(inputs[col], categories=categories)
+                else:
+                    data[col] = inputs[col]
+            x = pd.DataFrame(data)
         else:
-            raise ValueError(f"Unknown data_format: {data_format}")
+            columns = [inputs[col] for col in self.input_order]
+            x = np.column_stack(columns)
 
-        return xgb.DMatrix(
-            data_array,
-            missing=missing,
-            feature_names=feature_names,
-            feature_types=feature_types,
+        dmatrix = xgb.DMatrix(
+            x,
+            feature_names=self.input_order,
+            feature_types=self.feature_types,
+            enable_categorical=bool(self.categorical_features),
         )
 
-    def _prepare_inputs(self, payload: dict) -> dict:
-        dmatrix_input = payload["dmatrix"]
-        predict_config = payload.get("predict_config", {}) or {}
-
-        dmatrix = self._prepare_dmatrix(dmatrix_input)
-
-        return {
-            "dmatrix": dmatrix,
-            "predict_config": predict_config,
-        }
-
-    def _prepare_outputs(self, predictions: Any) -> dict:  # noqa: ANN401
-        def to_json_serializable(obj: Any) -> Any:  # noqa: ANN401
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, np.integer):
-                return int(obj)
-            if isinstance(obj, np.floating):
-                return float(obj)
-            if isinstance(obj, list | tuple):
-                return [to_json_serializable(item) for item in obj]
-            if isinstance(obj, dict):
-                return {key: to_json_serializable(value) for key, value in obj.items()}
-            return obj
-
-        return {
-            "predictions": to_json_serializable(predictions),
-        }
-
-    def _response(self, outputs: dict) -> dict:
-        return {"xgboost_output": outputs}
-
-    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:
-        prepared = self._prepare_inputs(inputs["payload"])
-
-        dmatrix = prepared["dmatrix"]
-        predict_config = prepared["predict_config"]
-
-        predictions = self.model.predict(
-            dmatrix,
-            iteration_range=predict_config.get("iteration_range") or (0, 0),
-            output_margin=predict_config.get("output_margin", False),
-            pred_leaf=predict_config.get("pred_leaf", False),
-            pred_contribs=predict_config.get("pred_contribs", False),
-            approx_contribs=predict_config.get("approx_contribs", False),
-            pred_interactions=predict_config.get("pred_interactions", False),
-            validate_features=predict_config.get("validate_features", True),
-            training=predict_config.get("training", False),
-            strict_shape=predict_config.get("strict_shape", False),
-        )
-
-        outputs = self._prepare_outputs(predictions)
-        return self._response(outputs)
+        predictions = self.model.predict(dmatrix)
+        return {"y": np.asarray(predictions).tolist()}
 
     async def compute_async(self, inputs: dict, dynamic_attributes: dict) -> dict:
         executor = self.fnnx_context.executor

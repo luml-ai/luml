@@ -2,142 +2,110 @@ import os
 import tempfile
 from typing import Any, Literal, Union
 
-import catboost as ctb
-from catboost import CatBoost
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import JSON
-from pydantic import BaseModel, create_model
+import catboost as ctb  # type: ignore[import-untyped]
+import numpy as np
+import pandas as pd
+from catboost import CatBoost  # type: ignore[import-untyped]
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from pydantic import BaseModel
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.catboost.packaging._templates.pyfunc import CatBoostFunc
-from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
-    extract_top_level_modules,
     get_version,
+)
+from luml.utils.packaging import (
+    add_dependencies,
+    add_native_io,
+    add_unified_inputs,
+    add_unified_output,
+    normalize_inputs,
 )
 from luml.utils.time import get_epoch
 
 
-class _DataInputSchema(BaseModel):
-    data: list[list[Any]] | list[Any]
+class _CatBoostDataInputSchema(BaseModel):
+    data: list[list[float]] | list[float]
     data_format: Literal["dense", "csr"] = "dense"
 
-    # Feature metadata
-    feature_names: list[str] | None = None
-
-    # CatBoost-specific feature types
-    categorical_features: list[str] | list[int] | None = None
-    text_features: list[str] | list[int] | None = None
-    embedding_features: list[str] | list[int] | None = None
-
-    # Sparse (CSR)
+    # sparse (CSR)
     indices: list[int] | None = None
     indptr: list[int] | None = None
     shape: tuple[int, int] | None = None
 
 
-class _PredictConfigSchema(BaseModel):
-    prediction_type: Literal[
-        "RawFormulaVal", "Class", "Probability", "Exponent", "LogProbability"
-    ] | None = None
+class _CatBoostPredictConfigSchema(BaseModel):
+    prediction_type: str | None = None  # "Probability", "Class", "RawFormulaVal", etc.
     ntree_start: int = 0
     ntree_end: int = 0
     thread_count: int = -1
-    verbose: bool | None = None
-    task_type: Literal["CPU", "GPU"] = "CPU"
 
 
-def _build_input_schema() -> type[BaseModel]:
-    input_fields = {
-        "data": (_DataInputSchema, ...),
-        "predict_config": (_PredictConfigSchema | None, None),
-    }
+class _CatBoostInputSchema(BaseModel):
+    pool: _CatBoostDataInputSchema
+    predict_config: _CatBoostPredictConfigSchema | None = None
 
-    return create_model(
-        "CatBoostInputModel",
-        __base__=BaseModel,
-        **input_fields,  # type: ignore[call-overload]
+
+class _CatBoostOutputSchema(BaseModel):
+    predictions: list[float] | list[list[float]]
+
+
+def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
+    if isinstance(dtype, pd.CategoricalDtype):
+        return "str"
+    if np.issubdtype(dtype, np.floating):
+        return "float"
+    if np.issubdtype(dtype, np.integer):
+        return "int"
+    return "str"
+
+
+def _add_io(
+    builder: PyfuncBuilder,
+    estimator: CatBoost,
+    inputs: Any,
+    input_format: Literal["unified", "native"] = "unified",
+) -> None:
+    x, input_order, categorical_features = normalize_inputs(inputs, input_format)
+
+    model_type = (
+        "classifier"
+        if estimator.get_all_params().get("loss_function", "")
+        in {"Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"}
+        else "regressor"
     )
 
+    builder.set_extra_values({
+        "input_order": input_order,
+        "input_format": input_format,
+        "model_type": model_type,
+        **({"categorical_features": categorical_features}
+           if categorical_features else {}),
+    })
 
-def _build_output_schema() -> type[BaseModel]:
-    output_fields = {
-        "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
-    }
+    if input_format == "native":
+        add_native_io(
+            builder,
+            _CatBoostInputSchema,
+            _CatBoostOutputSchema,
+            "catboost_output",
+        )
+        return
 
-    return create_model(
-        "CatBoostOutputModel",
-        __base__=BaseModel,
-        **output_fields,  # type: ignore[call-overload]
-    )
-
-
-def _add_io(builder: PyfuncBuilder) -> None:
-    input_schema = _build_input_schema()
-    output_schema = _build_output_schema()
-    builder.define_dtype("ext::input", input_schema)
-    builder.define_dtype("ext::output", output_schema)
-    builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
-    builder.add_output(
-        JSON(name="catboost_output", content_type="JSON", dtype="ext::output")
-    )
-
-
-def _get_default_deps() -> list[str]:
-    return [
-        "catboost==" + get_version("catboost"),
-        "numpy==" + get_version("numpy"),
-        "scipy==" + get_version("scipy"),
-    ]
+    add_unified_inputs(builder, inputs, input_order, categorical_features)
+    add_unified_output(builder, estimator, x)
 
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::catboost:v1"]
 
 
-def _add_dependencies(
-    builder: PyfuncBuilder,
-    dependencies: Literal["default"] | Literal["all"] | list[str],
-    extra_dependencies: list[str] | None,
-    extra_code_modules: list[str] | Literal["auto"] | None,
-) -> None:
-    auto_pip_dependencies: list[str] = []
-    auto_local_dependencies: list[str] = []
-
-    if dependencies == "all" or extra_code_modules == "auto":
-        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
-
-    pip_deps: list[str]
-    if dependencies == "all":
-        pip_deps = auto_pip_dependencies
-    elif dependencies == "default":
-        pip_deps = _get_default_deps()
-        builder.add_fnnx_runtime_dependency()
-    else:
-        pip_deps = dependencies
-
-    local_dependencies = []
-    if extra_code_modules == "auto":
-        local_dependencies.extend(auto_local_dependencies)
-    elif isinstance(extra_code_modules, list):
-        local_dependencies.extend(extra_code_modules)
-
-    for dep in pip_deps:
-        builder.add_runtime_dependency(dep)
-
-    if extra_dependencies:
-        for dep in extra_dependencies:
-            builder.add_runtime_dependency(dep)
-
-    local_dependencies = extract_top_level_modules(local_dependencies)
-    for module in local_dependencies:
-        builder.add_module(module)
-
-
 def save_catboost(
     estimator: "Union[CatBoost, ctb.CatBoostClassifier, ctb.CatBoostRegressor]",  # noqa: UP007
+    inputs: Any,  # noqa: ANN401
     path: str | None = None,
+    input_format: Literal["unified", "native"] = "unified",
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -151,7 +119,12 @@ def save_catboost(
     Args:
         estimator: The CatBoost model to save (CatBoost, CatBoostClassifier,
             or CatBoostRegressor).
+        inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
+        input_format: Input format for inference:
+            - "unified": per-feature NDJSON inputs (default).
+            - "native": single JSON payload with pool structure and optional
+              predict config; supports both dense row data and CSR sparse matrices.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -167,6 +140,12 @@ def save_catboost(
     if not isinstance(estimator, ctb.CatBoost):
         raise TypeError(
             f"Provided model must be a CatBoost model, got {type(estimator)}"
+        )
+
+    if inputs is None:
+        raise ValueError(
+            "inputs is required for CatBoost. "
+            "Please provide example input data (numpy array or DataFrame)."
         )
 
     builder = PyfuncBuilder(
@@ -188,30 +167,21 @@ def save_catboost(
         estimator.save_model(tmp_file.name, format="json")
         tmp_model_path = tmp_file.name
 
-    # Determine model type for default prediction_type
-    loss_function = estimator.get_all_params().get("loss_function", "")
-    classification_losses = [
-        "Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"
-    ]
-    model_type = "classifier" if loss_function in classification_losses else "regressor"
+    try:
+        builder.add_file(tmp_model_path, target_path=model_filename)
 
-    builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({
-        "input_order": ["payload"],
-        "model_path": model_filename,
-        "model_type": model_type,
-        "loss_function": loss_function,
-    })
+        _add_io(builder, estimator, inputs, input_format=input_format)
 
-    _add_io(builder)
+        add_dependencies(
+            builder,
+            dependencies,
+            extra_dependencies,
+            extra_code_modules,
+            framework="catboost"
+        )
 
-    _add_dependencies(
-        builder,
-        dependencies,
-        extra_dependencies,
-        extra_code_modules,
-    )
+        builder.save(path)
+    finally:
+        os.remove(tmp_model_path)
 
-    builder.save(path)
-    os.remove(tmp_model_path)
     return ModelReference(path)
