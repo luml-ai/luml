@@ -5,7 +5,7 @@ from uuid import UUID
 
 from luml.schemas.general import Cursor, SortOrder
 
-METRICS_SORT_KEY = "metrics"
+EXTRA_VALUES_SORT_KEY = "extra_values"
 CREATED_AT_SORT_KEY = "created_at"
 
 

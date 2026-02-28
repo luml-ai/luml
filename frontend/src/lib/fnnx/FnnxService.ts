@@ -1,12 +1,12 @@
-import { Model } from '@fnnx/web'
+import { Model } from '@fnnx-ai/web'
 import {
   type ClassificationMetrics,
   type RegressionMetrics,
   type TabularMetrics,
 } from '../data-processing/interfaces'
-import type { Manifest, MetaEntry, Var } from '@fnnx/common/dist/interfaces'
+import type { Manifest, MetaEntry, Var } from '@fnnx-ai/common/dist/interfaces'
 import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
-import type { FileIndex } from '../api/orbit-ml-models/interfaces'
+import type { FileIndex } from '../api/artifacts/interfaces'
 
 export enum FNNX_PRODUCER_TAGS_METADATA_ENUM {
   contains_classification_metrics_v1 = 'falcon.beastbyte.ai::tabular_classification_metrics:v1',
@@ -64,7 +64,7 @@ class FnnxServiceClass {
   getMetadataByTag(metaArray: Array<MetaEntry>, availableTags: FNNX_PRODUCER_TAGS_METADATA_ENUM[]) {
     // extracts the first available metadata entry that a metadata tag
     for (const meta of metaArray) {
-      const tag = meta.producer_tags.find((tag) =>
+      const tag = meta.producer_tags?.find((tag) =>
         availableTags.includes(tag as FNNX_PRODUCER_TAGS_METADATA_ENUM),
       )
       if (tag) return meta.payload

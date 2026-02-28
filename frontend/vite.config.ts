@@ -4,17 +4,14 @@ import vue from '@vitejs/plugin-vue'
 import vueDevTools from 'vite-plugin-vue-devtools'
 
 export default defineConfig(({ mode }) => ({
-  plugins: [
-    vue(),
-    vueDevTools(),
-  ],
+  plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   optimizeDeps: {
-    exclude: ['@fnnx/web', '@fnnx/common', 'onnxruntime-web'],
+    exclude: ['onnxruntime-web'],
   },
   server: {
     headers: {
@@ -30,5 +27,8 @@ export default defineConfig(({ mode }) => ({
         },
       },
     }),
+  },
+  worker: {
+    format: 'es',
   },
 }))

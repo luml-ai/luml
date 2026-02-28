@@ -63,16 +63,16 @@
       <div class="item">
         <UiCircleProgress
           :progress="
-            ((organizationStore.organizationDetails.total_model_artifacts || 0) /
-              organizationStore.organizationDetails.model_artifacts_limit) *
+            ((organizationStore.organizationDetails.total_artifacts || 0) /
+              organizationStore.organizationDetails.artifacts_limit) *
             100
           "
           class="progress"
         />
         <div class="item-content">
           <div class="item-values">
-            {{ organizationStore.organizationDetails.total_model_artifacts }}/{{
-              organizationStore.organizationDetails.model_artifacts_limit
+            {{ organizationStore.organizationDetails.total_artifacts }}/{{
+              organizationStore.organizationDetails.artifacts_limit
             }}
           </div>
           <div class="item-label">artifacts limit per organization</div>

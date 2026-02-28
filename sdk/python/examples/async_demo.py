@@ -122,7 +122,7 @@ async def demo_collections() -> None:
     collection = await luml.collections.create(
         name="Production Models",
         description="Trained models ready for production deployment",
-        collection_type=CollectionType.MODEL,
+        type=CollectionType.MODEL,
         tags=["production", "ml", "models"],
     )
     print(f"Created collection: {collection}")
@@ -156,77 +156,77 @@ async def demo_collections() -> None:
     await luml.collections.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
-async def demo_model_artifacts() -> None:
+async def demo_artifacts() -> None:
     # Create new model artifact record with upload URL
-    model_created = await luml.model_artifacts.create(
+    model_created = await luml.artifacts.create(
         file_name="customer_churn_model.fnnx",
-        metrics={"accuracy": 0.95, "precision": 0.92, "recall": 0.88},
+        extra_values={"accuracy": 0.95, "precision": 0.92, "recall": 0.88},
         manifest={"version": "1.0", "framework": "xgboost"},
         file_hash="abc123def456",
         file_index={"layer1": (0, 1024), "layer2": (1024, 2048)},
         size=1048576,
-        model_name="Customer Churn Predictor",
+        name="Customer Churn Predictor",
         description="XGBoost model predicting customer churn probability",
         tags=["xgboost", "churn", "production"],
     )
     print(f"Created model: {model_created}")
 
     # List all model artifacts in the collection
-    models = await luml.model_artifacts.list()
+    models = await luml.artifacts.list()
     print(f"All models in collection: {models}")
 
     # Get model by ID
-    model_by_id = await luml.model_artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
-    print(f"Model by id: {model_by_id}")
+    artifact_by_id = await luml.artifacts.get("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    print(f"Artifact by id: {artifact_by_id}")
 
     # Get model by name
-    model_by_name = await luml.model_artifacts.get("Customer Churn Predictor")
-    print(f"Model by name: {model_by_name}")
+    artifact_by_name = await luml.artifacts.get("Customer Churn Predictor")
+    print(f"Artifact by name: {artifact_by_name}")
 
     # Get model from specific collection
-    model_by_id_collection = await luml.model_artifacts.get(
+    artifact_by_id_collection = await luml.artifacts.get(
         "0199c455-21ee-74c6-b747-19a82f1a1e75",
         collection_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     )
-    print(f"Model by id: {model_by_id_collection}")
+    print(f"Artifact by id: {artifact_by_id_collection}")
 
     # Update model metadata
-    updated_model = await luml.model_artifacts.update(
-        model_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
+    updated_model = await luml.artifacts.update(
+        artifact_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
         description="Updated: Advanced churn prediction model",
         tags=["xgboost", "churn", "production", "v2.1"],
         status=ModelArtifactStatus.UPLOADED,
     )
-    print(f"Updated model: {updated_model}")
+    print(f"Updated artifact: {updated_model}")
 
     # Get download URL
-    download_url = await luml.model_artifacts.download_url(
+    download_url = await luml.artifacts.download_url(
         "0199c455-21ee-74c6-b747-19a82f1a1e75"
     )
-    print(f"Model Download URL: {download_url}")
+    print(f"Artifact Download URL: {download_url}")
 
     # Get delete URL
-    delete_url = await luml.model_artifacts.delete_url(
+    delete_url = await luml.artifacts.delete_url(
         "0199c455-21ee-74c6-b747-19a82f1a1e75"
     )
-    print(f"Model Delete URL: {delete_url}")
+    print(f"Artifact Delete URL: {delete_url}")
 
     # Upload a model file (example - file should exist)
-    uploaded_model = await luml.model_artifacts.upload(
+    uploaded_model = await luml.artifacts.upload(
         file_path="/path/to/your/model.dfs",
         model_name="Customer Churn Predictor",
         description="XGBoost model predicting customer churn probability",
         tags=["xgboost", "churn", "production"],
     )
-    print(f"Uploaded model: {uploaded_model}")
+    print(f"Uploaded artifact: {uploaded_model}")
 
     # Download model
-    await luml.model_artifacts.download(
+    await luml.artifacts.download(
         "0199c455-21ee-74c6-b747-19a82f1a1e75", "output.dfs"
     )
 
     # Delete model permanently
-    await luml.model_artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
+    await luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e75")
 
 
 async def async_main() -> None:
@@ -241,7 +241,7 @@ async def async_main() -> None:
     print("\n--------------------------------\n")
     await demo_collections()
     print("\n--------------------------------\n")
-    await demo_model_artifacts()
+    await demo_artifacts()
 
 
 if __name__ == "__main__":

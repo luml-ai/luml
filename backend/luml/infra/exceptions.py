@@ -184,9 +184,17 @@ class CollectionNotFoundError(ApplicationError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
-class ModelArtifactNotFoundError(ApplicationError):
-    def __init__(self, message: str = "Model Artifact model not found") -> None:
+class ArtifactNotFoundError(ApplicationError):
+    def __init__(self, message: str = "Artifact not found") -> None:
         super().__init__(message, status.HTTP_404_NOT_FOUND)
+
+
+class ArtifactTypeMismatchError(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Artifact type is not allowed for this collection type",
+    ) -> None:
+        super().__init__(message, status.HTTP_400_BAD_REQUEST)
 
 
 class BucketConnectionError(ApplicationError):

@@ -10,6 +10,7 @@ from luml.api._types import (
     CollectionsList,
     CollectionSortBy,
     CollectionType,
+    CollectionTypeFilter,
     SortOrder,
     is_uuid,
 )
@@ -59,7 +60,7 @@ class CollectionResourceBase(ABC):
         self,
         description: str,
         name: str,
-        collection_type: CollectionType,
+        type: CollectionType,  # noqa: A002
         tags: builtins.list[str] | None = None,
     ) -> Collection | Coroutine[Any, Any, Collection]:
         raise NotImplementedError()
@@ -119,7 +120,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="My Collection",
             description="Dataset for ML models",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -159,6 +160,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> Iterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -168,6 +170,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             sort_by: Field to sort by. Options: name, description, created_at.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             Collection objects from all pages.
@@ -186,6 +190,12 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         # Search by name or tags
         for collection in luml.collections.list_all(search="model"):
             print(collection.name)
+
+        # Filter by collection types
+        for collection in luml.collections.list_all(
+            types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+        ):
+            print(collection.name)
         ```
         """
         return self._auto_paginate(
@@ -194,6 +204,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             search=search,
+            types=types,
         )
 
     def list(
@@ -204,6 +215,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -215,6 +227,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                 If not provided, sorts by creation time.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             CollectionsList object with items and cursor.
@@ -234,6 +248,11 @@ class CollectionResource(CollectionResourceBase, ListedResource):
 
         # Search by name or tags
         result = luml.collections.list(search="model")
+
+        # Filter by collection types
+        result = luml.collections.list(
+            types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+        )
         ```
 
         Example response:
@@ -244,7 +263,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
                     name="My Collection",
                     description="Dataset for ML models",
-                    collection_type='model',
+                    type='model',
                     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
                     tags=["ml", "training"],
                     created_at='2025-01-15T10:30:00.123456Z',
@@ -267,6 +286,10 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             )
         if search:
             params["search"] = search
+        if types:
+            params["types"] = [
+                t.value if isinstance(t, CollectionTypeFilter) else t for t in types
+            ]
         response = self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             params=params,
@@ -280,7 +303,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         self,
         description: str,
         name: str,
-        collection_type: CollectionType,
+        type: CollectionType,  # noqa: A002
         tags: builtins.list[str] | None = None,
     ) -> Collection:
         """
@@ -289,7 +312,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         Args:
             description: Description of the collection.
             name: Name of the collection.
-            collection_type: Type of collection: "model", "dataset".
+            type: Type of collection: "model", "dataset", "experiment",
+                "model_dataset", "dataset_experiment", "model_experiment", "mixed".
             tags: Optional list of tags for organizing collections.
 
         Returns:
@@ -301,7 +325,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         collection = luml.collections.create(
             name="Training Dataset",
             description="Dataset for model training",
-            collection_type=CollectionType.DATASET,
+            type=CollectionType.DATASET,
             tags=["ml", "training"]
         )
         ```
@@ -312,7 +336,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="Training Dataset",
             description="Dataset for model training",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -325,7 +349,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             json={
                 "description": description,
                 "name": name,
-                "collection_type": collection_type,
+                "type": (type.value if isinstance(type, CollectionType) else type),
                 "tags": tags,
             },
         )
@@ -384,9 +408,9 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             description="Updated description",
             name="Updated Dataset",
-            collection_type='model',
+            type='model',
             tags=["ml", "updated"],
-            total_models=43,
+            total_artifacts=43,
             created_at='2025-01-15T10:30:00.123456Z',
             updated_at='2025-01-15T14:22:30.987654Z'
         )
@@ -494,7 +518,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="My Collection",
             description="Dataset for ML models",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -534,6 +558,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> AsyncIterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -543,6 +568,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             sort_by: Field to sort by. Options: name, description, created_at.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             Collection objects from all pages.
@@ -565,6 +592,12 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             # Search by name or tags
             async for collection in luml.collections.list_all(search="model"):
                 print(collection.name)
+
+            # Filter by collection types
+            async for collection in luml.collections.list_all(
+                types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+            ):
+                print(collection.name)
         ```
         """
         return self._auto_paginate_async(
@@ -573,6 +606,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             search=search,
+            types=types,
         )
 
     async def list(
@@ -583,6 +617,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -594,6 +629,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                 If not provided, sorts by creation time.
             order: Sort order - "asc" or "desc" (default: "desc").
             search: Search string to filter collections by name or tags.
+            types: Filter by collection types:
+                "model", "dataset", "experiment", "mixed".
 
         Returns:
             CollectionsList object with items and cursor.
@@ -618,6 +655,11 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
 
             # Search by name or tags
             result = await luml.collections.list(search="model")
+
+            # Filter by collection types
+            result = await luml.collections.list(
+                types=[CollectionTypeFilter.MODEL, CollectionTypeFilter.DATASET]
+            )
         ```
 
         Example response:
@@ -628,7 +670,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
                     name="My Collection",
                     description="Dataset for ML models",
-                    collection_type='model',
+                    type='model',
                     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
                     tags=["ml", "training"],
                     created_at='2025-01-15T10:30:00.123456Z',
@@ -651,6 +693,10 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             )
         if search:
             params["search"] = search
+        if types:
+            params["types"] = [
+                t.value if isinstance(t, CollectionTypeFilter) else t for t in types
+            ]
 
         response = await self._client.get(
             f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
@@ -665,7 +711,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         self,
         description: str,
         name: str,
-        collection_type: CollectionType,
+        type: CollectionType,  # noqa: A002
         tags: builtins.list[str] | None = None,
     ) -> Collection:
         """
@@ -674,7 +720,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         Args:
             description: Description of the collection.
             name: Name of the collection.
-            collection_type: Type of collection: "model", "dataset".
+            type: Type of collection: "model", "dataset", "experiment",
+                "model_dataset", "dataset_experiment", "model_experiment", "mixed".
             tags: Optional list of tags for organizing collections.
 
         Returns:
@@ -692,7 +739,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             collection = await luml.collections.create(
                 name="Training Dataset",
                 description="Dataset for model training",
-                collection_type=CollectionType.DATASET,
+                type=CollectionType.DATASET,
                 tags=["ml", "training"]
             )
         ```
@@ -703,7 +750,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="Training Dataset",
             description="Dataset for model training",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -716,7 +763,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             json={
                 "description": description,
                 "name": name,
-                "collection_type": collection_type,
+                "type": (type.value if isinstance(type, CollectionType) else type),
                 "tags": tags,
             },
         )
@@ -779,9 +826,9 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             description="Updated description",
             name="Updated Dataset",
-            collection_type='model',
+            type='model',
             tags=["ml", "updated"],
-            total_models=43,
+            total_artifacts=43,
             created_at='2025-01-15T10:30:00.123456Z',
             updated_at='2025-01-15T14:22:30.987654Z'
         )

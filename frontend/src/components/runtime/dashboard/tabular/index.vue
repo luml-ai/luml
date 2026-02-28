@@ -52,8 +52,8 @@ import PredictFile from './PredictFile.vue'
 import ModelPerformance from './ModelPerformance.vue'
 import ModelTopFeatures from './ModelTopFeatures.vue'
 import { getMetricsCards } from '@/helpers/helpers'
-import { Model } from '@fnnx/web'
-import { ArrayDType, NDArray } from '@fnnx/common'
+import { Model } from '@fnnx-ai/web'
+import { ArrayDType, NDArray } from '@fnnx-ai/common'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 import '@/lib/onnx/onnx'
 
@@ -63,7 +63,7 @@ type Props = {
 }
 
 type Emits = {
-  finish: void
+  (e: 'finish'): void
 }
 
 const props = defineProps<Props>()

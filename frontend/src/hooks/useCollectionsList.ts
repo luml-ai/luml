@@ -1,4 +1,7 @@
-import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
+import type {
+  OrbitCollection,
+  OrbitCollectionTypeEnum,
+} from '@/lib/api/orbit-collections/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
 import { computed, ref, watch } from 'vue'
@@ -9,13 +12,18 @@ interface RequestInfo {
   orbitId: string
 }
 
-export const useCollectionsList = (limit = 20, syncStore = true) => {
+export const useCollectionsList = (
+  limit = 20,
+  syncStore = true,
+  types?: OrbitCollectionTypeEnum[],
+) => {
   const collectionsStore = useCollectionsStore()
 
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
   const isLoading = ref(false)
   const searchQuery = ref<string>('')
+  const typesQuery = ref<OrbitCollectionTypeEnum[]>(types ?? [])
 
   const collectionsList = ref<OrbitCollection[]>([])
 
@@ -51,7 +59,7 @@ export const useCollectionsList = (limit = 20, syncStore = true) => {
     return await api.orbitCollections.getCollectionsList(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
-      { cursor, limit, search: searchQuery.value },
+      { cursor, limit, search: searchQuery.value, types: typesQuery.value },
     )
   }
 
@@ -93,6 +101,10 @@ export const useCollectionsList = (limit = 20, syncStore = true) => {
     }
   }
 
+  function setTypesQuery(types: OrbitCollectionTypeEnum[]) {
+    typesQuery.value = types
+  }
+
   if (syncStore) {
     watch(
       () => collectionsStore.collectionsList,
@@ -115,5 +127,7 @@ export const useCollectionsList = (limit = 20, syncStore = true) => {
     searchQuery,
     setSearchQuery,
     onLazyLoad,
+    typesQuery,
+    setTypesQuery,
   }
 }

@@ -23,7 +23,7 @@ class Orbit(BaseModel, BaseOrmConfig):
     total_members: int | None = None
     total_collections: int | None = None
     total_satellites: int | None = None
-    total_model_artifacts: int | None = None
+    total_artifacts: int | None = None
     role: OrbitRole | None = None
     created_at: datetime
     updated_at: datetime | None = None

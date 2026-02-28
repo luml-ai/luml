@@ -6,15 +6,16 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from luml.handlers.collections import CollectionHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
-from luml.schemas.general import SortOrder
-from luml.schemas.model_artifacts import (
+from luml.schemas.collections import (
     Collection,
     CollectionCreateIn,
     CollectionDetails,
     CollectionsList,
     CollectionSortBy,
+    CollectionTypeFilter,
     CollectionUpdateIn,
 )
+from luml.schemas.general import SortOrder
 
 collections_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/collections",
@@ -55,6 +56,7 @@ async def get_orbit_collections(
     sort_by: Annotated[CollectionSortBy, Query()] = CollectionSortBy.CREATED_AT,
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     search: str | None = None,
+    types: Annotated[list[CollectionTypeFilter] | None, Query()] = None,
 ) -> CollectionsList:
     return await collection_handler.get_orbit_collections(
         request.user.id,
@@ -65,6 +67,7 @@ async def get_orbit_collections(
         sort_by,
         order,
         search,
+        types,
     )
 
 

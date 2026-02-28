@@ -50,7 +50,10 @@ jobs:
           cache-dependency-path: ./package-lock.json
       
       - name: Install dependencies
-        run: npm install
+        run: npm ci --include=optional
+
+      - name: Install Linux Rollup binding
+        run: npm install @rollup/rollup-linux-x64-gnu --workspace=frontend
       
       - name: Run tests
         working-directory: frontend

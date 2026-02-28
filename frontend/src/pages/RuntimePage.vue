@@ -17,7 +17,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Model } from '@fnnx/web'
+import type { Model } from '@fnnx-ai/web'
 import { onUnmounted, ref } from 'vue'
 import UploadData from '@/components/runtime/UploadData.vue'
 import RuntimeDashboard from '@/components/runtime/dashboard/RuntimeDashboard.vue'
