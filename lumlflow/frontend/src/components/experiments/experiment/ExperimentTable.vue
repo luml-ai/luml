@@ -145,7 +145,7 @@ function onRowClick(event: DataTableRowClickEvent) {
   const id = event.data.id
   if (!id) return
   router.push({
-    name: ROUTE_NAMES.EXPERIMENT_DETAILS,
+    name: ROUTE_NAMES.EXPERIMENT_OVERVIEW,
     params: { groupId: props.groupId, experimentId: String(id) },
   })
 }
