@@ -8,7 +8,7 @@
       :min-span-time="minSpanTime"
       @select="setSelectedSpan"
     ></TraceSpans>
-    <TraceBody class="body" :data="selectedSpan"></TraceBody>
+    <TraceBody :data="selectedSpan"></TraceBody>
   </Dialog>
 </template>
 
@@ -58,9 +58,5 @@ function setSelectedSpan(span: TraceSpan) {
 .models {
   flex: 1 1 auto;
   overflow-x: auto;
-}
-.body {
-  flex: 1 1 auto;
-  overflow: hidden;
 }
 </style>

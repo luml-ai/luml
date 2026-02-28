@@ -7,10 +7,13 @@
             <CircuitBoard :size="16" color="var(--p-primary-color)" />
             <span>{{ name }}</span>
           </div>
-          <Button v-if="spansExist" severity="secondary" variant="outlined" @click="showSpans">
-            <ListTree :size="16" />
-            Trace
-          </Button>
+          <div class="header-right">
+            <Button v-if="spansExist" severity="secondary" variant="outlined" @click="showSpans">
+              <ListTree :size="16" />
+              Trace
+            </Button>
+            <AnnotationsButton v-if="!isAnnotationsVisible" :count="3" @click="showAnnotations" />
+          </div>
         </header>
         <div class="items-list">
           <UiMultiTypeText
@@ -63,6 +66,7 @@
       </div>
     </div>
   </div>
+  <AnnotationsView v-if="isAnnotationsVisible" @close="closeAnnotations" />
 </template>
 
 <script setup lang="ts">
@@ -73,6 +77,8 @@ import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
+import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
+import AnnotationsView from '../../../annotations/view/AnnotationsView.vue'
 
 type Props = {
   id: string
@@ -88,6 +94,7 @@ const toast = useToast()
 const scoresRef = ref<HTMLDivElement | null>()
 const scoresBlockHeight = ref(0)
 const spansExist = ref(false)
+const isAnnotationsVisible = ref(false)
 
 const modelData = computed(() =>
   evalsStore.currentEvalData?.find((item) => item.modelId === props.id),
@@ -138,6 +145,14 @@ async function showSpans() {
   }
 }
 
+function showAnnotations() {
+  isAnnotationsVisible.value = true
+}
+
+function closeAnnotations() {
+  isAnnotationsVisible.value = false
+}
+
 onMounted(async () => {
   if (!evalsStore.selectedEval) {
     spansExist.value = false
@@ -175,6 +190,11 @@ onMounted(async () => {
   justify-content: space-between;
   margin-bottom: 20px;
   min-height: 33px;
+}
+.header-right {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 .name {
   display: flex;
