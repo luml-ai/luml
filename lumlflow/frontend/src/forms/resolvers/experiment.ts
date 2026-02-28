@@ -2,7 +2,9 @@ import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { emptyToUndefined } from './helpers'
 
-export const experimentResolver = zodResolver(
+type Resolver = ReturnType<typeof zodResolver>
+
+export const experimentResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(3).max(255),
     description: emptyToUndefined(z.string().min(3).max(255).optional()),
