@@ -27,3 +27,7 @@ export interface UpdateModelPayload {
   name: string | null
   tags: string[] | null
 }
+
+export interface CheckAuthResponse {
+  has_key: boolean
+}
