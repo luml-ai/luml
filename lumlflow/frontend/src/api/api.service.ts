@@ -5,6 +5,7 @@ import type {
   GetGroupsParams,
   PaginatedResponse,
   UpdateModelPayload,
+  CheckAuthResponse,
 } from './api.interface'
 import { api } from './client'
 import type {
@@ -92,6 +93,16 @@ export const apiService = {
 
   deleteModel: async (modelId: string) => {
     const { data } = await api.delete<void>(`/models/${modelId}`)
+    return data
+  },
+
+  checkAuth: async () => {
+    const { data } = await api.get<CheckAuthResponse>('/auth/status')
+    return data
+  },
+
+  setApiKey: async (apiKey: string) => {
+    const { data } = await api.post<void>('/auth/api-key', { api_key: apiKey })
     return data
   },
 }

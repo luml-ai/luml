@@ -56,3 +56,18 @@ export const resolver: Resolver = zodResolver(
       }
     }),
 )
+
+export const selectTypeOptions = [
+  {
+    label: 'Auto',
+    value: 'auto',
+  },
+  {
+    label: 'Model',
+    value: 'model',
+  },
+  {
+    label: 'Experiment',
+    value: 'experiment',
+  },
+]
