@@ -8,6 +8,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     BACKEND_STORE_URI: str
+    LUML_API_KEY: str | None = None
+    LUML_BASE_URL: str = "https://api.luml.ai"
 
     @field_validator("BACKEND_STORE_URI", mode="after")
     @classmethod

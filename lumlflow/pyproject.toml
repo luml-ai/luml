@@ -10,6 +10,8 @@ dependencies = [
     "typer>=0.15.0,<1.0.0",
     "luml-sdk[core]>=0.1.0rc3",
     "pydantic-settings>=2.12.0",
+    "httpx>=0.28.0",
+    "keyring>=25.0.0",
 ]
 
 [project.optional-dependencies]
@@ -18,7 +20,6 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.26.0",
     "ruff>=0.11.0",
-    "httpx>=0.28.0",
 ]
 
 [project.scripts]
