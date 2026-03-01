@@ -1,5 +1,5 @@
 <template>
-  <Button label="Upload to LUML" severity="secondary" @click="uploadClick">
+  <Button label="Upload to LUML" severity="secondary" @click="uploadClick" :loading="loading">
     <template #icon>
       <CloudUploadIcon :size="14" />
     </template>
@@ -13,7 +13,12 @@
       :resolver="resolver"
       class="flex flex-col gap-3"
     >
-      <SelectButton name="type" :options="options" option-label="label" option-value="value" />
+      <SelectButton
+        name="type"
+        :options="selectTypeOptions"
+        option-label="label"
+        option-value="value"
+      />
       <FormField name="organization" class="flex flex-col gap-2">
         <label for="organization">
           Organization <span class="text-(--p-badge-warn-background)">*</span>
@@ -93,33 +98,32 @@
       <Button type="submit" form="upload-form" label="Export" fluid rounded />
     </template>
   </Dialog>
-  <ApiKeyModal v-model:visible="apiKeyModalVisible" v-model:api-key="apiKey" />
+  <ApiKeyModal v-model:visible="apiKeyModalVisible" />
 </template>
 
 <script setup lang="ts">
-import { Button, Dialog, SelectButton, Select, InputText, Textarea, ToggleSwitch } from 'primevue'
+import {
+  Button,
+  Dialog,
+  SelectButton,
+  Select,
+  InputText,
+  Textarea,
+  ToggleSwitch,
+  useToast,
+} from 'primevue'
 import { CloudUploadIcon } from 'lucide-vue-next'
 import { reactive, watch } from 'vue'
 import { ref } from 'vue'
 import { FormField, Form, type FormInstance } from '@primevue/forms'
+import { DIALOG_PT, resolver, selectTypeOptions } from './data'
+import { useAuthStore } from '@/store/auth'
+import { errorToast } from '@/toasts'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
-import { DIALOG_PT, resolver } from './data'
-import ApiKeyModal from '../api-key/ApiKeyModel.vue'
+import ApiKeyModal from '../api-key/ApiKeyModal.vue'
 
-const options = [
-  {
-    label: 'Auto',
-    value: 'auto',
-  },
-  {
-    label: 'Model',
-    value: 'model',
-  },
-  {
-    label: 'Experiment',
-    value: 'experiment',
-  },
-]
+const authStore = useAuthStore()
+const toast = useToast()
 
 const initialValues = reactive({
   type: 'auto',
@@ -136,7 +140,7 @@ const formRef = ref<FormInstance>()
 
 const visible = defineModel<boolean>('visible')
 const apiKeyModalVisible = ref<boolean>(false)
-const apiKey = ref<string | null>(null)
+const loading = ref<boolean>(false)
 
 const organizations = ref<any[]>([
   {
@@ -179,9 +183,17 @@ function openApiKeyModal() {
   apiKeyModalVisible.value = true
 }
 
-function uploadClick() {
-  if (apiKey.value) openModal()
-  else openApiKeyModal()
+async function uploadClick() {
+  loading.value = true
+  try {
+    const isAuthenticated = await authStore.checkAuth()
+    if (isAuthenticated) openModal()
+    else openApiKeyModal()
+  } catch (error) {
+    toast.add(errorToast(error))
+  } finally {
+    loading.value = false
+  }
 }
 
 watch(
@@ -197,6 +209,10 @@ watch(
     formRef.value?.setFieldValue('collection', null)
   },
 )
+
+watch(apiKeyModalVisible, (v) => {
+  if (!v && authStore.isAuthenticated) openModal()
+})
 </script>
 
 <style scoped></style>
