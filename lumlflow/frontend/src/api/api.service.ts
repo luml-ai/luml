@@ -6,13 +6,16 @@ import type {
   PaginatedResponse,
   UpdateModelPayload,
   CheckAuthResponse,
+  GetExperimentEvalsParams,
 } from './api.interface'
 import { api } from './client'
 import type {
+  Eval,
   Experiment,
   ExperimentMetricHistory,
   Model,
   Trace,
+  TraceDetails,
   UpdateExperimentPayload,
 } from '@/store/experiments/experiments.interface'
 
@@ -66,9 +69,14 @@ export const apiService = {
     return data
   },
 
-  getExperimentMetricHistory: async (experimentId: string, metricKey: string) => {
+  getExperimentMetricHistory: async (
+    experimentId: string,
+    metricKey: string,
+    maxPoints: number = 1000,
+  ) => {
     const { data } = await api.get<ExperimentMetricHistory>(
       `/experiments/${experimentId}/metrics/${metricKey}`,
+      { params: { max_points: maxPoints } },
     )
     return data
   },
@@ -83,6 +91,11 @@ export const apiService = {
       `/experiments/${experimentId}/traces`,
       { params },
     )
+    return data
+  },
+
+  getTraceDetails: async (experimentId: string, traceId: string) => {
+    const { data } = await api.get<TraceDetails>(`/experiments/${experimentId}/traces/${traceId}`)
     return data
   },
 
@@ -103,6 +116,20 @@ export const apiService = {
 
   setApiKey: async (apiKey: string) => {
     const { data } = await api.post<void>('/auth/api-key', { api_key: apiKey })
+    return data
+  },
+
+  getExperimentEvals: async (experimentId: string, params: GetExperimentEvalsParams) => {
+    const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experimentId}/evals`, {
+      params,
+    })
+    return data
+  },
+
+  getExperimentEvalScores: async (experimentId: string) => {
+    const { data } = await api.get<Record<string, string>>(
+      `/experiments/${experimentId}/evals/scores`,
+    )
     return data
   },
 }
