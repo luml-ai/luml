@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from lumlflow.api.auth import auth_router
 from lumlflow.api.experiment_groups import experiment_groups_router
 from lumlflow.api.experiments import experiments_router
+from lumlflow.api.luml import luml_router
 from lumlflow.api.models import models_router
 from lumlflow.infra.exceptions import ApplicationError
 
@@ -17,6 +18,7 @@ class AppService(FastAPI):
         super().__init__(*args, **kwargs)
 
         self.include_router(router=auth_router)
+        self.include_router(router=luml_router)
         self.include_router(router=experiment_groups_router)
         self.include_router(router=experiments_router)
         self.include_router(router=models_router)
