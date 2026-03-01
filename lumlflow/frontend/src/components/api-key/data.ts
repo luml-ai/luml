@@ -11,6 +11,6 @@ export const DIALOG_PT: DialogPassThroughOptions = {
 }
 
 export const API_KEY_SCHEMA = z
-  .string({ required_error: 'API key cannot be empty' })
+  .string({ message: 'API key cannot be empty' })
   .min(1, 'API key cannot be empty')
   .regex(/^[A-Za-z0-9]+$/, 'API key must be alphanumeric')
