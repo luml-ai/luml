@@ -32,7 +32,7 @@ api_key_validate_router = APIRouter(
 )
 
 
-@api_key_validate_router.get("/validate", status_code=status.HTTP_200_OK)
+@api_key_validate_router.get("/validate", status_code=status.HTTP_204_NO_CONTENT)
 async def validate_api_key() -> None:
     return
 
