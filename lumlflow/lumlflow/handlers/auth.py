@@ -19,7 +19,9 @@ class AuthHandler:
     _LUML_JSON_PATH = Path.home() / ".luml.json"
 
     def get_stored_credentials(self) -> ApiKeyCredentials:
-        with contextlib.suppress(keyring.errors.KeyringError, keyring.errors.NoKeyringError):
+        with contextlib.suppress(
+            keyring.errors.KeyringError, keyring.errors.NoKeyringError
+        ):
             api_key = keyring.get_password(self._KEYRING_SERVICE, "api_key")
             if api_key:
                 return ApiKeyCredentials(api_key=api_key)
@@ -48,14 +50,15 @@ class AuthHandler:
             keyring.set_password(self._KEYRING_SERVICE, "api_key", api_key)
             return
         except (keyring.errors.KeyringError, keyring.errors.NoKeyringError) as e:
-            logger.warning(f"Keyring unavailable, falling back to file storage: {str(e)}")
+            logger.warning(
+                f"Keyring unavailable, falling back to file storage: {str(e)}"
+            )
 
         try:
             self._write_api_key_to_file(api_key)
         except OSError as e:
             logger.error(f"Failed to write credentials to file: {str(e)}")
             raise
-
 
     def set_api_key(self, data: SetApiKey) -> None:
         try:
