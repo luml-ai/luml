@@ -21,6 +21,9 @@ export interface GetExperimentsParams {
 export interface GetExperimentTracesParams {
   limit: number
   cursor: string | null
+  sort_by: 'execution_time' | 'span_count' | 'created_at'
+  order: 'asc' | 'desc'
+  search: string | null
 }
 
 export interface UpdateModelPayload {
@@ -30,4 +33,13 @@ export interface UpdateModelPayload {
 
 export interface CheckAuthResponse {
   has_key: boolean
+}
+
+export interface GetExperimentEvalsParams {
+  limit: number
+  cursor: string | null
+  sort_by: 'created_at'
+  order: 'asc' | 'desc'
+  search: string | null
+  dataset_id: string | null
 }
