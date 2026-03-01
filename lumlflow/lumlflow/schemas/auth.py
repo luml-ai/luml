@@ -2,7 +2,11 @@ from pydantic import BaseModel
 
 
 class ApiKeyCredentials(BaseModel):
-    api_key: str | None
+    api_key: str | None = None
+
+
+class SetApiKey(BaseModel):
+    api_key: str
 
 
 class HasApiKey(BaseModel):
