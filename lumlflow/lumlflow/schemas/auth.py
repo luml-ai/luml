@@ -1,8 +1,12 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ApiKeyCredentials(BaseModel):
-    api_key: str | None
+    api_key: str | None = None
+
+
+class SetApiKey(BaseModel):
+    api_key: str
 
 
 class HasApiKey(BaseModel):
