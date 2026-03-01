@@ -25,7 +25,7 @@
     "tailwindcss-primeui": "^0.6.1",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
-    "zod": "^3.23.8",
+    "zod": "^4.3.6",
     "@luml/attachments": "*",
     "@luml/experiments": "*"
   }

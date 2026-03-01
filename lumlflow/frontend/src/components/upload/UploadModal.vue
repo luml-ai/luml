@@ -100,12 +100,10 @@
 import { Button, Dialog, SelectButton, Select, InputText, Textarea, ToggleSwitch } from 'primevue'
 import { CloudUploadIcon } from 'lucide-vue-next'
 import { reactive, watch } from 'vue'
-import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { ref } from 'vue'
 import { FormField, Form, type FormInstance } from '@primevue/forms'
-import z from 'zod'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
-import { DIALOG_PT } from './data'
+import { DIALOG_PT, resolver } from './data'
 import ApiKeyModal from '../api-key/ApiKeyModel.vue'
 
 const options = [
@@ -133,50 +131,6 @@ const initialValues = reactive({
   tags: [],
   embedExperiment: true,
 })
-
-const resolver = zodResolver(
-  z
-    .object({
-      type: z.enum(['auto', 'model', 'experiment']),
-      organization: z.string().nullable(),
-      orbit: z.string().nullable(),
-      collection: z.string().nullable(),
-      name: z.string().min(3).max(255),
-      description: z
-        .string()
-        .max(255)
-        .refine((val) => !val || val.length >= 3, {
-          message: 'Description must be at least 3 characters if not empty',
-        }),
-      tags: z.array(z.string().min(3).max(255)),
-      embedExperiment: z.boolean(),
-    })
-    .superRefine((data, ctx) => {
-      if (!data.organization) {
-        ctx.addIssue({
-          path: ['organization'],
-          code: z.ZodIssueCode.custom,
-          message: 'Organization is required',
-        })
-      }
-
-      if (data.organization && !data.orbit) {
-        ctx.addIssue({
-          path: ['orbit'],
-          code: z.ZodIssueCode.custom,
-          message: 'Orbit is required',
-        })
-      }
-
-      if (data.orbit && !data.collection) {
-        ctx.addIssue({
-          path: ['collection'],
-          code: z.ZodIssueCode.custom,
-          message: 'Collection is required',
-        })
-      }
-    }),
-)
 
 const formRef = ref<FormInstance>()
 
