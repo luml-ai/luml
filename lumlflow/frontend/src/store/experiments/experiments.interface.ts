@@ -1,3 +1,10 @@
+export enum TraceStateEnum {
+  UNSPECIFIED = 0,
+  OK = 1,
+  ERROR = 2,
+  IN_PROGRESS = 3,
+}
+
 export interface Experiment {
   id: string
   name: string
@@ -49,8 +56,13 @@ export interface Model {
 
 export interface Trace {
   trace_id: string
-  root_span: Span | null
-  spans: Span[]
+  execution_time: number
+  span_count: number
+  created_at: string
+  state: TraceStateEnum
+  evals: string[]
+  // root_span: Span | null
+  // spans: Span[]
 }
 
 export interface Span {
@@ -67,4 +79,29 @@ export interface Span {
   events: Record<string, string> | null
   links: Record<string, string> | null
   trace_flags: number | null
+}
+
+export interface TraceDetails {
+  trace_id: string
+  spans: Span[]
+}
+
+export interface Eval {
+  id: string
+  dataset_id: string
+  inputs: Record<string, string | number>
+  created_at: string
+  updated_at: string
+  outputs: Record<string, string | number>
+  refs: Record<string, string | number>
+  scores: Record<string, string | number>
+  metadata: Record<string, string | number>
+  trace_ids: string[]
+}
+
+export interface EvalScores {
+  inputs: string[]
+  outputs: string[]
+  refs: string[]
+  scores: string[]
 }
