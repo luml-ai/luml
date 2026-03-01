@@ -1,4 +1,4 @@
-export const MODELS_COLORS = [
+export const ARTIFACTS_COLORS = [
   'var(--p-charts-color-1)',
   'var(--p-charts-color-2)',
   'var(--p-charts-color-3)',
