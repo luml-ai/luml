@@ -8,6 +8,7 @@ class FrontendBuildHook(BuildHookInterface):
     PLUGIN_NAME = "frontend"
 
     def initialize(self, version: str, build_data: dict) -> None:
+        workspace = "../"
         root = Path(self.root)
         frontend_dir = root / "frontend"
         static_dir = root / "lumlflow" / "static"
@@ -18,14 +19,14 @@ class FrontendBuildHook(BuildHookInterface):
         # Install npm dependencies
         subprocess.run(
             ["npm", "ci"],
-            cwd=frontend_dir,
+            cwd=workspace,
             check=True,
         )
 
         # Build frontend
         subprocess.run(
-            ["npm", "run", "build"],
-            cwd=frontend_dir,
+            ["npm", "run", "build", "--workspace=lumlflow-ui"],
+            cwd=workspace,
             check=True,
         )
 
