@@ -142,7 +142,7 @@ const visible = defineModel<boolean>('visible')
 const apiKeyModalVisible = ref<boolean>(false)
 const loading = ref<boolean>(false)
 
-const organizations = ref<any[]>([
+const organizations = ref<unknown[]>([
   {
     label: 'Organization 1',
     value: 'organization-1',
@@ -152,7 +152,7 @@ const organizations = ref<any[]>([
     value: 'organization-2',
   },
 ])
-const orbits = ref<any[]>([
+const orbits = ref<unknown[]>([
   {
     label: 'Orbit 1',
     value: 'orbit-1',
@@ -162,7 +162,7 @@ const orbits = ref<any[]>([
     value: 'orbit-2',
   },
 ])
-const collections = ref<any[]>([
+const collections = ref<unknown[]>([
   {
     label: 'Collection 1',
     value: 'collection-1',
