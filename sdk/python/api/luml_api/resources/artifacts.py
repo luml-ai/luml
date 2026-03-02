@@ -1,6 +1,6 @@
 import builtins
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Coroutine, Iterator
+from collections.abc import AsyncIterator, Callable, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
 from luml_api._exceptions import FileError, FileUploadError
@@ -72,6 +72,7 @@ class ArtifactResourceBase(ABC):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> Artifact | Coroutine[Any, Any, Artifact]:
         raise NotImplementedError()
 
@@ -557,6 +558,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> Artifact:
         """Upload artifact file to the collection.
 
@@ -691,6 +693,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 file_path=file_path,
                 file_size=artifact.size,
                 file_name=artifact.file_name,
+                on_progress=on_progress,
             )
 
             status = (
@@ -1036,17 +1039,19 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             updated_at=None
         )
         """
-        return self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
-            json=self._client.filter_none(
-                {
-                    "file_name": file_name,
-                    "name": name,
-                    "description": description,
-                    "tags": tags,
-                    "status": status.value if status else None,
-                }
-            ),
+        return Artifact.model_validate(
+            self._client.patch(
+                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+                json=self._client.filter_none(
+                    {
+                        "file_name": file_name,
+                        "name": name,
+                        "description": description,
+                        "tags": tags,
+                        "status": status.value if status else None,
+                    }
+                ),
+            )
         )
 
     @validate_collection

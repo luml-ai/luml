@@ -1,8 +1,13 @@
-from fastapi import APIRouter
+import time
+from uuid import uuid4
+
+from fastapi import APIRouter, BackgroundTasks
+from fastapi.responses import StreamingResponse
 
 from lumlflow.handlers.luml import LumlHandler
+from lumlflow.infra.progress_store import progress_store
 from lumlflow.schemas.luml import (
-    Artifact,
+    JobResponse,
     Orbit,
     Organization,
     PaginatedCollections,
@@ -41,6 +46,36 @@ def get_luml_collections(
     )
 
 
-@luml_router.post("/artifact", response_model=Artifact, status_code=201)
-def upload_artifact(artifact: UploadArtifactInput) -> Artifact:
-    return luml_handler.upload_model_artifact(artifact)
+@luml_router.post("/artifact", status_code=202, response_model=JobResponse)
+def upload_artifact(
+    artifact: UploadArtifactInput, background_tasks: BackgroundTasks
+) -> JobResponse:
+    job_id = str(uuid4())
+    progress_store.create(job_id)
+    background_tasks.add_task(luml_handler.upload_model_artifact, artifact, job_id)
+    return JobResponse(job_id=job_id)
+
+
+@luml_router.get("/artifact/{job_id}/progress", response_class=StreamingResponse)
+def upload_progress(job_id: str) -> StreamingResponse:
+    def event_stream():
+        last_sent = None
+        while True:
+            job = progress_store.get(job_id)
+            if job is None:
+                yield 'data: {"type":"not_found"}\n\n'
+                break
+            current = job.to_json()
+            if current != last_sent:
+                yield f"data: {current}\n\n"
+                last_sent = current
+            if job.status in ("complete", "error"):
+                progress_store.delete(job_id)
+                break
+            time.sleep(0.3)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
