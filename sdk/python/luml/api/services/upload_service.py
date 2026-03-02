@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 import httpx
@@ -23,8 +24,10 @@ class UploadService:
         file_path: str,
         file_size: int,
         file_name: str = "",
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> httpx.Response:
         handler = create_file_handler(upload_details.type)
+        handler.on_progress = on_progress
 
         if upload_details.multipart:
             upload_id = handler.initiate_multipart_upload(upload_details.url)
