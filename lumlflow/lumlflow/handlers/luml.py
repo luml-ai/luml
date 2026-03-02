@@ -4,6 +4,7 @@ from luml.experiments.backends.sqlite import SQLiteBackend
 
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
+from lumlflow.infra.progress_store import progress_store
 from lumlflow.schemas.luml import (
     Artifact,
     Orbit,
@@ -71,7 +72,9 @@ class LumlHandler:
             raise ApplicationError(f"Failed to get luml collections: {str(e)}") from e
         return PaginatedCollections.model_validate(result.model_dump())
 
-    def upload_model_artifact(self, artifact: UploadArtifactInput) -> Artifact:
+    def upload_model_artifact(
+        self, artifact: UploadArtifactInput, job_id: str
+    ) -> Artifact:
         model = self.db.get_model(artifact.model_id)
 
         if not model:
@@ -81,14 +84,21 @@ class LumlHandler:
 
         luml = self._get_luml_client(artifact.organization_id, artifact.orbit_id)
 
+        def on_progress(uploaded: int, total: int) -> None:
+            progress_store.update_progress(job_id, uploaded, total)
+
         try:
-            artifact = luml.artifacts.upload(
+            result = luml.artifacts.upload(
                 file_path=str(self.db.base_path / model.path),
                 name=artifact.name or model.name,
                 description=artifact.description,
                 tags=artifact.tags,
                 collection_id=artifact.collection_id,
+                on_progress=on_progress,
             )
         except Exception as e:
+            progress_store.set_error(job_id, str(e))
             raise ApplicationError(f"Failed to upload artifact: {str(e)}") from e
-        return Artifact.model_validate(artifact)
+
+        progress_store.set_complete(job_id, result.model_dump())
+        return Artifact.model_validate(result.model_dump())
