@@ -5,6 +5,8 @@ import { ConfirmationService, Tooltip, ToastService } from 'primevue'
 import App from '@/app/App.vue'
 import router from '@/router'
 import '@/assets/css/index.css'
+import '@luml/experiments/style.css'
+import '@luml/attachments/style.css'
 
 const app = createApp(App)
 
