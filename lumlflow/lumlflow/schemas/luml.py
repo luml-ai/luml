@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, Field
 
 from lumlflow.schemas.base import BaseOrmConfig
 
@@ -67,3 +69,37 @@ class Artifact(BaseModel):
     type: str
     created_at: str
     updated_at: str | None = None
+
+
+class JobResponse(BaseModel):
+    job_id: str
+
+
+# SSE event schemas for GET /artifact/{job_id}/progress
+
+
+class ProgressEvent(BaseModel):
+    type: Literal["progress"] = "progress"
+    percent: int
+    uploaded_bytes: int
+    total_bytes: int
+
+
+class CompleteEvent(BaseModel):
+    type: Literal["complete"] = "complete"
+    artifact: Artifact
+
+
+class ErrorEvent(BaseModel):
+    type: Literal["error"] = "error"
+    message: str
+
+
+class NotFoundEvent(BaseModel):
+    type: Literal["not_found"] = "not_found"
+
+
+ArtifactUploadEvent = Annotated[
+    ProgressEvent | CompleteEvent | ErrorEvent | NotFoundEvent,
+    Field(discriminator="type"),
+]
