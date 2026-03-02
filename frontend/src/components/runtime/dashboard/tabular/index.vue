@@ -2,7 +2,7 @@
   <div class="wrapper">
     <header class="header">
       <h1 class="title">Runtime</h1>
-      <d-button label="finish" @click="$emit('finish')" />
+      <d-button label="exit" @click="$emit('finish')" />
     </header>
     <div class="board">
       <div class="card">
