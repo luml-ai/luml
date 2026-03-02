@@ -3,6 +3,7 @@
     v-if="visibleMetricsNames.length > 0"
     :limit="METRICS_LIMIT"
     :total="metricsNames.length"
+    :show-title="showTitle"
     @page-change="onPageChange"
   />
   <div class="charts">
@@ -33,9 +34,12 @@ type Props = {
   metricsNames: string[]
   provider: ExperimentSnapshotProvider
   modelsInfo: Record<string, ModelInfo>
+  showTitle?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showTitle: true,
+})
 
 let dynamicMetricsController: AbortController | null = null
 
