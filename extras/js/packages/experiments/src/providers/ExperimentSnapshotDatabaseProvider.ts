@@ -1,10 +1,11 @@
-import type { Database, QueryExecResult, SqlJsStatic, SqlValue } from 'sql.js'
+import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
   EvalsDatasets,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   ModelSnapshot,
+  SpansListType,
   SpansParams,
   TraceSpan,
 } from '../interfaces/interfaces'
@@ -166,11 +167,21 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getTraceSpans(modelId: string, traceId: string) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
     if (!db) return []
-    const results = db.exec(
-      `SELECT trace_id, span_id, parent_span_id, name, kind, start_time_unix_nano, end_time_unix_nano, status_code, status_message, attributes, events, links, dfs_span_type FROM spans WHERE trace_id = '${traceId}'`,
-    )
-    if (!results[0]) return []
-    return this.prepareSpansResult(results[0])
+    const stmt = db.prepare(`
+      SELECT trace_id, span_id, parent_span_id, name, kind,
+             start_time_unix_nano, end_time_unix_nano,
+             status_code, status_message,
+             attributes, events, links, dfs_span_type
+      FROM spans
+      WHERE trace_id = ?
+    `)
+    const rows = []
+    stmt.bind([traceId])
+    while (stmt.step()) {
+      rows.push(stmt.getAsObject())
+    }
+    stmt.free()
+    return rows as unknown as SpansListType
   }
 
   async getUniqueTraceIds(modelId: string) {
@@ -225,18 +236,5 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           children: this.sortSpans(span.children),
         }
       })
-  }
-
-  private prepareSpansResult(result: QueryExecResult) {
-    const columns = result.columns
-    const values = result.values
-    return values.map((array) =>
-      array.reduce((acc: any, value, index) => {
-        const columnName = columns[index]
-        if (!columnName) return acc
-        acc[columnName] = safeParse(value)
-        return acc
-      }, {}),
-    )
   }
 }
