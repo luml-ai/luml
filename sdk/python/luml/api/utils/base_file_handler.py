@@ -10,6 +10,8 @@ from luml.api._types import PartDetails
 class BaseFileHandler(ABC):
     """Abstract base class for file upload/download handlers."""
 
+    on_progress: Callable[[int, int], None] | None = None
+
     @staticmethod
     def _calculate_optimal_chunk_size(file_size: int) -> int:
         if file_size < 10485760:  # 10mb
@@ -26,9 +28,8 @@ class BaseFileHandler(ABC):
             return 268435456  # 256mb
         return 268435456  # 256mb
 
-    @staticmethod
     def create_progress_bar(
-        total_size: int, file_name: str = ""
+        self, total_size: int, file_name: str = ""
     ) -> Callable[[int], None]:
         uploaded = 0
         description_shown = False
@@ -47,6 +48,9 @@ class BaseFileHandler(ABC):
                 filled_length = int(bar_length * uploaded // total_size)
                 bar = "=" * filled_length + ">" + " " * (bar_length - filled_length - 1)
                 print(f"\r[{bar}] {progress:.1f}%", end="", flush=True)  # noqa: T201
+
+            if self.on_progress:
+                self.on_progress(uploaded, total_size)
 
         return update_progress
 
