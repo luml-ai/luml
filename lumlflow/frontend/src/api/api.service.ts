@@ -11,6 +11,7 @@ import type {
 import { api } from './client'
 import type {
   Eval,
+  EvalScores,
   Experiment,
   ExperimentMetricHistory,
   Model,
@@ -73,10 +74,11 @@ export const apiService = {
     experimentId: string,
     metricKey: string,
     maxPoints: number = 1000,
+    signal?: AbortSignal,
   ) => {
     const { data } = await api.get<ExperimentMetricHistory>(
       `/experiments/${experimentId}/metrics/${metricKey}`,
-      { params: { max_points: maxPoints } },
+      { params: { max_points: maxPoints }, signal },
     )
     return data
   },
@@ -86,10 +88,11 @@ export const apiService = {
     return data
   },
 
-  getExperimentTraces: async (experimentId: string, params: GetExperimentTracesParams) => {
+  getExperimentTraces: async (params: GetExperimentTracesParams) => {
+    const { experiment_id, ...rest } = params
     const { data } = await api.get<PaginatedResponse<Trace>>(
-      `/experiments/${experimentId}/traces`,
-      { params },
+      `/experiments/${experiment_id}/traces`,
+      { params: rest },
     )
     return data
   },
@@ -119,17 +122,16 @@ export const apiService = {
     return data
   },
 
-  getExperimentEvals: async (experimentId: string, params: GetExperimentEvalsParams) => {
-    const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experimentId}/evals`, {
-      params,
+  getExperimentEvals: async (params: GetExperimentEvalsParams) => {
+    const { experiment_id, ...rest } = params
+    const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experiment_id}/evals`, {
+      params: rest,
     })
     return data
   },
 
   getExperimentEvalScores: async (experimentId: string) => {
-    const { data } = await api.get<Record<string, string>>(
-      `/experiments/${experimentId}/evals/scores`,
-    )
+    const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/scores`)
     return data
   },
 }
