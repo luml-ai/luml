@@ -24,6 +24,10 @@ export const useEvalsStore = defineStore('evals', () => {
     provider.value = newProvider
   }
 
+  function resetProvider() {
+    provider.value = null
+  }
+
   async function setEvals(signal?: AbortSignal) {
     evals.value = await getProvider.value.getEvalsList(signal)
   }
@@ -104,5 +108,7 @@ export const useEvalsStore = defineStore('evals', () => {
     selectedTrace,
     getUniqueTraceIds,
     getTraceSpansTree,
+    resetProvider,
+    getProvider,
   }
 })
