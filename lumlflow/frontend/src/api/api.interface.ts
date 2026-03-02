@@ -19,11 +19,12 @@ export interface GetExperimentsParams {
 }
 
 export interface GetExperimentTracesParams {
-  limit: number
-  cursor: string | null
-  sort_by: 'execution_time' | 'span_count' | 'created_at'
-  order: 'asc' | 'desc'
-  search: string | null
+  experiment_id: string
+  limit?: number
+  cursor?: string
+  sort_by?: 'execution_time' | 'span_count' | 'created_at'
+  order?: 'asc' | 'desc'
+  search?: string
 }
 
 export interface UpdateModelPayload {
@@ -36,10 +37,11 @@ export interface CheckAuthResponse {
 }
 
 export interface GetExperimentEvalsParams {
-  limit: number
-  cursor: string | null
-  sort_by: 'created_at'
-  order: 'asc' | 'desc'
-  search: string | null
-  dataset_id: string | null
+  experiment_id: string
+  limit?: number
+  cursor?: string
+  sort_by?: 'created_at'
+  order?: 'asc' | 'desc'
+  search?: string
+  dataset_id?: string
 }

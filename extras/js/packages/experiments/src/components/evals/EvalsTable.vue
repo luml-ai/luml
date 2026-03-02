@@ -17,13 +17,13 @@
       sortField="id"
       :sortOrder="1"
       export-filename="experiment_snapshot"
-      scrollHeight="400px"
+      scrollable
+      :scrollHeight="tableHeight"
       :virtualScrollerOptions="{ itemSize: 45.5 }"
       class="evals-table"
-      :tableStyle="
-        visibleColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? 'table-layout: fixed;' : ''
-      "
+      tableStyle="table-layout: fixed;"
     >
+      <template #empty>No evals found...</template>
       <ColumnGroup type="header">
         <Row>
           <template v-for="column in visibleTree">
@@ -35,7 +35,10 @@
               :colspan="column.children?.length ? column.children.length : 1"
               :field="column.title"
               :pt="{
-                headerCell: 'header-cell-parent',
+                headerCell: {
+                  class: 'header-cell-parent',
+                  width: (column.children?.length || 1) * 110 + 'px',
+                },
               }"
             >
               <template #header>
@@ -55,9 +58,9 @@
             :key="children"
             :header="children"
             :pt="{
-              headerCell: childrenWithLeftBorder.includes(children)
-                ? 'children-with-left-border'
-                : '',
+              headerCell: {
+                class: childrenWithLeftBorder.includes(children) ? 'children-with-left-border' : '',
+              },
               columnTitle: {
                 style: 'width: 88px; overflow: hidden; text-overflow: ellipsis;',
               },
@@ -83,16 +86,12 @@
           <button
             v-else-if="column === 'id'"
             class="cell link"
+            v-tooltip.top="slotProps.data[column]"
             @click="showTraces(slotProps.data.dataset_id, slotProps.data.id)"
           >
             {{ slotProps.data[column] }}
           </button>
-          <div
-            v-else
-            v-tooltip.top="`${slotProps.data[column]}`"
-            class="cell"
-            :style="visibleColumns.length < MIN_COLUMNS_FOR_FIXED_LAYOUT ? '' : 'width: 88px;'"
-          >
+          <div v-else v-tooltip.top="String(slotProps.data[column])" class="cell">
             {{ slotProps.data[column] }}
           </div>
         </template>
@@ -109,8 +108,6 @@ import EvalsToolbar from './EvalsToolbar.vue'
 import type { ModelsInfo } from '../../interfaces/interfaces'
 import { useEvalsStore } from '../../store/evals'
 
-const MIN_COLUMNS_FOR_FIXED_LAYOUT = 7
-
 export interface EvalsTableColumn {
   title: string
   children?: string[]
@@ -120,6 +117,7 @@ type Props = {
   columnsTree: EvalsTableColumn[]
   data: Record<string, any>[]
   modelsInfo: ModelsInfo
+  tableHeight: string
 }
 
 const props = defineProps<Props>()
@@ -233,6 +231,7 @@ function exportTable() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .table-wrapper {
@@ -281,10 +280,6 @@ function exportTable() {
 :deep(.p-datatable-column-sorted) {
   background: var(--p-datatable-header-cell-background);
   color: var(--p-datatable-header-cell-color);
-}
-
-:deep(.p-datatable-column-sorted) .cell {
-  width: 123px;
 }
 
 .link {
