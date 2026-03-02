@@ -28,8 +28,8 @@ import { formatFileSize } from '../../utils/fileTypes'
 
 import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../../interfaces/interfaces'
 
-const props = defineProps<FilePreviewHeaderProps>()
-const emit = defineEmits<FilePreviewHeaderEmits>()
+defineProps<FilePreviewHeaderProps>()
+defineEmits<FilePreviewHeaderEmits>()
 </script>
 
 <style scoped>
