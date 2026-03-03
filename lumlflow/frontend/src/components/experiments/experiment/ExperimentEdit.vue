@@ -57,12 +57,16 @@ const visible = ref(false)
 const isSubmitting = ref(false)
 
 function onDelete() {
-  confirm.require(
-    deleteExperimentConfirmOptions(() => {
-      if (!experimentsStore.editableExperiment) return
-      experimentsStore.deleteExperiments([experimentsStore.editableExperiment.id])
-    }),
-  )
+  confirm.require(deleteExperimentConfirmOptions(onDeleteConfirm))
+}
+
+async function onDeleteConfirm() {
+  if (!experimentsStore.editableExperiment) return
+  try {
+    await experimentsStore.deleteExperiments([experimentsStore.editableExperiment.id])
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
 }
 
 async function onSubmit(event: FormSubmitEvent) {

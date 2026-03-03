@@ -1,12 +1,27 @@
-import os
 from functools import lru_cache
-from typing import Literal
+from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    BACKEND_STORE_URI: str
+    LUML_API_KEY: str | None = None
+    LUML_BASE_URL: str = "https://api.luml.ai"
+
+    @field_validator("BACKEND_STORE_URI", mode="after")
+    @classmethod
+    def parse_uri(cls, v: str) -> str:
+        if "://" in v:
+            _, path_str = v.split("://", 1)
+        else:
+            path_str = v
+        path = Path(path_str).resolve()
+        if path.suffix == ".db":
+            path = path.parent
+        return str(path)
 
 
 @lru_cache

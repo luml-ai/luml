@@ -1,8 +1,19 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Literal
 
 from luml.artifacts._base import _BaseFile
-from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.experiments.backends.data_types import (
+    EvalColumns,
+    EvalRecord,
+    Experiment,
+    ExperimentData,
+    Group,
+    Model,
+    PaginatedResponse,
+    TraceDetails,
+    TraceRecord,
+    TraceState,
+)
 
 
 class Backend(ABC):
@@ -17,6 +28,7 @@ class Backend(ABC):
         group: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> None:
         pass
 
@@ -97,11 +109,44 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_experiment(self, experiment_id: str) -> Experiment | None:
+        pass
+
+    @abstractmethod
     def delete_experiment(self, experiment_id: str) -> None:
         pass
 
     @abstractmethod
-    def create_group(self, name: str, description: str | None = None) -> Group:
+    def update_experiment(
+        self,
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Experiment | None:
+        pass
+
+    @abstractmethod
+    def create_group(
+        self,
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group:
+        pass
+
+    @abstractmethod
+    def update_group(
+        self,
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group | None:
+        pass
+
+    @abstractmethod
+    def delete_group(self, group_id: str) -> None:
         pass
 
     @abstractmethod
@@ -113,6 +158,37 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def log_model(
+        self,
+        experiment_id: str,
+        model_path: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> tuple[Model, str]:
+        pass
+
+    @abstractmethod
+    def get_models(self, experiment_id: str) -> list[Model]:
+        pass
+
+    @abstractmethod
+    def get_model(self, model_id: str) -> Model:
+        pass
+
+    @abstractmethod
+    def update_model(
+        self,
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Model | None:
+        pass
+
+    @abstractmethod
+    def delete_model(self, model_id: str) -> None:
+        pass
+
+    @abstractmethod
     def export_experiment_db(self, experiment_id: str) -> _BaseFile:
         pass
 
@@ -120,4 +196,51 @@ class Backend(ABC):
     def export_attachments(
         self, experiment_id: str
     ) -> tuple[_BaseFile, _BaseFile] | None:
+        pass
+
+    @abstractmethod
+    def get_experiment_metric_history(
+        self, experiment_id: str, key: str
+    ) -> list[dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    def get_experiment_traces(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal[
+            "execution_time", "span_count", "created_at"
+        ] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        trace_id_search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> PaginatedResponse[TraceRecord]:
+        pass
+
+    @abstractmethod
+    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
+        pass
+
+    @abstractmethod
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedResponse[EvalRecord]:
+        pass
+
+    @abstractmethod
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        pass
+
+    @abstractmethod
+    def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         pass

@@ -1,10 +1,11 @@
 <template>
-  <div class="flex items-center gap-1 flex-nowrap overflow-hidden">
+  <div v-if="tags.length" class="flex items-center gap-1 flex-nowrap overflow-hidden">
     <Tag v-for="(tag, index) in visibleTags" :key="index" class="font-normal">{{ tag }}</Tag>
     <span v-if="visibleTags.length < tags.length" class="text-xs text-(--p-tag-primary-color)">
       +{{ tags.length - visibleTags.length }}
     </span>
   </div>
+  <span v-else>-</span>
 </template>
 
 <script setup lang="ts">

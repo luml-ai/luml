@@ -8,6 +8,58 @@ DEFAULT_GROUP_NAME = "default"
 
 
 def up(conn: sqlite3.Connection) -> None:
+    """
+    Executes a database migration for improving the schema and data integrity of the
+    experiments and experiment_groups tables. Adds new fields, resolves duplicate
+    entries, ensures data consistency, and creates supporting tables and indexes.
+
+    Args:
+        conn: SQLite3 database connection to the target database.
+
+    Raises:
+        sqlite3.Error: If any database operation fails.
+
+    Tables final schema:
+        experiment_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        UNIQUE INDEX idx_experiment_groups_name ON experiment_groups(name);
+
+        models (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            path TEXT,
+            experiment_id TEXT REFERENCES experiments(id)
+        );
+
+        experiments (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'active',
+            tags TEXT,
+            group_id TEXT REFERENCES experiment_groups(id),
+            static_params TEXT,
+            dynamic_params TEXT,
+            model_id TEXT REFERENCES models(id),
+            duration REAL,
+            description TEXT
+        );
+
+        schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+    """
     cursor = conn.cursor()
 
     cursor.execute("SELECT rowid, name FROM experiment_groups WHERE id IS NULL")
@@ -77,7 +129,7 @@ def up(conn: sqlite3.Connection) -> None:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             tags TEXT,
             path TEXT,
-            experiment_id TEXT REFERENCES experiments(id)
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE
         )
     """)
 
@@ -85,16 +137,28 @@ def up(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments ADD COLUMN static_params TEXT")
     cursor.execute("ALTER TABLE experiments ADD COLUMN dynamic_params TEXT")
 
+    cursor.execute("ALTER TABLE experiment_groups ADD COLUMN tags TEXT")
+
     cursor.execute(
         "CREATE UNIQUE INDEX "
         "IF NOT EXISTS idx_experiment_groups_name ON experiment_groups(name)"
     )
 
+    cursor.execute(
+        "ALTER TABLE experiment_groups ADD COLUMN last_modified "
+        "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+    )
+    cursor.execute("ALTER TABLE experiments ADD COLUMN duration REAL")
+    cursor.execute("ALTER TABLE experiments ADD COLUMN description TEXT")
+
 
 def down(conn: sqlite3.Connection) -> None:
+    """Reverses the effects of the up() migration."""
     cursor = conn.cursor()
 
     cursor.execute("DROP INDEX IF EXISTS idx_experiment_groups_name")
+
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN tags")
 
     cursor.execute("ALTER TABLE experiments ADD COLUMN group_name TEXT")
     cursor.execute("""
@@ -107,4 +171,8 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN group_id")
     cursor.execute("ALTER TABLE experiments DROP COLUMN static_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
+    cursor.execute("ALTER TABLE experiments DROP COLUMN duration")
+    cursor.execute("ALTER TABLE experiments DROP COLUMN description")
     cursor.execute("DROP TABLE IF EXISTS models")
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN tags")
+    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN last_modified")
