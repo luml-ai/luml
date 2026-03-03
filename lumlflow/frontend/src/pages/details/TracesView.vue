@@ -16,13 +16,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Trace } from '@/store/experiments/experiments.interface'
-import type { GetExperimentTracesParams } from '@/api/api.interface'
+// import type { Trace } from '@/store/experiments/experiments.interface'
+// import type { GetExperimentTracesParams } from '@/api/api.interface'
 import type { BaseTraceInfo } from '@luml/experiments'
 import { useRoute } from 'vue-router'
 import { onBeforeMount, ref } from 'vue'
-import { apiService } from '@/api/api.service'
-import { usePagination } from '@/hooks/usePagination'
+// import { apiService } from '@/api/api.service'
+// import { usePagination } from '@/hooks/usePagination'
 import { useToast, Button, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
 import { useEvalsStore, TracesInfoDialog } from '@luml/experiments'
@@ -62,7 +62,7 @@ async function getTracesData() {
 
   const experimentId = String(route.params.experimentId)
   const ids = [...tracesIds.value]
-  const results: any[] = []
+  const results: BaseTraceInfo[] = []
 
   const concurrency = 10
   let index = 0
@@ -75,7 +75,7 @@ async function getTracesData() {
       try {
         const res = await evalsStore.getTraceSpansTree(experimentId, traceId)
         results.push(res)
-      } catch (e) {
+      } catch {
         continue
       }
     }
