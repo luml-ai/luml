@@ -3,6 +3,9 @@ from typing import Any, Literal
 
 from luml.artifacts._base import _BaseFile
 from luml.experiments.backends.data_types import (
+    AnnotationKind,
+    AnnotationRecord,
+    AnnotationValueType,
     EvalColumns,
     EvalRecord,
     Experiment,
@@ -154,6 +157,50 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_group(self, group_id: str) -> Group | None:
+        pass
+
+    @abstractmethod
+    def list_groups_pagination(
+        self,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+    ) -> PaginatedResponse[Group]:
+        pass
+
+    @abstractmethod
+    def list_group_experiments_pagination(
+        self,
+        group_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        pass
+
+    @abstractmethod
+    def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
+        pass
+
+    @abstractmethod
+    def get_group_experiments_dynamic_metrics_keys(self, group_id: str) -> list[str]:
+        pass
+
+    @abstractmethod
+    def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
+        pass
+
+    @abstractmethod
+    def list_experiment_models(self, experiment_id: str) -> list[Model]:
+        pass
+
+    @abstractmethod
     def end_experiment(self, experiment_id: str) -> None:
         pass
 
@@ -210,11 +257,9 @@ class Backend(ABC):
         experiment_id: str,
         limit: int = 20,
         cursor_str: str | None = None,
-        sort_by: Literal[
-            "execution_time", "span_count", "created_at"
-        ] = "execution_time",
-        order: Literal["asc", "desc"] = "desc",
-        trace_id_search: str | None = None,
+        sort_by: str = "execution_time",
+        order: str = "desc",
+        search: str | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
         pass
@@ -230,7 +275,7 @@ class Backend(ABC):
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: Literal["asc", "desc"] = "desc",
+        order: str = "desc",
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
@@ -243,4 +288,52 @@ class Backend(ABC):
 
     @abstractmethod
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
+        pass
+
+    @abstractmethod
+    def log_eval_annotation(
+        self,
+        experiment_id: str,
+        dataset_id: str,
+        eval_id: str,
+        annotation_kind: AnnotationKind,
+        value_type: AnnotationValueType,
+        value: int | bool | str,
+        user: str,
+    ) -> AnnotationRecord:
+        pass
+
+    @abstractmethod
+    def get_eval_annotations(
+        self, experiment_id: str, dataset_id: str, eval_id: str
+    ) -> list[AnnotationRecord]:
+        pass
+
+    @abstractmethod
+    def log_span_annotation(
+        self,
+        experiment_id: str,
+        trace_id: str,
+        span_id: str,
+        annotation_kind: AnnotationKind,
+        value_type: AnnotationValueType,
+        value: int | bool | str,
+        user: str,
+    ) -> AnnotationRecord:
+        pass
+
+    @abstractmethod
+    def get_span_annotations(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> list[AnnotationRecord]:
+        pass
+
+    @abstractmethod
+    def delete_annotation(
+        self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def get_experiment_ddl_version(self, experiment_id: str) -> int:
         pass

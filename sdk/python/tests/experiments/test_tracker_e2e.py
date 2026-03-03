@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from luml.artifacts.model import ModelReference
-from luml.experiments.backends._data_types import (
+from luml.experiments.backends.data_types import (
     Experiment,
     Group,
     Model,
