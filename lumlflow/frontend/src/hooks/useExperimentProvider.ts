@@ -194,7 +194,8 @@ export const useExperimentProvider = () => {
   watch(
     () => experimentStore.experiment,
     (experiment) => {
-      experiment ? createProvider(experiment) : resetProvider()
+      if (experiment) createProvider(experiment)
+      else resetProvider()
     },
     {
       immediate: true,
