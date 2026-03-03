@@ -13,13 +13,13 @@
 </template>
 
 <script setup lang="ts">
-import type { Eval, EvalScores } from '@/store/experiments/experiments.interface'
-import type { GetExperimentEvalsParams } from '@/api/api.interface'
+import type { /*Eval,*/ EvalScores } from '@/store/experiments/experiments.interface'
+// import type { GetExperimentEvalsParams } from '@/api/api.interface'
 import { useEvalsStore, type ModelsInfo } from '@luml/experiments'
 import { useRoute } from 'vue-router'
 import { computed, onBeforeMount, ref } from 'vue'
 import { apiService } from '@/api/api.service'
-import { usePagination } from '@/hooks/usePagination'
+// import { usePagination } from '@/hooks/usePagination'
 import { useToast, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
 import { EvalsCard } from '@luml/experiments'
