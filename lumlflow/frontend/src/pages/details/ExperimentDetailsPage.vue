@@ -101,7 +101,8 @@ watch([groupId, experimentId], ([groupId, experimentId]) => fetchData(groupId, e
 watch(
   provider,
   (val) => {
-    val ? evalsStore.setProvider(val) : evalsStore.resetProvider()
+    if (val) evalsStore.setProvider(val)
+    else evalsStore.resetProvider()
   },
   {
     immediate: true,

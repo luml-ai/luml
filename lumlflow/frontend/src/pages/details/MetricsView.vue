@@ -10,11 +10,11 @@
 </template>
 
 <script setup lang="ts">
-import type { ExperimentMetricHistory } from '@/store/experiments/experiments.interface'
-import type { ExperimentSnapshotDynamicMetric } from '../../../../../extras/js/packages/experiments/dist/interfaces/interfaces'
-import { useRoute } from 'vue-router'
+// import type { ExperimentMetricHistory } from '@/store/experiments/experiments.interface'
+// import type { ExperimentSnapshotDynamicMetric } from '../../../../../extras/js/packages/experiments/dist/interfaces/interfaces'
+// import { useRoute } from 'vue-router'
 import { computed, onBeforeUnmount, ref } from 'vue'
-import { apiService } from '@/api/api.service'
+// import { apiService } from '@/api/api.service'
 import { useExperimentStore } from '@/store/experiment'
 import { DynamicMetrics } from '@luml/experiments'
 import { useEvalsStore } from '@luml/experiments'
