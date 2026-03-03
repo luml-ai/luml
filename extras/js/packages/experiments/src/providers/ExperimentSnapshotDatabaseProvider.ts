@@ -178,7 +178,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const rows = []
     stmt.bind([traceId])
     while (stmt.step()) {
-      rows.push(stmt.getAsObject())
+      const row = stmt.getAsObject()
+      const parsedRow = {
+        ...row,
+        attributes: safeParse(row.attributes as SqlValue),
+        events: safeParse(row.events as SqlValue),
+        links: safeParse(row.links as SqlValue),
+      }
+      rows.push(parsedRow)
     }
     stmt.free()
     return rows as unknown as SpansListType
