@@ -180,7 +180,7 @@ export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions
     outlined: true,
   },
   acceptProps: {
-    label: 'leave',
+    label: 'exit',
   },
   accept,
 })
