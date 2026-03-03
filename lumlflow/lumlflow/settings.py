@@ -29,4 +29,8 @@ def get_config() -> Settings:
     return Settings()  # type: ignore[call-arg]
 
 
-config = get_config()
+@lru_cache
+def get_tracker() -> "ExperimentTracker":  # type: ignore[name-defined]  # noqa: F821
+    from luml.experiments.tracker import ExperimentTracker
+
+    return ExperimentTracker(f"sqlite://{get_config().BACKEND_STORE_URI}")

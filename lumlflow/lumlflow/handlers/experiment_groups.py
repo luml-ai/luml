@@ -1,4 +1,4 @@
-from luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.base import SortOrder
@@ -13,13 +13,12 @@ from lumlflow.schemas.experiments import (
     ExperimentListed,
     PaginatedExperiments,
 )
-from lumlflow.settings import config
+from lumlflow.settings import get_tracker
 
 
 class ExperimentGroupsHandler:
-    def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
-        self._db_path = db_path
-        self.db = SQLiteBackend(self._db_path)
+    def __init__(self, tracker: ExperimentTracker | None = None) -> None:
+        self.tracker = tracker or get_tracker()
 
     def get_experiment_groups(
         self,
@@ -30,7 +29,7 @@ class ExperimentGroupsHandler:
         search: str | None = None,
     ) -> PaginatedGroups:
         try:
-            result = self.db.list_groups_pagination(
+            result = self.tracker.list_groups_pagination(
                 limit=limit,
                 cursor_str=cursor_str,
                 sort_by=sort_by.value,
@@ -47,9 +46,11 @@ class ExperimentGroupsHandler:
 
     def get_experiment_group_details(self, group_id: str) -> GroupDetails:
         try:
-            group = self.db.get_group(group_id)
-            static_params = self.db.get_group_experiments_static_params_keys(group_id)
-            dynamic_params = self.db.get_group_experiments_dynamic_metrics_keys(
+            group = self.tracker.get_group(group_id)
+            static_params = self.tracker.get_group_experiments_static_params_keys(
+                group_id
+            )
+            dynamic_params = self.tracker.get_group_experiments_dynamic_metrics_keys(
                 group_id
             )
         except Exception as e:
@@ -70,21 +71,21 @@ class ExperimentGroupsHandler:
         )
 
     def delete_experiment_group(self, group_id: str) -> None:
-        if not self.db.get_group(group_id):
+        if not self.tracker.get_group(group_id):
             raise NotFound("Group not found")
-        result = self.db.list_group_experiments_pagination(group_id, limit=1)
+        result = self.tracker.list_group_experiments_pagination(group_id, limit=1)
         if result.items:
             raise ApplicationError(
                 "Cannot delete a group that has linked experiments", status_code=409
             )
         try:
-            self.db.delete_group(group_id)
+            self.tracker.delete_group(group_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
     def update_experiment_group(self, group_id: str, body: UpdateGroup) -> Group:
         try:
-            group = self.db.update_group(
+            group = self.tracker.update_group(
                 group_id,
                 name=body.name,
                 description=body.description,
@@ -108,7 +109,7 @@ class ExperimentGroupsHandler:
         search: str | None = None,
     ) -> PaginatedExperiments:
         try:
-            group = self.db.get_group(group_id)
+            group = self.tracker.get_group(group_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -116,12 +117,14 @@ class ExperimentGroupsHandler:
             raise NotFound("Group not found")
 
         try:
-            json_sort_column = self.db.resolve_experiment_sort_column(group_id, sort_by)
+            json_sort_column = self.tracker.resolve_experiment_sort_column(
+                group_id, sort_by
+            )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
 
         try:
-            result = self.db.list_group_experiments_pagination(
+            result = self.tracker.list_group_experiments_pagination(
                 group_id,
                 limit=limit,
                 cursor_str=cursor_str,

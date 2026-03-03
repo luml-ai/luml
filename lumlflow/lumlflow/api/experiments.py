@@ -1,7 +1,9 @@
 from fastapi import APIRouter, Query, status
 
+from lumlflow.handlers.annotations import AnnotationsHandler
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
+from lumlflow.schemas.annotations import Annotation, CreateAnnotation
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     EvalColumns,
@@ -24,6 +26,7 @@ experiments_router = APIRouter(
 
 experiments_handler = ExperimentsHandler()
 models_handler = ModelsHandler()
+annotations_handler = AnnotationsHandler()
 
 
 @experiments_router.get("/{experiment_id}", response_model=ExperimentDetails)
@@ -120,3 +123,69 @@ def get_experiment_traces(
         search=search,
         states=states,
     )
+
+
+@experiments_router.post(
+    "/{experiment_id}/evals/{dataset_id}/{eval_id}/annotations",
+    response_model=Annotation,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_eval_annotation(
+    experiment_id: str, dataset_id: str, eval_id: str, body: CreateAnnotation
+) -> Annotation:
+    return annotations_handler.create_eval_annotation(
+        experiment_id, dataset_id, eval_id, body
+    )
+
+
+@experiments_router.get(
+    "/{experiment_id}/evals/{dataset_id}/{eval_id}/annotations",
+    response_model=list[Annotation],
+)
+def get_eval_annotations(
+    experiment_id: str, dataset_id: str, eval_id: str
+) -> list[Annotation]:
+    return annotations_handler.get_eval_annotations(
+        experiment_id, dataset_id, eval_id
+    )
+
+
+@experiments_router.post(
+    "/{experiment_id}/traces/{trace_id}/spans/{span_id}/annotations",
+    response_model=Annotation,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_span_annotation(
+    experiment_id: str, trace_id: str, span_id: str, body: CreateAnnotation
+) -> Annotation:
+    return annotations_handler.create_span_annotation(
+        experiment_id, trace_id, span_id, body
+    )
+
+
+@experiments_router.get(
+    "/{experiment_id}/traces/{trace_id}/spans/{span_id}/annotations",
+    response_model=list[Annotation],
+)
+def get_span_annotations(
+    experiment_id: str, trace_id: str, span_id: str
+) -> list[Annotation]:
+    return annotations_handler.get_span_annotations(
+        experiment_id, trace_id, span_id
+    )
+
+
+@experiments_router.delete(
+    "/{experiment_id}/eval-annotations/{annotation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_eval_annotation(experiment_id: str, annotation_id: str) -> None:
+    annotations_handler.delete_eval_annotation(experiment_id, annotation_id)
+
+
+@experiments_router.delete(
+    "/{experiment_id}/span-annotations/{annotation_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_span_annotation(experiment_id: str, annotation_id: str) -> None:
+    annotations_handler.delete_span_annotation(experiment_id, annotation_id)

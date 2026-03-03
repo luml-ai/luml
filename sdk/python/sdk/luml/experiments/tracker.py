@@ -10,10 +10,19 @@ from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
 from luml.experiments.backends.data_types import (
+    AnnotationKind,
+    AnnotationRecord,
+    AnnotationValueType,
+    EvalColumns,
+    EvalRecord,
     Experiment,
     ExperimentData,
     Group,
     Model,
+    PaginatedResponse,
+    TraceDetails,
+    TraceRecord,
+    TraceState,
 )
 from luml.utils.naming import generate_random_name
 
@@ -830,6 +839,214 @@ class ExperimentTracker:
         )
 
         Path(zip_path).unlink(missing_ok=True)
+
+    def log_eval_annotation(
+        self,
+        dataset_id: str,
+        eval_id: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        experiment_id: str | None = None,
+    ) -> AnnotationRecord:
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.log_eval_annotation(
+            exp_id,
+            dataset_id,
+            eval_id,
+            AnnotationKind(annotation_kind),
+            AnnotationValueType(value_type),
+            value,
+            user,
+        )
+
+    def log_span_annotation(
+        self,
+        trace_id: str,
+        span_id: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        experiment_id: str | None = None,
+    ) -> AnnotationRecord:
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.log_span_annotation(
+            exp_id,
+            trace_id,
+            span_id,
+            AnnotationKind(annotation_kind),
+            AnnotationValueType(value_type),
+            value,
+            user,
+        )
+
+    def get_experiment_record(self, experiment_id: str) -> Experiment | None:
+        return self.backend.get_experiment(experiment_id)
+
+    def get_trace(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        return self.backend.get_trace(experiment_id, trace_id)
+
+    def get_experiment_traces(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "execution_time",
+        order: str = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> PaginatedResponse[TraceRecord]:
+        return self.backend.get_experiment_traces(
+            experiment_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            states=states,
+        )
+
+    def get_experiment_metric_history(
+        self, experiment_id: str, key: str
+    ) -> list[dict[str, Any]]:
+        return self.backend.get_experiment_metric_history(experiment_id, key)
+
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedResponse[EvalRecord]:
+        return self.backend.get_experiment_evals(
+            experiment_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            dataset_id=dataset_id,
+            json_sort_column=json_sort_column,
+            search=search,
+        )
+
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        return self.backend.get_experiment_eval_columns(experiment_id)
+
+    def resolve_evals_sort_column(
+        self, experiment_id: str, sort_by: str
+    ) -> str | None:
+        return self.backend.resolve_evals_sort_column(experiment_id, sort_by)
+
+    def update_experiment(
+        self,
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Experiment | None:
+        return self.backend.update_experiment(
+            experiment_id, name=name, description=description, tags=tags,
+        )
+
+    def get_eval_annotations(
+        self, experiment_id: str, dataset_id: str, eval_id: str
+    ) -> list[AnnotationRecord]:
+        return self.backend.get_eval_annotations(experiment_id, dataset_id, eval_id)
+
+    def get_span_annotations(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> list[AnnotationRecord]:
+        return self.backend.get_span_annotations(experiment_id, trace_id, span_id)
+
+    def delete_annotation(
+        self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
+    ) -> None:
+        self.backend.delete_annotation(experiment_id, annotation_id, target)
+
+    def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        return self.backend.get_experiment_ddl_version(experiment_id)
+
+    def get_group(self, group_id: str) -> Group | None:
+        return self.backend.get_group(group_id)
+
+    def update_group(
+        self,
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group | None:
+        return self.backend.update_group(group_id, name=name, description=description, tags=tags)
+
+    def delete_group(self, group_id: str) -> None:
+        self.backend.delete_group(group_id)
+
+    def list_groups_pagination(
+        self,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+    ) -> PaginatedResponse[Group]:
+        return self.backend.list_groups_pagination(
+            limit=limit, cursor_str=cursor_str, sort_by=sort_by, order=order, search=search,
+        )
+
+    def list_group_experiments_pagination(
+        self,
+        group_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        return self.backend.list_group_experiments_pagination(
+            group_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            json_sort_column=json_sort_column,
+        )
+
+    def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
+        return self.backend.get_group_experiments_static_params_keys(group_id)
+
+    def get_group_experiments_dynamic_metrics_keys(self, group_id: str) -> list[str]:
+        return self.backend.get_group_experiments_dynamic_metrics_keys(group_id)
+
+    def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
+        return self.backend.resolve_experiment_sort_column(group_id, sort_by)
+
+    def update_model(
+        self,
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Model | None:
+        return self.backend.update_model(model_id, name=name, tags=tags)
+
+    def delete_model(self, model_id: str) -> None:
+        self.backend.delete_model(model_id)
+
+    def list_experiment_models(self, experiment_id: str) -> list[Model]:
+        return self.backend.list_experiment_models(experiment_id)
 
     def enable_tracing(self) -> None:
         """
