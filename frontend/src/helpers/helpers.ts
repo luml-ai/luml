@@ -1,4 +1,4 @@
-import { MODELS_COLORS } from '@/constants/colors'
+import { ARTIFACTS_COLORS } from '@/constants/colors'
 import type { Validator } from '@/lib/api/satellites/interfaces'
 import {
   Tasks,
@@ -242,8 +242,8 @@ export function combineValidators(validators: z.ZodTypeAny[], required: boolean)
   return schema
 }
 
-export const getModelColorByIndex = (index: number) => {
-  const color = MODELS_COLORS[index]
+export const getArtifactColorByIndex = (index: number) => {
+  const color = ARTIFACTS_COLORS[index]
   if (color) {
     return color
   } else {
