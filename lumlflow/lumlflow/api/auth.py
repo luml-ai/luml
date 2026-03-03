@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.schemas.auth import HasApiKey, SetApiKey
 
-auth_router = APIRouter(prefix="/api/auth")
+auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 auth_handler = AuthHandler()
 
