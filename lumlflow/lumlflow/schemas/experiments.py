@@ -100,6 +100,7 @@ class Span(BaseModel, BaseOrmConfig):
     events: list[dict[str, Any]] | None = None
     links: list[dict[str, Any]] | None = None
     trace_flags: int | None = None
+    annotation_count: int = 0
 
 
 class TraceDetails(BaseModel):

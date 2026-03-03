@@ -1,6 +1,7 @@
 from math import ceil
 
-from luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.backends.data_types import TraceState as SdkTraceState
+from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.base import SortOrder
@@ -10,6 +11,7 @@ from lumlflow.schemas.experiments import (
     Experiment,
     ExperimentDetails,
     ExperimentMetricHistory,
+    ExperimentStatus,
     MetricPoint,
     PaginatedEvals,
     PaginatedTraces,
@@ -21,28 +23,27 @@ from lumlflow.schemas.experiments import (
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
-from lumlflow.settings import config
+from lumlflow.settings import get_tracker
 
 
 class ExperimentsHandler:
-    def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
-        self._db_path = db_path
-        self.db = SQLiteBackend(self._db_path)
+    def __init__(self, tracker: ExperimentTracker | None = None) -> None:
+        self.tracker = tracker or get_tracker()
 
     def get_experiment(self, experiment_id: str) -> ExperimentDetails:
-        experiment = self.db.get_experiment(experiment_id)
+        experiment = self.tracker.get_experiment_record(experiment_id)
         if not experiment:
             raise NotFound("Experiment not found")
         try:
-            models = self.db.list_experiment_models(experiment_id)
+            models = self.tracker.get_models(experiment_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
         return ExperimentDetails(
             id=experiment.id,
             name=experiment.name,
-            status=experiment.status,
-            group_id=experiment.group_id,
+            status=ExperimentStatus(experiment.status),
+            group_id=experiment.group_id or "",
             created_at=experiment.created_at,
             duration=experiment.duration,
             description=experiment.description,
@@ -53,25 +54,25 @@ class ExperimentsHandler:
         )
 
     def delete_experiment(self, experiment_id: str) -> None:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
-        models = self.db.list_experiment_models(experiment_id)
+        models = self.tracker.get_models(experiment_id)
         if models and len(models) > 0:
             raise ApplicationError(
                 "Cannot delete an experiment that has linked models", status_code=409
             )
         try:
-            self.db.delete_experiment(experiment_id)
+            self.tracker.delete_experiment(experiment_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
     def get_experiment_metric_history(
         self, experiment_id: str, key: str, max_points: int = 1000
     ) -> ExperimentMetricHistory:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
         try:
-            raw = self.db.get_experiment_metric_history(experiment_id, key)
+            raw = self.tracker.get_experiment_metric_history(experiment_id, key)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -99,17 +100,20 @@ class ExperimentsHandler:
         search: str | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedTraces:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
         try:
-            result = self.db.get_experiment_traces(
+            sdk_states = (
+                [SdkTraceState(s.value) for s in states] if states else None
+            )
+            result = self.tracker.get_experiment_traces(
                 experiment_id,
                 limit=limit,
                 cursor_str=cursor,
                 sort_by=sort_by,
                 order=order,
                 search=search,
-                states=states,
+                states=sdk_states,
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
@@ -119,10 +123,10 @@ class ExperimentsHandler:
         )
 
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
         try:
-            result = self.db.get_trace(experiment_id, trace_id)
+            result = self.tracker.get_trace(experiment_id, trace_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
         if result is None:
@@ -142,14 +146,16 @@ class ExperimentsHandler:
         dataset_id: str | None = None,
         search: str | None = None,
     ) -> PaginatedEvals:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
         try:
-            json_sort_column = self.db.resolve_evals_sort_column(experiment_id, sort_by)
+            json_sort_column = self.tracker.resolve_evals_sort_column(
+                experiment_id, sort_by
+            )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
         try:
-            result = self.db.get_experiment_evals(
+            result = self.tracker.get_experiment_evals(
                 experiment_id,
                 limit=limit,
                 cursor_str=cursor,
@@ -167,10 +173,10 @@ class ExperimentsHandler:
         )
 
     def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
-        if not self.db.get_experiment(experiment_id):
+        if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
         try:
-            result = self.db.get_experiment_eval_columns(experiment_id)
+            result = self.tracker.get_experiment_eval_columns(experiment_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
         return EvalColumns.model_validate(result)
@@ -179,7 +185,7 @@ class ExperimentsHandler:
         self, experiment_id: str, body: UpdateExperiment
     ) -> Experiment:
         try:
-            experiment = self.db.update_experiment(
+            experiment = self.tracker.update_experiment(
                 experiment_id,
                 name=body.name,
                 description=body.description,
