@@ -15,9 +15,30 @@ from luml.experiments.backends.sqlite import SQLiteBackend
 from luml.experiments.tracker import ExperimentTracker
 
 
-def seed_eval_annotations(
-    backend: SQLiteBackend, experiment_id: str
-) -> tuple[str, str]:
+@pytest.fixture
+def tracker(tmp_path: Path) -> ExperimentTracker:
+    return ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
+
+
+@pytest.fixture
+def tracker_with_experiment(
+    tracker: ExperimentTracker,
+) -> tuple[ExperimentTracker, str]:
+    exp_id = tracker.start_experiment(name="test_exp")
+    return tracker, exp_id
+
+
+@pytest.fixture
+def backend_with_experiment(
+    tmp_path: Path,
+) -> tuple[SQLiteBackend, str]:
+    backend = SQLiteBackend(str(tmp_path / "experiments"))
+    exp_id = "test-exp-id"
+    backend.initialize_experiment(exp_id, "default", "test")
+    return backend, exp_id
+
+
+def _seed_eval(backend: SQLiteBackend, experiment_id: str) -> tuple[str, str]:
     dataset_id = "ds-1"
     eval_id = "eval-1"
     backend.log_eval_sample(
