@@ -2,7 +2,7 @@
   <div class="wrapper" :style="{ paddingLeft: sidebarWidth + 'px' }">
     <UiClosablePlug
       v-if="plugStore.visible"
-      text="Some operations involving models may not behave correctly on mobile."
+      text="Some operations may not behave correctly on mobile."
       :style="{
         position: 'fixed',
         top: headerSizes.height + 'px',
