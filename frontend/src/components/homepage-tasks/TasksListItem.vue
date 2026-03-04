@@ -70,11 +70,13 @@ const dropdownItems = computed(() =>
     label: opt.label,
     command: () => {
       AnalyticsService.track(AnalyticsTrackKeysEnum.select_task, {
-        task: `${props.task.analyticsTaskName}_${opt.label}`,
+        task: props.task.analyticsTaskName,
       })
-      if (opt.route) router.push({ name: opt.route })
+      const target = opt.route || props.task.linkName
+      if (target) router.push({ name: target })
+      else if (isPromptFusionTask.value) isPopupVisible.value = true
     },
-  })),
+  }))
 )
 </script>
 

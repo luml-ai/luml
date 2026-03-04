@@ -89,7 +89,7 @@ const appTasks: IAppTaskData[] = [
     isAvailable: true,
     analyticsTaskName: 'classification',
     dropdownOptions: [
-      { label: 'Create new', route: 'classification' },
+      { label: 'Train new model'},
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
@@ -106,7 +106,7 @@ const appTasks: IAppTaskData[] = [
     isAvailable: true,
     analyticsTaskName: 'regression',
     dropdownOptions: [
-      { label: 'Create new', route: 'classification' },
+      { label: 'Train new model'},
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
@@ -133,7 +133,7 @@ const appTasks: IAppTaskData[] = [
     isAvailable: true,
     analyticsTaskName: 'prompt_optimization',
     dropdownOptions: [
-      { label: 'Create new', route: 'classification' },
+      { label: 'Train new model'},
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
