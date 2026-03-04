@@ -199,8 +199,31 @@ const router = createRouter({
     },
     {
       path: '/data-agent',
-      name: 'data-agent',
       component: () => import('../pages/DataAgentPage.vue'),
+      meta: {
+        mobileAvailable: false,
+        showInvalidMessage: 992,
+      },
+      children: [
+        {
+          path: '',
+          name: 'data-agent-board',
+        },
+        {
+          path: 'repos',
+          name: 'data-agent-repos',
+        },
+        {
+          path: 'tasks/:taskId',
+          name: 'data-agent-task',
+          component: () => import('../pages/data-agent/TaskDetailView.vue'),
+        },
+        {
+          path: 'runs/:runId',
+          name: 'data-agent-run',
+          component: () => import('../pages/data-agent/RunDetailView.vue'),
+        },
+      ],
     },
     {
       path: '/organization/:id',
