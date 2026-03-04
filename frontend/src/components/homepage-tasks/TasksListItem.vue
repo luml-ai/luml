@@ -76,7 +76,7 @@ const dropdownItems = computed(() =>
       if (target) router.push({ name: target })
       else if (isPromptFusionTask.value) isPopupVisible.value = true
     },
-  }))
+  })),
 )
 </script>
 
