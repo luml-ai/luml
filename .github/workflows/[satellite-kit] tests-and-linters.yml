@@ -1,0 +1,38 @@
+name: Satellite Kit Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'satellite-kit/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'satellite-kit/**'
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies with uv
+        working-directory: satellite-kit
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev
+
+      - name: Check formatting with Ruff
+        working-directory: satellite-kit
+        run: uv run ruff format --check .
+
+      - name: Lint with Ruff
+        working-directory: satellite-kit
+        run: uv run ruff check .
