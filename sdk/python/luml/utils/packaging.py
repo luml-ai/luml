@@ -9,6 +9,7 @@ from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untype
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+import xgboost as xgb  # type: ignore[import-untyped]
 
 from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
 from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
