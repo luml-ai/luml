@@ -48,7 +48,7 @@ export const SIDEBAR_MENU = [
     id: 5,
     label: 'Data Agent',
     icon: BotMessageSquare,
-    route: 'data-agent',
+    route: 'data-agent-board',
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'data-agent',
