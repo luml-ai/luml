@@ -9,7 +9,7 @@ const activeRequests = new Set<string>()
 
 async function init(payload: InitPayloadItem[], requestId: string) {
   provider = new ExperimentSnapshotDatabaseProvider()
-  await provider.init(payload, { wasmUrl: '/sql-wasm.wasm' })
+  await provider.init({ modelsInfo: payload, wasmUrl: '/sql-wasm.wasm' })
   self.postMessage({ type: 'result', requestId, data: true })
 }
 

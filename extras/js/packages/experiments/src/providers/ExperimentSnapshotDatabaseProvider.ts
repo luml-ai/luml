@@ -1,10 +1,14 @@
 import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
-  EvalsDatasets,
+  EvalsColumns,
+  EvalsInfo,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
+  GetEvalsByDatasetParams,
+  ModelScores,
   ModelSnapshot,
+  ScoreInfo,
   SpansListType,
   SpansParams,
   TraceSpan,
@@ -20,15 +24,16 @@ interface ModelInfo {
 
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
   private _modelsSnapshots: ModelSnapshot[] | null = null
+  private evalsDatasetsRequestParams: Record<string, number> = {}
 
   private get modelsSnapshots() {
     if (!this._modelsSnapshots) throw new Error('Models snapshots not initialized')
     return this._modelsSnapshots
   }
 
-  async init(data: ModelInfo[], options: { wasmUrl: string }) {
-    const SQL = await initSqlJs({ locateFile: () => options.wasmUrl })
-    const snapshotsPromises = data.map(async ({ modelId, buffer }) => {
+  async init(data: { modelsInfo: ModelInfo[]; wasmUrl: string }) {
+    const SQL = await initSqlJs({ locateFile: () => data.wasmUrl })
+    const snapshotsPromises = data.modelsInfo.map(async ({ modelId, buffer }) => {
       const database = await this.createDatabaseFromBuffer(buffer, SQL)
       return { modelId, database }
     })
@@ -43,17 +48,50 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return [...uniqueNames]
   }
 
-  private getModelMetricsNames(database: Database) {
-    const queryResult = database.exec('SELECT key FROM dynamic_metrics')
-    const rows = queryResult[0]?.values || []
-    return rows.map((row) => this.parseValue(row[0], 'string'))
-  }
-
   async getDynamicMetricData(metricName: string) {
     const data = this.modelsSnapshots.map((snapshot) =>
       this.getModelDynamicMetricData(snapshot.database, metricName, snapshot.modelId),
     )
     return data
+  }
+
+  async getStaticParamsList() {
+    const list = this.modelsSnapshots
+      .map((snapshot) => this.getStaticParams(snapshot.database, snapshot.modelId))
+      .flat()
+    return list
+  }
+
+  async getUniqueDatasetsIds(): Promise<string[]> {
+    const ids = this.modelsSnapshots.map((snapshot) =>
+      this.getUniqueDatasetsIdsByDatabase(snapshot.database),
+    )
+    const uniqueIds = new Set<string>(ids.flat())
+    return [...uniqueIds]
+  }
+
+  async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
+    return this.modelsSnapshots
+      .map((snapshot) => {
+        const database = snapshot.database
+        const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
+        this.evalsDatasetsRequestParams[params.dataset_id] = page + 1
+        const evals = this.getDatabaseEvalsByDatasetId(database, {
+          ...params,
+          page,
+          modelId: snapshot.modelId,
+        })
+        return evals
+      })
+      .flat()
+  }
+
+  async resetEvalsDatasetsRequestParams() {
+    this.evalsDatasetsRequestParams = {}
+  }
+
+  async resetDatasetPage(datasetId: string) {
+    delete this.evalsDatasetsRequestParams[datasetId]
   }
 
   private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
@@ -82,86 +120,73 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return data
   }
 
-  async createDatabaseFromBuffer(buffer: ArrayBuffer, SQL: SqlJsStatic) {
-    const zip = await loadZipAsync(buffer)
-    const dbFile = zip.file('exp.db')
-    if (!dbFile) throw new Error('exp.db not found')
-    const content = await dbFile.async('uint8array')
-    return new SQL.Database(content)
-  }
-
-  async getStaticParamsList() {
-    const list = this.modelsSnapshots
-      .map((snapshot) => this.getStaticParams(snapshot.database, snapshot.modelId))
-      .flat()
-    return list
-  }
-
-  async getEvalsList() {
-    const data = this.modelsSnapshots.map((snapshot) =>
-      this.getEvals(snapshot.database, snapshot.modelId),
-    )
-    const notEmptyData = data.filter((modelDatasets) => Object.keys(modelDatasets).length)
-    if (!notEmptyData.length) return null
-    return notEmptyData.reduce((acc: EvalsDatasets, modelDatasets) => {
-      const entries = Object.entries(modelDatasets)
-      entries.map(([datasetId, list]) => {
-        const existedDataset = acc[datasetId]
-        if (existedDataset) {
-          existedDataset.push(...list)
-        } else {
-          acc[datasetId] = list
-        }
-      })
-      return acc
-    })
-  }
-
-  private parseValue(val: any, type: SqlValue | 'json' | 'int' | 'float' | 'bool') {
-    if (type === 'json') return JSON.parse(val)
-    if (type === 'int') return parseInt(val)
-    if (type === 'float') return parseFloat(val)
-    if (type === 'bool') return val === 'true'
-    return val
-  }
-
-  private getStaticParams(database: Database, modelId: string): ExperimentSnapshotStaticParams[] {
-    const queryResult = database.exec('SELECT key, value, value_type FROM static_params')
-    const rows = queryResult[0]?.values || []
-    const obj = Object.fromEntries(
-      rows.map((row) => [row[0], this.parseValue(row[1], row[2] as SqlValue)]),
-    )
-    return { ...obj, modelId }
-  }
-
-  private getEvals(database: Database, modelId: string): EvalsDatasets {
+  private getDatabaseEvalsByDatasetId(
+    database: Database,
+    {
+      limit = 20,
+      sort_by = 'created_at',
+      order = 'desc',
+      dataset_id,
+      search = '',
+      page = 1,
+      modelId,
+    }: {
+      page: number
+      modelId: string
+    } & GetEvalsByDatasetParams,
+  ) {
+    const allowedSortFields = ['created_at', 'id']
+    const safeSortBy = allowedSortFields.includes(sort_by) ? sort_by : 'created_at'
+    const safeOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+    const offset = (page - 1) * limit
+    const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
     const queryResult = database.exec(
-      'SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals LIMIT 100',
+      `
+      SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
+      FROM evals
+      WHERE dataset_id = '${dataset_id}'
+      ${searchCondition}
+      ORDER BY ${safeSortBy} ${safeOrder}
+      LIMIT ${limit}
+      OFFSET ${offset}
+      `,
     )
     const rows = queryResult[0]?.values || []
-    const data: EvalsDatasets = {}
-    rows.map((row) => {
-      const [id, dsid, inputs, outputs, refs, scores, metadata] = row
-      if (typeof dsid !== 'string') throw new Error('Invalid dataset ID')
-      if (typeof id !== 'string') throw new Error('Invalid eval ID')
-      const existedDataset = data[dsid]
-      const info = {
+    return rows.map((row) => {
+      const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
+      return this.prepareEvalData({
         id,
-        dataset_id: dsid,
-        inputs: safeParse(inputs) || {},
-        outputs: safeParse(outputs) || {},
-        refs: safeParse(refs) || {},
-        scores: safeParse(scores) || {},
-        metadata: safeParse(metadata) || {},
+        dataset_id,
+        inputs,
+        outputs,
+        refs,
+        scores,
+        metadata,
         modelId,
-      }
-      if (existedDataset) {
-        existedDataset.push(info)
-      } else {
-        data[dsid] = [info]
-      }
+      })
     })
-    return data
+  }
+
+  private prepareEvalData({
+    id,
+    dataset_id,
+    inputs,
+    outputs,
+    refs,
+    scores,
+    metadata,
+    modelId,
+  }: Record<string, SqlValue | undefined>) {
+    return {
+      id: safeParse(id) || '',
+      dataset_id: safeParse(dataset_id) || '',
+      inputs: safeParse(inputs) || {},
+      outputs: safeParse(outputs) || {},
+      refs: safeParse(refs) || {},
+      scores: safeParse(scores) || {},
+      metadata: safeParse(metadata) || {},
+      modelId: safeParse(modelId) || '',
+    }
   }
 
   async getTraceSpans(modelId: string, traceId: string) {
@@ -243,5 +268,126 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           children: this.sortSpans(span.children),
         }
       })
+  }
+
+  async getEvalsColumns(datasetId: string): Promise<EvalsColumns> {
+    const result = this.modelsSnapshots.reduce(
+      (acc, snapshot) => {
+        const inputs = this.extractColumnsNames(snapshot.database, 'inputs', datasetId)
+        const outputs = this.extractColumnsNames(snapshot.database, 'outputs', datasetId)
+        const refs = this.extractColumnsNames(snapshot.database, 'refs', datasetId)
+        const scores = this.extractColumnsNames(snapshot.database, 'scores', datasetId)
+        const metadata = this.extractColumnsNames(snapshot.database, 'metadata', datasetId)
+        inputs.forEach((input) => acc.inputs.add(input))
+        outputs.forEach((output) => acc.outputs.add(output))
+        refs.forEach((ref) => acc.refs.add(ref))
+        scores.forEach((score) => acc.scores.add(score))
+        metadata.forEach((meta) => acc.metadata.add(meta))
+        return acc
+      },
+      {
+        inputs: new Set<string>(),
+        outputs: new Set<string>(),
+        refs: new Set<string>(),
+        scores: new Set<string>(),
+        metadata: new Set<string>(),
+      },
+    )
+    return {
+      inputs: Array.from(result.inputs),
+      outputs: Array.from(result.outputs),
+      refs: Array.from(result.refs),
+      scores: Array.from(result.scores),
+      metadata: Array.from(result.metadata),
+    }
+  }
+
+  async getDatasetAverageScores(datasetId: string): Promise<ModelScores[]> {
+    return this.modelsSnapshots.map((snapshot) => {
+      const queryResult = snapshot.database.exec(
+        `SELECT scores FROM evals WHERE scores IS NOT NULL AND dataset_id = '${datasetId}'`,
+      )
+      const rows = queryResult[0]?.values || []
+      const formattedRows = rows.map((row) => safeParse(row[0] as SqlValue))
+      const sum: Record<string, { sum: number; count: number }> = formattedRows.reduce(
+        (acc, row) => {
+          for (const key in row) {
+            const scoreValue = row[key]
+            if (typeof scoreValue === 'number') {
+              if (!acc[key]) {
+                acc[key] = {
+                  sum: 0,
+                  count: 0,
+                }
+              }
+              acc[key].sum += scoreValue
+              acc[key].count++
+            }
+          }
+          return acc
+        },
+        {},
+      )
+      const entries = Object.entries(sum)
+      const scores: ScoreInfo[] = entries.map(([scoreName, { sum, count }]) => {
+        return {
+          name: scoreName,
+          value: sum / count,
+        }
+      })
+      return {
+        modelId: snapshot.modelId,
+        scores,
+      }
+    })
+  }
+
+  private extractColumnsNames(
+    database: Database,
+    column: 'inputs' | 'outputs' | 'refs' | 'scores' | 'metadata',
+    datasetId: string,
+  ) {
+    const queryResult = database.exec(
+      `SELECT DISTINCT je.key FROM evals, json_each(evals.${column}) AS je WHERE evals.${column} IS NOT NULL AND evals.dataset_id = '${datasetId}' ORDER BY je.key`,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
+  }
+
+  private getUniqueDatasetsIdsByDatabase(database: Database): string[] {
+    const queryResult = database.exec('SELECT DISTINCT dataset_id FROM evals')
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
+  }
+
+  private parseValue(val: any, type: SqlValue | 'json' | 'int' | 'float' | 'bool') {
+    if (type === 'json') return JSON.parse(val)
+    if (type === 'int') return parseInt(val)
+    if (type === 'float') return parseFloat(val)
+    if (type === 'bool') return val === 'true'
+    return val
+  }
+
+  private getStaticParams(database: Database, modelId: string): ExperimentSnapshotStaticParams[] {
+    const queryResult = database.exec('SELECT key, value, value_type FROM static_params')
+    const rows = queryResult[0]?.values || []
+    const obj = Object.fromEntries(
+      rows.map((row) => [row[0], this.parseValue(row[1], row[2] as SqlValue)]),
+    )
+    return { ...obj, modelId }
+  }
+
+  private getModelMetricsNames(database: Database) {
+    const queryResult = database.exec('SELECT key FROM dynamic_metrics')
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
+  }
+
+  private async createDatabaseFromBuffer(buffer: ArrayBuffer, SQL: SqlJsStatic) {
+    const zip = await loadZipAsync(buffer)
+    const dbFile = zip.file('exp.db')
+    if (!dbFile) throw new Error('exp.db not found')
+    const content = await dbFile.async('uint8array')
+    return new SQL.Database(content)
   }
 }

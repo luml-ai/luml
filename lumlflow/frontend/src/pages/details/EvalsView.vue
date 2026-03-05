@@ -1,46 +1,21 @@
 <template>
-  <Skeleton v-if="loading" class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
-  <div v-else-if="Object.keys(evalsStore.evals || {}).length === 0">No evals found</div>
-  <div v-else-if="Object.keys(evalsStore.evals || {})" class="evals-list">
-    <EvalsCard
-      v-for="item of evalsStore.evals"
-      :key="item[0]?.id"
-      :data="item"
-      :models-info="modelsInfo"
-      :table-height="tableHeight"
-    ></EvalsCard>
-  </div>
+  <EvalsDatasetsList
+    v-if="evalsStore.getProvider"
+    :models-info="modelsInfo"
+    loader-height="calc(100vh-250px)"
+    :dataset-table-height="tableHeight"
+  ></EvalsDatasetsList>
 </template>
 
 <script setup lang="ts">
-import type { /*Eval,*/ EvalScores } from '@/store/experiments/experiments.interface'
-// import type { GetExperimentEvalsParams } from '@/api/api.interface'
-import { useEvalsStore, type ModelsInfo } from '@luml/experiments'
-import { useRoute } from 'vue-router'
-import { computed, onBeforeMount, ref } from 'vue'
-import { apiService } from '@/api/api.service'
-// import { usePagination } from '@/hooks/usePagination'
-import { useToast, Skeleton } from 'primevue'
-import { errorToast } from '@/toasts'
-import { EvalsCard } from '@luml/experiments'
+import { useEvalsStore, EvalsDatasetsList, type ModelsInfo } from '@luml/experiments'
+import { computed } from 'vue'
 import { useExperimentStore } from '@/store/experiment'
 import { useWindowSize } from '@vueuse/core'
 
 const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
 const { height: windowHeight } = useWindowSize()
-
-const route = useRoute()
-const toast = useToast()
-// const { data, getInitialPage, isLoading } = usePagination<Eval, GetExperimentEvalsParams>(
-//   apiService.getExperimentEvals,
-//   {
-//     experiment_id: String(route.params.experimentId),
-//   },
-// )
-
-const scores = ref<EvalScores | null>(null)
-const loading = ref(true)
 
 const modelsInfo = computed<ModelsInfo>(() => {
   if (!experimentStore.experiment) return {}
@@ -52,36 +27,8 @@ const modelsInfo = computed<ModelsInfo>(() => {
   }
 })
 
-// const formattedData = computed(() => {
-//   return data.value.map((item) => {
-//     return {
-//       ...item,
-//       modelId: experimentStore.experiment?.id || '',
-//     }
-//   })
-// })
 const tableHeight = computed(() => {
   return `${windowHeight.value - 450}px`
-})
-
-async function fetchScores() {
-  try {
-    scores.value = await apiService.getExperimentEvalScores(String(route.params.experimentId))
-  } catch (error) {
-    toast.add(errorToast(error))
-  }
-}
-
-onBeforeMount(async () => {
-  try {
-    await fetchScores()
-    await evalsStore.setEvals()
-    // await getInitialPage()
-  } catch (error) {
-    toast.add(errorToast(error))
-  } finally {
-    loading.value = false
-  }
 })
 </script>
 
