@@ -12,6 +12,7 @@
       :initial-values="initialValues"
       :resolver="resolver"
       class="flex flex-col gap-3"
+      @submit="handleSubmit"
     >
       <SelectButton name="type" :options="options" option-label="label" option-value="value" />
       <FormField name="organization" class="flex flex-col gap-2">
@@ -23,6 +24,7 @@
           option-label="label"
           option-value="value"
           placeholder="Select organization"
+          :loading="loadingOrganizations"
           fluid
         />
       </FormField>
@@ -33,6 +35,7 @@
           option-label="label"
           option-value="value"
           :disabled="!$form['organization']?.value"
+          :loading="loadingOrbits"
           :placeholder="$form['organization']?.value ? 'Select orbit' : 'Select organization first'"
           fluid
         >
@@ -55,6 +58,7 @@
           option-label="label"
           option-value="value"
           :disabled="!$form['orbit']?.value"
+          :loading="loadingCollections"
           :placeholder="$form['orbit']?.value ? 'Select collection' : 'Select orbit first'"
           fluid
         >
@@ -81,7 +85,7 @@
         <UiTagsSelect id="tags" :items="[]" placeholder="Type to add tags" />
       </FormField>
       <FormField
-        v-if="$form['type']?.value === 'auto'"
+        v-if="$form['type']?.value === 'model'"
         name="embedExperiment"
         class="flex items-center gap-2"
       >
@@ -89,36 +93,57 @@
         <ToggleSwitch id="embedExperiment" />
       </FormField>
     </Form>
+    <div v-if="uploading" class="mt-3">
+      <ProgressBar :value="uploadPercent" />
+    </div>
     <template #footer>
-      <Button type="submit" form="upload-form" label="Export" fluid rounded />
+      <Button
+        type="submit"
+        form="upload-form"
+        label="Export"
+        fluid
+        rounded
+        :loading="uploading"
+        :disabled="uploading"
+      />
     </template>
   </Dialog>
   <ApiKeyModal v-model:visible="apiKeyModalVisible" v-model:api-key="apiKey" />
 </template>
 
 <script setup lang="ts">
-import { Button, Dialog, SelectButton, Select, InputText, Textarea, ToggleSwitch } from 'primevue'
+import {
+  Button,
+  Dialog,
+  SelectButton,
+  Select,
+  InputText,
+  Textarea,
+  ToggleSwitch,
+  ProgressBar,
+} from 'primevue'
 import { CloudUploadIcon } from 'lucide-vue-next'
-import { reactive, watch } from 'vue'
-import { ref } from 'vue'
-import { FormField, Form, type FormInstance } from '@primevue/forms'
+import { reactive, watch, ref } from 'vue'
+import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import { DIALOG_PT, resolver } from './data'
 import ApiKeyModal from '../api-key/ApiKeyModel.vue'
+import { apiService } from '@/api/api.service'
+import { useToast } from 'primevue'
+import { successToast, errorToast } from '@/toasts'
+import type { Model } from '@/store/experiments/experiments.interface'
+
+const props = defineProps<{
+  experimentId: string
+  models: Model[]
+}>()
+
+const toast = useToast()
 
 const options = [
-  {
-    label: 'Auto',
-    value: 'auto',
-  },
-  {
-    label: 'Model',
-    value: 'model',
-  },
-  {
-    label: 'Experiment',
-    value: 'experiment',
-  },
+  { label: 'Auto', value: 'auto' },
+  { label: 'Model', value: 'model' },
+  { label: 'Experiment', value: 'experiment' },
 ]
 
 const initialValues = reactive({
@@ -129,50 +154,65 @@ const initialValues = reactive({
   name: '',
   description: '',
   tags: [],
-  embedExperiment: true,
+  embedExperiment: false,
 })
 
 const formRef = ref<FormInstance>()
-
 const visible = defineModel<boolean>('visible')
 const apiKeyModalVisible = ref<boolean>(false)
 const apiKey = ref<string | null>(null)
 
-const organizations = ref<any[]>([
-  {
-    label: 'Organization 1',
-    value: 'organization-1',
-  },
-  {
-    label: 'Organization 2',
-    value: 'organization-2',
-  },
-])
-const orbits = ref<any[]>([
-  {
-    label: 'Orbit 1',
-    value: 'orbit-1',
-  },
-  {
-    label: 'Orbit 2',
-    value: 'orbit-2',
-  },
-])
-const collections = ref<any[]>([
-  {
-    label: 'Collection 1',
-    value: 'collection-1',
-  },
-  {
-    label: 'Collection 2',
-    value: 'collection-2',
-  },
-])
+const organizations = ref<{ label: string; value: string }[]>([])
+const orbits = ref<{ label: string; value: string }[]>([])
+const collections = ref<{ label: string; value: string }[]>([])
+const loadingOrganizations = ref(false)
+const loadingOrbits = ref(false)
+const loadingCollections = ref(false)
+
+const uploading = ref(false)
+const uploadPercent = ref(0)
 
 const lmlUrl = import.meta.env.VITE_LUML_URL
 
+async function loadOrganizations() {
+  loadingOrganizations.value = true
+  try {
+    const data = await apiService.getLumlOrganizations()
+    organizations.value = data.map((o: any) => ({ label: o.name, value: o.id }))
+  } catch (e) {
+    toast.add(errorToast(e))
+  } finally {
+    loadingOrganizations.value = false
+  }
+}
+
+async function loadOrbits(organizationId: string) {
+  loadingOrbits.value = true
+  try {
+    const data = await apiService.getLumlOrbits(organizationId)
+    orbits.value = data.map((o: any) => ({ label: o.name, value: o.id }))
+  } catch (e) {
+    toast.add(errorToast(e))
+  } finally {
+    loadingOrbits.value = false
+  }
+}
+
+async function loadCollections(organizationId: string, orbitId: string) {
+  loadingCollections.value = true
+  try {
+    const data = await apiService.getLumlCollections(organizationId, orbitId)
+    collections.value = data.items.map((c: any) => ({ label: c.name, value: c.id }))
+  } catch (e) {
+    toast.add(errorToast(e))
+  } finally {
+    loadingCollections.value = false
+  }
+}
+
 function openModal() {
   visible.value = true
+  loadOrganizations()
 }
 
 function openApiKeyModal() {
@@ -186,17 +226,73 @@ function uploadClick() {
 
 watch(
   () => formRef.value?.states['organization']?.value,
-  () => {
+  (orgId) => {
     formRef.value?.setFieldValue('orbit', null)
+    orbits.value = []
+    collections.value = []
+    if (orgId) loadOrbits(orgId)
   },
 )
 
 watch(
   () => formRef.value?.states['orbit']?.value,
-  () => {
+  (orbitId) => {
     formRef.value?.setFieldValue('collection', null)
+    collections.value = []
+    const orgId = formRef.value?.states['organization']?.value
+    if (orgId && orbitId) loadCollections(orgId, orbitId)
   },
 )
+
+async function handleSubmit(event: FormSubmitEvent) {
+  if (!event.valid) return
+
+  const values = event.values
+  uploading.value = true
+  uploadPercent.value = 0
+
+  try {
+    const response = await apiService.uploadLumlArtifact({
+      upload_type: values.type,
+      experiment_id: props.experimentId,
+      organization_id: values.organization,
+      orbit_id: values.orbit,
+      collection_id: values.collection,
+      name: values.name || undefined,
+      description: values.description || undefined,
+      tags: values.tags?.length ? values.tags : undefined,
+      embed_experiment: values.embedExperiment ?? false,
+    })
+
+    const eventSource = new EventSource(`/api/luml/artifact/${response.job_id}/progress`)
+
+    eventSource.onmessage = (ev) => {
+      const data = JSON.parse(ev.data)
+      if (data.type === 'complete') {
+        uploadPercent.value = 100
+        uploading.value = false
+        visible.value = false
+        eventSource.close()
+        toast.add(successToast('Artifact uploaded successfully'))
+      } else if (data.type === 'error') {
+        uploading.value = false
+        eventSource.close()
+        toast.add(errorToast(data.message))
+      } else if (data.type === 'progress') {
+        uploadPercent.value = data.percent
+      }
+    }
+
+    eventSource.onerror = () => {
+      uploading.value = false
+      eventSource.close()
+      toast.add(errorToast('Upload connection lost'))
+    }
+  } catch (e) {
+    uploading.value = false
+    toast.add(errorToast(e))
+  }
+}
 </script>
 
 <style scoped></style>

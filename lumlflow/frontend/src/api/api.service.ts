@@ -94,4 +94,42 @@ export const apiService = {
     const { data } = await api.delete<void>(`/models/${modelId}`)
     return data
   },
+
+  getLumlOrganizations: async () => {
+    const { data } = await api.get('/luml/organizations')
+    return data
+  },
+
+  getLumlOrbits: async (organizationId: string) => {
+    const { data } = await api.get('/luml/orbits', {
+      params: { organization_id: organizationId },
+    })
+    return data
+  },
+
+  getLumlCollections: async (
+    organizationId: string,
+    orbitId: string,
+    search?: string,
+  ) => {
+    const { data } = await api.get('/luml/collections', {
+      params: { organization_id: organizationId, orbit_id: orbitId, search },
+    })
+    return data
+  },
+
+  uploadLumlArtifact: async (payload: {
+    upload_type: 'auto' | 'model' | 'experiment'
+    experiment_id: string
+    organization_id: string
+    orbit_id: string
+    collection_id: string
+    name?: string
+    description?: string
+    tags?: string[]
+    embed_experiment?: boolean
+  }) => {
+    const { data } = await api.post<{ job_id: string }>('/luml/artifact', payload)
+    return data
+  },
 }
