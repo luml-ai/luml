@@ -31,15 +31,11 @@
       :models-info="modelsInfo"
     ></DynamicMetrics>
 
-    <div v-if="evalsLoading" style="height: 210px; margin-bottom: 20px"></div>
-    <div v-else-if="evalsStore.evals && Object.keys(evalsStore.evals)" class="evals-list">
-      <EvalsCard
-        v-for="item of evalsStore.evals"
-        :key="item[0]?.id"
-        :data="item"
-        :models-info="modelsInfo"
-      ></EvalsCard>
-    </div>
+    <EvalsDatasetsList
+      v-if="evalsStore.getProvider"
+      :models-info="modelsInfo"
+      loader-height="210px"
+    ></EvalsDatasetsList>
   </div>
   <TracesDialog
     :visible="!!evalsStore.currentEvalData"
@@ -64,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, onUnmounted, ref, toRef, watch } from 'vue'
 import type {
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
@@ -75,14 +71,14 @@ import { useToast, Skeleton, Button } from 'primevue'
 import { simpleErrorToast } from './lib/primevue/data/toasts'
 import { useEvalsStore } from './store/evals'
 import { ListTree } from 'lucide-vue-next'
+import { provideTheme } from './lib/theme/ThemeProvider'
 import StaticParameters from './components/static-parameters/StaticParameters.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
-import EvalsCard from './components/evals/EvalsCard.vue'
 import StaticParametersMultiple from './components/static-parameters-multiple/StaticParametersMultiple.vue'
 import TracesDialog from './components/evals/traces/TracesDialog.vue'
 import TracesInfoDialog from './components/evals/traces/TracesInfoDialog.vue'
 import TraceDialog from './components/evals/traces/trace/TraceDialog.vue'
-import { provideTheme } from './lib/theme/ThemeProvider'
+import EvalsDatasetsList from './components/evals/EvalsDatasetsList.vue'
 
 type Props = {
   provider: ExperimentSnapshotProvider
@@ -99,13 +95,11 @@ const evalsStore = useEvalsStore()
 
 let dynamicMetricsController: AbortController | null = null
 let staticParamsController: AbortController | null = null
-let evalsController: AbortController | null = null
 
 const staticParamsLoading = ref(true)
 const staticParams = ref<ExperimentSnapshotStaticParams[] | null>(null)
 const dynamicMetricsLoading = ref(true)
 const dynamicMetricsNames = ref<string[] | null>(null)
-const evalsLoading = ref(true)
 const tracesIds = ref<string[] | null>(null)
 const tracesLoading = ref(false)
 const tracesData = ref<BaseTraceInfo[] | null>(null)
@@ -146,19 +140,6 @@ async function initDynamicMetrics() {
     toast.add(simpleErrorToast('Failed to load dynamic metrics'))
   } finally {
     dynamicMetricsLoading.value = false
-  }
-}
-
-async function initEvals() {
-  evalsController?.abort()
-  evalsController = new AbortController()
-  try {
-    evalsLoading.value = true
-    evalsStore.setEvals(evalsController.signal)
-  } catch (error: any) {
-    toast.add(simpleErrorToast(error.message))
-  } finally {
-    evalsLoading.value = false
   }
 }
 
@@ -209,20 +190,18 @@ async function getUniqueTracesIds(modelId: string) {
   }
 }
 
-onMounted(async () => {
+onBeforeMount(async () => {
   evalsStore.setProvider(props.provider)
   if (props.modelsIds[0] && props.modelsIds.length === 1) {
     getUniqueTracesIds(props.modelsIds[0])
   }
   initStaticParams()
   initDynamicMetrics()
-  initEvals()
 })
 
 onBeforeUnmount(() => {
   dynamicMetricsController?.abort()
   staticParamsController?.abort()
-  evalsController?.abort()
 })
 
 onUnmounted(() => {
@@ -244,12 +223,6 @@ watch(
 
 <style scoped>
 .content {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.evals-list {
   display: flex;
   flex-direction: column;
   gap: 20px;

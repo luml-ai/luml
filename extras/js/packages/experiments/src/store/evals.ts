@@ -28,14 +28,10 @@ export const useEvalsStore = defineStore('evals', () => {
     provider.value = null
   }
 
-  async function setEvals(signal?: AbortSignal) {
-    evals.value = await getProvider.value.getEvalsList(signal)
-  }
-
-  function setCurrentEvalData(datasetId: string, evalId: string) {
-    if (!evals.value) return
-    selectedEval.value = { datasetId, evalId }
-    currentEvalData.value = evals.value[datasetId]?.filter((item) => item.id === evalId) || null
+  function setCurrentEvalData(data: EvalsInfo[]) {
+    if (!data[0]) return
+    selectedEval.value = { datasetId: data[0].dataset_id, evalId: data[0].id }
+    currentEvalData.value = data
   }
 
   function resetCurrentEvalData() {
@@ -96,7 +92,6 @@ export const useEvalsStore = defineStore('evals', () => {
     evals,
     currentEvalData,
     setProvider,
-    setEvals,
     setCurrentEvalData,
     resetCurrentEvalData,
     reset,

@@ -54,7 +54,7 @@ async function handleFileChange(event: Event) {
       fileNames,
     )
     const currentProvider = new ExperimentSnapshotDatabaseProvider()
-    await currentProvider.init(experiments, { wasmUrl: '/sql-wasm.wasm' })
+    await currentProvider.init({ modelsInfo: experiments, wasmUrl: '/sql-wasm.wasm' })
     provider.value = currentProvider
   } catch (e) {
     console.error(e)

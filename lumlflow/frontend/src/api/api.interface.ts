@@ -21,7 +21,7 @@ export interface GetExperimentsParams {
 export interface GetExperimentTracesParams {
   experiment_id: string
   limit?: number
-  cursor?: string
+  cursor?: string | null
   sort_by?: 'execution_time' | 'span_count' | 'created_at'
   order?: 'asc' | 'desc'
   search?: string
@@ -38,10 +38,15 @@ export interface CheckAuthResponse {
 
 export interface GetExperimentEvalsParams {
   experiment_id: string
-  limit?: number
-  cursor?: string
-  sort_by?: 'created_at'
-  order?: 'asc' | 'desc'
-  search?: string
-  dataset_id?: string
+  limit: number
+  cursor?: string | null
+  sort_by: 'created_at'
+  order: 'asc' | 'desc'
+  search: string
+  dataset_id: string
+}
+
+export interface AverageScore {
+  name: string
+  value: number
 }
