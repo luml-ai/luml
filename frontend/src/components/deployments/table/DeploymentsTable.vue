@@ -25,12 +25,12 @@
           <div class="cell">
             <RouterLink
               :to="{
-                name: 'model',
-                params: { collectionId: data.collection_id, modelId: data.model_id },
+                name: 'artifact',
+                params: { collectionId: data.collection_id, artifactId: data.artifact_id },
               }"
               class="link"
             >
-              {{ data.model_artifact_name }}
+              {{ data.artifact_name }}
             </RouterLink>
           </div>
         </template>
