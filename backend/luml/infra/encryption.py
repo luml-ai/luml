@@ -1,13 +1,18 @@
+from functools import lru_cache
+
 from cryptography.fernet import Fernet
 
-from luml.settings import config
 
-fernet = Fernet(config.BUCKET_SECRET_KEY)
+@lru_cache
+def _get_fernet() -> Fernet:
+    from luml.settings import config
+
+    return Fernet(config.BUCKET_SECRET_KEY)
 
 
 def encrypt(value: str) -> str:
-    return fernet.encrypt(value.encode()).decode()
+    return _get_fernet().encrypt(value.encode()).decode()
 
 
 def decrypt(value: str) -> str:
-    return fernet.decrypt(value.encode()).decode()
+    return _get_fernet().decrypt(value.encode()).decode()
