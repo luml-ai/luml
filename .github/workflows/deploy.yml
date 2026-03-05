@@ -73,10 +73,11 @@ jobs:
       name: ${{ needs.resolve-env.outputs.environment }}
       url: ${{ vars.BACKEND_URL }}
     steps:
-      - uses: digitalocean/app_action@v2
+      - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          app_name: ${{ vars.DIGITALOCEAN_BACKEND_APP_NAME }}
+      - name: Trigger deployment
+        run: doctl apps create-deployment ${{ vars.DIGITALOCEAN_BACKEND_APP_ID }} --wait
 
   # -------------------------------------------------------------------
   # STAGE 3: Parallel — Frontend, Model Server image, SDK
@@ -89,10 +90,11 @@ jobs:
       name: ${{ needs.resolve-env.outputs.environment }}
       url: ${{ vars.FRONTEND_URL }}
     steps:
-      - uses: digitalocean/app_action@v2
+      - uses: digitalocean/action-doctl@v2
         with:
           token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
-          app_name: ${{ vars.DIGITALOCEAN_FRONTEND_APP_NAME }}
+      - name: Trigger deployment
+        run: doctl apps create-deployment ${{ vars.DIGITALOCEAN_FRONTEND_APP_ID }} --wait
 
   push-model-server:
     needs: [resolve-env, deploy-backend]
