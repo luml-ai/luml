@@ -10,12 +10,12 @@ class UploadJob:
     percent: int = 0
     uploaded_bytes: int = 0
     total_bytes: int = 0
-    result: dict | None = None
+    result: list | None = None
     error: str | None = None
 
     def to_json(self) -> str:
         if self.status == "complete":
-            return json.dumps({"type": "complete", "artifact": self.result})
+            return json.dumps({"type": "complete", "artifacts": self.result})
         if self.status == "error":
             return json.dumps({"type": "error", "message": self.error})
         return json.dumps(
@@ -46,7 +46,7 @@ class ProgressStore:
             job.total_bytes = total
             job.percent = int(uploaded / total * 100) if total > 0 else 0
 
-    def set_complete(self, job_id: str, result: dict) -> None:
+    def set_complete(self, job_id: str, result: list) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
@@ -66,6 +66,16 @@ class ProgressStore:
     def get(self, job_id: str) -> UploadJob | None:
         with self._lock:
             return self._jobs.get(job_id)
+
+    def make_callback(self, job_id: str, item_idx: int = 0, total_items: int = 1):
+        def callback(uploaded: int, total: int) -> None:
+            if total > 0:
+                overall = int((item_idx + uploaded / total) * 100)
+            else:
+                overall = item_idx * 100
+            self.update_progress(job_id, overall, total_items * 100)
+
+        return callback
 
     def delete(self, job_id: str) -> None:
         with self._lock:
