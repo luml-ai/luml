@@ -1,9 +1,9 @@
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from luml.models import Base
-from luml.settings import config as settings_config
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine.base import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -20,7 +20,11 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 target_metadata = Base.metadata
 
-config.set_main_option("sqlalchemy.url", settings_config.POSTGRESQL_DSN)
+# Read DSN directly from env so migrations don't require all app settings
+postgresql_dsn = os.environ.get(
+    "POSTGRESQL_DSN", config.get_main_option("sqlalchemy.url", "")
+)
+config.set_main_option("sqlalchemy.url", postgresql_dsn)
 
 
 def run_migrations_online() -> None:
