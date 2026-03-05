@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
@@ -41,14 +42,28 @@ class PaginatedCollections(BaseModel, BaseOrmConfig):
     cursor: str | None = None
 
 
-class UploadArtifactInput(BaseModel):
-    model_id: str
-    organization_id: str
-    orbit_id: str
-    collection_id: str
+class UploadType(StrEnum):
+    AUTO = "auto"
+    MODEL = "model"
+    EXPERIMENT = "experiment"
+
+
+class ArtifactIn(BaseModel):
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
+
+
+class UploadArtifactForm(BaseModel):
+    upload_type: UploadType
+    embed_experiment: bool = False
+    experiment_id: str
+
+    organization_id: str
+    orbit_id: str
+    collection_id: str
+
+    artifact: ArtifactIn
 
 
 class Artifact(BaseModel):
@@ -75,9 +90,6 @@ class JobResponse(BaseModel):
     job_id: str
 
 
-# SSE event schemas for GET /artifact/{job_id}/progress
-
-
 class ProgressEvent(BaseModel):
     type: Literal["progress"] = "progress"
     percent: int
@@ -87,7 +99,7 @@ class ProgressEvent(BaseModel):
 
 class CompleteEvent(BaseModel):
     type: Literal["complete"] = "complete"
-    artifact: Artifact
+    artifacts: list[Artifact]
 
 
 class ErrorEvent(BaseModel):

@@ -4,19 +4,21 @@ from uuid import uuid4
 from fastapi import APIRouter, BackgroundTasks
 from fastapi.responses import StreamingResponse
 
-from lumlflow.handlers.luml import LumlHandler
+from lumlflow.handlers.luml.artifacts import ArtifactHandler
+from lumlflow.handlers.luml.luml import LumlHandler
 from lumlflow.infra.progress_store import progress_store
 from lumlflow.schemas.luml import (
     JobResponse,
     Orbit,
     Organization,
     PaginatedCollections,
-    UploadArtifactInput,
+    UploadArtifactForm,
 )
 
 luml_router = APIRouter(prefix="/api/luml", tags=["luml"])
 
 luml_handler = LumlHandler()
+artifact_handler = ArtifactHandler()
 
 
 @luml_router.get("/organizations", response_model=list[Organization])
@@ -48,11 +50,11 @@ def get_luml_collections(
 
 @luml_router.post("/artifact", status_code=202, response_model=JobResponse)
 def upload_artifact(
-    artifact: UploadArtifactInput, background_tasks: BackgroundTasks
+    artifact: UploadArtifactForm, background_tasks: BackgroundTasks
 ) -> JobResponse:
     job_id = str(uuid4())
     progress_store.create(job_id)
-    background_tasks.add_task(luml_handler.upload_model_artifact, artifact, job_id)
+    background_tasks.add_task(artifact_handler.upload_artifact, artifact, job_id)
     return JobResponse(job_id=job_id)
 
 

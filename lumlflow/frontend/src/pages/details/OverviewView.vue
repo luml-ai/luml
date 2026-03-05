@@ -140,7 +140,7 @@
               <div v-else>-</div>
             </div>
           </div>
-          <UploadModal />
+          <UploadModal :experiment-id="experiment.id" :models="experiment.models || []" />
         </template>
       </Card>
     </div>
