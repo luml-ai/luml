@@ -1,0 +1,162 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, test]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  MODEL_SERVER_IMAGE: ghcr.io/${{ github.repository_owner }}/df-model-server
+  SATELLITE_IMAGE: ghcr.io/${{ github.repository_owner }}/df-satellite-agent
+
+jobs:
+  # -------------------------------------------------------------------
+  # Resolve environment name and image tag from branch
+  # -------------------------------------------------------------------
+
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set.outputs.environment }}
+      image_tag: ${{ steps.set.outputs.image_tag }}
+    steps:
+      - id: set
+        run: |
+          case "${{ github.ref_name }}" in
+            main)
+              echo "environment=production" >> "$GITHUB_OUTPUT"
+              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+              ;;
+            test)
+              echo "environment=test" >> "$GITHUB_OUTPUT"
+              echo "image_tag=test" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
+  # -------------------------------------------------------------------
+  # STAGE 1: Run database migrations
+  # -------------------------------------------------------------------
+
+  migrate:
+    needs: [resolve-env]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install dependencies
+        working-directory: backend
+        run: |
+          python -m pip install --upgrade uv
+          uv sync
+      - name: Run migrations
+        working-directory: backend
+        env:
+          POSTGRESQL_DSN: ${{ secrets.POSTGRESQL_DSN }}
+        run: uv run alembic upgrade head
+
+  # -------------------------------------------------------------------
+  # STAGE 2: Deploy backend to DO App Platform
+  # -------------------------------------------------------------------
+
+  deploy-backend:
+    needs: [resolve-env, migrate]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.resolve-env.outputs.environment }}
+      url: ${{ vars.BACKEND_URL }}
+    steps:
+      - uses: digitalocean/app_action@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          app_name: ${{ vars.DIGITALOCEAN_BACKEND_APP_NAME }}
+
+  # -------------------------------------------------------------------
+  # STAGE 3: Parallel — Frontend, Model Server image, SDK
+  # -------------------------------------------------------------------
+
+  deploy-frontend:
+    needs: [resolve-env, deploy-backend]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.resolve-env.outputs.environment }}
+      url: ${{ vars.FRONTEND_URL }}
+    steps:
+      - uses: digitalocean/app_action@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          app_name: ${{ vars.DIGITALOCEAN_FRONTEND_APP_NAME }}
+
+  push-model-server:
+    needs: [resolve-env, deploy-backend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: satellite/model_server
+          file: satellite/model_server/Dockerfile
+          push: true
+          tags: |
+            ${{ env.MODEL_SERVER_IMAGE }}:${{ github.sha }}
+            ${{ env.MODEL_SERVER_IMAGE }}:${{ needs.resolve-env.outputs.image_tag }}
+
+  publish-sdk:
+    needs: [resolve-env, deploy-backend]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.resolve-env.outputs.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build & publish
+        working-directory: sdk/python
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          UV_PUBLISH_URL: ${{ vars.PYPI_URL }}
+        run: |
+          python -m pip install --upgrade uv
+          uv build
+          uv publish
+
+  # -------------------------------------------------------------------
+  # STAGE 4: Satellite agent image (needs model server image pushed)
+  # -------------------------------------------------------------------
+
+  push-satellite:
+    needs: [resolve-env, push-model-server]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: satellite
+          file: satellite/Dockerfile
+          push: true
+          tags: |
+            ${{ env.SATELLITE_IMAGE }}:${{ github.sha }}
+            ${{ env.SATELLITE_IMAGE }}:${{ needs.resolve-env.outputs.image_tag }}
