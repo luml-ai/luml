@@ -9,7 +9,7 @@
   <div class="table-wrapper">
     <DataTable
       ref="tableRef"
-      :value="data"
+      :value="flatData"
       show-gridlines
       rowGroupMode="rowspan"
       groupRowsBy="id"
@@ -19,53 +19,52 @@
       export-filename="experiment_snapshot"
       scrollable
       :scrollHeight="tableHeight"
-      :virtualScrollerOptions="{ itemSize: 45.5 }"
+      :virtualScrollerOptions="virtualScrollerOptions"
       class="evals-table"
       tableStyle="table-layout: fixed;"
     >
       <template #empty>No evals found...</template>
       <ColumnGroup type="header">
         <Row>
-          <template v-for="column in visibleTree">
-            <Column
-              v-if="isParentColumnVisible(column)"
-              :key="column.title"
-              :header="column.title === 'modelId' ? 'Model name' : column.title"
-              :rowspan="column.children?.length ? 1 : 2"
-              :colspan="column.children?.length ? column.children.length : 1"
-              :field="column.title"
-              :pt="{
-                headerCell: {
-                  class: 'header-cell-parent',
-                  width: (column.children?.length || 1) * 110 + 'px',
-                },
-              }"
-            >
-              <template #header>
-                <component
-                  v-if="columnIcon(column.title)"
-                  :is="columnIcon(column.title)"
-                  :size="16"
-                  color="var(--p-primary-500)"
-                ></component>
-              </template>
-            </Column>
-          </template>
+          <Column
+            v-for="column in visibleTree"
+            :key="column.title"
+            :header="column.title === 'modelId' ? 'Model name' : column.title"
+            :rowspan="column.children?.length ? 1 : 2"
+            :colspan="column.children?.length ? column.children.length : 1"
+            :field="column.title"
+            :pt="{
+              headerCell: {
+                class: 'header-cell-parent',
+                width: (column.children?.length || 1) * 110 + 'px',
+              },
+            }"
+          >
+            <template #header>
+              <component
+                v-if="columnIcon(column.title)"
+                :is="columnIcon(column.title)"
+                :size="16"
+                color="var(--p-primary-500)"
+              ></component>
+            </template>
+          </Column>
         </Row>
         <Row>
           <Column
             v-for="children in visibleChildren"
             :key="children"
-            :header="children"
             :pt="{
               headerCell: {
                 class: childrenWithLeftBorder.includes(children) ? 'children-with-left-border' : '',
               },
-              columnTitle: {
-                style: 'width: 88px; overflow: hidden; text-overflow: ellipsis;',
-              },
             }"
           >
+            <template #header>
+              <span v-tooltip.top="children" class="cell" style="width: 88px">
+                {{ children }}
+              </span>
+            </template>
           </Column>
         </Row>
       </ColumnGroup>
@@ -87,7 +86,7 @@
             v-else-if="column === 'id'"
             class="cell link"
             v-tooltip.top="slotProps.data[column]"
-            @click="showTraces(slotProps.data.dataset_id, slotProps.data.id)"
+            @click="showTraces(slotProps.data)"
           >
             {{ slotProps.data[column] }}
           </button>
@@ -101,12 +100,28 @@
 </template>
 
 <script setup lang="ts">
-import { DataTable, ColumnGroup, Row, Column } from 'primevue'
+import type { EvalsInfo, ModelsInfo } from '../../interfaces/interfaces'
+import {
+  DataTable,
+  ColumnGroup,
+  Row,
+  Column,
+  useToast,
+  type VirtualScrollerLazyEvent,
+} from 'primevue'
 import { computed, ref } from 'vue'
-import { CircleArrowDown, CircleArrowUp, FileText, ChartBar } from 'lucide-vue-next'
-import EvalsToolbar from './EvalsToolbar.vue'
-import type { ModelsInfo } from '../../interfaces/interfaces'
 import { useEvalsStore } from '../../store/evals'
+import { COLUMNS_ICONS } from '@/constants/tables'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import EvalsToolbar from './EvalsToolbar.vue'
+
+interface Emits {
+  (e: 'get-next-page'): void
+}
+
+const emit = defineEmits<Emits>()
+
+const toast = useToast()
 
 export interface EvalsTableColumn {
   title: string
@@ -115,7 +130,7 @@ export interface EvalsTableColumn {
 
 type Props = {
   columnsTree: EvalsTableColumn[]
-  data: Record<string, any>[]
+  data: EvalsInfo[]
   modelsInfo: ModelsInfo
   tableHeight: string
 }
@@ -126,6 +141,40 @@ const evalsStore = useEvalsStore()
 
 const tableRef = ref()
 const selectedColumns = ref<string[]>([])
+
+const flatData = computed(() => {
+  return props.data.map((item) => {
+    const entries = Object.entries(item)
+    return entries.reduce((acc: Record<string, any>, [key, value]) => {
+      if (typeof value === 'object') {
+        Object.entries(value).map((child) => {
+          const childKey = child[0]
+          const childValue = child[1]
+          acc[childKey] = childValue
+        })
+      } else {
+        acc[key] = value
+      }
+      return acc
+    }, {})
+  })
+})
+
+const virtualScrollerOptions = computed(() => {
+  if (props.data.length < 15) return
+  return {
+    itemSize: 44,
+    lazy: true,
+    onLazyLoad: onLazyLoad,
+  }
+})
+
+function onLazyLoad(event: VirtualScrollerLazyEvent) {
+  const { last } = event
+  if (last >= props.data.length) {
+    emit('get-next-page')
+  }
+}
 
 const sortedTree = computed(() => {
   return [...props.columnsTree].sort((a, b) => {
@@ -147,13 +196,10 @@ const allColumns = computed(() => {
     }
     return acc
   }, new Set<string>())
-  return Array.from(columnsSet).filter((column) => {
-    if (column === 'dataset_id') return false
-    if (column === 'modelId') {
-      return Object.keys(props.modelsInfo).length > 1
-    }
-    return true
-  })
+  columnsSet.delete('dataset_id')
+  const isSingleArtifact = Object.keys(props.modelsInfo).length === 1
+  if (isSingleArtifact) columnsSet.delete('modelId')
+  return Array.from(columnsSet)
 })
 
 const visibleColumns = computed(() => {
@@ -190,36 +236,28 @@ const childrenWithLeftBorder = computed(() => {
 })
 
 const columnIcon = computed(() => (columnName: string) => {
-  if (columnName.toLowerCase() === 'inputs') {
-    return CircleArrowDown
-  } else if (columnName.toLowerCase() === 'outputs') {
-    return CircleArrowUp
-  } else if (columnName.toLowerCase() === 'refs') {
-    return FileText
-  } else if (columnName.toLowerCase() === 'scores') {
-    return ChartBar
-  } else return null
-})
-
-const isParentColumnVisible = computed(() => (column: EvalsTableColumn) => {
-  if (column.children) {
-    return !!column.children.find((child) => visibleColumns.value.includes(child))
-  } else {
-    return visibleColumns.value.includes(column.title)
+  const lowerCaseColumnName = columnName.toLowerCase()
+  if (lowerCaseColumnName in COLUMNS_ICONS) {
+    return COLUMNS_ICONS[lowerCaseColumnName as keyof typeof COLUMNS_ICONS]
   }
+  return null
 })
 
 function setSelectedColumns(columns: string[]) {
   selectedColumns.value = columns
 }
 
-function showTraces(datasetId: string, evalId: string) {
-  evalsStore.setCurrentEvalData(datasetId, evalId)
+function showTraces(data: Record<string, any>) {
+  const { dataset_id, id } = data
+  const allModelsData = props.data.filter(
+    (item) => item.dataset_id === dataset_id && item.id === id,
+  )
+  evalsStore.setCurrentEvalData(allModelsData)
 }
 
 function exportTable() {
   if (!tableRef.value) {
-    console.error('Table for export was not found')
+    toast.add(simpleErrorToast('Table for export was not found'))
   } else {
     tableRef.value.exportCSV()
   }

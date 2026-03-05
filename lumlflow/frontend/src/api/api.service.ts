@@ -7,6 +7,7 @@ import type {
   UpdateModelPayload,
   CheckAuthResponse,
   GetExperimentEvalsParams,
+  AverageScore,
 } from './api.interface'
 import { api } from './client'
 import type {
@@ -130,8 +131,30 @@ export const apiService = {
     return data
   },
 
-  getExperimentEvalScores: async (experimentId: string) => {
-    const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/scores`)
+  getExperimentEvalColumns: async (experimentId: string, datasetId: string) => {
+    const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/columns`, {
+      params: { dataset_id: datasetId },
+    })
+    return { ...data, metadata: [] }
+  },
+
+  getExperimentDatasetAverageScores: async (experimentId: string, datasetId: string) => {
+    const { data } = await api.get<AverageScore[]>(
+      `/experiments/${experimentId}/evals/average-scores`,
+      {
+        params: { dataset_id: datasetId },
+      },
+    )
+    return [
+      { name: 'accuracy', value: 0.20843437670689546 },
+      { name: 'confidence', value: 0.7915656232931046 },
+    ]
+    return data
+  },
+
+  getExperimentUniqueDatasetsIds: async (experimentId: string) => {
+    const { data } = await api.get<string[]>(`/experiments/${experimentId}/evals/unique-datasets`)
+    return ['eval_dataset_v1']
     return data
   },
 }

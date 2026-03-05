@@ -1,8 +1,11 @@
 import type {
-  EvalsListType,
+  EvalsColumns,
+  EvalsInfo,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
+  GetEvalsByDatasetParams,
+  ModelScores,
   SpansListType,
   SpansParams,
   TraceSpan,
@@ -57,7 +60,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     })
   }
 
-  init(data: any[]) {
+  init(data: any) {
     return this.call<void>('init', [data])
   }
 
@@ -77,10 +80,6 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     )
   }
 
-  getEvalsList(signal?: AbortSignal) {
-    return this.call<EvalsListType>('getEvalsList', undefined, signal)
-  }
-
   buildSpanTree(spans: Omit<TraceSpan, 'children'>[]) {
     return this.call<TraceSpan[]>('buildSpanTree', [spans])
   }
@@ -95,5 +94,29 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getTraceSpans(modelId: string, traceId: string) {
     return this.call<SpansListType>('getTraceSpans', [modelId, traceId])
+  }
+
+  getEvalsColumns(datasetId: string, signal?: AbortSignal) {
+    return this.call<EvalsColumns>('getEvalsColumns', [datasetId], signal)
+  }
+
+  getUniqueDatasetsIds(signal?: AbortSignal) {
+    return this.call<string[]>('getUniqueDatasetsIds', undefined, signal)
+  }
+
+  resetEvalsDatasetsRequestParams() {
+    return this.call<void>('resetEvalsDatasetsRequestParams', undefined)
+  }
+
+  resetDatasetPage(datasetId: string) {
+    return this.call<void>('resetDatasetPage', [datasetId])
+  }
+
+  getDatasetAverageScores(datasetId: string) {
+    return this.call<ModelScores[]>('getDatasetAverageScores', [datasetId])
+  }
+
+  getNextEvalsByDatasetId(params: GetEvalsByDatasetParams) {
+    return this.call<EvalsInfo[]>('getNextEvalsByDatasetId', [params])
   }
 }

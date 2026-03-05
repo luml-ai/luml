@@ -11,12 +11,13 @@ import type {
 } from './interfaces/interfaces'
 import { ExperimentSnapshotDatabaseProvider } from './providers/ExperimentSnapshotDatabaseProvider'
 import { ExperimentSnapshotWorkerProxy } from './providers/ExperimentSnapshotWorkerProxy'
+import { ExperimentSnapshotApiProvider } from './providers/ExperimentSnapshotApiProvider'
 import { provideTheme } from './lib/theme/ThemeProvider'
 import { useEvalsStore } from './store/evals'
 import ExperimentSnapshot from './ExperimentSnapshot.vue'
 import ComparisonHeader from './components/comparison/ComparisonHeader.vue'
 import ComparisonModelsList from './components/comparison/ComparisonModelsList.vue'
-import EvalsCard from './components/evals/EvalsCard.vue'
+import EvalsDatasetsList from './components/evals/EvalsDatasetsList.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
 import TracesDialog from './components/evals/traces/TracesDialog.vue'
 import TracesInfoDialog from './components/evals/traces/TracesInfoDialog.vue'
@@ -40,11 +41,12 @@ export {
   ComparisonModelsList,
   ExperimentSnapshotDatabaseProvider,
   ExperimentSnapshotWorkerProxy,
-  EvalsCard,
   DynamicMetrics,
+  EvalsDatasetsList,
   provideTheme,
   TracesDialog,
   TracesInfoDialog,
   TraceDialog,
   useEvalsStore,
+  ExperimentSnapshotApiProvider,
 }
