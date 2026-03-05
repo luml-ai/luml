@@ -6,7 +6,14 @@ export interface TaskData {
   btnText?: string
   linkName?: string
   tooltipData: string
+  isAvailable: boolean
   analyticsTaskName: string
+  dropdownOptions?: TaskDropdownOption[]
+}
+
+export interface TaskDropdownOption {
+  label: string
+  route?: string
 }
 
 export interface TaskList {
