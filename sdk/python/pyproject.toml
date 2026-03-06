@@ -1,6 +1,6 @@
 [project]
-name = "luml_sdk"
-version = "0.1.0"
+name = "luml_sdk_test"
+version = "0.0.1"
 description = "LUML Python SDK"
 readme = "README.md"
 
