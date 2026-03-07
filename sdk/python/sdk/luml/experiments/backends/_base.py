@@ -5,6 +5,7 @@ from luml.artifacts._base import _BaseFile
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
+    AnnotationSummary,
     AnnotationValueType,
     EvalColumns,
     EvalRecord,
@@ -296,6 +297,7 @@ class Backend(ABC):
         experiment_id: str,
         dataset_id: str,
         eval_id: str,
+        name: str,
         annotation_kind: AnnotationKind,
         value_type: AnnotationValueType,
         value: int | bool | str,
@@ -315,6 +317,7 @@ class Backend(ABC):
         experiment_id: str,
         trace_id: str,
         span_id: str,
+        name: str,
         annotation_kind: AnnotationKind,
         value_type: AnnotationValueType,
         value: int | bool | str,
@@ -332,6 +335,18 @@ class Backend(ABC):
     def delete_annotation(
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
     ) -> None:
+        pass
+
+    @abstractmethod
+    def get_eval_annotation_summary(
+        self, experiment_id: str, dataset_id: str
+    ) -> AnnotationSummary:
+        pass
+
+    @abstractmethod
+    def get_trace_annotation_summary(
+        self, experiment_id: str, trace_id: str
+    ) -> AnnotationSummary:
         pass
 
     @abstractmethod
