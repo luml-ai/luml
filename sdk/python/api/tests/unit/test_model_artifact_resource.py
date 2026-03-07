@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -361,6 +361,99 @@ async def test_async_artifact_update(
         json=update_data,
     )
     assert artifact.name == name
+
+
+def test_upload_forwards_on_progress(
+    mock_sync_client: Mock, sample_artifact: Artifact
+) -> None:
+    upload_details = {
+        "type": BucketType.S3,
+        "url": "https://example.com/upload",
+        "multipart": False,
+        "bucket_location": "test/location",
+        "bucket_secret_id": "0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    }
+    mock_sync_client.post.return_value = {
+        "upload_details": upload_details,
+        "artifact": sample_artifact.model_dump(),
+    }
+    mock_sync_client.patch.return_value = sample_artifact.model_dump()
+
+    callback = Mock()
+    resource = ArtifactResource(mock_sync_client)
+
+    with (
+        patch(
+            "luml.api.resources.artifacts.ModelFileHandler"
+        ) as mock_file_handler,
+        patch(
+            "luml.api.resources.artifacts.UploadService"
+        ) as mock_upload_service_cls,
+    ):
+        mock_file_handler.return_value.artifact_details.return_value = Mock(
+            file_name="model.fnnx",
+            extra_values={},
+            manifest={},
+            file_hash="abc123",
+            file_index={},
+            size=1024,
+        )
+        mock_upload_service_cls.return_value.upload_file.return_value = Mock(
+            status_code=200
+        )
+
+        resource.upload("model.fnnx", on_progress=callback)
+
+    mock_upload_service_cls.return_value.upload_file.assert_called_once()
+    call_kwargs = mock_upload_service_cls.return_value.upload_file.call_args.kwargs
+    assert call_kwargs["on_progress"] is callback
+
+
+@pytest.mark.asyncio
+async def test_async_upload_forwards_on_progress(
+    mock_async_client: AsyncMock, sample_artifact: Artifact
+) -> None:
+    upload_details = {
+        "type": BucketType.S3,
+        "url": "https://example.com/upload",
+        "multipart": False,
+        "bucket_location": "test/location",
+        "bucket_secret_id": "0199c455-21ef-79d9-9dfc-fec3d72bf4b5",
+    }
+    mock_async_client.post.return_value = {
+        "upload_details": upload_details,
+        "artifact": sample_artifact.model_dump(),
+    }
+    mock_async_client.patch.return_value = sample_artifact.model_dump()
+
+    callback = Mock()
+    resource = AsyncArtifactResource(mock_async_client)
+
+    with (
+        patch(
+            "luml.api.resources.artifacts.ModelFileHandler"
+        ) as mock_file_handler,
+        patch(
+            "luml.api.resources.artifacts.AsyncUploadService"
+        ) as mock_upload_service_cls,
+    ):
+        mock_file_handler.return_value.artifact_details.return_value = Mock(
+            file_name="model.fnnx",
+            extra_values={},
+            manifest={},
+            file_hash="abc123",
+            file_index={},
+            size=1024,
+        )
+        mock_upload_service_cls.return_value.upload_file = AsyncMock(
+            return_value=Mock(status_code=200)
+        )
+
+        await resource.upload("model.fnnx", on_progress=callback)
+
+    mock_upload_service_cls.return_value.upload_file.assert_called_once()
+    call_kwargs = mock_upload_service_cls.return_value.upload_file.call_args.kwargs
+    assert call_kwargs["on_progress"] is callback
 
 
 @pytest.mark.asyncio
