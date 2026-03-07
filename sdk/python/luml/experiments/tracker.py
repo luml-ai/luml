@@ -12,6 +12,7 @@ from luml.experiments.backends import Backend, BackendRegistry
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
+    AnnotationSummary,
     AnnotationValueType,
     EvalColumns,
     EvalRecord,
@@ -839,6 +840,7 @@ class ExperimentTracker:
         self,
         dataset_id: str,
         eval_id: str,
+        name: str,
         annotation_kind: str,
         value_type: str,
         value: int | bool | str,
@@ -852,6 +854,7 @@ class ExperimentTracker:
             exp_id,
             dataset_id,
             eval_id,
+            name,
             AnnotationKind(annotation_kind),
             AnnotationValueType(value_type),
             value,
@@ -862,6 +865,7 @@ class ExperimentTracker:
         self,
         trace_id: str,
         span_id: str,
+        name: str,
         annotation_kind: str,
         value_type: str,
         value: int | bool | str,
@@ -875,6 +879,7 @@ class ExperimentTracker:
             exp_id,
             trace_id,
             span_id,
+            name,
             AnnotationKind(annotation_kind),
             AnnotationValueType(value_type),
             value,
@@ -969,6 +974,16 @@ class ExperimentTracker:
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
     ) -> None:
         self.backend.delete_annotation(experiment_id, annotation_id, target)
+
+    def get_eval_annotation_summary(
+        self, experiment_id: str, dataset_id: str
+    ) -> AnnotationSummary:
+        return self.backend.get_eval_annotation_summary(experiment_id, dataset_id)
+
+    def get_trace_annotation_summary(
+        self, experiment_id: str, trace_id: str
+    ) -> AnnotationSummary:
+        return self.backend.get_trace_annotation_summary(experiment_id, trace_id)
 
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
         return self.backend.get_experiment_ddl_version(experiment_id)
