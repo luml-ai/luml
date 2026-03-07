@@ -1,5 +1,6 @@
 <template>
   <EvalsToolbar
+    v-model:search="searchModel"
     :columns="allColumns"
     :selected-columns="selectedColumns"
     scrollable
@@ -11,17 +12,18 @@
       ref="tableRef"
       :value="flatData"
       show-gridlines
-      rowGroupMode="rowspan"
-      groupRowsBy="id"
-      sortMode="single"
-      sortField="id"
-      :sortOrder="1"
+      row-group-mode="rowspan"
+      :group-rows-by="isMultipleModels ? 'id' : undefined"
+      sort-mode="single"
       export-filename="experiment_snapshot"
       scrollable
-      :scrollHeight="tableHeight"
-      :virtualScrollerOptions="virtualScrollerOptions"
+      scroll-height="392px"
+      :virtual-scroller-options="virtualScrollerOptions"
+      striped-rows
+      lazy
       class="evals-table"
       tableStyle="table-layout: fixed;"
+      @sort="onSort"
     >
       <template #empty>No evals found...</template>
       <ColumnGroup type="header">
@@ -29,24 +31,60 @@
           <Column
             v-for="column in visibleTree"
             :key="column.title"
-            :header="column.title === 'modelId' ? 'Model name' : column.title"
             :rowspan="column.children?.length ? 1 : 2"
             :colspan="column.children?.length ? column.children.length : 1"
             :field="column.title"
+            :sort-field="column.title"
+            :sortable="isSortableColumn(column.title)"
             :pt="{
               headerCell: {
-                class: 'header-cell-parent',
-                width: (column.children?.length || 1) * 110 + 'px',
+                class: {
+                  'header-cell-parent': true,
+                  'bottom-border': !column.children?.length,
+                },
+                style: {
+                  width: getParentColumnWidth(column.title, column.children?.length || 1),
+                },
               },
             }"
           >
             <template #header>
-              <component
-                v-if="columnIcon(column.title)"
-                :is="columnIcon(column.title)"
-                :size="16"
-                color="var(--p-primary-500)"
-              ></component>
+              <button
+                v-if="column.title === 'feedback'"
+                class="header-cell-content"
+                @click="toggleSubheader"
+              >
+                <component
+                  v-if="columnIcon(column.title)"
+                  :is="columnIcon(column.title)"
+                  :size="16"
+                  color="var(--p-primary-500)"
+                ></component>
+                <span class="header-cell-title">
+                  {{ COLUMNS_TITLES_MAP['feedback'] }}
+                </span>
+                <div class="header-cell-dropdown-icon">
+                  <component
+                    :is="isSubheaderVisible ? ChevronUp : ChevronDown"
+                    :size="16"
+                    color="var(--p-datatable-row-toggle-button-color)"
+                  />
+                </div>
+              </button>
+              <div v-else class="header-cell-content">
+                <component
+                  v-if="columnIcon(column.title)"
+                  :is="columnIcon(column.title)"
+                  :size="16"
+                  color="var(--p-primary-500)"
+                ></component>
+                <span class="header-cell-title">
+                  {{
+                    COLUMNS_TITLES_MAP[column.title as keyof typeof COLUMNS_TITLES_MAP] ||
+                    column.title
+                  }}
+                </span>
+              </div>
             </template>
           </Column>
         </Row>
@@ -56,14 +94,41 @@
             :key="children"
             :pt="{
               headerCell: {
-                class: childrenWithLeftBorder.includes(children) ? 'children-with-left-border' : '',
+                class: {
+                  'children-with-left-border': childrenWithLeftBorder.includes(children),
+                  'bottom-border': true,
+                },
+              },
+            }"
+            :sort-field="children"
+            :sortable="isSortableColumn(children)"
+          >
+            <template #header>
+              <span v-tooltip.top="children" class="cell header-cell">
+                {{ children }}
+              </span>
+            </template>
+          </Column>
+        </Row>
+        <Row v-if="isSubheaderVisible">
+          <Column
+            v-for="column in visibleColumns"
+            :key="column"
+            :pt="{
+              headerCell: {
+                class: {
+                  'left-border': isFirstFeedbackColumn(column),
+                  'right-border': isLastFeedbackColumn(column),
+                  'bottom-border': true,
+                },
               },
             }"
           >
             <template #header>
-              <span v-tooltip.top="children" class="cell" style="width: 88px">
-                {{ children }}
-              </span>
+              <div v-if="isFeedbackColumn(column)" class="feedback-subheader">
+                <UiFeedbackResult :positive="true" :percentage="90"></UiFeedbackResult>
+                <UiFeedbackResult :positive="false" :percentage="10"></UiFeedbackResult>
+              </div>
             </template>
           </Column>
         </Row>
@@ -90,9 +155,14 @@
           >
             {{ slotProps.data[column] }}
           </button>
-          <div v-else v-tooltip.top="String(slotProps.data[column])" class="cell">
+          <div
+            v-else-if="slotProps.data[column]"
+            v-tooltip.top="String(slotProps.data[column])"
+            class="cell"
+          >
             {{ slotProps.data[column] }}
           </div>
+          <div v-else>-</div>
         </template>
       </Column>
     </DataTable>
@@ -100,7 +170,7 @@
 </template>
 
 <script setup lang="ts">
-import type { EvalsInfo, ModelsInfo } from '../../interfaces/interfaces'
+import type { TableEmits, TableProps } from './evals.interface'
 import {
   DataTable,
   ColumnGroup,
@@ -108,39 +178,58 @@ import {
   Column,
   useToast,
   type VirtualScrollerLazyEvent,
+  type DataTableSortEvent,
 } from 'primevue'
 import { computed, ref } from 'vue'
 import { useEvalsStore } from '../../store/evals'
-import { COLUMNS_ICONS } from '@/constants/tables'
+import { COLUMNS_ICONS, COLUMNS_TITLES_MAP } from '@/constants/tables'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import EvalsToolbar from './EvalsToolbar.vue'
-
-interface Emits {
-  (e: 'get-next-page'): void
-}
-
-const emit = defineEmits<Emits>()
+import UiFeedbackResult from '../ui/UiFeedbackResult.vue'
 
 const toast = useToast()
 
-export interface EvalsTableColumn {
-  title: string
-  children?: string[]
-}
+const props = defineProps<TableProps>()
 
-type Props = {
-  columnsTree: EvalsTableColumn[]
-  data: EvalsInfo[]
-  modelsInfo: ModelsInfo
-  tableHeight: string
-}
+const emit = defineEmits<TableEmits>()
 
-const props = defineProps<Props>()
+const searchModel = defineModel<string>('search', { default: '' })
 
 const evalsStore = useEvalsStore()
 
 const tableRef = ref()
 const selectedColumns = ref<string[]>([])
+const isSubheaderVisible = ref(false)
+
+const isMultipleModels = computed(() => {
+  return Object.keys(props.modelsInfo).length > 1
+})
+
+const scoresColumns = computed(() => {
+  return props.columnsTree.find((column) => column.title === 'scores')?.children || []
+})
+
+const isSortableColumn = computed(() => (columnName: string) => {
+  if (columnName === 'id') return true
+  return scoresColumns.value.includes(columnName)
+})
+
+const getParentColumnWidth = computed(() => (columnName: string, childrenLength: number) => {
+  if (columnName === 'modelId') {
+    return 140 + 'px'
+  }
+  if (columnName === 'feedback') {
+    return childrenLength * 140 + 'px'
+  }
+  if (columnName === 'refs') {
+    return childrenLength * 140 + 'px'
+  }
+  if (columnName === 'expectation') {
+    return childrenLength * 140 + 'px'
+  }
+  return childrenLength * 110 + 'px'
+})
 
 const flatData = computed(() => {
   return props.data.map((item) => {
@@ -163,7 +252,7 @@ const flatData = computed(() => {
 const virtualScrollerOptions = computed(() => {
   if (props.data.length < 15) return
   return {
-    itemSize: 44,
+    itemSize: 41.5,
     lazy: true,
     onLazyLoad: onLazyLoad,
   }
@@ -243,6 +332,25 @@ const columnIcon = computed(() => (columnName: string) => {
   return null
 })
 
+const visibleFeedbackColumns = computed(() => {
+  return visibleTree.value.find((column) => column.title === 'feedback')?.children || []
+})
+
+const isFeedbackColumn = computed(() => (columnName: string) => {
+  return visibleFeedbackColumns.value.includes(columnName)
+})
+
+const isFirstFeedbackColumn = computed(() => (columnName: string) => {
+  console.log(visibleFeedbackColumns.value.indexOf(columnName))
+  return visibleFeedbackColumns.value.indexOf(columnName) === 0
+})
+
+const isLastFeedbackColumn = computed(() => (columnName: string) => {
+  return (
+    visibleFeedbackColumns.value.indexOf(columnName) === visibleFeedbackColumns.value.length - 1
+  )
+})
+
 function setSelectedColumns(columns: string[]) {
   selectedColumns.value = columns
 }
@@ -262,6 +370,15 @@ function exportTable() {
     tableRef.value.exportCSV()
   }
 }
+
+function onSort(event: DataTableSortEvent) {
+  const { sortField, sortOrder } = event
+  emit('sort', { sortField: sortField as string, sortOrder: sortOrder === 1 ? 'asc' : 'desc' })
+}
+
+function toggleSubheader() {
+  isSubheaderVisible.value = !isSubheaderVisible.value
+}
 </script>
 
 <style scoped>
@@ -270,6 +387,43 @@ function exportTable() {
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 100%;
+}
+
+.header-cell {
+  font-weight: var(--p-datatable-column-title-font-weight);
+}
+
+.header-cell-content {
+  font-weight: var(--p-datatable-column-title-font-weight);
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  width: 100%;
+  color: var(--p-datatable-header-cell-color);
+  text-align: left;
+}
+
+button.header-cell-content {
+  cursor: pointer;
+}
+
+:deep(.header-cell-content svg) {
+  flex: 0 0 auto;
+}
+
+.header-cell-title {
+  flex: 1 1 auto;
+}
+
+.header-cell-dropdown-icon {
+  flex: 0 0 auto;
+}
+
+.feedback-subheader {
+  display: flex;
+  gap: 8px;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .table-wrapper {
@@ -284,10 +438,6 @@ function exportTable() {
 
 .evals-table :deep(th) {
   border: none;
-}
-
-.evals-table :deep(tbody tr:first-child td) {
-  border-top: 1px solid var(--p-datatable-body-cell-border-color) !important;
 }
 
 .evals-table :deep(td:first-child) {
@@ -322,5 +472,27 @@ function exportTable() {
 
 .link {
   text-decoration: underline;
+}
+
+.evals-table :deep(.left-border) {
+  border-left: 1px solid var(--p-datatable-body-cell-border-color);
+}
+
+.evals-table :deep(.right-border) {
+  position: relative;
+}
+
+.evals-table :deep(.right-border)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 1px;
+  height: 100%;
+  background-color: var(--p-datatable-body-cell-border-color);
+}
+
+.evals-table :deep(.bottom-border) {
+  border-bottom: 1px solid var(--p-datatable-body-cell-border-color);
 }
 </style>

@@ -1,6 +1,12 @@
 <template>
   <OverlayBadge v-if="hideColumnsCount" :value="hideColumnsCount">
-    <Button severity="secondary" :rounded="roundedButton" variant="outlined" @click="togglePopover">
+    <Button
+      severity="secondary"
+      :rounded="roundedButton"
+      variant="outlined"
+      size="small"
+      @click="togglePopover"
+    >
       <span class="button-label">Edit columns</span>
       <component :is="buttonIcon" :size="14" />
     </Button>
@@ -10,6 +16,7 @@
     severity="secondary"
     :rounded="roundedButton"
     variant="outlined"
+    size="small"
     @click="togglePopover"
   >
     <span class="button-label">Edit columns</span>

@@ -36,3 +36,17 @@ body {
   -moz-osx-font-smoothing: grayscale;
   --p-avatar-background: var(--p-button-secondary-background);
 }
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b80 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #64748b80;
+  border-radius: 10px;
+}

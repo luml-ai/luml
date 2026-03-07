@@ -21,3 +21,7 @@ body {
 .link {
   color: var(--p-primary-color);
 }
+
+html {
+  font-size: 16px;
+}

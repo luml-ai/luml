@@ -9,46 +9,36 @@
         :data="item.data"
         :models-info="modelsInfo"
         :columns="item.columns"
-        :table-height="datasetTableHeight"
         @get-next-page="getNextPage(item.params.dataset_id)"
+        @filter-change="(filter) => onFilterChange(item.params.dataset_id, filter)"
+        @sort="(sortParams) => onSort(item.params.dataset_id, sortParams)"
       ></EvalsDataset>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { GetEvalsByDatasetParams } from '@/interfaces/interfaces'
 import type {
-  EvalsColumns,
-  EvalsInfo,
-  GetEvalsByDatasetParams,
-  ModelsInfo,
-} from '@/interfaces/interfaces'
+  DatasetData,
+  DatasetListProps,
+  FilterInterface,
+  InitialDatasetParamsType,
+} from './evals.interface'
 import { onMounted, onUnmounted, ref, toRaw } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useToast, Skeleton } from 'primevue'
 import EvalsDataset from './EvalsDataset.vue'
 
-const INITIAL_PARAMS: Omit<GetEvalsByDatasetParams, 'dataset_id'> = {
+const INITIAL_PARAMS: InitialDatasetParamsType = {
   limit: 20,
   sort_by: 'created_at' as GetEvalsByDatasetParams['sort_by'],
   order: 'desc' as GetEvalsByDatasetParams['order'],
   search: '',
 }
 
-interface Props {
-  modelsInfo: ModelsInfo
-  loaderHeight: string
-  datasetTableHeight?: string
-}
-
-interface DatasetData {
-  columns: EvalsColumns
-  data: EvalsInfo[]
-  params: GetEvalsByDatasetParams
-}
-
-defineProps<Props>()
+defineProps<DatasetListProps>()
 
 const evalsStore = useEvalsStore()
 const toast = useToast()
@@ -102,6 +92,21 @@ async function getInitialDataset(datasetId: string) {
     data,
     params,
   }
+}
+
+function onFilterChange(datasetId: string, filter: FilterInterface) {
+  const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+  if (!dataset) return
+  dataset.params.search = filter.search
+  getNextPage(datasetId, true)
+}
+
+function onSort(datasetId: string, sortParams: { sortField: string; sortOrder: 'asc' | 'desc' }) {
+  const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+  if (!dataset) return
+  dataset.params.sort_by = sortParams.sortField
+  dataset.params.order = sortParams.sortOrder
+  getNextPage(datasetId, true)
 }
 
 onMounted(init)
