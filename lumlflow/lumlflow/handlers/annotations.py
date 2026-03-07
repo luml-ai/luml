@@ -150,3 +150,10 @@ class AnnotationsHandler:
         self._check_experiment(experiment_id)
         record = self.tracker.get_all_traces_annotation_summary(experiment_id)
         return AnnotationSummary.model_validate(record)
+
+    def get_all_traces_annotation_summary(
+        self, experiment_id: str
+    ) -> AnnotationSummary:
+        self._check_experiment(experiment_id)
+        record = self.tracker.get_all_traces_annotation_summary(experiment_id)
+        return AnnotationSummary.model_validate(record, from_attributes=True)

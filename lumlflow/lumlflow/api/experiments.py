@@ -8,6 +8,7 @@ from lumlflow.schemas.annotations import (
     Annotation,
     AnnotationSummary,
     CreateAnnotation,
+    UpdateAnnotation,
 )
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
@@ -179,6 +180,30 @@ def get_span_annotations(
     )
 
 
+@experiments_router.patch(
+    "/{experiment_id}/eval-annotations/{annotation_id}",
+    response_model=Annotation,
+)
+def update_eval_annotation(
+    experiment_id: str, annotation_id: str, body: UpdateAnnotation
+) -> Annotation:
+    return annotations_handler.update_eval_annotation(
+        experiment_id, annotation_id, body
+    )
+
+
+@experiments_router.patch(
+    "/{experiment_id}/span-annotations/{annotation_id}",
+    response_model=Annotation,
+)
+def update_span_annotation(
+    experiment_id: str, annotation_id: str, body: UpdateAnnotation
+) -> Annotation:
+    return annotations_handler.update_span_annotation(
+        experiment_id, annotation_id, body
+    )
+
+
 @experiments_router.delete(
     "/{experiment_id}/eval-annotations/{annotation_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -203,6 +228,16 @@ def get_eval_annotation_summary(
     experiment_id: str, dataset_id: str = Query(...)
 ) -> AnnotationSummary:
     return annotations_handler.get_eval_annotation_summary(experiment_id, dataset_id)
+
+
+@experiments_router.get(
+    "/{experiment_id}/traces/annotations/summary",
+    response_model=AnnotationSummary,
+)
+def get_all_traces_annotation_summary(
+    experiment_id: str,
+) -> AnnotationSummary:
+    return annotations_handler.get_all_traces_annotation_summary(experiment_id)
 
 
 @experiments_router.get(

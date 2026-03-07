@@ -302,6 +302,7 @@ class Backend(ABC):
         value_type: AnnotationValueType,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
     ) -> AnnotationRecord:
         pass
 
@@ -322,6 +323,7 @@ class Backend(ABC):
         value_type: AnnotationValueType,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
     ) -> AnnotationRecord:
         pass
 
@@ -329,6 +331,17 @@ class Backend(ABC):
     def get_span_annotations(
         self, experiment_id: str, trace_id: str, span_id: str
     ) -> list[AnnotationRecord]:
+        pass
+
+    @abstractmethod
+    def update_annotation(
+        self,
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None,
+    ) -> AnnotationRecord:
         pass
 
     @abstractmethod
@@ -346,6 +359,12 @@ class Backend(ABC):
     @abstractmethod
     def get_trace_annotation_summary(
         self, experiment_id: str, trace_id: str
+    ) -> AnnotationSummary:
+        pass
+
+    @abstractmethod
+    def get_all_traces_annotation_summary(
+        self, experiment_id: str
     ) -> AnnotationSummary:
         pass
 
