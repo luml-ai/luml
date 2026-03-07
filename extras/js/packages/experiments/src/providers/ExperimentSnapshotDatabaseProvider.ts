@@ -135,8 +135,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       modelId: string
     } & GetEvalsByDatasetParams,
   ) {
-    const allowedSortFields = ['created_at', 'id']
-    const safeSortBy = allowedSortFields.includes(sort_by) ? sort_by : 'created_at'
+    const parentColumnsSort = ['created_at', 'id']
+    const sortBy = parentColumnsSort.includes(sort_by)
+      ? sort_by
+      : `COALESCE(json_extract(scores, '$.${sort_by}'), 0)`
     const safeOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
     const offset = (page - 1) * limit
     const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
@@ -146,7 +148,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       FROM evals
       WHERE dataset_id = '${dataset_id}'
       ${searchCondition}
-      ORDER BY ${safeSortBy} ${safeOrder}
+      ORDER BY ${sortBy} ${safeOrder}
       LIMIT ${limit}
       OFFSET ${offset}
       `,

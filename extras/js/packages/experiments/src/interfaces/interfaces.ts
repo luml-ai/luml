@@ -134,7 +134,7 @@ export interface EvalTraceInfo extends BaseTraceInfo {
 
 export interface GetEvalsByDatasetParams {
   limit: number
-  sort_by: 'created_at'
+  sort_by: string
   order: 'asc' | 'desc'
   dataset_id: string
   search: string
