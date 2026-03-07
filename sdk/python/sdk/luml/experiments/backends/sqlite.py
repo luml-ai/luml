@@ -2403,6 +2403,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         version = conn.execute("PRAGMA user_version").fetchone()[0]
         return version >= 1
 
+    def _require_annotation_tables(self, experiment_id: str) -> None:
+        if not self._has_annotation_tables(experiment_id):
+            raise ValueError(
+                f"Experiment '{experiment_id}' uses an older schema that "
+                "does not support annotations. Re-create the experiment "
+                "to enable annotation support."
+            )
+
     @staticmethod
     def _serialize_annotation_value(value: int | bool | str) -> str:
         if isinstance(value, bool):
@@ -2456,6 +2464,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         user: str,
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
+        self._require_annotation_tables(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         annotation_id = str(uuid.uuid4())
         conn.execute(
@@ -2508,6 +2517,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         user: str,
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
+        self._require_annotation_tables(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         annotation_id = str(uuid.uuid4())
         conn.execute(
