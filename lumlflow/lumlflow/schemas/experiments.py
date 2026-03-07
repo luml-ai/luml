@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import BaseOrmConfig
 from lumlflow.schemas.models import Model
 
@@ -106,6 +107,7 @@ class Span(BaseModel, BaseOrmConfig):
 class TraceDetails(BaseModel):
     trace_id: str
     spans: list[Span]
+    annotation_summary: AnnotationSummary | None = None
 
 
 class TracesSortBy(StrEnum):
@@ -128,6 +130,7 @@ class Trace(BaseModel, BaseOrmConfig):
     created_at: datetime
     state: TraceState = TraceState.STATE_UNSPECIFIED
     evals: list[str] = []
+    annotation_summary: AnnotationSummary | None = None
 
 
 class PaginatedTraces(BaseModel):

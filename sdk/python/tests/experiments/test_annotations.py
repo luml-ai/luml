@@ -86,7 +86,24 @@ class TestEvalAnnotations:
         assert record.value_type == AnnotationValueType.BOOL
         assert record.value is True
         assert record.user == "alice"
+        assert record.rationale is None
         assert record.id
+
+    def test_log_with_rationale(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        dataset_id, eval_id = _seed_eval(backend, exp_id)
+
+        record = backend.log_eval_annotation(
+            exp_id, dataset_id, eval_id, "accuracy",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+            rationale="The answer is correct",
+        )
+        assert record.rationale == "The answer is correct"
+
+        results = backend.get_eval_annotations(exp_id, dataset_id, eval_id)
+        assert results[0].rationale == "The answer is correct"
 
     def test_log_expectation_string(
         self, backend_with_experiment: tuple[SQLiteBackend, str]
@@ -182,6 +199,52 @@ class TestEvalAnnotations:
         results = backend.get_eval_annotations(exp_id, dataset_id, eval_id)
         assert len(results) == 0
 
+    def test_update_eval_annotation(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        dataset_id, eval_id = _seed_eval(backend, exp_id)
+
+        record = backend.log_eval_annotation(
+            exp_id, dataset_id, eval_id, "accuracy",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+        )
+        updated = backend.update_annotation(
+            exp_id, record.id, "eval",
+            value=False, rationale="Changed my mind",
+        )
+        assert updated.value is False
+        assert updated.rationale == "Changed my mind"
+
+    def test_update_annotation_rationale_only(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        dataset_id, eval_id = _seed_eval(backend, exp_id)
+
+        record = backend.log_eval_annotation(
+            exp_id, dataset_id, eval_id, "accuracy",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+        )
+        updated = backend.update_annotation(
+            exp_id, record.id, "eval", rationale="Added rationale",
+        )
+        assert updated.value is True
+        assert updated.rationale == "Added rationale"
+
+    def test_update_annotation_no_fields_raises(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        dataset_id, eval_id = _seed_eval(backend, exp_id)
+
+        record = backend.log_eval_annotation(
+            exp_id, dataset_id, eval_id, "accuracy",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+        )
+        with pytest.raises(ValueError, match="No fields to update"):
+            backend.update_annotation(exp_id, record.id, "eval")
+
 
 class TestSpanAnnotations:
     def test_log_and_get_span_annotation(
@@ -195,10 +258,43 @@ class TestSpanAnnotations:
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, False, "carol",
         )
         assert record.value is False
+        assert record.rationale is None
 
         results = backend.get_span_annotations(exp_id, trace_id, span_id)
         assert len(results) == 1
         assert results[0].id == record.id
+
+    def test_log_span_annotation_with_rationale(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        trace_id, span_id = _seed_span(backend, exp_id)
+
+        record = backend.log_span_annotation(
+            exp_id, trace_id, span_id, "quality",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+            rationale="Span output was accurate",
+        )
+        assert record.rationale == "Span output was accurate"
+
+        results = backend.get_span_annotations(exp_id, trace_id, span_id)
+        assert results[0].rationale == "Span output was accurate"
+
+    def test_update_span_annotation(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+        trace_id, span_id = _seed_span(backend, exp_id)
+
+        record = backend.log_span_annotation(
+            exp_id, trace_id, span_id, "quality",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+        )
+        updated = backend.update_annotation(
+            exp_id, record.id, "span", rationale="Updated rationale",
+        )
+        assert updated.rationale == "Updated rationale"
+        assert updated.value is True
 
     def test_delete_span_annotation(
         self, backend_with_experiment: tuple[SQLiteBackend, str]
@@ -367,3 +463,51 @@ class TestTrackerAnnotations:
                 value=True,
                 user="alice",
             )
+
+
+class TestAllTracesAnnotationSummary:
+    def test_aggregates_across_traces(
+        self, backend_with_experiment: tuple[SQLiteBackend, str]
+    ) -> None:
+        backend, exp_id = backend_with_experiment
+
+        backend.log_span(
+            exp_id, "trace-1", "span-1", name="s1",
+            start_time_unix_nano=0, end_time_unix_nano=1000,
+        )
+        backend.log_span(
+            exp_id, "trace-2", "span-2", name="s2",
+            start_time_unix_nano=0, end_time_unix_nano=1000,
+        )
+
+        backend.log_span_annotation(
+            exp_id, "trace-1", "span-1", "quality",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+        )
+        backend.log_span_annotation(
+            exp_id, "trace-2", "span-2", "quality",
+            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, False, "bob",
+        )
+
+        summary = backend.get_all_traces_annotation_summary(exp_id)
+        assert len(summary.feedback) == 1
+        assert summary.feedback[0].name == "quality"
+        assert summary.feedback[0].total == 2
+        assert summary.feedback[0].counts == {"true": 1, "false": 1}
+
+    def test_empty_on_old_db(self, tmp_path: Path) -> None:
+        backend = SQLiteBackend(str(tmp_path / "experiments"))
+        exp_id = "old-exp"
+        backend.initialize_experiment(exp_id, "default", "test")
+
+        db_path = tmp_path / "experiments" / exp_id / "exp.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("DROP TABLE IF EXISTS span_annotations")
+        conn.execute("PRAGMA user_version = 0")
+        conn.commit()
+        conn.close()
+        backend.pool.close_connection(str(db_path))
+
+        summary = backend.get_all_traces_annotation_summary(exp_id)
+        assert summary.feedback == []
+        assert summary.expectations == []

@@ -22,7 +22,13 @@ class CreateAnnotation(BaseModel):
     annotation_kind: AnnotationKind
     value_type: AnnotationValueType
     value: int | bool | str
-    user: str
+    user: str | None = None
+    rationale: str | None = None
+
+
+class UpdateAnnotation(BaseModel):
+    value: int | bool | str | None = None
+    rationale: str | None = None
 
 
 class Annotation(BaseModel, BaseOrmConfig):
@@ -33,6 +39,7 @@ class Annotation(BaseModel, BaseOrmConfig):
     value: int | bool | str
     user: str
     created_at: datetime
+    rationale: str | None = None
 
 
 class FeedbackSummaryItem(BaseModel, BaseOrmConfig):

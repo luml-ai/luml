@@ -150,6 +150,7 @@ class AnnotationRecord:
     value: int | bool | str
     user: str
     created_at: datetime
+    rationale: str | None = None
 
 
 @dataclass

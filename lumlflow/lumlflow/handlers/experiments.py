@@ -4,6 +4,7 @@ from luml.experiments.backends.data_types import TraceState as SdkTraceState
 from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
+from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     Eval,
@@ -117,8 +118,18 @@ class ExperimentsHandler:
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
+        traces = []
+        for t in result.items:
+            trace = Trace.model_validate(t)
+            summary = self.tracker.get_trace_annotation_summary(
+                experiment_id, t.trace_id
+            )
+            trace.annotation_summary = AnnotationSummary.model_validate(
+                summary, from_attributes=True
+            )
+            traces.append(trace)
         return PaginatedTraces(
-            items=[Trace.model_validate(s) for s in result.items],
+            items=traces,
             cursor=result.cursor,
         )
 
@@ -131,9 +142,15 @@ class ExperimentsHandler:
             raise ApplicationError(str(e), status_code=500) from e
         if result is None:
             raise NotFound("Trace not found")
+        summary = self.tracker.get_trace_annotation_summary(
+            experiment_id, trace_id
+        )
         return TraceDetails(
             trace_id=result.trace_id,
             spans=[Span.model_validate(s) for s in result.spans],
+            annotation_summary=AnnotationSummary.model_validate(
+                summary, from_attributes=True
+            ),
         )
 
     def get_experiment_evals(
