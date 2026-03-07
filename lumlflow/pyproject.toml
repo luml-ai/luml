@@ -59,3 +59,6 @@ indent-style = "space"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+luml-sdk = { path = "../sdk/python", editable = true }

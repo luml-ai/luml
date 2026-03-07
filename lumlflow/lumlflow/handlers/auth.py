@@ -9,7 +9,7 @@ import keyring.errors
 
 from lumlflow.infra.exceptions import ApplicationError
 from lumlflow.schemas.auth import ApiKeyCredentials, SetApiKey
-from lumlflow.settings import config
+from lumlflow.settings import get_config
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ class AuthHandler:
                 if api_key:
                     return ApiKeyCredentials(api_key=api_key)
 
-        return ApiKeyCredentials(api_key=config.LUML_API_KEY)
+        return ApiKeyCredentials(api_key=get_config().LUML_API_KEY)
 
     def has_api_key(self) -> bool:
         creds = self.get_stored_credentials()
@@ -64,7 +64,7 @@ class AuthHandler:
         try:
             with httpx.Client() as client:
                 response = client.get(
-                    f"{config.LUML_BASE_URL}/auth/api-keys/validate",
+                    f"{get_config().LUML_BASE_URL}/auth/api-keys/validate",
                     headers={"Authorization": f"Bearer {data.api_key}"},
                     timeout=10,
                 )

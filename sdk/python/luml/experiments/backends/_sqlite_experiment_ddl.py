@@ -1,5 +1,7 @@
 # flake8: noqa: E501
 
+EXPERIMENT_DDL_VERSION = 1
+
 _DDL_EXPERIMENT_CREATE_STATIC = """
     CREATE TABLE IF NOT EXISTS static_params (
         key TEXT PRIMARY KEY,
@@ -81,5 +83,37 @@ _DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE = """
         eval_id TEXT NOT NULL,
         trace_id TEXT NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+"""
+
+_DDL_EXPERIMENT_CREATE_EVAL_ANNOTATIONS = """
+    CREATE TABLE IF NOT EXISTS eval_annotations (
+        id TEXT PRIMARY KEY,
+        dataset_id TEXT NOT NULL,
+        eval_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        annotation_kind TEXT NOT NULL CHECK(annotation_kind IN ('feedback', 'expectation')),
+        value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')),
+        value TEXT NOT NULL,
+        user TEXT NOT NULL,
+        rationale TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (dataset_id, eval_id) REFERENCES evals(dataset_id, id)
+    )
+"""
+
+_DDL_EXPERIMENT_CREATE_SPAN_ANNOTATIONS = """
+    CREATE TABLE IF NOT EXISTS span_annotations (
+        id TEXT PRIMARY KEY,
+        trace_id TEXT NOT NULL,
+        span_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        annotation_kind TEXT NOT NULL CHECK(annotation_kind IN ('feedback', 'expectation')),
+        value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')),
+        value TEXT NOT NULL,
+        user TEXT NOT NULL,
+        rationale TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (trace_id, span_id) REFERENCES spans(trace_id, span_id)
     )
 """

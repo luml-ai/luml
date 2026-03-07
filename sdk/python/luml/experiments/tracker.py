@@ -10,10 +10,20 @@ from luml.artifacts._base import DiskFile, FileMap
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends import Backend, BackendRegistry
 from luml.experiments.backends.data_types import (
+    AnnotationKind,
+    AnnotationRecord,
+    AnnotationSummary,
+    AnnotationValueType,
+    EvalColumns,
+    EvalRecord,
     Experiment,
     ExperimentData,
     Group,
     Model,
+    PaginatedResponse,
+    TraceDetails,
+    TraceRecord,
+    TraceState,
 )
 
 if TYPE_CHECKING:
@@ -825,6 +835,881 @@ class ExperimentTracker:
         )
 
         Path(zip_path).unlink(missing_ok=True)
+
+    def log_eval_annotation(
+        self,
+        dataset_id: str,
+        eval_id: str,
+        name: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None,
+        experiment_id: str | None = None,
+    ) -> AnnotationRecord:
+        """
+        Create an annotation on an eval sample.
+
+        Annotations categorize eval results with human feedback or expectations.
+        Feedback annotations must use ``value_type='bool'``.
+
+        Args:
+            dataset_id (str): The dataset the eval belongs to.
+            eval_id (str): The eval sample to annotate.
+            name (str): Annotation name used for grouping (e.g. "accuracy", "relevance").
+            annotation_kind (str): Either ``'feedback'`` or ``'expectation'``.
+            value_type (str): Type of the value: ``'bool'``, ``'int'``, or ``'string'``.
+            value (int | bool | str): The annotation value.
+            user (str): The user who created the annotation.
+            rationale (str | None): Optional free-text explanation for the annotation.
+            experiment_id (str | None): Experiment ID. Uses current experiment if not
+                specified.
+
+        Returns:
+            AnnotationRecord: The created annotation record.
+
+        Raises:
+            ValueError: If no experiment is active, the experiment uses an older
+                schema without annotation support, or a feedback annotation uses
+                a non-bool ``value_type``.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        tracker.log_eval_sample(
+            eval_id="eval-1", dataset_id="ds-1",
+            inputs={"prompt": "What is 2+2?"},
+            outputs={"response": "4"},
+        )
+        annotation = tracker.log_eval_annotation(
+            dataset_id="ds-1",
+            eval_id="eval-1",
+            name="accuracy",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+            rationale="The answer is correct",
+        )
+        ```
+        """
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.log_eval_annotation(
+            exp_id,
+            dataset_id,
+            eval_id,
+            name,
+            AnnotationKind(annotation_kind),
+            AnnotationValueType(value_type),
+            value,
+            user,
+            rationale,
+        )
+
+    def log_span_annotation(
+        self,
+        trace_id: str,
+        span_id: str,
+        name: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None,
+        experiment_id: str | None = None,
+    ) -> AnnotationRecord:
+        """
+        Create an annotation on a span within a trace.
+
+        Annotations attach human feedback or expectations to individual spans.
+        Feedback annotations must use ``value_type='bool'``.
+
+        Args:
+            trace_id (str): The trace containing the span.
+            span_id (str): The span to annotate.
+            name (str): Annotation name used for grouping (e.g. "quality", "latency").
+            annotation_kind (str): Either ``'feedback'`` or ``'expectation'``.
+            value_type (str): Type of the value: ``'bool'``, ``'int'``, or ``'string'``.
+            value (int | bool | str): The annotation value.
+            user (str): The user who created the annotation.
+            rationale (str | None): Optional free-text explanation for the annotation.
+            experiment_id (str | None): Experiment ID. Uses current experiment if not
+                specified.
+
+        Returns:
+            AnnotationRecord: The created annotation record.
+
+        Raises:
+            ValueError: If no experiment is active, the experiment uses an older
+                schema without annotation support, or a feedback annotation uses
+                a non-bool ``value_type``.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp_id = tracker.start_experiment()
+        annotation = tracker.log_span_annotation(
+            trace_id="trace-abc",
+            span_id="span-1",
+            name="quality",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+            rationale="Output was relevant and well-structured",
+        )
+        ```
+        """
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.log_span_annotation(
+            exp_id,
+            trace_id,
+            span_id,
+            name,
+            AnnotationKind(annotation_kind),
+            AnnotationValueType(value_type),
+            value,
+            user,
+            rationale,
+        )
+
+    def get_experiment_record(self, experiment_id: str) -> Experiment | None:
+        """
+        Retrieve experiment metadata by ID.
+
+        Args:
+            experiment_id (str): The experiment to look up.
+
+        Returns:
+            Experiment | None: The experiment metadata, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        exp = tracker.get_experiment_record("my-experiment-id")
+        if exp:
+            print(exp.name, exp.tags)
+        ```
+        """
+        return self.backend.get_experiment(experiment_id)
+
+    def get_trace(
+        self, experiment_id: str, trace_id: str
+    ) -> TraceDetails | None:
+        """
+        Retrieve full trace details including all spans.
+
+        Args:
+            experiment_id (str): The experiment containing the trace.
+            trace_id (str): The trace to retrieve.
+
+        Returns:
+            TraceDetails | None: Trace with its spans, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        trace = tracker.get_trace("exp-1", "trace-abc")
+        if trace:
+            for span in trace.spans:
+                print(span.name, span.annotation_count)
+        ```
+        """
+        return self.backend.get_trace(experiment_id, trace_id)
+
+    def get_experiment_traces(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "execution_time",
+        order: str = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> PaginatedResponse[TraceRecord]:
+        """
+        Retrieve paginated traces for an experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            limit (int): Maximum number of traces per page (1–100). Defaults to 20.
+            cursor_str (str | None): Pagination cursor from a previous response.
+            sort_by (str): Sort field. Defaults to ``'execution_time'``.
+            order (str): Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
+            search (str | None): Optional substring filter on trace ID.
+            states (list[TraceState] | None): Optional filter by trace state.
+
+        Returns:
+            PaginatedResponse[TraceRecord]: Page of traces with pagination cursor.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        page = tracker.get_experiment_traces("exp-1", limit=10)
+        for trace in page.items:
+            print(trace.trace_id, trace.execution_time_ms)
+        ```
+        """
+        return self.backend.get_experiment_traces(
+            experiment_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            states=states,
+        )
+
+    def get_experiment_metric_history(
+        self, experiment_id: str, key: str
+    ) -> list[dict[str, Any]]:
+        """
+        Retrieve the full history of a dynamic metric.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            key (str): The metric key (e.g. ``'train_loss'``).
+
+        Returns:
+            list[dict[str, Any]]: List of ``{value, step, logged_at}`` entries
+                ordered by step.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        history = tracker.get_experiment_metric_history("exp-1", "train_loss")
+        for point in history:
+            print(f"step={point['step']} loss={point['value']}")
+        ```
+        """
+        return self.backend.get_experiment_metric_history(experiment_id, key)
+
+    def get_experiment_evals(
+        self,
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> PaginatedResponse[EvalRecord]:
+        """
+        Retrieve paginated eval samples for an experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            limit (int): Maximum number of evals per page (1–100). Defaults to 20.
+            cursor_str (str | None): Pagination cursor from a previous response.
+            sort_by (str): Sort field. Defaults to ``'created_at'``.
+            order (str): Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
+            dataset_id (str | None): Optional filter by dataset.
+            json_sort_column (str | None): Resolved JSON column for sorting by
+                score/input/output keys.
+            search (str | None): Optional substring filter on eval ID.
+
+        Returns:
+            PaginatedResponse[EvalRecord]: Page of eval records with pagination cursor.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        page = tracker.get_experiment_evals("exp-1", dataset_id="ds-1")
+        for eval_rec in page.items:
+            print(eval_rec.eval_id, eval_rec.scores)
+        ```
+        """
+        return self.backend.get_experiment_evals(
+            experiment_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            dataset_id=dataset_id,
+            json_sort_column=json_sort_column,
+            search=search,
+        )
+
+    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+        """
+        Retrieve the set of available column keys across all evals in an experiment.
+
+        Returns the distinct keys found in scores, inputs, outputs, and refs
+        fields, useful for building dynamic table headers.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            EvalColumns: Object containing lists of available column keys.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        columns = tracker.get_experiment_eval_columns("exp-1")
+        print("Score columns:", columns.scores)
+        print("Input columns:", columns.inputs)
+        ```
+        """
+        return self.backend.get_experiment_eval_columns(experiment_id)
+
+    def resolve_evals_sort_column(
+        self, experiment_id: str, sort_by: str
+    ) -> str | None:
+        """
+        Resolve a sort key to the underlying JSON column expression for eval queries.
+
+        Used to translate user-facing sort keys (e.g. ``'scores.accuracy'``) into
+        the SQL expression needed for sorting.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            sort_by (str): The sort key to resolve.
+
+        Returns:
+            str | None: The resolved SQL column expression, or ``None`` if invalid.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        col = tracker.resolve_evals_sort_column("exp-1", "scores.accuracy")
+        ```
+        """
+        return self.backend.resolve_evals_sort_column(experiment_id, sort_by)
+
+    def update_experiment(
+        self,
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Experiment | None:
+        """
+        Update experiment metadata.
+
+        Only the provided fields are updated; ``None`` values are ignored.
+
+        Args:
+            experiment_id (str): The experiment to update.
+            name (str | None): New experiment name.
+            description (str | None): New experiment description.
+            tags (list[str] | None): New list of tags.
+
+        Returns:
+            Experiment | None: The updated experiment, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.update_experiment(
+            "exp-1",
+            name="renamed_experiment",
+            tags=["production", "v2"],
+        )
+        ```
+        """
+        return self.backend.update_experiment(
+            experiment_id, name=name, description=description, tags=tags,
+        )
+
+    def get_eval_annotations(
+        self, experiment_id: str, dataset_id: str, eval_id: str
+    ) -> list[AnnotationRecord]:
+        """
+        Retrieve all annotations for a specific eval sample.
+
+        Returns an empty list if the experiment DB uses an older schema
+        without annotation support.
+
+        Args:
+            experiment_id (str): The experiment containing the eval.
+            dataset_id (str): The dataset the eval belongs to.
+            eval_id (str): The eval sample to query.
+
+        Returns:
+            list[AnnotationRecord]: Annotations ordered by creation time.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        annotations = tracker.get_eval_annotations("exp-1", "ds-1", "eval-1")
+        for ann in annotations:
+            print(f"{ann.name}: {ann.value} by {ann.user}")
+        ```
+        """
+        return self.backend.get_eval_annotations(experiment_id, dataset_id, eval_id)
+
+    def get_span_annotations(
+        self, experiment_id: str, trace_id: str, span_id: str
+    ) -> list[AnnotationRecord]:
+        """
+        Retrieve all annotations for a specific span.
+
+        Returns an empty list if the experiment DB uses an older schema
+        without annotation support.
+
+        Args:
+            experiment_id (str): The experiment containing the trace.
+            trace_id (str): The trace containing the span.
+            span_id (str): The span to query.
+
+        Returns:
+            list[AnnotationRecord]: Annotations ordered by creation time.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        annotations = tracker.get_span_annotations("exp-1", "trace-abc", "span-1")
+        for ann in annotations:
+            print(f"{ann.name}: {ann.value} by {ann.user}")
+        ```
+        """
+        return self.backend.get_span_annotations(experiment_id, trace_id, span_id)
+
+    def update_annotation(
+        self,
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None,
+    ) -> AnnotationRecord:
+        """
+        Update an existing annotation's value and/or rationale.
+
+        At least one of ``value`` or ``rationale`` must be provided.
+
+        Args:
+            experiment_id (str): The experiment containing the annotation.
+            annotation_id (str): The annotation to update.
+            target (Literal["eval", "span"]): Whether this is an eval or span
+                annotation.
+            value (int | bool | str | None): New annotation value. ``None`` to
+                leave unchanged.
+            rationale (str | None): New rationale text. ``None`` to leave unchanged.
+
+        Returns:
+            AnnotationRecord: The updated annotation record.
+
+        Raises:
+            ValueError: If no fields are provided to update, the annotation is
+                not found, or the experiment uses an older schema.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        updated = tracker.update_annotation(
+            "exp-1", "ann-uuid", "eval",
+            value=False,
+            rationale="Revised: answer was actually wrong",
+        )
+        ```
+        """
+        return self.backend.update_annotation(
+            experiment_id, annotation_id, target,
+            value=value, rationale=rationale,
+        )
+
+    def delete_annotation(
+        self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
+    ) -> None:
+        """
+        Delete an annotation by ID.
+
+        No-op if the experiment DB uses an older schema without annotation support.
+
+        Args:
+            experiment_id (str): The experiment containing the annotation.
+            annotation_id (str): The annotation to delete.
+            target (Literal["eval", "span"]): Whether this is an eval or span
+                annotation.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.delete_annotation("exp-1", "ann-uuid", "eval")
+        ```
+        """
+        self.backend.delete_annotation(experiment_id, annotation_id, target)
+
+    def get_eval_annotation_summary(
+        self, experiment_id: str, dataset_id: str
+    ) -> AnnotationSummary:
+        """
+        Get an aggregated summary of annotations across all evals in a dataset.
+
+        Returns feedback and expectation annotations grouped by annotation name.
+        Feedback items include a ``counts`` dict keyed by value (e.g.
+        ``{"true": 3, "false": 1}``). Returns empty lists if the experiment DB
+        uses an older schema.
+
+        Args:
+            experiment_id (str): The experiment to query.
+            dataset_id (str): The dataset to summarize.
+
+        Returns:
+            AnnotationSummary: Summary with ``feedback`` and ``expectations`` lists.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        summary = tracker.get_eval_annotation_summary("exp-1", "ds-1")
+        for fb in summary.feedback:
+            print(f"{fb.name}: {fb.total} total, counts={fb.counts}")
+        for exp in summary.expectations:
+            print(f"{exp.name}: {exp.total} total")
+        ```
+        """
+        return self.backend.get_eval_annotation_summary(experiment_id, dataset_id)
+
+    def get_trace_annotation_summary(
+        self, experiment_id: str, trace_id: str
+    ) -> AnnotationSummary:
+        """
+        Get an aggregated summary of annotations across all spans in a trace.
+
+        Returns feedback and expectation annotations grouped by annotation name.
+        Feedback items include a ``counts`` dict keyed by value. Returns empty
+        lists if the experiment DB uses an older schema.
+
+        Args:
+            experiment_id (str): The experiment containing the trace.
+            trace_id (str): The trace to summarize.
+
+        Returns:
+            AnnotationSummary: Summary with ``feedback`` and ``expectations`` lists.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        summary = tracker.get_trace_annotation_summary("exp-1", "trace-abc")
+        for fb in summary.feedback:
+            print(f"{fb.name}: {fb.total} total, counts={fb.counts}")
+        ```
+        """
+        return self.backend.get_trace_annotation_summary(experiment_id, trace_id)
+
+    def get_all_traces_annotation_summary(
+        self, experiment_id: str
+    ) -> AnnotationSummary:
+        """
+        Get an aggregated summary of span annotations across all traces.
+
+        Unlike ``get_trace_annotation_summary`` which scopes to a single trace,
+        this method aggregates annotations from every span in the experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            AnnotationSummary: Summary with ``feedback`` and ``expectations`` lists.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        summary = tracker.get_all_traces_annotation_summary("exp-1")
+        for fb in summary.feedback:
+            print(f"{fb.name}: {fb.total} total, counts={fb.counts}")
+        ```
+        """
+        return self.backend.get_all_traces_annotation_summary(experiment_id)
+
+    def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        """
+        Retrieve the schema version of the experiment database.
+
+        The version corresponds to ``PRAGMA user_version`` in the SQLite DB.
+        Version 0 indicates a legacy DB without annotation table support.
+
+        Args:
+            experiment_id (str): The experiment to check.
+
+        Returns:
+            int: The schema version number.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        version = tracker.get_experiment_ddl_version("exp-1")
+        if version < 1:
+            print("This experiment does not support annotations")
+        ```
+        """
+        return self.backend.get_experiment_ddl_version(experiment_id)
+
+    def get_group(self, group_id: str) -> Group | None:
+        """
+        Retrieve a group by ID.
+
+        Args:
+            group_id (str): The group to look up.
+
+        Returns:
+            Group | None: The group metadata, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        group = tracker.get_group("group-uuid")
+        if group:
+            print(group.name)
+        ```
+        """
+        return self.backend.get_group(group_id)
+
+    def update_group(
+        self,
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Group | None:
+        """
+        Update group metadata.
+
+        Only the provided fields are updated; ``None`` values are ignored.
+
+        Args:
+            group_id (str): The group to update.
+            name (str | None): New group name.
+            description (str | None): New group description.
+            tags (list[str] | None): New list of tags.
+
+        Returns:
+            Group | None: The updated group, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.update_group("group-uuid", name="Production Models")
+        ```
+        """
+        return self.backend.update_group(group_id, name=name, description=description, tags=tags)
+
+    def delete_group(self, group_id: str) -> None:
+        """
+        Delete a group by ID.
+
+        Args:
+            group_id (str): The group to delete.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.delete_group("group-uuid")
+        ```
+        """
+        self.backend.delete_group(group_id)
+
+    def list_groups_pagination(
+        self,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+    ) -> PaginatedResponse[Group]:
+        """
+        Retrieve a paginated list of groups.
+
+        Args:
+            limit (int): Maximum number of groups per page. Defaults to 20.
+            cursor_str (str | None): Pagination cursor from a previous response.
+            sort_by (str): Sort field. Defaults to ``'created_at'``.
+            order (str): Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
+            search (str | None): Optional substring filter on group name.
+
+        Returns:
+            PaginatedResponse[Group]: Page of groups with pagination cursor.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        page = tracker.list_groups_pagination(limit=10, search="prod")
+        for group in page.items:
+            print(group.name)
+        ```
+        """
+        return self.backend.list_groups_pagination(
+            limit=limit, cursor_str=cursor_str, sort_by=sort_by, order=order, search=search,
+        )
+
+    def list_group_experiments_pagination(
+        self,
+        group_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        """
+        Retrieve a paginated list of experiments within a group.
+
+        Args:
+            group_id (str): The group to query.
+            limit (int): Maximum number of experiments per page. Defaults to 20.
+            cursor_str (str | None): Pagination cursor from a previous response.
+            sort_by (str): Sort field. Defaults to ``'created_at'``.
+            order (str): Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
+            search (str | None): Optional substring filter on experiment name.
+            json_sort_column (str | None): Resolved JSON column for sorting by
+                static param or dynamic metric keys.
+
+        Returns:
+            PaginatedResponse[Experiment]: Page of experiments with pagination cursor.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        page = tracker.list_group_experiments_pagination("group-uuid", limit=5)
+        for exp in page.items:
+            print(exp.name, exp.tags)
+        ```
+        """
+        return self.backend.list_group_experiments_pagination(
+            group_id,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            json_sort_column=json_sort_column,
+        )
+
+    def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
+        """
+        Retrieve all distinct static parameter keys across experiments in a group.
+
+        Useful for building comparison tables where each column is a parameter.
+
+        Args:
+            group_id (str): The group to query.
+
+        Returns:
+            list[str]: Sorted list of distinct parameter key names.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        keys = tracker.get_group_experiments_static_params_keys("group-uuid")
+        # e.g. ["batch_size", "learning_rate", "model_architecture"]
+        ```
+        """
+        return self.backend.get_group_experiments_static_params_keys(group_id)
+
+    def get_group_experiments_dynamic_metrics_keys(self, group_id: str) -> list[str]:
+        """
+        Retrieve all distinct dynamic metric keys across experiments in a group.
+
+        Useful for building comparison charts where each series is a metric.
+
+        Args:
+            group_id (str): The group to query.
+
+        Returns:
+            list[str]: Sorted list of distinct metric key names.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        keys = tracker.get_group_experiments_dynamic_metrics_keys("group-uuid")
+        # e.g. ["eval_accuracy", "train_loss", "val_loss"]
+        ```
+        """
+        return self.backend.get_group_experiments_dynamic_metrics_keys(group_id)
+
+    def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
+        """
+        Resolve a sort key to the underlying column expression for experiment queries.
+
+        Used to translate user-facing sort keys (e.g. ``'static.learning_rate'``)
+        into the SQL expression needed for sorting.
+
+        Args:
+            group_id (str): The group context for resolution.
+            sort_by (str): The sort key to resolve.
+
+        Returns:
+            str | None: The resolved SQL column expression, or ``None`` if invalid.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        col = tracker.resolve_experiment_sort_column("group-uuid", "static.lr")
+        ```
+        """
+        return self.backend.resolve_experiment_sort_column(group_id, sort_by)
+
+    def update_model(
+        self,
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+    ) -> Model | None:
+        """
+        Update model metadata.
+
+        Only the provided fields are updated; ``None`` values are ignored.
+
+        Args:
+            model_id (str): The model to update.
+            name (str | None): New model name.
+            tags (list[str] | None): New list of tags.
+
+        Returns:
+            Model | None: The updated model, or ``None`` if not found.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.update_model("model-uuid", name="v2-finetuned", tags=["prod"])
+        ```
+        """
+        return self.backend.update_model(model_id, name=name, tags=tags)
+
+    def delete_model(self, model_id: str) -> None:
+        """
+        Delete a model by ID.
+
+        Args:
+            model_id (str): The model to delete.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        tracker.delete_model("model-uuid")
+        ```
+        """
+        self.backend.delete_model(model_id)
+
+    def list_experiment_models(self, experiment_id: str) -> list[Model]:
+        """
+        Retrieve all models associated with an experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            list[Model]: List of models linked to the experiment.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        models = tracker.list_experiment_models("exp-1")
+        for model in models:
+            print(f"{model.name} ({model.size} bytes)")
+        ```
+        """
+        return self.backend.list_experiment_models(experiment_id)
 
     def enable_tracing(self) -> None:
         """
