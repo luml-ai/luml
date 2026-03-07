@@ -6,6 +6,7 @@ import pytest
 from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
+    AnnotationSummary,
     AnnotationValueType,
 )
 from luml.experiments.backends.sqlite import SQLiteBackend
@@ -72,6 +73,7 @@ class TestEvalAnnotations:
             exp_id,
             dataset_id,
             eval_id,
+            "accuracy",
             AnnotationKind.FEEDBACK,
             AnnotationValueType.BOOL,
             True,
@@ -79,6 +81,7 @@ class TestEvalAnnotations:
         )
 
         assert isinstance(record, AnnotationRecord)
+        assert record.name == "accuracy"
         assert record.annotation_kind == AnnotationKind.FEEDBACK
         assert record.value_type == AnnotationValueType.BOOL
         assert record.value is True
@@ -95,6 +98,7 @@ class TestEvalAnnotations:
             exp_id,
             dataset_id,
             eval_id,
+            "quality",
             AnnotationKind.EXPECTATION,
             AnnotationValueType.STRING,
             "expected output",
@@ -112,11 +116,11 @@ class TestEvalAnnotations:
         dataset_id, eval_id = _seed_eval(backend, exp_id)
 
         backend.log_eval_annotation(
-            exp_id, dataset_id, eval_id,
+            exp_id, dataset_id, eval_id, "accuracy",
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
         )
         backend.log_eval_annotation(
-            exp_id, dataset_id, eval_id,
+            exp_id, dataset_id, eval_id, "quality",
             AnnotationKind.EXPECTATION, AnnotationValueType.STRING, "hello", "bob",
         )
 
@@ -133,7 +137,7 @@ class TestEvalAnnotations:
 
         with pytest.raises(ValueError, match="value_type='bool'"):
             backend.log_eval_annotation(
-                exp_id, dataset_id, eval_id,
+                exp_id, dataset_id, eval_id, "accuracy",
                 AnnotationKind.FEEDBACK, AnnotationValueType.STRING, "oops", "alice",
             )
 
@@ -145,7 +149,7 @@ class TestEvalAnnotations:
 
         for val in (True, False):
             record = backend.log_eval_annotation(
-                exp_id, dataset_id, eval_id,
+                exp_id, dataset_id, eval_id, "accuracy",
                 AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, val, "alice",
             )
             assert record.value is val
@@ -157,7 +161,7 @@ class TestEvalAnnotations:
         dataset_id, eval_id = _seed_eval(backend, exp_id)
 
         record = backend.log_eval_annotation(
-            exp_id, dataset_id, eval_id,
+            exp_id, dataset_id, eval_id, "score",
             AnnotationKind.EXPECTATION, AnnotationValueType.INT, 42, "alice",
         )
         assert record.value == 42
@@ -170,7 +174,7 @@ class TestEvalAnnotations:
         dataset_id, eval_id = _seed_eval(backend, exp_id)
 
         record = backend.log_eval_annotation(
-            exp_id, dataset_id, eval_id,
+            exp_id, dataset_id, eval_id, "accuracy",
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
         )
         backend.delete_annotation(exp_id, record.id, "eval")
@@ -187,7 +191,7 @@ class TestSpanAnnotations:
         trace_id, span_id = _seed_span(backend, exp_id)
 
         record = backend.log_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id, trace_id, span_id, "quality",
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, False, "carol",
         )
         assert record.value is False
@@ -203,7 +207,7 @@ class TestSpanAnnotations:
         trace_id, span_id = _seed_span(backend, exp_id)
 
         record = backend.log_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id, trace_id, span_id, "quality",
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "dave",
         )
         backend.delete_annotation(exp_id, record.id, "span")
@@ -222,7 +226,7 @@ class TestSpanAnnotations:
         assert result.spans[0].annotation_count == 0
 
         backend.log_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id, trace_id, span_id, "quality",
             AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
         )
 
@@ -233,16 +237,17 @@ class TestSpanAnnotations:
 
 class TestBackwardCompat:
     def test_annotations_on_db_without_tables(self, tmp_path: Path) -> None:
-        """Ensure annotation tables are created on-demand for existing DBs."""
+        """Old DBs (user_version=0) return empty annotations instead of failing."""
         backend = SQLiteBackend(str(tmp_path / "experiments"))
         exp_id = "old-exp"
         backend.initialize_experiment(exp_id, "default", "test")
 
-        # Remove annotation tables to simulate an old DB
+        # Set user_version=0 and remove annotation tables to simulate an old DB
         db_path = tmp_path / "experiments" / exp_id / "exp.db"
         conn = sqlite3.connect(str(db_path))
         conn.execute("DROP TABLE IF EXISTS eval_annotations")
         conn.execute("DROP TABLE IF EXISTS span_annotations")
+        conn.execute("PRAGMA user_version = 0")
         conn.commit()
         conn.close()
 
@@ -250,12 +255,24 @@ class TestBackwardCompat:
         backend.pool.close_connection(str(db_path))
 
         dataset_id, eval_id = _seed_eval(backend, exp_id)
+        trace_id, span_id = _seed_span(backend, exp_id)
 
-        record = backend.log_eval_annotation(
-            exp_id, dataset_id, eval_id,
-            AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
-        )
-        assert record.value is True
+        assert backend.get_eval_annotations(exp_id, dataset_id, eval_id) == []
+        assert backend.get_span_annotations(exp_id, trace_id, span_id) == []
+
+        eval_summary = backend.get_eval_annotation_summary(exp_id, dataset_id)
+        assert isinstance(eval_summary, AnnotationSummary)
+        assert eval_summary.feedback == []
+        assert eval_summary.expectations == []
+
+        trace_summary = backend.get_trace_annotation_summary(exp_id, trace_id)
+        assert isinstance(trace_summary, AnnotationSummary)
+        assert trace_summary.feedback == []
+        assert trace_summary.expectations == []
+
+        result = backend.get_trace(exp_id, trace_id)
+        assert result is not None
+        assert result.spans[0].annotation_count == 0
 
 
 class TestTrackerAnnotations:
@@ -272,6 +289,7 @@ class TestTrackerAnnotations:
         record = tracker.log_eval_annotation(
             dataset_id="ds-1",
             eval_id="eval-1",
+            name="accuracy",
             annotation_kind="feedback",
             value_type="bool",
             value=True,
@@ -279,6 +297,7 @@ class TestTrackerAnnotations:
         )
 
         assert isinstance(record, AnnotationRecord)
+        assert record.name == "accuracy"
         assert record.value is True
 
     def test_log_span_annotation_via_tracker(
@@ -296,12 +315,14 @@ class TestTrackerAnnotations:
         record = tracker.log_span_annotation(
             trace_id="trace-1",
             span_id="span-1",
+            name="latency",
             annotation_kind="expectation",
             value_type="int",
             value=42,
             user="bob",
         )
 
+        assert record.name == "latency"
         assert record.value == 42
 
     def test_tracker_no_experiment_raises(self, tracker: ExperimentTracker) -> None:
@@ -309,6 +330,7 @@ class TestTrackerAnnotations:
             tracker.log_eval_annotation(
                 dataset_id="ds-1",
                 eval_id="eval-1",
+                name="accuracy",
                 annotation_kind="feedback",
                 value_type="bool",
                 value=True,

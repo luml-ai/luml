@@ -1,7 +1,11 @@
 from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
-from lumlflow.schemas.annotations import Annotation, CreateAnnotation
+from lumlflow.schemas.annotations import (
+    Annotation,
+    AnnotationSummary,
+    CreateAnnotation,
+)
 from lumlflow.settings import get_tracker
 
 
@@ -21,6 +25,7 @@ class AnnotationsHandler:
             record = self.tracker.log_eval_annotation(
                 dataset_id=dataset_id,
                 eval_id=eval_id,
+                name=body.name,
                 annotation_kind=body.annotation_kind,
                 value_type=body.value_type,
                 value=body.value,
@@ -46,6 +51,7 @@ class AnnotationsHandler:
             record = self.tracker.log_span_annotation(
                 trace_id=trace_id,
                 span_id=span_id,
+                name=body.name,
                 annotation_kind=body.annotation_kind,
                 value_type=body.value_type,
                 value=body.value,
@@ -74,3 +80,17 @@ class AnnotationsHandler:
     ) -> None:
         self._check_experiment(experiment_id)
         self.tracker.delete_annotation(experiment_id, annotation_id, "span")
+
+    def get_eval_annotation_summary(
+        self, experiment_id: str, dataset_id: str
+    ) -> AnnotationSummary:
+        self._check_experiment(experiment_id)
+        record = self.tracker.get_eval_annotation_summary(experiment_id, dataset_id)
+        return AnnotationSummary.model_validate(record, from_attributes=True)
+
+    def get_trace_annotation_summary(
+        self, experiment_id: str, trace_id: str
+    ) -> AnnotationSummary:
+        self._check_experiment(experiment_id)
+        record = self.tracker.get_trace_annotation_summary(experiment_id, trace_id)
+        return AnnotationSummary.model_validate(record, from_attributes=True)

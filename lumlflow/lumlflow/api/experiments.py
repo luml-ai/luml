@@ -3,7 +3,11 @@ from fastapi import APIRouter, Query, status
 from lumlflow.handlers.annotations import AnnotationsHandler
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
-from lumlflow.schemas.annotations import Annotation, CreateAnnotation
+from lumlflow.schemas.annotations import (
+    Annotation,
+    AnnotationSummary,
+    CreateAnnotation,
+)
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     EvalColumns,
@@ -189,3 +193,23 @@ def delete_eval_annotation(experiment_id: str, annotation_id: str) -> None:
 )
 def delete_span_annotation(experiment_id: str, annotation_id: str) -> None:
     annotations_handler.delete_span_annotation(experiment_id, annotation_id)
+
+
+@experiments_router.get(
+    "/{experiment_id}/evals/annotations/summary",
+    response_model=AnnotationSummary,
+)
+def get_eval_annotation_summary(
+    experiment_id: str, dataset_id: str = Query(...)
+) -> AnnotationSummary:
+    return annotations_handler.get_eval_annotation_summary(experiment_id, dataset_id)
+
+
+@experiments_router.get(
+    "/{experiment_id}/traces/{trace_id}/annotations/summary",
+    response_model=AnnotationSummary,
+)
+def get_trace_annotation_summary(
+    experiment_id: str, trace_id: str
+) -> AnnotationSummary:
+    return annotations_handler.get_trace_annotation_summary(experiment_id, trace_id)
