@@ -2438,6 +2438,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             value=SQLiteBackend._deserialize_annotation_value(row[3], vt),
             user=row[4],
             created_at=row[6],
+            rationale=row[7],
         )
 
     @staticmethod
@@ -2462,6 +2463,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         value_type: AnnotationValueType,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
@@ -2469,8 +2471,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         annotation_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO eval_annotations
-               (id, dataset_id, eval_id, name, annotation_kind, value_type, value, user)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, dataset_id, eval_id, name, annotation_kind, value_type, value, user, rationale)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 annotation_id,
                 dataset_id,
@@ -2480,11 +2482,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 value_type.value,
                 self._serialize_annotation_value(value),
                 user,
+                rationale,
             ),
         )
         conn.commit()
         row = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at
+            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                FROM eval_annotations WHERE id = ?""",
             (annotation_id,),
         ).fetchone()
@@ -2497,7 +2500,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             return []
         conn = self._get_experiment_connection(experiment_id)
         rows = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at
+            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                FROM eval_annotations
                WHERE dataset_id = ? AND eval_id = ?
                ORDER BY created_at""",
@@ -2515,6 +2518,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         value_type: AnnotationValueType,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
@@ -2522,8 +2526,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         annotation_id = str(uuid.uuid4())
         conn.execute(
             """INSERT INTO span_annotations
-               (id, trace_id, span_id, name, annotation_kind, value_type, value, user)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+               (id, trace_id, span_id, name, annotation_kind, value_type, value, user, rationale)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 annotation_id,
                 trace_id,
@@ -2533,11 +2537,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 value_type.value,
                 self._serialize_annotation_value(value),
                 user,
+                rationale,
             ),
         )
         conn.commit()
         row = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at
+            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                FROM span_annotations WHERE id = ?""",
             (annotation_id,),
         ).fetchone()
@@ -2550,13 +2555,50 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             return []
         conn = self._get_experiment_connection(experiment_id)
         rows = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at
+            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
                FROM span_annotations
                WHERE trace_id = ? AND span_id = ?
                ORDER BY created_at""",
             (trace_id, span_id),
         ).fetchall()
         return [self._row_to_annotation(r) for r in rows]
+
+    def update_annotation(
+        self,
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None,
+    ) -> AnnotationRecord:
+        self._require_annotation_tables(experiment_id)
+        table = "eval_annotations" if target == "eval" else "span_annotations"
+        conn = self._get_experiment_connection(experiment_id)
+
+        sets: list[str] = []
+        params: list[str] = []
+        if value is not None:
+            sets.append("value = ?")
+            params.append(self._serialize_annotation_value(value))
+        if rationale is not None:
+            sets.append("rationale = ?")
+            params.append(rationale)
+        if not sets:
+            raise ValueError("No fields to update")
+
+        params.append(annotation_id)
+        conn.execute(
+            f"UPDATE {table} SET {', '.join(sets)} WHERE id = ?",  # noqa: S608
+            params,
+        )
+        conn.commit()
+        row = conn.execute(
+            f"SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale FROM {table} WHERE id = ?",  # noqa: S608
+            (annotation_id,),
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"Annotation '{annotation_id}' not found")
+        return self._row_to_annotation(row)
 
     def delete_annotation(
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
@@ -2635,6 +2677,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                GROUP BY name
                ORDER BY name""",
             (trace_id,),
+        ).fetchall()
+        return self._build_annotation_summary(feedback_rows, expectation_rows)
+
+    def get_all_traces_annotation_summary(
+        self, experiment_id: str
+    ) -> AnnotationSummary:
+        if not self._has_annotation_tables(experiment_id):
+            return AnnotationSummary(feedback=[], expectations=[])
+        conn = self._get_experiment_connection(experiment_id)
+        feedback_rows = conn.execute(
+            """SELECT name, value, COUNT(*) AS cnt
+               FROM span_annotations
+               WHERE annotation_kind = 'feedback'
+               GROUP BY name, value
+               ORDER BY name, value""",
+        ).fetchall()
+        expectation_rows = conn.execute(
+            """SELECT name, COUNT(*) AS cnt
+               FROM span_annotations
+               WHERE annotation_kind = 'expectation'
+               GROUP BY name
+               ORDER BY name""",
         ).fetchall()
         return self._build_annotation_summary(feedback_rows, expectation_rows)
 

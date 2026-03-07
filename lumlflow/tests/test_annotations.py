@@ -5,7 +5,11 @@ from luml.experiments.tracker import ExperimentTracker
 from lumlflow.handlers.annotations import AnnotationsHandler
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
-from lumlflow.schemas.annotations import Annotation, CreateAnnotation
+from lumlflow.schemas.annotations import (
+    Annotation,
+    CreateAnnotation,
+    UpdateAnnotation,
+)
 
 
 @pytest.fixture
@@ -69,11 +73,33 @@ class TestEvalAnnotationHandler:
         assert result.name == "accuracy"
         assert result.value is True
         assert result.user == "alice"
+        assert result.rationale is None
 
         annotations = handler.get_eval_annotations(exp_id, dataset_id, eval_id)
         assert len(annotations) == 1
         assert annotations[0].id == result.id
         assert annotations[0].name == "accuracy"
+
+    def test_create_annotation_with_rationale(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        dataset_id, eval_id = _seed_eval(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="accuracy",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+            rationale="The answer is correct",
+        )
+        result = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
+
+        assert result.rationale == "The answer is correct"
+
+        annotations = handler.get_eval_annotations(exp_id, dataset_id, eval_id)
+        assert annotations[0].rationale == "The answer is correct"
 
     def test_delete_eval_annotation(
         self, handler_with_experiment: tuple[AnnotationsHandler, str]
@@ -405,3 +431,180 @@ class TestTraceAnnotationSummary:
         assert len(summary.expectations) == 1
         assert summary.expectations[0].name == "latency"
         assert summary.expectations[0].total == 1
+
+
+class TestAutoUser:
+    def test_eval_annotation_defaults_to_system_user(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        dataset_id, eval_id = _seed_eval(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="accuracy",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+        )
+        result = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
+        assert result.user != ""
+        assert isinstance(result.user, str)
+
+    def test_span_annotation_defaults_to_system_user(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        trace_id, span_id = _seed_span(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="quality",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+        )
+        result = handler.create_span_annotation(exp_id, trace_id, span_id, body)
+        assert result.user != ""
+        assert isinstance(result.user, str)
+
+    def test_explicit_user_not_overridden(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        dataset_id, eval_id = _seed_eval(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="accuracy",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="explicit-user",
+        )
+        result = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
+        assert result.user == "explicit-user"
+
+
+class TestUpdateAnnotation:
+    def test_update_eval_annotation(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        dataset_id, eval_id = _seed_eval(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="accuracy",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+        )
+        created = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
+
+        updated = handler.update_eval_annotation(
+            exp_id, created.id, UpdateAnnotation(
+                value=False, rationale="Was wrong",
+            ),
+        )
+        assert updated.value is False
+        assert updated.rationale == "Was wrong"
+
+    def test_update_span_annotation(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        trace_id, span_id = _seed_span(handler, exp_id)
+
+        body = CreateAnnotation(
+            name="quality",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+        )
+        created = handler.create_span_annotation(
+            exp_id, trace_id, span_id, body
+        )
+
+        updated = handler.update_span_annotation(
+            exp_id, created.id, UpdateAnnotation(rationale="Added note"),
+        )
+        assert updated.value is True
+        assert updated.rationale == "Added note"
+
+
+class TestAllTracesAnnotationSummary:
+    def test_aggregates_across_traces(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        trace_id, span_id = _seed_span(handler, exp_id)
+
+        handler.tracker.log_span(
+            trace_id="trace-2",
+            span_id="span-2",
+            name="span-2",
+            start_time_unix_nano=0,
+            end_time_unix_nano=1000,
+            experiment_id=exp_id,
+        )
+
+        handler.create_span_annotation(
+            exp_id, trace_id, span_id,
+            CreateAnnotation(
+                name="quality", annotation_kind="feedback",
+                value_type="bool", value=True, user="a",
+            ),
+        )
+        handler.create_span_annotation(
+            exp_id, "trace-2", "span-2",
+            CreateAnnotation(
+                name="quality", annotation_kind="feedback",
+                value_type="bool", value=False, user="b",
+            ),
+        )
+
+        summary = handler.get_all_traces_annotation_summary(exp_id)
+        assert len(summary.feedback) == 1
+        assert summary.feedback[0].total == 2
+        assert summary.feedback[0].counts == {"true": 1, "false": 1}
+
+
+class TestTraceSummaryInTraceResponse:
+    def test_get_trace_includes_summary(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        trace_id, span_id = _seed_span(handler, exp_id)
+
+        handler.create_span_annotation(
+            exp_id, trace_id, span_id,
+            CreateAnnotation(
+                name="quality", annotation_kind="feedback",
+                value_type="bool", value=True, user="a",
+            ),
+        )
+
+        exp_handler = ExperimentsHandler(tracker=handler.tracker)
+        result = exp_handler.get_trace(exp_id, trace_id)
+        assert result.annotation_summary is not None
+        assert len(result.annotation_summary.feedback) == 1
+        assert result.annotation_summary.feedback[0].name == "quality"
+
+    def test_get_traces_includes_summary(
+        self, handler_with_experiment: tuple[AnnotationsHandler, str]
+    ) -> None:
+        handler, exp_id = handler_with_experiment
+        trace_id, span_id = _seed_span(handler, exp_id)
+
+        handler.create_span_annotation(
+            exp_id, trace_id, span_id,
+            CreateAnnotation(
+                name="quality", annotation_kind="feedback",
+                value_type="bool", value=True, user="a",
+            ),
+        )
+
+        exp_handler = ExperimentsHandler(tracker=handler.tracker)
+        result = exp_handler.get_experiment_traces(exp_id)
+        assert len(result.items) == 1
+        assert result.items[0].annotation_summary is not None
+        assert len(result.items[0].annotation_summary.feedback) == 1
