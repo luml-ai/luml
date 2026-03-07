@@ -96,6 +96,7 @@ _DDL_EXPERIMENT_CREATE_EVAL_ANNOTATIONS = """
         value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')),
         value TEXT NOT NULL,
         user TEXT NOT NULL,
+        rationale TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (dataset_id, eval_id) REFERENCES evals(dataset_id, id)
     )
@@ -111,6 +112,7 @@ _DDL_EXPERIMENT_CREATE_SPAN_ANNOTATIONS = """
         value_type TEXT NOT NULL CHECK(value_type IN ('int', 'bool', 'string')),
         value TEXT NOT NULL,
         user TEXT NOT NULL,
+        rationale TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (trace_id, span_id) REFERENCES spans(trace_id, span_id)
     )
