@@ -274,6 +274,37 @@ class TestBackwardCompat:
         assert result is not None
         assert result.spans[0].annotation_count == 0
 
+    def test_write_raises_on_old_db(self, tmp_path: Path) -> None:
+        """Writing annotations on an old DB raises ValueError."""
+        backend = SQLiteBackend(str(tmp_path / "experiments"))
+        exp_id = "old-exp"
+        backend.initialize_experiment(exp_id, "default", "test")
+
+        db_path = tmp_path / "experiments" / exp_id / "exp.db"
+        conn = sqlite3.connect(str(db_path))
+        conn.execute("DROP TABLE IF EXISTS eval_annotations")
+        conn.execute("DROP TABLE IF EXISTS span_annotations")
+        conn.execute("PRAGMA user_version = 0")
+        conn.commit()
+        conn.close()
+
+        backend.pool.close_connection(str(db_path))
+
+        dataset_id, eval_id = _seed_eval(backend, exp_id)
+        trace_id, span_id = _seed_span(backend, exp_id)
+
+        with pytest.raises(ValueError, match="older schema"):
+            backend.log_eval_annotation(
+                exp_id, dataset_id, eval_id, "quality",
+                AnnotationKind.FEEDBACK, AnnotationValueType.BOOL, True, "alice",
+            )
+
+        with pytest.raises(ValueError, match="older schema"):
+            backend.log_span_annotation(
+                exp_id, trace_id, span_id, "latency",
+                AnnotationKind.EXPECTATION, AnnotationValueType.INT, 42, "bob",
+            )
+
 
 class TestTrackerAnnotations:
     def test_log_eval_annotation_via_tracker(

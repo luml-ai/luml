@@ -34,6 +34,8 @@ class AnnotationsHandler:
             )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
         return Annotation.model_validate(record, from_attributes=True)
 
     def get_eval_annotations(
@@ -60,6 +62,8 @@ class AnnotationsHandler:
             )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
         return Annotation.model_validate(record, from_attributes=True)
 
     def get_span_annotations(
