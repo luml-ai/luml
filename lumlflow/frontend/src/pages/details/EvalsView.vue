@@ -3,7 +3,6 @@
     v-if="evalsStore.getProvider"
     :models-info="modelsInfo"
     loader-height="calc(100vh-250px)"
-    :dataset-table-height="tableHeight"
   ></EvalsDatasetsList>
 </template>
 
@@ -11,11 +10,9 @@
 import { useEvalsStore, EvalsDatasetsList, type ModelsInfo } from '@luml/experiments'
 import { computed } from 'vue'
 import { useExperimentStore } from '@/store/experiment'
-import { useWindowSize } from '@vueuse/core'
 
 const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
-const { height: windowHeight } = useWindowSize()
 
 const modelsInfo = computed<ModelsInfo>(() => {
   if (!experimentStore.experiment) return {}
@@ -25,10 +22,6 @@ const modelsInfo = computed<ModelsInfo>(() => {
       color: 'var(--p-primary-color)',
     },
   }
-})
-
-const tableHeight = computed(() => {
-  return `${windowHeight.value - 450}px`
 })
 </script>
 
