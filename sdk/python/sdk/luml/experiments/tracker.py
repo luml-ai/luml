@@ -845,6 +845,7 @@ class ExperimentTracker:
         value_type: str,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
         experiment_id: str | None = None,
     ) -> AnnotationRecord:
         """
@@ -861,6 +862,7 @@ class ExperimentTracker:
             value_type (str): Type of the value: ``'bool'``, ``'int'``, or ``'string'``.
             value (int | bool | str): The annotation value.
             user (str): The user who created the annotation.
+            rationale (str | None): Optional free-text explanation for the annotation.
             experiment_id (str | None): Experiment ID. Uses current experiment if not
                 specified.
 
@@ -889,6 +891,7 @@ class ExperimentTracker:
             value_type="bool",
             value=True,
             user="alice",
+            rationale="The answer is correct",
         )
         ```
         """
@@ -904,6 +907,7 @@ class ExperimentTracker:
             AnnotationValueType(value_type),
             value,
             user,
+            rationale,
         )
 
     def log_span_annotation(
@@ -915,6 +919,7 @@ class ExperimentTracker:
         value_type: str,
         value: int | bool | str,
         user: str,
+        rationale: str | None = None,
         experiment_id: str | None = None,
     ) -> AnnotationRecord:
         """
@@ -931,6 +936,7 @@ class ExperimentTracker:
             value_type (str): Type of the value: ``'bool'``, ``'int'``, or ``'string'``.
             value (int | bool | str): The annotation value.
             user (str): The user who created the annotation.
+            rationale (str | None): Optional free-text explanation for the annotation.
             experiment_id (str | None): Experiment ID. Uses current experiment if not
                 specified.
 
@@ -954,6 +960,7 @@ class ExperimentTracker:
             value_type="bool",
             value=True,
             user="alice",
+            rationale="Output was relevant and well-structured",
         )
         ```
         """
@@ -969,6 +976,7 @@ class ExperimentTracker:
             AnnotationValueType(value_type),
             value,
             user,
+            rationale,
         )
 
     def get_experiment_record(self, experiment_id: str) -> Experiment | None:
@@ -1265,6 +1273,50 @@ class ExperimentTracker:
         """
         return self.backend.get_span_annotations(experiment_id, trace_id, span_id)
 
+    def update_annotation(
+        self,
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None,
+    ) -> AnnotationRecord:
+        """
+        Update an existing annotation's value and/or rationale.
+
+        At least one of ``value`` or ``rationale`` must be provided.
+
+        Args:
+            experiment_id (str): The experiment containing the annotation.
+            annotation_id (str): The annotation to update.
+            target (Literal["eval", "span"]): Whether this is an eval or span
+                annotation.
+            value (int | bool | str | None): New annotation value. ``None`` to
+                leave unchanged.
+            rationale (str | None): New rationale text. ``None`` to leave unchanged.
+
+        Returns:
+            AnnotationRecord: The updated annotation record.
+
+        Raises:
+            ValueError: If no fields are provided to update, the annotation is
+                not found, or the experiment uses an older schema.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        updated = tracker.update_annotation(
+            "exp-1", "ann-uuid", "eval",
+            value=False,
+            rationale="Revised: answer was actually wrong",
+        )
+        ```
+        """
+        return self.backend.update_annotation(
+            experiment_id, annotation_id, target,
+            value=value, rationale=rationale,
+        )
+
     def delete_annotation(
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
     ) -> None:
@@ -1343,6 +1395,31 @@ class ExperimentTracker:
         ```
         """
         return self.backend.get_trace_annotation_summary(experiment_id, trace_id)
+
+    def get_all_traces_annotation_summary(
+        self, experiment_id: str
+    ) -> AnnotationSummary:
+        """
+        Get an aggregated summary of span annotations across all traces.
+
+        Unlike ``get_trace_annotation_summary`` which scopes to a single trace,
+        this method aggregates annotations from every span in the experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            AnnotationSummary: Summary with ``feedback`` and ``expectations`` lists.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        summary = tracker.get_all_traces_annotation_summary("exp-1")
+        for fb in summary.feedback:
+            print(f"{fb.name}: {fb.total} total, counts={fb.counts}")
+        ```
+        """
+        return self.backend.get_all_traces_annotation_summary(experiment_id)
 
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
         """
