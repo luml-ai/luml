@@ -18,6 +18,7 @@ class AnnotationValueType(StrEnum):
 
 
 class CreateAnnotation(BaseModel):
+    name: str
     annotation_kind: AnnotationKind
     value_type: AnnotationValueType
     value: int | bool | str
@@ -26,8 +27,25 @@ class CreateAnnotation(BaseModel):
 
 class Annotation(BaseModel, BaseOrmConfig):
     id: str
+    name: str
     annotation_kind: AnnotationKind
     value_type: AnnotationValueType
     value: int | bool | str
     user: str
     created_at: datetime
+
+
+class FeedbackSummaryItem(BaseModel, BaseOrmConfig):
+    name: str
+    total: int
+    counts: dict[str, int]
+
+
+class ExpectationSummaryItem(BaseModel, BaseOrmConfig):
+    name: str
+    total: int
+
+
+class AnnotationSummary(BaseModel, BaseOrmConfig):
+    feedback: list[FeedbackSummaryItem]
+    expectations: list[ExpectationSummaryItem]
