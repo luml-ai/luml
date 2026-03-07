@@ -144,8 +144,28 @@ class AnnotationValueType(StrEnum):
 @dataclass
 class AnnotationRecord:
     id: str
+    name: str
     annotation_kind: AnnotationKind
     value_type: AnnotationValueType
     value: int | bool | str
     user: str
     created_at: datetime
+
+
+@dataclass
+class FeedbackSummaryItem:
+    name: str
+    total: int
+    counts: dict[str, int]
+
+
+@dataclass
+class ExpectationSummaryItem:
+    name: str
+    total: int
+
+
+@dataclass
+class AnnotationSummary:
+    feedback: list[FeedbackSummaryItem]
+    expectations: list[ExpectationSummaryItem]
