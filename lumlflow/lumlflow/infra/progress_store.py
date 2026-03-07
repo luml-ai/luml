@@ -1,7 +1,10 @@
 import json
 import threading
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
 from typing import Literal
+
+_JOB_TTL_SECONDS = 60 * 10
 
 
 @dataclass
@@ -12,6 +15,7 @@ class UploadJob:
     total_bytes: int = 0
     result: list | None = None
     error: str | None = None
+    created_at: float = field(default_factory=time.monotonic)
 
     def to_json(self) -> str:
         if self.status == "complete":
@@ -33,8 +37,15 @@ class ProgressStore:
         self._jobs: dict[str, UploadJob] = {}
         self._lock = threading.Lock()
 
+    def _evict_stale(self) -> None:
+        cutoff = time.monotonic() - _JOB_TTL_SECONDS
+        stale = [jid for jid, job in self._jobs.items() if job.created_at < cutoff]
+        for jid in stale:
+            del self._jobs[jid]
+
     def create(self, job_id: str) -> None:
         with self._lock:
+            self._evict_stale()
             self._jobs[job_id] = UploadJob(status="running")
 
     def update_progress(self, job_id: str, uploaded: int, total: int) -> None:
@@ -44,7 +55,9 @@ class ProgressStore:
                 return
             job.uploaded_bytes = uploaded
             job.total_bytes = total
-            job.percent = int(uploaded / total * 100) if total > 0 else 0
+            job.percent = (
+                max(0, min(100, int(uploaded / total * 100))) if total > 0 else 0
+            )
 
     def set_complete(self, job_id: str, result: list) -> None:
         with self._lock:

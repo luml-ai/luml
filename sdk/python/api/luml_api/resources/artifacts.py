@@ -1699,6 +1699,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
     ) -> Artifact:
         """Upload artifact file to the collection.
 
@@ -1846,6 +1847,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 file_path=file_path,
                 file_size=artifact.size,
                 file_name=artifact.file_name,
+                on_progress=on_progress,
             )
 
             status = (
