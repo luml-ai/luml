@@ -125,8 +125,7 @@ class ExperimentsHandler:
                 experiment_id, t.trace_id
             )
             trace.annotation_summary = AnnotationSummary.model_validate(
-                summary, from_attributes=True
-            )
+                summary            )
             traces.append(trace)
         return PaginatedTraces(
             items=traces,
@@ -149,8 +148,7 @@ class ExperimentsHandler:
             trace_id=result.trace_id,
             spans=[Span.model_validate(s) for s in result.spans],
             annotation_summary=AnnotationSummary.model_validate(
-                summary, from_attributes=True
-            ),
+                summary            ),
         )
 
     def get_experiment_evals(
