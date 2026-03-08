@@ -394,6 +394,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             raise ValueError("Attachment data must be bytes or str")
 
         file_path = attachments_dir / name
+        file_path.parent.mkdir(parents=True, exist_ok=True)
 
         with file_path.open("wb+" if binary else "w+") as f:
             f.write(data)
