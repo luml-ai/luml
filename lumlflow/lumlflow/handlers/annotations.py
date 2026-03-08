@@ -47,14 +47,14 @@ class AnnotationsHandler:
             raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
-        return Annotation.model_validate(record, from_attributes=True)
+        return Annotation.model_validate(record)
 
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str
     ) -> list[Annotation]:
         self._check_experiment(experiment_id)
         records = self.tracker.get_eval_annotations(experiment_id, dataset_id, eval_id)
-        return [Annotation.model_validate(r, from_attributes=True) for r in records]
+        return [Annotation.model_validate(r) for r in records]
 
     def create_span_annotation(
         self, experiment_id: str, trace_id: str, span_id: str, body: CreateAnnotation
@@ -77,14 +77,14 @@ class AnnotationsHandler:
             raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
-        return Annotation.model_validate(record, from_attributes=True)
+        return Annotation.model_validate(record)
 
     def get_span_annotations(
         self, experiment_id: str, trace_id: str, span_id: str
     ) -> list[Annotation]:
         self._check_experiment(experiment_id)
         records = self.tracker.get_span_annotations(experiment_id, trace_id, span_id)
-        return [Annotation.model_validate(r, from_attributes=True) for r in records]
+        return [Annotation.model_validate(r) for r in records]
 
     def update_eval_annotation(
         self, experiment_id: str, annotation_id: str, body: UpdateAnnotation
@@ -99,7 +99,7 @@ class AnnotationsHandler:
             raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
-        return Annotation.model_validate(record, from_attributes=True)
+        return Annotation.model_validate(record)
 
     def update_span_annotation(
         self, experiment_id: str, annotation_id: str, body: UpdateAnnotation
@@ -114,7 +114,7 @@ class AnnotationsHandler:
             raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
-        return Annotation.model_validate(record, from_attributes=True)
+        return Annotation.model_validate(record)
 
     def delete_eval_annotation(
         self, experiment_id: str, annotation_id: str
@@ -133,18 +133,18 @@ class AnnotationsHandler:
     ) -> AnnotationSummary:
         self._check_experiment(experiment_id)
         record = self.tracker.get_eval_annotation_summary(experiment_id, dataset_id)
-        return AnnotationSummary.model_validate(record, from_attributes=True)
+        return AnnotationSummary.model_validate(record)
 
     def get_trace_annotation_summary(
         self, experiment_id: str, trace_id: str
     ) -> AnnotationSummary:
         self._check_experiment(experiment_id)
         record = self.tracker.get_trace_annotation_summary(experiment_id, trace_id)
-        return AnnotationSummary.model_validate(record, from_attributes=True)
+        return AnnotationSummary.model_validate(record)
 
     def get_all_traces_annotation_summary(
         self, experiment_id: str
     ) -> AnnotationSummary:
         self._check_experiment(experiment_id)
         record = self.tracker.get_all_traces_annotation_summary(experiment_id)
-        return AnnotationSummary.model_validate(record, from_attributes=True)
+        return AnnotationSummary.model_validate(record)
