@@ -5,13 +5,9 @@ from lumlflow.schemas.luml import (
     Organization,
     PaginatedCollections,
 )
-from lumlflow.settings import config
 
 
 class LumlHandler(BaseLumlHandler):
-    def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
-        super().__init__(db_path)
-
     def get_luml_organizations(self) -> list[Organization]:
         luml = self._get_luml_client()
         try:
