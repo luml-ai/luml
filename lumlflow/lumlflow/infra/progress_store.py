@@ -4,6 +4,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
+from luml.api.utils.progress import BaseProgressHandler
+
 _JOB_TTL_SECONDS = 60 * 10
 
 
@@ -80,19 +82,35 @@ class ProgressStore:
         with self._lock:
             return self._jobs.get(job_id)
 
-    def make_callback(self, job_id: str, item_idx: int = 0, total_items: int = 1):
-        def callback(uploaded: int, total: int) -> None:
-            if total > 0:
-                overall = int((item_idx + uploaded / total) * 100)
-            else:
-                overall = item_idx * 100
-            self.update_progress(job_id, overall, total_items * 100)
-
-        return callback
+    def make_handler(
+        self, job_id: str, item_idx: int = 0, total_items: int = 1
+    ) -> "SSEProgressHandler":
+        return SSEProgressHandler(self, job_id, item_idx, total_items)
 
     def delete(self, job_id: str) -> None:
         with self._lock:
             self._jobs.pop(job_id, None)
 
 
-progress_store = ProgressStore()
+class SSEProgressHandler(BaseProgressHandler):
+    def __init__(
+        self,
+        store: ProgressStore,
+        job_id: str,
+        item_idx: int = 0,
+        total_items: int = 1,
+    ) -> None:
+        self._store = store
+        self._job_id = job_id
+        self._item_idx = item_idx
+        self._total_items = total_items
+
+    def on_chunk(self, uploaded: int, total: int) -> None:
+        if total > 0:
+            overall = int((self._item_idx + uploaded / total) * 100)
+        else:
+            overall = self._item_idx * 100
+        self._store.update_progress(self._job_id, overall, self._total_items * 100)
+
+    def finish(self) -> None:
+        pass
