@@ -93,8 +93,6 @@ class JobResponse(BaseModel):
 class ProgressEvent(BaseModel):
     type: Literal["progress"] = "progress"
     percent: int
-    uploaded_bytes: int
-    total_bytes: int
 
 
 class CompleteEvent(BaseModel):

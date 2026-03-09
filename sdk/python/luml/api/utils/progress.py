@@ -79,7 +79,10 @@ class PrintProgressHandler(BaseProgressHandler):
             progress = (uploaded / total) * 100
             bar_length = 30
             filled_length = int(bar_length * uploaded // total)
-            bar = "=" * filled_length + ">" + " " * (bar_length - filled_length - 1)
+            if filled_length >= bar_length:
+                bar = "=" * bar_length
+            else:
+                bar = "=" * filled_length + ">" + " " * (bar_length - filled_length - 1)
             print(f"\r[{bar}] {progress:.1f}%", end="", flush=True)  # noqa: T201
 
     def finish(self) -> None:
