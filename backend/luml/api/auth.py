@@ -36,6 +36,7 @@ api_key_validate_router = APIRouter(
 async def validate_api_key() -> None:
     return
 
+
 auth_handler = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
 google_auth_handler = AuthHandler(
     secret_key=config.AUTH_SECRET_KEY, oauth_provider=OAuthGoogleProvider
