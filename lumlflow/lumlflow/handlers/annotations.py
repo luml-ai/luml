@@ -92,8 +92,11 @@ class AnnotationsHandler:
         self._check_experiment(experiment_id)
         try:
             record = self.tracker.update_annotation(
-                experiment_id, annotation_id, "eval",
-                value=body.value, rationale=body.rationale,
+                experiment_id,
+                annotation_id,
+                "eval",
+                value=body.value,
+                rationale=body.rationale,
             )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
@@ -107,8 +110,11 @@ class AnnotationsHandler:
         self._check_experiment(experiment_id)
         try:
             record = self.tracker.update_annotation(
-                experiment_id, annotation_id, "span",
-                value=body.value, rationale=body.rationale,
+                experiment_id,
+                annotation_id,
+                "span",
+                value=body.value,
+                rationale=body.rationale,
             )
         except ValueError as e:
             raise ApplicationError(str(e), status_code=400) from e
@@ -116,15 +122,11 @@ class AnnotationsHandler:
             raise ApplicationError(str(e), status_code=500) from e
         return Annotation.model_validate(record)
 
-    def delete_eval_annotation(
-        self, experiment_id: str, annotation_id: str
-    ) -> None:
+    def delete_eval_annotation(self, experiment_id: str, annotation_id: str) -> None:
         self._check_experiment(experiment_id)
         self.tracker.delete_annotation(experiment_id, annotation_id, "eval")
 
-    def delete_span_annotation(
-        self, experiment_id: str, annotation_id: str
-    ) -> None:
+    def delete_span_annotation(self, experiment_id: str, annotation_id: str) -> None:
         self._check_experiment(experiment_id)
         self.tracker.delete_annotation(experiment_id, annotation_id, "span")
 

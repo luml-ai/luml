@@ -150,9 +150,7 @@ def create_eval_annotation(
 def get_eval_annotations(
     experiment_id: str, dataset_id: str, eval_id: str
 ) -> list[Annotation]:
-    return annotations_handler.get_eval_annotations(
-        experiment_id, dataset_id, eval_id
-    )
+    return annotations_handler.get_eval_annotations(experiment_id, dataset_id, eval_id)
 
 
 @experiments_router.post(
@@ -175,9 +173,7 @@ def create_span_annotation(
 def get_span_annotations(
     experiment_id: str, trace_id: str, span_id: str
 ) -> list[Annotation]:
-    return annotations_handler.get_span_annotations(
-        experiment_id, trace_id, span_id
-    )
+    return annotations_handler.get_span_annotations(experiment_id, trace_id, span_id)
 
 
 @experiments_router.patch(
