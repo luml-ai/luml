@@ -5,12 +5,13 @@ import httpx
 
 from luml.api._exceptions import FileDownloadError
 from luml.api._types import PartDetails
+from luml.api.utils.progress import BaseProgressHandler, PrintProgressHandler
 
 
 class BaseFileHandler(ABC):
     """Abstract base class for file upload/download handlers."""
 
-    on_progress: Callable[[int, int], None] | None = None
+    on_progress: BaseProgressHandler | None = None
 
     @staticmethod
     def _calculate_optimal_chunk_size(file_size: int) -> int:
@@ -31,32 +32,16 @@ class BaseFileHandler(ABC):
     def create_progress_bar(
         self, total_size: int, file_name: str = ""
     ) -> Callable[[int], None]:
-        uploaded = 0
-        description_shown = False
+        handler = (
+            self.on_progress if self.on_progress is not None else PrintProgressHandler()
+        )
+        self._active_progress = handler
+        handler.start(file_name, total_size)
+        return handler.update
 
-        def update_progress(chunk_size: int) -> None:
-            nonlocal uploaded, description_shown
-            uploaded += chunk_size
-
-            if not description_shown and file_name:
-                print(f'Processing file "{file_name}"...')  # noqa: T201
-                description_shown = True
-
-            if total_size > 0:
-                progress = (uploaded / total_size) * 100
-                bar_length = 30
-                filled_length = int(bar_length * uploaded // total_size)
-                bar = "=" * filled_length + ">" + " " * (bar_length - filled_length - 1)
-                print(f"\r[{bar}] {progress:.1f}%", end="", flush=True)  # noqa: T201
-
-            if self.on_progress:
-                self.on_progress(uploaded, total_size)
-
-        return update_progress
-
-    @staticmethod
-    def finish_progress() -> None:
-        print()  # noqa: T201
+    def finish_progress(self) -> None:
+        if hasattr(self, "_active_progress"):
+            self._active_progress.finish()
 
     def create_file_generator(
         self,

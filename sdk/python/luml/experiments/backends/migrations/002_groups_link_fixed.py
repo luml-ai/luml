@@ -173,6 +173,5 @@ def down(conn: sqlite3.Connection) -> None:
     cursor.execute("ALTER TABLE experiments DROP COLUMN dynamic_params")
     cursor.execute("ALTER TABLE experiments DROP COLUMN duration")
     cursor.execute("ALTER TABLE experiments DROP COLUMN description")
-    cursor.execute("DROP TABLE IF EXISTS models")
-    cursor.execute("ALTER TABLE experiment_groups DROP COLUMN tags")
     cursor.execute("ALTER TABLE experiment_groups DROP COLUMN last_modified")
+    cursor.execute("DROP TABLE IF EXISTS models")

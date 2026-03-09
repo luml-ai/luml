@@ -10,7 +10,7 @@ from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.handlers.luml.base_luml import BaseLumlHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
-from lumlflow.infra.progress_store import progress_store
+from lumlflow.infra.progress_store import ProgressStore
 from lumlflow.schemas.luml import (
     Artifact,
     UploadArtifactForm,
@@ -20,9 +20,14 @@ from lumlflow.settings import config
 
 
 class ArtifactHandler(BaseLumlHandler):
-    def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
+    def __init__(
+        self,
+        db_path: str | None = config.BACKEND_STORE_URI,
+        progress_store: ProgressStore | None = None,
+    ):
         super().__init__(db_path)
         self.tracker = ExperimentTracker(f"sqlite://{config.BACKEND_STORE_URI}")
+        self.progress_store = progress_store or ProgressStore()
 
     def _upload_model(
         self,
@@ -105,40 +110,17 @@ class ArtifactHandler(BaseLumlHandler):
         results = []
 
         for i, model in enumerate(models):
-            on_progress = progress_store.make_callback(job_id, i, total)
+            on_progress = self.progress_store.make_handler(job_id, i, total)
             results.append(
                 self._upload_model(data, model, embed=embed, on_progress=on_progress)
             )
 
         if with_experiment:
-            on_progress = progress_store.make_callback(job_id, len(models), total)
+            on_progress = self.progress_store.make_handler(job_id, len(models), total)
             results.append(self._upload_experiment(data, on_progress=on_progress))
 
         return results
 
-    # на аплоадинг в люмл у нас з'являється форма з трьома вкладками
-    #
-    # За замовчуванням на uploading зі сторінки експерименту
-    # має стояти автоматичний режим (перша вкладка):
-    # 1. якщо у юзера експеримент БЕЗ моделі → в luml передається експеримент
-    # 2. якщо у юзера експеримент з ОДНІЄЮ моделлю → в luml передаємо модель,
-    # а експеримент ембедиться в неї
-    # 3. якщо у юзера експеримент з багатьма моделями
-    #   → окремо передаємо всі моделі, і окремо сам експеримент
-    #
-    # Друга вкладка - завантажити лише модель. форма на заповнення та сама,
-    # лише у юзера питаємо окремо, чи треба ембедити експеримент до неї (чекбокс просто)
-    #
-    # Третя вкладка - завантажити лише експеримент
-    #
-    # когда ембедим експеримент у модель, надо сначала сделать копию,
-    # так как оно ембедится inplace и сработает только 1 раз
-    #
-    # У нас в трекере есть метод, который експеримент добавляет внутрь модели.
-    # Чтобы он на платформе отображался во вкладке experiment snapshots.
-    # Если у нас в эксперименте ровно 1 модель,
-    # то мы загружаем только 1 артефакт (модель,
-    #   внутри которой есть снепшот эксперимента)
     def upload_artifact(self, data: UploadArtifactForm, job_id: str) -> list[Artifact]:
         results = []
 
@@ -168,8 +150,8 @@ class ArtifactHandler(BaseLumlHandler):
                     )
 
         except Exception as e:
-            progress_store.set_error(job_id, str(e))
-            return
+            self.progress_store.set_error(job_id, str(e))
+            raise ApplicationError(str(e)) from e
 
-        progress_store.set_complete(job_id, [r.model_dump() for r in results])
+        self.progress_store.set_complete(job_id, [r.model_dump() for r in results])
         return results

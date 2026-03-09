@@ -6,7 +6,7 @@ from fastapi.responses import StreamingResponse
 
 from lumlflow.handlers.luml.artifacts import ArtifactHandler
 from lumlflow.handlers.luml.luml import LumlHandler
-from lumlflow.infra.progress_store import progress_store
+from lumlflow.infra.progress_store import ProgressStore
 from lumlflow.schemas.luml import (
     JobResponse,
     Orbit,
@@ -18,7 +18,8 @@ from lumlflow.schemas.luml import (
 luml_router = APIRouter(prefix="/api/luml", tags=["luml"])
 
 luml_handler = LumlHandler()
-artifact_handler = ArtifactHandler()
+progress_store = ProgressStore()
+artifact_handler = ArtifactHandler(progress_store=progress_store)
 
 
 @luml_router.get("/organizations", response_model=list[Organization])
