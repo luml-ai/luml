@@ -1,17 +1,17 @@
 from luml.api._client import LumlClient
 from luml.api._exceptions import ResourceNotFoundError
-from luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.infra.exceptions import ApplicationError
-from lumlflow.settings import config
+from lumlflow.settings import config, get_tracker
 
 
 class BaseLumlHandler:
     __auth = AuthHandler()
 
-    def __init__(self, db_path: str | None = config.BACKEND_STORE_URI):
-        self.db = SQLiteBackend(db_path)
+    def __init__(self, tracker: ExperimentTracker | None = None) -> None:
+        self.tracker = tracker or get_tracker()
 
     def _get_luml_client(
         self,

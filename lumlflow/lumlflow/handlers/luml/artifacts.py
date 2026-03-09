@@ -6,7 +6,6 @@ from pathlib import Path
 from luml.artifacts.experiment import save_experiment
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends.data_types import Model as DbModel
-from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.handlers.luml.base_luml import BaseLumlHandler
 from lumlflow.infra.exceptions import ApplicationError, NotFound
@@ -16,17 +15,14 @@ from lumlflow.schemas.luml import (
     UploadArtifactForm,
     UploadType,
 )
-from lumlflow.settings import config
 
 
 class ArtifactHandler(BaseLumlHandler):
     def __init__(
         self,
-        db_path: str | None = config.BACKEND_STORE_URI,
         progress_store: ProgressStore | None = None,
     ):
-        super().__init__(db_path)
-        self.tracker = ExperimentTracker(f"sqlite://{config.BACKEND_STORE_URI}")
+        super().__init__()
         self.progress_store = progress_store or ProgressStore()
 
     def _upload_model(
@@ -41,7 +37,7 @@ class ArtifactHandler(BaseLumlHandler):
                 f"Model '{model.name}' has no file path", status_code=422
             )
 
-        model_path = str(self.db.base_path / model.path)
+        model_path = str(self.tracker.backend.base_path / model.path)
         temp_path = None
 
         try:
@@ -76,7 +72,7 @@ class ArtifactHandler(BaseLumlHandler):
         data: UploadArtifactForm,
         on_progress,
     ) -> Artifact:
-        experiment = self.db.get_experiment(data.experiment_id)
+        experiment = self.tracker.get_experiment_record(data.experiment_id)
         if not experiment:
             raise NotFound("Experiment not found")
 
@@ -131,7 +127,7 @@ class ArtifactHandler(BaseLumlHandler):
                         data, job_id, models=[], embed=False, with_experiment=True
                     )
                 case UploadType.MODEL:
-                    models = self.db.get_models(data.experiment_id)
+                    models = self.tracker.get_models(data.experiment_id)
                     results = self._upload_all(
                         data,
                         job_id,
@@ -140,7 +136,7 @@ class ArtifactHandler(BaseLumlHandler):
                         with_experiment=False,
                     )
                 case UploadType.AUTO:
-                    models = self.db.get_models(data.experiment_id)
+                    models = self.tracker.get_models(data.experiment_id)
                     results = self._upload_all(
                         data,
                         job_id,
