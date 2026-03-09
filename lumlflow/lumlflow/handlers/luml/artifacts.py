@@ -117,7 +117,7 @@ class ArtifactHandler(BaseLumlHandler):
 
         return results
 
-    def upload_artifact(self, data: UploadArtifactForm, job_id: str) -> list[Artifact]:
+    def upload_artifact(self, data: UploadArtifactForm, job_id: str) -> None:
         results = []
 
         try:
@@ -147,7 +147,6 @@ class ArtifactHandler(BaseLumlHandler):
 
         except Exception as e:
             self.progress_store.set_error(job_id, str(e))
-            raise ApplicationError(str(e)) from e
+            return
 
         self.progress_store.set_complete(job_id, [r.model_dump() for r in results])
-        return results

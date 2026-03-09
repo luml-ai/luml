@@ -13,8 +13,6 @@ _JOB_TTL_SECONDS = 60 * 10
 class UploadJob:
     status: Literal["running", "complete", "error"]
     percent: int = 0
-    uploaded_bytes: int = 0
-    total_bytes: int = 0
     result: list | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.monotonic)
@@ -24,14 +22,7 @@ class UploadJob:
             return json.dumps({"type": "complete", "artifacts": self.result})
         if self.status == "error":
             return json.dumps({"type": "error", "message": self.error})
-        return json.dumps(
-            {
-                "type": "progress",
-                "percent": self.percent,
-                "uploaded_bytes": self.uploaded_bytes,
-                "total_bytes": self.total_bytes,
-            }
-        )
+        return json.dumps({"type": "progress", "percent": self.percent})
 
 
 class ProgressStore:
@@ -50,16 +41,12 @@ class ProgressStore:
             self._evict_stale()
             self._jobs[job_id] = UploadJob(status="running")
 
-    def update_progress(self, job_id: str, uploaded: int, total: int) -> None:
+    def update_progress(self, job_id: str, percent: int) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is None:
                 return
-            job.uploaded_bytes = uploaded
-            job.total_bytes = total
-            job.percent = (
-                max(0, min(100, int(uploaded / total * 100))) if total > 0 else 0
-            )
+            job.percent = max(0, min(100, percent))
 
     def set_complete(self, job_id: str, result: list) -> None:
         with self._lock:
@@ -107,10 +94,11 @@ class SSEProgressHandler(BaseProgressHandler):
 
     def on_chunk(self, uploaded: int, total: int) -> None:
         if total > 0:
-            overall = int((self._item_idx + uploaded / total) * 100)
+            item_progress = uploaded / total
         else:
-            overall = self._item_idx * 100
-        self._store.update_progress(self._job_id, overall, self._total_items * 100)
+            item_progress = 0
+        percent = int((self._item_idx + item_progress) / self._total_items * 100)
+        self._store.update_progress(self._job_id, percent)
 
     def finish(self) -> None:
         pass
