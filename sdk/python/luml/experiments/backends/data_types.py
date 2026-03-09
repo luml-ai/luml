@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import IntEnum
+from enum import IntEnum, StrEnum
 from typing import Any
 
 
@@ -89,6 +89,7 @@ class SpanRecord:
     events: list[dict[str, Any]] | None
     links: list[dict[str, Any]] | None
     trace_flags: int | None
+    annotation_count: int = 0
 
 
 @dataclass
@@ -127,3 +128,45 @@ class EvalColumns:
     outputs: list[str]
     refs: list[str]
     scores: list[str]
+
+
+class AnnotationKind(StrEnum):
+    FEEDBACK = "feedback"
+    EXPECTATION = "expectation"
+
+
+class AnnotationValueType(StrEnum):
+    INT = "int"
+    BOOL = "bool"
+    STRING = "string"
+
+
+@dataclass
+class AnnotationRecord:
+    id: str
+    name: str
+    annotation_kind: AnnotationKind
+    value_type: AnnotationValueType
+    value: int | bool | str
+    user: str
+    created_at: datetime
+    rationale: str | None = None
+
+
+@dataclass
+class FeedbackSummaryItem:
+    name: str
+    total: int
+    counts: dict[str, int]
+
+
+@dataclass
+class ExpectationSummaryItem:
+    name: str
+    total: int
+
+
+@dataclass
+class AnnotationSummary:
+    feedback: list[FeedbackSummaryItem]
+    expectations: list[ExpectationSummaryItem]
