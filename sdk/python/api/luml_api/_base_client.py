@@ -150,7 +150,7 @@ class SyncBaseClient(BaseClient):
                 response=response,
             )
 
-        if response.status_code == 204 or not response.content:
+        if response.status_code == 204 or not response.content.strip():
             return None
         try:
             return response.json()
@@ -232,7 +232,7 @@ class AsyncBaseClient(BaseClient):
                 response=response,
             )
 
-        if response.status_code == 204 or not response.content:
+        if response.status_code == 204 or not response.content.strip():
             return None
         try:
             return response.json()
