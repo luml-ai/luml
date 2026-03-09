@@ -34,3 +34,6 @@ def get_tracker() -> "ExperimentTracker":  # type: ignore[name-defined]  # noqa:
     from luml.experiments.tracker import ExperimentTracker
 
     return ExperimentTracker(f"sqlite://{get_config().BACKEND_STORE_URI}")
+
+
+config = get_config()
