@@ -2374,6 +2374,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             metadata=_keys("metadata"),
         )
 
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT dataset_id FROM evals ORDER BY dataset_id")
+        return [row[0] for row in cur.fetchall()]
+
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         """
         Resolves the json_sort_column for get_experiment_evals.

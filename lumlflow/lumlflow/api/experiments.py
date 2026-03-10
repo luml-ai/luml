@@ -71,6 +71,11 @@ def get_experiment_eval_scores(experiment_id: str) -> EvalColumns:
     return experiments_handler.get_experiment_eval_columns(experiment_id)
 
 
+@experiments_router.get("/{experiment_id}/evals/dataset-ids", response_model=list[str])
+def get_experiment_eval_dataset_ids(experiment_id: str) -> list[str]:
+    return experiments_handler.get_experiment_eval_dataset_ids(experiment_id)
+
+
 @experiments_router.get("/{experiment_id}/evals", response_model=PaginatedEvals)
 def get_experiment_evals(
     experiment_id: str,
