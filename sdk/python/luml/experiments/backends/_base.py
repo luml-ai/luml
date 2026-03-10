@@ -379,5 +379,9 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_evals_average_scores(self, experiment_id, dataset_id) -> dict[str, float]:
+    def get_evals_average_scores(
+        self,
+        experiment_id: str,
+        dataset_id: str | None = None,
+    ) -> dict[str, float]:
         pass

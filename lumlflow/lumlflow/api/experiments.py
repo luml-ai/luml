@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query, status
 from luml.experiments.backends.data_types import TraceState
 
-from lumlflow.handlers.annotations import AnnotationsHandler
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
 from lumlflow.schemas.annotations import (
@@ -31,7 +30,6 @@ experiments_router = APIRouter(
 
 experiments_handler = ExperimentsHandler()
 models_handler = ModelsHandler()
-annotations_handler = AnnotationsHandler()
 
 
 @experiments_router.get("/{experiment_id}", response_model=ExperimentDetails)
