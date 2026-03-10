@@ -284,7 +284,13 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+    def get_experiment_eval_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalColumns:
+        pass
+
+    @abstractmethod
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
         pass
 
     @abstractmethod
@@ -370,4 +376,12 @@ class Backend(ABC):
 
     @abstractmethod
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        pass
+
+    @abstractmethod
+    def get_evals_average_scores(
+        self,
+        experiment_id: str,
+        dataset_id: str | None = None,
+    ) -> dict[str, float]:
         pass

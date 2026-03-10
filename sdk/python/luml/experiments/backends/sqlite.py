@@ -2341,11 +2341,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         return PaginatedResponse(items=items, cursor=cursor)
 
-    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+    def get_experiment_eval_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalColumns:
         """
         Returns all evals for the experiment with their inputs, outputs, refs, and scores.
 
         Args:
+            dataset_id: dataset_id for filtering
             experiment_id: The unique identifier of the experiment.
 
         Returns:
@@ -2356,14 +2359,25 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         def _keys(col: str) -> list[str]:
             cur = conn.cursor()
-            cur.execute(
-                f"""
-                SELECT DISTINCT je.key
-                FROM evals, json_each(evals.{col}) AS je
-                WHERE evals.{col} IS NOT NULL
-                ORDER BY je.key
-                """
-            )
+            if dataset_id is not None:
+                cur.execute(
+                    f"""
+                    SELECT DISTINCT je.key
+                    FROM evals, json_each(evals.{col}) AS je
+                    WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
+                    ORDER BY je.key
+                    """,
+                    (dataset_id,),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT DISTINCT je.key
+                    FROM evals, json_each(evals.{col}) AS je
+                    WHERE evals.{col} IS NOT NULL
+                    ORDER BY je.key
+                    """
+                )
             return [row[0] for row in cur.fetchall()]
 
         return EvalColumns(
@@ -2373,6 +2387,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             scores=_keys("scores"),
             metadata=_keys("metadata"),
         )
+
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.cursor()
+        cur.execute("SELECT DISTINCT dataset_id FROM evals ORDER BY dataset_id")
+        return [row[0] for row in cur.fetchall()]
 
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         """
@@ -2399,6 +2419,46 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             f"{sorted(self.EVALS_STANDARD_SORT_COLUMNS)} or "
             f"a valid scores / inputs / outputs / refs key."
         )
+
+    def get_evals_average_scores(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> dict[str, float]:
+        """
+        Calculates the average scores for evaluations from a specified experiment and optionally
+        filters them by a specific dataset.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment from which to fetch
+                evaluation data.
+            dataset_id (str | None, optional): The unique identifier of the dataset to filter
+                evaluations. If not provided, all datasets within the experiment will be considered.
+
+        Returns:
+            dict[str, float]: A dictionary where the keys are evaluation metric names and the values
+                are their corresponding average scores.
+        """
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.cursor()
+        if dataset_id is not None:
+            cur.execute(
+                """
+                SELECT je.key, AVG(CAST(je.value AS REAL))
+                FROM evals, json_each(evals.scores) AS je
+                WHERE evals.scores IS NOT NULL AND evals.dataset_id = ?
+                GROUP BY je.key
+                """,
+                (dataset_id,),
+            )
+        else:
+            cur.execute(
+                """
+                SELECT je.key, AVG(CAST(je.value AS REAL))
+                FROM evals, json_each(evals.scores) AS je
+                WHERE evals.scores IS NOT NULL
+                GROUP BY je.key
+                """
+            )
+        return {row[0]: row[1] for row in cur.fetchall()}
 
     def _has_annotation_tables(self, experiment_id: str) -> bool:
         conn = self._get_experiment_connection(experiment_id)
@@ -2451,9 +2511,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             annotation_kind == AnnotationKind.FEEDBACK
             and value_type != AnnotationValueType.BOOL
         ):
-            raise ValueError(
-                "Feedback annotations must use value_type='bool'"
-            )
+            raise ValueError("Feedback annotations must use value_type='bool'")
 
     def log_eval_annotation(
         self,
@@ -2621,7 +2679,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         for row in feedback_rows:
             name, value, count = row[0], row[1], row[2]
             if name not in feedback_items:
-                feedback_items[name] = FeedbackSummaryItem(name=name, total=0, counts={})
+                feedback_items[name] = FeedbackSummaryItem(
+                    name=name, total=0, counts={}
+                )
             item = feedback_items[name]
             item.total += count
             item.counts[value] = count
