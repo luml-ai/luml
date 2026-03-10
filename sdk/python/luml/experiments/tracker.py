@@ -1145,8 +1145,9 @@ class ExperimentTracker:
         fields, useful for building dynamic table headers.
 
         Args:
-            dataset_id (str): dataset id for filtering.
             experiment_id (str): The experiment to query.
+            dataset_id (str | None, optional): Dataset ID for filtering. If not provided,
+                all datasets within the experiment are considered.
 
         Returns:
             EvalColumns: Object containing lists of available column keys.
