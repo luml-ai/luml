@@ -67,8 +67,23 @@ def get_trace(experiment_id: str, trace_id: str) -> TraceDetails:
 
 
 @experiments_router.get("/{experiment_id}/evals/columns", response_model=EvalColumns)
-def get_experiment_eval_scores(experiment_id: str) -> EvalColumns:
-    return experiments_handler.get_experiment_eval_columns(experiment_id)
+def get_experiment_eval_columns(
+    experiment_id: str,
+    dataset_id: str | None = None,
+) -> EvalColumns:
+    return experiments_handler.get_experiment_eval_columns(experiment_id, dataset_id)
+
+
+@experiments_router.get(
+    "/{experiment_id}/evals/average-scores", response_model=dict[str, float]
+)
+def get_experiment_eval_average_scores(
+    experiment_id: str,
+    dataset_id: str | None = None,
+) -> dict[str, float]:
+    return experiments_handler.get_experiment_eval_average_scores(
+        experiment_id, dataset_id
+    )
 
 
 @experiments_router.get("/{experiment_id}/evals/dataset-ids", response_model=list[str])
