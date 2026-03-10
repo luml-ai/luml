@@ -128,6 +128,7 @@ class EvalColumns:
     outputs: list[str]
     refs: list[str]
     scores: list[str]
+    metadata: list[str]
 
 
 class AnnotationKind(StrEnum):

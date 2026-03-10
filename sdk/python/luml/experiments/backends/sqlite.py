@@ -2371,6 +2371,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             outputs=_keys("outputs"),
             refs=_keys("refs"),
             scores=_keys("scores"),
+            metadata=_keys("metadata"),
         )
 
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
