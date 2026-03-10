@@ -999,9 +999,7 @@ class ExperimentTracker:
         """
         return self.backend.get_experiment(experiment_id)
 
-    def get_trace(
-        self, experiment_id: str, trace_id: str
-    ) -> TraceDetails | None:
+    def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
         """
         Retrieve full trace details including all spans.
 
@@ -1137,7 +1135,9 @@ class ExperimentTracker:
             search=search,
         )
 
-    def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
+    def get_experiment_eval_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalColumns:
         """
         Retrieve the set of available column keys across all evals in an experiment.
 
@@ -1145,6 +1145,7 @@ class ExperimentTracker:
         fields, useful for building dynamic table headers.
 
         Args:
+            dataset_id (str): dataset id for filtering.
             experiment_id (str): The experiment to query.
 
         Returns:
@@ -1158,7 +1159,26 @@ class ExperimentTracker:
         print("Input columns:", columns.inputs)
         ```
         """
-        return self.backend.get_experiment_eval_columns(experiment_id)
+        return self.backend.get_experiment_eval_columns(experiment_id, dataset_id)
+
+    def get_experiment_evals_average_scores(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> dict[str, float]:
+        """
+        Calculates the average scores for evaluations from a specified experiment and optionally
+        filters them by a specific dataset.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment from which to fetch
+                evaluation data.
+            dataset_id (str | None, optional): The unique identifier of the dataset to filter
+                evaluations. If not provided, all datasets within the experiment will be considered.
+
+        Returns:
+            dict[str, float]: A dictionary where the keys are evaluation metric names and the values
+                are their corresponding average scores.
+        """
+        return self.backend.get_evals_average_scores(experiment_id, dataset_id)
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
         """
@@ -1172,9 +1192,7 @@ class ExperimentTracker:
         """
         return self.backend.get_experiment_eval_dataset_ids(experiment_id)
 
-    def resolve_evals_sort_column(
-        self, experiment_id: str, sort_by: str
-    ) -> str | None:
+    def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         """
         Resolve a sort key to the underlying JSON column expression for eval queries.
 
@@ -1228,7 +1246,10 @@ class ExperimentTracker:
         ```
         """
         return self.backend.update_experiment(
-            experiment_id, name=name, description=description, tags=tags,
+            experiment_id,
+            name=name,
+            description=description,
+            tags=tags,
         )
 
     def get_eval_annotations(
@@ -1325,8 +1346,11 @@ class ExperimentTracker:
         ```
         """
         return self.backend.update_annotation(
-            experiment_id, annotation_id, target,
-            value=value, rationale=rationale,
+            experiment_id,
+            annotation_id,
+            target,
+            value=value,
+            rationale=rationale,
         )
 
     def delete_annotation(
@@ -1503,7 +1527,9 @@ class ExperimentTracker:
         tracker.update_group("group-uuid", name="Production Models")
         ```
         """
-        return self.backend.update_group(group_id, name=name, description=description, tags=tags)
+        return self.backend.update_group(
+            group_id, name=name, description=description, tags=tags
+        )
 
     def delete_group(self, group_id: str) -> None:
         """
@@ -1550,7 +1576,11 @@ class ExperimentTracker:
         ```
         """
         return self.backend.list_groups_pagination(
-            limit=limit, cursor_str=cursor_str, sort_by=sort_by, order=order, search=search,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
         )
 
     def list_group_experiments_pagination(
