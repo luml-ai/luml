@@ -288,6 +288,10 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        pass
+
+    @abstractmethod
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         pass
 
