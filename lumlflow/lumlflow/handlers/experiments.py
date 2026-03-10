@@ -181,6 +181,14 @@ class ExperimentsHandler:
             cursor=result.cursor,
         )
 
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            return self.tracker.get_experiment_eval_dataset_ids(experiment_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
     def get_experiment_eval_columns(self, experiment_id: str) -> EvalColumns:
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")

@@ -500,8 +500,11 @@ class TestUpdateAnnotation:
         created = handler.create_eval_annotation(exp_id, dataset_id, eval_id, body)
 
         updated = handler.update_eval_annotation(
-            exp_id, created.id, UpdateAnnotation(
-                value=False, rationale="Was wrong",
+            exp_id,
+            created.id,
+            UpdateAnnotation(
+                value=False,
+                rationale="Was wrong",
             ),
         )
         assert updated.value is False
@@ -520,12 +523,12 @@ class TestUpdateAnnotation:
             value=True,
             user="alice",
         )
-        created = handler.create_span_annotation(
-            exp_id, trace_id, span_id, body
-        )
+        created = handler.create_span_annotation(exp_id, trace_id, span_id, body)
 
         updated = handler.update_span_annotation(
-            exp_id, created.id, UpdateAnnotation(rationale="Added note"),
+            exp_id,
+            created.id,
+            UpdateAnnotation(rationale="Added note"),
         )
         assert updated.value is True
         assert updated.rationale == "Added note"
@@ -548,17 +551,27 @@ class TestAllTracesAnnotationSummary:
         )
 
         handler.create_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id,
+            trace_id,
+            span_id,
             CreateAnnotation(
-                name="quality", annotation_kind="feedback",
-                value_type="bool", value=True, user="a",
+                name="quality",
+                annotation_kind="feedback",
+                value_type="bool",
+                value=True,
+                user="a",
             ),
         )
         handler.create_span_annotation(
-            exp_id, "trace-2", "span-2",
+            exp_id,
+            "trace-2",
+            "span-2",
             CreateAnnotation(
-                name="quality", annotation_kind="feedback",
-                value_type="bool", value=False, user="b",
+                name="quality",
+                annotation_kind="feedback",
+                value_type="bool",
+                value=False,
+                user="b",
             ),
         )
 
@@ -576,10 +589,15 @@ class TestTraceSummaryInTraceResponse:
         trace_id, span_id = _seed_span(handler, exp_id)
 
         handler.create_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id,
+            trace_id,
+            span_id,
             CreateAnnotation(
-                name="quality", annotation_kind="feedback",
-                value_type="bool", value=True, user="a",
+                name="quality",
+                annotation_kind="feedback",
+                value_type="bool",
+                value=True,
+                user="a",
             ),
         )
 
@@ -596,10 +614,15 @@ class TestTraceSummaryInTraceResponse:
         trace_id, span_id = _seed_span(handler, exp_id)
 
         handler.create_span_annotation(
-            exp_id, trace_id, span_id,
+            exp_id,
+            trace_id,
+            span_id,
             CreateAnnotation(
-                name="quality", annotation_kind="feedback",
-                value_type="bool", value=True, user="a",
+                name="quality",
+                annotation_kind="feedback",
+                value_type="bool",
+                value=True,
+                user="a",
             ),
         )
 

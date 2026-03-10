@@ -36,9 +36,7 @@ class TestListModels:
         result = handler.list_experiment_models(exp_id)
         assert result == []
 
-    def test_with_data(
-        self, seeded: tuple[ModelsHandler, str, str]
-    ) -> None:
+    def test_with_data(self, seeded: tuple[ModelsHandler, str, str]) -> None:
         handler, exp_id, _ = seeded
         result = handler.list_experiment_models(exp_id)
         assert len(result) == 1
@@ -46,16 +44,12 @@ class TestListModels:
 
 
 class TestUpdateModel:
-    def test_update_name(
-        self, seeded: tuple[ModelsHandler, str, str]
-    ) -> None:
+    def test_update_name(self, seeded: tuple[ModelsHandler, str, str]) -> None:
         handler, _, model_id = seeded
         updated = handler.update_model(model_id, UpdateModel(name="new-name"))
         assert updated.name == "new-name"
 
-    def test_update_tags(
-        self, seeded: tuple[ModelsHandler, str, str]
-    ) -> None:
+    def test_update_tags(self, seeded: tuple[ModelsHandler, str, str]) -> None:
         handler, _, model_id = seeded
         updated = handler.update_model(model_id, UpdateModel(tags=["a", "b"]))
         assert updated.tags == ["a", "b"]
@@ -66,9 +60,7 @@ class TestUpdateModel:
 
 
 class TestDeleteModel:
-    def test_delete(
-        self, seeded: tuple[ModelsHandler, str, str]
-    ) -> None:
+    def test_delete(self, seeded: tuple[ModelsHandler, str, str]) -> None:
         handler, exp_id, model_id = seeded
         handler.delete_model(model_id)
         assert handler.list_experiment_models(exp_id) == []
