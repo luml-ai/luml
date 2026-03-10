@@ -1160,6 +1160,18 @@ class ExperimentTracker:
         """
         return self.backend.get_experiment_eval_columns(experiment_id)
 
+    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        """
+        Retrieve all unique dataset IDs from evals of an experiment.
+
+        Args:
+            experiment_id (str): The experiment to query.
+
+        Returns:
+            list[str]: Sorted list of distinct dataset IDs.
+        """
+        return self.backend.get_experiment_eval_dataset_ids(experiment_id)
+
     def resolve_evals_sort_column(
         self, experiment_id: str, sort_by: str
     ) -> str | None:
