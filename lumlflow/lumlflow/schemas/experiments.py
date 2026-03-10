@@ -167,3 +167,4 @@ class EvalColumns(BaseModel, BaseOrmConfig):
     outputs: list[str]
     refs: list[str]
     scores: list[str]
+    metadata: list[str]
