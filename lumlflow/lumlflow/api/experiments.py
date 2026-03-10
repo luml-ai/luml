@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Query, status
 
-from lumlflow.handlers.annotations import AnnotationsHandler
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
 from lumlflow.schemas.base import SortOrder
@@ -25,7 +24,6 @@ experiments_router = APIRouter(
 
 experiments_handler = ExperimentsHandler()
 models_handler = ModelsHandler()
-annotations_handler = AnnotationsHandler()
 
 
 @experiments_router.get("/{experiment_id}", response_model=ExperimentDetails)
