@@ -180,7 +180,8 @@ class Backend(ABC):
         cursor_str: str | None = None,
         sort_by: str = "created_at",
         order: str = "desc",
-        search: str | None = None,
+        filter_string: str | None = None,
+        search: str | None = None,  # deprecated
         json_sort_column: str | None = None,
     ) -> PaginatedResponse[Experiment]:
         pass
@@ -370,4 +371,8 @@ class Backend(ABC):
 
     @abstractmethod
     def get_experiment_ddl_version(self, experiment_id: str) -> int:
+        pass
+
+    @abstractmethod
+    def validate_experiments_search(self, search: str | None = None) -> None:
         pass

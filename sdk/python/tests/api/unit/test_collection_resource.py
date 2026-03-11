@@ -11,7 +11,8 @@ from luml.api.resources.collections import (
 
 def test_collection_get(mock_sync_client: Mock, sample_collection: Collection) -> None:
     collection_name = sample_collection.name
-    # First call returns paginated list (for _get_by_name), second call returns single object (for _get_by_id)
+    # First call returns paginated list (for _get_by_name),
+    # second call returns single object (for _get_by_id)
     mock_sync_client.get.side_effect = [
         {"items": [sample_collection.model_dump()], "cursor": None},
         sample_collection.model_dump(),
@@ -27,7 +28,8 @@ def test_collection_get_by_name(
     mock_sync_client: Mock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    # First call returns paginated list (for list), second call returns single object (for _get_by_id)
+    # First call returns paginated list (for list),
+    # second call returns single object (for _get_by_id)
     mock_sync_client.get.side_effect = [
         {"items": [sample_collection.model_dump()], "cursor": None},
         sample_collection.model_dump(),
@@ -195,7 +197,8 @@ async def test_async_collection_get(
     mock_async_client: AsyncMock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    # First call returns paginated list (for _get_by_name), second call returns single object (for _get_by_id)
+    # First call returns paginated list (for _get_by_name),
+    # second call returns single object (for _get_by_id)
     mock_async_client.get.side_effect = [
         {"items": [sample_collection.model_dump()], "cursor": None},
         sample_collection.model_dump(),
@@ -212,7 +215,8 @@ async def test_async_collection_get_by_name(
     mock_async_client: AsyncMock, sample_collection: Collection
 ) -> None:
     collection_name = sample_collection.name
-    # First call returns paginated list (for list), second call returns single object (for _get_by_id)
+    # First call returns paginated list (for list),
+    # second call returns single object (for _get_by_id)
     mock_async_client.get.side_effect = [
         {"items": [sample_collection.model_dump()], "cursor": None},
         sample_collection.model_dump(),

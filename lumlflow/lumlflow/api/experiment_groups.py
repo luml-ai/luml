@@ -9,7 +9,7 @@ from lumlflow.schemas.experiment_groups import (
     PaginatedGroups,
     UpdateGroup,
 )
-from lumlflow.schemas.experiments import PaginatedExperiments
+from lumlflow.schemas.experiments import PaginatedExperiments, SearchValidationResult
 
 experiment_groups_router = APIRouter(
     prefix="/api/experiment-groups",
@@ -49,6 +49,46 @@ def update_experiment_group(group_id: str, group: UpdateGroup) -> Group:
 @experiment_groups_router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_experiment_group(group_id: str) -> None:
     groups_handler.delete_experiment_group(group_id)
+
+
+@experiment_groups_router.get(
+    "/experiments/validate-search", response_model=SearchValidationResult
+)
+def validate_experiments_search(
+    query: str | None = None,
+) -> SearchValidationResult:
+    """
+    Validate a search query string without executing it.
+
+    Supported filter syntax:
+    - **Attributes** (bare key or attribute.<key> / attr.<key>):
+      name, status, description, group_id — operators:
+        =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+      created_at, duration — operators: =, !=, >, >=, <, <=
+    - **Dynamic metrics**: metric.<key> / metrics.<key> / dynamic_params.<key>
+        — numeric operators: =, !=, >, >=, <, <=
+    - **Static params**: param.<key> / params.<key> / static_params.<key>
+        — operators: =, !=, LIKE, ILIKE, CONTAINS
+    - **Tags**: tag / tags — operators: =, !=, LIKE, ILIKE, CONTAINS
+    - **Logical**: AND, OR, grouping with (...)
+
+    Examples:
+     - tags ILIKE "%PROD%"
+     - tags CONTAINS "staging"
+     - status IN ("active", "completed")
+     - status NOT IN ("deleted",)
+     - description LIKE "%experiment%"
+     - duration > 60
+     - created_at > "2024-01-01"
+     - tags CONTAINS "prod" OR tags CONTAINS "production"
+     - (tags LIKE "%production%" OR tags LIKE "%prod%")
+        AND status != "deleted" AND metric.accuracy > 0.85
+     - (name CONTAINS "1" OR tags LIKE "%production%") AND status = "completed"
+        AND dynamic_params.metric_87 > 0.3 AND dynamic_params.metric_87 < 0.4
+     - ((param.lr = 0.001 OR param.lr = 0.01) AND metric.accuracy > 0.88)
+        OR (tags LIKE "%staging%" AND status = "completed")
+    """
+    return groups_handler.validate_search(query)
 
 
 @experiment_groups_router.get(

@@ -365,7 +365,7 @@ class TestGetExperiment:
         assert data.attachments == {}
 
     def test_get_experiment_not_found(self, tracker: ExperimentTracker) -> None:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not found"):
             tracker.get_experiment("nonexistent-id")
 
 
@@ -480,7 +480,7 @@ class TestDeleteExperiment:
 
         tracker.delete_experiment(exp_id)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="not found"):
             tracker.get_experiment(exp_id)
 
     def test_delete_removes_from_listing(
@@ -712,7 +712,7 @@ _FLAVORS_WITHOUT_INPUTS = {"catboost", "langgraph"}
 
 class TestLogModel:
     @pytest.mark.parametrize(
-        "flavor, module_path, func_name, model_module",
+        ("flavor", "module_path", "func_name", "model_module"),
         _FLAVOR_PARAMS,
         ids=[p[0] for p in _FLAVOR_PARAMS],
     )
@@ -760,7 +760,7 @@ class TestLogModel:
         assert row[2] == exp_id
 
     @pytest.mark.parametrize(
-        "flavor, module_path, func_name, model_module",
+        ("flavor", "module_path", "func_name", "model_module"),
         [p for p in _FLAVOR_PARAMS if p[0] in _FLAVORS_WITH_INPUTS],
         ids=[p[0] for p in _FLAVOR_PARAMS if p[0] in _FLAVORS_WITH_INPUTS],
     )
@@ -787,7 +787,7 @@ class TestLogModel:
         assert args[1] is sample_inputs
 
     @pytest.mark.parametrize(
-        "flavor, module_path, func_name, model_module",
+        ("flavor", "module_path", "func_name", "model_module"),
         [p for p in _FLAVOR_PARAMS if p[0] in _FLAVORS_WITHOUT_INPUTS],
         ids=[p[0] for p in _FLAVOR_PARAMS if p[0] in _FLAVORS_WITHOUT_INPUTS],
     )
