@@ -16,6 +16,7 @@
               table-class="table-fixed"
               scrollable
               scrollHeight="200px"
+              :virtualScrollerOptions="parameters.length > 10 ? { itemSize: 43 } : undefined"
             >
               <template #empty>
                 <div class="flex justify-center items-center h-full">
@@ -43,6 +44,7 @@
               table-class="table-fixed"
               scrollable
               scrollHeight="200px"
+              :virtualScrollerOptions="metrics.length > 10 ? { itemSize: 43 } : undefined"
             >
               <template #empty>
                 <div class="flex justify-center items-center h-full">
@@ -59,7 +61,13 @@
         <h3 class="text-lg mb-4">Logged models ({{ models.length }})</h3>
         <Card>
           <template #content>
-            <DataTable :value="models" table-class="table-fixed" scrollable scrollHeight="200px">
+            <DataTable
+              :value="models"
+              table-class="table-fixed"
+              scrollable
+              scrollHeight="200px"
+              :virtualScrollerOptions="models.length > 10 ? { itemSize: 43 } : undefined"
+            >
               <template #empty>
                 <div class="flex justify-center items-center h-full">
                   <span>No models found</span>

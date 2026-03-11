@@ -139,26 +139,24 @@ export const apiService = {
     const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/columns`, {
       params: { dataset_id: datasetId },
     })
-    return { ...data, metadata: [] }
+    return data
   },
 
-  getExperimentDatasetAverageScores: async (experimentId: string, datasetId: string) => {
-    const { data } = await api.get<AverageScore[]>(
+  getExperimentDatasetAverageScores: async (
+    experimentId: string,
+    datasetId: string,
+  ): Promise<AverageScore[]> => {
+    const { data } = await api.get<{ [name: string]: number }>(
       `/experiments/${experimentId}/evals/average-scores`,
       {
         params: { dataset_id: datasetId },
       },
     )
-    return [
-      { name: 'accuracy', value: 0.20843437670689546 },
-      { name: 'confidence', value: 0.7915656232931046 },
-    ]
-    return data
+    return Object.entries(data).map(([name, value]) => ({ name, value }))
   },
 
   getExperimentUniqueDatasetsIds: async (experimentId: string) => {
-    const { data } = await api.get<string[]>(`/experiments/${experimentId}/evals/unique-datasets`)
-    return ['eval_dataset_v1']
+    const { data } = await api.get<string[]>(`/experiments/${experimentId}/evals/dataset-ids`)
     return data
   },
 

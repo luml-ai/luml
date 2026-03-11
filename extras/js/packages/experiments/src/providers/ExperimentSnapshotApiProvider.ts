@@ -141,7 +141,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
     const responses = this.artifacts.map(async (artifact) => {
-      const cursors = this._datasetsCursors[artifact.id] || []
+      const cursors = this._datasetsCursors[params.dataset_id] || []
       const currentCursor = cursors[cursors.length - 1]
       if (currentCursor === null) return []
       const { items, cursor: newCursor } = await this.apiService.getExperimentEvals({
@@ -149,7 +149,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
         experiment_id: artifact.id,
         cursor: currentCursor,
       })
-      this._datasetsCursors[artifact.id] = [...cursors, newCursor]
+      this._datasetsCursors[params.dataset_id] = [...cursors, newCursor]
       return items.map((item) => ({ ...item, modelId: artifact.id }))
     })
     const evalsByArtifact = await Promise.all(responses)
