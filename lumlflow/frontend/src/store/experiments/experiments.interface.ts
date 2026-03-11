@@ -104,4 +104,5 @@ export interface EvalScores {
   outputs: string[]
   refs: string[]
   scores: string[]
+  metadata: string[]
 }

@@ -44,7 +44,7 @@
             :size="14"
             :color="statusIconInfo(slotProps.data.status).color"
           />
-          <span>{{ new Date(slotProps.data.created_at).toLocaleString() }}</span>
+          <span>{{ dateToText(slotProps.data.created_at) }}</span>
         </div>
       </template>
     </Column>
@@ -65,7 +65,11 @@
     </Column>
     <Column v-if="showColumn('Duration')" field="duration" header="Duration" class="w-[126px]">
       <template #body="slotProps">
-        <span v-if="typeof slotProps.data.duration === 'number'">
+        <span
+          v-if="typeof slotProps.data.duration === 'number'"
+          v-tooltip.top="durationToText(slotProps.data.duration)"
+          class="line-clamp-1 overflow-hidden text-ellipsis"
+        >
           {{ durationToText(slotProps.data.duration) }}
         </span>
         <span v-else>-</span>
@@ -88,7 +92,16 @@
     <template v-for="metric in metricsColumns" :key="metric">
       <Column v-if="showColumn(metric)" :field="metric" :header="metric" class="w-[180px]">
         <template #body="slotProps">
-          <span>{{ slotProps.data.dynamic_params?.[metric] || '-' }}</span>
+          <span
+            v-tooltip.top="
+              slotProps.data.dynamic_params?.[metric]
+                ? String(slotProps.data.dynamic_params?.[metric])
+                : null
+            "
+            class="line-clamp-1 overflow-hidden text-ellipsis"
+          >
+            {{ slotProps.data.dynamic_params?.[metric] || '-' }}
+          </span>
         </template>
       </Column>
     </template>
@@ -101,7 +114,7 @@ import { useExperimentsStore } from '@/store/experiments'
 import { useGroupsStore } from '@/store/groups'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { FileChartLine } from 'lucide-vue-next'
-import { durationToText } from '@/helpers/date'
+import { dateToText, durationToText } from '@/helpers/date'
 import { CONSTANTS_COLUMNS, getStatusIconInfo } from './experiment.const'
 import ColumnTags from '@/components/table/ColumnTags.vue'
 import ColumnDescription from '@/components/table/ColumnDescription.vue'
