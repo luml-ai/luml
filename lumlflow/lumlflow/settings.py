@@ -30,10 +30,10 @@ def get_config() -> Settings:
 
 
 @lru_cache
-def get_tracker() -> "ExperimentTracker":  # type: ignore[name-defined]  # noqa: F821
-    from luml.experiments.tracker import ExperimentTracker
+def get_tracker() -> "ThreadSafeTracker":  # type: ignore[name-defined]  # noqa: F821
+    from lumlflow.tracker import ThreadSafeTracker
 
-    return ExperimentTracker(f"sqlite://{get_config().BACKEND_STORE_URI}")
+    return ThreadSafeTracker(f"sqlite://{get_config().BACKEND_STORE_URI}")
 
 
 config = get_config()
