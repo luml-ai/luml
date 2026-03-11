@@ -1,5 +1,5 @@
 <template>
-  <Button severity="secondary" @click="$emit('add')">
+  <Button severity="secondary" variant="outlined" @click="$emit('add')">
     <Plus :size="14" />
     <span>Add annotation</span>
   </Button>

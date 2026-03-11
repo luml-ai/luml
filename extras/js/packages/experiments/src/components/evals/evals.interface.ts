@@ -4,6 +4,7 @@ import type {
   GetEvalsByDatasetParams,
   ModelsInfo,
 } from '@/interfaces/interfaces'
+import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
 
 export interface DatasetProps {
   data: EvalsInfo[]
@@ -44,6 +45,7 @@ export interface TableProps {
   columnsTree: TableColumn[]
   data: EvalsInfo[]
   modelsInfo: ModelsInfo
+  annotationsSummary: AnnotationSummary
 }
 
 export interface TableColumn {

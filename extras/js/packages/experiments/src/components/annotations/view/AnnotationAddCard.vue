@@ -39,6 +39,7 @@ defineEmits<Emits>()
 }
 .title {
   font-weight: 500;
+  font-size: 16px;
 }
 .text {
   font-size: 12px;

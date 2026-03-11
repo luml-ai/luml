@@ -57,7 +57,7 @@ const title = computed(() => (props.positive ? 'True' : 'False'))
 
 const secondaryText = computed(() => {
   if (showProgress.value) {
-    return `${props.percentage}%`
+    return `${Math.floor(props.percentage ?? 0)}%`
   }
   return `(${props.count})`
 })
@@ -76,6 +76,10 @@ const secondaryText = computed(() => {
   gap: 4px;
   font-size: 14px;
   font-weight: 500;
+}
+
+.title {
+  font-size: 14px;
 }
 
 .secondary-text {

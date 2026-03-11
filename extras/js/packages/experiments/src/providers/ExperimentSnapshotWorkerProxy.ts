@@ -1,3 +1,4 @@
+import type { Annotation, AnnotationSummary } from '@/components/annotations/annotations.interface'
 import type {
   EvalsColumns,
   EvalsInfo,
@@ -118,5 +119,13 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getNextEvalsByDatasetId(params: GetEvalsByDatasetParams) {
     return this.call<EvalsInfo[]>('getNextEvalsByDatasetId', [params])
+  }
+
+  getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
+    return this.call<Annotation[]>('getEvalAnnotations', [artifactId, datasetId, evalId])
+  }
+
+  getEvalsDatasetAnnotationsSummary(datasetId: string) {
+    return this.call<AnnotationSummary>('getEvalsDatasetAnnotationsSummary', [datasetId])
   }
 }

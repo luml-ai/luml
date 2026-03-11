@@ -37,13 +37,19 @@
 <script setup lang="ts">
 import type { Group } from '@/store/groups/groups.interface'
 import { useRoute } from 'vue-router'
-import { computed, onUnmounted, ref, toRef, watch } from 'vue'
+import { computed, onBeforeMount, onUnmounted, ref, toRef, watch } from 'vue'
 import { apiService } from '@/api/api.service'
 import { useExperimentStore } from '@/store/experiment'
 import { useToast, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
 import { useExperimentProvider } from '@/hooks/useExperimentProvider'
-import { useEvalsStore, TracesDialog, TraceDialog, type ModelsInfo } from '@luml/experiments'
+import {
+  useEvalsStore,
+  TracesDialog,
+  TraceDialog,
+  type ModelsInfo,
+  useAnnotationsStore,
+} from '@luml/experiments'
 import { useThemeStore } from '@/store/theme'
 import { provideTheme } from '@luml/experiments'
 import DetailsBreadcrumbs from '@/components/experiments/details/DetailsBreadcrumbs.vue'
@@ -55,6 +61,7 @@ const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
 const { provider } = useExperimentProvider()
 const themeStore = useThemeStore()
+const annotationsStore = useAnnotationsStore()
 
 provideTheme(toRef(themeStore, 'theme'))
 
@@ -108,6 +115,10 @@ watch(
     immediate: true,
   },
 )
+
+onBeforeMount(() => {
+  annotationsStore.allowEdit()
+})
 
 onUnmounted(() => {
   experimentStore.resetExperiment()

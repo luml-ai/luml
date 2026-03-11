@@ -8,6 +8,10 @@ import type {
   CheckAuthResponse,
   GetExperimentEvalsParams,
   AverageScore,
+  AddAnnotationPayload,
+  UpdateAnnotationPayload,
+  Annotation,
+  AnnotationSummary,
 } from './api.interface'
 import { api } from './client'
 import type {
@@ -155,6 +159,101 @@ export const apiService = {
   getExperimentUniqueDatasetsIds: async (experimentId: string) => {
     const { data } = await api.get<string[]>(`/experiments/${experimentId}/evals/unique-datasets`)
     return ['eval_dataset_v1']
+    return data
+  },
+
+  // --- Annotations ---
+
+  createEvalAnnotation: async (
+    experimentId: string,
+    datasetId: string,
+    evalId: string,
+    payload: AddAnnotationPayload,
+  ) => {
+    const { data } = await api.post<Annotation>(
+      `/experiments/${experimentId}/evals/${datasetId}/${evalId}/annotations`,
+      payload,
+    )
+    return data
+  },
+
+  updateEvalAnnotation: async (
+    experimentId: string,
+    annotationId: string,
+    payload: UpdateAnnotationPayload,
+  ) => {
+    const { data } = await api.patch<Annotation>(
+      `/experiments/${experimentId}/eval-annotations/${annotationId}`,
+      payload,
+    )
+    return data
+  },
+
+  getEvalAnnotations: async (experimentId: string, datasetId: string, evalId: string) => {
+    const { data } = await api.get<Annotation[]>(
+      `/experiments/${experimentId}/evals/${datasetId}/${evalId}/annotations`,
+    )
+    return data
+  },
+
+  deleteEvalAnnotation: async (experimentId: string, annotationId: string) => {
+    const { data } = await api.delete<void>(
+      `/experiments/${experimentId}/eval-annotations/${annotationId}`,
+    )
+    return data
+  },
+
+  getEvalAnnotationSummary: async (experimentId: string, datasetId: string) => {
+    const { data } = await api.get<AnnotationSummary>(
+      `/experiments/${experimentId}/evals/annotations/summary`,
+      { params: { dataset_id: datasetId } },
+    )
+    return data
+  },
+
+  createSpanAnnotation: async (
+    experimentId: string,
+    traceId: string,
+    spanId: string,
+    payload: AddAnnotationPayload,
+  ) => {
+    const { data } = await api.post<Annotation>(
+      `/experiments/${experimentId}/traces/${traceId}/spans/${spanId}/annotations`,
+      payload,
+    )
+    return data
+  },
+
+  updateSpanAnnotation: async (
+    experimentId: string,
+    annotationId: string,
+    payload: UpdateAnnotationPayload,
+  ) => {
+    const { data } = await api.patch<Annotation>(
+      `/experiments/${experimentId}/span-annotations/${annotationId}`,
+      payload,
+    )
+    return data
+  },
+
+  getSpanAnnotations: async (experimentId: string, traceId: string, spanId: string) => {
+    const { data } = await api.get<Annotation[]>(
+      `/experiments/${experimentId}/traces/${traceId}/spans/${spanId}/annotations`,
+    )
+    return data
+  },
+
+  deleteSpanAnnotation: async (experimentId: string, annotationId: string) => {
+    const { data } = await api.delete<void>(
+      `/experiments/${experimentId}/span-annotations/${annotationId}`,
+    )
+    return data
+  },
+
+  getSpanAnnotationSummary: async (experimentId: string, traceId: string) => {
+    const { data } = await api.get<AnnotationSummary>(
+      `/experiments/${experimentId}/traces/${traceId}/annotations/summary`,
+    )
     return data
   },
 }

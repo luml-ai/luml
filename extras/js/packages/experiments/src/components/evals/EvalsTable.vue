@@ -50,18 +50,18 @@
           >
             <template #header>
               <button
-                v-if="column.title === 'feedback'"
+                v-if="column.title.startsWith('feedback')"
                 class="header-cell-content"
                 @click="toggleSubheader"
               >
                 <component
-                  v-if="columnIcon(column.title)"
-                  :is="columnIcon(column.title)"
+                  v-if="columnIcon('feedback')"
+                  :is="columnIcon('feedback')"
                   :size="16"
                   color="var(--p-primary-500)"
                 ></component>
                 <span class="header-cell-title">
-                  {{ COLUMNS_TITLES_MAP['feedback'] }}
+                  {{ column.title }}
                 </span>
                 <div class="header-cell-dropdown-icon">
                   <component
@@ -125,9 +125,11 @@
             }"
           >
             <template #header>
-              <div v-if="isFeedbackColumn(column)" class="feedback-subheader">
-                <UiFeedbackResult :positive="true" :percentage="90"></UiFeedbackResult>
-                <UiFeedbackResult :positive="false" :percentage="10"></UiFeedbackResult>
+              <div v-if="isFeedbackColumn(column)">
+                <FeedbackSubheader
+                  :annotation-name="column"
+                  :feedback="annotationsSummary.feedback"
+                ></FeedbackSubheader>
               </div>
             </template>
           </Column>
@@ -186,7 +188,8 @@ import { COLUMNS_ICONS, COLUMNS_TITLES_MAP } from '@/constants/tables'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import EvalsToolbar from './EvalsToolbar.vue'
-import UiFeedbackResult from '../ui/UiFeedbackResult.vue'
+
+import FeedbackSubheader from './FeedbackSubheader.vue'
 
 const toast = useToast()
 
@@ -250,7 +253,6 @@ const flatData = computed(() => {
 })
 
 const virtualScrollerOptions = computed(() => {
-  if (props.data.length < 15) return
   return {
     itemSize: 41.5,
     lazy: true,
@@ -333,7 +335,7 @@ const columnIcon = computed(() => (columnName: string) => {
 })
 
 const visibleFeedbackColumns = computed(() => {
-  return visibleTree.value.find((column) => column.title === 'feedback')?.children || []
+  return visibleTree.value.find((column) => column.title.startsWith('feedback'))?.children || []
 })
 
 const isFeedbackColumn = computed(() => (columnName: string) => {
@@ -341,7 +343,6 @@ const isFeedbackColumn = computed(() => (columnName: string) => {
 })
 
 const isFirstFeedbackColumn = computed(() => (columnName: string) => {
-  console.log(visibleFeedbackColumns.value.indexOf(columnName))
   return visibleFeedbackColumns.value.indexOf(columnName) === 0
 })
 
@@ -417,13 +418,6 @@ button.header-cell-content {
 
 .header-cell-dropdown-icon {
   flex: 0 0 auto;
-}
-
-.feedback-subheader {
-  display: flex;
-  gap: 8px;
-  flex-direction: column;
-  gap: 16px;
 }
 
 .table-wrapper {
