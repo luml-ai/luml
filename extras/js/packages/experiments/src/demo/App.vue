@@ -20,12 +20,15 @@
 <script setup lang="ts">
 import type { ExperimentSnapshotProvider, ModelInfo } from '@/interfaces/interfaces'
 import type { Model } from '@fnnx-ai/web'
-import { ref } from 'vue'
+import { onBeforeMount, ref } from 'vue'
 import { Button, Toast, ConfirmDialog } from 'primevue'
 import { FnnxService } from './lib/fnnx/FnnxService'
 import { ExperimentSnapshotDatabaseProvider } from '@/providers/ExperimentSnapshotDatabaseProvider'
 import { getModelColorByIndex } from '@/helpers/helpers'
+import { useAnnotationsStore } from '@/store/annotations'
 import ExperimentSnapshot from '@/ExperimentSnapshot.vue'
+
+const annotationsStore = useAnnotationsStore()
 
 const modelsInfo = ref<Record<string, ModelInfo>>({})
 const provider = ref<ExperimentSnapshotProvider | null>(null)
@@ -102,6 +105,10 @@ function reset() {
   modelsInfo.value = {}
   provider.value = null
 }
+
+onBeforeMount(() => {
+  annotationsStore.allowEdit()
+})
 </script>
 
 <style scoped>

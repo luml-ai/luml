@@ -2,62 +2,63 @@
   <UiRightDialog
     v-model:visible="visible"
     :icon="PencilIcon"
-    :title="dialogTitle"
+    title="ADD ANNOTATION"
     max-width="420px"
   >
-    <AnnotationForm v-if="data" :data="data" :is-edit="true" @submit="onSubmit" />
+    <AnnotationForm @submit="onSubmit" />
     <template #footer>
       <Button severity="secondary" variant="outlined" @click="onCancel"> Cancel </Button>
-      <Button type="submit" form="annotation-edit-form" severity="primary" :loading="loading"
-        >Apply changes</Button
-      >
+      <Button type="submit" form="annotation-edit-form" severity="primary" :loading="loading">
+        <PlusIcon :size="14" />
+        Add annotation
+      </Button>
     </template>
   </UiRightDialog>
 </template>
 
 <script setup lang="ts">
-import type { Annotation, UpdateAnnotationPayload } from './annotations.interface'
-import { PencilIcon } from 'lucide-vue-next'
+import { PencilIcon, PlusIcon } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
-import { useAnnotationsStore } from '@/store/annotations'
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { useAnnotationsStore } from '@/store/annotations'
 import { getErrorMessage } from '@/helpers/helpers'
 import UiRightDialog from '../ui/UiRightDialog.vue'
 import AnnotationForm from './form/AnnotationForm.vue'
+import type { AnnotationFormInterface } from './annotations.interface'
 
-interface Props {
+type Props = {
   artifactId?: string
-  data: Annotation | null
+  datasetId?: string
+  evalId?: string
 }
 
 const props = defineProps<Props>()
 
-const annotationsStore = useAnnotationsStore()
-
 const toast = useToast()
+
+const annotationsStore = useAnnotationsStore()
 
 const visible = defineModel<boolean>('visible', { default: false })
 
 const loading = ref(false)
 
-const dialogTitle = computed(() => {
-  return `EDIT ${props.data?.name}`
-})
-
-async function onSubmit(data: UpdateAnnotationPayload) {
+async function onSubmit(data: AnnotationFormInterface) {
   if (loading.value) return
   loading.value = true
   try {
-    if (!props.data || !props.artifactId) {
-      throw new Error('Annotation data not found')
+    if (!props.artifactId || !props.datasetId || !props.evalId) {
+      throw new Error('Artifact ID, dataset ID and eval ID are required')
     }
-    await annotationsStore.updateEvalAnnotation(props.artifactId, props.data.id, {
-      value: data.value,
+    await annotationsStore.addEvalAnnotation(props.artifactId, props.datasetId, props.evalId, {
+      annotation_kind: data.type,
+      value_type: data.dataType,
       rationale: data.rationale,
+      name: data.name,
+      value: data.value,
     })
     visible.value = false
-    toast.add(simpleSuccessToast('Annotation updated successfully'))
+    toast.add(simpleSuccessToast('Annotation added successfully'))
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error)))
   } finally {

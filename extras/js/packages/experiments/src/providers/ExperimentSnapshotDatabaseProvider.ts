@@ -94,103 +94,6 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     delete this.evalsDatasetsRequestParams[datasetId]
   }
 
-  private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
-    const queryResult = database.exec(
-      `SELECT value, step FROM dynamic_metrics WHERE key = '${metricName}'`,
-    )
-    const rows = queryResult[0]?.values || []
-    const total = rows.length
-    const MAX_POINTS = 50_000
-    const data: ExperimentSnapshotDynamicMetric = {
-      x: [],
-      y: [],
-      modelId,
-      aggregated: rows.length > MAX_POINTS,
-    }
-    if (total === 0) return data
-    const stepSize = total > MAX_POINTS ? Math.ceil(total / MAX_POINTS) : 1
-    for (let i = 0; i < total; i += stepSize) {
-      const row = rows[i]
-      const value = row?.[0]
-      const step = row?.[1]
-      if (typeof step !== 'number' || typeof value !== 'number') continue
-      data.x.push(step)
-      data.y.push(value)
-    }
-    return data
-  }
-
-  private getDatabaseEvalsByDatasetId(
-    database: Database,
-    {
-      limit = 20,
-      sort_by = 'created_at',
-      order = 'desc',
-      dataset_id,
-      search = '',
-      page = 1,
-      modelId,
-    }: {
-      page: number
-      modelId: string
-    } & GetEvalsByDatasetParams,
-  ) {
-    const parentColumnsSort = ['created_at', 'id']
-    const sortBy = parentColumnsSort.includes(sort_by)
-      ? sort_by
-      : `COALESCE(json_extract(scores, '$.${sort_by}'), 0)`
-    const safeOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
-    const offset = (page - 1) * limit
-    const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
-    const queryResult = database.exec(
-      `
-      SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
-      FROM evals
-      WHERE dataset_id = '${dataset_id}'
-      ${searchCondition}
-      ORDER BY ${sortBy} ${safeOrder}
-      LIMIT ${limit}
-      OFFSET ${offset}
-      `,
-    )
-    const rows = queryResult[0]?.values || []
-    return rows.map((row) => {
-      const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
-      return this.prepareEvalData({
-        id,
-        dataset_id,
-        inputs,
-        outputs,
-        refs,
-        scores,
-        metadata,
-        modelId,
-      })
-    })
-  }
-
-  private prepareEvalData({
-    id,
-    dataset_id,
-    inputs,
-    outputs,
-    refs,
-    scores,
-    metadata,
-    modelId,
-  }: Record<string, SqlValue | undefined>) {
-    return {
-      id: safeParse(id) || '',
-      dataset_id: safeParse(dataset_id) || '',
-      inputs: safeParse(inputs) || {},
-      outputs: safeParse(outputs) || {},
-      refs: safeParse(refs) || {},
-      scores: safeParse(scores) || {},
-      metadata: safeParse(metadata) || {},
-      modelId: safeParse(modelId) || '',
-    }
-  }
-
   async getTraceSpans(modelId: string, traceId: string) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
     if (!db) return []
@@ -342,6 +245,197 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         scores,
       }
     })
+  }
+
+  async getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
+    return [
+      {
+          "id": "035bb74a-7836-42df-91b4-d5a59497c49a",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": true,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T20:56:04",
+          "rationale": "simpleee"
+      },
+      {
+          "id": "07f07c6e-67ef-4daf-bb3a-8bcbe7eac13a",
+          "name": "exp",
+          "annotation_kind": "expectation",
+          "value_type": "bool",
+          "value": false,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T21:14:56",
+          "rationale": "123"
+      },
+      {
+          "id": "e1332ead-57b7-48f5-bc52-259b993ebd7a",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": true,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T21:56:40",
+          "rationale": "1"
+      },
+      {
+          "id": "64fc15e0-0545-4c89-8919-8574878dbd18",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": true,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T21:56:49",
+          "rationale": "2"
+      },
+      {
+          "id": "5b1d5e52-4df8-4531-9f54-f9a990afb015",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": false,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T21:56:55",
+          "rationale": "1"
+      },
+      {
+          "id": "4b83d09c-3be6-42fe-8a22-7034a781ccd4",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": false,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T21:57:02",
+          "rationale": "2"
+      },
+      {
+          "id": "7c27ac90-ff4b-4f1f-bcd6-2912f30e12c3",
+          "name": "First",
+          "annotation_kind": "feedback",
+          "value_type": "bool",
+          "value": true,
+          "user": "Limanskiy",
+          "created_at": "2026-03-10T22:16:10",
+          "rationale": "1"
+      },
+      {
+          "id": "bbf0a908-44d7-4f0f-a068-458dad60bcc0",
+          "name": "Simple",
+          "annotation_kind": "expectation",
+          "value_type": "string",
+          "value": "String",
+          "user": "Limanskiy",
+          "created_at": "2026-03-11T07:35:43",
+          "rationale": "Rationale"
+      }
+  ] as any
+    return []
+  }
+
+  async getEvalsDatasetAnnotationsSummary(datasetId: string) {
+    return {
+      feedback: [],
+      expectations: [],
+    }
+  }
+
+  private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
+    const queryResult = database.exec(
+      `SELECT value, step FROM dynamic_metrics WHERE key = '${metricName}'`,
+    )
+    const rows = queryResult[0]?.values || []
+    const total = rows.length
+    const MAX_POINTS = 50_000
+    const data: ExperimentSnapshotDynamicMetric = {
+      x: [],
+      y: [],
+      modelId,
+      aggregated: rows.length > MAX_POINTS,
+    }
+    if (total === 0) return data
+    const stepSize = total > MAX_POINTS ? Math.ceil(total / MAX_POINTS) : 1
+    for (let i = 0; i < total; i += stepSize) {
+      const row = rows[i]
+      const value = row?.[0]
+      const step = row?.[1]
+      if (typeof step !== 'number' || typeof value !== 'number') continue
+      data.x.push(step)
+      data.y.push(value)
+    }
+    return data
+  }
+
+  private getDatabaseEvalsByDatasetId(
+    database: Database,
+    {
+      limit = 20,
+      sort_by = 'created_at',
+      order = 'desc',
+      dataset_id,
+      search = '',
+      page = 1,
+      modelId,
+    }: {
+      page: number
+      modelId: string
+    } & GetEvalsByDatasetParams,
+  ) {
+    const parentColumnsSort = ['created_at', 'id']
+    const sortBy = parentColumnsSort.includes(sort_by)
+      ? sort_by
+      : `COALESCE(json_extract(scores, '$.${sort_by}'), 0)`
+    const safeOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
+    const offset = (page - 1) * limit
+    const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
+    const queryResult = database.exec(
+      `
+      SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
+      FROM evals
+      WHERE dataset_id = '${dataset_id}'
+      ${searchCondition}
+      ORDER BY ${sortBy} ${safeOrder}
+      LIMIT ${limit}
+      OFFSET ${offset}
+      `,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
+      return this.prepareEvalData({
+        id,
+        dataset_id,
+        inputs,
+        outputs,
+        refs,
+        scores,
+        metadata,
+        modelId,
+      })
+    })
+  }
+
+  private prepareEvalData({
+    id,
+    dataset_id,
+    inputs,
+    outputs,
+    refs,
+    scores,
+    metadata,
+    modelId,
+  }: Record<string, SqlValue | undefined>) {
+    return {
+      id: safeParse(id) || '',
+      dataset_id: safeParse(dataset_id) || '',
+      inputs: safeParse(inputs) || {},
+      outputs: safeParse(outputs) || {},
+      refs: safeParse(refs) || {},
+      scores: safeParse(scores) || {},
+      metadata: safeParse(metadata) || {},
+      modelId: safeParse(modelId) || '',
+    }
   }
 
   private extractColumnsNames(

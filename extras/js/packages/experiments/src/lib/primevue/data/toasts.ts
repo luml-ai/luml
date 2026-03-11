@@ -6,3 +6,10 @@ export const simpleErrorToast = (detail: string, title?: string): ToastMessageOp
   detail: detail,
   life: 3000,
 })
+
+export const simpleSuccessToast = (detail: string, title?: string): ToastMessageOptions => ({
+  severity: 'success',
+  summary: title || 'Success',
+  detail: detail,
+  life: 3000,
+})

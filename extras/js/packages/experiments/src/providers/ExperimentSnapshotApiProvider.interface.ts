@@ -1,4 +1,10 @@
 import type {
+  AddAnnotationPayload,
+  Annotation,
+  AnnotationSummary,
+  UpdateAnnotationPayload,
+} from '@/components/annotations/annotations.interface'
+import type {
   EvalsColumns,
   EvalsInfo,
   GetEvalsByDatasetParams,
@@ -39,6 +45,29 @@ export interface ApiServiceInterface {
   ) => Promise<{ items: GetExperimentEvalsItem[]; cursor: string | null }>
 
   getExperimentDatasetAverageScores: (artifactId: string, datasetId: string) => Promise<ScoreInfo[]>
+
+  createEvalAnnotation: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateEvalAnnotation: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  getEvalAnnotations: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+  ) => Promise<Annotation[]>
+
+  deleteEvalAnnotation: (artifactId: string, annotationId: string) => Promise<void>
+
+  getEvalAnnotationSummary: (artifactId: string, datasetId: string) => Promise<AnnotationSummary>
 }
 
 export interface ExperimentMetricHistory {

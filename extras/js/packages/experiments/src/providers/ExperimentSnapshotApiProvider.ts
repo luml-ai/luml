@@ -15,6 +15,10 @@ import type {
   ExperimentMetricHistory,
   SpanFromApi,
 } from './ExperimentSnapshotApiProvider.interface'
+import type {
+  AddAnnotationPayload,
+  UpdateAnnotationPayload,
+} from '@/components/annotations/annotations.interface'
 
 export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider {
   private traces: TraceInfo[] = []
@@ -150,6 +154,46 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     })
     const evalsByArtifact = await Promise.all(responses)
     return evalsByArtifact.flat()
+  }
+
+  async createEvalAnnotation(
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+    data: AddAnnotationPayload,
+  ) {
+    return this.apiService.createEvalAnnotation(artifactId, datasetId, evalId, data)
+  }
+
+  async updateEvalAnnotation(
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) {
+    return this.apiService.updateEvalAnnotation(artifactId, annotationId, data)
+  }
+
+  async getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
+    return this.apiService.getEvalAnnotations(artifactId, datasetId, evalId)
+  }
+
+  async deleteEvalAnnotation(artifactId: string, annotationId: string) {
+    return this.apiService.deleteEvalAnnotation(artifactId, annotationId)
+  }
+
+  async getEvalsDatasetAnnotationsSummary(datasetId: string) {
+    const responses = this.artifacts.map(async (artifact) => {
+      return this.apiService.getEvalAnnotationSummary(artifact.id, datasetId)
+    })
+    const annotationsSummaryByArtifact = await Promise.all(responses)
+    return annotationsSummaryByArtifact.reduce(
+      (acc, summary) => {
+        acc.feedback.push(...summary.feedback)
+        acc.expectations.push(...summary.expectations)
+        return acc
+      },
+      { feedback: [], expectations: [] },
+    )
   }
 
   async resetEvalsDatasetsRequestParams() {

@@ -1,37 +1,38 @@
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { Smile, Target, ThumbsDown, ThumbsUp } from 'lucide-vue-next'
 import { z } from 'zod'
+import { AnnotationKind, AnnotationValueType } from '../annotations.interface'
 
 type Resolver = ReturnType<typeof zodResolver>
 
-export type AnnotationType = 'feedback' | 'expectation'
-
-export type DataType = 'boolean' | 'string' | 'number' | 'date'
-
 export const INITIAL_VALUES = {
-  type: 'feedback',
+  type: AnnotationKind.FEEDBACK,
   name: '',
-  dataType: 'boolean',
+  dataType: AnnotationValueType.BOOL,
   value: true,
   rationale: '',
 }
 
 export const RESOLVER: Resolver = zodResolver(
   z.object({
-    type: z.enum(['feedback', 'expectation']),
+    type: z.enum([AnnotationKind.FEEDBACK, AnnotationKind.EXPECTATION]),
     name: z.string().min(1),
-    dataType: z.enum(['boolean', 'string', 'number', 'date']),
+    dataType: z.enum([
+      AnnotationValueType.BOOL,
+      AnnotationValueType.STRING,
+      AnnotationValueType.INT,
+    ]),
     value: z.any(),
     rationale: z.string().min(1),
   }),
 )
 
-export const TYPE_OPTIONS: { label: string; value: AnnotationType }[] = [
-  { label: 'Feedback', value: 'feedback' },
-  { label: 'Expectation', value: 'expectation' },
+export const TYPE_OPTIONS: { label: string; value: AnnotationKind }[] = [
+  { label: 'Feedback', value: AnnotationKind.FEEDBACK },
+  { label: 'Expectation', value: AnnotationKind.EXPECTATION },
 ]
 
-export const TYPE_ICONS: Record<AnnotationType, { icon: any; iconColor: string }> = {
+export const TYPE_ICONS: Record<AnnotationKind, { icon: any; iconColor: string }> = {
   feedback: {
     icon: Smile,
     iconColor: 'var(--p-charts-color-3)',
@@ -42,8 +43,10 @@ export const TYPE_ICONS: Record<AnnotationType, { icon: any; iconColor: string }
   },
 }
 
-export const DATA_TYPE_OPTIONS: { label: string; value: DataType }[] = [
-  { label: 'Boolean', value: 'boolean' },
+export const DATA_TYPE_OPTIONS: { label: string; value: AnnotationValueType }[] = [
+  { label: 'Boolean', value: AnnotationValueType.BOOL },
+  { label: 'String', value: AnnotationValueType.STRING },
+  { label: 'Number', value: AnnotationValueType.INT },
 ]
 
 export const VALUE_OPTIONS: { label: string; value: boolean }[] = [

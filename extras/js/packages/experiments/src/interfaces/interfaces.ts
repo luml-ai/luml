@@ -1,3 +1,9 @@
+import type {
+  AddAnnotationPayload,
+  Annotation,
+  AnnotationSummary,
+  UpdateAnnotationPayload,
+} from '@/components/annotations/annotations.interface'
 import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {
@@ -18,6 +24,44 @@ export interface ExperimentSnapshotProvider {
   resetEvalsDatasetsRequestParams: () => Promise<void>
   resetDatasetPage: (datasetId: string) => Promise<void>
   getDatasetAverageScores: (datasetId: string) => Promise<ModelScores[]>
+
+  createEvalAnnotation?: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateEvalAnnotation?: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  getEvalAnnotations: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+  ) => Promise<Annotation[]>
+
+  deleteEvalAnnotation?: (artifactId: string, annotationId: string) => Promise<void>
+
+  createSpanAnnotation?: (
+    artifactId: string,
+    traceId: string,
+    spanId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateSpanAnnotation?: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  deleteSpanAnnotation?: (artifactId: string, annotationId: string) => Promise<void>
+
+  getEvalsDatasetAnnotationsSummary: (datasetId: string) => Promise<AnnotationSummary>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>

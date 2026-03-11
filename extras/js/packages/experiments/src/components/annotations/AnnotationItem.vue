@@ -5,40 +5,49 @@
       <div class="content">
         <div class="header-row">
           <div class="name">
-            <ThumbsDown :size="16" color="var(--p-red-500)" class="icon" />
-            AnnoName 2
+            <component :is="mainIcon.icon" :size="16" :color="mainIcon.color" class="icon" />
+            {{ data.name }}
           </div>
           <AnnotationOptions v-if="isEditable" @edit="$emit('edit')" @delete="$emit('delete')" />
         </div>
         <div class="row">
-          <span class="username">UserName</span>
-          <span class="date">1 day(s) ago</span>
+          <span class="username">{{ data.user }}</span>
+          <span class="date">{{ lastUpdateText }}</span>
         </div>
       </div>
     </div>
     <div class="secondary-info">
       <div class="row">
-        <span>Boolean:</span>
-        <span class="result">
-          <ThumbsUp :size="16" />
-          True
+        <span class="value-type">{{ valueTypeText }}:</span>
+        <span
+          v-if="data.value_type === AnnotationValueType.BOOL"
+          class="result"
+          :class="{ positive: data.value }"
+        >
+          <component :is="data.value ? ThumbsUp : ThumbsDown" :size="16" />
+          {{ data.value ? 'True' : 'False' }}
+        </span>
+        <span v-else>
+          {{ data.value }}
         </span>
       </div>
       <div class="description">
-        This is an example of rationale. It shows how this field looks when there is a large amount
-        of text.
+        {{ data.rationale }}
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { ChevronDown, ThumbsDown, ThumbsUp } from 'lucide-vue-next'
+import { AnnotationKind, AnnotationValueType, type Annotation } from './annotations.interface'
+import { computed, ref } from 'vue'
+import { ChevronDown, Target, ThumbsDown, ThumbsUp } from 'lucide-vue-next'
 import AnnotationOptions from './AnnotationOptions.vue'
+import { getLastUpdateText } from '@/helpers/helpers'
 
 interface Props {
   isEditable: boolean
+  data: Annotation
 }
 
 interface Emits {
@@ -46,10 +55,46 @@ interface Emits {
   (event: 'delete'): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 defineEmits<Emits>()
 
 const isExpanded = ref(false)
+
+const valueTypeText = computed(() => {
+  switch (props.data.value_type) {
+    case AnnotationValueType.BOOL:
+      return 'Boolean'
+    case AnnotationValueType.STRING:
+      return 'String'
+    case AnnotationValueType.INT:
+      return 'Number'
+    default:
+      return 'Unknown'
+  }
+})
+
+const mainIcon = computed(() => {
+  if (props.data.annotation_kind === AnnotationKind.EXPECTATION) {
+    return {
+      icon: Target,
+      color: 'var(--p-primary-color)',
+    }
+  }
+  if (props.data.value === true) {
+    return {
+      icon: ThumbsUp,
+      color: 'var(--p-green-500)',
+    }
+  }
+  return {
+    icon: ThumbsDown,
+    color: 'var(--p-red-500)',
+  }
+})
+
+const lastUpdateText = computed(() => {
+  return getLastUpdateText(new Date(props.data.created_at))
+})
 
 function toggle() {
   isExpanded.value = !isExpanded.value
@@ -61,6 +106,7 @@ function toggle() {
   border-radius: var(--p-card-border-radius);
   padding: 8px 12px;
   border: 1px solid transparent;
+  font-size: 14px;
 }
 
 .expanded {
@@ -139,7 +185,18 @@ function toggle() {
 }
 
 .result {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--p-red-500);
+}
+
+.result.positive {
   color: var(--p-green-500);
+}
+
+.value-type {
+  flex: 0 0 auto;
 }
 
 .description {
