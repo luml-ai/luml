@@ -100,6 +100,7 @@ class TraceRecord:
     created_at: datetime  # when the first span written to DB
     state: TraceState = TraceState.STATE_UNSPECIFIED
     evals: list[str] = field(default_factory=list)
+    annotations: "AnnotationSummary | None" = None
 
 
 @dataclass
@@ -120,6 +121,7 @@ class EvalRecord:
     scores: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     trace_ids: list[str] = field(default_factory=list)
+    annotations: "AnnotationSummary | None" = None
 
 
 @dataclass

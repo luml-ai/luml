@@ -4,12 +4,14 @@ from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
+    Eval,
     EvalColumns,
     Experiment,
     ExperimentDetails,
     ExperimentMetricHistory,
     PaginatedEvals,
     PaginatedTraces,
+    Trace,
     TraceDetails,
     TracesSortBy,
     TraceState,
@@ -64,6 +66,11 @@ def get_trace(experiment_id: str, trace_id: str) -> TraceDetails:
     return experiments_handler.get_trace(experiment_id, trace_id)
 
 
+@experiments_router.get("/{experiment_id}/evals/{eval_id}", response_model=Eval)
+def get_eval(experiment_id: str, eval_id: str) -> Eval:
+    return experiments_handler.get_eval(experiment_id, eval_id)
+
+
 @experiments_router.get("/{experiment_id}/evals/columns", response_model=EvalColumns)
 def get_experiment_eval_columns(
     experiment_id: str,
@@ -89,6 +96,29 @@ def get_experiment_eval_dataset_ids(experiment_id: str) -> list[str]:
     return experiments_handler.get_experiment_eval_dataset_ids(experiment_id)
 
 
+@experiments_router.get("/{experiment_id}/evals/all", response_model=list[Eval])
+def get_experiment_evals_all(
+    experiment_id: str,
+    sort_by: str = "created_at",
+    order: SortOrder = SortOrder.DESC,
+    dataset_id: str | None = None,
+    search: str | None = None,
+) -> list[Eval]:
+    """
+    search: optional substring filter on eval id
+
+    sort_by: standard column (created_at, updated_at, dataset_id) or
+    a score / inputs / outputs / refs key / metadata
+    """
+    return experiments_handler.get_experiment_evals_all(
+        experiment_id,
+        sort_by=sort_by,
+        order=order,
+        dataset_id=dataset_id,
+        search=search,
+    )
+
+
 @experiments_router.get("/{experiment_id}/evals", response_model=PaginatedEvals)
 def get_experiment_evals(
     experiment_id: str,
@@ -103,7 +133,7 @@ def get_experiment_evals(
     search: optional substring filter on eval id
 
     sort_by: standard column (created_at, updated_at, dataset_id) or
-    a score / inputs / outputs / refs key
+    a score / inputs / outputs / refs key / metadata
     """
     return experiments_handler.get_experiment_evals(
         experiment_id,
@@ -113,6 +143,28 @@ def get_experiment_evals(
         order=order,
         dataset_id=dataset_id,
         search=search,
+    )
+
+
+@experiments_router.get("/{experiment_id}/traces/all", response_model=list[Trace])
+def get_experiment_traces_all(
+    experiment_id: str,
+    sort_by: TracesSortBy = TracesSortBy.EXECUTION_TIME,
+    order: SortOrder = SortOrder.DESC,
+    search: str | None = None,
+    states: list[TraceState] | None = None,
+) -> list[Trace]:
+    """
+    search: An optional search by trace_id
+
+    states: An optional list of TraceState objects to filter traces by their state.
+    """
+    return experiments_handler.get_experiment_traces_all(
+        experiment_id,
+        sort_by=sort_by,
+        order=order,
+        search=search,
+        states=states,
     )
 
 
