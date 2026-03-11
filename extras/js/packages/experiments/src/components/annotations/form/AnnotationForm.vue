@@ -1,5 +1,13 @@
 <template>
-  <Form :initialValues="INITIAL_VALUES" :resolver="RESOLVER" @submit="onSubmit" class="form">
+  <Form
+    ref="form"
+    v-slot="$form"
+    id="annotation-edit-form"
+    :initialValues="formInitialValues"
+    :resolver="RESOLVER"
+    class="form"
+    @submit="onSubmit"
+  >
     <FormField name="type" class="form-field">
       <label for="type">Annotation type</label>
       <SelectButton
@@ -8,13 +16,16 @@
         :options="TYPE_OPTIONS"
         option-label="label"
         option-value="value"
+        :disabled="isEdit"
+        :allow-empty="false"
+        @change="() => onTypeChange()"
       >
         <template #option="slotProps">
           <div class="option-item">
             <component
-              v-if="TYPE_ICONS[slotProps.option.value as AnnotationType]"
-              :is="TYPE_ICONS[slotProps.option.value as AnnotationType].icon"
-              :color="TYPE_ICONS[slotProps.option.value as AnnotationType].iconColor"
+              v-if="TYPE_ICONS[slotProps.option.value as AnnotationKind]"
+              :is="TYPE_ICONS[slotProps.option.value as AnnotationKind].icon"
+              :color="TYPE_ICONS[slotProps.option.value as AnnotationKind].iconColor"
               :size="16"
             />
             <span>{{ slotProps.option.label }}</span>
@@ -24,7 +35,7 @@
     </FormField>
     <FormField name="name" class="form-field">
       <label for="name">Annotation name</label>
-      <InputText name="name" id="name" placeholder="Enter an annotation name" />
+      <InputText name="name" id="name" placeholder="Enter an annotation name" :disabled="isEdit" />
     </FormField>
     <FormField name="dataType" class="form-field">
       <label for="dataType">Data type</label>
@@ -34,31 +45,15 @@
         :options="DATA_TYPE_OPTIONS"
         option-label="label"
         option-value="value"
-        disabled
+        :disabled="$form.type?.value === AnnotationKind.FEEDBACK || isEdit"
+        @change="() => onDataTypeChange()"
       />
     </FormField>
-    <FormField name="value" class="form-field">
-      <label for="value">Value</label>
-      <SelectButton
-        name="value"
-        id="value"
-        :options="VALUE_OPTIONS"
-        option-label="label"
-        option-value="value"
-      >
-        <template #option="slotProps">
-          <div class="option-item">
-            <component
-              v-if="VALUE_ICONS[slotProps.option.value as 'true' | 'false']"
-              :is="VALUE_ICONS[slotProps.option.value as 'true' | 'false'].icon"
-              :color="VALUE_ICONS[slotProps.option.value as 'true' | 'false'].iconColor"
-              :size="16"
-            />
-            <span>{{ slotProps.option.label }}</span>
-          </div>
-        </template>
-      </SelectButton>
-    </FormField>
+    <AnnotationFormValue
+      v-if="$form.dataType?.value"
+      :type="$form.dataType.value"
+      :value="$form.value?.value"
+    />
     <FormField name="rationale" class="form-field">
       <label for="rationale">Rationale</label>
       <InputText name="rationale" id="rationale" placeholder="Enter a rationale" />
@@ -67,27 +62,62 @@
 </template>
 
 <script setup lang="ts">
-import { Form, FormField } from '@primevue/forms'
+import { Form, FormField, type FormSubmitEvent, type FormInstance } from '@primevue/forms'
 import { SelectButton, InputText, Select } from 'primevue'
-import {
-  INITIAL_VALUES,
-  RESOLVER,
-  TYPE_OPTIONS,
-  TYPE_ICONS,
-  type AnnotationType,
-  DATA_TYPE_OPTIONS,
-  VALUE_OPTIONS,
-  VALUE_ICONS,
-} from './data'
+import { INITIAL_VALUES, RESOLVER, TYPE_OPTIONS, TYPE_ICONS, DATA_TYPE_OPTIONS } from './data'
+import { AnnotationValueType, AnnotationKind, type Annotation } from '../annotations.interface'
+import { ref } from 'vue'
+import AnnotationFormValue from './AnnotationFormValue.vue'
 
 interface Props {
-  data: any | null
+  data?: Annotation
+  isEdit?: boolean
 }
 
-defineProps<Props>()
+interface Emits {
+  (event: 'submit', data: any): void
+}
 
-function onSubmit() {
-  console.log('submit')
+const props = defineProps<Props>()
+
+const emits = defineEmits<Emits>()
+
+const formInitialValues = props.data
+  ? {
+      type: props.data.annotation_kind,
+      name: props.data.name,
+      dataType: props.data.value_type,
+      value: props.data.value,
+      rationale: props.data.rationale,
+    }
+  : INITIAL_VALUES
+
+const form = ref<FormInstance>()
+
+function onTypeChange() {
+  const type = form.value?.getFieldState('type')?.value
+
+  if (type === AnnotationKind.FEEDBACK) {
+    form.value?.setFieldValue('dataType', AnnotationValueType.BOOL)
+  }
+}
+
+function onDataTypeChange() {
+  const dataType = form.value?.getFieldState('dataType')?.value
+
+  if (dataType === AnnotationValueType.BOOL) {
+    form.value?.setFieldValue('value', true)
+  } else if (dataType === AnnotationValueType.STRING) {
+    form.value?.setFieldValue('value', '')
+  } else if (dataType === AnnotationValueType.INT) {
+    form.value?.setFieldValue('value', 0)
+  }
+}
+
+function onSubmit(event: FormSubmitEvent) {
+  const { valid, values } = event
+  if (!valid) return
+  emits('submit', values)
 }
 </script>
 

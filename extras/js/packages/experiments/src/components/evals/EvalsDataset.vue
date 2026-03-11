@@ -20,6 +20,7 @@
       :columns-tree="columnsTree"
       :data="data"
       :models-info="modelsInfo"
+      :annotations-summary="annotationsSummary || { feedback: [], expectations: [] }"
       @get-next-page="getNextPage"
       @sort="onSort"
     ></EvalsTable>
@@ -29,10 +30,12 @@
 <script setup lang="ts">
 import type { EvalsColumns, ModelScores } from '../../interfaces/interfaces'
 import type { DatasetEmits, DatasetProps, FilterInterface, TableColumn } from './evals.interface'
+import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
 import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
 import { Braces } from 'lucide-vue-next'
+import { useAnnotationsStore } from '@/store/annotations'
 import UiCard from '../ui/UiCard.vue'
 import EvalsTable from './EvalsTable.vue'
 import EvalsScoresSingle from './scores/single/EvalsScoresSingle.vue'
@@ -42,6 +45,8 @@ const emit = defineEmits<DatasetEmits>()
 
 const evalsStore = useEvalsStore()
 
+const annotationsStore = useAnnotationsStore()
+
 const props = defineProps<DatasetProps>()
 
 const filter = reactive<FilterInterface>({
@@ -49,6 +54,8 @@ const filter = reactive<FilterInterface>({
 })
 
 const averageScores = ref<ModelScores[] | null>(null)
+
+const annotationsSummary = ref<AnnotationSummary | null>(null)
 
 const columnsTree = computed(() => {
   const tree: TableColumn[] = [
@@ -67,13 +74,15 @@ const columnsTree = computed(() => {
       children: props.columns[column as keyof EvalsColumns],
     })
   }
+  const feedbackColumns = annotationsSummary.value?.feedback.map((item) => item.name) || []
   tree.push({
-    title: 'feedback',
-    children: ['AnnoName 1', 'Long AnnoName 2', 'AnnoName 3'],
+    title: `feedback (${feedbackColumns.length})`,
+    children: feedbackColumns,
   })
+  const expectationColumns = annotationsSummary.value?.expectations.map((item) => item.name) || []
   tree.push({
-    title: 'expectation',
-    children: ['AnnoName 1 expectation', 'Long AnnoName 2 expectation', 'AnnoName 3 expectation'],
+    title: `expectation (${expectationColumns.length})`,
+    children: expectationColumns,
   })
   return tree
 })
@@ -94,6 +103,11 @@ const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 
 onBeforeMount(async () => {
   averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(props.datasetId)
+
+  annotationsSummary.value = await annotationsStore.getEvalsDatasetAnnotationsSummary(
+    props.datasetId,
+  )
+  console.log(annotationsSummary.value)
 })
 
 watch(filter, debouncedOnFilterChange)

@@ -14,6 +14,7 @@ import { ExperimentSnapshotWorkerProxy } from './providers/ExperimentSnapshotWor
 import { ExperimentSnapshotApiProvider } from './providers/ExperimentSnapshotApiProvider'
 import { provideTheme } from './lib/theme/ThemeProvider'
 import { useEvalsStore } from './store/evals'
+import { useAnnotationsStore } from './store/annotations'
 import ExperimentSnapshot from './ExperimentSnapshot.vue'
 import ComparisonHeader from './components/comparison/ComparisonHeader.vue'
 import ComparisonModelsList from './components/comparison/ComparisonModelsList.vue'
@@ -49,4 +50,5 @@ export {
   TraceDialog,
   useEvalsStore,
   ExperimentSnapshotApiProvider,
+  useAnnotationsStore,
 }

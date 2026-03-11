@@ -2,7 +2,7 @@
   <div class="header">
     <div class="header-left">
       <Pencil :size="16" color="var(--p-primary-color)" />
-      <span>Annotations (3)</span>
+      <span>Annotations ({{ props.count }})</span>
     </div>
     <Button severity="secondary" variant="outlined" @click="$emit('close')">
       <template #icon>
@@ -19,6 +19,12 @@ import { Button } from 'primevue'
 interface Emits {
   (event: 'close'): void
 }
+
+interface Props {
+  count: number
+}
+
+const props = defineProps<Props>()
 
 defineEmits<Emits>()
 </script>

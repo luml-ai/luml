@@ -12,7 +12,11 @@
               <ListTree :size="16" />
               Trace
             </Button>
-            <AnnotationsButton v-if="!isAnnotationsVisible" :count="3" @click="showAnnotations" />
+            <AnnotationsButton
+              v-if="isAnnotationsButtonVisible"
+              :count="annotationsStore.evalAnnotations.length"
+              @click="showAnnotations"
+            />
           </div>
         </header>
         <div class="items-list">
@@ -66,15 +70,23 @@
       </div>
     </div>
   </div>
-  <AnnotationsView v-if="isAnnotationsVisible" @close="closeAnnotations" />
+  <AnnotationsView
+    v-if="isAnnotationsVisible"
+    :artifact-id="props.id"
+    :dataset-id="evalsStore.selectedEval?.datasetId"
+    :eval-id="evalsStore.selectedEval?.evalId"
+    @close="closeAnnotations"
+  />
 </template>
 
 <script setup lang="ts">
 import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, onMounted, ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useAnnotationsStore } from '@/store/annotations'
+import { getErrorMessage } from '@/helpers/helpers'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
 import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
@@ -90,6 +102,8 @@ const props = defineProps<Props>()
 const evalsStore = useEvalsStore()
 
 const toast = useToast()
+
+const annotationsStore = useAnnotationsStore()
 
 const scoresRef = ref<HTMLDivElement | null>()
 const scoresBlockHeight = ref(0)
@@ -119,6 +133,12 @@ const references = computed(() => {
   const references = modelData.value?.refs
   if (!references) return null
   return getFormattedItems(references)
+})
+
+const isAnnotationsButtonVisible = computed(() => {
+  if (isAnnotationsVisible.value) return false
+  if (annotationsStore.isEditAvailable) return true
+  return annotationsStore.evalAnnotations.length > 0
 })
 
 function toggleScores() {
@@ -152,6 +172,21 @@ function showAnnotations() {
 function closeAnnotations() {
   isAnnotationsVisible.value = false
 }
+
+onBeforeMount(async () => {
+  try {
+    if (!props.id || !evalsStore.selectedEval?.datasetId || !evalsStore.selectedEval?.evalId) {
+      throw new Error('Artifact ID, dataset ID and eval ID are required')
+    }
+    await annotationsStore.getEvalAnnotations(
+      props.id,
+      evalsStore.selectedEval?.datasetId,
+      evalsStore.selectedEval?.evalId,
+    )
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+  }
+})
 
 onMounted(async () => {
   if (!evalsStore.selectedEval) {

@@ -3,44 +3,69 @@
     <AnnotationItem
       v-for="item in items"
       :key="item.id"
-      :item="item"
-      :is-editable="true"
+      :data="item"
+      :is-editable="annotationsStore.isEditAvailable"
       @edit="onEdit(item)"
       @delete="onDelete(item)"
     />
   </div>
 
-  <AnnotationEditDialog v-model:visible="editDialogVisible" :data="{}" />
+  <AnnotationEditDialog
+    :visible="!!editDialogData"
+    :data="editDialogData"
+    :artifact-id="artifactId"
+    @update:visible="onEditDialogVisibleUpdate"
+  />
 </template>
 
 <script setup lang="ts">
-import { useConfirm } from 'primevue/useconfirm'
+import type { Annotation } from '../annotations.interface'
+import { useConfirm, useToast } from 'primevue'
 import { deleteAnnotationConfirmOptions } from '@/lib/primevue/data/confirm'
 import { ref } from 'vue'
+import { useAnnotationsStore } from '@/store/annotations'
+import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import AnnotationItem from '../AnnotationItem.vue'
 import AnnotationEditDialog from '../AnnotationEditDialog.vue'
 
 interface Props {
-  items: any[]
+  items: Annotation[]
+  artifactId?: string
 }
 
-defineProps<Props>()
+const annotationsStore = useAnnotationsStore()
+
+const props = defineProps<Props>()
 
 const confirm = useConfirm()
 
-const editDialogVisible = ref(false)
+const toast = useToast()
 
-function onEdit(item: any) {
-  console.log('edit', item)
-  editDialogVisible.value = true
+const editDialogData = ref<Annotation | null>(null)
+
+function onEdit(item: Annotation) {
+  editDialogData.value = item
 }
 
-function onDelete(item: any) {
-  confirm.require(deleteAnnotationConfirmOptions('AnnoName 3', () => deleteAnnotation(item)))
+function onDelete(item: Annotation) {
+  confirm.require(deleteAnnotationConfirmOptions(item.name, () => deleteAnnotation(item)))
 }
 
-function deleteAnnotation(item: any) {
-  console.log(item)
+async function deleteAnnotation(item: Annotation) {
+  try {
+    if (!props.artifactId) {
+      throw new Error('Artifact ID is required')
+    }
+    await annotationsStore.deleteEvalAnnotation(props.artifactId, item.id)
+    toast.add(simpleSuccessToast(`Annotation "${item.name}" deleted successfully`))
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error)))
+  }
+}
+
+function onEditDialogVisibleUpdate(visible: boolean) {
+  if (!visible) editDialogData.value = null
 }
 </script>
 
