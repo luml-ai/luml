@@ -12,6 +12,7 @@ from lumlflow.schemas.experiment_groups import (
 from lumlflow.schemas.experiments import (
     ExperimentListed,
     PaginatedExperiments,
+    SearchValidationResult,
 )
 from lumlflow.settings import get_tracker
 
@@ -121,7 +122,7 @@ class ExperimentGroupsHandler:
                 group_id, sort_by
             )
         except ValueError as e:
-            raise ApplicationError(str(e), status_code=400) from e
+            raise ApplicationError(str(e)) from e
 
         try:
             result = self.tracker.list_group_experiments_pagination(
@@ -140,3 +141,10 @@ class ExperimentGroupsHandler:
             items=[ExperimentListed.model_validate(e) for e in result.items],
             cursor=result.cursor,
         )
+
+    def validate_search(self, query: str | None) -> SearchValidationResult:
+        try:
+            self.tracker.validate_experiments_search(query)
+        except Exception as e:
+            return SearchValidationResult(valid=False, error=str(e))
+        return SearchValidationResult(valid=True)

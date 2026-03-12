@@ -385,3 +385,7 @@ class Backend(ABC):
         dataset_id: str | None = None,
     ) -> dict[str, float]:
         pass
+
+    @abstractmethod
+    def validate_experiments_search(self, search: str | None = None) -> None:
+        pass

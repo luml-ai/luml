@@ -1183,13 +1183,14 @@ class ExperimentTracker:
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
         """
-        Retrieve all unique dataset IDs from evals of an experiment.
+            Retrieve all unique dataset IDs from evals of an experiment.
 
-        Args:
-            experiment_id (str): The experiment to query.
+        def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
+            Args:
+                experiment_id (str): The experiment to query.
 
-        Returns:
-            list[str]: Sorted list of distinct dataset IDs.
+            Returns:
+                list[str]: Sorted list of distinct dataset IDs.
         """
         return self.backend.get_experiment_eval_dataset_ids(experiment_id)
 
@@ -1584,6 +1585,9 @@ class ExperimentTracker:
             search=search,
         )
 
+    def validate_experiments_search(self, search: str | None = None) -> None:
+        return self.backend.validate_experiments_search(search)
+
     def list_group_experiments_pagination(
         self,
         group_id: str,
@@ -1603,7 +1607,7 @@ class ExperimentTracker:
             cursor_str (str | None): Pagination cursor from a previous response.
             sort_by (str): Sort field. Defaults to ``'created_at'``.
             order (str): Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
-            search (str | None): Optional substring filter on experiment name.
+            search (str | None): Optional string for filtering experiments by sql-like query.
             json_sort_column (str | None): Resolved JSON column for sorting by
                 static param or dynamic metric keys.
 

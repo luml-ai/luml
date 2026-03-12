@@ -23,6 +23,7 @@ core = [
     "cloudpickle>=3.1.2,<4.0.0",
     "fnnx>=0.0.8,<0.1.0",
     "pydantic>=2.11.7,<3.0.0",
+    "sqlparse>=0.4.4,<1.0.0",
 ]
 datasets = [
     "pandas>=2.0.0,<3.0.0",

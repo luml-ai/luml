@@ -125,7 +125,9 @@ def test_log_model_with_name_and_tags(
     model_ref = ModelReference(str(dummy_model_file))
 
     tracker.log_model(
-        model_ref, name="prod_model", tags=["production", "v2"],
+        model_ref,
+        name="prod_model",
+        tags=["production", "v2"],
         experiment_id=exp_id,
     )
 
