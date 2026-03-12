@@ -121,7 +121,7 @@ class ExperimentGroupsHandler:
             json_sort_column = self.tracker.resolve_experiment_sort_column(
                 group_id, sort_by
             )
-        except Exception as e:
+        except ValueError as e:
             raise ApplicationError(str(e)) from e
 
         try:

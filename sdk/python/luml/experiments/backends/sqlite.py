@@ -1666,8 +1666,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return [self._row_to_model(row) for row in cursor.fetchall()]
 
     def validate_experiments_search(self, search: str | None = None) -> None:
-        if not search:
-            return None
         return SearchExperimentsUtils.validate_filter_string(search)
 
     def list_group_experiments_pagination(
