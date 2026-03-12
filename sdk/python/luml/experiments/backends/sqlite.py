@@ -1938,7 +1938,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step ASC",
+            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
             (key,),
         )
         return [
@@ -1946,8 +1946,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             for value, step, logged_at in cursor.fetchall()
         ]
 
+    @staticmethod
     def _fetch_bridge_ids(
-        self,
         conn: sqlite3.Connection,
         key_column: str,
         value_column: str,
@@ -1955,16 +1955,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> dict[str, list[str]]:
         if not ids:
             return {}
-        placeholders = ", ".join("?" for _ in ids)
-        cur = conn.cursor()
-        cur.execute(
-            f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
-            f" WHERE {key_column} IN ({placeholders})",
-            ids,
-        )
         result: dict[str, list[str]] = {}
-        for key, value in cur.fetchall():
-            result.setdefault(key, []).append(value)
+        batch_size = 900
+        cur = conn.cursor()
+        for i in range(0, len(ids), batch_size):
+            batch = ids[i : i + batch_size]
+            placeholders = ", ".join("?" for _ in batch)
+            cur.execute(
+                f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
+                f" WHERE {key_column} IN ({placeholders})",
+                batch,
+            )
+            for key, value in cur.fetchall():
+                result.setdefault(key, []).append(value)
         return result
 
     def get_experiment_traces(
@@ -2318,7 +2321,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     ON s.trace_id = sa.trace_id AND s.span_id = sa.span_id
                 WHERE s.trace_id = ?
                 GROUP BY s.trace_id, s.span_id
-                ORDER BY s.start_time_unix_nano ASC
+                ORDER BY s.start_time_unix_nano
                 """,
                 (trace_id,),
             )
@@ -2331,7 +2334,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                        trace_flags, 0 AS annotation_count
                 FROM spans
                 WHERE trace_id = ?
-                ORDER BY start_time_unix_nano ASC
+                ORDER BY start_time_unix_nano
                 """,
                 (trace_id,),
             )
@@ -2380,7 +2383,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagination.
 
         Args:
-            search: string to search by name or tag.
+            search: string to search by id.
             experiment_id: The unique identifier of the experiment.
             limit: Maximum number of evals to return. Defaults to 20.
             cursor_str: Opaque pagination cursor from a previous response.
@@ -2429,6 +2432,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 cursor="eyJpZCI6ICJldmFsLTAwMSJ9",
             )
         """
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+
         conn = self._get_experiment_connection(experiment_id)
 
         where_conditions: list[tuple[str, list]] = []
@@ -2524,28 +2531,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         search: str | None = None,
     ) -> list[EvalRecord]:
         """
-        Retrieve paginated eval samples for a given experiment.
+        Retrieve all eval records for a given experiment.
 
-        Returns eval samples with their inputs, outputs, scores, and linked trace IDs.
+        Returns evals with their inputs, outputs, scores, and linked trace IDs.
         Supports optional filtering by dataset_id, sorting by created_at, updated_at,
-        dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagination.
+        dataset_id, or a JSON column key (via json_sort_column).
 
         Args:
-            search: string to search by name or tag.
             experiment_id: The unique identifier of the experiment.
             sort_by: Sort field or JSON key name when json_sort_column is set.
             order: Sort direction — "asc" or "desc".
             dataset_id: Filter evals to a specific dataset.
             json_sort_column: When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.{sort_by}').
+            search: string to search by name or tag.
 
         Returns:
-            PaginatedResponse[EvalRecord]
+            list[EvalRecord]
 
         Raises:
             ValueError: If experiment not found.
 
         Example:
-            >>> backend.get_experiment_evals("exp-001", limit=2)
+            >>> backend.get_experiment_evals_all("exp-001")
             [
                 EvalRecord(
                     id="eval-001",
@@ -2575,6 +2582,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+
         conn = self._get_experiment_connection(experiment_id)
 
         where_clauses: list[str] = []
@@ -2644,7 +2655,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             EvalRecord | None: Returns `None` if no such record exists.
 
         Example:
-            >>> backend.get_eval("eval_id")
+            >>> backend.get_eval("experiment_id", "eval_id")
             EvalRecord(
                 id="eval-001",
                 dataset_id="ds-abc",
@@ -3047,29 +3058,29 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not self._has_annotation_tables(experiment_id) or not eval_ids:
             return {}
         conn = self._get_experiment_connection(experiment_id)
-        placeholders = ",".join("?" * len(eval_ids))
-        feedback_rows = conn.execute(
-            f"""SELECT eval_id, name, value, COUNT(*) AS cnt
-               FROM eval_annotations
-               WHERE eval_id IN ({placeholders}) AND annotation_kind = 'feedback'
-               GROUP BY eval_id, name, value
-               ORDER BY name, value""",
-            eval_ids,
-        ).fetchall()
-        expectation_rows = conn.execute(
-            f"""SELECT eval_id, name, COUNT(*) AS cnt
-               FROM eval_annotations
-               WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
-               GROUP BY eval_id, name
-               ORDER BY name""",
-            eval_ids,
-        ).fetchall()
         feedback_by_eval: dict[str, list] = {}
-        for row in feedback_rows:
-            feedback_by_eval.setdefault(row[0], []).append(row[1:])
         expectation_by_eval: dict[str, list] = {}
-        for row in expectation_rows:
-            expectation_by_eval.setdefault(row[0], []).append(row[1:])
+        for i in range(0, len(eval_ids), 900):
+            batch = eval_ids[i : i + 900]
+            placeholders = ",".join("?" * len(batch))
+            for row in conn.execute(
+                f"""SELECT eval_id, name, value, COUNT(*) AS cnt
+                   FROM eval_annotations
+                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                   GROUP BY eval_id, name, value
+                   ORDER BY name, value""",
+                batch,
+            ).fetchall():
+                feedback_by_eval.setdefault(row[0], []).append(row[1:])
+            for row in conn.execute(
+                f"""SELECT eval_id, name, COUNT(*) AS cnt
+                   FROM eval_annotations
+                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                   GROUP BY eval_id, name
+                   ORDER BY name""",
+                batch,
+            ).fetchall():
+                expectation_by_eval.setdefault(row[0], []).append(row[1:])
         return {
             eval_id: self._build_annotation_summary(
                 feedback_by_eval.get(eval_id, []),
@@ -3109,29 +3120,29 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not self._has_annotation_tables(experiment_id) or not trace_ids:
             return {}
         conn = self._get_experiment_connection(experiment_id)
-        placeholders = ",".join("?" * len(trace_ids))
-        feedback_rows = conn.execute(
-            f"""SELECT trace_id, name, value, COUNT(*) AS cnt
-               FROM span_annotations
-               WHERE trace_id IN ({placeholders}) AND annotation_kind = 'feedback'
-               GROUP BY trace_id, name, value
-               ORDER BY name, value""",
-            trace_ids,
-        ).fetchall()
-        expectation_rows = conn.execute(
-            f"""SELECT trace_id, name, COUNT(*) AS cnt
-               FROM span_annotations
-               WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
-               GROUP BY trace_id, name
-               ORDER BY name""",
-            trace_ids,
-        ).fetchall()
         feedback_by_trace: dict[str, list] = {}
-        for row in feedback_rows:
-            feedback_by_trace.setdefault(row[0], []).append(row[1:])
         expectation_by_trace: dict[str, list] = {}
-        for row in expectation_rows:
-            expectation_by_trace.setdefault(row[0], []).append(row[1:])
+        for i in range(0, len(trace_ids), 900):
+            batch = trace_ids[i : i + 900]
+            placeholders = ",".join("?" * len(batch))
+            for row in conn.execute(
+                f"""SELECT trace_id, name, value, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                   GROUP BY trace_id, name, value
+                   ORDER BY name, value""",
+                batch,
+            ).fetchall():
+                feedback_by_trace.setdefault(row[0], []).append(row[1:])
+            for row in conn.execute(
+                f"""SELECT trace_id, name, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                   GROUP BY trace_id, name
+                   ORDER BY name""",
+                batch,
+            ).fetchall():
+                expectation_by_trace.setdefault(row[0], []).append(row[1:])
         return {
             trace_id: self._build_annotation_summary(
                 feedback_by_trace.get(trace_id, []),
