@@ -384,6 +384,15 @@ class SearchExperimentsUtils(SearchUtils):
                 "For static params use: param.<key> or static_params.<key>."
             )
 
+        if entity_type in (
+            cls._PARAM_IDENTIFIER,
+            cls._METRIC_IDENTIFIER,
+        ) and not re.match(r"^[a-zA-Z0-9_.-]+$", key):
+            raise LumlFilterError(
+                f"Invalid key {key!r} for {entity_type}. "
+                "Keys may only contain alphanumeric characters, underscores, dots, and hyphens."
+            )
+
         return {"type": entity_type, "key": key}
 
     @classmethod
@@ -601,17 +610,14 @@ class SearchExperimentsUtils(SearchUtils):
         Validate a filter string without executing it against the database.
 
         Raises:
-            ValueError: with a descriptive message if the filter string is invalid.
+            LumlFilterError: with a descriptive message if the filter string is invalid.
 
         Examples:
             validate_filter_string('name LIKE "%bert%"')   # OK, returns None
-            validate_filter_string('nonexistent = "x"')    # raises ValueError
-            validate_filter_string('name LIKE "%a%" OR name LIKE "%b%"')  # raises ValueError (OR not supported)
+            validate_filter_string('nonexistent = "x"')    # raises LumlFilterError
+            validate_filter_string('name LIKE "%a%" OR name LIKE "%b%"')  # OK, returns None
         """
-        try:
-            cls.parse_search_filter(filter_string)
-        except ValueError as e:
-            raise LumlFilterError(str(e)) from e
+        cls.parse_search_filter(filter_string)
 
     @classmethod
     def to_sql(
