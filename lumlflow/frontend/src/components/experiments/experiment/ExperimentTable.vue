@@ -6,10 +6,15 @@
     scrollHeight="calc(100vh - 310px)"
     :selection="experimentsStore.selectedExperiments"
     :virtualScrollerOptions="virtualScrollerOptions"
+    :loading="loading"
+    :pt="{
+      emptyMessage: loading ? 'hidden' : '',
+    }"
+    @row-click="onRowClick"
     @update:selection="experimentsStore.setSelectedExperiments"
   >
     <template #empty>
-      <div class="text-center h-full flex items-center justify-center">
+      <div class="text-center h-full flex items-center justify-center max-w-[calc(100vw-40px)]">
         No experiments groups found
       </div>
     </template>
@@ -19,7 +24,13 @@
       field="name"
       header="Experiment name"
       class="w-[180px]"
-    ></Column>
+    >
+      <template #body="slotProps">
+        <div v-tooltip.top="slotProps.data.name.length > 14 ? slotProps.data.name : null">
+          {{ cutStringOnMiddle(slotProps.data.name, 14) }}
+        </div>
+      </template></Column
+    >
     <Column
       v-if="showColumn('Creation time')"
       field="created_at"
@@ -54,15 +65,19 @@
     </Column>
     <Column v-if="showColumn('Duration')" field="duration" header="Duration" class="w-[126px]">
       <template #body="slotProps">
-        <span>{{ durationToText(slotProps.data.duration) }}</span>
+        <span v-if="typeof slotProps.data.duration === 'number'">
+          {{ durationToText(slotProps.data.duration) }}
+        </span>
+        <span v-else>-</span>
       </template>
     </Column>
     <Column v-if="showColumn('Source')" field="source" header="Source" class="w-[180px]">
       <template #body="slotProps">
-        <div class="flex items-center gap-2">
+        <div v-if="slotProps.data.source" class="flex items-center gap-2">
           <FileChartLine :size="14" color="var(--p-primary-color)" />
           <span>{{ slotProps.data.source }}</span>
         </div>
+        <span v-else>-</span>
       </template>
     </Column>
     <Column v-if="showColumn('Models')" field="models" header="Models" class="w-[180px]">
@@ -73,7 +88,7 @@
     <template v-for="metric in metricsColumns" :key="metric">
       <Column v-if="showColumn(metric)" :field="metric" :header="metric" class="w-[180px]">
         <template #body="slotProps">
-          <span>{{ slotProps.data.metrics[metric] || '-' }}</span>
+          <span>{{ slotProps.data.dynamic_params?.[metric] || '-' }}</span>
         </template>
       </Column>
     </template>
@@ -81,44 +96,59 @@
 </template>
 
 <script setup lang="ts">
-import type { Experiment } from '@/store/experiments/experiments.interface'
-import { DataTable, Column, type VirtualScrollerProps } from 'primevue'
+import { DataTable, Column, type VirtualScrollerProps, type DataTableRowClickEvent } from 'primevue'
 import { useExperimentsStore } from '@/store/experiments'
-import { computed, watch } from 'vue'
-import { Check, CircleX, FileChartLine, Timer } from 'lucide-vue-next'
+import { useGroupsStore } from '@/store/groups'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { FileChartLine } from 'lucide-vue-next'
 import { durationToText } from '@/helpers/date'
-import { CONSTANTS_COLUMNS } from './experiment.const'
+import { CONSTANTS_COLUMNS, getStatusIconInfo } from './experiment.const'
 import ColumnTags from '@/components/table/ColumnTags.vue'
 import ColumnDescription from '@/components/table/ColumnDescription.vue'
 import ExperimentModelsListColumn from './ExperimentModelsListColumn.vue'
+import { cutStringOnMiddle } from '@/helpers/string'
+import { ROUTE_NAMES } from '@/router/router.const'
+import { useRouter } from 'vue-router'
+
+interface Props {
+  groupId: string
+}
+
+const props = defineProps<Props>()
 
 const experimentsStore = useExperimentsStore()
+const groupsStore = useGroupsStore()
+const router = useRouter()
+
+const loading = ref(true)
 
 const virtualScrollerOptions: VirtualScrollerProps = {
   lazy: true,
-  itemSize: 58.75,
+  itemSize: 64,
   scrollHeight: 'calc(100vh - 310px)',
 }
 
-const statusIconInfo = computed(() => (status: Experiment['status']) => {
-  if (status === 'completed') return { icon: Check, color: 'var(--p-tag-success-color)' }
-  if (status === 'active') return { icon: Timer, color: 'var(--p-tag-info-color)' }
-  return { icon: CircleX, color: 'var(--p-tag-danger-color)' }
-})
+const statusIconInfo = computed(() => getStatusIconInfo)
 
 const metricsColumns = computed(() => {
-  const metricsSet = experimentsStore.experiments.reduce((acc, experiment) => {
-    Object.keys(experiment.metrics).forEach((metric) => {
-      acc.add(metric)
-    })
-    return acc
-  }, new Set<string>())
-  return Array.from(metricsSet)
+  return groupsStore.detailedGroup?.experiments_dynamic_params || []
 })
 
 const showColumn = computed(() => (columnTitle: string) => {
   return experimentsStore.visibleColumns.includes(columnTitle)
 })
+
+function onRowClick(event: DataTableRowClickEvent) {
+  const target = event.originalEvent.target as HTMLElement
+  const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
+  if (rowIncludeCheckbox) return
+  const id = event.data.id
+  if (!id) return
+  router.push({
+    name: ROUTE_NAMES.EXPERIMENT_OVERVIEW,
+    params: { groupId: props.groupId, experimentId: String(id) },
+  })
+}
 
 watch(
   metricsColumns,
@@ -128,6 +158,28 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => props.groupId,
+  (groupId) => {
+    experimentsStore.setQueryParams({
+      ...experimentsStore.queryParams,
+      group_id: groupId,
+    })
+  },
+  { immediate: true },
+)
+
+watch(
+  () => experimentsStore.experiments,
+  () => {
+    loading.value = false
+  },
+)
+
+onBeforeUnmount(() => {
+  experimentsStore.reset()
+})
 </script>
 
 <style scoped></style>

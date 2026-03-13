@@ -152,7 +152,15 @@ class SyncBaseClient(BaseClient):
 
         if response.status_code == 204 or not response.content:
             return None
-        return response.json()
+        try:
+            return response.json()
+        except Exception as e:
+            raise InternalServerError(
+                f"Failed to parse response from "
+                f"{response.request.method} {response.url}: {e}",
+                response=response,
+                body=response.text,
+            ) from e
 
     def request(
         self,
@@ -226,7 +234,15 @@ class AsyncBaseClient(BaseClient):
 
         if response.status_code == 204 or not response.content:
             return None
-        return response.json()
+        try:
+            return response.json()
+        except Exception as e:
+            raise InternalServerError(
+                f"Failed to parse response from "
+                f"{response.request.method} {response.url}: {e}",
+                response=response,
+                body=response.text,
+            ) from e
 
     async def request(
         self,

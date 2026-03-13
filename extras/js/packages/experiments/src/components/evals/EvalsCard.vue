@@ -13,6 +13,7 @@
       :columns-tree="columnsTree"
       :data="tableData"
       :models-info="modelsInfo"
+      :table-height="tableHeight"
     ></EvalsTable>
   </UiCard>
 </template>
@@ -28,9 +29,12 @@ import EvalsScoresMultiple from './scores/multiple/EvalsScoresMultiple.vue'
 type Props = {
   data: EvalsInfo[]
   modelsInfo: ModelsInfo
+  tableHeight?: string
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  tableHeight: '400px',
+})
 
 const tableData = computed(() => {
   return props.data.map((item) => {

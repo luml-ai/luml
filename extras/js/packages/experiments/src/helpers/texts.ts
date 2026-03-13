@@ -35,7 +35,7 @@ function tryParseJson(text: string) {
     const trimmed = text.trim()
     if (!trimmed) return null
     return JSON.parse(trimmed)
-  } catch (e) {
+  } catch {
     return null
   }
 }
