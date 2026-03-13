@@ -1,0 +1,53 @@
+[project]
+name = "luml-satellite-kit"
+version = "0.1.0"
+description = "SDK for building Luml satellite task runners"
+requires-python = ">=3.14"
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2.10,<3",
+    "pydantic-settings>=2.7,<3",
+    "fastapi>=0.115,<1",
+    "cashews>=7,<8",
+]
+
+[dependency-groups]
+dev = [
+    "ruff==0.14.5",
+    "pytest>=8",
+    "pytest-asyncio>=0.25",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["luml_satellite_kit"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+indent-width = 4
+src = ["luml_satellite_kit"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"
+]
+ignore = [
+    "ANN101",
+    "ANN002",
+    "ANN003",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["luml_satellite_kit"]
+split-on-trailing-comma = true
