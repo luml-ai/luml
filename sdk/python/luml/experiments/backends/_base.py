@@ -266,7 +266,22 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_experiment_traces_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "execution_time",
+        order: str = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> list[TraceRecord]:
+        pass
+
+    @abstractmethod
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
+        pass
+
+    @abstractmethod
+    def get_eval(self, experiment_id: str, eval_id: str) -> EvalRecord | None:
         pass
 
     @abstractmethod
@@ -281,6 +296,18 @@ class Backend(ABC):
         json_sort_column: str | None = None,
         search: str | None = None,
     ) -> PaginatedResponse[EvalRecord]:
+        pass
+
+    @abstractmethod
+    def get_experiment_evals_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> list[EvalRecord]:
         pass
 
     @abstractmethod
@@ -384,4 +411,10 @@ class Backend(ABC):
         experiment_id: str,
         dataset_id: str | None = None,
     ) -> dict[str, float]:
+        pass
+
+    @abstractmethod
+    def get_traces_annotation_summaries(
+        self, experiment_id: str, trace_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
         pass
