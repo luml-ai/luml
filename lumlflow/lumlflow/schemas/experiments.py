@@ -107,7 +107,7 @@ class Span(BaseModel, BaseOrmConfig):
 class TraceDetails(BaseModel):
     trace_id: str
     spans: list[Span]
-    annotation_summary: AnnotationSummary | None = None
+    annotations: AnnotationSummary | None = None
 
 
 class TracesSortBy(StrEnum):
@@ -130,7 +130,7 @@ class Trace(BaseModel, BaseOrmConfig):
     created_at: datetime
     state: TraceState = TraceState.STATE_UNSPECIFIED
     evals: list[str] = []
-    annotation_summary: AnnotationSummary | None = None
+    annotations: AnnotationSummary | None = None
 
 
 class PaginatedTraces(BaseModel):
@@ -155,6 +155,7 @@ class Eval(BaseModel, BaseOrmConfig):
     scores: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
     trace_ids: list[str] = []
+    annotations: AnnotationSummary | None = None
 
 
 class PaginatedEvals(BaseModel):

@@ -1938,7 +1938,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step ASC",
+            "SELECT value, step, logged_at FROM dynamic_metrics WHERE key = ? ORDER BY step",
             (key,),
         )
         return [
@@ -1946,8 +1946,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             for value, step, logged_at in cursor.fetchall()
         ]
 
+    @staticmethod
     def _fetch_bridge_ids(
-        self,
         conn: sqlite3.Connection,
         key_column: str,
         value_column: str,
@@ -1955,16 +1955,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> dict[str, list[str]]:
         if not ids:
             return {}
-        placeholders = ", ".join("?" for _ in ids)
-        cur = conn.cursor()
-        cur.execute(
-            f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
-            f" WHERE {key_column} IN ({placeholders})",
-            ids,
-        )
         result: dict[str, list[str]] = {}
-        for key, value in cur.fetchall():
-            result.setdefault(key, []).append(value)
+        batch_size = 900
+        cur = conn.cursor()
+        for i in range(0, len(ids), batch_size):
+            batch = ids[i : i + batch_size]
+            placeholders = ", ".join("?" for _ in batch)
+            cur.execute(
+                f"SELECT {key_column}, {value_column} FROM eval_traces_bridge"
+                f" WHERE {key_column} IN ({placeholders})",
+                batch,
+            )
+            for key, value in cur.fetchall():
+                result.setdefault(key, []).append(value)
         return result
 
     def get_experiment_traces(
@@ -2016,6 +2019,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                         created_at=datetime(2024, 6, 1, 12, 0, 1),
                         state=TraceState.OK,
                         evals=["eval-001", "eval-002"],
+                        annotations=AnnotationSummary(
+                            feedback=[
+                                FeedbackSummaryItem(
+                                    name="correct",
+                                    total=3,
+                                    counts={"true": 2, "false": 1}
+                                )
+                            ],
+                            expectations=[
+                                ExpectationSummaryItem(
+                                    name="expected_answer",
+                                    total=1
+                                )
+                            ],
+                        ),
                     ),
                 ],
                 cursor="eyJ0cmFjZV9pZCI6ICJhM2NlOTI5ZC4uLiJ9",
@@ -2106,6 +2124,141 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         return PaginatedResponse(items=items, cursor=cursor)
 
+    def get_experiment_traces_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> list[TraceRecord]:
+        """
+        Retrieve paginated trace summaries for a given experiment.
+
+        Returns an aggregated summary per trace: trace_id, execution_time
+        (MAX(end) - MIN(start) across all spans in seconds), span_count,
+        created_at, state, and linked eval IDs. Supports filtering by trace_id
+        substring and state, sorting by execution_time, span_count or created_at,
+        and cursor-based pagination.
+
+        Args:
+            experiment_id: The unique identifier of the experiment.
+            sort_by: Sort field — "execution_time", "span_count", or "created_at".
+            order: Sort direction — "asc" or "desc".
+            search: Substring to filter trace_id (LIKE %...%).
+            states: Filter by one or more TraceState values.
+
+        Returns:
+            PaginatedResponse[TraceRecord]
+
+        Raises:
+            ValueError: If experiment not found.
+
+        Example:
+            >>> backend.get_experiment_traces(
+            >>>    "exp-001", sort_by="execution_time", order="desc"
+            >>> )
+            [
+                TraceRecord(
+                    trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+                    execution_time=15.442,
+                    span_count=6,
+                    created_at=datetime(2024, 6, 1, 12, 0, 1),
+                    state=TraceState.OK,
+                    evals=["eval-001", "eval-002"],
+                    annotations=AnnotationSummary(
+                        feedback=[
+                            FeedbackSummaryItem(
+                                name="correct",
+                                total=3,
+                                counts={"true": 2, "false": 1}
+                            )
+                        ],
+                        expectations=[
+                            ExpectationSummaryItem(
+                                name="expected_answer",
+                                total=1
+                            )
+                        ],
+                    ),
+                ),
+            ]
+        """
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+
+        conn = self._get_experiment_connection(experiment_id)
+
+        subquery = """(
+            SELECT
+                trace_id,
+                (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
+                COUNT(*) AS span_count,
+                MIN(created_at) AS created_at,
+                CASE
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
+                    WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
+                    ELSE 0
+                END AS state
+            FROM spans
+            GROUP BY trace_id
+        )"""
+
+        where_clauses: list[str] = []
+        params: list[Any] = []
+
+        if search:
+            where_clauses.append("trace_id LIKE ?")
+            params.append(f"%{search}%")
+        if states:
+            where_clauses.append(f"state IN ({', '.join('?' for _ in states)})")
+            params.extend(s.value for s in states)
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        sort_expr = self._build_sort_expr(
+            sort_by, None, {"execution_time", "span_count", "created_at"}
+        )
+        null_order = "LAST" if order == "desc" else "FIRST"
+
+        rows = conn.execute(
+            f"""
+            SELECT trace_id, execution_time, span_count, created_at, state
+            FROM {subquery}
+            {where_sql}
+            ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, trace_id {order.upper()}
+            """,
+            params,
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        items = [
+            TraceRecord(
+                trace_id=row[0],
+                execution_time=row[1] / 1_000_000_000,
+                span_count=row[2],
+                created_at=row[3],
+                state=TraceState(row[4]),
+            )
+            for row in rows
+        ]
+
+        evals_by_trace = self._fetch_bridge_ids(
+            conn, "trace_id", "eval_id", [item.trace_id for item in items]
+        )
+        for item in items:
+            item.evals = evals_by_trace.get(item.trace_id, [])
+
+        trace_ids = [item.trace_id for item in items]
+        summaries = self.get_traces_annotation_summaries(experiment_id, trace_ids)
+        for item in items:
+            item.annotations = summaries.get(item.trace_id)
+
+        return items
+
     def get_trace(self, experiment_id: str, trace_id: str) -> TraceDetails | None:
         """
         Retrieves trace details for a given trace ID within an experiment.
@@ -2168,7 +2321,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     ON s.trace_id = sa.trace_id AND s.span_id = sa.span_id
                 WHERE s.trace_id = ?
                 GROUP BY s.trace_id, s.span_id
-                ORDER BY s.start_time_unix_nano ASC
+                ORDER BY s.start_time_unix_nano
                 """,
                 (trace_id,),
             )
@@ -2181,7 +2334,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                        trace_flags, 0 AS annotation_count
                 FROM spans
                 WHERE trace_id = ?
-                ORDER BY start_time_unix_nano ASC
+                ORDER BY start_time_unix_nano
                 """,
                 (trace_id,),
             )
@@ -2230,6 +2383,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagination.
 
         Args:
+            search: string to search by id.
             experiment_id: The unique identifier of the experiment.
             limit: Maximum number of evals to return. Defaults to 20.
             cursor_str: Opaque pagination cursor from a previous response.
@@ -2254,14 +2408,34 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                         inputs={"question": "What is 2+2?"},
                         outputs={"answer": "4"},
                         scores={"accuracy": 1.0},
+                        metadata={"source": "test-set"},
                         created_at=datetime(2024, 6, 1, 12, 0, 0),
                         updated_at=datetime(2024, 6, 1, 12, 0, 0),
                         trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
+                        annotations=AnnotationSummary(
+                            feedback=[
+                                FeedbackSummaryItem(
+                                    name="correct",
+                                    total=3,
+                                    counts={"true": 2, "false": 1}
+                                )
+                            ],
+                            expectations=[
+                                ExpectationSummaryItem(
+                                    name="expected_answer",
+                                    total=1
+                                )
+                            ],
+                        ),
                     ),
                 ],
                 cursor="eyJpZCI6ICJldmFsLTAwMSJ9",
             )
         """
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+
         conn = self._get_experiment_connection(experiment_id)
 
         where_conditions: list[tuple[str, list]] = []
@@ -2305,7 +2479,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not rows:
             return PaginatedResponse(items=[], cursor=None)
 
-        items = [
+        evals = [
             EvalRecord(
                 id=row[0],
                 dataset_id=row[1],
@@ -2319,16 +2493,22 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
             for row in rows
         ]
+        eval_ids = [e.id for e in evals]
 
         traces_by_eval = self._fetch_bridge_ids(
-            conn, "eval_id", "trace_id", [item.id for item in items]
+            conn, "eval_id", "trace_id", [e.id for e in evals]
         )
-        for item in items:
-            item.trace_ids = traces_by_eval.get(item.id, [])
+        for e in evals:
+            e.trace_ids = traces_by_eval.get(e.id, [])
+
+        summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
+
+        for e in evals:
+            e.annotations = summaries.get(e.id)
 
         cursor: str | None = None
         if has_more:
-            last = items[-1]
+            last = evals[-1]
             last_sort_val = self._extract_cursor_value(
                 rows[-1], columns, sort_by, json_sort_column
             )
@@ -2339,7 +2519,185 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 order=order,
             ).encode()
 
-        return PaginatedResponse(items=items, cursor=cursor)
+        return PaginatedResponse(items=evals, cursor=cursor)
+
+    def get_experiment_evals_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> list[EvalRecord]:
+        """
+        Retrieve all eval records for a given experiment.
+
+        Returns evals with their inputs, outputs, scores, and linked trace IDs.
+        Supports optional filtering by dataset_id, sorting by created_at, updated_at,
+        dataset_id, or a JSON column key (via json_sort_column).
+
+        Args:
+            experiment_id: The unique identifier of the experiment.
+            sort_by: Sort field or JSON key name when json_sort_column is set.
+            order: Sort direction — "asc" or "desc".
+            dataset_id: Filter evals to a specific dataset.
+            json_sort_column: When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.{sort_by}').
+            search: string to search by name or tag.
+
+        Returns:
+            list[EvalRecord]
+
+        Raises:
+            ValueError: If experiment not found.
+
+        Example:
+            >>> backend.get_experiment_evals_all("exp-001")
+            [
+                EvalRecord(
+                    id="eval-001",
+                    dataset_id="ds-abc",
+                    inputs={"question": "What is 2+2?"},
+                    outputs={"answer": "4"},
+                    scores={"accuracy": 1.0},
+                    metadata={"source": "test-set"},
+                    created_at=datetime(2024, 6, 1, 12, 0, 0),
+                    updated_at=datetime(2024, 6, 1, 12, 0, 0),
+                    trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
+                    annotations=AnnotationSummary(
+                        feedback=[
+                            FeedbackSummaryItem(
+                                name="correct",
+                                total=3,
+                                counts={"true": 2, "false": 1}
+                            )
+                        ],
+                        expectations=[
+                            ExpectationSummaryItem(
+                                name="expected_answer",
+                                total=1
+                            )
+                        ],
+                    ),
+                ),
+            ]
+        """
+        db_path = self._get_experiment_db_path(experiment_id)
+        if not db_path.exists():
+            raise ValueError(f"Experiment {experiment_id} not found")
+
+        conn = self._get_experiment_connection(experiment_id)
+
+        where_clauses: list[str] = []
+        params: list[Any] = []
+
+        if dataset_id:
+            where_clauses.append("dataset_id = ?")
+            params.append(dataset_id)
+        if search:
+            where_clauses.append("id LIKE ?")
+            params.append(f"%{search}%")
+
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        sort_expr = self._build_sort_expr(
+            sort_by, json_sort_column, self.EVALS_STANDARD_SORT_COLUMNS
+        )
+        null_order = "LAST" if order == "desc" else "FIRST"
+
+        rows = conn.execute(
+            f"""
+            SELECT id, dataset_id, inputs, outputs, refs, scores, metadata, created_at, updated_at
+            FROM evals
+            {where_sql}
+            ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, id {order.upper()}
+            """,
+            params,
+        ).fetchall()
+
+        if not rows:
+            return []
+
+        evals = [
+            EvalRecord(
+                id=row[0],
+                dataset_id=row[1],
+                inputs=json.loads(row[2]) if row[2] else {},
+                outputs=json.loads(row[3]) if row[3] else None,
+                refs=json.loads(row[4]) if row[4] else None,
+                scores=json.loads(row[5]) if row[5] else None,
+                metadata=json.loads(row[6]) if row[6] else None,
+                created_at=row[7],
+                updated_at=row[8],
+            )
+            for row in rows
+        ]
+        eval_ids = [e.id for e in evals]
+
+        traces_by_eval = self._fetch_bridge_ids(conn, "eval_id", "trace_id", eval_ids)
+        for e in evals:
+            e.trace_ids = traces_by_eval.get(e.id, [])
+
+        summaries = self.get_evals_annotation_summaries(experiment_id, eval_ids)
+        for e in evals:
+            e.annotations = summaries.get(e.id)
+
+        return evals
+
+    def get_eval(self, experiment_id: str, eval_id: str) -> EvalRecord | None:
+        """
+        Retrieves an evaluation record associated with a given experiment and evaluation ID
+
+        Args:
+            experiment_id (str): the experiment id
+            eval_id (str): id of the specific evaluation to retrieve
+
+        Returns:
+            EvalRecord | None: Returns `None` if no such record exists.
+
+        Example:
+            >>> backend.get_eval("experiment_id", "eval_id")
+            EvalRecord(
+                id="eval-001",
+                dataset_id="ds-abc",
+                inputs={"question": "What is 2+2?"},
+                outputs={"answer": "4"},
+                scores={"accuracy": 1.0},
+                metadata={"source": "test-set"},
+                created_at=datetime(2024, 6, 1, 12, 0, 0),
+                updated_at=datetime(2024, 6, 1, 12, 0, 0),
+                trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
+                annotations=None
+            )
+        """
+        conn = self._get_experiment_connection(experiment_id)
+
+        row = conn.execute(
+            """
+            SELECT id, dataset_id, inputs, outputs, refs, scores, metadata, created_at, updated_at
+            FROM evals WHERE id = ?
+            """,
+            (eval_id,),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        eval_item = EvalRecord(
+            id=row[0],
+            dataset_id=row[1],
+            inputs=json.loads(row[2]) if row[2] else {},
+            outputs=json.loads(row[3]) if row[3] else None,
+            refs=json.loads(row[4]) if row[4] else None,
+            scores=json.loads(row[5]) if row[5] else None,
+            metadata=json.loads(row[6]) if row[6] else None,
+            created_at=row[7],
+            updated_at=row[8],
+        )
+
+        traces_by_eval = self._fetch_bridge_ids(conn, "eval_id", "trace_id", [eval_id])
+        eval_item.trace_ids = traces_by_eval.get(eval_id, [])
+
+        return eval_item
 
     def get_experiment_eval_columns(
         self, experiment_id: str, dataset_id: str | None = None
@@ -2694,6 +3052,44 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ],
         )
 
+    def get_evals_annotation_summaries(
+        self, experiment_id: str, eval_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
+        if not self._has_annotation_tables(experiment_id) or not eval_ids:
+            return {}
+        conn = self._get_experiment_connection(experiment_id)
+        feedback_by_eval: dict[str, list] = {}
+        expectation_by_eval: dict[str, list] = {}
+        for i in range(0, len(eval_ids), 900):
+            batch = eval_ids[i : i + 900]
+            placeholders = ",".join("?" * len(batch))
+            for row in conn.execute(
+                f"""SELECT eval_id, name, value, COUNT(*) AS cnt
+                   FROM eval_annotations
+                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                   GROUP BY eval_id, name, value
+                   ORDER BY name, value""",
+                batch,
+            ).fetchall():
+                feedback_by_eval.setdefault(row[0], []).append(row[1:])
+            for row in conn.execute(
+                f"""SELECT eval_id, name, COUNT(*) AS cnt
+                   FROM eval_annotations
+                   WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                   GROUP BY eval_id, name
+                   ORDER BY name""",
+                batch,
+            ).fetchall():
+                expectation_by_eval.setdefault(row[0], []).append(row[1:])
+        return {
+            eval_id: self._build_annotation_summary(
+                feedback_by_eval.get(eval_id, []),
+                expectation_by_eval.get(eval_id, []),
+            )
+            for eval_id in eval_ids
+            if eval_id in feedback_by_eval or eval_id in expectation_by_eval
+        }
+
     def get_eval_annotation_summary(
         self, experiment_id: str, dataset_id: str
     ) -> AnnotationSummary:
@@ -2717,6 +3113,44 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             (dataset_id,),
         ).fetchall()
         return self._build_annotation_summary(feedback_rows, expectation_rows)
+
+    def get_traces_annotation_summaries(
+        self, experiment_id: str, trace_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
+        if not self._has_annotation_tables(experiment_id) or not trace_ids:
+            return {}
+        conn = self._get_experiment_connection(experiment_id)
+        feedback_by_trace: dict[str, list] = {}
+        expectation_by_trace: dict[str, list] = {}
+        for i in range(0, len(trace_ids), 900):
+            batch = trace_ids[i : i + 900]
+            placeholders = ",".join("?" * len(batch))
+            for row in conn.execute(
+                f"""SELECT trace_id, name, value, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'feedback'
+                   GROUP BY trace_id, name, value
+                   ORDER BY name, value""",
+                batch,
+            ).fetchall():
+                feedback_by_trace.setdefault(row[0], []).append(row[1:])
+            for row in conn.execute(
+                f"""SELECT trace_id, name, COUNT(*) AS cnt
+                   FROM span_annotations
+                   WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
+                   GROUP BY trace_id, name
+                   ORDER BY name""",
+                batch,
+            ).fetchall():
+                expectation_by_trace.setdefault(row[0], []).append(row[1:])
+        return {
+            trace_id: self._build_annotation_summary(
+                feedback_by_trace.get(trace_id, []),
+                expectation_by_trace.get(trace_id, []),
+            )
+            for trace_id in trace_ids
+            if trace_id in feedback_by_trace or trace_id in expectation_by_trace
+        }
 
     def get_trace_annotation_summary(
         self, experiment_id: str, trace_id: str
