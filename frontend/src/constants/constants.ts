@@ -25,16 +25,6 @@ export const SIDEBAR_MENU = [
     authRequired: false,
   },
   {
-    id: 2,
-    label: 'Runtime',
-    icon: CirclePlay,
-    route: 'runtime',
-    disabled: false,
-    tooltipMessage: null,
-    analyticsOption: 'runtime',
-    authRequired: false,
-  },
-  {
     id: 4,
     label: 'Notebooks',
     icon: Notebook,
@@ -98,6 +88,10 @@ const appTasks: IAppTaskData[] = [
       'This task focuses on analyzing table-structured data to classify rows into predefined categories. Each row represents an observation, and the model uses the provided features (columns) to predict the target category.',
     isAvailable: true,
     analyticsTaskName: 'classification',
+    dropdownOptions: [
+      { label: 'Train new model' },
+      { label: 'Upload for inference', route: 'runtime' },
+    ],
   },
   {
     id: 2,
@@ -111,6 +105,10 @@ const appTasks: IAppTaskData[] = [
       'This task involves analyzing table-structured data to predict continuous numerical values. Each row represents an observation, and the model uses the features (columns) to estimate the target variable.',
     isAvailable: true,
     analyticsTaskName: 'regression',
+    dropdownOptions: [
+      { label: 'Train new model' },
+      { label: 'Upload for inference', route: 'runtime' },
+    ],
   },
   {
     id: 3,
@@ -134,6 +132,10 @@ const appTasks: IAppTaskData[] = [
       'Define and automatically optimize generic LLM-based NLP pipelines using a no-code builder. Optimization can be performed either based on the task structure and description or on the provided labeled input-output pairs. ',
     isAvailable: true,
     analyticsTaskName: 'prompt_optimization',
+    dropdownOptions: [
+      { label: 'Train new model' },
+      { label: 'Upload for inference', route: 'runtime' },
+    ],
   },
 ]
 
