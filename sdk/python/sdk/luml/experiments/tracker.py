@@ -1069,6 +1069,22 @@ class ExperimentTracker:
             states=states,
         )
 
+    def get_experiment_traces_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "execution_time",
+        order: str = "desc",
+        search: str | None = None,
+        states: list[TraceState] | None = None,
+    ) -> list[TraceRecord]:
+        return self.backend.get_experiment_traces_all(
+            experiment_id,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            states=states,
+        )
+
     def get_experiment_metric_history(
         self, experiment_id: str, key: str
     ) -> list[dict[str, Any]]:
@@ -1140,6 +1156,24 @@ class ExperimentTracker:
             search=search,
         )
 
+    def get_experiment_evals_all(
+        self,
+        experiment_id: str,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+    ) -> list[EvalRecord]:
+        return self.backend.get_experiment_evals_all(
+            experiment_id,
+            sort_by=sort_by,
+            order=order,
+            dataset_id=dataset_id,
+            json_sort_column=json_sort_column,
+            search=search,
+        )
+
     def get_experiment_eval_columns(
         self, experiment_id: str, dataset_id: str | None = None
     ) -> EvalColumns:
@@ -1197,6 +1231,9 @@ class ExperimentTracker:
             list[str]: Sorted list of distinct dataset IDs.
         """
         return self.backend.get_experiment_eval_dataset_ids(experiment_id)
+
+    def get_eval(self, experiment_id: str, eval_id: str) -> EvalRecord | None:
+        return self.backend.get_eval(experiment_id, eval_id)
 
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         """
@@ -1437,6 +1474,11 @@ class ExperimentTracker:
         ```
         """
         return self.backend.get_trace_annotation_summary(experiment_id, trace_id)
+
+    def get_traces_annotation_summaries(
+        self, experiment_id: str, trace_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
+        return self.backend.get_traces_annotation_summaries(experiment_id, trace_ids)
 
     def get_all_traces_annotation_summary(
         self, experiment_id: str
