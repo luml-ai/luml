@@ -4,44 +4,41 @@ from typing import Any, Literal, Union
 from warnings import warn
 
 import lightgbm as lgb
+import pandas as pd
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
 from lightgbm import Booster
-
-try:
-    from lightgbm.sklearn import LGBMModel
-except ImportError:
-    LGBMModel = None  # type: ignore[assignment, misc]
-
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import JSON
-from pydantic import BaseModel, create_model
+from lightgbm.sklearn import LGBMModel
+from pydantic import BaseModel
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
 from luml.integrations.sklearn.packaging import save_sklearn
-from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
-    extract_top_level_modules,
     get_version,
+)
+from luml.utils.packaging import (
+    add_dependencies,
+    add_native_io,
+    add_unified_inputs,
+    add_unified_output,
+    is_sklearn_estimator,
+    normalize_inputs,
 )
 from luml.utils.time import get_epoch
 
 
-class _DataInputSchema(BaseModel):
-    data: list[list[Any]] | list[Any]
+class _LGBMDataInputSchema(BaseModel):
+    data: list[list[float]] | list[float]
     data_format: Literal["dense", "csr"] = "dense"
 
-    # Feature metadata
-    feature_names: list[str] | None = None
-    categorical_features: list[str] | list[int] | None = None
-
-    # Sparse (CSR)
+    # sparse (CSR)
     indices: list[int] | None = None
     indptr: list[int] | None = None
     shape: tuple[int, int] | None = None
 
 
-class _PredictConfigSchema(BaseModel):
+class _LGBMPredictConfigSchema(BaseModel):
     start_iteration: int = 0
     num_iteration: int | None = None
     raw_score: bool = False
@@ -50,105 +47,52 @@ class _PredictConfigSchema(BaseModel):
     validate_features: bool = False
 
 
-def _build_input_schema() -> type[BaseModel]:
-    input_fields = {
-        "data": (_DataInputSchema, ...),
-        "predict_config": (_PredictConfigSchema | None, None),
-    }
-
-    return create_model(
-        "LightGBMInputModel",
-        __base__=BaseModel,
-        **input_fields,  # type: ignore[call-overload]
-    )
+class _LGBMInputSchema(BaseModel):
+    dataset: _LGBMDataInputSchema
+    predict_config: _LGBMPredictConfigSchema | None = None
 
 
-def _build_output_schema() -> type[BaseModel]:
-    output_fields = {
-        "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
-    }
-
-    return create_model(
-        "LightGBMOutputModel",
-        __base__=BaseModel,
-        **output_fields,  # type: ignore[call-overload]
-    )
+class _LGBMOutputSchema(BaseModel):
+    predictions: list[float] | list[list[float]] | list[list[list[float]]]
 
 
-def _add_io(builder: PyfuncBuilder) -> None:
-    input_schema = _build_input_schema()
-    output_schema = _build_output_schema()
+def _add_io(
+    builder: PyfuncBuilder,
+    estimator: Booster,
+    inputs: Any,
+    input_format: Literal["unified", "native"] = "unified",
+) -> None:
+    x, input_order, categorical_features = normalize_inputs(inputs, input_format)
 
-    builder.define_dtype("ext::input", input_schema)
-    builder.define_dtype("ext::output", output_schema)
-    builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
-    builder.add_output(
-        JSON(name="lightgbm_output", content_type="JSON", dtype="ext::output")
-    )
+    builder.set_extra_values({
+        "input_order": input_order,
+        "input_format": input_format,
+        **({"categorical_features": categorical_features} if
+           categorical_features else {}),
+    })
 
+    if input_format == "native":
+        add_native_io(
+            builder,
+            _LGBMInputSchema,
+            _LGBMOutputSchema,
+            "lightgbm_output",
+        )
+        return
 
-def _get_default_deps() -> list[str]:
-    return [
-        "lightgbm==" + get_version("lightgbm"),
-        "numpy==" + get_version("numpy"),
-        "pandas==" + get_version("pandas"),
-        "scipy==" + get_version("scipy"),
-    ]
+    add_unified_inputs(builder, inputs, input_order, categorical_features)
+    add_unified_output(builder, estimator, x)
 
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::lightgbm:v1"]
 
 
-def _add_dependencies(
-    builder: PyfuncBuilder,
-    dependencies: Literal["default"] | Literal["all"] | list[str],
-    extra_dependencies: list[str] | None,
-    extra_code_modules: list[str] | Literal["auto"] | None,
-) -> None:
-    auto_pip_dependencies: list[str] = []
-    auto_local_dependencies: list[str] = []
-
-    if dependencies == "all" or extra_code_modules == "auto":
-        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
-
-    pip_deps: list[str]
-    if dependencies == "all":
-        pip_deps = auto_pip_dependencies
-    elif dependencies == "default":
-        pip_deps = _get_default_deps()
-        builder.add_fnnx_runtime_dependency()
-    else:
-        pip_deps = dependencies
-
-    local_dependencies = []
-    if extra_code_modules == "auto":
-        local_dependencies.extend(auto_local_dependencies)
-    elif isinstance(extra_code_modules, list):
-        local_dependencies.extend(extra_code_modules)
-
-    for dep in pip_deps:
-        builder.add_runtime_dependency(dep)
-
-    if extra_dependencies:
-        for dep in extra_dependencies:
-            builder.add_runtime_dependency(dep)
-
-    local_dependencies = extract_top_level_modules(local_dependencies)
-    for module in local_dependencies:
-        builder.add_module(module)
-
-
-def _is_lightgbm_sklearn_estimator(obj: object) -> bool:
-    if LGBMModel is None:
-        return False
-    return isinstance(obj, LGBMModel)
-
-
 def save_lightgbm(  # noqa: C901
     estimator: "Union[Booster, lgb.LGBMModel]",  # noqa: UP007
-    inputs: Any | None = None,  # noqa: ANN401
+    inputs: Any,  # noqa: ANN401
     path: str | None = None,
+    input_format: Literal["unified", "native"] = "unified",
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -163,6 +107,10 @@ def save_lightgbm(  # noqa: C901
         estimator: The LightGBM model to save (Booster or LGBMModel).
         inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
+        input_format: Input format for inference:
+            - "unified": per-feature NDJSON inputs (default).
+            - "native": single JSON payload with dataset structure and optional
+              predict config; supports both dense row data and CSR sparse matrices.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -175,7 +123,7 @@ def save_lightgbm(  # noqa: C901
         ModelReference: Reference to the saved model."""
     path = path or f"lgbm_model_{get_epoch()}.luml"
 
-    if _is_lightgbm_sklearn_estimator(estimator):
+    if is_sklearn_estimator(estimator, LGBMModel):
         warn(
             "Detected LGBM scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
@@ -209,6 +157,12 @@ def save_lightgbm(  # noqa: C901
             f"got {type(estimator)}"
         )
 
+    if inputs is None:
+        raise ValueError(
+            "inputs is required for LightGBM Booster. "
+            "Please provide example input data (numpy array or DataFrame)."
+        )
+
     builder = PyfuncBuilder(
         LightGBMFunc,
         model_name=manifest_model_name,
@@ -228,18 +182,25 @@ def save_lightgbm(  # noqa: C901
         estimator.save_model(tmp_file.name)
         tmp_model_path = tmp_file.name
 
-    builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({"input_order": ["payload"], "model_path": model_filename})
+    try:
+        builder.add_file(tmp_model_path, target_path=model_filename)
 
-    _add_io(builder)
+        _add_io(builder, estimator, inputs, input_format=input_format)
 
-    _add_dependencies(
-        builder,
-        dependencies,
-        extra_dependencies,
-        extra_code_modules,
-    )
+        is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
+        needs_pandas = is_dataframe
 
-    builder.save(path)
-    os.remove(tmp_model_path)
+        add_dependencies(
+            builder,
+            dependencies,
+            extra_dependencies,
+            extra_code_modules,
+            needs_pandas=needs_pandas,
+            framework="lightgbm"
+        )
+
+        builder.save(path)
+    finally:
+        os.remove(tmp_model_path)
+
     return ModelReference(path)
