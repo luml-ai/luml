@@ -1,7 +1,7 @@
 <template>
-  <Skeleton v-if="loading" class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
-  <div v-else-if="!tracesIds?.length">No traces found</div>
-  <div v-else>
+  <Skeleton v-if="showSkeleton" class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
+  <EmptyState v-else-if="!loading && !tracesIds?.length" :icon="ListTree" message="No traces found" />
+  <div v-else-if="!loading">
     <Button severity="secondary" fluid @click="showTraces">
       <ListTree :size="16" />
       Traces
@@ -27,6 +27,8 @@ import { useToast, Button, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
 import { useEvalsStore, TracesInfoDialog } from '@luml/experiments'
 import { ListTree } from 'lucide-vue-next'
+import { useDeferredLoading } from '@/hooks/useDeferredLoading'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const route = useRoute()
 const toast = useToast()
@@ -39,6 +41,7 @@ const toast = useToast()
 const evalsStore = useEvalsStore()
 
 const loading = ref(true)
+const { showSkeleton } = useDeferredLoading(loading)
 const tracesIds = ref<string[] | null>(null)
 const tracesData = ref<BaseTraceInfo[] | null>(null)
 
