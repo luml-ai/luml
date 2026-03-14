@@ -1,5 +1,6 @@
 <template>
-  <div class="flex flex-col gap-4">
+  <EmptyState v-if="!metrics.length" :icon="Table2" message="No metrics found" />
+  <div v-else class="flex flex-col gap-4">
     <DynamicMetrics
       :metrics-names="metrics"
       :models-info="modelsInfo"
@@ -18,6 +19,8 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import { useExperimentStore } from '@/store/experiment'
 import { DynamicMetrics } from '@luml/experiments'
 import { useEvalsStore } from '@luml/experiments'
+import { Table2 } from 'lucide-vue-next'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const abortController = ref<AbortController>(new AbortController())
 
