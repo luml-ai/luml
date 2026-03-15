@@ -1,10 +1,17 @@
+from __future__ import annotations
+
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from luml.experiments.tracker import ExperimentTracker
+
+if TYPE_CHECKING:
+    from opentelemetry.sdk.trace import TracerProvider
 
 
 class TracerManager:
     _log_fn: Callable | None = None
+    _provider: TracerProvider | None = None
 
     @classmethod
     def setup_luml_tracing(
@@ -13,7 +20,7 @@ class TracerManager:
         from opentelemetry import trace
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
-        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
         from luml.experiments.tracing.span_exporter import LumlSpanExporter
 
@@ -28,11 +35,12 @@ class TracerManager:
             log_fn=cls._logger,
         )
 
-        span_processor = SimpleSpanProcessor(span_exporter=exporter)
+        span_processor = BatchSpanProcessor(span_exporter=exporter)
 
         tracer_provider.add_span_processor(span_processor)
 
         trace.set_tracer_provider(tracer_provider)
+        cls._provider = tracer_provider
 
     @classmethod
     def _logger(cls, *args, **kwargs) -> None:
@@ -42,14 +50,22 @@ class TracerManager:
             raise ValueError("Log function is not set. Call setup_luml_tracing first.")
 
     @classmethod
+    def flush(cls, timeout_millis: int = 30000) -> bool:
+        if cls._provider is None:
+            return True
+        return cls._provider.force_flush(timeout_millis)
+
+    @classmethod
     def set_experiment_tracker(cls, tracker: ExperimentTracker) -> None:
         if not isinstance(tracker, ExperimentTracker):
             raise ValueError("tracker must be an instance of ExperimentTracker")
         cls._log_fn = tracker.log_span
+        tracker.add_pre_end_hook(cls.flush)
 
 
 setup_tracing = TracerManager.setup_luml_tracing
 set_experiment_tracker = TracerManager.set_experiment_tracker
+flush_tracing = TracerManager.flush
 
 
 def instrument_openai() -> None:

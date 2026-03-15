@@ -1,7 +1,9 @@
 # flake8: noqa: E501
+import contextlib
 import importlib
 import uuid
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Any, Literal
@@ -72,6 +74,10 @@ class ExperimentTracker:
     def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
+        self._pre_end_hooks: list[Callable] = []
+
+    def add_pre_end_hook(self, hook: Callable) -> None:
+        self._pre_end_hooks.append(hook)
 
     @staticmethod
     def _parse_connection_string(connection_string: str) -> Backend:
@@ -141,6 +147,10 @@ class ExperimentTracker:
         exp_id = experiment_id or self.current_experiment_id
         if exp_id is None:
             raise ValueError("No active experiment to end.")
+
+        for hook in self._pre_end_hooks:
+            with contextlib.suppress(Exception):
+                hook()
 
         self.backend.end_experiment(exp_id)
 
