@@ -53,7 +53,7 @@ class ExpectationSummaryItem(BaseModel, BaseOrmConfig):
     total: int
     positive: int = 0
     negative: int = 0
-    value: str | None = None
+    value: int | str | None = None
 
 
 class AnnotationSummary(BaseModel, BaseOrmConfig):
