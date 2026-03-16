@@ -13,7 +13,11 @@
           </div>
         </div>
         <div class="header-right">
-          <AnnotationsButton v-if="!isAnnotationsVisible" :count="3" @click="showAnnotations" />
+          <AnnotationsButton
+            v-if="showAnnotationsButton"
+            :count="annotationsStore.spanAnnotations.length"
+            @click="showAnnotations"
+          />
         </div>
       </header>
       <Tabs v-model:value="currentTab" class="tabs">
@@ -55,30 +59,41 @@
     </div>
     <AnnotationsView
       v-if="isAnnotationsVisible"
-      @close="closeAnnotations"
+      :artifact-id="artifactId"
+      :trace-id="traceId"
+      :span-id="data.span_id"
       class="annotations-view"
+      @close="closeAnnotations"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { TraceSpan } from '@/interfaces/interfaces'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { History } from 'lucide-vue-next'
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from 'primevue'
-import { getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
+import { Tabs, TabList, Tab, TabPanels, TabPanel, useToast } from 'primevue'
+import { getErrorMessage, getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
+import { useAnnotationsStore } from '@/store/annotations'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../../ui/UiMultiTypeText.vue'
 import AnnotationsButton from '../../../../annotations/AnnotationsButton.vue'
 import AnnotationsView from '../../../../annotations/view/AnnotationsView.vue'
 
 type Props = {
   data: TraceSpan
+  artifactId: string
+  traceId: string
 }
 
 const props = defineProps<Props>()
 
+const annotationsStore = useAnnotationsStore()
+const toast = useToast()
+
 const currentTab = ref(0)
 const isAnnotationsVisible = ref(false)
+const annotationsLoading = ref(false)
 
 const spanTypeData = computed(() => {
   return getSpanTypeData(props.data.dfs_span_type)
@@ -102,6 +117,12 @@ const sortedEvents = computed(() => {
   })
 })
 
+const showAnnotationsButton = computed(() => {
+  if (isAnnotationsVisible.value) return false
+  if (annotationsStore.isEditAvailable) return true
+  return annotationsStore.spanAnnotations.length > 0
+})
+
 function showAnnotations() {
   isAnnotationsVisible.value = true
 }
@@ -109,6 +130,28 @@ function showAnnotations() {
 function closeAnnotations() {
   isAnnotationsVisible.value = false
 }
+
+async function getAnnotations() {
+  try {
+    annotationsLoading.value = true
+    await annotationsStore.getSpanAnnotations(props.artifactId, props.traceId, props.data.span_id)
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+  } finally {
+    annotationsLoading.value = false
+  }
+}
+
+watch(
+  () => props.data.span_id,
+  async (spanId) => {
+    if (!spanId) return
+    await getAnnotations()
+  },
+  {
+    immediate: true,
+  },
+)
 </script>
 
 <style scoped>

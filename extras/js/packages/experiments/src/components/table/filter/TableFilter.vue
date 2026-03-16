@@ -1,6 +1,12 @@
 <template>
   <div>
-    <Button severity="secondary" variant="outlined" size="small" @click.stop="togglePopover">
+    <Button
+      severity="secondary"
+      variant="outlined"
+      size="small"
+      :disabled="!!disabled"
+      @click.stop="togglePopover"
+    >
       <Filter :size="14" />
       <span>Filters</span>
       <component :is="isOpen ? ChevronUp : ChevronDown" :size="14" />

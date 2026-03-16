@@ -135,6 +135,11 @@ export const apiService = {
     return data
   },
 
+  getEvalById: async (experimentId: string, evalId: string) => {
+    const { data } = await api.get<Eval>(`/experiments/${experimentId}/evals/${evalId}`)
+    return data
+  },
+
   getExperimentEvalColumns: async (experimentId: string, datasetId: string) => {
     const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/columns`, {
       params: { dataset_id: datasetId },
@@ -248,9 +253,9 @@ export const apiService = {
     return data
   },
 
-  getSpanAnnotationSummary: async (experimentId: string, traceId: string) => {
+  getTracesAnnotationSummary: async (experimentId: string) => {
     const { data } = await api.get<AnnotationSummary>(
-      `/experiments/${experimentId}/traces/${traceId}/annotations/summary`,
+      `/experiments/${experimentId}/traces/annotations/summary`,
     )
     return data
   },

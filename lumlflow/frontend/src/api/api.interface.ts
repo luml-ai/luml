@@ -87,6 +87,9 @@ interface AnnotationSummaryFeedbackItem {
 interface AnnotationSummaryExpectationItem {
   name: string
   total: number
+  positive: number
+  negative: number
+  firstValue: string | number | null
 }
 
 export type AddAnnotationPayload = Omit<Annotation, 'id' | 'created_at'>

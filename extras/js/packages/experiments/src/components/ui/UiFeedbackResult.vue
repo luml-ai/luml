@@ -1,7 +1,7 @@
 <template>
   <div class="wrapper">
     <ProgressBar
-      v-if="!positive"
+      v-if="!positive && showProgress"
       :value="percentage"
       :show-value="false"
       :pt="{
@@ -19,7 +19,7 @@
       <span class="secondary-text">{{ secondaryText }}</span>
     </div>
     <ProgressBar
-      v-if="positive"
+      v-if="positive && showProgress"
       :value="percentage"
       :show-value="false"
       :pt="{

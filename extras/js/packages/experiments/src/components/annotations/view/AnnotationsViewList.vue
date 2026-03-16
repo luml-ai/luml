@@ -14,6 +14,7 @@
     :visible="!!editDialogData"
     :data="editDialogData"
     :artifact-id="artifactId"
+    :type="type"
     @update:visible="onEditDialogVisibleUpdate"
   />
 </template>
@@ -31,7 +32,8 @@ import AnnotationEditDialog from '../AnnotationEditDialog.vue'
 
 interface Props {
   items: Annotation[]
-  artifactId?: string
+  artifactId: string
+  type: 'eval' | 'span'
 }
 
 const annotationsStore = useAnnotationsStore()

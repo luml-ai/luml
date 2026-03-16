@@ -6,11 +6,13 @@ import type {
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   GetEvalsByDatasetParams,
+  GetTracesParams,
   ModelScores,
   SpansListType,
   SpansParams,
   TraceSpan,
 } from '../interfaces/interfaces'
+import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 
 export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider {
   constructor(private worker: Worker) {}
@@ -89,10 +91,6 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     return this.call<string>('getTraceId', [args])
   }
 
-  getUniqueTraceIds(modelId: string) {
-    return this.call<string[]>('getUniqueTraceIds', [modelId])
-  }
-
   getTraceSpans(modelId: string, traceId: string) {
     return this.call<SpansListType>('getTraceSpans', [modelId, traceId])
   }
@@ -127,5 +125,25 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getEvalsDatasetAnnotationsSummary(datasetId: string) {
     return this.call<AnnotationSummary>('getEvalsDatasetAnnotationsSummary', [datasetId])
+  }
+
+  getTraces(params: GetTracesParams) {
+    return this.call<Trace[]>('getTraces', [params])
+  }
+
+  resetTracesRequestParams(artifactId?: string) {
+    return this.call<void>('resetTracesRequestParams', [artifactId])
+  }
+
+  getEvalById(artifactId: string, evalId: string) {
+    return this.call<EvalsInfo>('getEvalById', [artifactId, evalId])
+  }
+
+  getSpanAnnotations(artifactId: string, traceId: string, spanId: string) {
+    return this.call<Annotation[]>('getSpanAnnotations', [artifactId, traceId, spanId])
+  }
+
+  getTracesAnnotationSummary(artifactId: string) {
+    return this.call<AnnotationSummary>('getTracesAnnotationSummary', [artifactId])
   }
 }

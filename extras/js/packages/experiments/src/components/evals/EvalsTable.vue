@@ -16,13 +16,14 @@
       :group-rows-by="isMultipleModels ? 'id' : undefined"
       sort-mode="single"
       export-filename="experiment_snapshot"
-      scrollable
-      scroll-height="392px"
-      :virtual-scroller-options="virtualScrollerOptions"
+      :scrollable="useScroll"
+      :scroll-height="useScroll ? '410px' : undefined"
+      :virtual-scroller-options="useScroll ? virtualScrollerOptions : undefined"
       striped-rows
       lazy
       class="evals-table"
       tableStyle="table-layout: fixed;"
+      data-key="id"
       @sort="onSort"
     >
       <template #empty>No evals found...</template>
@@ -137,18 +138,7 @@
       </ColumnGroup>
       <Column v-for="column in visibleColumns" :key="column" :field="column">
         <template #body="slotProps">
-          <div
-            v-if="column === 'modelId'"
-            v-tooltip.top="modelsInfo[slotProps.data[column]]?.name"
-            class="cell"
-            style="width: 123px"
-          >
-            <span
-              class="circle"
-              :style="{ backgroundColor: modelsInfo[slotProps.data[column]]?.color }"
-            ></span>
-            {{ modelsInfo[slotProps.data[column]]?.name }}
-          </div>
+          <ModelIdColumn v-if="column === 'modelId'" :data="slotProps.data[column]"></ModelIdColumn>
           <button
             v-else-if="column === 'id'"
             class="cell link"
@@ -157,6 +147,14 @@
           >
             {{ slotProps.data[column] }}
           </button>
+          <FeedbackColumn
+            v-else-if="slotProps.data[column]?.isFeedbackColumn"
+            :data="slotProps.data[column]"
+          ></FeedbackColumn>
+          <ExpectationColumn
+            v-else-if="slotProps.data[column]?.isExpectationColumn"
+            :data="slotProps.data[column]"
+          ></ExpectationColumn>
           <div
             v-else-if="slotProps.data[column]"
             v-tooltip.top="String(slotProps.data[column])"
@@ -173,6 +171,8 @@
 
 <script setup lang="ts">
 import type { TableEmits, TableProps } from './evals.interface'
+import type { FeedbackColumnData } from '../table/feedback-column/interface'
+import type { ExpectationColumnData } from '../table/ecpectation-column/interface'
 import {
   DataTable,
   ColumnGroup,
@@ -182,14 +182,16 @@ import {
   type VirtualScrollerLazyEvent,
   type DataTableSortEvent,
 } from 'primevue'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { COLUMNS_ICONS, COLUMNS_TITLES_MAP } from '@/constants/tables'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import EvalsToolbar from './EvalsToolbar.vue'
-
 import FeedbackSubheader from './FeedbackSubheader.vue'
+import ModelIdColumn from '../table/model-id-column/ModelIdColumn.vue'
+import FeedbackColumn from '../table/feedback-column/FeedbackColumn.vue'
+import ExpectationColumn from '../table/ecpectation-column/ExpectationColumn.vue'
 
 const toast = useToast()
 
@@ -222,43 +224,69 @@ const getParentColumnWidth = computed(() => (columnName: string, childrenLength:
   if (columnName === 'modelId') {
     return 140 + 'px'
   }
-  if (columnName === 'feedback') {
-    return childrenLength * 140 + 'px'
+  if (columnName.startsWith('feedback')) {
+    return childrenLength * 194 + 'px'
   }
   if (columnName === 'refs') {
     return childrenLength * 140 + 'px'
   }
-  if (columnName === 'expectation') {
-    return childrenLength * 140 + 'px'
+  if (columnName.startsWith('expectation')) {
+    return childrenLength * 194 + 'px'
   }
   return childrenLength * 110 + 'px'
 })
 
 const flatData = computed(() => {
   return props.data.map((item) => {
-    const entries = Object.entries(item)
-    return entries.reduce((acc: Record<string, any>, [key, value]) => {
-      if (typeof value === 'object') {
-        Object.entries(value).map((child) => {
-          const childKey = child[0]
-          const childValue = child[1]
-          acc[childKey] = childValue
-        })
-      } else {
-        acc[key] = value
-      }
-      return acc
-    }, {})
+    const feedbackObject =
+      item.annotations?.feedback.reduce(
+        (acc, item) => {
+          acc[item.name] = {
+            isFeedbackColumn: true,
+            positiveCount: item.counts['true'] ?? 0,
+            negativeCount: item.counts['false'] ?? 0,
+          }
+          return acc
+        },
+        {} as Record<string, FeedbackColumnData & { isFeedbackColumn: true }>,
+      ) ?? {}
+
+    const expectationObject =
+      item.annotations?.expectations.reduce(
+        (acc, item) => {
+          acc[item.name] = {
+            isExpectationColumn: true,
+            total: item.total,
+            positive: item.positive,
+            negative: item.negative,
+            firstValue: item.firstValue,
+          }
+          return acc
+        },
+        {} as Record<string, ExpectationColumnData & { isExpectationColumn: true }>,
+      ) ?? {}
+    return {
+      id: item.id,
+      modelId: item.modelId,
+      dataset_id: item.dataset_id,
+      ...item.inputs,
+      ...item.outputs,
+      ...item.refs,
+      ...item.scores,
+      ...item.metadata,
+      ...feedbackObject,
+      ...expectationObject,
+    }
   })
 })
 
-const virtualScrollerOptions = computed(() => {
-  return {
-    itemSize: 41.5,
-    lazy: true,
-    onLazyLoad: onLazyLoad,
-  }
-})
+const useScroll = computed(() => flatData.value.length > 8)
+
+const virtualScrollerOptions = {
+  itemSize: 44,
+  lazy: true,
+  onLazyLoad: onLazyLoad,
+}
 
 function onLazyLoad(event: VirtualScrollerLazyEvent) {
   const { last } = event
@@ -380,6 +408,15 @@ function onSort(event: DataTableSortEvent) {
 function toggleSubheader() {
   isSubheaderVisible.value = !isSubheaderVisible.value
 }
+
+watch(
+  () => props.data.length,
+  () => {
+    nextTick(() => {
+      tableRef.value?.virtualScroller?.refresh()
+    })
+  },
+)
 </script>
 
 <style scoped>
@@ -488,5 +525,9 @@ button.header-cell-content {
 
 .evals-table :deep(.bottom-border) {
   border-bottom: 1px solid var(--p-datatable-body-cell-border-color);
+}
+
+:deep(td) {
+  height: 44px;
 }
 </style>

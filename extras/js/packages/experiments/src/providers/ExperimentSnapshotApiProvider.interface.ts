@@ -8,6 +8,7 @@ import type {
   EvalsColumns,
   EvalsInfo,
   GetEvalsByDatasetParams,
+  GetTracesParams,
   ScoreInfo,
 } from '@/interfaces/interfaces'
 
@@ -27,6 +28,8 @@ export interface ApiServiceInterface {
   getExperimentMetricHistory: (
     artifactId: string,
     metricName: string,
+    maxPoints?: number,
+    signal?: AbortSignal,
   ) => Promise<ExperimentMetricHistory>
 
   getTraceDetails: (
@@ -34,7 +37,9 @@ export interface ApiServiceInterface {
     traceId: string,
   ) => Promise<{ spans: SpanFromApi[]; trace_id: string }>
 
-  getExperimentTraces: (params: { experiment_id: string }) => Promise<{ items: Trace[] }>
+  getExperimentTraces: (
+    params: GetTracesParams & { experiment_id: string; cursor?: string | null },
+  ) => Promise<{ items: Trace[]; cursor: string | null }>
 
   getExperimentEvalColumns: (artifactId: string, datasetId: string) => Promise<EvalsColumns>
 
@@ -43,6 +48,8 @@ export interface ApiServiceInterface {
   getExperimentEvals: (
     params: GetExperimentEvalsParams,
   ) => Promise<{ items: GetExperimentEvalsItem[]; cursor: string | null }>
+
+  getEvalById: (experimentId: string, evalId: string) => Promise<GetExperimentEvalsItem>
 
   getExperimentDatasetAverageScores: (artifactId: string, datasetId: string) => Promise<ScoreInfo[]>
 
@@ -68,6 +75,25 @@ export interface ApiServiceInterface {
   deleteEvalAnnotation: (artifactId: string, annotationId: string) => Promise<void>
 
   getEvalAnnotationSummary: (artifactId: string, datasetId: string) => Promise<AnnotationSummary>
+
+  createSpanAnnotation: (
+    artifactId: string,
+    traceId: string,
+    spanId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateSpanAnnotation: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  getSpanAnnotations: (artifactId: string, traceId: string, spanId: string) => Promise<Annotation[]>
+
+  deleteSpanAnnotation: (artifactId: string, annotationId: string) => Promise<void>
+
+  getTracesAnnotationSummary: (artifactId: string) => Promise<AnnotationSummary>
 }
 
 export interface ExperimentMetricHistory {
@@ -82,6 +108,7 @@ export interface Trace {
   created_at: string
   state: TraceStateEnum
   evals: string[]
+  annotations: AnnotationSummary | null
 }
 
 export interface GetExperimentEvalsParams extends GetEvalsByDatasetParams {
@@ -116,4 +143,5 @@ export interface SpanFromApi {
   events: Record<string, string> | null
   links: Record<string, string> | null
   trace_flags: number | null
+  annotation_count: number
 }

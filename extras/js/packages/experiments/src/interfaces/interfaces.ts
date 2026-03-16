@@ -4,6 +4,7 @@ import type {
   AnnotationSummary,
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
+import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
 import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {
@@ -18,7 +19,6 @@ export interface ExperimentSnapshotProvider {
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
   getTraceId: (params: SpansParams) => Promise<any>
-  getUniqueTraceIds: (modelId: string) => Promise<string[]>
   getUniqueDatasetsIds: () => Promise<string[]>
   getNextEvalsByDatasetId: (params: GetEvalsByDatasetParams) => Promise<EvalsInfo[]>
   resetEvalsDatasetsRequestParams: () => Promise<void>
@@ -62,6 +62,16 @@ export interface ExperimentSnapshotProvider {
   deleteSpanAnnotation?: (artifactId: string, annotationId: string) => Promise<void>
 
   getEvalsDatasetAnnotationsSummary: (datasetId: string) => Promise<AnnotationSummary>
+
+  getTraces: (params: GetTracesParams) => Promise<Trace[]>
+
+  resetTracesRequestParams: (artifactId?: string) => Promise<void>
+
+  getEvalById: (artifactId: string, evalId: string) => Promise<EvalsInfo>
+
+  getSpanAnnotations: (artifactId: string, traceId: string, spanId: string) => Promise<Annotation[]>
+
+  getTracesAnnotationSummary: (artifactId: string) => Promise<AnnotationSummary>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
@@ -102,6 +112,7 @@ export interface EvalsInfo {
   scores: Record<string, string | number>
   metadata: Record<string, string | number>
   modelId: string
+  annotations: AnnotationSummary | null
 }
 
 export interface ModelSnapshot {
@@ -147,6 +158,7 @@ export interface TraceSpan {
   links: string | null
   children: TraceSpan[]
   dfs_span_type: SpanTypeEnum | null
+  annotation_count: number
 }
 
 export enum SpanTypeEnum {
@@ -181,5 +193,12 @@ export interface GetEvalsByDatasetParams {
   sort_by: string
   order: 'asc' | 'desc'
   dataset_id: string
+  search: string
+}
+
+export interface GetTracesParams {
+  limit: number
+  sort_by: string
+  order: 'asc' | 'desc'
   search: string
 }

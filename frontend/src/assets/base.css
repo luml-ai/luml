@@ -50,3 +50,11 @@ body {
   background: #64748b80;
   border-radius: 10px;
 }
+
+[data-theme='dark'] * {
+  scrollbar-color: #a1a1aa transparent;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+}
