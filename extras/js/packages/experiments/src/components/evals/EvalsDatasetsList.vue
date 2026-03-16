@@ -104,7 +104,7 @@ function onFilterChange(datasetId: string, filter: FilterInterface) {
 function onSort(datasetId: string, sortParams: { sortField: string; sortOrder: 'asc' | 'desc' }) {
   const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
   if (!dataset) return
-  dataset.params.sort_by = sortParams.sortField
+  dataset.params.sort_by = sortParams.sortField as GetEvalsByDatasetParams['sort_by']
   dataset.params.order = sortParams.sortOrder
   getNextPage(datasetId, true)
 }

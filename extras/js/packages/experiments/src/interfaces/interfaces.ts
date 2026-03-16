@@ -190,7 +190,7 @@ export interface EvalTraceInfo extends BaseTraceInfo {
 
 export interface GetEvalsByDatasetParams {
   limit: number
-  sort_by: string
+  sort_by: 'created_at'
   order: 'asc' | 'desc'
   dataset_id: string
   search: string
@@ -198,7 +198,7 @@ export interface GetEvalsByDatasetParams {
 
 export interface GetTracesParams {
   limit: number
-  sort_by: string
+  sort_by: 'created_at' | 'execution_time' | 'span_count'
   order: 'asc' | 'desc'
   search: string
 }

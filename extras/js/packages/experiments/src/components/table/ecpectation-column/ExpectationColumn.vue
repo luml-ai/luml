@@ -11,7 +11,7 @@
       :positive="false"
       :count="data?.negative"
     ></UiFeedbackResult>
-    <div v-tooltip.top="String(data?.firstValue)" class="first-value">{{ data?.firstValue }}</div>
+    <div v-tooltip.top="String(data?.value)" class="first-value">{{ data?.value }}</div>
     <Tag v-if="tagText" :value="tagText" class="tag" />
   </div>
 </template>

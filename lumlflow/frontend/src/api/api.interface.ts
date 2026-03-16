@@ -89,12 +89,12 @@ interface AnnotationSummaryExpectationItem {
   total: number
   positive: number
   negative: number
-  firstValue: string | number | null
+  value: string | number | null
 }
 
-export type AddAnnotationPayload = Omit<Annotation, 'id' | 'created_at'>
+export type AddAnnotationPayload = Omit<Annotation, 'id' | 'created_at' | 'user'>
 
 export type UpdateAnnotationPayload = Omit<
   AddAnnotationPayload,
-  'name' | 'annotation_kind' | 'value_type' | 'user' | 'created_at'
+  'name' | 'annotation_kind' | 'value_type' | 'created_at'
 >

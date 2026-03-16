@@ -7,7 +7,7 @@
         </InputIcon>
         <InputText
           v-model="searchModel"
-          placeholder="Search evals"
+          placeholder="Search traces"
           size="small"
           fluid
           class="search-input"
