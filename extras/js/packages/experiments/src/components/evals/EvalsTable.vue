@@ -259,7 +259,7 @@ const flatData = computed(() => {
             total: item.total,
             positive: item.positive,
             negative: item.negative,
-            firstValue: item.firstValue,
+            value: item.value,
           }
           return acc
         },

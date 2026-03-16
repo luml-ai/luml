@@ -36,7 +36,7 @@ export interface AnnotationSummaryExpectationItem {
   total: number
   positive: number
   negative: number
-  firstValue: string | number | null
+  value: string | number | null
 }
 
 export type AddAnnotationPayload = Omit<Annotation, 'id' | 'created_at' | 'user'>

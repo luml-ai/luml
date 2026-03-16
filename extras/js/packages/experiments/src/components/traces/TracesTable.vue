@@ -291,7 +291,7 @@ import type { FeedbackColumnData } from '../table/feedback-column/interface'
 import type { ExpectationColumnData } from '../table/ecpectation-column/interface'
 import { computed, ref } from 'vue'
 import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
-import { TRACE_STATE_MAP } from './traces.const'
+import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
 import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { watch } from 'vue'
@@ -332,7 +332,7 @@ const tableData = computed(() => {
             total: item.total,
             positive: item.positive,
             negative: item.negative,
-            firstValue: item.firstValue,
+            value: item.value,
           }
           return acc
         },
@@ -396,7 +396,16 @@ function onLazyLoad(event: VirtualScrollerLazyEvent) {
 
 function onSort(event: DataTableSortEvent) {
   const { sortField, sortOrder } = event
-  emit('sort', { sortField: sortField as string, sortOrder: sortOrder === 1 ? 'asc' : 'desc' })
+  const isSortedField = SORTED_FIELDS.includes(
+    sortField as 'created_at' | 'execution_time' | 'span_count',
+  )
+  if (!isSortedField) {
+    return
+  }
+  emit('sort', {
+    sortField: sortField as (typeof SORTED_FIELDS)[number],
+    sortOrder: sortOrder === 1 ? 'asc' : 'desc',
+  })
 }
 
 async function showEval(evalId: string) {
