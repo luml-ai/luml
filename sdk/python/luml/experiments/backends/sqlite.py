@@ -836,8 +836,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id, "
-            "static_params, dynamic_params FROM experiments WHERE id = ?",
+            "SELECT e.id, e.name, e.created_at, e.status, e.tags, e.duration, e.description, "
+            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name "
+            "FROM experiments e "
+            "LEFT JOIN experiment_groups eg ON e.group_id = eg.id "
+            "WHERE e.id = ?",
             (experiment_id,),
         )
         row = cursor.fetchone()
@@ -854,6 +857,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             group_id=row[7],
             static_params=json.loads(row[8]) if row[8] else None,
             dynamic_params=json.loads(row[9]) if row[9] else None,
+            group_name=row[10],
         )
 
     def delete_experiment(self, experiment_id: str) -> None:
