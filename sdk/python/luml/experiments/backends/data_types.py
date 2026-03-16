@@ -167,6 +167,9 @@ class FeedbackSummaryItem:
 class ExpectationSummaryItem:
     name: str
     total: int
+    positive: int = 0
+    negative: int = 0
+    value: str | None = None
 
 
 @dataclass

@@ -51,6 +51,9 @@ class FeedbackSummaryItem(BaseModel, BaseOrmConfig):
 class ExpectationSummaryItem(BaseModel, BaseOrmConfig):
     name: str
     total: int
+    positive: int = 0
+    negative: int = 0
+    value: str | None = None
 
 
 class AnnotationSummary(BaseModel, BaseOrmConfig):
