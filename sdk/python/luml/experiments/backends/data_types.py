@@ -49,6 +49,7 @@ class Experiment:
     duration: float | None = None
     description: str | None = None
     group_id: str | None = None
+    group_name: str | None = None
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
 
@@ -167,6 +168,9 @@ class FeedbackSummaryItem:
 class ExpectationSummaryItem:
     name: str
     total: int
+    positive: int = 0
+    negative: int = 0
+    value: int | str | None = None
 
 
 @dataclass
