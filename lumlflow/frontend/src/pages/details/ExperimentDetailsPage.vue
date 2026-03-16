@@ -28,6 +28,8 @@
       :count="evalsStore.selectedTrace.count"
       :max-span-time="evalsStore.selectedTrace.maxTime || 0"
       :min-span-time="evalsStore.selectedTrace.minTime || 0"
+      :artifact-id="String(route.params.experimentId)"
+      :trace-id="evalsStore.selectedTrace.traceId"
       @update:visible="onTraceVisibleUpdate"
     ></TraceDialog>
   </div>

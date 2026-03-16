@@ -20,6 +20,7 @@ export interface FilterItemProps {
 
 export interface FilterProps {
   fields: string[]
+  disabled?: boolean
 }
 
 export interface FilterEmits {

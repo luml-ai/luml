@@ -159,7 +159,7 @@ async function showSpans() {
     if (!evalsStore.selectedEval) throw new Error('No dataset or eval selected')
     const { datasetId, evalId } = evalsStore.selectedEval
     const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
-    evalsStore.setSelectedTrace(trace)
+    evalsStore.setSelectedTrace(trace, props.id)
   } catch {
     toast.add(simpleErrorToast('Failed to load spans'))
   }

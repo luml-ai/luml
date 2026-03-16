@@ -1,29 +1,38 @@
 <template>
   <div class="view">
-    <AnnotationsViewHeader :count="annotationsStore.evalAnnotations.length" @close="close" />
+    <AnnotationsViewHeader :count="currentAnnotations.length" @close="close" />
     <AnnotationsViewList
-      v-if="annotationsStore.evalAnnotations.length"
-      :items="annotationsStore.evalAnnotations"
+      v-if="currentAnnotations.length && props.artifactId"
+      :items="currentAnnotations"
       :artifact-id="props.artifactId"
+      :type="props.evalId ? 'eval' : 'span'"
     />
     <div v-else class="empty">
       <div class="card-wrapper">
-        <AnnotationAddCard v-if="annotationsStore.isEditAvailable" @add="onAdd" />
+        <AnnotationAddCard v-if="annotationsStore.isEditAvailable" @add="openAddDialog" />
       </div>
     </div>
-    <AnnotationAddButton v-if="annotationsStore.isEditAvailable" @add="onAdd" class="add-button" />
+    <AnnotationAddButton
+      v-if="annotationsStore.isEditAvailable"
+      @add="openAddDialog"
+      class="add-button"
+    />
     <AnnotationAddDialog
       :visible="annotationsStore.isAddDialogVisible"
-      :artifact-id="props.artifactId"
-      :dataset-id="props.datasetId"
-      :eval-id="props.evalId"
+      :loading="loading"
       @update:visible="onAddDialogVisibleUpdate"
+      @submit="addAnnotation"
     />
   </div>
 </template>
 
 <script setup lang="ts">
+import type { AddAnnotationPayload } from '../annotations.interface'
+import { computed, ref } from 'vue'
 import { useAnnotationsStore } from '@/store/annotations'
+import { useToast } from 'primevue'
+import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import AnnotationsViewHeader from './AnnotationsViewHeader.vue'
 import AnnotationsViewList from './AnnotationsViewList.vue'
 import AnnotationAddCard from './AnnotationAddCard.vue'
@@ -38,28 +47,80 @@ type Props = {
   artifactId?: string
   datasetId?: string
   evalId?: string
+  traceId?: string
+  spanId?: string
 }
 
 const props = defineProps<Props>()
-
 const emit = defineEmits<Emits>()
 
 const annotationsStore = useAnnotationsStore()
+const toast = useToast()
+
+const loading = ref(false)
+
+const currentAnnotations = computed(() => {
+  if (props.evalId) {
+    return annotationsStore.evalAnnotations
+  } else if (props.spanId) {
+    return annotationsStore.spanAnnotations
+  }
+  return []
+})
 
 function onAddDialogVisibleUpdate(visible: boolean) {
   if (!visible) annotationsStore.closeAddDialog()
 }
 
-function onAdd() {
-  if (!props.artifactId || !props.datasetId || !props.evalId) {
-    throw new Error('Artifact ID, dataset ID and eval ID are required')
+function openAddDialog() {
+  try {
+    if (props.evalId) {
+      if (!props.artifactId || !props.datasetId || !props.evalId) {
+        throw new Error('Artifact ID, dataset ID and eval ID are required')
+      }
+      annotationsStore.openAddDialog({
+        artifactId: props.artifactId,
+        datasetId: props.datasetId,
+        evalId: props.evalId,
+      })
+    } else if (props.spanId) {
+      if (!props.artifactId || !props.traceId || !props.spanId) {
+        throw new Error('Artifact ID, trace ID and span ID are required')
+      }
+      annotationsStore.openAddDialog({
+        artifactId: props.artifactId,
+        traceId: props.traceId,
+        spanId: props.spanId,
+      })
+    }
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to open add dialog')))
   }
-  annotationsStore.openAddDialog(props.artifactId, props.datasetId, props.evalId)
 }
 
 function close() {
   emit('close')
   annotationsStore.closeAddDialog()
+}
+
+async function addAnnotation(data: AddAnnotationPayload) {
+  if (loading.value) return
+  loading.value = true
+  try {
+    if (props.evalId) {
+      await annotationsStore.addEvalAnnotation(data)
+    } else if (props.spanId) {
+      await annotationsStore.addSpanAnnotation(data)
+    } else {
+      throw new Error('Trace ID or span ID is required')
+    }
+    annotationsStore.closeAddDialog()
+    toast.add(simpleSuccessToast('Annotation added successfully'))
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to add annotation')))
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

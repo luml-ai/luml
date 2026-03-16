@@ -55,14 +55,15 @@ export const getSpanTypeData = (type: SpanTypeEnum | null) => {
 
 export const getFormattedTime = (startNs: number, endNs: number) => {
   const ns = endNs - startNs
+  return getFormattedExecutionTime(ns)
+}
 
-  if (ns < 1_000) {
-    return `${ns}ns`
-  }
+export const getFormattedExecutionTime = (ns: number) => {
+  if (ns < 1_000) return `${ns}ns`
 
   const ms = ns / 1_000_000
   if (ms < 1000) {
-    return `${ms.toFixed(2)}ms`
+    return `${ms.toFixed()}ms`
   }
 
   const seconds = ms / 1000
@@ -70,18 +71,21 @@ export const getFormattedTime = (startNs: number, endNs: number) => {
     return `${seconds.toFixed(2)}s`
   }
 
-  const minutes = seconds / 60
+  const minutes = Math.floor(seconds / 60)
+  const remainingSec = Math.floor(seconds % 60)
   if (minutes < 60) {
-    return `${minutes.toFixed(2)}m`
+    return `${minutes}min ${remainingSec}s`
   }
 
-  const hours = minutes / 60
+  const hours = Math.floor(minutes / 60)
+  const remainingMin = Math.floor(minutes % 60)
   if (hours < 24) {
-    return `${hours.toFixed(2)}h`
+    return `${hours}h ${remainingMin}min`
   }
 
-  const days = hours / 24
-  return `${days.toFixed(2)}d`
+  const days = Math.floor(hours / 24)
+  const remainingHours = hours % 24
+  return `${days}d ${remainingHours}h`
 }
 
 export const getErrorMessage = (error: any, message = 'Something went wrong') => {

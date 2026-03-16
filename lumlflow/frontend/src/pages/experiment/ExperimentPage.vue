@@ -1,5 +1,10 @@
 <template>
-  <div>
+  <template v-if="loading">
+    <Skeleton height="49px" class="mb-2"></Skeleton>
+    <Skeleton height="27px" class="mb-2"></Skeleton>
+    <Skeleton class="h-[calc(100vh-250px)]" height="calc(100vh-200px)"></Skeleton>
+  </template>
+  <div v-else>
     <ExperimentBreadcrumbs
       v-if="groupsStore.detailedGroup"
       :experiment="groupsStore.detailedGroup"
@@ -12,10 +17,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeMount } from 'vue'
+import { computed, onBeforeMount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { errorToast } from '@/toasts'
-import { useToast } from 'primevue'
+import { Skeleton, useToast } from 'primevue'
 import { useGroupsStore } from '@/store/groups'
 import ExperimentBreadcrumbs from '@/components/experiments/experiment/ExperimentBreadcrumbs.vue'
 import ExperimentWrapper from '@/components/experiments/experiment/ExperimentWrapper.vue'
@@ -24,16 +29,20 @@ const toast = useToast()
 const route = useRoute()
 const groupsStore = useGroupsStore()
 
+const loading = ref(true)
+
 const groupId = computed(() => (route.params.groupId ? String(route.params.groupId) : null))
 
 onBeforeMount(async () => {
-  if (!groupId.value) return
   try {
+    if (!groupId.value) throw new Error('Group ID is required')
     const group = await groupsStore.getGroupById(groupId.value)
     if (!group) throw new Error('Group not found')
     groupsStore.setDetailedGroup(group)
   } catch (error) {
     toast.add(errorToast(error))
+  } finally {
+    loading.value = false
   }
 })
 </script>

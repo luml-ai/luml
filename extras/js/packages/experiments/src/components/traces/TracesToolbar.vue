@@ -15,7 +15,7 @@
       </IconField>
     </div>
     <div class="right">
-      <TableFilter :fields="visibleColumns" disabled />
+      <TableFilter :fields="visibleColumns" disabled @apply="(filters) => $emit('filter-change', filters)" />
       <TableEditColumns
         :button-icon="Bolt"
         :columns="columns"
@@ -33,12 +33,12 @@
 </template>
 
 <script setup lang="ts">
-import type { ToolbarEmits, ToolbarProps } from './evals.interface'
+import type { ToolbarEmits, ToolbarProps } from './traces.interface'
+import { computed } from 'vue'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
-import { computed } from 'vue'
 
 const props = defineProps<ToolbarProps>()
 defineEmits<ToolbarEmits>()
@@ -52,7 +52,7 @@ const visibleColumns = computed(() => {
 
 <style scoped>
 .toolbar {
-  padding: 12px 0;
+  padding: 0 0 12px;
   display: flex;
   justify-content: space-between;
   gap: 20px;

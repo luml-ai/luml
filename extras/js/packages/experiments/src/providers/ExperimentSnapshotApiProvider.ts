@@ -4,6 +4,7 @@ import type {
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
   GetEvalsByDatasetParams,
+  GetTracesParams,
   SpansListType,
   SpansParams,
   TraceSpan,
@@ -24,6 +25,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
   private traces: TraceInfo[] = []
   private _artifacts: ArtifactInfo[] | null = null
   private _datasetsCursors: Record<string, Array<string | null>> = {}
+  private _tracesCursors: Record<string, Array<string | null>> = {}
 
   get artifacts() {
     if (!this._artifacts) throw new Error('Experiments not initialized')
@@ -44,9 +46,14 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     return this.artifacts.map((artifact) => artifact.dynamicMetrics).flat()
   }
 
-  async getDynamicMetricData(metricName: string) {
+  async getDynamicMetricData(metricName: string, signal?: AbortSignal) {
     const promises = this.artifacts.map(async (artifact) => {
-      const data = await this.apiService.getExperimentMetricHistory(artifact.id, metricName)
+      const data = await this.apiService.getExperimentMetricHistory(
+        artifact.id,
+        metricName,
+        undefined,
+        signal,
+      )
       return this.prepareMetricData(data)
     })
     return Promise.all(promises)
@@ -92,11 +99,6 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
           item.evalId === params.evalId,
       )?.tracesIds?.[0] || null
     )
-  }
-
-  async getUniqueTraceIds(modelId: string): Promise<string[]> {
-    const { items } = await this.apiService.getExperimentTraces({ experiment_id: modelId })
-    return items.map((item) => item.trace_id)
   }
 
   async getEvalsColumns(datasetId: string): Promise<EvalsColumns> {
@@ -181,6 +183,35 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     return this.apiService.deleteEvalAnnotation(artifactId, annotationId)
   }
 
+  async createSpanAnnotation(
+    artifactId: string,
+    traceId: string,
+    spanId: string,
+    data: AddAnnotationPayload,
+  ) {
+    return this.apiService.createSpanAnnotation(artifactId, traceId, spanId, data)
+  }
+
+  async updateSpanAnnotation(
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) {
+    return this.apiService.updateSpanAnnotation(artifactId, annotationId, data)
+  }
+
+  async deleteSpanAnnotation(artifactId: string, annotationId: string) {
+    return this.apiService.deleteSpanAnnotation(artifactId, annotationId)
+  }
+
+  async getSpanAnnotations(artifactId: string, traceId: string, spanId: string) {
+    return this.apiService.getSpanAnnotations(artifactId, traceId, spanId)
+  }
+
+  async getTracesAnnotationSummary(artifactId: string) {
+    return this.apiService.getTracesAnnotationSummary(artifactId)
+  }
+
   async getEvalsDatasetAnnotationsSummary(datasetId: string) {
     const responses = this.artifacts.map(async (artifact) => {
       return this.apiService.getEvalAnnotationSummary(artifact.id, datasetId)
@@ -214,6 +245,39 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     })
     const averageScoresByArtifact = await Promise.all(responses)
     return averageScoresByArtifact.flat()
+  }
+
+  async getTraces(params: GetTracesParams) {
+    const responses = this.artifacts.map(async (artifact) => {
+      const cursors = this._tracesCursors[artifact.id] || []
+      const currentCursor = cursors[cursors.length - 1]
+      if (currentCursor === null) return []
+      const { items, cursor: newCursor } = await this.apiService.getExperimentTraces({
+        ...params,
+        experiment_id: artifact.id,
+        cursor: currentCursor,
+      })
+      this._tracesCursors[artifact.id] = [...cursors, newCursor]
+      return items
+    })
+    const tracesByArtifact = await Promise.all(responses)
+    return tracesByArtifact.flat()
+  }
+
+  async resetTracesRequestParams(artifactId?: string) {
+    if (artifactId) {
+      this._tracesCursors[artifactId] = []
+    } else {
+      this._tracesCursors = {}
+    }
+  }
+
+  async getEvalById(artifactId: string, evalId: string) {
+    const info = await this.apiService.getEvalById(artifactId, evalId)
+    return {
+      ...info,
+      modelId: artifactId,
+    }
   }
 
   private prepareMetricData(metricHistory: ExperimentMetricHistory) {
