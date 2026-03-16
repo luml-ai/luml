@@ -1,5 +1,8 @@
 import copy
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAPIGenerator:
@@ -9,19 +12,19 @@ class OpenAPIGenerator:
         version: str = "0.1.0",
         description: str = "Model API",
         *,
-        manifest: dict,
-        dtypes_schemas: dict,
+        manifest: dict | None = None,
+        dtypes_schemas: dict | None = None,
     ) -> None:
         self.title = title
         self.version = version
         self.description = description
-        self.manifest = manifest
-        self.dtypes_schemas = dtypes_schemas
+        self.manifest = manifest or {}
+        self.dtypes_schemas = dtypes_schemas or {}
 
-        self.schema = self.get_simple_schema()
-
-        self.request_schema = None
-        self.response_schema = None
+        self._schema: dict[str, Any] = {}
+        self._cached_schema: dict[str, Any] | None = None
+        self.request_schema: dict[str, Any] = {}
+        self.response_schema: dict[str, Any] = {}
 
     def get_simple_schema(self) -> dict[str, Any]:  # noqa: ANN401
         return {
@@ -51,19 +54,20 @@ class OpenAPIGenerator:
 
     @property
     def components_schemas(self) -> dict[str, Any]:  # noqa: ANN401
-        return self.schema["components"]["schemas"]
+        return self._schema["components"]["schemas"]
 
     @components_schemas.setter
     def components_schemas(self, value: dict[str, Any]) -> None:
-        self.schema["components"]["schemas"] = value
+        self._schema["components"]["schemas"] = value
 
     @property
     def paths(self) -> dict[str, Any]:  # noqa: ANN401
-        return self.schema["paths"]
+        return self._schema["paths"]
 
     @staticmethod
     def _get_primitive_json_schema(dtype: str) -> dict[str, Any]:  # noqa: ANN401
         type_map = {
+            "str": {"type": "string"},
             "string": {"type": "string"},
             "integer": {"type": "integer"},
             "int": {"type": "integer"},
@@ -72,6 +76,7 @@ class OpenAPIGenerator:
             "float": {"type": "number"},
             "float32": {"type": "number"},
             "float64": {"type": "number"},
+            "bool": {"type": "boolean"},
             "boolean": {"type": "boolean"},
         }
         return type_map.get(dtype, {})
@@ -280,9 +285,9 @@ class OpenAPIGenerator:
                 self._push_type_ref_schema(output_spec, outputs_schema)
 
     def _init_components_structure(self) -> None:
-        if "components" not in self.schema:
-            self.schema["components"] = {}
-        if "schemas" not in self.schema["components"]:
+        if "components" not in self._schema:
+            self._schema["components"] = {}
+        if "schemas" not in self._schema["components"]:
             self.components_schemas = {}
 
         if "$defs" in self.request_schema:
@@ -346,7 +351,7 @@ class OpenAPIGenerator:
         return obj
 
     def _add_compute_endpoint(self) -> None:
-        self.schema.setdefault("paths", {})
+        self._schema.setdefault("paths", {})
         if "/compute" not in self.paths:
             self.paths["/compute"] = {}
         if "post" not in self.paths["/compute"]:
@@ -376,9 +381,13 @@ class OpenAPIGenerator:
         compute["security"] = [{"ApiKeyAuth": []}]
 
     def get_openapi_schema(self) -> dict[str, Any]:  # noqa: ANN401
-        if not self.manifest:
-            return self.schema
+        if self._cached_schema is not None:
+            return copy.deepcopy(self._cached_schema)
 
+        if not self.manifest:
+            return self.get_simple_schema()
+
+        self._schema = self.get_simple_schema()
         try:
             self._get_request_model()
             self._get_response_model()
@@ -389,7 +398,8 @@ class OpenAPIGenerator:
             self._update_input_references()
             self._update_output_references()
             self._add_compute_endpoint()
-            return self.schema
+            self._cached_schema = self._schema
+            return self._cached_schema
         except Exception as e:
-            print(f"Failed to generate OpenAPI schema: {e}")
+            logger.error(f"Failed to generate OpenAPI schema: {e}")
             return self.get_simple_schema()

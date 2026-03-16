@@ -29,10 +29,15 @@ class ModelServerHandler:
     ) -> None:
         manifest = None
         openapi_schema = None
-        with suppress(Exception):
+        try:
             async with ModelServerClient() as client:
                 manifest = await client.get_manifest(deployment_id)
                 openapi_schema = await client.get_openapi_schema(deployment_id)
+        except Exception as e:
+            logger.error(
+                f"[add_single_deployment] Failed to fetch manifest/schema "
+                f"for deployment '{deployment_id}': {e}"
+            )
 
         self.deployments[deployment_id] = LocalDeployment(
             deployment_id=deployment_id,

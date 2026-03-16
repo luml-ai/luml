@@ -60,11 +60,16 @@ class ModelServerClient:
 
     async def get_openapi_schema(self, deployment_id: str) -> dict | None:
         assert self._session is not None
-        with suppress(Exception):
+        try:
             response = await self._session.get(f"{self._url(deployment_id)}/openapi.json")
             if response.status_code == 200:
                 return response.json()
-
+            logger.warning(
+                f"OpenAPI schema request returned status {response.status_code} "
+                f"for deployment '{deployment_id}'"
+            )
+        except Exception as error:
+            logger.error(f"Error getting OpenAPI schema for '{deployment_id}': {error}")
         return None
 
     async def get_manifest(self, deployment_id: str) -> dict | None:
