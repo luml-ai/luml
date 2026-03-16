@@ -24,6 +24,7 @@ class _ExperimentBase(BaseModel, BaseOrmConfig):
     static_params: dict[str, Any] | None = None
     dynamic_params: dict[str, Any] | None = None
     created_at: datetime
+    group_name: str | None = None
 
 
 class Experiment(_ExperimentBase):
