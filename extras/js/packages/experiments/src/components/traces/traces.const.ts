@@ -14,3 +14,5 @@ export const INITIAL_REQUEST_PARAMS: GetTracesParams = {
   order: 'desc',
   search: '',
 }
+
+export const SORTED_FIELDS = ['created_at', 'execution_time', 'span_count'] as const

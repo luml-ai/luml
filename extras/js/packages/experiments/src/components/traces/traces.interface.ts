@@ -26,7 +26,7 @@ export interface TableEmits {
 }
 
 export interface SortParams {
-  sortField: string
+  sortField: 'created_at' | 'execution_time' | 'span_count'
   sortOrder: 'asc' | 'desc'
 }
 

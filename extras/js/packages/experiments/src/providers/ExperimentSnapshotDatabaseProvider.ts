@@ -691,17 +691,17 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
             total: 0,
             positive: 0,
             negative: 0,
-            firstValue: null,
+            value: null,
           }
           current.total++
           if (annotation.value === true) {
             current.positive++
           } else if (annotation.value === false) {
             current.negative++
-          } else {
-            current.firstValue = annotation.value
+          } else if (current.value === null) {
+            current.value = annotation.value
           }
-          acc.expectations[annotation.name] = current
+        acc.expectations[annotation.name] = current
         }
         return acc
       },
@@ -712,7 +712,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
             total: number
             positive: number
             negative: number
-            firstValue: string | number | null
+            value: string | number | null
           }
         }
       },

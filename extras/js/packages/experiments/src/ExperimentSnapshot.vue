@@ -1,6 +1,6 @@
 <template>
   <div class="content">
-    <TracesWrapper v-if="modelsIds[0]" :artifactId="modelsIds[0]" />
+    <TracesWrapper v-if="modelsIds[0] && modelsIds.length === 1" :artifactId="modelsIds[0]" />
     <Skeleton v-if="staticParamsLoading" style="height: 210px; margin-bottom: 20px"></Skeleton>
     <template v-else-if="staticParams?.length && showStaticParams">
       <StaticParameters

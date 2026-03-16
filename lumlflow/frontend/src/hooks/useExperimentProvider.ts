@@ -13,7 +13,7 @@ export const useExperimentProvider = (): { provider: Ref<ExperimentSnapshotProvi
     const newProvider = new ExperimentSnapshotApiProvider(apiService)
     const experimentMainInfo = {
       id: experiment.id,
-      dynamicMetrics: Object.keys(experiment.dynamic_params || []),
+      dynamicMetrics: Object.keys(experiment.dynamic_params ?? {}),
     }
     await newProvider.init({ artifacts: [experimentMainInfo] })
     provider.value = newProvider

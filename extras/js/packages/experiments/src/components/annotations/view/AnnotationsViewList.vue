@@ -59,7 +59,11 @@ async function deleteAnnotation(item: Annotation) {
     if (!props.artifactId) {
       throw new Error('Artifact ID is required')
     }
-    await annotationsStore.deleteEvalAnnotation(props.artifactId, item.id)
+    if (props.type === 'span') {
+      await annotationsStore.deleteSpanAnnotation(props.artifactId, item.id)
+    } else {
+      await annotationsStore.deleteEvalAnnotation(props.artifactId, item.id)
+    }
     toast.add(simpleSuccessToast(`Annotation "${item.name}" deleted successfully`))
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error)))

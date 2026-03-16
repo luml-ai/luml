@@ -24,7 +24,7 @@
       />
     </div>
     <div>
-      <label for="value" class="label">Operator</label>
+      <label for="value" class="label">Value</label>
       <InputText v-model="modelValue.value" id="value" placeholder="Put value" fluid size="small" />
     </div>
     <Button variant="text" severity="secondary" class="button" @click="$emit('remove')">
