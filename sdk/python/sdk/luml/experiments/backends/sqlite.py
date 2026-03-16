@@ -3048,6 +3048,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             item.total += count
             item.counts[value] = count
 
+        def _cast_value(raw: str | None, value_type: str | None) -> int | str | None:
+            if raw is None:
+                return None
+            if value_type == "int":
+                return int(raw)
+            return raw
+
         return AnnotationSummary(
             feedback=sorted(feedback_items.values(), key=lambda x: x.name),
             expectations=[
@@ -3056,7 +3063,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     total=row[1],
                     positive=row[2],
                     negative=row[3],
-                    value=row[4],
+                    value=_cast_value(row[4], row[5]),
                 )
                 for row in expectation_rows
             ],
@@ -3084,9 +3091,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 feedback_by_eval.setdefault(row[0], []).append(row[1:])
             for row in conn.execute(
                 f"""SELECT eval_id, name, COUNT(*) AS total,
-                       SUM(CASE WHEN value = 'true' THEN 1 ELSE 0 END) AS positive,
-                       SUM(CASE WHEN value = 'false' THEN 1 ELSE 0 END) AS negative,
-                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS first_value
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
                    FROM eval_annotations
                    WHERE eval_id IN ({placeholders}) AND annotation_kind = 'expectation'
                    GROUP BY eval_id, name
@@ -3119,9 +3127,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         ).fetchall()
         expectation_rows = conn.execute(
             """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS first_value
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
                FROM eval_annotations
                WHERE dataset_id = ? AND annotation_kind = 'expectation'
                GROUP BY name
@@ -3152,9 +3161,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 feedback_by_trace.setdefault(row[0], []).append(row[1:])
             for row in conn.execute(
                 f"""SELECT trace_id, name, COUNT(*) AS total,
-                       SUM(CASE WHEN value = 'true' THEN 1 ELSE 0 END) AS positive,
-                       SUM(CASE WHEN value = 'false' THEN 1 ELSE 0 END) AS negative,
-                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS first_value
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                       SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                       MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                       MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
                    FROM span_annotations
                    WHERE trace_id IN ({placeholders}) AND annotation_kind = 'expectation'
                    GROUP BY trace_id, name
@@ -3187,9 +3197,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         ).fetchall()
         expectation_rows = conn.execute(
             """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS first_value
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
                FROM span_annotations
                WHERE trace_id = ? AND annotation_kind = 'expectation'
                GROUP BY name
@@ -3213,9 +3224,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         ).fetchall()
         expectation_rows = conn.execute(
             """SELECT name, COUNT(*) AS total,
-                   SUM(CASE WHEN value = 'true' THEN 1 ELSE 0 END) AS positive,
-                   SUM(CASE WHEN value = 'false' THEN 1 ELSE 0 END) AS negative,
-                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS first_value
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'true' THEN 1 ELSE 0 END) AS positive,
+                   SUM(CASE WHEN value_type = 'bool' AND value = 'false' THEN 1 ELSE 0 END) AS negative,
+                   MAX(CASE WHEN value_type != 'bool' THEN value END) AS sample_value,
+                   MAX(CASE WHEN value_type != 'bool' THEN value_type END) AS sample_value_type
                FROM span_annotations
                WHERE annotation_kind = 'expectation'
                GROUP BY name
