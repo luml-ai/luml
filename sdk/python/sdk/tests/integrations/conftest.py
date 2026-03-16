@@ -1,14 +1,16 @@
+from typing import Any
+
+import catboost as ctb
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import pytest
 import scipy.sparse as sp
 import xgboost as xgb
-import lightgbm as lgb
-import catboost as ctb
 
-from luml.integrations.xgboost import save_xgboost
-from luml.integrations.lightgbm import save_lightgbm
 from luml.integrations.catboost import save_catboost
+from luml.integrations.lightgbm import save_lightgbm
+from luml.integrations.xgboost import save_xgboost
 
 N_TRAIN = 100
 N_FEATURES = 5
@@ -27,14 +29,19 @@ def _xgb_train(X: np.ndarray, feature_names: list, y: np.ndarray) -> xgb.Booster
 
 
 @pytest.fixture(scope="session")
-def xgb_df_unified(tmp_path_factory):
+def xgb_df_unified(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
     model = _xgb_train(X, NAMED, y)
 
     path = str(tmp_path_factory.mktemp("xgb") / "df_unified.luml")
-    ref = save_xgboost(estimator=model, inputs=pd.DataFrame(X, columns=NAMED), path=path, input_format="unified")
+    ref = save_xgboost(
+        estimator=model,
+        inputs=pd.DataFrame(X, columns=NAMED),
+        path=path,
+        input_format="unified",
+    )
 
     X_test = rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
     return {
@@ -47,7 +54,7 @@ def xgb_df_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def xgb_ndarray_unified(tmp_path_factory):
+def xgb_ndarray_unified(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
@@ -67,7 +74,7 @@ def xgb_ndarray_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def xgb_ndarray_native(tmp_path_factory):
+def xgb_ndarray_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
@@ -87,14 +94,19 @@ def xgb_ndarray_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def xgb_dmatrix_unified(tmp_path_factory):
+def xgb_dmatrix_unified(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
     model = _xgb_train(X, NAMED, y)
 
     path = str(tmp_path_factory.mktemp("xgb") / "dmatrix_unified.luml")
-    ref = save_xgboost(estimator=model, inputs=xgb.DMatrix(X, feature_names=NAMED), path=path, input_format="unified")
+    ref = save_xgboost(
+        estimator=model,
+        inputs=xgb.DMatrix(X, feature_names=NAMED),
+        path=path,
+        input_format="unified",
+    )
 
     X_test = rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
     return {
@@ -107,19 +119,27 @@ def xgb_dmatrix_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def xgb_dmatrix_native(tmp_path_factory):
+def xgb_dmatrix_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
     model = _xgb_train(X, NAMED, y)
 
     path = str(tmp_path_factory.mktemp("xgb") / "dmatrix_native.luml")
-    ref = save_xgboost(estimator=model, inputs=xgb.DMatrix(X, feature_names=NAMED), path=path, input_format="native")
+    ref = save_xgboost(
+        estimator=model,
+        inputs=xgb.DMatrix(X, feature_names=NAMED),
+        path=path,
+        input_format="native",
+    )
 
     X_test = rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
     return {
         "ref": ref,
-        "inputs": {"payload": {"dmatrix": {"data": X_test.tolist(), "feature_names": NAMED}}},
+        "inputs": {"payload": {"dmatrix": {
+            "data": X_test.tolist(),
+            "feature_names": NAMED,
+        }}},
         "expected": model.predict(xgb.DMatrix(X_test, feature_names=NAMED)).tolist(),
         "preds_key": ["xgboost_output", "predictions"],
         "compare": "float",
@@ -127,16 +147,20 @@ def xgb_dmatrix_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def xgb_sparse_native(tmp_path_factory):
+def xgb_sparse_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES)).astype(np.float32)
     y = (X[:, 0] + X[:, 1] > 0).astype(np.float32)
     model = _xgb_train(X, AUTO, y)
 
     path = str(tmp_path_factory.mktemp("xgb") / "sparse_native.luml")
-    ref = save_xgboost(estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native")
+    ref = save_xgboost(
+        estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native"
+    )
 
-    X_test = sp.csr_matrix(rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32))
+    X_test = sp.csr_matrix(
+        rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
+    )
     return {
         "ref": ref,
         "inputs": {"payload": {"dmatrix": {
@@ -164,11 +188,16 @@ def _lgb_train(feature_names: list) -> tuple[lgb.Booster, np.ndarray]:
 
 
 @pytest.fixture(scope="session")
-def lgb_df_unified(tmp_path_factory):
+def lgb_df_unified(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     model, X = _lgb_train(NAMED)
 
     path = str(tmp_path_factory.mktemp("lgb") / "df_unified.luml")
-    ref = save_lightgbm(estimator=model, inputs=pd.DataFrame(X, columns=NAMED), path=path, input_format="unified")
+    ref = save_lightgbm(
+        estimator=model,
+        inputs=pd.DataFrame(X, columns=NAMED),
+        path=path,
+        input_format="unified",
+    )
 
     X_test = np.random.default_rng(0).standard_normal((BATCH, N_FEATURES))
     return {
@@ -181,7 +210,7 @@ def lgb_df_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def lgb_ndarray_unified(tmp_path_factory):
+def lgb_ndarray_unified(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     model, X = _lgb_train(AUTO)
 
     path = str(tmp_path_factory.mktemp("lgb") / "ndarray_unified.luml")
@@ -198,7 +227,7 @@ def lgb_ndarray_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def lgb_ndarray_native(tmp_path_factory):
+def lgb_ndarray_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     model, X = _lgb_train(AUTO)
 
     path = str(tmp_path_factory.mktemp("lgb") / "ndarray_native.luml")
@@ -215,14 +244,18 @@ def lgb_ndarray_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def lgb_sparse_native(tmp_path_factory):
+def lgb_sparse_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     model, X = _lgb_train(AUTO)
     X_sparse = sp.csr_matrix(X)
 
     path = str(tmp_path_factory.mktemp("lgb") / "sparse_native.luml")
-    ref = save_lightgbm(estimator=model, inputs=X_sparse, path=path, input_format="native")
+    ref = save_lightgbm(
+        estimator=model, inputs=X_sparse, path=path, input_format="native"
+    )
 
-    X_test = sp.csr_matrix(np.random.default_rng(0).standard_normal((BATCH, N_FEATURES)))
+    X_test = sp.csr_matrix(
+        np.random.default_rng(0).standard_normal((BATCH, N_FEATURES))
+    )
     return {
         "ref": ref,
         "inputs": {"payload": {"dataset": {
@@ -239,12 +272,16 @@ def lgb_sparse_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_classifier_df_unified(tmp_path_factory):
+def ctb_classifier_df_unified(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     X_df = pd.DataFrame(X, columns=NAMED)
     y = (X[:, 0] + X[:, 1] > 0).astype(int)
-    model = ctb.CatBoostClassifier(iterations=10, depth=3, verbose=False, random_seed=42)
+    model = ctb.CatBoostClassifier(
+        iterations=10, depth=3, verbose=False, random_seed=42
+    )
     model.fit(X_df, y)
 
     path = str(tmp_path_factory.mktemp("ctb") / "clf_df_unified.luml")
@@ -261,11 +298,15 @@ def ctb_classifier_df_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_classifier_ndarray_unified(tmp_path_factory):
+def ctb_classifier_ndarray_unified(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = (X[:, 0] + X[:, 1] > 0).astype(int)
-    model = ctb.CatBoostClassifier(iterations=10, depth=3, verbose=False, random_seed=42)
+    model = ctb.CatBoostClassifier(
+        iterations=10, depth=3, verbose=False, random_seed=42
+    )
     model.fit(X, y)
 
     path = str(tmp_path_factory.mktemp("ctb") / "clf_ndarray_unified.luml")
@@ -282,11 +323,15 @@ def ctb_classifier_ndarray_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_classifier_ndarray_native(tmp_path_factory):
+def ctb_classifier_ndarray_native(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = (X[:, 0] + X[:, 1] > 0).astype(int)
-    model = ctb.CatBoostClassifier(iterations=10, depth=3, verbose=False, random_seed=42)
+    model = ctb.CatBoostClassifier(
+        iterations=10, depth=3, verbose=False, random_seed=42
+    )
     model.fit(X, y)
 
     path = str(tmp_path_factory.mktemp("ctb") / "clf_ndarray_native.luml")
@@ -306,15 +351,21 @@ def ctb_classifier_ndarray_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_classifier_sparse_native(tmp_path_factory):
+def ctb_classifier_sparse_native(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = (X[:, 0] + X[:, 1] > 0).astype(int)
-    model = ctb.CatBoostClassifier(iterations=10, depth=3, verbose=False, random_seed=42)
+    model = ctb.CatBoostClassifier(
+        iterations=10, depth=3, verbose=False, random_seed=42
+    )
     model.fit(X, y)
 
     path = str(tmp_path_factory.mktemp("ctb") / "clf_sparse_native.luml")
-    ref = save_catboost(estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native")
+    ref = save_catboost(
+        estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native"
+    )
 
     X_test = sp.csr_matrix(rng.standard_normal((BATCH, N_FEATURES)))
     # prediction_type="Probability" → [[p_class0, p_class1], ...] per sample
@@ -337,7 +388,9 @@ def ctb_classifier_sparse_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_regressor_df_unified(tmp_path_factory):
+def ctb_regressor_df_unified(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     X_df = pd.DataFrame(X, columns=NAMED)
@@ -359,7 +412,9 @@ def ctb_regressor_df_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_regressor_ndarray_unified(tmp_path_factory):
+def ctb_regressor_ndarray_unified(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = X[:, 0] + X[:, 1]
@@ -380,7 +435,9 @@ def ctb_regressor_ndarray_unified(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_regressor_ndarray_native(tmp_path_factory):
+def ctb_regressor_ndarray_native(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = X[:, 0] + X[:, 1]
@@ -401,7 +458,9 @@ def ctb_regressor_ndarray_native(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def ctb_regressor_sparse_native(tmp_path_factory):
+def ctb_regressor_sparse_native(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, Any]:
     rng = np.random.default_rng(42)
     X = rng.standard_normal((N_TRAIN, N_FEATURES))
     y = X[:, 0] + X[:, 1]
@@ -409,7 +468,9 @@ def ctb_regressor_sparse_native(tmp_path_factory):
     model.fit(X, y)
 
     path = str(tmp_path_factory.mktemp("ctb") / "reg_sparse_native.luml")
-    ref = save_catboost(estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native")
+    ref = save_catboost(
+        estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native"
+    )
 
     X_test = sp.csr_matrix(rng.standard_normal((BATCH, N_FEATURES)))
     return {

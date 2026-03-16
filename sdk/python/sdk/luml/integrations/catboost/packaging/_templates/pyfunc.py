@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import numpy as np
 import pandas as pd
-from typing import Union
 from catboost import CatBoost  # type: ignore[import-untyped]
 from fnnx.utils import to_thread  # type: ignore[import-untyped]
 from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
@@ -30,8 +31,8 @@ class CatBoostFunc(PyFunc):
             self.fnnx_context.get_value("categorical_features") or {}
         )
 
-    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:
-        x : Union[np.ndarray, pd.DataFrame, csr_matrix]
+    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
+        x: np.ndarray | pd.DataFrame | csr_matrix
         if self.input_format == "native":
             payload = inputs["payload"]
             pool_input = payload["pool"]

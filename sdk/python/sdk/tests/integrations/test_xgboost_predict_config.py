@@ -50,8 +50,8 @@ def test_output_margin(xgb_ndarray_native, model, X_test):
 
     preds = out["xgboost_output"]["predictions"]
     assert np.allclose(preds, expected, atol=1e-5)
-    # raw logit scores are not bounded to [0, 1]
-    assert not all(0.0 <= p <= 1.0 for p in preds)
+    expected_proba = model.predict(xgb.DMatrix(X_test, feature_names=AUTO)).tolist()
+    assert not np.allclose(preds, expected_proba, atol=1e-5)
 
 
 def test_pred_leaf(xgb_ndarray_native, model, X_test):

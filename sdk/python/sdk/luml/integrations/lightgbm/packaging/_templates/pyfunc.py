@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import lightgbm as lgb
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -7,7 +9,7 @@ try:
 except ImportError:
     pd = None  # type: ignore[assignment]
 
-from typing import Union
+
 from fnnx.utils import to_thread  # type: ignore[import-untyped]
 from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
@@ -34,7 +36,7 @@ class LightGBMFunc(PyFunc):
         )
 
     def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
-        x : Union[np.ndarray, pd.DataFrame, csr_matrix]
+        x: np.ndarray | pd.DataFrame | csr_matrix
 
         if self.input_format == "native":
             payload = inputs["payload"]

@@ -1,7 +1,7 @@
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import pytest
-import lightgbm as lgb
 from fnnx.envs.uv import UvEnvManager
 from fnnx.handlers.stdio import StdIOHandler, StdIOHandlerConfig
 from fnnx.runtime import Runtime
@@ -42,6 +42,7 @@ def X_test():
 def test_raw_score(lgb_ndarray_native, model, X_test):
     """raw_score=True returns log-odds scores, not probabilities."""
     expected = model.predict(X_test, raw_score=True).tolist()
+    expected_proba = model.predict(X_test).tolist()
 
     out = _run(lgb_ndarray_native["ref"].path, {"payload": {
         "dataset": {"data": X_test.tolist()},
@@ -50,7 +51,7 @@ def test_raw_score(lgb_ndarray_native, model, X_test):
 
     preds = out["lightgbm_output"]["predictions"]
     assert np.allclose(preds, expected, atol=1e-5)
-    assert not all(0.0 <= p <= 1.0 for p in preds)
+    assert not np.allclose(preds, expected_proba, atol=1e-5)
 
 
 def test_num_iteration(lgb_ndarray_native, model, X_test):

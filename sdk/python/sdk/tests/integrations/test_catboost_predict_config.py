@@ -1,5 +1,5 @@
-import numpy as np
 import catboost as ctb
+import numpy as np
 import pytest
 from fnnx.envs.uv import UvEnvManager
 from fnnx.handlers.stdio import StdIOHandler, StdIOHandlerConfig

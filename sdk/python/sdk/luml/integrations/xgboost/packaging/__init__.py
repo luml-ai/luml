@@ -119,11 +119,6 @@ def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::xgboost:v1"]
 
 
-def _is_xgboost_sklearn_estimator(obj: object) -> bool:
-    if XGBModel is None:
-        return False
-    return isinstance(obj, XGBModel)
-
 
 def save_xgboost(  # noqa: C901
     estimator: "Union[Booster, xgb.XGBModel]",  # noqa: UP007
@@ -202,7 +197,7 @@ def save_xgboost(  # noqa: C901
             "Please provide the DMatrix, numpy array, or DataFrame used for training."
         )
 
-    is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
+    is_dataframe = isinstance(inputs, pd.DataFrame)
     is_ndarray = isinstance(inputs, np.ndarray)
     is_sparse = sp.issparse(inputs)
     if (
@@ -245,7 +240,7 @@ def save_xgboost(  # noqa: C901
             input_format=input_format,
         )
 
-        needs_pandas = pd is not None and isinstance(inputs, pd.DataFrame)
+        needs_pandas = isinstance(inputs, pd.DataFrame)
 
         add_dependencies(
             builder,

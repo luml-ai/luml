@@ -59,7 +59,7 @@ class _LGBMOutputSchema(BaseModel):
 def _add_io(
     builder: PyfuncBuilder,
     estimator: Booster,
-    inputs: Any,
+    inputs: Any,  # noqa: ANN401
     input_format: Literal["unified", "native"] = "unified",
 ) -> None:
     x, input_order, categorical_features = normalize_inputs(inputs, input_format)
@@ -187,8 +187,7 @@ def save_lightgbm(  # noqa: C901
 
         _add_io(builder, estimator, inputs, input_format=input_format)
 
-        is_dataframe = pd is not None and isinstance(inputs, pd.DataFrame)
-        needs_pandas = is_dataframe
+        needs_pandas = isinstance(inputs, pd.DataFrame)
 
         add_dependencies(
             builder,

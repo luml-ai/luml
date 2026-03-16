@@ -64,7 +64,7 @@ def _resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
 def _add_io(
     builder: PyfuncBuilder,
     estimator: CatBoost,
-    inputs: Any,
+    inputs: Any,  # noqa: ANN401
     input_format: Literal["unified", "native"] = "unified",
 ) -> None:
     x, input_order, categorical_features = normalize_inputs(inputs, input_format)

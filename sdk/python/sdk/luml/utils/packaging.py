@@ -1,29 +1,28 @@
-from typing import Type,Any, Literal
-
-from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
-from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
-    JSON,
-    NDJSON,
-)
+from typing import Any, Literal
 
 import numpy as np
-import pandas as pd
 import scipy.sparse as sp
-import xgboost as xgb  # type: ignore[import-untyped]
-
 from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
 from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
     JSON,
     NDJSON,
 )
+
+try:
+    import pandas as pd
+except ImportError:  # pragma: no cover - optional dependency
+    pd = None  # type: ignore[assignment]
+
+
 from luml.utils.deps import find_dependencies
 from luml.utils.imports import (
     extract_top_level_modules,
     get_version,
 )
 
+
 def resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
-    if isinstance(dtype, pd.CategoricalDtype):
+    if pd is not None and isinstance(dtype, pd.CategoricalDtype):
         return "str"
     if np.issubdtype(dtype, np.floating):
         return "float"
@@ -31,8 +30,8 @@ def resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
         return "int"
     return "str"
 
-def normalize_inputs(
-    inputs: Any,
+def normalize_inputs(  # noqa: C901
+    inputs: Any,  # noqa: ANN401
     input_format: str,
     allow_dmatrix: bool = False,
 ) -> tuple[object, list[str], dict[str, list[str]]]:
@@ -42,21 +41,30 @@ def normalize_inputs(
         input_order = list(inputs.columns)
         for col in input_order:
             if isinstance(inputs[col].dtype, pd.CategoricalDtype):
-                categorical_features[col] = list(inputs[col].dtype.categories)
+                categorical_features[col] = list(inputs[col].dtype.categories)  # type: ignore[union-attr]
         return inputs, input_order, categorical_features
 
-    if allow_dmatrix and isinstance(inputs, xgb.DMatrix):
-        feature_names = inputs.feature_names
-        if feature_names is None:
-            feature_names = [f"x{i}" for i in range(inputs.num_col())]
-        return inputs, list(feature_names), categorical_features
+    if allow_dmatrix:
+        try:
+            import xgboost as xgb  # type: ignore[import-untyped]
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError(
+                "xgboost is required when allow_dmatrix=True to handle DMatrix inputs."
+            ) from exc
+
+        if isinstance(inputs, xgb.DMatrix):
+            feature_names = inputs.feature_names
+            if feature_names is None:
+                feature_names = [f"x{i}" for i in range(inputs.num_col())]
+            return inputs, list(feature_names), categorical_features
+
 
     if sp.issparse(inputs):
         if input_format != "native":
             raise ValueError("Sparse requires input_format='native'")
-        if inputs.ndim < 2:
+        if inputs.ndim < 2:  # type: ignore[attr-defined]
             raise ValueError("Input must be at least 2D")
-        input_order = [f"x{i}" for i in range(inputs.shape[1])]
+        input_order = [f"x{i}" for i in range(inputs.shape[1])]  # type: ignore[attr-defined]
         return inputs, input_order, categorical_features
 
     # numpy fallback
@@ -68,7 +76,7 @@ def normalize_inputs(
 
 def add_unified_inputs(
     builder: PyfuncBuilder,
-    inputs: Any,
+    inputs: Any,  # noqa: ANN401
     input_order: list[str],
     categorical_features: dict[str, list[str]],
     feature_types: list[str] | None = None,
@@ -100,8 +108,8 @@ def add_unified_inputs(
 
 def add_unified_output(
     builder: PyfuncBuilder,
-    estimator: Any,
-    x: Any,
+    estimator: Any,  # noqa: ANN401
+    x: Any,  # noqa: ANN401
     output_name: str = "y",
 ) -> None:
     y_pred = estimator.predict(x)
@@ -121,8 +129,8 @@ def add_unified_output(
 
 def add_native_io(
     builder: PyfuncBuilder,
-    input_schema: Any,
-    output_schema: Any,
+    input_schema: Any,  # noqa: ANN401
+    output_schema: Any,  # noqa: ANN401
     output_name: str,
 ) -> None:
     builder.define_dtype("ext::input", input_schema)
@@ -191,7 +199,7 @@ def add_dependencies(
     for module in local_dependencies:
         builder.add_module(module)
 
-def is_sklearn_estimator(obj: object, estimator_cls: Type | None) -> bool:
+def is_sklearn_estimator(obj: object, estimator_cls: type | None) -> bool:
     if estimator_cls is None:
         return False
     return isinstance(obj, estimator_cls)
