@@ -25,15 +25,18 @@ export interface AnnotationSummary {
   expectations: AnnotationSummaryExpectationItem[]
 }
 
-interface AnnotationSummaryFeedbackItem {
+export interface AnnotationSummaryFeedbackItem {
   name: string
   total: number
   counts: Record<string, number>
 }
 
-interface AnnotationSummaryExpectationItem {
+export interface AnnotationSummaryExpectationItem {
   name: string
   total: number
+  positive: number
+  negative: number
+  firstValue: string | number | null
 }
 
 export type AddAnnotationPayload = Omit<Annotation, 'id' | 'created_at' | 'user'>

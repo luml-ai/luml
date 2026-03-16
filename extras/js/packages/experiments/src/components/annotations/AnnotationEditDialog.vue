@@ -27,8 +27,9 @@ import UiRightDialog from '../ui/UiRightDialog.vue'
 import AnnotationForm from './form/AnnotationForm.vue'
 
 interface Props {
-  artifactId?: string
+  artifactId: string
   data: Annotation | null
+  type: 'eval' | 'span'
 }
 
 const props = defineProps<Props>()
@@ -49,13 +50,20 @@ async function onSubmit(data: UpdateAnnotationPayload) {
   if (loading.value) return
   loading.value = true
   try {
-    if (!props.data || !props.artifactId) {
+    if (!props.data) {
       throw new Error('Annotation data not found')
     }
-    await annotationsStore.updateEvalAnnotation(props.artifactId, props.data.id, {
-      value: data.value,
-      rationale: data.rationale,
-    })
+    if (props.type === 'eval') {
+      await annotationsStore.updateEvalAnnotation(props.artifactId, props.data.id, {
+        value: data.value,
+        rationale: data.rationale,
+      })
+    } else {
+      await annotationsStore.updateSpanAnnotation(props.artifactId, props.data.id, {
+        value: data.value,
+        rationale: data.rationale,
+      })
+    }
     visible.value = false
     toast.add(simpleSuccessToast('Annotation updated successfully'))
   } catch (error) {

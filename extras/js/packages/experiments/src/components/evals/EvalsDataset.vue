@@ -107,7 +107,6 @@ onBeforeMount(async () => {
   annotationsSummary.value = await annotationsStore.getEvalsDatasetAnnotationsSummary(
     props.datasetId,
   )
-  console.log(annotationsSummary.value)
 })
 
 watch(filter, debouncedOnFilterChange)

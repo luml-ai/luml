@@ -1,3 +1,7 @@
 .p-card {
   border: 1px solid var(--p-content-border-color);
 }
+
+.p-datatable-tbody .p-row-even {
+  background-color: var(--p-card-background);
+}

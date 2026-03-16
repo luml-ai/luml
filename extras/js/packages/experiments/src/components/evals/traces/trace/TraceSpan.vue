@@ -19,7 +19,7 @@
           <component :is="spanTypeData.icon" :size="16" :color="spanTypeData.color" class="icon" />
           <span>{{ data.name }}</span>
         </h4>
-        <AnnotationsTag :count="3" />
+        <AnnotationsTag v-if="data.annotation_count" :count="data.annotation_count" />
       </div>
       <div class="info">
         <History :size="12" />

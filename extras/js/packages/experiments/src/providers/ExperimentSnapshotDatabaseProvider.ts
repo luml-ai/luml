@@ -6,6 +6,7 @@ import type {
   ExperimentSnapshotProvider,
   ExperimentSnapshotStaticParams,
   GetEvalsByDatasetParams,
+  GetTracesParams,
   ModelScores,
   ModelSnapshot,
   ScoreInfo,
@@ -16,6 +17,13 @@ import type {
 import { safeParse } from '../helpers/helpers'
 import { loadAsync as loadZipAsync } from 'jszip'
 import initSqlJs from 'sql.js'
+import type { Trace } from './ExperimentSnapshotApiProvider.interface'
+import {
+  type Annotation,
+  AnnotationKind,
+  type AnnotationSummary,
+  AnnotationValueType,
+} from '@/components/annotations/annotations.interface'
 
 interface ModelInfo {
   modelId: string
@@ -25,6 +33,7 @@ interface ModelInfo {
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
   private _modelsSnapshots: ModelSnapshot[] | null = null
   private evalsDatasetsRequestParams: Record<string, number> = {}
+  private tracesRequestParams: Record<string, number> = {}
 
   private get modelsSnapshots() {
     if (!this._modelsSnapshots) throw new Error('Models snapshots not initialized')
@@ -71,19 +80,19 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
-    return this.modelsSnapshots
-      .map((snapshot) => {
-        const database = snapshot.database
-        const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
-        this.evalsDatasetsRequestParams[params.dataset_id] = page + 1
-        const evals = this.getDatabaseEvalsByDatasetId(database, {
-          ...params,
-          page,
-          modelId: snapshot.modelId,
-        })
-        return evals
+    const evalsPromises = this.modelsSnapshots.map(async (snapshot) => {
+      const database = snapshot.database
+      const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
+      this.evalsDatasetsRequestParams[params.dataset_id] = page + 1
+      const results = await this.getDatabaseEvalsByDatasetId(database, {
+        ...params,
+        page,
+        modelId: snapshot.modelId,
       })
-      .flat()
+      return results
+    })
+    const evals = await Promise.all(evalsPromises)
+    return evals.flat()
   }
 
   async resetEvalsDatasetsRequestParams() {
@@ -96,7 +105,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   async getTraceSpans(modelId: string, traceId: string) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
-    if (!db) return []
+    if (!db) throw new Error('Database not found')
     const stmt = db.prepare(`
       SELECT trace_id, span_id, parent_span_id, name, kind,
              start_time_unix_nano, end_time_unix_nano,
@@ -121,17 +130,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return rows as unknown as SpansListType
   }
 
-  async getUniqueTraceIds(modelId: string) {
-    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === modelId)?.database
-    if (!db) return []
-    const queryResult = db.exec('SELECT DISTINCT trace_id FROM spans')
-    const rows = queryResult[0]?.values || []
-    return rows.map((row) => this.parseValue(row[0], 'string'))
-  }
-
   async getTraceId(args: SpansParams) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === args.modelId)?.database
-    if (!db) return null
+    if (!db) throw new Error('Database not found')
     const bridge = db.exec(
       `SELECT trace_id FROM eval_traces_bridge WHERE eval_dataset_id = '${args.datasetId}' AND eval_id = '${args.evalId}' LIMIT 1`,
     )
@@ -160,19 +161,6 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       }
     }
     return this.sortSpans(roots)
-  }
-
-  sortSpans(tree: TraceSpan[]): TraceSpan[] {
-    return tree
-      .sort((a, b) => {
-        return a.start_time_unix_nano - b.start_time_unix_nano
-      })
-      .map((span) => {
-        return {
-          ...span,
-          children: this.sortSpans(span.children),
-        }
-      })
   }
 
   async getEvalsColumns(datasetId: string): Promise<EvalsColumns> {
@@ -249,14 +237,202 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   async getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
     const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
-    return []
+    if (!db) throw new Error('Database not found')
+    const hasAnnotations = this.isDatabaseHasAnnotations(db)
+    if (!hasAnnotations) return []
+    const queryResult = db.exec(
+      `
+      SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
+      FROM eval_annotations
+      WHERE eval_id = '${evalId}' AND dataset_id = '${datasetId}'
+      `,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.annotationFullData(row))
   }
 
   async getEvalsDatasetAnnotationsSummary(datasetId: string) {
-    return {
-      feedback: [],
-      expectations: [],
+    const snapshotsPromises = this.modelsSnapshots.map(async (snapshot) => {
+      const database = snapshot.database
+      const artifactId = snapshot.modelId
+      const evalsIds = this.getEvalsIdsByDatabase(database, datasetId)
+      const promises = evalsIds.map(async (evalId) => {
+        return this.getEvalAnnotations(artifactId, datasetId, evalId)
+      })
+      const annotationsByEval = await Promise.all(promises)
+      return annotationsByEval.flat()
+    })
+    const annotationsByArtifact = await Promise.all(snapshotsPromises)
+    const annotations = annotationsByArtifact.flat()
+    return this.annotationsSummary(annotations)
+  }
+
+  async getTraces(params: GetTracesParams) {
+    const traces = this.modelsSnapshots
+      .map((snapshot) => {
+        const page = this.tracesRequestParams[snapshot.modelId] || 1
+        this.tracesRequestParams[snapshot.modelId] = page + 1
+        const artifactTraces = this.getTracesByDatabase(snapshot.database, {
+          ...params,
+          page,
+        })
+        return artifactTraces
+      })
+      .flat()
+    return traces
+  }
+
+  async getEvalById(artifactId: string, evalId: string): Promise<EvalsInfo> {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
+    if (!db) throw new Error('Database not found')
+    const queryResult = db.exec(
+      `SELECT id, dataset_id, inputs, outputs, refs, scores, metadata FROM evals WHERE id = '${evalId}'`,
+    )
+    const row = queryResult[0]?.values[0]
+    if (!row) throw new Error('Eval not found')
+    const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
+    const annotationsList = await this.getEvalAnnotations(
+      artifactId,
+      this.parseValue(dataset_id, 'string'),
+      evalId,
+    )
+    const annotations = this.annotationsSummary(annotationsList)
+    return this.prepareEvalData({
+      id,
+      dataset_id,
+      inputs,
+      outputs,
+      refs,
+      scores,
+      metadata,
+      modelId: artifactId,
+      annotations,
+    })
+  }
+
+  async resetTracesRequestParams(artifactId?: string) {
+    if (artifactId) {
+      delete this.tracesRequestParams[artifactId]
+    } else {
+      this.tracesRequestParams = {}
     }
+  }
+
+  async getSpanAnnotations(
+    artifactId: string,
+    traceId: string,
+    spanId: string,
+  ): Promise<Annotation[]> {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
+    if (!db) throw new Error('Database not found')
+    const hasAnnotations = this.isDatabaseHasAnnotations(db)
+    if (!hasAnnotations) return []
+    const queryResult = db.exec(
+      `SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale FROM span_annotations WHERE trace_id = '${traceId}' AND span_id = '${spanId}'`,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [id, name, annotation_kind, value, user, value_type, created_at, rationale] = row
+      return {
+        id: this.parseValue(id, 'string'),
+        name: this.parseValue(name, 'string'),
+        annotation_kind: this.parseValue(annotation_kind, 'string'),
+        value_type: this.parseValue(value_type, 'string') as AnnotationValueType,
+        value: value as number | boolean | string,
+        user: this.parseValue(user, 'string'),
+        created_at: this.parseValue(created_at, 'string'),
+        rationale: this.parseValue(rationale, 'string'),
+      }
+    })
+  }
+
+  async getTracesAnnotationSummary(artifactId: string) {
+    const db = this.modelsSnapshots.find((snapshot) => snapshot.modelId === artifactId)?.database
+    if (!db) throw new Error('Database not found')
+    const hasAnnotations = this.isDatabaseHasAnnotations(db)
+    if (!hasAnnotations) return { feedback: [], expectations: [] }
+    const queryResult = db.exec(
+      `SELECT name, value, annotation_kind, value_type FROM span_annotations`,
+    )
+    const rows = queryResult[0]?.values || []
+    const annotations = rows.map((row) =>
+      this.annotationsData({
+        name: row[0],
+        value: row[1],
+        annotation_kind: row[2],
+        value_type: row[3],
+      }),
+    )
+    const summary = this.annotationsSummary(annotations)
+    return summary
+  }
+
+  private sortSpans(tree: TraceSpan[]): TraceSpan[] {
+    return tree
+      .sort((a, b) => {
+        return a.start_time_unix_nano - b.start_time_unix_nano
+      })
+      .map((span) => {
+        return {
+          ...span,
+          children: this.sortSpans(span.children),
+        }
+      })
+  }
+
+  private getTracesByDatabase(
+    database: Database,
+    params: GetTracesParams & { page: number },
+  ): Trace[] {
+    const offset = (params.page - 1) * params.limit
+    const queryResult = database.exec(
+      `
+      SELECT
+        trace_id,
+        (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
+        COUNT(*) AS span_count,
+        MIN(created_at) AS created_at,
+        CASE
+          WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) IS NULL THEN 3
+          WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 2 THEN 2
+          WHEN MAX(CASE WHEN parent_span_id IS NULL THEN status_code END) = 1 THEN 1
+          ELSE 0
+        END AS state
+      FROM spans
+      ${params.search ? `WHERE trace_id LIKE '%${params.search}%'` : ''}
+      GROUP BY trace_id
+      ORDER BY ${params.sort_by} ${params.order}
+      LIMIT ${params.limit}
+      OFFSET ${offset}
+      `,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [trace_id, execution_time, span_count, created_at, state] = row
+      const traceId = this.parseValue(trace_id, 'string')
+      const evals = this.getEvalsByTraceId(database, traceId)
+      return {
+        trace_id: traceId,
+        execution_time: this.parseValue(execution_time, 'float'),
+        span_count: this.parseValue(span_count, 'int'),
+        created_at: this.parseValue(created_at, 'string'),
+        state: this.parseValue(state, 'int'),
+        evals,
+        annotations: this.getTraceAnnotations(database, traceId),
+      }
+    })
+  }
+
+  private getEvalsByTraceId(database: Database, traceId: string): string[] {
+    const queryResult = database.exec(
+      `
+      SELECT eval_id
+      FROM eval_traces_bridge
+      WHERE trace_id = '${traceId}'
+      `,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
   }
 
   private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
@@ -319,8 +495,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       `,
     )
     const rows = queryResult[0]?.values || []
-    return rows.map((row) => {
+    const promises = rows.map(async (row) => {
       const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
+      const annotationsList = await this.getEvalAnnotations(
+        modelId,
+        this.parseValue(dataset_id, 'string'),
+        this.parseValue(id, 'string'),
+      )
+      const annotations = this.annotationsSummary(annotationsList)
       return this.prepareEvalData({
         id,
         dataset_id,
@@ -330,8 +512,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         scores,
         metadata,
         modelId,
+        annotations,
       })
     })
+    return Promise.all(promises)
   }
 
   private prepareEvalData({
@@ -343,7 +527,18 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     scores,
     metadata,
     modelId,
-  }: Record<string, SqlValue | undefined>) {
+    annotations,
+  }: {
+    id: SqlValue | undefined
+    dataset_id: SqlValue | undefined
+    inputs: SqlValue | undefined
+    outputs: SqlValue | undefined
+    refs: SqlValue | undefined
+    scores: SqlValue | undefined
+    metadata: SqlValue | undefined
+    modelId: string
+    annotations: AnnotationSummary | null
+  }) {
     return {
       id: safeParse(id) || '',
       dataset_id: safeParse(dataset_id) || '',
@@ -353,6 +548,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       scores: safeParse(scores) || {},
       metadata: safeParse(metadata) || {},
       modelId: safeParse(modelId) || '',
+      annotations,
     }
   }
 
@@ -403,5 +599,139 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     if (!dbFile) throw new Error('exp.db not found')
     const content = await dbFile.async('uint8array')
     return new SQL.Database(content)
+  }
+
+  private isDatabaseHasAnnotations(database: Database) {
+    const version = database.exec('PRAGMA user_version')[0]?.values[0]
+    if (!version) return false
+    const versionNumber = this.parseValue(version, 'int')
+    return versionNumber >= 1
+  }
+
+  private getTraceAnnotations(database: Database, traceId: string) {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return { feedback: [], expectations: [] }
+    const queryResult = database.exec(
+      `
+      SELECT name, value, annotation_kind, value_type
+      FROM span_annotations
+      WHERE trace_id = '${traceId}'
+      ORDER BY name
+    `,
+    )
+    const rows = queryResult[0]?.values || []
+    const annotations = rows.map((row) =>
+      this.annotationsData({
+        name: row[0],
+        value: row[1],
+        value_type: row[3],
+        annotation_kind: row[2],
+      }),
+    )
+    return this.annotationsSummary(annotations)
+  }
+
+  private formattedAnnotationValue(value: SqlValue | undefined, value_type: AnnotationValueType) {
+    if (value_type === AnnotationValueType.INT) return this.parseValue(value, 'int')
+    if (value_type === AnnotationValueType.BOOL) return this.parseValue(value, 'bool')
+    return this.parseValue(value, 'string')
+  }
+
+  private annotationsData(data: {
+    name: SqlValue | undefined
+    value: SqlValue | undefined
+    value_type: SqlValue | undefined
+    annotation_kind: SqlValue | undefined
+  }) {
+    const formattedValue = this.formattedAnnotationValue(
+      data.value,
+      data.value_type as AnnotationValueType,
+    )
+    return {
+      name: this.parseValue(data.name, 'string'),
+      value: formattedValue,
+      annotation_kind: this.parseValue(data.annotation_kind, 'string'),
+      value_type: this.parseValue(data.value_type, 'string') as AnnotationValueType,
+    }
+  }
+
+  private annotationFullData(row: SqlValue[]): Annotation {
+    const [id, name, annotation_kind, value, user, value_type, created_at, rationale] = row
+    return {
+      id: this.parseValue(id, 'string'),
+      name: this.parseValue(name, 'string'),
+      annotation_kind: this.parseValue(annotation_kind, 'string'),
+      value_type: this.parseValue(value_type, 'string') as AnnotationValueType,
+      value: value as number | boolean | string,
+      user: this.parseValue(user, 'string'),
+      created_at: this.parseValue(created_at, 'string'),
+      rationale: this.parseValue(rationale, 'string'),
+    }
+  }
+
+  private annotationsSummary(
+    annotations: {
+      name: string
+      value: string | number | boolean
+      value_type: AnnotationValueType
+      annotation_kind: AnnotationKind
+    }[],
+  ): AnnotationSummary {
+    const results = annotations.reduce(
+      (acc, annotation) => {
+        if (annotation.annotation_kind === AnnotationKind.FEEDBACK) {
+          const current = acc.feedback[annotation.name] || { total: 0, counts: {} }
+          current.total++
+          const key = annotation.value ? 'true' : 'false'
+          const currentCount = current.counts[key] || 0
+          current.counts[key] = currentCount + 1
+          acc.feedback[annotation.name] = current
+        } else {
+          const current = acc.expectations[annotation.name] || {
+            total: 0,
+            positive: 0,
+            negative: 0,
+            firstValue: null,
+          }
+          current.total++
+          if (annotation.value === true) {
+            current.positive++
+          } else if (annotation.value === false) {
+            current.negative++
+          } else {
+            current.firstValue = annotation.value
+          }
+          acc.expectations[annotation.name] = current
+        }
+        return acc
+      },
+      { feedback: {}, expectations: {} } as {
+        feedback: { [key: string]: { total: number; counts: { [key: string]: number } } }
+        expectations: {
+          [key: string]: {
+            total: number
+            positive: number
+            negative: number
+            firstValue: string | number | null
+          }
+        }
+      },
+    )
+    return {
+      feedback: Object.entries(results.feedback).map(([name, data]) => ({
+        name,
+        ...data,
+      })),
+      expectations: Object.entries(results.expectations).map(([name, data]) => ({
+        name,
+        ...data,
+      })),
+    }
+  }
+
+  private getEvalsIdsByDatabase(database: Database, datasetId: string) {
+    const queryResult = database.exec(`SELECT id FROM evals WHERE dataset_id = '${datasetId}'`)
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => this.parseValue(row[0], 'string'))
   }
 }

@@ -6,17 +6,18 @@ import type {
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useEvalsStore } from './evals'
+import type { AddEvalAnnotationParams, AddSpanAnnotationParams } from './annotations.interface'
 
 export const useAnnotationsStore = defineStore('annotations', () => {
   const evalStore = useEvalsStore()
 
   const isEditAvailable = ref(false)
 
-  const addAnnotationData = ref<{ artifactId: string; datasetId: string; evalId: string } | null>(
-    null,
-  )
+  const addAnnotationData = ref<AddEvalAnnotationParams | AddSpanAnnotationParams | null>(null)
 
   const evalAnnotations = ref<Annotation[]>([])
+
+  const spanAnnotations = ref<Annotation[]>([])
 
   const isAddDialogVisible = computed(() => {
     return !!addAnnotationData.value
@@ -30,24 +31,29 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     isEditAvailable.value = false
   }
 
-  function openAddDialog(artifactId: string, datasetId: string, evalId: string) {
-    addAnnotationData.value = { artifactId, datasetId, evalId }
+  function openAddDialog(params: AddEvalAnnotationParams | AddSpanAnnotationParams) {
+    addAnnotationData.value = params
   }
 
   function closeAddDialog() {
     addAnnotationData.value = null
   }
 
-  async function addEvalAnnotation(
-    artifactId: string,
-    datasetId: string,
-    evalId: string,
-    data: AddAnnotationPayload,
-  ) {
+  async function addEvalAnnotation(data: AddAnnotationPayload) {
     const provider = evalStore.getProvider
 
     if (!provider.createEvalAnnotation) {
       throw new Error('Create annotation method is not available')
+    }
+
+    if (!addAnnotationData.value) {
+      throw new Error('Add annotation data is not set')
+    }
+
+    const { artifactId, datasetId, evalId } = addAnnotationData.value as AddEvalAnnotationParams
+
+    if (!artifactId || !datasetId || !evalId) {
+      throw new Error('Artifact ID, dataset ID and eval ID are required')
     }
 
     const response = await provider.createEvalAnnotation(artifactId, datasetId, evalId, data)
@@ -98,6 +104,64 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     return evalStore.getProvider.getEvalsDatasetAnnotationsSummary(datasetId)
   }
 
+  async function addSpanAnnotation(data: AddAnnotationPayload) {
+    const provider = evalStore.getProvider
+    if (!provider.createSpanAnnotation) {
+      throw new Error('Create span annotation method is not available')
+    }
+    if (!addAnnotationData.value) {
+      throw new Error('Add annotation data is not set')
+    }
+
+    const { artifactId, traceId, spanId } = addAnnotationData.value as AddSpanAnnotationParams
+
+    if (!artifactId || !traceId || !spanId) {
+      throw new Error('Artifact ID, trace ID and span ID are required')
+    }
+    const response = await provider.createSpanAnnotation(artifactId, traceId, spanId, data)
+    spanAnnotations.value.push(response)
+  }
+
+  async function updateSpanAnnotation(
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) {
+    const provider = evalStore.getProvider
+    if (!provider.updateSpanAnnotation) {
+      throw new Error('Update span annotation method is not available')
+    }
+    const response = await provider.updateSpanAnnotation(artifactId, annotationId, data)
+    const index = spanAnnotations.value.findIndex((item) => item.id === annotationId)
+    if (index !== -1) {
+      spanAnnotations.value[index] = response
+    }
+  }
+
+  async function getSpanAnnotations(artifactId: string, traceId: string, spanId: string) {
+    spanAnnotations.value = await evalStore.getProvider.getSpanAnnotations(
+      artifactId,
+      traceId,
+      spanId,
+    )
+  }
+
+  async function deleteSpanAnnotation(artifactId: string, annotationId: string) {
+    const provider = evalStore.getProvider
+    if (!provider.deleteSpanAnnotation) {
+      throw new Error('Delete span annotation method is not available')
+    }
+    await provider.deleteSpanAnnotation(artifactId, annotationId)
+    const index = spanAnnotations.value.findIndex((item) => item.id === annotationId)
+    if (index !== -1) {
+      spanAnnotations.value.splice(index, 1)
+    }
+  }
+
+  async function getTracesAnnotationSummary(artifactId: string) {
+    return evalStore.getProvider.getTracesAnnotationSummary(artifactId)
+  }
+
   return {
     isEditAvailable,
     allowEdit,
@@ -111,5 +175,11 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     evalAnnotations,
     deleteEvalAnnotation,
     getEvalsDatasetAnnotationsSummary,
+    addSpanAnnotation,
+    updateSpanAnnotation,
+    getSpanAnnotations,
+    deleteSpanAnnotation,
+    getTracesAnnotationSummary,
+    spanAnnotations,
   }
 })

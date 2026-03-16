@@ -21,8 +21,8 @@ import ComparisonModelsList from './components/comparison/ComparisonModelsList.v
 import EvalsDatasetsList from './components/evals/EvalsDatasetsList.vue'
 import DynamicMetrics from './components/dynamic-metrics/DynamicMetrics.vue'
 import TracesDialog from './components/evals/traces/TracesDialog.vue'
-import TracesInfoDialog from './components/evals/traces/TracesInfoDialog.vue'
 import TraceDialog from './components/evals/traces/trace/TraceDialog.vue'
+import TracesWrapper from './components/traces/TracesWrapper.vue'
 
 export type {
   ExperimentSnapshotProvider,
@@ -46,9 +46,9 @@ export {
   EvalsDatasetsList,
   provideTheme,
   TracesDialog,
-  TracesInfoDialog,
   TraceDialog,
   useEvalsStore,
   ExperimentSnapshotApiProvider,
   useAnnotationsStore,
+  TracesWrapper,
 }

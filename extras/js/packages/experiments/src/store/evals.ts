@@ -13,7 +13,7 @@ export const useEvalsStore = defineStore('evals', () => {
   const currentEvalData = ref<EvalsInfo[] | null>(null)
   const provider = ref<ExperimentSnapshotProvider | null>(null)
   const selectedEval = ref<{ datasetId: string; evalId: string } | undefined>(undefined)
-  const selectedTrace = ref<BaseTraceInfo | null>(null)
+  const selectedTrace = ref<(BaseTraceInfo & { artifactId: string }) | null>(null)
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
@@ -76,16 +76,12 @@ export const useEvalsStore = defineStore('evals', () => {
     )
   }
 
-  function setSelectedTrace(trace: BaseTraceInfo) {
-    selectedTrace.value = trace
+  function setSelectedTrace(trace: BaseTraceInfo, artifactId: string) {
+    selectedTrace.value = { ...trace, artifactId }
   }
 
   function resetSelectedTrace() {
     selectedTrace.value = null
-  }
-
-  async function getUniqueTraceIds(modelId: string) {
-    return getProvider.value.getUniqueTraceIds(modelId)
   }
 
   return {
@@ -101,7 +97,6 @@ export const useEvalsStore = defineStore('evals', () => {
     setSelectedTrace,
     resetSelectedTrace,
     selectedTrace,
-    getUniqueTraceIds,
     getTraceSpansTree,
     resetProvider,
     getProvider,

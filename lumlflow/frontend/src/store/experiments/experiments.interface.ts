@@ -1,3 +1,5 @@
+import type { AnnotationSummary } from '@/api/api.interface'
+
 export enum TraceStateEnum {
   UNSPECIFIED = 0,
   OK = 1,
@@ -61,8 +63,7 @@ export interface Trace {
   created_at: string
   state: TraceStateEnum
   evals: string[]
-  // root_span: Span | null
-  // spans: Span[]
+  annotations: AnnotationSummary | null
 }
 
 export interface Span {
@@ -79,6 +80,7 @@ export interface Span {
   events: Record<string, string> | null
   links: Record<string, string> | null
   trace_flags: number | null
+  annotation_count: number
 }
 
 export interface TraceDetails {
@@ -97,6 +99,7 @@ export interface Eval {
   scores: Record<string, string | number>
   metadata: Record<string, string | number>
   trace_ids: string[]
+  annotations: AnnotationSummary | null
 }
 
 export interface EvalScores {
