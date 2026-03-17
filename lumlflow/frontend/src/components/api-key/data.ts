@@ -3,7 +3,7 @@ import z from 'zod'
 
 export const DIALOG_PT: DialogPassThroughOptions = {
   root: {
-    class: 'w-[600px]',
+    class: 'w-[600px] rounded-lg!',
   },
   header: {
     class: 'text-xl uppercase',
