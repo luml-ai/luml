@@ -98,7 +98,6 @@
       <Button type="submit" form="upload-form" label="Export" fluid rounded />
     </template>
   </Dialog>
-  <ApiKeyModal v-model:visible="apiKeyModalVisible" />
 </template>
 
 <script setup lang="ts">
@@ -120,7 +119,6 @@ import { DIALOG_PT, resolver, selectTypeOptions } from './data'
 import { useAuthStore } from '@/store/auth'
 import { errorToast } from '@/toasts'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
-import ApiKeyModal from '../api-key/ApiKeyModal.vue'
 
 const authStore = useAuthStore()
 const toast = useToast()
@@ -139,7 +137,6 @@ const initialValues = reactive({
 const formRef = ref<FormInstance>()
 
 const visible = defineModel<boolean>('visible')
-const apiKeyModalVisible = ref<boolean>(false)
 const loading = ref<boolean>(false)
 
 const organizations = ref<unknown[]>([
@@ -179,16 +176,12 @@ function openModal() {
   visible.value = true
 }
 
-function openApiKeyModal() {
-  apiKeyModalVisible.value = true
-}
-
 async function uploadClick() {
   loading.value = true
   try {
     const isAuthenticated = await authStore.checkAuth()
     if (isAuthenticated) openModal()
-    else openApiKeyModal()
+    else authStore.showApiKeyModal()
   } catch (error) {
     toast.add(errorToast(error))
   } finally {
@@ -209,10 +202,6 @@ watch(
     formRef.value?.setFieldValue('collection', null)
   },
 )
-
-watch(apiKeyModalVisible, (v) => {
-  if (!v && authStore.isAuthenticated) openModal()
-})
 </script>
 
 <style scoped></style>
