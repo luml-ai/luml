@@ -24,6 +24,7 @@ import type {
   DatasetListProps,
   FilterInterface,
   InitialDatasetParamsType,
+  SortParams,
 } from './evals.interface'
 import { onMounted, onUnmounted, ref, toRaw } from 'vue'
 import { useEvalsStore } from '../../store/evals'
@@ -58,7 +59,7 @@ async function getNextPage(datasetId: string, reset: boolean = false) {
     if (reset) {
       dataset.data = []
     }
-    dataset.data.push(...newData)
+    dataset.data = [...dataset.data, ...newData]
   } catch (error: unknown) {
     const messageText = error instanceof Error ? error.message : 'Failed to load evals dataset'
     toast.add(simpleErrorToast(messageText))
@@ -101,10 +102,10 @@ function onFilterChange(datasetId: string, filter: FilterInterface) {
   getNextPage(datasetId, true)
 }
 
-function onSort(datasetId: string, sortParams: { sortField: string; sortOrder: 'asc' | 'desc' }) {
+function onSort(datasetId: string, sortParams: SortParams) {
   const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
   if (!dataset) return
-  dataset.params.sort_by = sortParams.sortField as GetEvalsByDatasetParams['sort_by']
+  dataset.params.sort_by = sortParams.sortField
   dataset.params.order = sortParams.sortOrder
   getNextPage(datasetId, true)
 }

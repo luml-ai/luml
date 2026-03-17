@@ -119,6 +119,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     return this.call<EvalsInfo[]>('getNextEvalsByDatasetId', [params])
   }
 
+  getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>) {
+    return this.call<EvalsInfo[]>('getAllDatasetEvals', [params])
+  }
+
   getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
     return this.call<Annotation[]>('getEvalAnnotations', [artifactId, datasetId, evalId])
   }
@@ -129,6 +133,10 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getTraces(params: GetTracesParams) {
     return this.call<Trace[]>('getTraces', [params])
+  }
+
+  getAllTraces(params: Omit<GetTracesParams, 'limit'>) {
+    return this.call<Trace[]>('getAllTraces', [params])
   }
 
   resetTracesRequestParams(artifactId?: string) {

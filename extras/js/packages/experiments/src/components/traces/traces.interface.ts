@@ -1,10 +1,10 @@
 import type { AnnotationSummary } from '../annotations/annotations.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
-import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
 
 export interface ToolbarProps {
   columns: string[]
   selectedColumns: string[]
+  exportLoading: boolean
 }
 
 export interface ToolbarEmits {
@@ -14,7 +14,7 @@ export interface ToolbarEmits {
 }
 
 export interface TableProps {
-  data: Trace[]
+  data: Record<string, any>[]
   selectedColumns: string[]
   artifactId: string
   annotationsSummary: AnnotationSummary

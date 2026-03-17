@@ -130,3 +130,15 @@ export const getLastUpdateText = (date: string | number | Date) => {
 
   return `Last updated ${diffYear} year${diffYear === 1 ? '' : 's'} ago`
 }
+
+export const formattedDate = (date: string | number | Date) => {
+  return new Date(date).toLocaleString('en-US', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  })
+}
