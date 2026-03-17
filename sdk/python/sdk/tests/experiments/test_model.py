@@ -17,6 +17,8 @@ from tests.conftest import _meta_db
 
 np = pytest.importorskip("numpy")
 
+np = pytest.importorskip("numpy")
+
 
 def _mock_flavor(
     monkeypatch: pytest.MonkeyPatch,
