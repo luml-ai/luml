@@ -2,7 +2,7 @@
   <div class="table-wrapper">
     <DataTable
       ref="tableRef"
-      :value="tableData"
+      :value="data"
       show-gridlines
       sort-mode="single"
       :scrollable="useScroll"
@@ -287,8 +287,6 @@ import {
   useToast,
 } from 'primevue'
 import type { TableEmits, TableProps } from './traces.interface'
-import type { FeedbackColumnData } from '../table/feedback-column/interface'
-import type { ExpectationColumnData } from '../table/ecpectation-column/interface'
 import { computed, ref } from 'vue'
 import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
 import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
@@ -308,43 +306,6 @@ const toast = useToast()
 
 const tableRef = ref()
 const isSubheaderVisible = ref(false)
-
-const tableData = computed(() => {
-  return props.data.map((trace) => {
-    const feedbackObject =
-      trace.annotations?.feedback.reduce(
-        (acc, item) => {
-          acc[item.name] = {
-            isFeedbackColumn: true,
-            positiveCount: item.counts['true'] ?? 0,
-            negativeCount: item.counts['false'] ?? 0,
-          }
-          return acc
-        },
-        {} as Record<string, FeedbackColumnData & { isFeedbackColumn: true }>,
-      ) ?? {}
-
-    const expectationObject =
-      trace.annotations?.expectations.reduce(
-        (acc, item) => {
-          acc[item.name] = {
-            isExpectationColumn: true,
-            total: item.total,
-            positive: item.positive,
-            negative: item.negative,
-            value: item.value,
-          }
-          return acc
-        },
-        {} as Record<string, ExpectationColumnData & { isExpectationColumn: true }>,
-      ) ?? {}
-    return {
-      ...trace,
-      ...feedbackObject,
-      ...expectationObject,
-    }
-  })
-})
 
 const visibleFeedbackColumns = computed(() => {
   return props.annotationsSummary.feedback

@@ -46,6 +46,7 @@ export interface TableProps {
   data: EvalsInfo[]
   modelsInfo: ModelsInfo
   annotationsSummary: AnnotationSummary
+  datasetId: string
 }
 
 export interface TableColumn {
@@ -56,6 +57,7 @@ export interface TableColumn {
 export interface ToolbarProps {
   columns: string[]
   selectedColumns: string[]
+  exportLoading: boolean
 }
 
 export interface ToolbarEmits {
@@ -64,6 +66,6 @@ export interface ToolbarEmits {
 }
 
 export interface SortParams {
-  sortField: string
+  sortField: GetEvalsByDatasetParams['sort_by']
   sortOrder: 'asc' | 'desc'
 }

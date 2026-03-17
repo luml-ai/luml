@@ -4,13 +4,14 @@
     :columns="allColumns"
     :selected-columns="selectedColumns"
     scrollable
+    :export-loading="exportLoading"
     @edit="setSelectedColumns"
-    @export="exportTable"
+    @export="exportCSV"
   ></EvalsToolbar>
   <div class="table-wrapper">
     <DataTable
       ref="tableRef"
-      :value="flatData"
+      :value="tableData"
       show-gridlines
       row-group-mode="rowspan"
       :group-rows-by="isMultipleModels ? 'id' : undefined"
@@ -155,14 +156,7 @@
             v-else-if="slotProps.data[column]?.isExpectationColumn"
             :data="slotProps.data[column]"
           ></ExpectationColumn>
-          <div
-            v-else-if="slotProps.data[column]"
-            v-tooltip.top="String(slotProps.data[column])"
-            class="cell"
-          >
-            {{ slotProps.data[column] }}
-          </div>
-          <div v-else>-</div>
+          <CellWithTooltip v-else :value="slotProps.data[column]"></CellWithTooltip>
         </template>
       </Column>
     </DataTable>
@@ -171,29 +165,18 @@
 
 <script setup lang="ts">
 import type { TableEmits, TableProps } from './evals.interface'
-import type { FeedbackColumnData } from '../table/feedback-column/interface'
-import type { ExpectationColumnData } from '../table/ecpectation-column/interface'
-import {
-  DataTable,
-  ColumnGroup,
-  Row,
-  Column,
-  useToast,
-  type VirtualScrollerLazyEvent,
-  type DataTableSortEvent,
-} from 'primevue'
+import { DataTable, ColumnGroup, Row, Column, type VirtualScrollerLazyEvent } from 'primevue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
+import { useEvalsTable } from '@/hooks/useEvalsTable'
 import { COLUMNS_ICONS, COLUMNS_TITLES_MAP } from '@/constants/tables'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import EvalsToolbar from './EvalsToolbar.vue'
 import FeedbackSubheader from './FeedbackSubheader.vue'
 import ModelIdColumn from '../table/model-id-column/ModelIdColumn.vue'
 import FeedbackColumn from '../table/feedback-column/FeedbackColumn.vue'
 import ExpectationColumn from '../table/ecpectation-column/ExpectationColumn.vue'
-
-const toast = useToast()
+import CellWithTooltip from '../table/cell-with-tooltip/CellWithTooltip.vue'
 
 const props = defineProps<TableProps>()
 
@@ -203,8 +186,41 @@ const searchModel = defineModel<string>('search', { default: '' })
 
 const evalsStore = useEvalsStore()
 
+const allColumns = computed(() => {
+  const columnsSet = sortedTree.value.reduce((acc, column) => {
+    if (column.children) {
+      column.children.map((child) => acc.add(child))
+    } else {
+      acc.add(column.title)
+    }
+    return acc
+  }, new Set<string>())
+  columnsSet.delete('dataset_id')
+  const isSingleArtifact = Object.keys(props.modelsInfo).length === 1
+  if (isSingleArtifact) columnsSet.delete('modelId')
+  return Array.from(columnsSet)
+})
+
+const visibleColumns = computed(() => {
+  return selectedColumns.value.length ? selectedColumns.value : allColumns.value
+})
+
+const {
+  exportCSV,
+  exportLoading,
+  setSelectedColumns,
+  selectedColumns,
+  data: tableData,
+  sortParams,
+  onSort,
+} = useEvalsTable(
+  computed(() => props.data),
+  searchModel,
+  props.datasetId,
+  visibleColumns,
+)
+
 const tableRef = ref()
-const selectedColumns = ref<string[]>([])
 const isSubheaderVisible = ref(false)
 
 const isMultipleModels = computed(() => {
@@ -236,51 +252,7 @@ const getParentColumnWidth = computed(() => (columnName: string, childrenLength:
   return childrenLength * 110 + 'px'
 })
 
-const flatData = computed(() => {
-  return props.data.map((item) => {
-    const feedbackObject =
-      item.annotations?.feedback.reduce(
-        (acc, item) => {
-          acc[item.name] = {
-            isFeedbackColumn: true,
-            positiveCount: item.counts['true'] ?? 0,
-            negativeCount: item.counts['false'] ?? 0,
-          }
-          return acc
-        },
-        {} as Record<string, FeedbackColumnData & { isFeedbackColumn: true }>,
-      ) ?? {}
-
-    const expectationObject =
-      item.annotations?.expectations.reduce(
-        (acc, item) => {
-          acc[item.name] = {
-            isExpectationColumn: true,
-            total: item.total,
-            positive: item.positive,
-            negative: item.negative,
-            value: item.value,
-          }
-          return acc
-        },
-        {} as Record<string, ExpectationColumnData & { isExpectationColumn: true }>,
-      ) ?? {}
-    return {
-      id: item.id,
-      modelId: item.modelId,
-      dataset_id: item.dataset_id,
-      ...item.inputs,
-      ...item.outputs,
-      ...item.refs,
-      ...item.scores,
-      ...item.metadata,
-      ...feedbackObject,
-      ...expectationObject,
-    }
-  })
-})
-
-const useScroll = computed(() => flatData.value.length > 8)
+const useScroll = computed(() => tableData.value.length > 8)
 
 const virtualScrollerOptions = {
   itemSize: 44,
@@ -304,25 +276,6 @@ const sortedTree = computed(() => {
     const weightB = indexB === -1 ? Infinity : indexB
     return weightA - weightB
   })
-})
-
-const allColumns = computed(() => {
-  const columnsSet = sortedTree.value.reduce((acc, column) => {
-    if (column.children) {
-      column.children.map((child) => acc.add(child))
-    } else {
-      acc.add(column.title)
-    }
-    return acc
-  }, new Set<string>())
-  columnsSet.delete('dataset_id')
-  const isSingleArtifact = Object.keys(props.modelsInfo).length === 1
-  if (isSingleArtifact) columnsSet.delete('modelId')
-  return Array.from(columnsSet)
-})
-
-const visibleColumns = computed(() => {
-  return selectedColumns.value.length ? selectedColumns.value : allColumns.value
 })
 
 const visibleTree = computed(() => {
@@ -380,29 +333,12 @@ const isLastFeedbackColumn = computed(() => (columnName: string) => {
   )
 })
 
-function setSelectedColumns(columns: string[]) {
-  selectedColumns.value = columns
-}
-
 function showTraces(data: Record<string, any>) {
   const { dataset_id, id } = data
   const allModelsData = props.data.filter(
     (item) => item.dataset_id === dataset_id && item.id === id,
   )
   evalsStore.setCurrentEvalData(allModelsData)
-}
-
-function exportTable() {
-  if (!tableRef.value) {
-    toast.add(simpleErrorToast('Table for export was not found'))
-  } else {
-    tableRef.value.exportCSV()
-  }
-}
-
-function onSort(event: DataTableSortEvent) {
-  const { sortField, sortOrder } = event
-  emit('sort', { sortField: sortField as string, sortOrder: sortOrder === 1 ? 'asc' : 'desc' })
 }
 
 function toggleSubheader() {
@@ -415,6 +351,13 @@ watch(
     nextTick(() => {
       tableRef.value?.virtualScroller?.refresh()
     })
+  },
+)
+
+watch(
+  () => sortParams.value,
+  () => {
+    emit('sort', sortParams.value)
   },
 )
 </script>

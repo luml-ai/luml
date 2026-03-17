@@ -158,6 +158,18 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     return evalsByArtifact.flat()
   }
 
+  async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
+    const responses = this.artifacts.map(async (artifact) => {
+      const evals = await this.apiService.getAllExperimentEvals({
+        ...params,
+        experiment_id: artifact.id,
+      })
+      return evals.map((item) => ({ ...item, modelId: artifact.id }))
+    })
+    const evalsByArtifact = await Promise.all(responses)
+    return evalsByArtifact.flat()
+  }
+
   async createEvalAnnotation(
     artifactId: string,
     datasetId: string,
@@ -259,6 +271,14 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
       })
       this._tracesCursors[artifact.id] = [...cursors, newCursor]
       return items
+    })
+    const tracesByArtifact = await Promise.all(responses)
+    return tracesByArtifact.flat()
+  }
+
+  async getAllTraces(params: Omit<GetTracesParams, 'limit'>) {
+    const responses = this.artifacts.map(async (artifact) => {
+      return this.apiService.getAllExperimentTraces({ ...params, experiment_id: artifact.id })
     })
     const tracesByArtifact = await Promise.all(responses)
     return tracesByArtifact.flat()

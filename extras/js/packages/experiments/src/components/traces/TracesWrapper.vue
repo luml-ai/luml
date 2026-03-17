@@ -11,12 +11,13 @@
       v-model:search="requestParams.search"
       :columns="columns"
       :selected-columns="selectedColumns"
+      :export-loading="exportLoading"
       @edit="onEdit"
-      @export="onExport"
+      @export="exportCSV"
       @filter-change="onFilterChange"
     />
     <TracesTable
-      :data="data"
+      :data="tableData"
       :selected-columns="selectedColumns.length ? selectedColumns : columns"
       :artifactId="artifactId"
       :annotations-summary="annotationsSummary"
@@ -41,6 +42,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import { useDebounceFn } from '@vueuse/core'
 import { INITIAL_REQUEST_PARAMS } from './traces.const'
 import { useAnnotationsStore } from '@/store/annotations'
+import { useTracesTable } from '@/hooks/useTracesTable'
 import TracesToolbar from './TracesToolbar.vue'
 import TracesTable from './TracesTable.vue'
 import UiCard from '../ui/UiCard.vue'
@@ -55,6 +57,17 @@ const annotationsStore = useAnnotationsStore()
 const selectedColumns = ref<string[]>([])
 const requestParams = ref<GetTracesParams>({ ...INITIAL_REQUEST_PARAMS })
 const data = ref<Trace[]>([])
+
+const {
+  data: tableData,
+  exportCSV,
+  exportLoading,
+} = useTracesTable(
+  data,
+  computed(() => (selectedColumns.value?.length ? selectedColumns.value : columns.value)),
+  computed(() => requestParams.value),
+)
+
 const loading = ref(false)
 const annotationsSummary = ref<AnnotationSummary>({
   feedback: [],
@@ -105,10 +118,6 @@ function onSort(sortParams: SortParams) {
 
 function onEdit(data: string[]) {
   selectedColumns.value = data
-}
-
-function onExport() {
-  console.log('onExport')
 }
 
 function onFilterChange(filters: FilterItem[]) {
