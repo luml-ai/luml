@@ -4,6 +4,7 @@ import { apiService } from '@/api/api.service'
 
 export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = ref<boolean>(false)
+  const apiKeyModalVisible = ref<boolean>(false)
 
   async function checkAuth() {
     const { has_key } = await apiService.checkAuth()
@@ -16,9 +17,20 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated.value = true
   }
 
+  function showApiKeyModal() {
+    apiKeyModalVisible.value = true
+  }
+
+  function hideApiKeyModal() {
+    apiKeyModalVisible.value = false
+  }
+
   return {
     isAuthenticated,
     checkAuth,
     setApiKey,
+    showApiKeyModal,
+    apiKeyModalVisible,
+    hideApiKeyModal,
   }
 })
