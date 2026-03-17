@@ -39,14 +39,6 @@ def backend(tmp_path: Path) -> SQLiteBackend:
 
 
 @pytest.fixture
-def bwe(tmp_path: Path) -> tuple[SQLiteBackend, str]:
-    """Backend with one initialized experiment."""
-    b = SQLiteBackend(str(tmp_path / "experiments"))
-    b.initialize_experiment("exp-1", "default", "test-exp")
-    return b, "exp-1"
-
-
-@pytest.fixture
 def backend_with_experiment(
     tmp_path: Path,
 ) -> tuple[SQLiteBackend, str]:

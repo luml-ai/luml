@@ -6,7 +6,6 @@ from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 
 from luml.artifacts.model import ModelReference
@@ -15,6 +14,8 @@ from luml.experiments.backends.data_types import (
 )
 from luml.experiments.tracker import ExperimentTracker
 from tests.experiments.conftest import _meta_db
+
+np = pytest.importorskip("numpy")
 
 
 def _mock_flavor(
