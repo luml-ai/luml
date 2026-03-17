@@ -528,16 +528,29 @@ class TestGetExperimentTraces:
             end_time_unix_nano=now + 1_000_000_000,
             status_code=1,
         )
+        # Log only a child span (no root span) → state becomes IN_PROGRESS
         tracker.log_span(
             trace_id="t_inprogress",
             span_id="s1",
             name="op",
+            parent_span_id="some-parent",
             start_time_unix_nano=now,
-            end_time_unix_nano=now,
+            end_time_unix_nano=now + 1_000_000_000,
         )
 
         all_traces = tracker.get_experiment_traces(exp_id)
         assert len(all_traces.items) == 2
+        assert {t.trace_id for t in all_traces.items} == {"t_ok", "t_inprogress"}
+
+        ok_traces = tracker.get_experiment_traces(exp_id, states=[TraceState.OK])
+        assert len(ok_traces.items) == 1
+        assert ok_traces.items[0].trace_id == "t_ok"
+
+        in_progress_traces = tracker.get_experiment_traces(
+            exp_id, states=[TraceState.IN_PROGRESS]
+        )
+        assert len(in_progress_traces.items) == 1
+        assert in_progress_traces.items[0].trace_id == "t_inprogress"
 
     def test_empty_experiment_returns_empty_page(
         self,
