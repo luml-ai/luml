@@ -24,7 +24,13 @@
         :disabled-columns="['id']"
         @edit="(data) => $emit('edit', data)"
       ></TableEditColumns>
-      <Button severity="secondary" variant="outlined" size="small" disabled @click="$emit('export')">
+      <Button
+        severity="secondary"
+        variant="outlined"
+        size="small"
+        :loading="exportLoading"
+        @click="$emit('export')"
+      >
         <span>Export CSV</span>
         <Download :size="14"></Download>
       </Button>
@@ -36,9 +42,9 @@
 import type { ToolbarEmits, ToolbarProps } from './evals.interface'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
+import { computed } from 'vue'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
-import { computed } from 'vue'
 
 const props = defineProps<ToolbarProps>()
 defineEmits<ToolbarEmits>()

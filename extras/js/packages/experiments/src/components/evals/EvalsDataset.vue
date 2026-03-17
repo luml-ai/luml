@@ -21,6 +21,7 @@
       :data="data"
       :models-info="modelsInfo"
       :annotations-summary="annotationsSummary || { feedback: [], expectations: [] }"
+      :dataset-id="datasetId"
       @get-next-page="getNextPage"
       @sort="onSort"
     ></EvalsTable>
@@ -29,7 +30,13 @@
 
 <script setup lang="ts">
 import type { EvalsColumns, ModelScores } from '../../interfaces/interfaces'
-import type { DatasetEmits, DatasetProps, FilterInterface, TableColumn } from './evals.interface'
+import type {
+  DatasetEmits,
+  DatasetProps,
+  FilterInterface,
+  SortParams,
+  TableColumn,
+} from './evals.interface'
 import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
 import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
@@ -87,7 +94,7 @@ const columnsTree = computed(() => {
   return tree
 })
 
-function onSort(sortParams: { sortField: string; sortOrder: 'asc' | 'desc' }) {
+function onSort(sortParams: SortParams) {
   emit('sort', sortParams)
 }
 

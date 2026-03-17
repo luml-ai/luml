@@ -15,7 +15,11 @@
       </IconField>
     </div>
     <div class="right">
-      <TableFilter :fields="visibleColumns" disabled @apply="(filters) => $emit('filter-change', filters)" />
+      <TableFilter
+        :fields="visibleColumns"
+        disabled
+        @apply="(filters) => $emit('filter-change', filters)"
+      />
       <TableEditColumns
         :button-icon="Bolt"
         :columns="columns"
@@ -24,7 +28,7 @@
         :disabled-columns="['id']"
         @edit="(data) => $emit('edit', data)"
       ></TableEditColumns>
-      <Button severity="secondary" variant="outlined" size="small" disabled @click="$emit('export')">
+      <Button severity="secondary" variant="outlined" size="small" @click="$emit('export')">
         <span>Export CSV</span>
         <Download :size="14"></Download>
       </Button>

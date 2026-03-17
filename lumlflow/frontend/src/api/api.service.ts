@@ -102,6 +102,14 @@ export const apiService = {
     return data
   },
 
+  getAllExperimentTraces: async (params: GetExperimentTracesParams) => {
+    const { experiment_id, ...rest } = params
+    const { data } = await api.get<Trace[]>(`/experiments/${experiment_id}/traces/all`, {
+      params: rest,
+    })
+    return data
+  },
+
   getTraceDetails: async (experimentId: string, traceId: string) => {
     const { data } = await api.get<TraceDetails>(`/experiments/${experimentId}/traces/${traceId}`)
     return data
@@ -130,6 +138,14 @@ export const apiService = {
   getExperimentEvals: async (params: GetExperimentEvalsParams) => {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experiment_id}/evals`, {
+      params: rest,
+    })
+    return data
+  },
+
+  getAllExperimentEvals: async (params: GetExperimentEvalsParams) => {
+    const { experiment_id, ...rest } = params
+    const { data } = await api.get<Eval[]>(`/experiments/${experiment_id}/evals/all`, {
       params: rest,
     })
     return data

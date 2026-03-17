@@ -9,20 +9,34 @@ import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {
   init: (data: any) => Promise<void>
+
   getDynamicMetricsNames: (signal?: AbortSignal) => Promise<string[]>
+
   getDynamicMetricData: (
     metricName: string,
     signal?: AbortSignal,
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
+
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
+
   getEvalsColumns: (datasetId: string, signal?: AbortSignal) => Promise<EvalsColumns>
+
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
+
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
+
   getTraceId: (params: SpansParams) => Promise<any>
+
   getUniqueDatasetsIds: () => Promise<string[]>
+
   getNextEvalsByDatasetId: (params: GetEvalsByDatasetParams) => Promise<EvalsInfo[]>
+
+  getAllDatasetEvals: (params: Omit<GetEvalsByDatasetParams, 'limit'>) => Promise<EvalsInfo[]>
+
   resetEvalsDatasetsRequestParams: () => Promise<void>
+
   resetDatasetPage: (datasetId: string) => Promise<void>
+
   getDatasetAverageScores: (datasetId: string) => Promise<ModelScores[]>
 
   createEvalAnnotation?: (
@@ -64,6 +78,8 @@ export interface ExperimentSnapshotProvider {
   getEvalsDatasetAnnotationsSummary: (datasetId: string) => Promise<AnnotationSummary>
 
   getTraces: (params: GetTracesParams) => Promise<Trace[]>
+
+  getAllTraces: (params: Omit<GetTracesParams, 'limit'>) => Promise<Trace[]>
 
   resetTracesRequestParams: (artifactId?: string) => Promise<void>
 
@@ -189,7 +205,7 @@ export interface EvalTraceInfo extends BaseTraceInfo {
 }
 
 export interface GetEvalsByDatasetParams {
-  limit: number
+  limit?: number
   sort_by: 'created_at'
   order: 'asc' | 'desc'
   dataset_id: string

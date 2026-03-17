@@ -39,3 +39,18 @@ function tryParseJson(text: string) {
     return null
   }
 }
+
+export function valueToString(value: any) {
+  if (value === null || value === undefined) return null
+  if (value === true) return 'true'
+  if (value === false) return 'false'
+  if (typeof value === 'string') return value
+  if (typeof value === 'number') return value.toString()
+  if (Array.isArray(value)) {
+    return value.join(', ')
+  }
+  if (typeof value === 'object') {
+    return jsonToYaml(value)
+  }
+  return String(value)
+}

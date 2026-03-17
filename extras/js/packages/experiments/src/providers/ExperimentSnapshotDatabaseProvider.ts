@@ -80,19 +80,28 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
-    const evalsPromises = this.modelsSnapshots.map(async (snapshot) => {
-      const database = snapshot.database
+    const promises = this.modelsSnapshots.map(async (snapshot) => {
       const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
       this.evalsDatasetsRequestParams[params.dataset_id] = page + 1
-      const results = await this.getDatabaseEvalsByDatasetId(database, {
+      const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
         ...params,
         page,
         modelId: snapshot.modelId,
       })
       return results
     })
-    const evals = await Promise.all(evalsPromises)
-    return evals.flat()
+    return this.getFlatPromisesResponse(promises)
+  }
+
+  async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
+    const promises = this.modelsSnapshots.map(async (snapshot) => {
+      const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
+        ...params,
+        modelId: snapshot.modelId,
+      })
+      return results
+    })
+    return this.getFlatPromisesResponse(promises)
   }
 
   async resetEvalsDatasetsRequestParams() {
@@ -259,27 +268,33 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       const promises = evalsIds.map(async (evalId) => {
         return this.getEvalAnnotations(artifactId, datasetId, evalId)
       })
-      const annotationsByEval = await Promise.all(promises)
-      return annotationsByEval.flat()
+      return this.getFlatPromisesResponse(promises)
     })
-    const annotationsByArtifact = await Promise.all(snapshotsPromises)
-    const annotations = annotationsByArtifact.flat()
+    const annotations = await this.getFlatPromisesResponse(snapshotsPromises)
     return this.annotationsSummary(annotations)
   }
 
   async getTraces(params: GetTracesParams) {
-    const traces = this.modelsSnapshots
-      .map((snapshot) => {
-        const page = this.tracesRequestParams[snapshot.modelId] || 1
-        this.tracesRequestParams[snapshot.modelId] = page + 1
-        const artifactTraces = this.getTracesByDatabase(snapshot.database, {
-          ...params,
-          page,
-        })
-        return artifactTraces
+    const tracesByArtifacts = this.modelsSnapshots.map((snapshot) => {
+      const page = this.tracesRequestParams[snapshot.modelId] || 1
+      this.tracesRequestParams[snapshot.modelId] = page + 1
+      const artifactTraces = this.getTracesByDatabase(snapshot.database, {
+        ...params,
+        page,
       })
-      .flat()
-    return traces
+      return artifactTraces
+    })
+    return tracesByArtifacts.flat()
+  }
+
+  async getAllTraces(params: Omit<GetTracesParams, 'limit'>): Promise<Trace[]> {
+    const tracesByArtifacts = this.modelsSnapshots.map((snapshot) => {
+      const artifactTraces = this.getTracesByDatabase(snapshot.database, {
+        ...params,
+      })
+      return artifactTraces
+    })
+    return tracesByArtifacts.flat()
   }
 
   async getEvalById(artifactId: string, evalId: string): Promise<EvalsInfo> {
@@ -382,9 +397,11 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   private getTracesByDatabase(
     database: Database,
-    params: GetTracesParams & { page: number },
+    params: Omit<GetTracesParams, 'limit'> & { page?: number; limit?: number },
   ): Trace[] {
-    const offset = (params.page - 1) * params.limit
+    const offset = params.page && params.limit ? (params.page - 1) * params.limit : 0
+    const limitQuery = params.limit ? `LIMIT ${params.limit}` : ''
+    const offsetQuery = offset ? `OFFSET ${offset}` : ''
     const queryResult = database.exec(
       `
       SELECT
@@ -402,8 +419,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       ${params.search ? `WHERE trace_id LIKE '%${params.search}%'` : ''}
       GROUP BY trace_id
       ORDER BY ${params.sort_by} ${params.order}
-      LIMIT ${params.limit}
-      OFFSET ${offset}
+      ${limitQuery}
+      ${offsetQuery}
       `,
     )
     const rows = queryResult[0]?.values || []
@@ -464,15 +481,15 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private getDatabaseEvalsByDatasetId(
     database: Database,
     {
-      limit = 20,
+      limit,
       sort_by = 'created_at',
       order = 'desc',
       dataset_id,
       search = '',
-      page = 1,
+      page,
       modelId,
     }: {
-      page: number
+      page?: number
       modelId: string
     } & GetEvalsByDatasetParams,
   ) {
@@ -481,7 +498,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       ? sort_by
       : `COALESCE(json_extract(scores, '$.${sort_by}'), 0)`
     const safeOrder = order?.toLowerCase() === 'asc' ? 'ASC' : 'DESC'
-    const offset = (page - 1) * limit
+    const limitQuery = limit ? `LIMIT ${limit}` : ''
+    const offset = page && limit ? (page - 1) * limit : 0
+    const offsetQuery = offset ? `OFFSET ${offset}` : ''
     const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
     const queryResult = database.exec(
       `
@@ -490,8 +509,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       WHERE dataset_id = '${dataset_id}'
       ${searchCondition}
       ORDER BY ${sortBy} ${safeOrder}
-      LIMIT ${limit}
-      OFFSET ${offset}
+      ${limitQuery}
+      ${offsetQuery}
       `,
     )
     const rows = queryResult[0]?.values || []
@@ -701,7 +720,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           } else if (current.value === null) {
             current.value = annotation.value
           }
-        acc.expectations[annotation.name] = current
+          acc.expectations[annotation.name] = current
         }
         return acc
       },
@@ -733,5 +752,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const queryResult = database.exec(`SELECT id FROM evals WHERE dataset_id = '${datasetId}'`)
     const rows = queryResult[0]?.values || []
     return rows.map((row) => this.parseValue(row[0], 'string'))
+  }
+
+  private async getFlatPromisesResponse<T>(promises: Promise<T[]>[]): Promise<T[]> {
+    const results = await Promise.all(promises)
+    return results.flat()
   }
 }
