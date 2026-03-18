@@ -22,6 +22,6 @@ Create a file `hello-codie.txt` in the repository root with the content `Hi!`. T
 
 # Tasks
 
-- [ ] Create `hello-codie.txt`
-  - [ ] Create the file `hello-codie.txt` in the repository root with content `Hi!`
-  - [ ] Verify the file exists and has the correct content
+- [x] Create `hello-codie.txt`
+  - [x] Create the file `hello-codie.txt` in the repository root with content `Hi!`
+  - [x] Verify the file exists and has the correct content
