@@ -215,14 +215,18 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         (acc, row) => {
           for (const key in row) {
             const scoreValue = row[key]
+            const scoreType = typeof scoreValue
+            const availableTypes = ['number', 'boolean']
+            const isAvailableType = availableTypes.includes(scoreType)
+            if (!isAvailableType) continue
+            if (!acc[key]) {
+              acc[key] = { sum: 0, count: 0 }
+            }
             if (typeof scoreValue === 'number') {
-              if (!acc[key]) {
-                acc[key] = {
-                  sum: 0,
-                  count: 0,
-                }
-              }
               acc[key].sum += scoreValue
+              acc[key].count++
+            } else if (typeof scoreValue === 'boolean') {
+              acc[key].sum += scoreValue ? 1 : 0
               acc[key].count++
             }
           }
