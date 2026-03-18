@@ -97,3 +97,53 @@ class TestListGroupExperiments:
     def test_not_found(self, handler: ExperimentGroupsHandler) -> None:
         with pytest.raises(NotFound):
             handler.list_group_experiments("nonexistent")
+
+
+class TestListGroupsExperiments:
+    def test_with_experiments(
+        self, tracker: ExperimentTracker, handler: ExperimentGroupsHandler
+    ) -> None:
+        group1 = tracker.create_group("multi-grp-1")
+        group2 = tracker.create_group("multi-grp-2")
+        tracker.start_experiment(name="e1", group=group1.name)
+        tracker.start_experiment(name="e2", group=group2.name)
+        result = handler.list_groups_experiments([group1.id, group2.id])
+        assert len(result.items) == 2
+
+    def test_empty_group_ids(self, handler: ExperimentGroupsHandler) -> None:
+        result = handler.list_groups_experiments([])
+        assert result.items == []
+
+    def test_nonexistent_groups_return_empty(
+        self, handler: ExperimentGroupsHandler
+    ) -> None:
+        result = handler.list_groups_experiments(["nonexistent-1", "nonexistent-2"])
+        assert result.items == []
+
+    def test_sort_by_dynamic_key_in_second_group(
+        self, tracker: ExperimentTracker, handler: ExperimentGroupsHandler
+    ) -> None:
+        """Resolving sort column should check all groups, not just the first."""
+        group1 = tracker.create_group("sort-grp-1")
+        group2 = tracker.create_group("sort-grp-2")
+        tracker.start_experiment(name="s1", group=group1.name)
+        exp2_id = tracker.start_experiment(name="s2", group=group2.name)
+        tracker.log_dynamic("accuracy", 0.9, experiment_id=exp2_id)
+        # group1 doesn't have "accuracy", but group2 does — should not raise
+        result = handler.list_groups_experiments(
+            [group1.id, group2.id], sort_by="accuracy"
+        )
+        assert len(result.items) == 2
+
+    def test_invalid_sort_by_raises_400(
+        self, tracker: ExperimentTracker, handler: ExperimentGroupsHandler
+    ) -> None:
+        group1 = tracker.create_group("err-grp-1")
+        group2 = tracker.create_group("err-grp-2")
+        tracker.start_experiment(name="x1", group=group1.name)
+        tracker.start_experiment(name="x2", group=group2.name)
+        with pytest.raises(ApplicationError) as exc_info:
+            handler.list_groups_experiments(
+                [group1.id, group2.id], sort_by="nonexistent_field"
+            )
+        assert exc_info.value.status_code == 400

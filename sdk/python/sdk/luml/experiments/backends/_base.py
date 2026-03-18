@@ -186,6 +186,19 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def list_groups_experiments_pagination(
+        self,
+        group_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        pass
+
+    @abstractmethod
     def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
         pass
 
@@ -195,6 +208,12 @@ class Backend(ABC):
 
     @abstractmethod
     def resolve_experiment_sort_column(self, group_id: str, sort_by: str) -> str | None:
+        pass
+
+    @abstractmethod
+    def resolve_groups_experiment_sort_column(
+        self, group_ids: list[str], sort_by: str
+    ) -> str | None:
         pass
 
     @abstractmethod

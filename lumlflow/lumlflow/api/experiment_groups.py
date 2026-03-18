@@ -12,7 +12,7 @@ from lumlflow.schemas.experiment_groups import (
 from lumlflow.schemas.experiments import PaginatedExperiments, SearchValidationResult
 
 experiment_groups_router = APIRouter(
-    prefix="/api/experiment-groups",
+    prefix="/api/groups",
     tags=["experiment-groups"],
 )
 
@@ -49,6 +49,39 @@ def update_experiment_group(group_id: str, group: UpdateGroup) -> Group:
 @experiment_groups_router.delete("/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_experiment_group(group_id: str) -> None:
     groups_handler.delete_experiment_group(group_id)
+
+
+@experiment_groups_router.get("/experiments", response_model=PaginatedExperiments)
+def get_groups_experiments(
+    group_ids: list[str] = Query(default_factory=list),  # noqa: B008
+    limit: int = Query(20, ge=1, le=100),
+    cursor: str | None = None,
+    sort_by: str = "created_at",
+    order: SortOrder = SortOrder.DESC,
+    search: str | None = None,
+) -> PaginatedExperiments:
+    return groups_handler.list_groups_experiments(
+        group_ids=group_ids,
+        limit=limit,
+        cursor_str=cursor,
+        sort_by=sort_by,
+        order=order,
+        search=search,
+    )
+
+
+@experiment_groups_router.get("/experiments/static-params", response_model=list[str])
+def get_groups_static_params_keys(
+    group_ids: list[str] = Query(default_factory=list),  # noqa: B008
+) -> list[str]:
+    return groups_handler.get_groups_static_params_keys(group_ids)
+
+
+@experiment_groups_router.get("/experiments/dynamic-metrics", response_model=list[str])
+def get_groups_dynamic_metrics_keys(
+    group_ids: list[str] = Query(default_factory=list),  # noqa: B008
+) -> list[str]:
+    return groups_handler.get_groups_dynamic_metrics_keys(group_ids)
 
 
 @experiment_groups_router.get(
@@ -103,7 +136,7 @@ def get_group_experiments(
     search: str | None = None,
 ) -> PaginatedExperiments:
     return groups_handler.list_group_experiments(
-        group_id,
+        group_id=group_id,
         limit=limit,
         cursor_str=cursor,
         sort_by=sort_by,

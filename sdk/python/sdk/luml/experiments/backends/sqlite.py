@@ -155,6 +155,18 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     EVALS_STANDARD_SORT_COLUMNS: frozenset[str] = frozenset(
         {"created_at", "updated_at", "dataset_id"}
     )
+    _EXPERIMENT_COLUMNS = [
+        "id",
+        "group_id",
+        "name",
+        "created_at",
+        "status",
+        "tags",
+        "duration",
+        "description",
+        "static_params",
+        "dynamic_params",
+    ]
 
     def __init__(
         self,
@@ -759,7 +771,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description FROM experiments
+            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description 
+            FROM experiments
             """
         )
         experiments = []
@@ -832,6 +845,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             return "dynamic_params"
         if sort_by in self.get_group_experiments_static_params_keys(group_id):
             return "static_params"
+        raise ValueError(
+            f"Invalid sort_by '{sort_by}'. Must be one of "
+            f"{sorted(self._STANDARD_EXPERIMENT_SORT_COLUMNS)} "
+            "or a valid dynamic metric / static param key."
+        )
+
+    def resolve_groups_experiment_sort_column(
+        self, group_ids: list[str], sort_by: str
+    ) -> str | None:
+        """
+        Resolves the json_sort_column for list_groups_experiments_pagination.
+
+        Checks across all provided groups.
+        - None              → sort_by is a standard experiment column
+        - "dynamic_params"  → sort_by is a dynamic metric key in any group
+        - "static_params"   → sort_by is a static param key in any group
+        - raises ValueError → sort_by is unknown across all groups
+        """
+        if sort_by in self._STANDARD_EXPERIMENT_SORT_COLUMNS:
+            return None
+        for group_id in group_ids:
+            if sort_by in self.get_group_experiments_dynamic_metrics_keys(group_id):
+                return "dynamic_params"
+            if sort_by in self.get_group_experiments_static_params_keys(group_id):
+                return "static_params"
         raise ValueError(
             f"Invalid sort_by '{sort_by}'. Must be one of "
             f"{sorted(self._STANDARD_EXPERIMENT_SORT_COLUMNS)} "
@@ -1128,6 +1166,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             database.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.list_groups()
             [
                 Group(
@@ -1192,6 +1231,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 model's metadata and the absolute destination path of the copied model file.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> model, dest_path = backend.log_model(
             ...     experiment_id="exp-001",
             ...     model_path="/tmp/resnet50.pt",
@@ -1266,6 +1306,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 experiment ID.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_models("exp-001")
             [
                 Model(
@@ -1311,6 +1352,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If the model with the specified ID is not found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_model("model-abc")
             Model(
                 id="model-abc",
@@ -1354,6 +1396,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             successful, or None if the model with the given ID does not exist.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.update_model("model-abc", name="resnet50_v2", tags=["production", "v2"])
             Model(
                 id="model-abc",
@@ -1442,6 +1485,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 Group objects and pagination metadata.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.list_groups_pagination(limit=2, sort_by="created_at", order="desc")
             PaginatedResponse(
                 items=[
@@ -1527,6 +1571,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             group if found, otherwise `None`.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_group("group-123")
             Group(
                 id="group-123",
@@ -1575,6 +1620,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             models associated with those experiment IDs.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.list_batch_experiments_models(["exp-001", "exp-002"])
             {
                 "exp-001": [
@@ -1635,6 +1681,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 associated with the specified experiment.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.list_experiment_models("exp-001")
             [
                 Model(
@@ -1667,6 +1714,74 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def validate_experiments_search(self, search: str | None = None) -> None:
         return SearchExperimentsUtils.validate_filter_string(search)
+
+    def _build_experiments_page(
+        self,
+        where_conditions: list[tuple[str, list]],
+        limit: int,
+        sort_by: str,
+        order: str,
+        cursor_str: str | None,
+        json_sort_column: str | None,
+    ) -> PaginatedResponse[Experiment]:
+        allowed_json_columns = {"static_params", "dynamic_params"}
+        if json_sort_column is not None:
+            if json_sort_column not in allowed_json_columns:
+                raise ValueError(
+                    f"json_sort_column must be one of {allowed_json_columns}"
+                )
+            order = order.lower()
+            if order not in ("asc", "desc"):
+                order = "desc"
+        else:
+            sort_by, order = self._sanitize_pagination_params(
+                sort_by, order, self._STANDARD_EXPERIMENT_SORT_COLUMNS
+            )
+
+        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
+        conn = self._get_meta_connection()
+
+        rows = self._execute_paginated_query(
+            conn=conn,
+            table="experiments",
+            columns=self._EXPERIMENT_COLUMNS,
+            limit=limit,
+            sort_by=sort_by,
+            order=order,
+            cursor_id=use_cursor.id if use_cursor else None,
+            cursor_value=str(use_cursor.value)
+            if use_cursor and use_cursor.value is not None
+            else None,
+            where=where_conditions,
+            json_sort_column=json_sort_column,
+            allowed_sort_columns=self._STANDARD_EXPERIMENT_SORT_COLUMNS,
+        )
+
+        experiments_dicts = self._items_to_dict(self._EXPERIMENT_COLUMNS, rows)
+        models_by_experiment = self.list_batch_experiments_models(
+            [e["id"] for e in experiments_dicts]
+        )
+
+        items = [
+            Experiment(
+                id=e["id"],
+                group_id=e["group_id"],
+                name=e["name"],
+                created_at=e["created_at"],
+                status=e["status"],
+                tags=e["tags"] if e["tags"] else [],
+                models=models_by_experiment.get(e["id"], []),
+                duration=e["duration"],
+                description=e["description"],
+                static_params=e["static_params"] or None,
+                dynamic_params=e["dynamic_params"] or None,
+            )
+            for e in experiments_dicts
+        ]
+        return PaginatedResponse(
+            items=items[:limit],
+            cursor=Cursor.get_cursor(items, limit, sort_by, order, json_sort_column),
+        )
 
     def list_group_experiments_pagination(
         self,
@@ -1712,6 +1827,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ("static_params", "dynamic_params").
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> response = backend.list_group_experiments_pagination(
             ...     group_id="group-123",
             ...     limit=2,
@@ -1732,102 +1848,102 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                         group_id="group-123",
                         static_params={"lr": 0.01, "epochs": 10},
                         dynamic_params={"loss": 0.25, "accuracy": 0.91},
-                    ),
-                    Experiment(
-                        id="exp-002",
-                        name="tuned_run",
-                        status="active",
-                        created_at=datetime(2024, 6, 2, 9, 30, 0),
-                        tags=["tuned"],
-                        models=[],
-                        duration=None,
-                        description=None,
-                        group_id="group-123",
-                        static_params={"lr": 0.001, "epochs": 20},
-                        dynamic_params=None,
-                    ),
+                    )
                 ],
                 cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ=="
             )
         """
-        allowed_columns = {"static_params", "dynamic_params"}
-
-        if json_sort_column is not None:
-            if json_sort_column not in allowed_columns:
-                raise ValueError(f"json_sort_column must be one of {allowed_columns}")
-            order = order.lower()
-            if order not in ("asc", "desc"):
-                order = "desc"
-        else:
-            sort_by, order = self._sanitize_pagination_params(
-                sort_by,
-                order,
-                {"name", "created_at", "status", "tags", "duration"},
-            )
-
-        use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
-
-        columns = [
-            "id",
-            "name",
-            "created_at",
-            "status",
-            "tags",
-            "duration",
-            "description",
-            "static_params",
-            "dynamic_params",
-        ]
-
-        conn = self._get_meta_connection()
-
-        where_conditions = [("group_id = ?", [group_id])]
-
+        where_conditions: list[tuple[str, list]] = [("group_id = ?", [group_id])]
         if search:
-            SearchExperimentsUtils.validate_filter_string(search)
-            where_clause, _, filter_params = SearchExperimentsUtils.to_sql(search)
-            if where_clause:
-                where_conditions.append((where_clause, filter_params))
-
-        rows = self._execute_paginated_query(
-            conn=conn,
-            table="experiments",
-            columns=columns,
-            limit=limit,
-            sort_by=sort_by,
-            order=order,
-            cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=str(use_cursor.value)
-            if use_cursor and use_cursor.value is not None
-            else None,
-            where=where_conditions,
-            json_sort_column=json_sort_column,
-            allowed_sort_columns={"name", "created_at", "status", "tags", "duration"},
-        )
-
-        experiments_dicts = self._items_to_dict(columns, rows)
-        models_by_experiment = self.list_batch_experiments_models(
-            [e["id"] for e in experiments_dicts]
-        )
-
-        items = [
-            Experiment(
-                id=e["id"],
-                name=e["name"],
-                created_at=e["created_at"],
-                status=e["status"],
-                tags=e["tags"] if e["tags"] else [],
-                models=models_by_experiment.get(e["id"], []),
-                duration=e["duration"],
-                description=e["description"],
-                static_params=e["static_params"] or None,
-                dynamic_params=e["dynamic_params"] or None,
+            where_conditions.append(
+                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
             )
-            for e in experiments_dicts
+        return self._build_experiments_page(
+            where_conditions, limit, sort_by, order, cursor_str, json_sort_column
+        )
+
+    def list_groups_experiments_pagination(
+        self,
+        group_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        """
+        Fetches a paginated list of experiments across multiple groups, supporting various
+        sorting, filtering, and cursor-based pagination options.
+
+        This method retrieves experiments associated with the provided group IDs, ordering and
+        filtering them based on the given parameters. It supports sorting by both standard
+        columns and specific JSON fields, as well as filtering based on search terms and
+        cursor-based pagination. Returns an empty response if the group list is empty.
+
+        Args:
+            group_ids (list[str]): The list of group identifiers whose experiments are being
+                listed.
+            limit (int, optional): The maximum number of records to retrieve per page. Default
+                is 20.
+            cursor_str (str | None, optional): The encoded cursor string for implementing
+                pagination. Default is None.
+            sort_by (str, optional): The column name to sort the results by. Default is
+                "created_at".
+            order (str, optional): The order of sorting, either "asc" (ascending) or "desc"
+                (descending). Default is "desc".
+            search (str | None, optional): The search string for filtering experiments by name
+                or tags. Default is None.
+            json_sort_column (str | None, optional): A JSON column (either "static_params" or
+                "dynamic_params") to use for sorting. Default is None.
+
+        Returns:
+            PaginatedResponse[Experiment]: A paginated response object containing the list of
+                Experiment objects and pagination-related metadata.
+
+        Raises:
+            ValueError: If the provided `json_sort_column` is not one of the allowed values
+                ("static_params", "dynamic_params").
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> response = backend.list_groups_experiments_pagination(
+            ...     group_ids=["group-123", "group-456"],
+            ...     limit=2,
+            ...     sort_by="created_at",
+            ...     order="desc",
+            ... )
+            PaginatedResponse(
+                items=[
+                    Experiment(
+                        id="exp-001",
+                        name="baseline_run",
+                        status="completed",
+                        created_at=datetime(2024, 6, 1, 12, 0, 0),
+                        tags=["baseline", "v1"],
+                        models=[],
+                        duration=42.3,
+                        description="Initial baseline experiment",
+                        group_id="group-123",
+                        static_params={"lr": 0.01, "epochs": 10},
+                        dynamic_params={"loss": 0.25, "accuracy": 0.91},
+                    )
+                ],
+                cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ=="
+            )
+        """
+        if not group_ids:
+            return PaginatedResponse(items=[], cursor=None)
+        placeholders = ",".join("?" * len(group_ids))
+        where_conditions: list[tuple[str, list]] = [
+            (f"group_id IN ({placeholders})", list(group_ids))
         ]
-        return PaginatedResponse(
-            items=items[:limit],
-            cursor=Cursor.get_cursor(items, limit, sort_by, order, json_sort_column),
+        if search:
+            where_conditions.append(
+                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
+            )
+        return self._build_experiments_page(
+            where_conditions, limit, sort_by, order, cursor_str, json_sort_column
         )
 
     def end_experiment(self, experiment_id: str) -> None:
@@ -2034,6 +2150,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If experiment not found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_experiment_traces(
             >>>    "exp-001", limit=2, sort_by="execution_time", order="desc"
             >>> )
@@ -2182,6 +2299,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If experiment not found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_experiment_traces(
             >>>    "exp-001", sort_by="execution_time", order="desc"
             >>> )
@@ -2310,6 +2428,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             database or the database cannot be found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_trace("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
             TraceDetails(
                 trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
@@ -2426,6 +2545,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If experiment not found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_experiment_evals("exp-001", limit=2)
             PaginatedResponse(
                 items=[
@@ -2579,6 +2699,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ValueError: If experiment not found.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_experiment_evals_all("exp-001")
             [
                 EvalRecord(
@@ -2682,6 +2803,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             EvalRecord | None: Returns `None` if no such record exists.
 
         Example:
+            >>> backend = SQLiteBackend("/backend/path")
             >>> backend.get_eval("experiment_id", "eval_id")
             EvalRecord(
                 id="eval-001",
@@ -2910,6 +3032,51 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         user: str,
         rationale: str | None = None,
     ) -> AnnotationRecord:
+        """
+        Logs an annotation for a specific evaluation within an experiment and records it in the database.
+
+        This function stores metadata, rationale, and value of the annotation associated with a specific
+        evaluation ID. It ensures the consistency of the annotation's type and validates the necessary
+        conditions before committing the record into the database.
+
+        Args:
+            experiment_id (str): The id of the experiment.
+            dataset_id (str): The id of the dataset within the experiment.
+            eval_id (str): The id of the eval within the dataset.
+            name (str): The name of the annotation being logged.
+            annotation_kind (AnnotationKind): The type of the annotation
+            value_type (AnnotationValueType): Defines the expected type of the annotation value.
+            value (int | bool | str): The actual value of the annotation.
+            user (str): The user who created the annotation.
+            rationale (str | None): The rationale or reasoning behind the annotation, if applicable.
+
+        Returns:
+            AnnotationRecord: Object containing the logged annotation's details from the database.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> record = backend.log_eval_annotation(
+            ...     experiment_id="exp-001",
+            ...     dataset_id="dataset-abc",
+            ...     eval_id="eval-xyz",
+            ...     name="quality",
+            ...     annotation_kind=AnnotationKind.FEEDBACK,
+            ...     value_type=AnnotationValueType.BOOL,
+            ...     value=True,
+            ...     user="alice",
+            ...     rationale="Looks correct",
+            ... )
+            AnnotationRecord(
+                id="annot-001",
+                name="quality",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value=True,
+                user="alice",
+                value_type=AnnotationValueType.BOOL,
+                created_at=datetime(2024, 6, 1, 10, 0, 0),
+                rationale="Looks correct"
+            )
+        """
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
         annotation_id = str(uuid.uuid4())
@@ -2943,6 +3110,37 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str
     ) -> list[AnnotationRecord]:
+        """
+        Retrieves evaluation annotations associated with a specific experiment, dataset,
+        and evaluation identifier. The annotations are fetched from a database table and
+        returned as a list of AnnotationRecord objects.
+
+        Args:
+            experiment_id: Unique identifier for the experiment.
+            dataset_id: Unique identifier for the dataset within the experiment.
+            eval_id: Unique identifier for the evaluation phase.
+
+        Returns:
+            A list of AnnotationRecord objects representing the annotations retrieved for the
+            specified dataset and evaluation phase. Returns an empty list if annotation
+            tables are not available for the given experiment.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_eval_annotations("exp-001", "dataset-abc", "eval-xyz")
+            [
+                AnnotationRecord(
+                    id="annot-001",
+                    name="quality",
+                    annotation_kind=AnnotationKind.FEEDBACK,
+                    value=True,
+                    user="alice",
+                    value_type=AnnotationValueType.BOOL,
+                    created_at=datetime(2024, 6, 1, 10, 0, 0),
+                    rationale="Looks correct"
+                )
+            ]
+        """
         if not self._has_annotation_tables(experiment_id):
             return []
         conn = self._get_experiment_connection(experiment_id)
@@ -2967,6 +3165,52 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         user: str,
         rationale: str | None = None,
     ) -> AnnotationRecord:
+        """
+        Logs a span annotation for a specific experiment, enabling traceability and observability within
+        the system. This method ensures that the provided annotation is valid, persists the annotation
+        data in the experiment database, and retrieves the newly created annotation record.
+
+        Args:
+            experiment_id (str): Identifier for the experiment where the annotation will be logged.
+            trace_id (str): Identifier for the trace to which the span belongs.
+            span_id (str): Identifier for the span to be annotated.
+            name (str): Name of the annotation being logged.
+            annotation_kind (AnnotationKind): Type or category of the annotation, specifying its role or
+                purpose.
+            value_type (AnnotationValueType): Data type of the annotation's value, ensuring compatibility
+                and validity.
+            value (int | bool | str): The actual value associated with the annotation, adhering to the
+                specified value type.
+            user (str): Identifier of the user or system initiating the creation of the annotation.
+            rationale (str | None): Optional explanation or justification for the annotation.
+
+        Returns:
+            AnnotationRecord: An object containing the details of the newly created annotation, including
+            associated metadata and identifier.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> record = backend.log_span_annotation(
+            ...     experiment_id="exp-001",
+            ...     trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+            ...     span_id="span-abc",
+            ...     name="latency_ok",
+            ...     annotation_kind=AnnotationKind.FEEDBACK,
+            ...     value_type=AnnotationValueType.BOOL,
+            ...     value=True,
+            ...     user="alice",
+            ... )
+            AnnotationRecord(
+                id="annot-002",
+                name="latency_ok",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value=True,
+                user="alice",
+                value_type=AnnotationValueType.BOOL,
+                created_at=datetime(2024, 6, 1, 10, 0, 0),
+                rationale=None,
+            )
+        """
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
         annotation_id = str(uuid.uuid4())
@@ -3000,6 +3244,43 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_span_annotations(
         self, experiment_id: str, trace_id: str, span_id: str
     ) -> list[AnnotationRecord]:
+        """
+        Fetches annotations for a specific span in a trace within the context of an experiment.
+
+        This method retrieves all annotations associated with a span, identified by its trace
+        and span IDs, within a given experiment. The annotations are returned as a list of
+        `AnnotationRecord` objects, sorted by their creation timestamp. If no annotation tables
+        exist for the given experiment, an empty list is returned.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment.
+            trace_id (str): The unique identifier of the trace.
+            span_id (str): The unique identifier of the span whose annotations are to be fetched.
+
+        Returns:
+            list[AnnotationRecord]: A list of annotations for the specified span. If no
+            annotations are found, the returned list will be empty.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_span_annotations(
+            ...     "exp-001",
+            ...     "4bf92f3577b34da6a3ce929d0e0e4736",
+            ...     "span-abc",
+            ... )
+            [
+                AnnotationRecord(
+                    id="annot-002",
+                    name="latency_ok",
+                    annotation_kind=AnnotationKind.FEEDBACK,
+                    value=True,
+                    user="alice",
+                    value_type=AnnotationValueType.BOOL,
+                    created_at=datetime(2024, 6, 1, 10, 0, 0),
+                    rationale=None
+                )
+            ]
+        """
         if not self._has_annotation_tables(experiment_id):
             return []
         conn = self._get_experiment_connection(experiment_id)
@@ -3020,6 +3301,52 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         value: int | bool | str | None = None,
         rationale: str | None = None,
     ) -> AnnotationRecord:
+        """
+        Updates an annotation record in the specified table with the provided fields.
+
+        This method allows modification of an existing annotation record by updating its
+        `value` and/or `rationale` fields in the corresponding database table. The table is
+        selected based on the target type ("eval" or "span"). If no fields are provided for
+        update, an error is raised.
+
+        Args:
+            experiment_id (str): The unique identifier for the experiment associated with the
+                annotation.
+            annotation_id (str): The unique identifier for the annotation to be updated.
+            target (Literal["eval", "span"]): Specifies the annotation table to use. "eval"
+                refers to evaluation annotations and "span" refers to span annotations.
+            value (int | bool | str | None, optional): The new value to set for the annotation.
+                If not provided, the value field will not be updated.
+            rationale (str | None, optional): The new rationale to set for the annotation. If
+                not provided, the rationale field will not be updated.
+
+        Returns:
+            AnnotationRecord: An updated annotation record object after the update operation.
+
+        Raises:
+            ValueError: If no fields (`value` or `rationale`) are specified for update or if
+                the specified annotation does not exist in the database.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.update_annotation(
+            ...     experiment_id="exp-001",
+            ...     annotation_id="annot-001",
+            ...     target="eval",
+            ...     value=False,
+            ...     rationale="Reconsidered after review",
+            ... )
+            AnnotationRecord(
+                id="annot-001",
+                name="quality",
+                annotation_kind=AnnotationKind.FEEDBACK,
+                value=False,
+                user="alice",
+                value_type=AnnotationValueType.BOOL,
+                created_at=datetime(2024, 6, 1, 10, 0, 0),
+                rationale="Reconsidered after review",
+            )
+        """
         self._require_annotation_tables(experiment_id)
         table = "eval_annotations" if target == "eval" else "span_annotations"
         conn = self._get_experiment_connection(experiment_id)
@@ -3052,6 +3379,24 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def delete_annotation(
         self, experiment_id: str, annotation_id: str, target: Literal["eval", "span"]
     ) -> None:
+        """
+        Deletes a specific annotation from the database for a given experiment.
+
+        This method removes an annotation identified by its annotation_id from the
+        appropriate table associated with the target type (either "eval" or "span")
+        within the specified experiment. If the experiment does not have annotation
+        tables, the method exits without performing any operation.
+
+        Args:
+            experiment_id (str): The unique identifier for the experiment.
+            annotation_id (str): The unique identifier for the annotation to be deleted.
+            target (Literal["eval", "span"]): Specifies the target table from which the
+                annotation should be deleted. Must be either "eval" or "span".
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.delete_annotation("exp-001", "annot-001", target="eval")
+        """
         if not self._has_annotation_tables(experiment_id):
             return
         table = "eval_annotations" if target == "eval" else "span_annotations"
@@ -3064,6 +3409,25 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         feedback_rows: list[sqlite3.Row],
         expectation_rows: list[sqlite3.Row],
     ) -> AnnotationSummary:
+        """
+        Builds an annotation summary from feedback and expectation data.
+
+        The method processes two sets of rows: feedback data and expectation
+        data, aggregating and casting values where appropriate, to create a
+        structured summary.
+
+        Args:
+            feedback_rows (list[sqlite3.Row]): A list of sqlite3.Row objects representing
+                feedback data. Each row should contain name, value, and count.
+            expectation_rows (list[sqlite3.Row]): A list of sqlite3.Row objects representing
+                expectation data. Each row should contain name, total, positive, negative,
+                and raw value information.
+
+        Returns:
+            AnnotationSummary: A structured summary of the feedback and expectations,
+            including aggregated feedback items and processed expectation details.
+        """
+
         feedback_items: dict[str, FeedbackSummaryItem] = {}
         for row in feedback_rows:
             name, value, count = row[0], row[1], row[2]
@@ -3099,6 +3463,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_evals_annotation_summaries(
         self, experiment_id: str, eval_ids: list[str]
     ) -> dict[str, AnnotationSummary]:
+        """
+        Retrieves annotation summaries for a batch of evaluations within an experiment.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment.
+            eval_ids (list[str]): A list of evaluation IDs to retrieve summaries for.
+
+        Returns:
+            dict[str, AnnotationSummary]: A dictionary mapping each eval ID to its annotation
+            summary. Eval IDs with no annotations are excluded from the result.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
+            {
+                "eval-xyz": AnnotationSummary(
+                    feedback=[FeedbackSummaryItem(name="quality", total=2, counts={"true": 1, "false": 1})],
+                    expectations=[],
+                ),
+            }
+        """
         if not self._has_annotation_tables(experiment_id) or not eval_ids:
             return {}
         conn = self._get_experiment_connection(experiment_id)
@@ -3141,6 +3526,34 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_eval_annotation_summary(
         self, experiment_id: str, dataset_id: str
     ) -> AnnotationSummary:
+        """
+        Retrieves a summary of evaluation annotations for a specific experiment and dataset.
+
+        This method queries annotation data associated with the provided experiment
+        and dataset identifiers, specifically gathering details about feedback and
+        expectation annotations. Feedback annotations provide a count of distinct
+        name-value pairs, while expectation annotations summarize details such as
+        total occurrences, positive and negative boolean counts, and sample values
+        for non-boolean annotations.
+
+        Args:
+            experiment_id (str): Unique identifier for the experiment to retrieve
+                annotation data from.
+            dataset_id (str): Unique identifier for the dataset within the specified
+                experiment.
+
+        Returns:
+            AnnotationSummary: A summary of feedback and expectations contained in
+                the evaluation annotations for the given experiment and dataset.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_eval_annotation_summary("exp-001", "dataset-abc")
+            AnnotationSummary(
+                feedback=[FeedbackSummaryItem(name="quality", total=3, counts={"true": 2, "false": 1})],
+                expectations=[],
+            )
+        """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
         conn = self._get_experiment_connection(experiment_id)
@@ -3169,6 +3582,33 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_traces_annotation_summaries(
         self, experiment_id: str, trace_ids: list[str]
     ) -> dict[str, AnnotationSummary]:
+        """
+        Retrieves annotation summaries for specified traces in a given experiment. This method aggregates
+        feedback and expectation annotations for each trace, combining them to build summaries of annotations.
+        For annotation kinds, 'feedback' aggregates counts of values, while 'expectation' provides both
+        aggregate counts and value-specific information.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment.
+            trace_ids (list[str]): A list of trace IDs for which annotation summaries are to be retrieved.
+
+        Returns:
+            dict[str, AnnotationSummary]: A dictionary mapping each trace ID to its annotation summary.
+            If no annotations are present, or the input trace list is empty, an empty dictionary is returned.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_traces_annotation_summaries(
+            ...     "exp-001",
+            ...     ["4bf92f3577b34da6a3ce929d0e0e4736", "5bf92f3577b34da6a3ce929d0e0e4737"],
+            ... )
+            {
+                "4bf92f3577b34da6a3ce929d0e0e4736": AnnotationSummary(
+                    feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts={"true": 1})],
+                    expectations=[],
+                ),
+            }
+        """
         if not self._has_annotation_tables(experiment_id) or not trace_ids:
             return {}
         conn = self._get_experiment_connection(experiment_id)
@@ -3211,6 +3651,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_trace_annotation_summary(
         self, experiment_id: str, trace_id: str
     ) -> AnnotationSummary:
+        """
+        Retrieves the annotation summary for a specific trace in a given experiment. The summary includes
+        feedback and expectation annotations grouped by name and processed according to their type and values.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment.
+            trace_id (str): The unique identifier of the trace.
+
+        Returns:
+            AnnotationSummary: An object containing summarized feedback and expectations annotations
+            for the specified trace.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_trace_annotation_summary("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
+            AnnotationSummary(
+                feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts={"true": 1})],
+                expectations=[],
+            )
+        """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
         conn = self._get_experiment_connection(experiment_id)
@@ -3239,6 +3699,36 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def get_all_traces_annotation_summary(
         self, experiment_id: str
     ) -> AnnotationSummary:
+        """
+        Retrieves an annotation summary, including detailed feedback and expectation statistics, for a
+        specified experiment given its identifier.
+
+        This method extracts and organizes data from the annotation tables of an experiment, if available,
+        to generate a summary of the feedback and expectations associated with that experiment. If the
+        annotation tables are not present, it will return an empty summary object.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment from which annotation data
+                will be retrieved.
+
+        Returns:
+            AnnotationSummary: A summary object containing feedback-related statistics and expectation
+                values derived from the experiment's annotations.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> backend.get_all_traces_annotation_summary("exp-001")
+            AnnotationSummary(
+                feedback=[
+                    FeedbackSummaryItem(
+                        name="latency_ok",
+                        total=5,
+                        counts={"true": 4, "false": 1}
+                    )
+                ],
+                expectations=[]
+            )
+        """
         if not self._has_annotation_tables(experiment_id):
             return AnnotationSummary(feedback=[], expectations=[])
         conn = self._get_experiment_connection(experiment_id)

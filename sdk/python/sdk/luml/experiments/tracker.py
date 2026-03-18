@@ -1674,6 +1674,26 @@ class ExperimentTracker:
             json_sort_column=json_sort_column,
         )
 
+    def list_groups_experiments_pagination(
+        self,
+        group_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None,
+        json_sort_column: str | None = None,
+    ) -> PaginatedResponse[Experiment]:
+        return self.backend.list_groups_experiments_pagination(
+            group_ids,
+            limit=limit,
+            cursor_str=cursor_str,
+            sort_by=sort_by,
+            order=order,
+            search=search,
+            json_sort_column=json_sort_column,
+        )
+
     def get_group_experiments_static_params_keys(self, group_id: str) -> list[str]:
         """
         Retrieve all distinct static parameter keys across experiments in a group.
@@ -1737,6 +1757,11 @@ class ExperimentTracker:
         ```
         """
         return self.backend.resolve_experiment_sort_column(group_id, sort_by)
+
+    def resolve_groups_experiment_sort_column(
+        self, group_ids: list[str], sort_by: str
+    ) -> str | None:
+        return self.backend.resolve_groups_experiment_sort_column(group_ids, sort_by)
 
     def update_model(
         self,
