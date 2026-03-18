@@ -1,5 +1,6 @@
 # flake8: noqa: E501
 import json
+import re
 import sqlite3
 from typing import Any
 
@@ -30,6 +31,10 @@ class SQLitePaginationMixin:
         allowed_sort_columns: set[str] | None = None,
     ) -> str:
         if json_sort_column:
+            if not sort_by or not re.fullmatch(r"[A-Za-z0-9_]+", sort_by):
+                raise ValueError(
+                    "sort_by must match pattern [A-Za-z0-9_]+ when using json_sort_column"
+                )
             return f"json_extract({json_sort_column}, '$.{sort_by}')"
         if allowed_sort_columns and sort_by not in allowed_sort_columns:
             sort_by = "created_at"
