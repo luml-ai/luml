@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from api.luml_api._types import Collection, CollectionType
-from api.luml_api.resources.collections import (
+from luml_api._types import Collection, CollectionType
+from luml_api.resources.collections import (
     AsyncCollectionResource,
     CollectionResource,
 )

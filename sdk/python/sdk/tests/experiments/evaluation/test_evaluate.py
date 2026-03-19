@@ -4,19 +4,19 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
+from sdk.luml.experiments.evaluation import (
+    BaseScorer,
+    EvalItem,
+    EvalResult,
+    SupervisedScorer,
+    UnsupervisedScorer,
+)
 from sdk.luml.experiments.evaluation.evaluate import (
     _aggregate_scores,
     _call_scorer,
     _evaluate_single_item,
     evaluate,
 )
-from sdk.luml.experiments.evaluation import (
-    BaseScorer,
-    SupervisedScorer,
-    UnsupervisedScorer,
-)
-from sdk.luml.experiments.evaluation import EvalItem, EvalResult
 
 
 class MockUnsupervisedScorer(UnsupervisedScorer):
@@ -27,7 +27,9 @@ class MockUnsupervisedScorer(UnsupervisedScorer):
         return self._name
 
     def score(
-        self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+        self,
+        inputs: dict[str, Any],
+        output: Any,  # noqa: ANN401
     ) -> bool | float | int | dict[str, Any]:
         return 0.8
 
@@ -40,7 +42,10 @@ class MockSupervisedScorer(SupervisedScorer):
         return self._name
 
     def score(
-        self, inputs: dict[str, Any], expected_output: Any, output: Any  # noqa: ANN401
+        self,
+        inputs: dict[str, Any],
+        expected_output: Any,
+        output: Any,  # noqa: ANN401
     ) -> bool | float | int | dict[str, Any]:
         return expected_output == output
 
@@ -53,7 +58,9 @@ class MockDictScorer(UnsupervisedScorer):
         return self._name
 
     def score(
-        self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+        self,
+        inputs: dict[str, Any],
+        output: Any,  # noqa: ANN401
     ) -> bool | float | int | dict[str, Any]:
         return {"accuracy": 0.9, "precision": 0.85}
 
@@ -100,7 +107,9 @@ class TestCallScorer:
                 return "bool_scorer"
 
             def score(
-                self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+                self,
+                inputs: dict[str, Any],
+                output: Any,  # noqa: ANN401
             ) -> bool | float | int | dict[str, Any]:
                 return True
 
@@ -264,9 +273,7 @@ class TestEvaluateSingleItem:
         )
 
         mock_tracker = MagicMock()
-        eval_item = EvalItem(
-            id="1", inputs={"text": "hello"}, expected_output="world"
-        )
+        eval_item = EvalItem(id="1", inputs={"text": "hello"}, expected_output="world")
         scorer = MockSupervisedScorer()
 
         def inference_fn(inputs: dict[str, Any]) -> str:
@@ -340,7 +347,9 @@ class TestEvaluateSingleItem:
                 return "failing_scorer"
 
             def score(
-                self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+                self,
+                inputs: dict[str, Any],
+                output: Any,  # noqa: ANN401
             ) -> bool | float | int | dict[str, Any]:
                 raise ValueError("Scoring failed")
 
@@ -381,7 +390,9 @@ class TestEvaluateSingleItem:
                 return "scorer1"
 
             def score(
-                self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+                self,
+                inputs: dict[str, Any],
+                output: Any,  # noqa: ANN401
             ) -> bool | float | int | dict[str, Any]:
                 return {"shared_key": 0.5}
 
@@ -390,7 +401,9 @@ class TestEvaluateSingleItem:
                 return "scorer2"
 
             def score(
-                self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+                self,
+                inputs: dict[str, Any],
+                output: Any,  # noqa: ANN401
             ) -> bool | float | int | dict[str, Any]:
                 return {"shared_key": 0.8}
 
@@ -546,9 +559,7 @@ class TestEvaluate:
 
         mock_tracker = MagicMock()
         eval_dataset = [
-            EvalItem(
-                id="1", inputs={"text": "hello"}, expected_output="response"
-            )
+            EvalItem(id="1", inputs={"text": "hello"}, expected_output="response")
         ]
         scorers = [MockUnsupervisedScorer(), MockSupervisedScorer()]
 

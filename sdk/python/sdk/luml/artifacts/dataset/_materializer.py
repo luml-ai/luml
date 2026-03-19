@@ -5,7 +5,10 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sdk.luml.artifacts._cache import default_cache_dir_for_archive, extract_archive_cached
+from sdk.luml.artifacts._cache import (
+    default_cache_dir_for_archive,
+    extract_archive_cached,
+)
 from sdk.luml.artifacts.dataset._manifest import (
     DatasetArtifactManifest,
     HFDatasetPayload,

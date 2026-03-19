@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 from httpx import URL
 
-from api.luml_api._exceptions import (
+from luml_api._exceptions import (
     APIStatusError,
     AuthenticationError,
     BadRequestError,

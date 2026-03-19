@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from api.luml_api.resources._listed_resource import PaginatedList
+from luml_api.resources._listed_resource import PaginatedList
 
 
 class BaseOrmConfig:

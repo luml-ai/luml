@@ -3,7 +3,7 @@ import json
 import os
 import tarfile
 
-from api.luml_api._types import ArtifactFileDetails
+from luml_api._types import ArtifactFileDetails
 
 
 class ModelFileHandler:

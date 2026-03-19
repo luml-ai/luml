@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from api.luml_api._types import BucketSecret
-from api.luml_api.resources.bucket_secrets import (
+from luml_api._types import BucketSecret
+from luml_api.resources.bucket_secrets import (
     AsyncBucketSecretResource,
     BucketSecretResource,
 )

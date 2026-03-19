@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from api.luml_api._types import Organization, is_uuid
-from api.luml_api._utils import find_by_value
+from luml_api._types import Organization, is_uuid
+from luml_api._utils import find_by_value
 
 if TYPE_CHECKING:
-    from api.luml_api._client import AsyncLumlClient, LumlClient
+    from luml_api._client import AsyncLumlClient, LumlClient
 
 
 class OrganizationResourceBase(ABC):

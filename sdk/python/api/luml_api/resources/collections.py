@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
-from api.luml_api._exceptions import NotFoundError
-from api.luml_api._types import (
+from luml_api._exceptions import NotFoundError
+from luml_api._types import (
     Collection,
     CollectionDetails,
     CollectionsList,
@@ -14,13 +14,13 @@ from api.luml_api._types import (
     SortOrder,
     is_uuid,
 )
-from api.luml_api.resources._listed_resource import (
+from luml_api.resources._listed_resource import (
     ListedResource,
 )
-from api.luml_api.resources._validators import validate_collection
+from luml_api.resources._validators import validate_collection
 
 if TYPE_CHECKING:
-    from api.luml_api._client import AsyncLumlClient, LumlClient
+    from luml_api._client import AsyncLumlClient, LumlClient
 
 
 class CollectionResourceBase(ABC):

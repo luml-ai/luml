@@ -5,9 +5,9 @@ from xml.etree import ElementTree as ET
 
 import httpx
 
-from api.luml_api._exceptions import FileUploadError, LumlAPIError
-from api.luml_api._types import PartDetails
-from api.luml_api.handlers.base_file_handler import BaseFileHandler
+from luml_api._exceptions import FileUploadError, LumlAPIError
+from luml_api._types import PartDetails
+from luml_api.handlers.base_file_handler import BaseFileHandler
 
 
 class S3FileHandler(BaseFileHandler):

@@ -23,4 +23,3 @@ class EvalResults:
     results: list[EvalResult]
     aggregated_scores: dict[str, float | int]
     dataset_id: str
-

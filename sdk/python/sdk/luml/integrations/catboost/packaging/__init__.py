@@ -7,7 +7,6 @@ from catboost import CatBoost
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
-
 from sdk.luml._constants import FNNX_PRODUCER_NAME
 from sdk.luml.artifacts.model import ModelReference
 from sdk.luml.integrations.catboost.packaging._templates.pyfunc import CatBoostFunc
@@ -38,9 +37,10 @@ class _DataInputSchema(BaseModel):
 
 
 class _PredictConfigSchema(BaseModel):
-    prediction_type: Literal[
-        "RawFormulaVal", "Class", "Probability", "Exponent", "LogProbability"
-    ] | None = None
+    prediction_type: (
+        Literal["RawFormulaVal", "Class", "Probability", "Exponent", "LogProbability"]
+        | None
+    ) = None
     ntree_start: int = 0
     ntree_end: int = 0
     thread_count: int = -1
@@ -191,17 +191,22 @@ def save_catboost(
     # Determine model type for default prediction_type
     loss_function = estimator.get_all_params().get("loss_function", "")
     classification_losses = [
-        "Logloss", "CrossEntropy", "MultiClass", "MultiClassOneVsAll"
+        "Logloss",
+        "CrossEntropy",
+        "MultiClass",
+        "MultiClassOneVsAll",
     ]
     model_type = "classifier" if loss_function in classification_losses else "regressor"
 
     builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({
-        "input_order": ["payload"],
-        "model_path": model_filename,
-        "model_type": model_type,
-        "loss_function": loss_function,
-    })
+    builder.set_extra_values(
+        {
+            "input_order": ["payload"],
+            "model_path": model_filename,
+            "model_type": model_type,
+            "loss_function": loss_function,
+        }
+    )
 
     _add_io(builder)
 

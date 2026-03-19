@@ -3,8 +3,8 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
 
-from api.luml_api._exceptions import FileError, FileUploadError
-from api.luml_api._types import (
+from luml_api._exceptions import FileError, FileUploadError
+from luml_api._types import (
     Artifact,
     ArtifactsList,
     ArtifactStatus,
@@ -13,15 +13,15 @@ from api.luml_api._types import (
     SortOrder,
     is_uuid,
 )
-from api.luml_api._utils import find_by_value
-from api.luml_api.handlers.model_artifacts import ModelFileHandler
-from api.luml_api.handlers.s3_file_handler import S3FileHandler
-from api.luml_api.resources._listed_resource import ListedResource
-from api.luml_api.resources._validators import validate_collection
-from api.luml_api.services.upload_service import AsyncUploadService, UploadService
+from luml_api._utils import find_by_value
+from luml_api.handlers.model_artifacts import ModelFileHandler
+from luml_api.handlers.s3_file_handler import S3FileHandler
+from luml_api.resources._listed_resource import ListedResource
+from luml_api.resources._validators import validate_collection
+from luml_api.services.upload_service import AsyncUploadService, UploadService
 
 if TYPE_CHECKING:
-    from api.luml_api._client import AsyncLumlClient, LumlClient
+    from luml_api._client import AsyncLumlClient, LumlClient
 
 
 class ArtifactResourceBase(ABC):

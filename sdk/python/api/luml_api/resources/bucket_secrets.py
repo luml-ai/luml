@@ -2,16 +2,16 @@ from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
-from api.luml_api._types import (
+from luml_api._types import (
     BucketSecret,
     MultiPartUploadDetails,
     is_uuid,
     model_validate_bucket_secret,
 )
-from api.luml_api._utils import find_by_value
+from luml_api._utils import find_by_value
 
 if TYPE_CHECKING:
-    from api.luml_api._client import AsyncLumlClient, LumlClient
+    from luml_api._client import AsyncLumlClient, LumlClient
 
 
 class BucketSecretResourceBase(ABC):

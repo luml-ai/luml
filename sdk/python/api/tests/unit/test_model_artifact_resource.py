@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from api.luml_api._types import Artifact, BucketType
-from api.luml_api.resources.artifacts import (
+from luml_api._types import Artifact, BucketType
+from luml_api.resources.artifacts import (
     ArtifactResource,
     AsyncArtifactResource,
 )

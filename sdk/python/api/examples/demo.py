@@ -1,5 +1,5 @@
-from api.luml_api import LumlClient
-from api.luml_api._types import ArtifactStatus, CollectionType
+from luml_api import LumlClient
+from luml_api._types import ArtifactStatus, CollectionType
 
 # Will use LUML API Production url "https://api.luml.ai"
 # And search for LUML_API_KEY in .env

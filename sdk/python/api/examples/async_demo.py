@@ -1,8 +1,8 @@
 # ruff: noqa: T201
 import asyncio
 
-from api.luml_api import AsyncLumlClient
-from api.luml_api._types import CollectionType, ModelArtifactStatus
+from luml_api import AsyncLumlClient
+from luml_api._types import CollectionType, ModelArtifactStatus
 
 # Will use Luml API Production url "https://api.luml.ai"
 # And search for LUML_API_KEY in .env

@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel
-
 from sdk.luml.artifacts._base import ArtifactManifest
 
 

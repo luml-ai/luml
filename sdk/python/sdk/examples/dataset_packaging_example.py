@@ -34,7 +34,7 @@ def example_basic_pandas_dataset() -> None:
         print(f"Skipping pandas example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_tabular_dataset
+    from luml.artifacts.dataset import load_dataset, save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 1: Basic pandas DataFrame packaging")
@@ -81,7 +81,7 @@ def example_polars_dataset() -> None:
         print(f"Skipping polars example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_tabular_dataset
+    from luml.artifacts.dataset import load_dataset, save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 2: Polars DataFrame packaging")
@@ -121,7 +121,7 @@ def example_chunked_dataset() -> None:
         print(f"Skipping chunking example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_tabular_dataset
+    from luml.artifacts.dataset import load_dataset, save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 3: Dataset chunking")
@@ -165,7 +165,7 @@ def example_subsets_and_splits() -> None:
         print(f"Skipping subsets/splits example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_tabular_dataset
+    from luml.artifacts.dataset import load_dataset, save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 4: Subsets and splits")
@@ -217,7 +217,7 @@ def example_huggingface_dataset() -> None:
         print(f"Skipping HuggingFace example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_hf_dataset
+    from luml.artifacts.dataset import load_dataset, save_hf_dataset
 
     print("\n" + "=" * 60)
     print("Example 5: HuggingFace dataset packaging")
@@ -271,7 +271,7 @@ def example_huggingface_with_configs() -> None:
         print(f"Skipping HuggingFace configs example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_hf_dataset
+    from luml.artifacts.dataset import load_dataset, save_hf_dataset
 
     print("\n" + "=" * 60)
     print("Example 5b: HuggingFace dataset configs (multi-config)")
@@ -324,9 +324,7 @@ def example_huggingface_with_configs() -> None:
     print(f"{sst2_dataset}\n")
 
     with tempfile.TemporaryDirectory(delete=True) as tmpdir:
-        print(
-            "Packaging multiple configs in a SINGLE archive..."
-        )
+        print("Packaging multiple configs in a SINGLE archive...")
 
         ref = save_hf_dataset(
             {"cola": cola_dataset, "sst2": sst2_dataset},
@@ -353,12 +351,8 @@ def example_huggingface_with_configs() -> None:
         sst2_train = mat.to_hf_split(subset="sst2", split="train")
         print(f"SST-2 train: {len(sst2_train)} samples")
 
-        print(
-            "\n✓ Multiple HF configs packaged in a single archive!"
-        )
-        print(
-            "✓ Each config preserves its splits (train/validation/test)"
-        )
+        print("\n✓ Multiple HF configs packaged in a single archive!")
+        print("✓ Each config preserves its splits (train/validation/test)")
 
 
 def example_format_conversion() -> None:
@@ -369,7 +363,7 @@ def example_format_conversion() -> None:
         print(f"Skipping format conversion example: {e}")
         return
 
-    from sdk.luml import load_dataset, save_tabular_dataset
+    from luml.artifacts.dataset import load_dataset, save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 6: Format conversion")
@@ -412,7 +406,7 @@ def example_from_file_path() -> None:
         print(f"Skipping file path example: {e}")
         return
 
-    from sdk.luml import save_tabular_dataset
+    from luml.artifacts.dataset import save_tabular_dataset
 
     print("\n" + "=" * 60)
     print("Example 7: Packaging from file paths")

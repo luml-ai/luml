@@ -1,8 +1,8 @@
 __version__ = "0.1.0"
 __title__ = "luml-sdk"
 
-from api.luml_api._client import AsyncLumlClient, LumlClient
-from api.luml_api._exceptions import (
+from luml_api._client import AsyncLumlClient, LumlClient
+from luml_api._exceptions import (
     APIError,
     APIResponseValidationError,
     APIStatusError,
@@ -15,7 +15,7 @@ from api.luml_api._exceptions import (
     PermissionDeniedError,
     UnprocessableEntityError,
 )
-from api.luml_api._types import (
+from luml_api._types import (
     ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,

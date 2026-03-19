@@ -14,7 +14,6 @@ except ImportError:
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
-
 from sdk.luml._constants import FNNX_PRODUCER_NAME
 from sdk.luml.artifacts.model import ModelReference
 from sdk.luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc

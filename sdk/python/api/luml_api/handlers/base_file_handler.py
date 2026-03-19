@@ -3,8 +3,8 @@ from collections.abc import Callable, Generator
 
 import httpx
 
-from api.luml_api._exceptions import FileDownloadError
-from api.luml_api._types import PartDetails
+from luml_api._exceptions import FileDownloadError
+from luml_api._types import PartDetails
 
 
 class BaseFileHandler(ABC):

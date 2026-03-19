@@ -1,7 +1,6 @@
 from typing import Any
 
 import pytest
-
 from sdk.luml.experiments.evaluation import (
     BaseScorer,
     SupervisedFuncScorer,
@@ -18,7 +17,9 @@ class ConcreteUnsupervisedScorer(UnsupervisedScorer):
         return "concrete_unsupervised"
 
     def score(
-        self, inputs: dict[str, Any], output: Any  # noqa: ANN401
+        self,
+        inputs: dict[str, Any],
+        output: Any,  # noqa: ANN401
     ) -> bool | float | int | dict[str, Any]:
         return len(output) > 0
 
@@ -28,7 +29,10 @@ class ConcreteSupervisedScorer(SupervisedScorer):
         return "concrete_supervised"
 
     def score(
-        self, inputs: dict[str, Any], expected_output: Any, output: Any  # noqa: ANN401
+        self,
+        inputs: dict[str, Any],
+        expected_output: Any,
+        output: Any,  # noqa: ANN401
     ) -> bool | float | int | dict[str, Any]:
         return expected_output == output
 
@@ -99,7 +103,9 @@ class TestUnsupervisedFuncScorer:
 class TestSupervisedFuncScorer:
     def test_init_and_get_name(self) -> None:
         def my_scorer(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> bool:
             return expected == output
 
@@ -108,7 +114,9 @@ class TestSupervisedFuncScorer:
 
     def test_score(self) -> None:
         def exact_match(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> bool:
             return expected == output
 
@@ -122,7 +130,9 @@ class TestSupervisedFuncScorer:
 
     def test_score_returns_float(self) -> None:
         def similarity_scorer(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> float:
             if expected == output:
                 return 1.0
@@ -169,7 +179,9 @@ class TestSupervisedScoreDecorator:
     def test_decorator_creates_scorer(self) -> None:
         @supervised_scorer
         def my_supervised_scorer(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> bool:
             return expected == output
 
@@ -179,7 +191,9 @@ class TestSupervisedScoreDecorator:
     def test_decorator_scorer_works(self) -> None:
         @supervised_scorer
         def exact_match(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> bool:
             return expected == output
 
@@ -192,7 +206,9 @@ class TestSupervisedScoreDecorator:
     def test_decorator_with_float_return(self) -> None:
         @supervised_scorer
         def overlap_score(
-            inputs: dict[str, Any], expected: Any, output: Any  # noqa: ANN401
+            inputs: dict[str, Any],
+            expected: Any,
+            output: Any,  # noqa: ANN401
         ) -> float:
             expected_words = set(expected.split())
             output_words = set(output.split())

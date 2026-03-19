@@ -6,8 +6,8 @@ import httpx
 import pytest
 import pytest_asyncio
 
-from api.luml_api._client import AsyncLumlClient, LumlClient
-from api.luml_api._types import (
+from luml_api._client import AsyncLumlClient, LumlClient
+from luml_api._types import (
     Artifact,
     ArtifactType,
     Collection,

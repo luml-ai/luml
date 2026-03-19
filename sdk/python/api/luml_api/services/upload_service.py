@@ -2,12 +2,12 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from api.luml_api._exceptions import LumlAPIError
-from api.luml_api._types import UploadDetails
-from api.luml_api.handlers.file_handler_factory import create_file_handler
+from luml_api._exceptions import LumlAPIError
+from luml_api._types import UploadDetails
+from luml_api.handlers.file_handler_factory import create_file_handler
 
 if TYPE_CHECKING:
-    from api.luml_api.resources.bucket_secrets import (
+    from luml_api.resources.bucket_secrets import (
         AsyncBucketSecretResource,
         BucketSecretResource,
     )
@@ -46,6 +46,7 @@ class UploadService:
             )
         if not upload_details.url:
             raise LumlAPIError("Upload URL is required for simple upload")
+
         return handler.upload_simple(
             url=upload_details.url,
             file_path=file_path,
@@ -85,8 +86,10 @@ class AsyncUploadService:
                 file_name=file_name,
                 upload_id=upload_id,
             )
+
         if not upload_details.url:
             raise LumlAPIError("Upload URL is required for simple upload")
+
         return handler.upload_simple(
             url=upload_details.url,
             file_path=file_path,
