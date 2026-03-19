@@ -213,7 +213,6 @@ const scoresColumns = computed(() => {
 })
 
 const isSortableColumn = computed(() => (columnName: string) => {
-  if (columnName === 'id') return true
   return scoresColumns.value.includes(columnName)
 })
 

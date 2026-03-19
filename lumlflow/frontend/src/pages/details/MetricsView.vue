@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col gap-4">
+  <div v-if="metrics.length" class="flex flex-col gap-4">
     <DynamicMetrics
       :metrics-names="metrics"
       :models-info="modelsInfo"
@@ -7,6 +7,7 @@
       :show-title="false"
     ></DynamicMetrics>
   </div>
+  <div v-else class="empty-message">No metrics found in this experiment</div>
 </template>
 
 <script setup lang="ts">
@@ -34,4 +35,15 @@ const modelsInfo = computed(() => {
 })
 </script>
 
-<style scoped></style>
+<style scoped>
+.empty-message {
+  font-size: 16px;
+  color: var(--p-form-field-float-label-color);
+  text-align: center;
+  padding: 20px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

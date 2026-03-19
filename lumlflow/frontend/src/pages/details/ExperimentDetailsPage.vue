@@ -6,7 +6,7 @@
     <Skeleton class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
   </template>
 
-  <div v-else-if="groupData && experimentStore.experiment">
+  <div v-else-if="groupData && experimentStore.experiment" class="flex flex-col flex-1">
     <DetailsBreadcrumbs
       :group-name="groupData.name"
       :group-id="groupId"

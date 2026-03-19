@@ -3,6 +3,7 @@
     v-if="evalsStore.getProvider"
     :models-info="modelsInfo"
     loader-height="calc(100vh-250px)"
+    empty-message="No evals found in this experiment"
   ></EvalsDatasetsList>
 </template>
 
