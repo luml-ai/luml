@@ -1,6 +1,7 @@
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import type { DialogPassThroughOptions } from 'primevue'
 import z from 'zod'
+import { UploadTypeEnum } from './upload.interface'
 
 type Resolver = ReturnType<typeof zodResolver>
 
@@ -16,7 +17,7 @@ export const DIALOG_PT: DialogPassThroughOptions = {
 export const resolver: Resolver = zodResolver(
   z
     .object({
-      type: z.enum(['auto', 'model', 'experiment']),
+      type: z.enum([UploadTypeEnum.AUTO, UploadTypeEnum.MODEL, UploadTypeEnum.EXPERIMENT]),
       organization: z.string().nullable(),
       orbit: z.string().nullable(),
       collection: z.string().nullable(),
@@ -60,14 +61,14 @@ export const resolver: Resolver = zodResolver(
 export const selectTypeOptions = [
   {
     label: 'Auto',
-    value: 'auto',
+    value: UploadTypeEnum.AUTO,
   },
   {
     label: 'Model',
-    value: 'model',
+    value: UploadTypeEnum.MODEL,
   },
   {
     label: 'Experiment',
-    value: 'experiment',
+    value: UploadTypeEnum.EXPERIMENT,
   },
 ]
