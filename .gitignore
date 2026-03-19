@@ -19,3 +19,4 @@ __pycache__/
 node_modules
 /lumlflow/.idea/
 /lumlflow/.env
+/sdk/api/python/.venv
