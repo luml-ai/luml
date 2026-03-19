@@ -48,7 +48,7 @@ export const useTracesTable = (
     if (!summary) return {}
     return summary.feedback.reduce(
       (acc, item) => {
-        acc[item.name] = {
+        acc[item.name + ' (feedback)'] = {
           isFeedbackColumn: true,
           positiveCount: item.counts['true'] ?? 0,
           negativeCount: item.counts['false'] ?? 0,
@@ -63,7 +63,7 @@ export const useTracesTable = (
     if (!summary) return {}
     return summary.expectations.reduce(
       (acc, item) => {
-        acc[item.name] = {
+        acc[item.name + ' (expectation)'] = {
           isExpectationColumn: true,
           total: item.total,
           positive: item.positive,

@@ -14,7 +14,9 @@
     :visible="!!editDialogData"
     :data="editDialogData"
     :artifact-id="artifactId"
+    :dataset-id="datasetId"
     :type="type"
+    :existing-names="existingNames"
     @update:visible="onEditDialogVisibleUpdate"
   />
 </template>
@@ -34,6 +36,8 @@ interface Props {
   items: Annotation[]
   artifactId: string
   type: 'eval' | 'span'
+  existingNames: string[]
+  datasetId?: string
 }
 
 const annotationsStore = useAnnotationsStore()
@@ -62,7 +66,10 @@ async function deleteAnnotation(item: Annotation) {
     if (props.type === 'span') {
       await annotationsStore.deleteSpanAnnotation(props.artifactId, item.id)
     } else {
-      await annotationsStore.deleteEvalAnnotation(props.artifactId, item.id)
+      if (!props.datasetId) {
+        throw new Error('Dataset ID is required')
+      }
+      await annotationsStore.deleteEvalAnnotation(props.artifactId, props.datasetId, item.id)
     }
     toast.add(simpleSuccessToast(`Annotation "${item.name}" deleted successfully`))
   } catch (error) {

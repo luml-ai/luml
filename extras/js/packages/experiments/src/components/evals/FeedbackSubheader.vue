@@ -18,7 +18,9 @@ interface Props {
 const props = defineProps<Props>()
 
 const annotationData = computed(() => {
-  return props.feedback.find((item) => item.name === props.annotationName)
+  return props.feedback.find(
+    (item) => item.name === props.annotationName.replace(' (feedback)', ''),
+  )
 })
 
 const positivePercentage = computed(() => {

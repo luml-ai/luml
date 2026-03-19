@@ -5,7 +5,13 @@
     :title="dialogTitle"
     max-width="420px"
   >
-    <AnnotationForm v-if="data" :data="data" :is-edit="true" @submit="onSubmit" />
+    <AnnotationForm
+      v-if="data"
+      :data="data"
+      :is-edit="true"
+      :existing-names="existingNames"
+      @submit="onSubmit"
+    />
     <template #footer>
       <Button severity="secondary" variant="outlined" @click="onCancel"> Cancel </Button>
       <Button type="submit" form="annotation-edit-form" severity="primary" :loading="loading"
@@ -30,6 +36,8 @@ interface Props {
   artifactId: string
   data: Annotation | null
   type: 'eval' | 'span'
+  existingNames: string[]
+  datasetId?: string
 }
 
 const props = defineProps<Props>()
@@ -54,10 +62,18 @@ async function onSubmit(data: UpdateAnnotationPayload) {
       throw new Error('Annotation data not found')
     }
     if (props.type === 'eval') {
-      await annotationsStore.updateEvalAnnotation(props.artifactId, props.data.id, {
-        value: data.value,
-        rationale: data.rationale,
-      })
+      if (!props.datasetId) {
+        throw new Error('Dataset ID is required')
+      }
+      await annotationsStore.updateEvalAnnotation(
+        props.artifactId,
+        props.datasetId,
+        props.data.id,
+        {
+          value: data.value,
+          rationale: data.rationale,
+        },
+      )
     } else {
       await annotationsStore.updateSpanAnnotation(props.artifactId, props.data.id, {
         value: data.value,

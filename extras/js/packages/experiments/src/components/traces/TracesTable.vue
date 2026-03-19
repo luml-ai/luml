@@ -145,13 +145,14 @@
         <Row>
           <Column
             v-for="column in [...visibleFeedbackColumns, ...visibleExpectationColumns]"
-            :key="column"
-            :field="column"
+            :key="column.key"
+            :field="column.key"
             :pt="{
               headerCell: {
                 class: {
                   'border-left-none':
-                    column !== visibleFeedbackColumns[0] && column !== visibleExpectationColumns[0],
+                    column.key !== visibleFeedbackColumns[0]?.key &&
+                    column.key !== visibleExpectationColumns[0]?.key,
                   'border-right-none': true,
                   'border-top-none': true,
                 },
@@ -159,8 +160,8 @@
             }"
           >
             <template #header>
-              <div v-tooltip.top="column" class="child-header-content">
-                {{ column }}
+              <div v-tooltip.top="column.label" class="child-header-content">
+                {{ column.label }}
               </div>
             </template>
           </Column>
@@ -179,10 +180,10 @@
             }"
           >
             <template #header>
-              <div v-if="visibleFeedbackColumns.includes(column)">
+              <div v-if="visibleFeedbackColumns.find((item) => item.key === column)">
                 <FeedbackSubheader
                   :annotation-name="column"
-                  :feedback="annotationsSummary.feedback"
+                  :feedback="annotationsStore.tracesAnnotationsSummary?.feedback || []"
                 ></FeedbackSubheader>
               </div>
             </template>
@@ -221,34 +222,34 @@
       ></Column>
       <Column
         v-for="column in visibleFeedbackColumns"
-        :key="column"
-        :field="column"
+        :key="column.key"
+        :field="column.key"
         :pt="{
           bodyCell: {
             class: {
-              'border-left-none': !showColumnLeftBorder(column),
+              'border-left-none': !showColumnLeftBorder(column.key),
             },
           },
         }"
       >
         <template #body="slotProps">
-          <FeedbackColumn :data="slotProps.data[column]"></FeedbackColumn>
+          <FeedbackColumn :data="slotProps.data[column.key]"></FeedbackColumn>
         </template>
       </Column>
       <Column
         v-for="column in visibleExpectationColumns"
-        :key="column"
-        :field="column"
+        :key="column.key"
+        :field="column.key"
         :pt="{
           bodyCell: {
             class: {
-              'border-left-none': !showColumnLeftBorder(column),
+              'border-left-none': !showColumnLeftBorder(column.key),
             },
           },
         }"
       >
         <template #body="slotProps">
-          <ExpectationColumn :data="slotProps.data[column]"></ExpectationColumn>
+          <ExpectationColumn :data="slotProps.data[column.key]"></ExpectationColumn>
         </template>
       </Column>
       <Column v-if="selectedColumns.includes('evals')" field="evals" header="evals">
@@ -297,26 +298,40 @@ import { nextTick } from 'vue'
 import FeedbackSubheader from '../evals/FeedbackSubheader.vue'
 import FeedbackColumn from '../table/feedback-column/FeedbackColumn.vue'
 import ExpectationColumn from '../table/ecpectation-column/ExpectationColumn.vue'
+import { useAnnotationsStore } from '@/store/annotations'
 
 const props = defineProps<TableProps>()
 const emit = defineEmits<TableEmits>()
 
 const evalsStore = useEvalsStore()
 const toast = useToast()
+const annotationsStore = useAnnotationsStore()
 
 const tableRef = ref()
 const isSubheaderVisible = ref(false)
 
 const visibleFeedbackColumns = computed(() => {
-  return props.annotationsSummary.feedback
-    .map((item) => item.name)
-    .filter((column) => props.selectedColumns.includes(column))
+  if (!annotationsStore.tracesAnnotationsSummary) return []
+  return annotationsStore.tracesAnnotationsSummary.feedback
+    .map((item) => {
+      return {
+        key: item.name + ' (feedback)',
+        label: item.name,
+      }
+    })
+    .filter((item) => props.selectedColumns.includes(item.key))
 })
 
 const visibleExpectationColumns = computed(() => {
-  return props.annotationsSummary.expectations
-    .map((item) => item.name)
-    .filter((column) => props.selectedColumns.includes(column))
+  if (!annotationsStore.tracesAnnotationsSummary) return []
+  return annotationsStore.tracesAnnotationsSummary.expectations
+    .map((item) => {
+      return {
+        key: item.name + ' (expectation)',
+        label: item.name,
+      }
+    })
+    .filter((item) => props.selectedColumns.includes(item.key))
 })
 
 const feedbackWidth = computed(() => {
@@ -329,11 +344,11 @@ const expectationWidth = computed(() => {
 
 const showColumnLeftBorder = computed(() => (columnName: string) => {
   const firstVisibleFeedbackColumn = visibleFeedbackColumns.value[0]
-  if (columnName === firstVisibleFeedbackColumn) return true
+  if (columnName === firstVisibleFeedbackColumn?.key) return true
   const lastVisibleFeedbackColumn =
     visibleFeedbackColumns.value[visibleFeedbackColumns.value.length - 1]
   const lastVisibleFeedbackColumnIndex = props.selectedColumns.findIndex(
-    (column) => column === lastVisibleFeedbackColumn,
+    (column) => column === lastVisibleFeedbackColumn?.key,
   )
   if (lastVisibleFeedbackColumnIndex === -1) return false
   const columnWithLeftBorder = props.selectedColumns[lastVisibleFeedbackColumnIndex + 1]

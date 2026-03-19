@@ -35,7 +35,15 @@
     </FormField>
     <FormField name="name" class="form-field">
       <label for="name">Annotation name</label>
-      <InputText name="name" id="name" placeholder="Enter an annotation name" :disabled="isEdit" />
+      <AutoComplete
+        name="name"
+        id="name"
+        placeholder="Enter an annotation name"
+        fluid
+        :suggestions="nameSuggestions"
+        :disabled="isEdit"
+        @complete="nameSearch"
+      />
     </FormField>
     <FormField name="dataType" class="form-field">
       <label for="dataType">Data type</label>
@@ -63,7 +71,13 @@
 
 <script setup lang="ts">
 import { Form, FormField, type FormSubmitEvent, type FormInstance } from '@primevue/forms'
-import { SelectButton, InputText, Select } from 'primevue'
+import {
+  SelectButton,
+  InputText,
+  Select,
+  AutoComplete,
+  type AutoCompleteCompleteEvent,
+} from 'primevue'
 import { INITIAL_VALUES, RESOLVER, TYPE_OPTIONS, TYPE_ICONS, DATA_TYPE_OPTIONS } from './data'
 import { AnnotationValueType, AnnotationKind, type Annotation } from '../annotations.interface'
 import { ref } from 'vue'
@@ -72,6 +86,7 @@ import AnnotationFormValue from './AnnotationFormValue.vue'
 interface Props {
   data?: Annotation
   isEdit?: boolean
+  existingNames: string[]
 }
 
 interface Emits {
@@ -81,6 +96,10 @@ interface Emits {
 const props = defineProps<Props>()
 
 const emits = defineEmits<Emits>()
+
+const nameSuggestions = ref<string[] | undefined>(
+  props.existingNames.length ? props.existingNames : undefined,
+)
 
 const formInitialValues = props.data
   ? {
@@ -104,7 +123,6 @@ function onTypeChange() {
 
 function onDataTypeChange() {
   const dataType = form.value?.getFieldState('dataType')?.value
-
   if (dataType === AnnotationValueType.BOOL) {
     form.value?.setFieldValue('value', true)
   } else if (dataType === AnnotationValueType.STRING) {
@@ -118,6 +136,13 @@ function onSubmit(event: FormSubmitEvent) {
   const { valid, values } = event
   if (!valid) return
   emits('submit', values)
+}
+
+function nameSearch(event: AutoCompleteCompleteEvent) {
+  const suggestions = props.existingNames.filter((name) =>
+    name.toLowerCase().includes(event.query.toLowerCase()),
+  )
+  nameSuggestions.value = suggestions.length ? suggestions : undefined
 }
 </script>
 

@@ -57,7 +57,7 @@
 
 <script setup lang="ts">
 import { type LucideIcon } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { cutStringOnMiddle } from '../../helpers/helpers'
 import { OverlayBadge, Button, Popover, InputText, ToggleSwitch, Divider, Checkbox } from 'primevue'
 
@@ -128,6 +128,13 @@ function onShowAllUpdate(value: boolean) {
       props.columns.filter((column) => props.disabledColumns.includes(column)),
     )
 }
+
+watch(
+  () => props.columns,
+  (newColumns) => {
+    selectedColumnsCurrent.value = fillSelectedColumns(newColumns, props.selectedColumns)
+  },
+)
 </script>
 
 <style scoped>

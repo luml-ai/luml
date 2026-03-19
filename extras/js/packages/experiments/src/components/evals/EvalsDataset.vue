@@ -37,7 +37,6 @@ import type {
   SortParams,
   TableColumn,
 } from './evals.interface'
-import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
 import { computed, onBeforeMount, reactive, ref, watch } from 'vue'
 import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
@@ -62,7 +61,9 @@ const filter = reactive<FilterInterface>({
 
 const averageScores = ref<ModelScores[] | null>(null)
 
-const annotationsSummary = ref<AnnotationSummary | null>(null)
+const annotationsSummary = computed(
+  () => annotationsStore.evalsAnnotationsSummaryByDatasetId[props.datasetId],
+)
 
 const columnsTree = computed(() => {
   const tree: TableColumn[] = [
@@ -110,10 +111,6 @@ const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 
 onBeforeMount(async () => {
   averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(props.datasetId)
-
-  annotationsSummary.value = await annotationsStore.getEvalsDatasetAnnotationsSummary(
-    props.datasetId,
-  )
 })
 
 watch(filter, debouncedOnFilterChange)

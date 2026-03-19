@@ -34,8 +34,6 @@ export interface DatasetData {
   params: GetEvalsByDatasetParams
 }
 
-export type InitialDatasetParamsType = Omit<GetEvalsByDatasetParams, 'dataset_id'>
-
 export interface TableEmits {
   (e: 'get-next-page'): void
   (e: 'sort', sortParams: SortParams): void

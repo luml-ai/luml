@@ -23,7 +23,10 @@ export const RESOLVER: Resolver = zodResolver(
       AnnotationValueType.INT,
     ]),
     value: z.any(),
-    rationale: z.string().min(1),
+    rationale: z.preprocess(
+      (val) => (val === '' ? null : val),
+      z.string().min(3).max(255).nullable().optional(),
+    ),
   }),
 )
 
