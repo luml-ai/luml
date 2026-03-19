@@ -18,26 +18,34 @@ def _get_preds(out, preds_key):
     return result
 
 
-def _assert_close(preds, expected, atol=1e-5):
+def _assert_close(preds, expected, atol=1e-5) -> None:
     assert len(preds) == len(expected)
-    assert all(abs(p - e) < atol for p, e in zip(preds, expected))
+    assert all(abs(p - e) < atol for p, e in zip(preds, expected, strict=False))
 
 
-def test_df_unified(lgb_df_unified):
+def test_df_unified(lgb_df_unified) -> None:
     f = lgb_df_unified
-    _assert_close(_get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"])
+    _assert_close(
+        _get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"]
+    )
 
 
-def test_ndarray_unified(lgb_ndarray_unified):
+def test_ndarray_unified(lgb_ndarray_unified) -> None:
     f = lgb_ndarray_unified
-    _assert_close(_get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"])
+    _assert_close(
+        _get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"]
+    )
 
 
-def test_ndarray_native(lgb_ndarray_native):
+def test_ndarray_native(lgb_ndarray_native) -> None:
     f = lgb_ndarray_native
-    _assert_close(_get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"])
+    _assert_close(
+        _get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"]
+    )
 
 
-def test_sparse_native(lgb_sparse_native):
+def test_sparse_native(lgb_sparse_native) -> None:
     f = lgb_sparse_native
-    _assert_close(_get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"])
+    _assert_close(
+        _get_preds(_run(f["ref"].path, f["inputs"]), f["preds_key"]), f["expected"]
+    )

@@ -19,6 +19,7 @@ BATCH = 4
 NAMED = [f"feat_{i}" for i in range(N_FEATURES)]
 AUTO = [f"x{i}" for i in range(N_FEATURES)]
 
+
 def _xgb_train(X: np.ndarray, feature_names: list, y: np.ndarray) -> xgb.Booster:
     dtrain = xgb.DMatrix(X, label=y, feature_names=feature_names)
     return xgb.train(
@@ -136,10 +137,14 @@ def xgb_dmatrix_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, An
     X_test = rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
     return {
         "ref": ref,
-        "inputs": {"payload": {"dmatrix": {
-            "data": X_test.tolist(),
-            "feature_names": NAMED,
-        }}},
+        "inputs": {
+            "payload": {
+                "dmatrix": {
+                    "data": X_test.tolist(),
+                    "feature_names": NAMED,
+                }
+            }
+        },
         "expected": model.predict(xgb.DMatrix(X_test, feature_names=NAMED)).tolist(),
         "preds_key": ["xgboost_output", "predictions"],
         "compare": "float",
@@ -158,22 +163,25 @@ def xgb_sparse_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any
         estimator=model, inputs=sp.csr_matrix(X), path=path, input_format="native"
     )
 
-    X_test = sp.csr_matrix(
-        rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32)
-    )
+    X_test = sp.csr_matrix(rng.standard_normal((BATCH, N_FEATURES)).astype(np.float32))
     return {
         "ref": ref,
-        "inputs": {"payload": {"dmatrix": {
-            "data": X_test.data.tolist(),
-            "indices": X_test.indices.tolist(),
-            "indptr": X_test.indptr.tolist(),
-            "shape": list(X_test.shape),
-            "data_format": "csr",
-        }}},
+        "inputs": {
+            "payload": {
+                "dmatrix": {
+                    "data": X_test.data.tolist(),
+                    "indices": X_test.indices.tolist(),
+                    "indptr": X_test.indptr.tolist(),
+                    "shape": list(X_test.shape),
+                    "data_format": "csr",
+                }
+            }
+        },
         "expected": model.predict(xgb.DMatrix(X_test, feature_names=AUTO)).tolist(),
         "preds_key": ["xgboost_output", "predictions"],
         "compare": "float",
     }
+
 
 def _lgb_train(feature_names: list) -> tuple[lgb.Booster, np.ndarray]:
     rng = np.random.default_rng(42)
@@ -258,13 +266,17 @@ def lgb_sparse_native(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any
     )
     return {
         "ref": ref,
-        "inputs": {"payload": {"dataset": {
-            "data": X_test.data.tolist(),
-            "indices": X_test.indices.tolist(),
-            "indptr": X_test.indptr.tolist(),
-            "shape": list(X_test.shape),
-            "data_format": "csr",
-        }}},
+        "inputs": {
+            "payload": {
+                "dataset": {
+                    "data": X_test.data.tolist(),
+                    "indices": X_test.indices.tolist(),
+                    "indptr": X_test.indptr.tolist(),
+                    "shape": list(X_test.shape),
+                    "data_format": "csr",
+                }
+            }
+        },
         "expected": model.predict(X_test).tolist(),
         "preds_key": ["lightgbm_output", "predictions"],
         "compare": "float",
@@ -340,10 +352,12 @@ def ctb_classifier_ndarray_native(
     X_test = rng.standard_normal((BATCH, N_FEATURES))
     return {
         "ref": ref,
-        "inputs": {"payload": {
-            "pool": {"data": X_test.tolist()},
-            "predict_config": {"prediction_type": "Class"},
-        }},
+        "inputs": {
+            "payload": {
+                "pool": {"data": X_test.tolist()},
+                "predict_config": {"prediction_type": "Class"},
+            }
+        },
         "expected": model.predict(X_test, prediction_type="Class").astype(int).tolist(),
         "preds_key": ["catboost_output", "predictions"],
         "compare": "int",
@@ -371,16 +385,18 @@ def ctb_classifier_sparse_native(
     # prediction_type="Probability" → [[p_class0, p_class1], ...] per sample
     return {
         "ref": ref,
-        "inputs": {"payload": {
-            "pool": {
-                "data": X_test.data.tolist(),
-                "indices": X_test.indices.tolist(),
-                "indptr": X_test.indptr.tolist(),
-                "shape": list(X_test.shape),
-                "data_format": "csr",
-            },
-            "predict_config": {"prediction_type": "Probability"},
-        }},
+        "inputs": {
+            "payload": {
+                "pool": {
+                    "data": X_test.data.tolist(),
+                    "indices": X_test.indices.tolist(),
+                    "indptr": X_test.indptr.tolist(),
+                    "shape": list(X_test.shape),
+                    "data_format": "csr",
+                },
+                "predict_config": {"prediction_type": "Probability"},
+            }
+        },
         "expected": model.predict(X_test, prediction_type="Probability").tolist(),
         "preds_key": ["catboost_output", "predictions"],
         "compare": "float_2d",
@@ -475,13 +491,17 @@ def ctb_regressor_sparse_native(
     X_test = sp.csr_matrix(rng.standard_normal((BATCH, N_FEATURES)))
     return {
         "ref": ref,
-        "inputs": {"payload": {"pool": {
-            "data": X_test.data.tolist(),
-            "indices": X_test.indices.tolist(),
-            "indptr": X_test.indptr.tolist(),
-            "shape": list(X_test.shape),
-            "data_format": "csr",
-        }}},
+        "inputs": {
+            "payload": {
+                "pool": {
+                    "data": X_test.data.tolist(),
+                    "indices": X_test.indices.tolist(),
+                    "indptr": X_test.indptr.tolist(),
+                    "shape": list(X_test.shape),
+                    "data_format": "csr",
+                }
+            }
+        },
         "expected": model.predict(X_test).tolist(),
         "preds_key": ["catboost_output", "predictions"],
         "compare": "float",

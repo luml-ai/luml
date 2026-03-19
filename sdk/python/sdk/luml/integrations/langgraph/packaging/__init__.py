@@ -8,20 +8,21 @@ from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON, Var
 from langgraph.pregel import Pregel
 from pydantic import BaseModel, create_model
-from sdk.luml._constants import FNNX_PRODUCER_NAME
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.integrations.langgraph.packaging._templates.mermaid import (
+
+from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
+from luml.integrations.langgraph.packaging._templates.mermaid import (
     create_mermaid_html,
 )
-from sdk.luml.integrations.langgraph.packaging._templates.pyfunc import LangGraphFunc
-from sdk.luml.utils.deps import find_dependencies, has_dependency
-from sdk.luml.utils.imports import (
+from luml.integrations.langgraph.packaging._templates.pyfunc import LangGraphFunc
+from luml.utils.deps import find_dependencies, has_dependency
+from luml.utils.imports import (
     dyn_import,
     extract_top_level_modules,
     get_object_path,
     get_version,
 )
-from sdk.luml.utils.time import get_epoch
+from luml.utils.time import get_epoch
 
 
 class _CommandSchema(BaseModel):
@@ -124,7 +125,8 @@ def save_langgraph(  # noqa: C901
     and metadata for production deployment or model registry.
 
     Args:
-        graph: LangGraph Pregel instance, callable returning Pregel, or import path string.
+        graph: LangGraph Pregel instance, callable returning Pregel,
+            or import path string.
         path: Output file path. Auto-generated if not provided.
         dependencies: Dependency management strategy:
             - "default": Auto-detect dependencies
@@ -142,7 +144,8 @@ def save_langgraph(  # noqa: C901
         manifest_extra_producer_tags: Additional tags for model metadata.
 
     Returns:
-        ModelReference: Reference to the saved model package with embedded Mermaid diagram.
+        ModelReference: Reference to the saved model package
+        with embedded Mermaid diagram.
 
     Example:
     ```python

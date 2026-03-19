@@ -77,9 +77,8 @@ class LightGBMFunc(PyFunc):
                         predict_kwargs[key] = predict_config[key]
 
             predictions = self.model.predict(x, **predict_kwargs)
-            return {"lightgbm_output": {
-                "predictions": np.asarray(predictions).tolist()
-                }
+            return {
+                "lightgbm_output": {"predictions": np.asarray(predictions).tolist()}
             }
 
         if self.categorical_features:

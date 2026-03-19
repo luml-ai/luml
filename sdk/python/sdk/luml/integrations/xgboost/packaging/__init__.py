@@ -81,12 +81,14 @@ def _add_io(
         else None
     )
 
-    builder.set_extra_values({
-        "input_order": input_order,
-        "input_format": input_format,
-        "categorical_features": categorical_features,
-        **({"feature_types": feature_types} if feature_types else {}),
-    })
+    builder.set_extra_values(
+        {
+            "input_order": input_order,
+            "input_format": input_format,
+            "categorical_features": categorical_features,
+            **({"feature_types": feature_types} if feature_types else {}),
+        }
+    )
 
     if input_format == "native":
         add_native_io(
@@ -98,11 +100,7 @@ def _add_io(
         return
 
     add_unified_inputs(
-        builder,
-        inputs,
-        input_order,
-        categorical_features,
-        feature_types
+        builder, inputs, input_order, categorical_features, feature_types
     )
 
     if not isinstance(x, xgb.DMatrix):
@@ -117,7 +115,6 @@ def _add_io(
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::xgboost:v1"]
-
 
 
 def save_xgboost(  # noqa: C901

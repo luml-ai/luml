@@ -64,12 +64,17 @@ def _add_io(
 ) -> None:
     x, input_order, categorical_features = normalize_inputs(inputs, input_format)
 
-    builder.set_extra_values({
-        "input_order": input_order,
-        "input_format": input_format,
-        **({"categorical_features": categorical_features} if
-           categorical_features else {}),
-    })
+    builder.set_extra_values(
+        {
+            "input_order": input_order,
+            "input_format": input_format,
+            **(
+                {"categorical_features": categorical_features}
+                if categorical_features
+                else {}
+            ),
+        }
+    )
 
     if input_format == "native":
         add_native_io(
@@ -195,7 +200,7 @@ def save_lightgbm(  # noqa: C901
             extra_dependencies,
             extra_code_modules,
             needs_pandas=needs_pandas,
-            framework="lightgbm"
+            framework="lightgbm",
         )
 
         builder.save(path)

@@ -36,17 +36,26 @@ def model():
 
 @pytest.fixture(scope="module")
 def X_test():
-    return np.random.default_rng(1).standard_normal((BATCH, N_FEATURES)).astype(np.float32)
+    return (
+        np.random.default_rng(1).standard_normal((BATCH, N_FEATURES)).astype(np.float32)
+    )
 
 
-def test_output_margin(xgb_ndarray_native, model, X_test):
+def test_output_margin(xgb_ndarray_native, model, X_test) -> None:
     """output_margin=True returns raw logit scores, not probabilities."""
-    expected = model.predict(xgb.DMatrix(X_test, feature_names=AUTO), output_margin=True).tolist()
+    expected = model.predict(
+        xgb.DMatrix(X_test, feature_names=AUTO), output_margin=True
+    ).tolist()
 
-    out = _run(xgb_ndarray_native["ref"].path, {"payload": {
-        "dmatrix": {"data": X_test.tolist()},
-        "predict_config": {"output_margin": True},
-    }})
+    out = _run(
+        xgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dmatrix": {"data": X_test.tolist()},
+                "predict_config": {"output_margin": True},
+            }
+        },
+    )
 
     preds = out["xgboost_output"]["predictions"]
     assert np.allclose(preds, expected, atol=1e-5)
@@ -54,14 +63,21 @@ def test_output_margin(xgb_ndarray_native, model, X_test):
     assert not np.allclose(preds, expected_proba, atol=1e-5)
 
 
-def test_pred_leaf(xgb_ndarray_native, model, X_test):
+def test_pred_leaf(xgb_ndarray_native, model, X_test) -> None:
     """pred_leaf=True returns leaf node indices: one integer per tree per sample."""
-    expected = model.predict(xgb.DMatrix(X_test, feature_names=AUTO), pred_leaf=True).tolist()
+    expected = model.predict(
+        xgb.DMatrix(X_test, feature_names=AUTO), pred_leaf=True
+    ).tolist()
 
-    out = _run(xgb_ndarray_native["ref"].path, {"payload": {
-        "dmatrix": {"data": X_test.tolist()},
-        "predict_config": {"pred_leaf": True},
-    }})
+    out = _run(
+        xgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dmatrix": {"data": X_test.tolist()},
+                "predict_config": {"pred_leaf": True},
+            }
+        },
+    )
 
     preds = out["xgboost_output"]["predictions"]
     # shape: (BATCH, NUM_TREES)
@@ -70,16 +86,21 @@ def test_pred_leaf(xgb_ndarray_native, model, X_test):
     assert preds == expected
 
 
-def test_iteration_range(xgb_ndarray_native, model, X_test):
+def test_iteration_range(xgb_ndarray_native, model, X_test) -> None:
     """iteration_range=(0, 5) uses only the first 5 trees."""
     dm = xgb.DMatrix(X_test, feature_names=AUTO)
     expected_partial = model.predict(dm, iteration_range=(0, 5)).tolist()
     expected_full = model.predict(dm).tolist()
 
-    out = _run(xgb_ndarray_native["ref"].path, {"payload": {
-        "dmatrix": {"data": X_test.tolist()},
-        "predict_config": {"iteration_range": [0, 5]},
-    }})
+    out = _run(
+        xgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dmatrix": {"data": X_test.tolist()},
+                "predict_config": {"iteration_range": [0, 5]},
+            }
+        },
+    )
 
     preds = out["xgboost_output"]["predictions"]
     assert np.allclose(preds, expected_partial, atol=1e-5)

@@ -30,6 +30,7 @@ def resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
         return "int"
     return "str"
 
+
 def normalize_inputs(  # noqa: C901
     inputs: Any,  # noqa: ANN401
     input_format: str,
@@ -58,7 +59,6 @@ def normalize_inputs(  # noqa: C901
                 feature_names = [f"x{i}" for i in range(inputs.num_col())]
             return inputs, list(feature_names), categorical_features
 
-
     if sp.issparse(inputs):
         if input_format != "native":
             raise ValueError("Sparse requires input_format='native'")
@@ -73,6 +73,7 @@ def normalize_inputs(  # noqa: C901
         raise ValueError("Input must be at least 2D")
     input_order = [f"x{i}" for i in range(arr.shape[1])]
     return arr, input_order, categorical_features
+
 
 def add_unified_inputs(
     builder: PyfuncBuilder,
@@ -106,6 +107,7 @@ def add_unified_inputs(
             )
         )
 
+
 def add_unified_output(
     builder: PyfuncBuilder,
     estimator: Any,  # noqa: ANN401
@@ -127,6 +129,7 @@ def add_unified_output(
         )
     )
 
+
 def add_native_io(
     builder: PyfuncBuilder,
     input_schema: Any,  # noqa: ANN401
@@ -138,6 +141,7 @@ def add_native_io(
 
     builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
     builder.add_output(JSON(name=output_name, content_type="JSON", dtype="ext::output"))
+
 
 def _get_default_deps(
     framework: Literal["xgboost", "lightgbm", "catboost"],
@@ -154,6 +158,7 @@ def _get_default_deps(
 
     return deps
 
+
 def add_dependencies(
     builder: PyfuncBuilder,
     dependencies: Literal["default"] | Literal["all"] | list[str],
@@ -161,7 +166,6 @@ def add_dependencies(
     extra_code_modules: list[str] | Literal["auto"] | None,
     needs_pandas: bool = False,
     framework: Literal["xgboost", "lightgbm", "catboost"] = "xgboost",
-
 ) -> None:
     auto_pip_dependencies: list[str] = []
     auto_local_dependencies: list[str] = []
@@ -198,6 +202,7 @@ def add_dependencies(
 
     for module in local_dependencies:
         builder.add_module(module)
+
 
 def is_sklearn_estimator(obj: object, estimator_cls: type | None) -> bool:
     if estimator_cls is None:

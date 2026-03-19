@@ -39,43 +39,58 @@ def X_test():
     return np.random.default_rng(1).standard_normal((BATCH, N_FEATURES))
 
 
-def test_raw_score(lgb_ndarray_native, model, X_test):
+def test_raw_score(lgb_ndarray_native, model, X_test) -> None:
     """raw_score=True returns log-odds scores, not probabilities."""
     expected = model.predict(X_test, raw_score=True).tolist()
     expected_proba = model.predict(X_test).tolist()
 
-    out = _run(lgb_ndarray_native["ref"].path, {"payload": {
-        "dataset": {"data": X_test.tolist()},
-        "predict_config": {"raw_score": True},
-    }})
+    out = _run(
+        lgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dataset": {"data": X_test.tolist()},
+                "predict_config": {"raw_score": True},
+            }
+        },
+    )
 
     preds = out["lightgbm_output"]["predictions"]
     assert np.allclose(preds, expected, atol=1e-5)
     assert not np.allclose(preds, expected_proba, atol=1e-5)
 
 
-def test_num_iteration(lgb_ndarray_native, model, X_test):
+def test_num_iteration(lgb_ndarray_native, model, X_test) -> None:
     expected_partial = model.predict(X_test, num_iteration=5).tolist()
     expected_full = model.predict(X_test).tolist()
 
-    out = _run(lgb_ndarray_native["ref"].path, {"payload": {
-        "dataset": {"data": X_test.tolist()},
-        "predict_config": {"num_iteration": 5},
-    }})
+    out = _run(
+        lgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dataset": {"data": X_test.tolist()},
+                "predict_config": {"num_iteration": 5},
+            }
+        },
+    )
 
     preds = out["lightgbm_output"]["predictions"]
     assert np.allclose(preds, expected_partial, atol=1e-5)
     assert not np.allclose(preds, expected_full, atol=1e-3)
 
 
-def test_pred_leaf(lgb_ndarray_native, model, X_test):
+def test_pred_leaf(lgb_ndarray_native, model, X_test) -> None:
     """pred_leaf=True returns leaf node indices: one integer per tree per sample."""
     expected = model.predict(X_test, pred_leaf=True).tolist()
 
-    out = _run(lgb_ndarray_native["ref"].path, {"payload": {
-        "dataset": {"data": X_test.tolist()},
-        "predict_config": {"pred_leaf": True},
-    }})
+    out = _run(
+        lgb_ndarray_native["ref"].path,
+        {
+            "payload": {
+                "dataset": {"data": X_test.tolist()},
+                "predict_config": {"pred_leaf": True},
+            }
+        },
+    )
 
     preds = out["lightgbm_output"]["predictions"]
     assert len(preds) == BATCH

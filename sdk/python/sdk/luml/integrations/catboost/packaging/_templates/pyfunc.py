@@ -61,17 +61,16 @@ class CatBoostFunc(PyFunc):
             predict_kwargs: dict = {}
             if predict_config:
                 if predict_config.get("prediction_type") is not None:
-                    predict_kwargs["prediction_type"] = (
-                        predict_config["prediction_type"]
-                    )
+                    predict_kwargs["prediction_type"] = predict_config[
+                        "prediction_type"
+                    ]
                 for key in ["ntree_start", "ntree_end", "thread_count"]:
                     if key in predict_config:
                         predict_kwargs[key] = predict_config[key]
 
             predictions = self.model.predict(x, **predict_kwargs)
-            return {"catboost_output": {
-                "predictions": np.asarray(predictions).tolist()
-                }
+            return {
+                "catboost_output": {"predictions": np.asarray(predictions).tolist()}
             }
 
         if self.categorical_features:

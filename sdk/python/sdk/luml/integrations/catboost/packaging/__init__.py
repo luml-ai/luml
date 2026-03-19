@@ -76,13 +76,18 @@ def _add_io(
         else "regressor"
     )
 
-    builder.set_extra_values({
-        "input_order": input_order,
-        "input_format": input_format,
-        "model_type": model_type,
-        **({"categorical_features": categorical_features}
-           if categorical_features else {}),
-    })
+    builder.set_extra_values(
+        {
+            "input_order": input_order,
+            "input_format": input_format,
+            "model_type": model_type,
+            **(
+                {"categorical_features": categorical_features}
+                if categorical_features
+                else {}
+            ),
+        }
+    )
 
     if input_format == "native":
         add_native_io(
@@ -177,7 +182,7 @@ def save_catboost(
             dependencies,
             extra_dependencies,
             extra_code_modules,
-            framework="catboost"
+            framework="catboost",
         )
 
         builder.save(path)
