@@ -3,7 +3,7 @@
     :value="experimentsStore.experiments"
     table-class="table-fixed"
     scrollable
-    scrollHeight="calc(100vh - 310px)"
+    scrollHeight="calc(100vh - 320px)"
     :selection="experimentsStore.selectedExperiments"
     :virtualScrollerOptions="virtualScrollerOptions"
     :loading="loading"

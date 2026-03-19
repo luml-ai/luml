@@ -26,6 +26,7 @@ export interface FilterInterface {
 export interface DatasetListProps {
   modelsInfo: ModelsInfo
   loaderHeight: string
+  emptyMessage?: string
 }
 
 export interface DatasetData {

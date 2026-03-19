@@ -1,20 +1,19 @@
 <template>
-  <div>
-    <Skeleton v-if="initialLoading" style="height: 210px; margin-bottom: 20px"></Skeleton>
-    <div v-else-if="evalsStore.datasets?.length" class="evals-list">
-      <EvalsDataset
-        v-for="item of evalsStore.datasets"
-        :key="item.params.dataset_id"
-        :dataset-id="item.params.dataset_id"
-        :data="item.data"
-        :models-info="modelsInfo"
-        :columns="item.columns"
-        @get-next-page="getNextPage(item.params.dataset_id)"
-        @filter-change="(filter) => onFilterChange(item.params.dataset_id, filter)"
-        @sort="(sortParams) => onSort(item.params.dataset_id, sortParams)"
-      ></EvalsDataset>
-    </div>
+  <Skeleton v-if="initialLoading" style="height: 210px; margin-bottom: 20px"></Skeleton>
+  <div v-else-if="evalsStore.datasets?.length" class="evals-list">
+    <EvalsDataset
+      v-for="item of evalsStore.datasets"
+      :key="item.params.dataset_id"
+      :dataset-id="item.params.dataset_id"
+      :data="item.data"
+      :models-info="modelsInfo"
+      :columns="item.columns"
+      @get-next-page="getNextPage(item.params.dataset_id)"
+      @filter-change="(filter) => onFilterChange(item.params.dataset_id, filter)"
+      @sort="(sortParams) => onSort(item.params.dataset_id, sortParams)"
+    ></EvalsDataset>
   </div>
+  <div v-else-if="emptyMessage" class="empty-message">{{ emptyMessage }}</div>
 </template>
 
 <script setup lang="ts">
@@ -87,5 +86,16 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.empty-message {
+  font-size: 16px;
+  color: var(--p-form-field-float-label-color);
+  text-align: center;
+  padding: 20px;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>
