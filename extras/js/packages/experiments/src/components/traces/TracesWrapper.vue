@@ -1,5 +1,5 @@
 <template>
-  <Skeleton v-if="loading" style="height: 550px; width: 100%" />
+  <Skeleton v-if="firstLoading" style="height: 550px; width: 100%" />
   <UiCard v-else>
     <template #header-left>
       <div class="title">
@@ -8,19 +8,19 @@
       </div>
     </template>
     <TracesToolbar
-      v-model:search="requestParams.search"
+      :search="traceStore.requestParams.search"
       :columns="columns"
       :selected-columns="selectedColumns"
       :export-loading="exportLoading"
       @edit="onEdit"
       @export="exportCSV"
       @filter-change="onFilterChange"
+      @update:search="onSearchUpdate"
     />
     <TracesTable
       :data="tableData"
       :selected-columns="selectedColumns.length ? selectedColumns : columns"
       :artifactId="artifactId"
-      :annotations-summary="annotationsSummary"
       @get-next-page="getNextPage"
       @sort="onSort"
     />
@@ -30,56 +30,44 @@
 <script setup lang="ts">
 import type { SortParams, TracesWrapperProps } from './traces.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
-import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
-import type { GetTracesParams } from '@/interfaces/interfaces'
-import type { AnnotationSummary } from '../annotations/annotations.interface'
-import { computed, onBeforeMount, onUnmounted, ref, watch } from 'vue'
+import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useToast, Skeleton } from 'primevue'
 import { ListTree } from 'lucide-vue-next'
-import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
-import { useDebounceFn } from '@vueuse/core'
-import { INITIAL_REQUEST_PARAMS } from './traces.const'
 import { useAnnotationsStore } from '@/store/annotations'
 import { useTracesTable } from '@/hooks/useTracesTable'
+import { useTraceStore } from '@/store/trace'
 import TracesToolbar from './TracesToolbar.vue'
 import TracesTable from './TracesTable.vue'
 import UiCard from '../ui/UiCard.vue'
 
-const evalsStore = useEvalsStore()
 const toast = useToast()
-
-const props = defineProps<TracesWrapperProps>()
-
 const annotationsStore = useAnnotationsStore()
-
-const selectedColumns = ref<string[]>([])
-const requestParams = ref<GetTracesParams>({ ...INITIAL_REQUEST_PARAMS })
-const data = ref<Trace[]>([])
-
+const traceStore = useTraceStore()
 const {
   data: tableData,
   exportCSV,
   exportLoading,
 } = useTracesTable(
-  data,
+  computed(() => traceStore.traces),
   computed(() => (selectedColumns.value?.length ? selectedColumns.value : columns.value)),
-  computed(() => requestParams.value),
+  computed(() => traceStore.requestParams),
 )
 
-const loading = ref(false)
-const annotationsSummary = ref<AnnotationSummary>({
-  feedback: [],
-  expectations: [],
-})
+const props = defineProps<TracesWrapperProps>()
+
+const selectedColumns = ref<string[]>([])
+const firstLoading = ref(true)
+
+const annotationsSummary = computed(() => annotationsStore.tracesAnnotationsSummary)
 
 const feedbackColumns = computed(() => {
-  return annotationsSummary.value.feedback.map((item) => item.name)
+  return annotationsSummary.value?.feedback.map((item) => item.name + ' (feedback)') || []
 })
 
 const expectationColumns = computed(() => {
-  return annotationsSummary.value.expectations.map((item) => item.name)
+  return annotationsSummary.value?.expectations.map((item) => item.name + ' (expectation)') || []
 })
 
 const columns = computed(() => {
@@ -95,25 +83,8 @@ const columns = computed(() => {
   ]
 })
 
-async function getNextPage(reset: boolean = false) {
-  try {
-    const params = JSON.parse(JSON.stringify(requestParams.value))
-    if (reset) {
-      evalsStore.getProvider.resetTracesRequestParams()
-    }
-    const traces = await evalsStore.getProvider.getTraces(params)
-    if (reset) {
-      data.value = []
-    }
-    data.value = [...data.value, ...traces]
-  } catch (error) {
-    toast.add(simpleErrorToast(getErrorMessage(error)))
-  }
-}
-
 function onSort(sortParams: SortParams) {
-  requestParams.value.sort_by = sortParams.sortField
-  requestParams.value.order = sortParams.sortOrder
+  traceStore.setRequestParams({ sort_by: sortParams.sortField, order: sortParams.sortOrder })
 }
 
 function onEdit(data: string[]) {
@@ -124,27 +95,39 @@ function onFilterChange(filters: FilterItem[]) {
   console.log('onFilterChange', filters)
 }
 
-const debouncedRequestParamsChange = useDebounceFn(async () => {
-  await getNextPage(true)
-}, 500)
+function onSearchUpdate(search: string) {
+  traceStore.setRequestParams({ search })
+}
 
-onBeforeMount(async () => {
+async function getNextPage(reset: boolean = false) {
   try {
-    loading.value = true
-    await getNextPage(true)
-    annotationsSummary.value = await annotationsStore.getTracesAnnotationSummary(props.artifactId)
+    if (traceStore.loading) return
+    traceStore.setLoading(true)
+    await traceStore.getNextPage(reset)
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error)))
   } finally {
-    loading.value = false
+    traceStore.setLoading(false)
+  }
+}
+
+onBeforeMount(async () => {
+  try {
+    traceStore.setArtifactId(props.artifactId)
+    firstLoading.value = true
+    await getNextPage(true)
+    await annotationsStore.getTracesAnnotationSummary(props.artifactId)
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error)))
+  } finally {
+    firstLoading.value = false
+    traceStore.setLoading(false)
   }
 })
 
-onUnmounted(async () => {
-  await evalsStore.getProvider.resetTracesRequestParams()
+onBeforeUnmount(async () => {
+  traceStore.reset()
 })
-
-watch(requestParams, debouncedRequestParamsChange, { deep: true })
 </script>
 
 <style scoped>

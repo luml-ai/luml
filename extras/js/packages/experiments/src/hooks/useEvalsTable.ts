@@ -5,7 +5,7 @@ import type { FeedbackColumnData } from '@/components/table/feedback-column/inte
 import type { EvalsInfo, GetEvalsByDatasetParams } from '@/interfaces/interfaces'
 import type { DataTableSortEvent } from 'primevue'
 import { computed, ref, type ComputedRef, type Ref } from 'vue'
-import { useEvalsStore } from '@/store/evals'
+import { useEvalsStore } from '@/store/evals/index'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useToast } from 'primevue'
 import { getErrorMessage } from '@/helpers/helpers'
@@ -57,7 +57,7 @@ export const useEvalsTable = (
     if (!summary) return {}
     return summary.feedback.reduce(
       (acc, item) => {
-        acc[item.name] = {
+        acc[item.name + ' (feedback)'] = {
           isFeedbackColumn: true,
           positiveCount: item.counts['true'] ?? 0,
           negativeCount: item.counts['false'] ?? 0,
@@ -72,7 +72,7 @@ export const useEvalsTable = (
     if (!summary) return {}
     return summary.expectations.reduce(
       (acc, item) => {
-        acc[item.name] = {
+        acc[item.name + ' (expectation)'] = {
           isExpectationColumn: true,
           total: item.total,
           positive: item.positive,

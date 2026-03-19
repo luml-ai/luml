@@ -1,19 +1,24 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import type {
-  EvalsDatasets,
   EvalsInfo,
   ExperimentSnapshotProvider,
   TraceSpan,
   BaseTraceInfo,
-} from '../interfaces/interfaces'
+} from '@/interfaces/interfaces'
+import type { DatasetData } from '@/components/evals/evals.interface'
+import { INITIAL_PARAMS } from './evals.data'
+import { useAnnotationsStore } from '../annotations'
 
 export const useEvalsStore = defineStore('evals', () => {
-  const evals = ref<EvalsDatasets | null>(null)
+  const annotationsStore = useAnnotationsStore()
+
   const currentEvalData = ref<EvalsInfo[] | null>(null)
   const provider = ref<ExperimentSnapshotProvider | null>(null)
   const selectedEval = ref<{ datasetId: string; evalId: string } | undefined>(undefined)
   const selectedTrace = ref<(BaseTraceInfo & { artifactId: string }) | null>(null)
+  const datasets = ref<DatasetData[] | null>(null)
+  const loading = ref(false)
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
@@ -32,15 +37,6 @@ export const useEvalsStore = defineStore('evals', () => {
     if (!data[0]) return
     selectedEval.value = { datasetId: data[0].dataset_id, evalId: data[0].id }
     currentEvalData.value = data
-  }
-
-  function resetCurrentEvalData() {
-    currentEvalData.value = null
-  }
-
-  function reset() {
-    evals.value = null
-    resetSelectedTrace()
   }
 
   function getTraceId(modelId: string, datasetId: string, evalId: string) {
@@ -80,12 +76,72 @@ export const useEvalsStore = defineStore('evals', () => {
     selectedTrace.value = { ...trace, artifactId }
   }
 
+  function setDatasetData(value: DatasetData) {
+    if (!datasets.value) {
+      datasets.value = [value]
+      return
+    }
+    const existingDatasetIndex = datasets.value.findIndex(
+      (item) => item.params.dataset_id === value.params.dataset_id,
+    )
+    if (existingDatasetIndex !== -1) {
+      datasets.value[existingDatasetIndex] = value
+    } else {
+      datasets.value.push(value)
+    }
+  }
+
+  async function initDatasets() {
+    const datasetsIds = await getProvider.value.getUniqueDatasetsIds()
+    const promises = datasetsIds.map((datasetId) => initDataset(datasetId))
+    await Promise.all(promises)
+  }
+
+  async function initDataset(datasetId: string) {
+    const columns = await getProvider.value.getEvalsColumns(datasetId)
+    const params = {
+      ...INITIAL_PARAMS,
+      dataset_id: datasetId,
+    }
+    await getProvider.value.resetDatasetPage(datasetId)
+    const data = await getProvider.value.getNextEvalsByDatasetId(params)
+    await annotationsStore.getEvalsDatasetAnnotationsSummary(datasetId)
+    setDatasetData({ columns, data, params })
+  }
+
+  async function getNextDatasetPage(datasetId: string, reset: boolean = false) {
+    const dataset = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+    if (!dataset) throw new Error('Dataset not found')
+    const params = toRaw(dataset.params)
+    if (reset) await getProvider.value.resetDatasetPage(datasetId)
+    const newData = await getProvider.value.getNextEvalsByDatasetId(params)
+    dataset.data = reset ? newData : [...dataset.data, ...newData]
+  }
+
+  function setLoading(value: boolean) {
+    loading.value = value
+  }
+
+  function reset() {
+    resetSelectedTrace()
+    resetCurrentEvalData()
+    resetDatasets()
+    setLoading(false)
+  }
+
+  function resetCurrentEvalData() {
+    currentEvalData.value = null
+  }
+
   function resetSelectedTrace() {
     selectedTrace.value = null
   }
 
+  function resetDatasets() {
+    datasets.value = null
+  }
+
   return {
-    evals,
     currentEvalData,
     setProvider,
     setCurrentEvalData,
@@ -100,5 +156,11 @@ export const useEvalsStore = defineStore('evals', () => {
     getTraceSpansTree,
     resetProvider,
     getProvider,
+    initDatasets,
+    initDataset,
+    datasets,
+    getNextDatasetPage,
+    loading,
+    setLoading,
   }
 })

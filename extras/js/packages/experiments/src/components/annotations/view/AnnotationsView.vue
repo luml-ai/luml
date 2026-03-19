@@ -6,6 +6,8 @@
       :items="currentAnnotations"
       :artifact-id="props.artifactId"
       :type="props.evalId ? 'eval' : 'span'"
+      :existing-names="existingAnnotationsNames"
+      :dataset-id="props.datasetId"
     />
     <div v-else class="empty">
       <div class="card-wrapper">
@@ -20,6 +22,7 @@
     <AnnotationAddDialog
       :visible="annotationsStore.isAddDialogVisible"
       :loading="loading"
+      :existing-names="existingAnnotationsNames"
       @update:visible="onAddDialogVisibleUpdate"
       @submit="addAnnotation"
     />
@@ -66,6 +69,24 @@ const currentAnnotations = computed(() => {
     return annotationsStore.spanAnnotations
   }
   return []
+})
+
+const existingAnnotationsNames = computed(() => {
+  const summary = datasetAnnotationsSummary.value || traceAnnotationsSummary.value
+  if (!summary) return []
+  const feedbackNames = summary.feedback.map((item) => item.name)
+  const expectationsNames = summary.expectations.map((item) => item.name)
+  return [...feedbackNames, ...expectationsNames]
+})
+
+const datasetAnnotationsSummary = computed(() => {
+  if (!props.datasetId) return null
+  return annotationsStore.evalsAnnotationsSummaryByDatasetId[props.datasetId]
+})
+
+const traceAnnotationsSummary = computed(() => {
+  if (!props.traceId) return null
+  return annotationsStore.tracesAnnotationsSummary
 })
 
 function onAddDialogVisibleUpdate(visible: boolean) {

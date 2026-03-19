@@ -5,7 +5,7 @@
     title="ADD ANNOTATION"
     max-width="420px"
   >
-    <AnnotationForm @submit="onSubmit" />
+    <AnnotationForm :existing-names="existingNames" @submit="onSubmit" />
     <template #footer>
       <Button severity="secondary" variant="outlined" @click="onCancel"> Cancel </Button>
       <Button type="submit" form="annotation-edit-form" severity="primary" :loading="loading">
@@ -25,6 +25,7 @@ import AnnotationForm from './form/AnnotationForm.vue'
 
 type Props = {
   loading: boolean
+  existingNames: string[]
 }
 
 type Emits = {

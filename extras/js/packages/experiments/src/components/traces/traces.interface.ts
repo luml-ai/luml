@@ -1,4 +1,3 @@
-import type { AnnotationSummary } from '../annotations/annotations.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
 
 export interface ToolbarProps {
@@ -17,7 +16,6 @@ export interface TableProps {
   data: Record<string, any>[]
   selectedColumns: string[]
   artifactId: string
-  annotationsSummary: AnnotationSummary
 }
 
 export interface TableEmits {

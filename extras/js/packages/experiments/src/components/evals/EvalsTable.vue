@@ -92,22 +92,22 @@
         </Row>
         <Row>
           <Column
-            v-for="children in visibleChildren"
-            :key="children"
+            v-for="item in visibleChildren"
+            :key="item.key"
             :pt="{
               headerCell: {
                 class: {
-                  'children-with-left-border': childrenWithLeftBorder.includes(children),
+                  'children-with-left-border': childrenWithLeftBorder.includes(item.key),
                   'bottom-border': true,
                 },
               },
             }"
-            :sort-field="children"
-            :sortable="isSortableColumn(children)"
+            :sort-field="item.label"
+            :sortable="isSortableColumn(item.key)"
           >
             <template #header>
-              <span v-tooltip.top="children" class="cell header-cell">
-                {{ children }}
+              <span v-tooltip.top="item.label" class="cell header-cell">
+                {{ item.label }}
               </span>
             </template>
           </Column>
@@ -186,25 +186,6 @@ const searchModel = defineModel<string>('search', { default: '' })
 
 const evalsStore = useEvalsStore()
 
-const allColumns = computed(() => {
-  const columnsSet = sortedTree.value.reduce((acc, column) => {
-    if (column.children) {
-      column.children.map((child) => acc.add(child))
-    } else {
-      acc.add(column.title)
-    }
-    return acc
-  }, new Set<string>())
-  columnsSet.delete('dataset_id')
-  const isSingleArtifact = Object.keys(props.modelsInfo).length === 1
-  if (isSingleArtifact) columnsSet.delete('modelId')
-  return Array.from(columnsSet)
-})
-
-const visibleColumns = computed(() => {
-  return selectedColumns.value.length ? selectedColumns.value : allColumns.value
-})
-
 const {
   exportCSV,
   exportLoading,
@@ -217,7 +198,7 @@ const {
   computed(() => props.data),
   searchModel,
   props.datasetId,
-  visibleColumns,
+  computed(() => visibleColumns.value),
 )
 
 const tableRef = ref()
@@ -278,8 +259,47 @@ const sortedTree = computed(() => {
   })
 })
 
+const formattedTree = computed(() => {
+  return sortedTree.value.map((item) => {
+    const isFeedback = item.title.startsWith('feedback')
+    const isExpectation = item.title.startsWith('expectation')
+    if (isFeedback) {
+      return {
+        title: item.title,
+        children: item.children?.map((child) => child + ' (feedback)'),
+      }
+    }
+    if (isExpectation) {
+      return {
+        title: item.title,
+        children: item.children?.map((child) => child + ' (expectation)'),
+      }
+    }
+    return item
+  })
+})
+
+const allColumns = computed(() => {
+  const columnsSet = formattedTree.value.reduce((acc, column) => {
+    if (column.children) {
+      column.children.map((child) => acc.add(child))
+    } else {
+      acc.add(column.title)
+    }
+    return acc
+  }, new Set<string>())
+  columnsSet.delete('dataset_id')
+  const isSingleArtifact = Object.keys(props.modelsInfo).length === 1
+  if (isSingleArtifact) columnsSet.delete('modelId')
+  return Array.from(columnsSet)
+})
+
+const visibleColumns = computed(() => {
+  return selectedColumns.value.length ? selectedColumns.value : allColumns.value
+})
+
 const visibleTree = computed(() => {
-  return sortedTree.value
+  return formattedTree.value
     .map((column) => {
       if (column.children) {
         const filteredChildren = column.children.filter((child) =>
@@ -296,9 +316,21 @@ const visibleTree = computed(() => {
 })
 
 const visibleChildren = computed(() => {
-  return visibleTree.value.reduce((acc: string[], column) => {
-    const children = column.children ? column.children : []
-    acc = [...acc, ...children]
+  return visibleTree.value.reduce((acc: { key: string; label: string }[], column) => {
+    const children = column.children || []
+    const objects = children.map((columnName) => {
+      let label = columnName
+      if (column.title.startsWith('feedback')) {
+        label = label.replace(' (feedback)', '')
+      } else if (column.title.startsWith('expectation')) {
+        label = label.replace(' (expectation)', '')
+      }
+      return {
+        key: columnName,
+        label,
+      }
+    })
+    acc = [...acc, ...objects]
     return acc
   }, [])
 })

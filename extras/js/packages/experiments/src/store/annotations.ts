@@ -1,19 +1,26 @@
 import type {
   AddAnnotationPayload,
   Annotation,
+  AnnotationSummary,
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
+import type { AddEvalAnnotationParams, AddSpanAnnotationParams } from './annotations.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { useEvalsStore } from './evals'
-import type { AddEvalAnnotationParams, AddSpanAnnotationParams } from './annotations.interface'
+import { useEvalsStore } from './evals/index'
+import { useTraceStore } from './trace'
 
 export const useAnnotationsStore = defineStore('annotations', () => {
   const evalStore = useEvalsStore()
+  const traceStore = useTraceStore()
 
   const isEditAvailable = ref(false)
 
   const addAnnotationData = ref<AddEvalAnnotationParams | AddSpanAnnotationParams | null>(null)
+
+  const evalsAnnotationsSummaryByDatasetId = ref<Record<string, AnnotationSummary>>({})
+
+  const tracesAnnotationsSummary = ref<AnnotationSummary | null>(null)
 
   const evalAnnotations = ref<Annotation[]>([])
 
@@ -58,10 +65,12 @@ export const useAnnotationsStore = defineStore('annotations', () => {
 
     const response = await provider.createEvalAnnotation(artifactId, datasetId, evalId, data)
     evalAnnotations.value.push(response)
+    await evalStore.initDataset(datasetId)
   }
 
   async function updateEvalAnnotation(
     artifactId: string,
+    datasetId: string,
     annotationId: string,
     data: UpdateAnnotationPayload,
   ) {
@@ -76,6 +85,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     if (index !== -1) {
       evalAnnotations.value[index] = response
     }
+    await evalStore.initDataset(datasetId)
   }
 
   async function getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {
@@ -86,7 +96,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     )
   }
 
-  async function deleteEvalAnnotation(artifactId: string, annotationId: string) {
+  async function deleteEvalAnnotation(artifactId: string, datasetId: string, annotationId: string) {
     const provider = evalStore.getProvider
 
     if (!provider.deleteEvalAnnotation) {
@@ -98,10 +108,12 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     if (index !== -1) {
       evalAnnotations.value.splice(index, 1)
     }
+    await evalStore.initDataset(datasetId)
   }
 
   async function getEvalsDatasetAnnotationsSummary(datasetId: string) {
-    return evalStore.getProvider.getEvalsDatasetAnnotationsSummary(datasetId)
+    const summary = await evalStore.getProvider.getEvalsDatasetAnnotationsSummary(datasetId)
+    evalsAnnotationsSummaryByDatasetId.value[datasetId] = summary
   }
 
   async function addSpanAnnotation(data: AddAnnotationPayload) {
@@ -120,6 +132,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     }
     const response = await provider.createSpanAnnotation(artifactId, traceId, spanId, data)
     spanAnnotations.value.push(response)
+    await traceStore.getNextPage(true)
   }
 
   async function updateSpanAnnotation(
@@ -136,6 +149,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     if (index !== -1) {
       spanAnnotations.value[index] = response
     }
+    await traceStore.getNextPage(true)
   }
 
   async function getSpanAnnotations(artifactId: string, traceId: string, spanId: string) {
@@ -156,10 +170,12 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     if (index !== -1) {
       spanAnnotations.value.splice(index, 1)
     }
+    await traceStore.getNextPage(true)
   }
 
   async function getTracesAnnotationSummary(artifactId: string) {
-    return evalStore.getProvider.getTracesAnnotationSummary(artifactId)
+    tracesAnnotationsSummary.value =
+      await evalStore.getProvider.getTracesAnnotationSummary(artifactId)
   }
 
   return {
@@ -181,5 +197,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
     deleteSpanAnnotation,
     getTracesAnnotationSummary,
     spanAnnotations,
+    evalsAnnotationsSummaryByDatasetId,
+    tracesAnnotationsSummary,
   }
 })
