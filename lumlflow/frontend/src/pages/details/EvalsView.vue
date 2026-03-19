@@ -1,7 +1,7 @@
 <template>
-  <Skeleton v-if="showSkeleton" class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
-  <EmptyState v-else-if="!loading && Object.keys(evalsStore.evals || {}).length === 0" :icon="Braces" message="No evals found" />
-  <div v-else-if="!loading && Object.keys(evalsStore.evals || {})" class="evals-list">
+  <Skeleton v-if="loading" class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
+  <div v-else-if="Object.keys(evalsStore.evals || {}).length === 0">No evals found</div>
+  <div v-else-if="Object.keys(evalsStore.evals || {})" class="evals-list">
     <EvalsCard
       v-for="item of evalsStore.evals"
       :key="item[0]?.id"
@@ -25,9 +25,6 @@ import { errorToast } from '@/toasts'
 import { EvalsCard } from '@luml/experiments'
 import { useExperimentStore } from '@/store/experiment'
 import { useWindowSize } from '@vueuse/core'
-import { Braces } from 'lucide-vue-next'
-import { useDeferredLoading } from '@/hooks/useDeferredLoading'
-import EmptyState from '@/components/ui/EmptyState.vue'
 
 const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
@@ -44,7 +41,6 @@ const toast = useToast()
 
 const scores = ref<EvalScores | null>(null)
 const loading = ref(true)
-const { showSkeleton } = useDeferredLoading(loading)
 
 const modelsInfo = computed<ModelsInfo>(() => {
   if (!experimentStore.experiment) return {}
