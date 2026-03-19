@@ -1,0 +1,115 @@
+[project]
+name = "luml_sdk"
+version = "0.1.0"
+description = "LUML Python SDK"
+readme = "README.md"
+
+requires-python = ">=3.12"
+dependencies = [
+    "pyfnx-utils>=0.0.1,<1.0.0",
+    "cloudpickle>=3.1.2,<4.0.0",
+    "fnnx>=0.0.8,<0.1.0",
+    "pydantic>=2.11.7,<3.0.0",
+]
+
+[project.optional-dependencies]
+tracing = [
+    "opentelemetry-api>=1.36.0",
+    "opentelemetry-instrumentation-openai>=0.44.1",
+    "opentelemetry-sdk>=1.36.0",
+]
+datasets = [
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+]
+datasets-hf = [
+    "datasets>=2.14.0,<4.0.0",
+]
+datasets-polars = [
+    "polars>=1.0.0,<2.0.0",
+]
+
+[project.scripts]
+generate-docs = "generate_docs:main"
+luml-migrations = "luml.experiments.backends.migrations.__main__:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["luml"]
+
+
+
+[dependency-groups]
+dev = [
+    "langchain-core>=1.2.7",
+    "langchain-openai>=1.1.7",
+    "langgraph>=1.0.7",
+    "matplotlib>=3.10.8",
+    "mypy==1.15.0",
+    "pydoc-markdown>=4.8.2",
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "pytest-cov==6.0.0",
+    "ruff==0.11.5",
+    "scikit-learn>=1.8.0",
+    "types-passlib==1.7.7.20250408",
+    "pandas>=2.0.0,<3.0.0",
+    "pyarrow>=14.0.0,<19.0.0",
+    "polars>=1.0.0,<2.0.0",
+    "datasets>=2.14.0,<4.0.0",
+    "pydantic>=2.11.7,<3.0.0",
+]
+
+[tool.ruff]
+# Target Python 3.12
+target-version = "py312"
+
+# Black-compatible settings
+line-length = 88
+indent-width = 4
+
+src = ["luml"]
+
+[tool.ruff.lint]
+# Enable all rules for maximum coverage
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "C90", # mccabe complexity
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ANN", # flake8-annotations
+]
+
+ignore = [
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**/*.py" = ["T201"]
+
+[tool.ruff.format]
+# Black-compatible formatting settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["luml"]
+split-on-trailing-comma = true

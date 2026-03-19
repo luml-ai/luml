@@ -1,0 +1,41 @@
+import json
+import tarfile
+import tempfile
+from pathlib import Path
+
+from sdk.luml.artifacts._base import DiskFile
+
+
+def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:
+    index = {}
+    for member in file.getmembers():
+        if not member.isfile():
+            continue
+        index[member.name] = (member.offset_data, member.size)
+    return index
+
+
+def create_and_index_tar(source_dir: str | Path) -> tuple[DiskFile, DiskFile]:
+    source_dir = Path(source_dir)
+    if not source_dir.is_dir():
+        raise ValueError(
+            f"Source directory {source_dir} does not exist or is not a directory."
+        )
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp_tar:
+        tar_path = Path(temp_tar.name)
+
+    with tarfile.open(tar_path, "w") as tar:
+        tar.add(source_dir, arcname=source_dir.name)
+    with tarfile.open(tar_path, "r") as tar:
+        index_data = generate_index(tar)
+
+    artifact = DiskFile(tar_path)
+
+    index_path = tar_path.with_suffix(".index.json")
+    with open(index_path, "w+") as index_file:
+        json.dump(index_data, index_file)
+
+    index_artifact = DiskFile(index_path)
+
+    return artifact, index_artifact
