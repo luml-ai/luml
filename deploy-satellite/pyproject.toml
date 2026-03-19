@@ -1,0 +1,46 @@
+[project]
+name = "df-satellite"
+version = "0.1.0"
+description = "Dataforce Satellite Agent"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "aiodocker==0.24.0",
+    "uvicorn==0.38.0",
+    "luml-satellite-kit",
+]
+
+[tool.uv.sources]
+luml-satellite-kit = { path = "../satellite-kit", editable = true }
+
+[dependency-groups]
+dev = [
+    "ruff==0.14.5",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+indent-width = 4
+src = ["agent"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"
+]
+ignore = [
+    "ANN101",
+    "ANN002", # *args
+    "ANN003", # **kwargs
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["agent", "luml_satellite_kit"]
+split-on-trailing-comma = true
