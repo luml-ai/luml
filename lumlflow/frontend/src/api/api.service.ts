@@ -77,7 +77,7 @@ export const apiService = {
     signal?: AbortSignal,
   ) => {
     const { data } = await api.get<ExperimentMetricHistory>(
-      `/experiments/${experimentId}/metrics/${metricKey}`,
+      `/experiments/${experimentId}/metrics/${encodeURIComponent(metricKey)}`,
       { params: { max_points: maxPoints }, signal },
     )
     return data
