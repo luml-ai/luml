@@ -54,6 +54,7 @@ class ConnectionPool:
     def __init__(self, max_connections: int = 10) -> None:
         self.max_connections = max_connections
         self._connections: dict[str, sqlite3.Connection] = {}
+        self._write_locks: dict[str, threading.Lock] = {}
         self._lock = threading.RLock()
         self._active_experiments: set[str] = set()
         atexit.register(self.close_all)
@@ -78,7 +79,15 @@ class ConnectionPool:
             conn.execute("PRAGMA journal_mode = WAL")
 
             self._connections[db_path] = conn
+            self._write_locks[db_path] = threading.Lock()
             return conn
+
+    def get_write_lock(self, db_path: str | Path) -> threading.Lock:
+        db_path = str(db_path)
+        with self._lock:
+            if db_path not in self._write_locks:
+                self._write_locks[db_path] = threading.Lock()
+            return self._write_locks[db_path]
 
     def mark_experiment_active(self, experiment_id: str) -> None:
         with self._lock:
@@ -112,6 +121,7 @@ class ConnectionPool:
             with contextlib.suppress(sqlite3.Error):
                 self._connections[db_path].close()
             del self._connections[db_path]
+            self._write_locks.pop(db_path, None)
 
     def close_connection(self, db_path: str) -> None:
         with self._lock:
@@ -173,6 +183,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def _get_experiment_connection(self, experiment_id: str) -> sqlite3.Connection:
         db_path = self._get_experiment_db_path(experiment_id)
         return self.pool.get_connection(db_path)
+
+    def _get_experiment_write_lock(self, experiment_id: str) -> threading.Lock:
+        db_path = self._get_experiment_db_path(experiment_id)
+        return self.pool.get_write_lock(db_path)
 
     def _get_experiment_dir(self, experiment_id: str) -> Path:
         return self.base_path / experiment_id
@@ -464,41 +478,41 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
-
         attributes_json = json.dumps(attributes) if attributes else None
         events_json = json.dumps(events) if events else None
         links_json = json.dumps(links) if links else None
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO spans (
-                trace_id, span_id, parent_span_id, name, kind,
-                start_time_unix_nano, end_time_unix_nano,
-                status_code, status_message,
-                attributes, events, links, trace_flags, dfs_span_type
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                trace_id,
-                span_id,
-                parent_span_id,
-                name,
-                kind,
-                start_time_unix_nano,
-                end_time_unix_nano,
-                status_code,
-                status_message,
-                attributes_json,
-                events_json,
-                links_json,
-                trace_flags,
-                guess_span_type(attributes).value if attributes else 0,
-            ),
-        )
-
-        conn.commit()
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO spans (
+                    trace_id, span_id, parent_span_id, name, kind,
+                    start_time_unix_nano, end_time_unix_nano,
+                    status_code, status_message,
+                    attributes, events, links, trace_flags, dfs_span_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    trace_id,
+                    span_id,
+                    parent_span_id,
+                    name,
+                    kind,
+                    start_time_unix_nano,
+                    end_time_unix_nano,
+                    status_code,
+                    status_message,
+                    attributes_json,
+                    events_json,
+                    links_json,
+                    trace_flags,
+                    guess_span_type(attributes).value if attributes else 0,
+                ),
+            )
+            conn.commit()
 
     def log_eval_sample(
         self,
@@ -538,33 +552,33 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
-
         inputs_json = json.dumps(inputs)
         outputs_json = json.dumps(outputs) if outputs else None
         references_json = json.dumps(references) if references else None
         scores_json = json.dumps(scores) if scores else None
         metadata_json = json.dumps(metadata) if metadata else None
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO evals (
-                id, dataset_id, inputs, outputs, refs, scores, metadata, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """,
-            (
-                eval_id,
-                dataset_id,
-                inputs_json,
-                outputs_json,
-                references_json,
-                scores_json,
-                metadata_json,
-            ),
-        )
-
-        conn.commit()
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO evals (
+                    id, dataset_id, inputs, outputs, refs, scores, metadata, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (
+                    eval_id,
+                    dataset_id,
+                    inputs_json,
+                    outputs_json,
+                    references_json,
+                    scores_json,
+                    metadata_json,
+                ),
+            )
+            conn.commit()
 
     def link_eval_sample_to_trace(
         self,
@@ -588,32 +602,36 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
-        conn = self._get_experiment_connection(experiment_id)
-        cursor = conn.cursor()
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            cursor = conn.cursor()
 
-        cursor.execute(
-            "SELECT 1 FROM evals WHERE dataset_id = ? AND id = ?",
-            (eval_dataset_id, eval_id),
-        )
-        if not cursor.fetchone():
-            raise ValueError(f"Eval {eval_id} in dataset {eval_dataset_id} not found")
+            cursor.execute(
+                "SELECT 1 FROM evals WHERE dataset_id = ? AND id = ?",
+                (eval_dataset_id, eval_id),
+            )
+            if not cursor.fetchone():
+                raise ValueError(
+                    f"Eval {eval_id} in dataset {eval_dataset_id} not found"
+                )
 
-        cursor.execute("SELECT 1 FROM spans WHERE trace_id = ?", (trace_id,))
-        if not cursor.fetchone():
-            raise ValueError(f"Trace {trace_id} not found")
+            cursor.execute("SELECT 1 FROM spans WHERE trace_id = ?", (trace_id,))
+            if not cursor.fetchone():
+                raise ValueError(f"Trace {trace_id} not found")
 
-        bridge_id = str(uuid.uuid4())
+            bridge_id = str(uuid.uuid4())
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO eval_traces_bridge (
-                id, eval_dataset_id, eval_id, trace_id
-            ) VALUES (?, ?, ?, ?)
-            """,
-            (bridge_id, eval_dataset_id, eval_id, trace_id),
-        )
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO eval_traces_bridge (
+                    id, eval_dataset_id, eval_id, trace_id
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (bridge_id, eval_dataset_id, eval_id, trace_id),
+            )
 
-        conn.commit()
+            conn.commit()
 
     def get_experiment_data(self, experiment_id: str) -> ExperimentData:  # noqa: ANN401, C901
         """
@@ -2889,30 +2907,32 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
         annotation_id = str(uuid.uuid4())
-        conn.execute(
-            """INSERT INTO eval_annotations
-               (id, dataset_id, eval_id, name, annotation_kind, value_type, value, user, rationale)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                annotation_id,
-                dataset_id,
-                eval_id,
-                name,
-                annotation_kind.value,
-                value_type.value,
-                self._serialize_annotation_value(value),
-                user,
-                rationale,
-            ),
-        )
-        conn.commit()
-        row = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
-               FROM eval_annotations WHERE id = ?""",
-            (annotation_id,),
-        ).fetchone()
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            conn.execute(
+                """INSERT INTO eval_annotations
+                   (id, dataset_id, eval_id, name, annotation_kind, value_type, value, user, rationale)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    annotation_id,
+                    dataset_id,
+                    eval_id,
+                    name,
+                    annotation_kind.value,
+                    value_type.value,
+                    self._serialize_annotation_value(value),
+                    user,
+                    rationale,
+                ),
+            )
+            conn.commit()
+            row = conn.execute(
+                """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
+                   FROM eval_annotations WHERE id = ?""",
+                (annotation_id,),
+            ).fetchone()
         return self._row_to_annotation(row)
 
     def get_eval_annotations(
@@ -2944,30 +2964,32 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> AnnotationRecord:
         self._validate_feedback_value_type(annotation_kind, value_type)
         self._require_annotation_tables(experiment_id)
-        conn = self._get_experiment_connection(experiment_id)
         annotation_id = str(uuid.uuid4())
-        conn.execute(
-            """INSERT INTO span_annotations
-               (id, trace_id, span_id, name, annotation_kind, value_type, value, user, rationale)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                annotation_id,
-                trace_id,
-                span_id,
-                name,
-                annotation_kind.value,
-                value_type.value,
-                self._serialize_annotation_value(value),
-                user,
-                rationale,
-            ),
-        )
-        conn.commit()
-        row = conn.execute(
-            """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
-               FROM span_annotations WHERE id = ?""",
-            (annotation_id,),
-        ).fetchone()
+        write_lock = self._get_experiment_write_lock(experiment_id)
+        with write_lock:
+            conn = self._get_experiment_connection(experiment_id)
+            conn.execute(
+                """INSERT INTO span_annotations
+                   (id, trace_id, span_id, name, annotation_kind, value_type, value, user, rationale)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    annotation_id,
+                    trace_id,
+                    span_id,
+                    name,
+                    annotation_kind.value,
+                    value_type.value,
+                    self._serialize_annotation_value(value),
+                    user,
+                    rationale,
+                ),
+            )
+            conn.commit()
+            row = conn.execute(
+                """SELECT id, name, annotation_kind, value, user, value_type, created_at, rationale
+                   FROM span_annotations WHERE id = ?""",
+                (annotation_id,),
+            ).fetchone()
         return self._row_to_annotation(row)
 
     def get_span_annotations(
