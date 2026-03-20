@@ -25,7 +25,9 @@ Supports multiple backend storage options via connection strings.
 
 ```python
 tracker = ExperimentTracker("sqlite://./my_experiments")
-exp_id = tracker.start_experiment(tags=["baseline"])
+exp_id = tracker.start_experiment(
+    "my_group", name="my_experiment", tags=["baseline"]
+)
 tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
 tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
 tracker.end_experiment(exp_id)
@@ -42,29 +44,24 @@ def start_experiment(name: str | None = None,
                      tags: list[str] | None = None) -> str
 ```
 
-Start a new experiment tracking session.
+Starts a new experiment by initializing it with the backend and setting
+the experiment's metadata.
 
 **Arguments**:
 
-- `name` - Human-readable experiment name. Optional.
-- `group` - Group name to organize related experiments. Defaults to "default".
-- `experiment_id` - Unique experiment ID. Auto-generated if not provided.
-- `tags` - List of tags for categorizing the experiment.
+- `name` _str | None_ - The name of the experiment. If not provided,
+  the experiment will be initialized without a specific name
+- `group` _str_ - The group to which the experiment belongs. Defaults to
+  "default".
+- `experiment_id` _str | None_ - A unique identifier for the experiment. If not
+  provided, a new UUID will be generated as the experiment ID.
+- `tags` _list[str] | None_ - A list of tags to associate with the experiment.
+  Can be None if no tags are necessary.
   
 
 **Returns**:
 
-- `str` - The experiment ID.
-  
-
-**Example**:
-
-```python
-tracker = ExperimentTracker()
-exp_id = tracker.start_experiment(
-    tags=["resnet", "baseline"]
-)
-```
+- `str` - The unique identifier of the started experiment.
 
 <a id="luml.experiments.tracker.ExperimentTracker.end_experiment"></a>
 
@@ -78,14 +75,15 @@ End an active experiment tracking session.
 
 **Arguments**:
 
-- `experiment_id` - ID of experiment to end. Uses current experiment if not specified.
+- `experiment_id` - ID of experiment to end.
+  Uses current experiment if not specified.
   
 
 **Example**:
 
 ```python
 tracker = ExperimentTracker()
-exp_id = tracker.start_experiment()
+exp_id = tracker.start_experiment(name="my_exp")
 tracker.end_experiment(exp_id)
 ```
 
@@ -182,14 +180,14 @@ tracker.log_attachment("plot.png", image_bytes, binary=True)
 #### list_experiments
 
 ```python
-def list_experiments() -> list[dict[str, Any]]
+def list_experiments() -> list[Experiment]
 ```
 
 List all experiments in the backend.
 
 **Returns**:
 
-  List of experiment dictionaries with metadata.
+  List of Experiment objects with metadata.
   
 
 **Example**:
@@ -198,7 +196,7 @@ List all experiments in the backend.
 tracker = ExperimentTracker()
 experiments = tracker.list_experiments()
 for exp in experiments:
-    print(f"{exp['id']}: {exp['name']}")
+    print(f"{exp.id}: {exp.name}")
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.link_to_model"></a>
@@ -227,7 +225,7 @@ for reproducibility and model versioning.
 from luml.integrations.sklearn import save_sklearn
 
 tracker = ExperimentTracker()
-exp_id = tracker.start_experiment()
+exp_id = tracker.start_experiment(name="sklearn_model")
 tracker.log_static("model_type", "RandomForest")
 
 model_ref = save_sklearn(model, X_train)
@@ -254,5 +252,31 @@ tracker = ExperimentTracker()
 tracker.enable_tracing()
 exp_id = tracker.start_experiment()
 # All traced functions will be logged to this experiment
+```
+
+<a id="luml.experiments.tracker.ExperimentTracker.export"></a>
+
+#### export
+
+```python
+def export(output_path: str,
+           experiment_id: str | None = None) -> "ExperimentReference"
+```
+
+Export the entire experiment tracking data and save as an artifact.
+
+**Arguments**:
+
+- `output_path` - Path to save the exported artifact.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+exp_id = tracker.start_experiment()
+# Log data...
+tracker.end_experiment()
+tracker.export("experiment_data.tar", experiment_id=exp_id)
 ```
 

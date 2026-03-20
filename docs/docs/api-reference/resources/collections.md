@@ -1,8 +1,8 @@
-<a id="luml.api.resources.collections"></a>
+<a id="luml_api.resources.collections"></a>
 
-# luml.api.resources.collections
+# luml_api.resources.collections
 
-<a id="luml.api.resources.collections.CollectionResource"></a>
+<a id="luml_api.resources.collections.CollectionResource"></a>
 
 ## CollectionResource Objects
 
@@ -10,7 +10,7 @@
 class CollectionResource(CollectionResourceBase, ListedResource)
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.get"></a>
+<a id="luml_api.resources.collections.CollectionResource.get"></a>
 
 #### get
 
@@ -58,7 +58,7 @@ Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     name="My Collection",
     description="Dataset for ML models",
-    collection_type='model',
+    type='model',
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     tags=["ml", "training"],
     created_at='2025-01-15T10:30:00.123456Z',
@@ -66,18 +66,18 @@ Collection(
 )
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.list_all"></a>
+<a id="luml_api.resources.collections.CollectionResource.list_all"></a>
 
 #### list_all
 
 ```python
 def list_all(
-    *,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None
+        *,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None
 ) -> Iterator[Collection]
 ```
 
@@ -89,7 +89,8 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -120,20 +121,18 @@ for collection in luml.collections.list_all(
     print(collection.name)
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.list"></a>
+<a id="luml_api.resources.collections.CollectionResource.list"></a>
 
 #### list
 
 ```python
-def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None
-) -> CollectionsList
+def list(*,
+         start_after: str | None = None,
+         limit: int | None = 100,
+         sort_by: CollectionSortBy | None = None,
+         order: SortOrder | None = SortOrder.DESC,
+         search: str | None = None,
+         types: list[CollectionTypeFilter] | None = None) -> CollectionsList
 ```
 
 List all collections in the default orbit.
@@ -146,7 +145,8 @@ List all collections in the default orbit.
   If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -185,7 +185,7 @@ CollectionsList(
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="My Collection",
             description="Dataset for ML models",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -196,14 +196,14 @@ CollectionsList(
 )
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.create"></a>
+<a id="luml_api.resources.collections.CollectionResource.create"></a>
 
 #### create
 
 ```python
 def create(description: str,
            name: str,
-           collection_type: CollectionType,
+           type: CollectionType,
            tags: builtins.list[str] | None = None) -> Collection
 ```
 
@@ -213,7 +213,8 @@ Create new collection in the default orbit.
 
 - `description` - Description of the collection.
 - `name` - Name of the collection.
-- `collection_type` - Type of collection: "model", "dataset".
+- `type` - Type of collection: "model", "dataset", "experiment",
+  "model_dataset", "dataset_experiment", "model_experiment", "mixed".
 - `tags` - Optional list of tags for organizing collections.
   
 
@@ -229,7 +230,7 @@ luml = LumlClient(api_key="luml_your_key")
 collection = luml.collections.create(
     name="Training Dataset",
     description="Dataset for model training",
-    collection_type=CollectionType.DATASET,
+    type=CollectionType.DATASET,
     tags=["ml", "training"]
 )
 ```
@@ -240,7 +241,7 @@ Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     name="Training Dataset",
     description="Dataset for model training",
-    collection_type='model',
+    type='model',
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     tags=["ml", "training"],
     created_at='2025-01-15T10:30:00.123456Z',
@@ -248,7 +249,7 @@ Collection(
 )
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.update"></a>
+<a id="luml_api.resources.collections.CollectionResource.update"></a>
 
 #### update
 
@@ -309,15 +310,15 @@ Collection(
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     description="Updated description",
     name="Updated Dataset",
-    collection_type='model',
+    type='model',
     tags=["ml", "updated"],
-    total_models=43,
+    total_artifacts=43,
     created_at='2025-01-15T10:30:00.123456Z',
     updated_at='2025-01-15T14:22:30.987654Z'
 )
 ```
 
-<a id="luml.api.resources.collections.CollectionResource.delete"></a>
+<a id="luml_api.resources.collections.CollectionResource.delete"></a>
 
 #### delete
 
@@ -367,7 +368,7 @@ luml.collections.delete()
   within the collection will be permanently lost. Consider backing up
   important data before deletion.
 
-<a id="luml.api.resources.collections.AsyncCollectionResource"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource"></a>
 
 ## AsyncCollectionResource Objects
 
@@ -375,7 +376,7 @@ luml.collections.delete()
 class AsyncCollectionResource(CollectionResourceBase, ListedResource)
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.get"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.get"></a>
 
 #### get
 
@@ -430,7 +431,7 @@ Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     name="My Collection",
     description="Dataset for ML models",
-    collection_type='model',
+    type='model',
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     tags=["ml", "training"],
     created_at='2025-01-15T10:30:00.123456Z',
@@ -438,7 +439,7 @@ Collection(
 )
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.list_all"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.list_all"></a>
 
 #### list_all
 
@@ -461,7 +462,8 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -496,20 +498,19 @@ async def main():
         print(collection.name)
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.list"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.list"></a>
 
 #### list
 
 ```python
 async def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None
-) -> CollectionsList
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None) -> CollectionsList
 ```
 
 List all collections in the default orbit.
@@ -522,7 +523,8 @@ List all collections in the default orbit.
   If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
   
 
 **Returns**:
@@ -566,7 +568,7 @@ CollectionsList(
             id="0199c455-21ee-74c6-b747-19a82f1a1e75",
             name="My Collection",
             description="Dataset for ML models",
-            collection_type='model',
+            type='model',
             orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
             tags=["ml", "training"],
             created_at='2025-01-15T10:30:00.123456Z',
@@ -577,14 +579,14 @@ CollectionsList(
 )
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.create"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.create"></a>
 
 #### create
 
 ```python
 async def create(description: str,
                  name: str,
-                 collection_type: CollectionType,
+                 type: CollectionType,
                  tags: builtins.list[str] | None = None) -> Collection
 ```
 
@@ -594,7 +596,8 @@ Create new collection in the default orbit.
 
 - `description` - Description of the collection.
 - `name` - Name of the collection.
-- `collection_type` - Type of collection: "model", "dataset".
+- `type` - Type of collection: "model", "dataset", "experiment",
+  "model_dataset", "dataset_experiment", "model_experiment", "mixed".
 - `tags` - Optional list of tags for organizing collections.
   
 
@@ -616,7 +619,7 @@ async def main():
     collection = await luml.collections.create(
         name="Training Dataset",
         description="Dataset for model training",
-        collection_type=CollectionType.DATASET,
+        type=CollectionType.DATASET,
         tags=["ml", "training"]
     )
 ```
@@ -627,7 +630,7 @@ Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
     name="Training Dataset",
     description="Dataset for model training",
-    collection_type='model',
+    type='model',
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     tags=["ml", "training"],
     created_at='2025-01-15T10:30:00.123456Z',
@@ -635,7 +638,7 @@ Collection(
 )
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.update"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.update"></a>
 
 #### update
 
@@ -700,15 +703,15 @@ Collection(
     orbit_id="0199c455-21ed-7aba-9fe5-5231611220de",
     description="Updated description",
     name="Updated Dataset",
-    collection_type='model',
+    type='model',
     tags=["ml", "updated"],
-    total_models=43,
+    total_artifacts=43,
     created_at='2025-01-15T10:30:00.123456Z',
     updated_at='2025-01-15T14:22:30.987654Z'
 )
 ```
 
-<a id="luml.api.resources.collections.AsyncCollectionResource.delete"></a>
+<a id="luml_api.resources.collections.AsyncCollectionResource.delete"></a>
 
 #### delete
 

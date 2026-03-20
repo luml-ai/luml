@@ -1,8 +1,8 @@
-<a id="luml.api.resources.orbits"></a>
+<a id="luml_api.resources.orbits"></a>
 
-# luml.api.resources.orbits
+# luml_api.resources.orbits
 
-<a id="luml.api.resources.orbits.OrbitResource"></a>
+<a id="luml_api.resources.orbits.OrbitResource"></a>
 
 ## OrbitResource Objects
 
@@ -12,7 +12,7 @@ class OrbitResource(OrbitResourceBase)
 
 Resource for managing Orbits.
 
-<a id="luml.api.resources.orbits.OrbitResource.get"></a>
+<a id="luml_api.resources.orbits.OrbitResource.get"></a>
 
 #### get
 
@@ -70,7 +70,7 @@ Orbit(
 )
 ```
 
-<a id="luml.api.resources.orbits.OrbitResource.list"></a>
+<a id="luml_api.resources.orbits.OrbitResource.list"></a>
 
 #### list
 
@@ -113,7 +113,7 @@ orgs = luml.orbits.list()
 ]
 ```
 
-<a id="luml.api.resources.orbits.OrbitResource.create"></a>
+<a id="luml_api.resources.orbits.OrbitResource.create"></a>
 
 #### create
 
@@ -164,7 +164,7 @@ Orbit(
 )
 ```
 
-<a id="luml.api.resources.orbits.OrbitResource.update"></a>
+<a id="luml_api.resources.orbits.OrbitResource.update"></a>
 
 #### update
 
@@ -226,7 +226,7 @@ Orbit(
 
   This method updates the orbit set as default in the client.
 
-<a id="luml.api.resources.orbits.OrbitResource.delete"></a>
+<a id="luml_api.resources.orbits.OrbitResource.delete"></a>
 
 #### delete
 
@@ -268,7 +268,7 @@ luml.orbits.delete("0199c455-21ed-7aba-9fe5-5231611220de")
   within the orbit will be permanently lost. Consider backing up
   important data before deletion.
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource"></a>
 
 ## AsyncOrbitResource Objects
 
@@ -278,7 +278,7 @@ class AsyncOrbitResource(OrbitResourceBase)
 
 Resource for managing Orbits for async client.
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource.get"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource.get"></a>
 
 #### get
 
@@ -341,7 +341,7 @@ Orbit(
 )
 ```
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource.list"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource.list"></a>
 
 #### list
 
@@ -387,7 +387,7 @@ async def main():
 ]
 ```
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource.create"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource.create"></a>
 
 #### create
 
@@ -441,7 +441,7 @@ Orbit(
 )
 ```
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource.update"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource.update"></a>
 
 #### update
 
@@ -506,7 +506,7 @@ Orbit(
 
   This method updates the orbit set as default in the client.
 
-<a id="luml.api.resources.orbits.AsyncOrbitResource.delete"></a>
+<a id="luml_api.resources.orbits.AsyncOrbitResource.delete"></a>
 
 #### delete
 

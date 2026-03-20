@@ -1,8 +1,8 @@
-<a id="luml.api.resources.bucket_secrets"></a>
+<a id="luml_api.resources.bucket_secrets"></a>
 
-# luml.api.resources.bucket_secrets
+# luml_api.resources.bucket_secrets
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource"></a>
 
 ## BucketSecretResource Objects
 
@@ -12,7 +12,7 @@ class BucketSecretResource(BucketSecretResourceBase)
 
 Resource for managing Bucket Secrets.
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.get"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.get"></a>
 
 #### get
 
@@ -73,7 +73,7 @@ BucketSecret(
     )
 ```
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.list"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.list"></a>
 
 #### list
 
@@ -117,7 +117,7 @@ secrets = luml.bucket_secrets.list()
 ]
 ```
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.create"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.create"></a>
 
 #### create
 
@@ -187,7 +187,7 @@ BucketSecret(
 )
 ```
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.update"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.update"></a>
 
 #### update
 
@@ -259,7 +259,7 @@ BucketSecret(
 )
 ```
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.delete"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.delete"></a>
 
 #### delete
 
@@ -302,7 +302,7 @@ luml.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
   will lose access to their storage. Ensure no active orbits depend
   on this bucket secret before deletion.
 
-<a id="luml.api.resources.bucket_secrets.BucketSecretResource.get_multipart_upload_urls"></a>
+<a id="luml_api.resources.bucket_secrets.BucketSecretResource.get_multipart_upload_urls"></a>
 
 #### get_multipart_upload_urls
 
@@ -356,7 +356,7 @@ use this method to get presigned URLs for uploading each part.
                 "some_upload_id")
     ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
 
 ## AsyncBucketSecretResource Objects
 
@@ -366,7 +366,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase)
 
 Resource for managing Bucket Secrets for async client.
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.get"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.get"></a>
 
 #### get
 
@@ -431,7 +431,7 @@ BucketSecret(
 )
 ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.list"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.list"></a>
 
 #### list
 
@@ -479,7 +479,7 @@ async def main():
 ]
 ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.get_multipart_upload_urls"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.get_multipart_upload_urls"></a>
 
 #### get_multipart_upload_urls
 
@@ -533,7 +533,7 @@ use this method to get presigned URLs for uploading each part.
                 "some_upload_id")
     ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>
 
 #### create
 
@@ -607,7 +607,7 @@ BucketSecret(
 )
 ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.update"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.update"></a>
 
 #### update
 
@@ -683,7 +683,7 @@ BucketSecret(
 )
 ```
 
-<a id="luml.api.resources.bucket_secrets.AsyncBucketSecretResource.delete"></a>
+<a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.delete"></a>
 
 #### delete
 
