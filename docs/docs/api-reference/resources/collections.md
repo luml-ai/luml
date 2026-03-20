@@ -1,6 +1,6 @@
 <a id="luml_api.resources.collections"></a>
 
-# luml\_api.resources.collections
+# luml_api.resources.collections
 
 <a id="luml_api.resources.collections.CollectionResource"></a>
 
@@ -68,7 +68,7 @@ Collection(
 
 <a id="luml_api.resources.collections.CollectionResource.list_all"></a>
 
-#### list\_all
+#### list_all
 
 ```python
 def list_all(
@@ -453,7 +453,7 @@ Collection(
 
 <a id="luml_api.resources.collections.AsyncCollectionResource.list_all"></a>
 
-#### list\_all
+#### list_all
 
 ```python
 def list_all(

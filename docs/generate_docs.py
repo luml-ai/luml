@@ -17,10 +17,13 @@ from pathlib import Path
 # Get script directory and project root
 SCRIPT_DIR = Path(__file__).parent
 PROJECT_ROOT = SCRIPT_DIR.parent
-SDK_PATH = PROJECT_ROOT / "sdk" / "python"
-OUTPUT_DIR = SCRIPT_DIR / "docs" / "sdk"
+API_PATH = PROJECT_ROOT / "sdk" / "python" / "api"
+SDK_PATH = PROJECT_ROOT / "sdk" / "python" / "sdk"
+API_OUTPUT_DIR = SCRIPT_DIR / "docs" / "api-reference"
+SDK_OUTPUT_DIR = SCRIPT_DIR / "docs" / "sdk"
 
-# Add the SDK to Python path
+# Add both packages to Python path
+sys.path.insert(0, str(API_PATH))
 sys.path.insert(0, str(SDK_PATH))
 
 from pydoc_markdown import PydocMarkdown
@@ -203,44 +206,25 @@ def should_include_item(item):
     return True
 
 
-def generate_docs():
-    """Generate documentation for all modules."""
+def generate_module_docs(
+    search_path: Path,
+    output_dir: Path,
+    modules: dict[str, dict[str, tuple[str, str]]],
+    label: str,
+) -> list[Path]:
+    """Generate documentation for a set of modules.
 
-    print("=" * 60)
-    print("SDK Documentation Generator")
-    print("=" * 60)
-    print()
-    print(f"Script location: {SCRIPT_DIR}")
-    print(f"Project root: {PROJECT_ROOT}")
-    print(f"SDK path: {SDK_PATH}")
-    print()
+    Args:
+        search_path: Path to the Python package root.
+        output_dir: Directory to write generated markdown files.
+        modules: Mapping of category -> {module_path: (subdir, file_name)}.
+        label: Display label for logging.
 
-    # Output directory
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"✓ Output directory: {OUTPUT_DIR}")
-    print()
-
-    # Modules to document organized by category
-    # Format: "category": {"module.path": ("output-subdir", "file-name")}
-    modules = {
-        "API": {
-            "luml.api._client": ("api", "client"),
-            "luml.api.resources.bucket_secrets": ("api", "bucket-secrets"),
-            "luml.api.resources.collections": ("api", "collections"),
-            "luml.api.resources.model_artifacts": ("api", "model-artifacts"),
-            "luml.api.resources.orbits": ("api", "orbits"),
-            "luml.api.resources.organizations": ("api", "organizations"),
-        },
-        "Experiments": {
-            "luml.experiments.tracker": ("experiments", "tracker"),
-        },
-        "Integrations": {
-            "luml.integrations.sklearn.packaging": ("integrations", "sklearn"),
-            "luml.integrations.langgraph.packaging": ("integrations", "langgraph"),
-        },
-    }
-
-    all_generated_files = []
+    Returns:
+        List of generated file paths.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    generated: list[Path] = []
 
     for category, category_modules in modules.items():
         print(f"\n{category}")
@@ -250,16 +234,13 @@ def generate_docs():
             print(f"→ Processing {module_name}...")
 
             try:
-                # Configure pydoc-markdown
                 session = PydocMarkdown()
 
-                # Set up loader
                 loader = PythonLoader(
-                    search_path=[str(SDK_PATH)], modules=[module_name]
+                    search_path=[str(search_path)], modules=[module_name]
                 )
                 session.loaders = [loader]
 
-                # Set up processors with filters
                 session.processors = [
                     FilterProcessor(
                         expression="not name.startswith('_') and default()",
@@ -269,60 +250,101 @@ def generate_docs():
                     CrossrefProcessor(),
                 ]
 
-                # Set up renderer
                 session.renderer = MarkdownRenderer()
 
-                # Load and process modules
                 modules_data = session.load_modules()
 
                 if not modules_data:
                     print(f"  ✗ No data found for {module_name}")
                     continue
 
-                # Filter out unwanted items
                 for module in modules_data:
                     module.members = [
                         m for m in module.members if should_include_item(m)
                     ]
 
-                # Render documentation
                 session.process(modules_data)
                 output = session.renderer.render_to_string(modules_data)
 
-                # Clean code examples (remove doctest markers)
                 output = clean_code_examples(output)
-
-                # Unescape underscores in headers (pydoc-markdown escapes them unnecessarily)
                 output = output.replace("\\_", "_")
-
-                # Escape MDX syntax
                 output = escape_mdx_syntax(output)
 
-                # Create subdirectory and write file
-                subdir_path = OUTPUT_DIR / subdir
+                subdir_path = output_dir / subdir
                 subdir_path.mkdir(parents=True, exist_ok=True)
 
                 output_file = subdir_path / f"{file_name}.md"
                 output_file.write_text(output)
-                all_generated_files.append(output_file)
+                generated.append(output_file)
                 print(f"  ✓ Generated {subdir}/{file_name}.md")
 
             except Exception as e:
                 print(f"  ✗ Error: {e}")
                 continue
 
+    return generated
+
+
+def generate_docs():
+    """Generate documentation for all modules."""
+
+    print("=" * 60)
+    print("SDK Documentation Generator")
+    print("=" * 60)
+    print()
+    print(f"Script location: {SCRIPT_DIR}")
+    print(f"Project root: {PROJECT_ROOT}")
+    print(f"API path: {API_PATH}")
+    print(f"SDK path: {SDK_PATH}")
+    print()
+
+    # API modules (from luml_api package)
+    api_modules = {
+        "Client": {
+            "luml_api._client": ("client", "client"),
+        },
+        "Resources": {
+            "luml_api.resources.artifacts": ("resources", "artifacts"),
+            "luml_api.resources.bucket_secrets": ("resources", "bucket-secrets"),
+            "luml_api.resources.collections": ("resources", "collections"),
+            "luml_api.resources.orbits": ("resources", "orbits"),
+            "luml_api.resources.organizations": ("resources", "organizations"),
+        },
+    }
+
+    # SDK modules (from luml package)
+    sdk_modules = {
+        "Experiments": {
+            "luml.experiments.tracker": ("experiments", "tracker"),
+        },
+        "Integrations": {
+            "luml.integrations.sklearn.packaging": ("integrations", "sklearn"),
+            "luml.integrations.langgraph.packaging": ("integrations", "langgraph"),
+        },
+    }
+
+    all_generated_files: list[Path] = []
+
+    print("\n[API Reference]")
+    print("=" * 60)
+    api_files = generate_module_docs(API_PATH, API_OUTPUT_DIR, api_modules, "API")
+    all_generated_files.extend(api_files)
+
+    print("\n\n[SDK Reference]")
+    print("=" * 60)
+    sdk_files = generate_module_docs(SDK_PATH, SDK_OUTPUT_DIR, sdk_modules, "SDK")
+    all_generated_files.extend(sdk_files)
+
     print()
     print("=" * 60)
 
-    # List generated files
     if all_generated_files:
         print(
             f"Successfully generated {len(all_generated_files)} documentation file(s):"
         )
-        # Group by subdirectory
-        by_subdir = {}
+        by_subdir: dict[str, list[str]] = {}
         for file in all_generated_files:
-            subdir = file.parent.name
+            subdir = f"{file.parent.parent.name}/{file.parent.name}"
             if subdir not in by_subdir:
                 by_subdir[subdir] = []
             by_subdir[subdir].append(file.name)

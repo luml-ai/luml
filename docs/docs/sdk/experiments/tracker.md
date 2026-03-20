@@ -28,14 +28,14 @@ tracker = ExperimentTracker("sqlite://./my_experiments")
 exp_id = tracker.start_experiment(
     name="my_experiment", group="my_group", tags=["baseline"]
 )
-tracker.log_static("learning_rate", 0.001)
-tracker.log_dynamic("loss", 0.5, step=1)
+tracker.log_static("learning_rate", 0.001, experiment_id=exp_id)
+tracker.log_dynamic("loss", 0.5, step=1, experiment_id=exp_id)
 tracker.end_experiment(exp_id)
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.start_experiment"></a>
 
-#### start\_experiment
+#### start_experiment
 
 ```python
 def start_experiment(
@@ -79,7 +79,7 @@ exp_id = tracker.start_experiment(
 
 <a id="luml.experiments.tracker.ExperimentTracker.end_experiment"></a>
 
-#### end\_experiment
+#### end_experiment
 
 ```python
 def end_experiment(experiment_id: str | None = None) -> None
@@ -103,7 +103,7 @@ tracker.end_experiment(exp_id)
 
 <a id="luml.experiments.tracker.ExperimentTracker.fail_experiment"></a>
 
-#### fail\_experiment
+#### fail_experiment
 
 ```python
 def fail_experiment(experiment_id: str | None = None) -> None
@@ -113,7 +113,7 @@ Mark an experiment as failed due to an error or interruption.
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_static"></a>
 
-#### log\_static
+#### log_static
 
 ```python
 def log_static(key: str, value: Any, experiment_id: str | None = None) -> None
@@ -140,7 +140,7 @@ tracker.log_static("batch_size", 32)
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_dynamic"></a>
 
-#### log\_dynamic
+#### log_dynamic
 
 ```python
 def log_dynamic(
@@ -173,7 +173,7 @@ for epoch in range(10):
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_span"></a>
 
-#### log\_span
+#### log_span
 
 ```python
 def log_span(
@@ -250,7 +250,7 @@ tracker.log_span(
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_eval_sample"></a>
 
-#### log\_eval\_sample
+#### log_eval_sample
 
 ```python
 def log_eval_sample(
@@ -309,7 +309,7 @@ tracker.log_eval_sample(
 
 <a id="luml.experiments.tracker.ExperimentTracker.link_eval_sample_to_trace"></a>
 
-#### link\_eval\_sample\_to\_trace
+#### link_eval_sample_to_trace
 
 ```python
 def link_eval_sample_to_trace(
@@ -360,7 +360,7 @@ tracker.link_eval_sample_to_trace(
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_evals_annotation_summaries"></a>
 
-#### get\_evals\_annotation\_summaries
+#### get_evals_annotation_summaries
 
 ```python
 def get_evals_annotation_summaries(
@@ -403,7 +403,7 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
 ```
 <a id="luml.experiments.tracker.ExperimentTracker.log_attachment"></a>
 
-#### log\_attachment
+#### log_attachment
 
 ```python
 def log_attachment(
@@ -435,7 +435,7 @@ tracker.log_attachment("plot.png", image_bytes, binary=True)
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment"></a>
 
-#### get\_experiment
+#### get_experiment
 
 ```python
 def get_experiment(experiment_id: str) -> ExperimentData
@@ -469,7 +469,7 @@ print(data.dynamic_metrics)
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_attachment"></a>
 
-#### get\_attachment
+#### get_attachment
 
 ```python
 def get_attachment(name: str, experiment_id: str | None = None) -> Any
@@ -504,7 +504,7 @@ config = tracker.get_attachment("config.json")
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_attachments"></a>
 
-#### list\_attachments
+#### list_attachments
 
 ```python
 def list_attachments(experiment_id: str | None = None) -> list[AttachmentRecord]
@@ -528,7 +528,7 @@ List all attachments logged for an experiment.
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_experiments"></a>
 
-#### list\_experiments
+#### list_experiments
 
 ```python
 def list_experiments() -> list[Experiment]
@@ -553,7 +553,7 @@ for exp in experiments:
 
 <a id="luml.experiments.tracker.ExperimentTracker.delete_experiment"></a>
 
-#### delete\_experiment
+#### delete_experiment
 
 ```python
 def delete_experiment(experiment_id: str) -> None
@@ -579,7 +579,7 @@ tracker.delete_experiment("old-experiment-id")
 
 <a id="luml.experiments.tracker.ExperimentTracker.create_group"></a>
 
-#### create\_group
+#### create_group
 
 ```python
 def create_group(
@@ -622,7 +622,7 @@ exp_id = tracker.start_experiment(group=group.name)
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_groups"></a>
 
-#### list\_groups
+#### list_groups
 
 ```python
 def list_groups() -> list[Group]
@@ -646,7 +646,7 @@ for group in groups:
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_model"></a>
 
-#### log\_model
+#### log_model
 
 ```python
 def log_model(
@@ -717,7 +717,7 @@ model_ref = tracker.log_model(model, name="rf_v1", inputs=X_train)
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_models"></a>
 
-#### get\_models
+#### get_models
 
 ```python
 def get_models(experiment_id: str | None = None) -> list[Model]
@@ -755,7 +755,7 @@ for m in models:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_model"></a>
 
-#### get\_model
+#### get_model
 
 ```python
 def get_model(model_id: str) -> Model
@@ -783,7 +783,7 @@ print(f"{model.name}: {model.path}")
 
 <a id="luml.experiments.tracker.ExperimentTracker.link_to_model"></a>
 
-#### link\_to\_model
+#### link_to_model
 
 ```python
 def link_to_model(
@@ -817,7 +817,7 @@ tracker.link_to_model(model_ref)
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_eval_annotation"></a>
 
-#### log\_eval\_annotation
+#### log_eval_annotation
 
 ```python
 def log_eval_annotation(
@@ -885,7 +885,7 @@ annotation = tracker.log_eval_annotation(
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_span_annotation"></a>
 
-#### log\_span\_annotation
+#### log_span_annotation
 
 ```python
 def log_span_annotation(
@@ -948,7 +948,7 @@ annotation = tracker.log_span_annotation(
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_record"></a>
 
-#### get\_experiment\_record
+#### get_experiment_record
 
 ```python
 def get_experiment_record(experiment_id: str) -> Experiment | None
@@ -978,7 +978,7 @@ if exp:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_trace"></a>
 
-#### get\_trace
+#### get_trace
 
 ```python
 def get_trace(experiment_id: str, trace_id: str) -> TraceDetails | None
@@ -1010,7 +1010,7 @@ if trace:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_traces"></a>
 
-#### get\_experiment\_traces
+#### get_experiment_traces
 
 ```python
 def get_experiment_traces(
@@ -1054,7 +1054,7 @@ for trace in page.items:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_metric_history"></a>
 
-#### get\_experiment\_metric\_history
+#### get_experiment_metric_history
 
 ```python
 def get_experiment_metric_history(
@@ -1089,7 +1089,7 @@ for point in history:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_evals"></a>
 
-#### get\_experiment\_evals
+#### get_experiment_evals
 
 ```python
 def get_experiment_evals(
@@ -1135,7 +1135,7 @@ for eval_rec in page.items:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_eval_columns"></a>
 
-#### get\_experiment\_eval\_columns
+#### get_experiment_eval_columns
 
 ```python
 def get_experiment_eval_columns(
@@ -1170,7 +1170,7 @@ print("Input columns:", columns.inputs)
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_eval_typed_columns"></a>
 
-#### get\_experiment\_eval\_typed\_columns
+#### get_experiment_eval_typed_columns
 
 ```python
 def get_experiment_eval_typed_columns(
@@ -1183,7 +1183,7 @@ Like get_experiment_eval_columns but also returns the type for each key.
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_trace_columns"></a>
 
-#### get\_experiment\_trace\_columns
+#### get_experiment_trace_columns
 
 ```python
 def get_experiment_trace_columns(experiment_id: str) -> TraceColumns
@@ -1193,7 +1193,7 @@ Return distinct attribute keys from all spans in an experiment.
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_trace_typed_columns"></a>
 
-#### get\_experiment\_trace\_typed\_columns
+#### get_experiment_trace_typed_columns
 
 ```python
 def get_experiment_trace_typed_columns(experiment_id: str) -> TraceTypedColumns
@@ -1203,7 +1203,7 @@ Like get_experiment_trace_columns but also returns the type for each key.
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_evals_average_scores"></a>
 
-#### get\_experiment\_evals\_average\_scores
+#### get_experiment_evals_average_scores
 
 ```python
 def get_experiment_evals_average_scores(
@@ -1226,7 +1226,7 @@ Calculates the average scores for evaluations from a specified experiment and op
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_eval_dataset_ids"></a>
 
-#### get\_experiment\_eval\_dataset\_ids
+#### get_experiment_eval_dataset_ids
 
 ```python
 def get_experiment_eval_dataset_ids(experiment_id: str) -> list[str]
@@ -1236,7 +1236,7 @@ Retrieve all unique dataset IDs from evals of an experiment.
 
 <a id="luml.experiments.tracker.ExperimentTracker.resolve_evals_sort_column"></a>
 
-#### resolve\_evals\_sort\_column
+#### resolve_evals_sort_column
 ```python
 def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
 ```
@@ -1251,7 +1251,7 @@ def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | N
 
 <a id="luml.experiments.tracker.ExperimentTracker.resolve_evals_sort_column"></a>
 
-#### resolve\_evals\_sort\_column
+#### resolve_evals_sort_column
 
 ```python
 def resolve_evals_sort_column(experiment_id: str, sort_by: str) -> str | None
@@ -1281,7 +1281,7 @@ col = tracker.resolve_evals_sort_column("exp-1", "scores.accuracy")
 
 <a id="luml.experiments.tracker.ExperimentTracker.update_experiment"></a>
 
-#### update\_experiment
+#### update_experiment
 
 ```python
 def update_experiment(
@@ -1323,7 +1323,7 @@ tracker.update_experiment(
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_eval_annotations"></a>
 
-#### get\_eval\_annotations
+#### get_eval_annotations
 
 ```python
 def get_eval_annotations(
@@ -1360,7 +1360,7 @@ for ann in annotations:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_span_annotations"></a>
 
-#### get\_span\_annotations
+#### get_span_annotations
 
 ```python
 def get_span_annotations(
@@ -1397,7 +1397,7 @@ for ann in annotations:
 
 <a id="luml.experiments.tracker.ExperimentTracker.update_annotation"></a>
 
-#### update\_annotation
+#### update_annotation
 
 ```python
 def update_annotation(
@@ -1447,7 +1447,7 @@ updated = tracker.update_annotation(
 
 <a id="luml.experiments.tracker.ExperimentTracker.delete_annotation"></a>
 
-#### delete\_annotation
+#### delete_annotation
 
 ```python
 def delete_annotation(
@@ -1477,7 +1477,7 @@ tracker.delete_annotation("exp-1", "ann-uuid", "eval")
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_eval_annotation_summary"></a>
 
-#### get\_eval\_annotation\_summary
+#### get_eval_annotation_summary
 
 ```python
 def get_eval_annotation_summary(
@@ -1515,7 +1515,7 @@ for exp in summary.expectations:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_trace_annotation_summary"></a>
 
-#### get\_trace\_annotation\_summary
+#### get_trace_annotation_summary
 
 ```python
 def get_trace_annotation_summary(
@@ -1551,7 +1551,7 @@ for fb in summary.feedback:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_all_traces_annotation_summary"></a>
 
-#### get\_all\_traces\_annotation\_summary
+#### get_all_traces_annotation_summary
 
 ```python
 def get_all_traces_annotation_summary(experiment_id: str) -> AnnotationSummary
@@ -1582,7 +1582,7 @@ for fb in summary.feedback:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_experiment_ddl_version"></a>
 
-#### get\_experiment\_ddl\_version
+#### get_experiment_ddl_version
 
 ```python
 def get_experiment_ddl_version(experiment_id: str) -> int
@@ -1614,7 +1614,7 @@ if version < 1:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_group"></a>
 
-#### get\_group
+#### get_group
 
 ```python
 def get_group(group_id: str) -> Group | None
@@ -1643,7 +1643,7 @@ if group:
 
 <a id="luml.experiments.tracker.ExperimentTracker.update_group"></a>
 
-#### update\_group
+#### update_group
 
 ```python
 def update_group(
@@ -1680,7 +1680,7 @@ tracker.update_group("group-uuid", name="Production Models")
 
 <a id="luml.experiments.tracker.ExperimentTracker.delete_group"></a>
 
-#### delete\_group
+#### delete_group
 
 ```python
 def delete_group(group_id: str) -> None
@@ -1702,7 +1702,7 @@ tracker.delete_group("group-uuid")
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_groups_pagination"></a>
 
-#### list\_groups\_pagination
+#### list_groups_pagination
 
 ```python
 def list_groups_pagination(
@@ -1741,7 +1741,7 @@ for group in page.items:
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_group_experiments_pagination"></a>
 
-#### list\_group\_experiments\_pagination
+#### list_group_experiments_pagination
 
 ```python
 def list_group_experiments_pagination(
@@ -1784,7 +1784,7 @@ for exp in page.items:
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_group_experiments_static_params_keys"></a>
 
-#### get\_group\_experiments\_static\_params\_keys
+#### get_group_experiments_static_params_keys
 
 ```python
 def get_group_experiments_static_params_keys(group_id: str) -> list[str]
@@ -1814,7 +1814,7 @@ keys = tracker.get_group_experiments_static_params_keys("group-uuid")
 
 <a id="luml.experiments.tracker.ExperimentTracker.get_group_experiments_dynamic_metrics_keys"></a>
 
-#### get\_group\_experiments\_dynamic\_metrics\_keys
+#### get_group_experiments_dynamic_metrics_keys
 
 ```python
 def get_group_experiments_dynamic_metrics_keys(group_id: str) -> list[str]
@@ -1844,7 +1844,7 @@ keys = tracker.get_group_experiments_dynamic_metrics_keys("group-uuid")
 
 <a id="luml.experiments.tracker.ExperimentTracker.resolve_experiment_sort_column"></a>
 
-#### resolve\_experiment\_sort\_column
+#### resolve_experiment_sort_column
 
 ```python
 def resolve_experiment_sort_column(group_id: str, sort_by: str) -> str | None
@@ -1874,7 +1874,7 @@ col = tracker.resolve_experiment_sort_column("group-uuid", "static.lr")
 
 <a id="luml.experiments.tracker.ExperimentTracker.update_model"></a>
 
-#### update\_model
+#### update_model
 
 ```python
 def update_model(
@@ -1909,7 +1909,7 @@ tracker.update_model("model-uuid", name="v2-finetuned", tags=["prod"])
 
 <a id="luml.experiments.tracker.ExperimentTracker.delete_model"></a>
 
-#### delete\_model
+#### delete_model
 
 ```python
 def delete_model(model_id: str) -> None
@@ -1931,7 +1931,7 @@ tracker.delete_model("model-uuid")
 
 <a id="luml.experiments.tracker.ExperimentTracker.list_experiment_models"></a>
 
-#### list\_experiment\_models
+#### list_experiment_models
 
 ```python
 def list_experiment_models(experiment_id: str) -> list[Model]
@@ -1960,7 +1960,7 @@ for model in models:
 
 <a id="luml.experiments.tracker.ExperimentTracker.enable_tracing"></a>
 
-#### enable\_tracing
+#### enable_tracing
 
 ```python
 def enable_tracing() -> None
@@ -1978,6 +1978,32 @@ tracker = ExperimentTracker()
 tracker.enable_tracing()
 exp_id = tracker.start_experiment()
 # All traced functions will be logged to this experiment
+```
+
+<a id="luml.experiments.tracker.ExperimentTracker.export"></a>
+
+#### export
+
+```python
+def export(output_path: str,
+           experiment_id: str | None = None) -> "ExperimentReference"
+```
+
+Export the entire experiment tracking data and save as an artifact.
+
+**Arguments**:
+
+- `output_path` - Path to save the exported artifact.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+exp_id = tracker.start_experiment()
+# Log data...
+tracker.end_experiment()
+tracker.export("experiment_data.tar", experiment_id=exp_id)
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.export"></a>

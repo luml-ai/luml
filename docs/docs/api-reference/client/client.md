@@ -1,6 +1,6 @@
 <a id="luml_api._client"></a>
 
-# luml\_api.\_client
+# luml_api._client
 
 <a id="luml_api._client.AsyncLumlClient"></a>
 
@@ -12,7 +12,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 
 <a id="luml_api._client.AsyncLumlClient.setup_config"></a>
 
-#### setup\_config
+#### setup_config
 
 ```python
 async def setup_config(
@@ -60,7 +60,7 @@ Organizations interface.
 
 <a id="luml_api._client.AsyncLumlClient.bucket_secrets"></a>
 
-#### bucket\_secrets
+#### bucket_secrets
 
 ```python
 @cached_property
@@ -80,7 +80,7 @@ def orbits() -> "AsyncOrbitResource"
 
 Orbits interface.
 
-<a id="luml_api._client.AsyncLumlClient.collections"></a>
+<a id="luml.api._client.AsyncLumlClient.collections"></a>
 
 #### collections
 
@@ -123,7 +123,7 @@ Organizations interface.
 
 <a id="luml_api._client.LumlClient.bucket_secrets"></a>
 
-#### bucket\_secrets
+#### bucket_secrets
 
 ```python
 @cached_property

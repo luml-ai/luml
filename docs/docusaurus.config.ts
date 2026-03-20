@@ -72,6 +72,12 @@ headTags: [],
         //},
         {
           type: 'docSidebar',
+          sidebarId: 'apiSidebar',
+          position: 'left',
+          label: 'API Reference',
+        },
+        {
+          type: 'docSidebar',
           sidebarId: 'sdkSidebar',
           position: 'left',
           label: 'SDK',
@@ -102,8 +108,12 @@ headTags: [],
               to: '/documentation/quickstart',
             },
             {
+              label: 'API Reference',
+              to: '/api-reference/client/client',
+            },
+            {
               label: 'SDK',
-              to: '/sdk/bucket-secrets',
+              to: '/sdk/experiments/tracker',
             },
             {
               label: 'Pricing',
