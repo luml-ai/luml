@@ -14,16 +14,16 @@ except ImportError:
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
-from sdk.luml._constants import FNNX_PRODUCER_NAME
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
-from sdk.luml.integrations.sklearn.packaging import save_sklearn
-from sdk.luml.utils.deps import find_dependencies
-from sdk.luml.utils.imports import (
+from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
+from luml.integrations.lightgbm.packaging._templates.pyfunc import LightGBMFunc
+from luml.integrations.sklearn.packaging import save_sklearn
+from luml.utils.deps import find_dependencies
+from luml.utils.imports import (
     extract_top_level_modules,
     get_version,
 )
-from sdk.luml.utils.time import get_epoch
+from luml.utils.time import get_epoch
 
 
 class _DataInputSchema(BaseModel):

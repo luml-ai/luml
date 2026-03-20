@@ -9,7 +9,7 @@ from luml.experiments.backends.data_types import (
     PaginatedResponse,
 )
 from luml.experiments.tracker import ExperimentTracker
-from tests.experiments.conftest import _meta_db
+from tests.conftest import _meta_db
 
 
 def _make_group(tracker: ExperimentTracker, name: str = "g") -> str:
@@ -623,7 +623,7 @@ class TestListGroupExperimentsPagination:
         tracker.start_experiment(name="beta_run", group="g")
         tracker.start_experiment(name="alpha_tuned", group="g")
 
-        result = tracker.list_group_experiments_pagination(group_id, search="alpha")
+        result = tracker.list_group_experiments_pagination(group_id, search="name LIKE '%alpha%'")
 
         names = {e.name for e in result.items}
         assert "alpha_run" in names

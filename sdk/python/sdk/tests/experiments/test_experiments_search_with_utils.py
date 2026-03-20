@@ -1,5 +1,4 @@
 # flake8: noqa: E501
-
 from pathlib import Path
 
 import pytest
@@ -7,11 +6,6 @@ import pytest
 from luml.experiments.backends._exceptions import LumlFilterError
 from luml.experiments.backends._search_utils import SearchExperimentsUtils
 from luml.experiments.backends.sqlite import SQLiteBackend
-
-# ---------------------------------------------------------------------------
-# validate_filter_string
-# ---------------------------------------------------------------------------
-
 
 class TestValidateFilterString:
     def test_valid_name_like(self) -> None:

@@ -9,7 +9,7 @@ import datasets
 import pandas as pd
 import polars as pl
 import pytest
-from sdk.luml import (
+from luml import (
     PRODUCER_NAME,
     DatasetArtifactManifest,
     DatasetReference,
@@ -20,8 +20,8 @@ from sdk.luml import (
     save_hf_dataset,
     save_tabular_dataset,
 )
-from sdk.luml.artifacts._helpers import add_bytes_to_tar
-from sdk.luml.artifacts.dataset import _materializer as dataset_materializer
+from luml.artifacts._helpers import add_bytes_to_tar
+from luml.artifacts.dataset import _materializer as dataset_materializer
 
 
 @pytest.fixture

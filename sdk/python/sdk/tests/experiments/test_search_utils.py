@@ -5,10 +5,6 @@ import pytest
 from luml.experiments.backends._exceptions import LumlFilterError
 from luml.experiments.backends._search_utils import SearchExperimentsUtils
 
-# ---------------------------------------------------------------------------
-# parse_search_filter — parsed dict structure
-# ---------------------------------------------------------------------------
-
 
 class TestParseSearchFilter:
     def test_empty_returns_empty(self) -> None:
@@ -190,10 +186,6 @@ class TestParseSearchFilter:
             SearchExperimentsUtils.parse_search_filter('dataset.name = "x"')
 
 
-# ---------------------------------------------------------------------------
-# to_sql — WHERE clause generation
-# ---------------------------------------------------------------------------
-
 
 class TestToSqlWhereClause:
     def test_none_filter(self) -> None:
@@ -346,10 +338,6 @@ class TestToSqlWhereClause:
         assert w1 == w2
 
 
-# ---------------------------------------------------------------------------
-# to_sql — ORDER BY clause generation
-# ---------------------------------------------------------------------------
-
 
 class TestToSqlOrderBy:
     def test_no_order_by(self) -> None:
@@ -396,10 +384,6 @@ class TestToSqlOrderBy:
         with pytest.raises(LumlFilterError, match="Invalid order_by clause"):
             SearchExperimentsUtils.to_sql(None, ["name ASC DESC"])
 
-
-# ---------------------------------------------------------------------------
-# parse_order_by — returns (type, key, is_ascending)
-# ---------------------------------------------------------------------------
 
 
 class TestParseOrderBy:

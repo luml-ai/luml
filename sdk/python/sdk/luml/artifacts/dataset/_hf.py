@@ -5,12 +5,12 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sdk.luml.artifacts._helpers import add_bytes_to_tar
-from sdk.luml.artifacts.dataset._manifest import (
+from luml.artifacts._helpers import add_bytes_to_tar
+from luml.artifacts.dataset._manifest import (
     DatasetArtifactManifest,
     HFDatasetPayload,
 )
-from sdk.luml.artifacts.dataset._reference import DatasetReference
+from luml.artifacts.dataset._reference import DatasetReference
 
 if TYPE_CHECKING:
     import datasets
@@ -35,8 +35,8 @@ def save_hf_dataset(
         )
         raise ImportError(msg) from None
 
-    from sdk.luml import __version__ as luml_sdk_version
-    from sdk.luml._constants import PRODUCER_NAME
+    from luml import __version__ as luml_sdk_version
+    from luml._constants import PRODUCER_NAME
 
     configs: dict[str, Any] = {}
 

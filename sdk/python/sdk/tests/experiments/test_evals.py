@@ -10,7 +10,7 @@ from luml.experiments.backends.data_types import (
     PaginatedResponse,
 )
 from luml.experiments.tracker import ExperimentTracker
-from tests.experiments.conftest import _exp_db
+from tests.conftest import _exp_db
 
 
 class TestLogEvalSample:
