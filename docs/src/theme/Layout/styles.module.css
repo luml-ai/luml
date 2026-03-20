@@ -1,0 +1,81 @@
+html,
+body {
+  height: 100%;
+}
+
+.mainWrapper {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+:global(.docusaurus-mt-lg) {
+  margin-top: 3rem;
+}
+
+:global(#__docusaurus) {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Background blobs — fixed so they stay visible while scrolling */
+.blobs {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Blue blob — left side */
+.blobBlue {
+  position: absolute;
+  left: -10%;
+  top: 450px;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: #2673fd;
+  filter: blur(135px);
+  opacity: 0.12;
+}
+
+/* Pink blob — right side */
+.blobPink {
+  position: absolute;
+  right: -5%;
+  top: 120px;
+  width: 500px;
+  height: 450px;
+  border-radius: 50%;
+  background: #ff96df;
+  filter: blur(135px);
+  opacity: 0.1;
+}
+
+/* Light blue blob — center-left */
+.blobLightBlue {
+  position: absolute;
+  left: 30%;
+  top: 600px;
+  width: 450px;
+  height: 400px;
+  border-radius: 50%;
+  background: #489ee5;
+  filter: blur(135px);
+  opacity: 0.1;
+}
+
+/* Dark mode — subtler blobs */
+:global([data-theme='dark']) .blobBlue {
+  opacity: 0.08;
+}
+
+:global([data-theme='dark']) .blobPink {
+  opacity: 0.06;
+}
+
+:global([data-theme='dark']) .blobLightBlue {
+  opacity: 0.06;
+}

@@ -8,7 +8,7 @@ dotenv.config();
 const config: Config = {
   title: 'LUML',
   tagline: 'Build AI Solutions Faster than Ever',
-  favicon: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/e6d2b6ff16759b6e2021e1a57e0427c722dd5adc/luml_logo_mark_black.svg',
+  favicon: 'img/favicon.svg',
 
   url: process.env.URL || 'https://luml.ai',
   baseUrl: '/',
@@ -44,33 +44,50 @@ headTags: [],
 
   themeConfig: {
     image: 'img/dsf.webp',
+    colorMode: {
+      defaultMode: 'light',
+      disableSwitch: false,
+      respectPrefersColorScheme: true,
+    },
     navbar: {
-      title: '', 
-      
+      title: '',
       logo: {
         alt: 'LUML Logo',
         src: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_black.svg',
         srcDark: 'https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_white.svg',
-        href: '/', 
+        href: '/',
       },
       items: [
         {
           type: 'docSidebar',
-          sidebarId: 'docsSidebar', 
+          sidebarId: 'docsSidebar',
           position: 'left',
           label: 'Documentation',
         },
         // {
         //   type: 'docSidebar',
-        //   sidebarId: 'guidesSidebar', 
+        //   sidebarId: 'guidesSidebar',
         //   position: 'left',
         //   label: 'Guides',
         //},
         {
           type: 'docSidebar',
-          sidebarId: 'sdkSidebar', 
+          sidebarId: 'sdkSidebar',
           position: 'left',
           label: 'SDK',
+        },
+        {
+          href: 'https://github.com/luml-ai/luml',
+          label: 'GitHub',
+          position: 'right',
+          className: 'navbar-github-link',
+          'aria-label': 'GitHub',
+        },
+        {
+          href: 'https://app.luml.ai',
+          label: 'Get started',
+          position: 'right',
+          className: 'navbar__cta',
         },
       ],
     },
@@ -78,36 +95,63 @@ headTags: [],
       style: 'light',
       links: [
         {
-          title: 'Docs',
+          title: 'Product',
           items: [
             {
               label: 'Documentation',
-              to: '/documentation/quickstart', 
-            },
-            {
-              label: 'Guides',
-              to: '/guides/user_guidline', 
+              to: '/documentation/quickstart',
             },
             {
               label: 'SDK',
-              to: '/sdk/bucket-secrets', 
+              to: '/sdk/bucket-secrets',
+            },
+            {
+              label: 'Pricing',
+              href: 'https://luml.ai/#pricing',
+            },
+          ],
+        },
+        {
+          title: 'Resources',
+          items: [
+            {
+              label: 'Guides',
+              to: '/guides/user_guidline',
+            },
+            {
+              label: 'Blog',
+              href: 'https://luml.ai/blog',
+            },
+            {
+              label: 'Community',
+              href: 'https://discord.com/invite/qVPPstSv9R',
+            },
+          ],
+        },
+        {
+          title: 'Company',
+          items: [
+            {
+              label: 'GitHub',
+              href: 'https://github.com/luml-ai/luml',
+            },
+            {
+              label: 'About',
+              href: 'https://dataforce.solutions',
+            },
+            {
+              label: 'Contact',
+              href: 'mailto:hi@dataforce.solutions',
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} LUML. All rights reserved.`,
+      copyright: `© ${new Date().getFullYear()} LUML. All rights reserved.`,
     },
     prism: {
       theme: prismThemes.github,
       darkTheme: prismThemes.dracula,
     },
-    // announcementBar: {
-    //   id: 'wip_notice', 
-    //   content: '🚧 This documentation is a work in progress.',
-    //   backgroundColor: '#fff3cd', 
-    //   textColor: '#663c00',       
-    //   isCloseable: true,
-    // },
   } satisfies Preset.ThemeConfig,
 };
 
