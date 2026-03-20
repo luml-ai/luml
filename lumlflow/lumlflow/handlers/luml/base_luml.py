@@ -1,6 +1,6 @@
-from luml.api._client import LumlClient
-from luml.api._exceptions import ResourceNotFoundError
 from luml.experiments.tracker import ExperimentTracker
+from luml_api._client import LumlClient
+from luml_api._exceptions import ResourceNotFoundError
 
 from lumlflow.handlers.auth import AuthHandler
 from lumlflow.infra.exceptions import ApplicationError

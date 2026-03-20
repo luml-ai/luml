@@ -3,7 +3,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from sdk.luml.artifacts._base import DiskFile
+from luml.artifacts._base import DiskFile
 
 
 def generate_index(file: tarfile.TarFile) -> dict[str, tuple[int, int]]:

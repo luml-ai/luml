@@ -418,3 +418,7 @@ class Backend(ABC):
         self, experiment_id: str, trace_ids: list[str]
     ) -> dict[str, AnnotationSummary]:
         pass
+
+    @abstractmethod
+    def validate_experiments_search(self, search: str | None = None) -> None:
+        pass
