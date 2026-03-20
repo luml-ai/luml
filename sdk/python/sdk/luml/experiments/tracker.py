@@ -8,6 +8,7 @@ from sdk.luml.artifacts._base import DiskFile, FileMap
 from sdk.luml.artifacts.model import ModelReference
 from sdk.luml.experiments.backends import Backend, BackendRegistry
 from sdk.luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from sdk.luml.utils.naming import generate_random_name
 
 if TYPE_CHECKING:
     from sdk.luml.artifacts.experiment import ExperimentReference
@@ -75,6 +76,9 @@ class ExperimentTracker:
         """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
+
+        if name is None:
+            name = generate_random_name()
 
         self.backend.initialize_experiment(experiment_id, group, name, tags)
         self.current_experiment_id = experiment_id

@@ -72,7 +72,7 @@ All words are lowercase, ASCII-only, no hyphens within words.
   - [x] Add tests in `sdk/python/sdk/tests/test_naming.py`: format validation (regex `^[a-z]+-[a-z]+-\d{3}$`), dictionary size assertions (≥150 each), all entries are lowercase ASCII without hyphens, multiple calls produce varying results (with statistical check)
   - [x] Verify ruff and type checks pass
 
-- [ ] Integrate name generator into ExperimentTracker
-  - [ ] Modify `start_experiment()` in `sdk/python/sdk/luml/experiments/tracker.py` to call `generate_random_name()` when `name is None`
-  - [ ] Add/update tests in `sdk/python/sdk/tests/experiments/` to verify: unnamed experiments get a generated name (not UUID), named experiments keep their explicit name
-  - [ ] Verify ruff and type checks pass
+- [x] Integrate name generator into ExperimentTracker
+  - [x] Modify `start_experiment()` in `sdk/python/sdk/luml/experiments/tracker.py` to call `generate_random_name()` when `name is None`
+  - [x] Add/update tests in `sdk/python/sdk/tests/experiments/` to verify: unnamed experiments get a generated name (not UUID), named experiments keep their explicit name
+  - [x] Verify ruff and type checks pass
