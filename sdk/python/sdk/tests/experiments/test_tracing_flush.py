@@ -59,8 +59,7 @@ class TestConcurrentWrites:
                     errors.append(e)
 
         threads = [
-            threading.Thread(target=write_spans, args=(t,))
-            for t in range(num_threads)
+            threading.Thread(target=write_spans, args=(t,)) for t in range(num_threads)
         ]
         for t in threads:
             t.start()
@@ -132,8 +131,7 @@ class TestConcurrentWrites:
                 )
 
         threads = [
-            threading.Thread(target=write_spans, args=(t,))
-            for t in range(num_threads)
+            threading.Thread(target=write_spans, args=(t,)) for t in range(num_threads)
         ]
         for t in threads:
             t.start()

@@ -1,5 +1,3 @@
-import shutil
-import tempfile
 
 from sklearn.datasets import load_iris
 from sklearn.ensemble import GradientBoostingClassifier
@@ -69,7 +67,7 @@ def run_experiment() -> None:
 
     data = tracker.get_experiment(exp_id)
 
-    print(f"\n--- Experiment summary ---")
+    print("\n--- Experiment summary ---")
     print(f"Name:           {data.metadata.name}")
     print(f"Status:         {data.metadata.status}")
     print(f"Static params:  {data.static_params}")
@@ -89,7 +87,7 @@ def run_experiment() -> None:
 
     experiments = tracker.list_experiments()
     exp = next(e for e in experiments if e.id == exp_id)
-    print(f"\nAfter end:")
+    print("\nAfter end:")
     print(f"  Status:         {exp.status}")
     print(f"  Dynamic params: {exp.dynamic_params}")
 

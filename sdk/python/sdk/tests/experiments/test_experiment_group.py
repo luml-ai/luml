@@ -623,7 +623,9 @@ class TestListGroupExperimentsPagination:
         tracker.start_experiment(name="beta_run", group="g")
         tracker.start_experiment(name="alpha_tuned", group="g")
 
-        result = tracker.list_group_experiments_pagination(group_id, search="name LIKE '%alpha%'")
+        result = tracker.list_group_experiments_pagination(
+            group_id, search="name LIKE '%alpha%'"
+        )
 
         names = {e.name for e in result.items}
         assert "alpha_run" in names

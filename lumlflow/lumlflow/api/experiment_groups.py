@@ -143,8 +143,3 @@ def get_group_experiments(
         order=order,
         search=search,
     )
-
-
-@experiment_groups_router.get("/{group_id}", response_model=PaginatedExperiments)
-def get_group_experiments(group_id: str) -> PaginatedExperiments:
-    return groups_handler.get_experiment_group(group_id)

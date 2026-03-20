@@ -7,6 +7,7 @@ from luml.experiments.backends._exceptions import LumlFilterError
 from luml.experiments.backends._search_utils import SearchExperimentsUtils
 from luml.experiments.backends.sqlite import SQLiteBackend
 
+
 class TestValidateFilterString:
     def test_valid_name_like(self) -> None:
         SearchExperimentsUtils.validate_filter_string(
