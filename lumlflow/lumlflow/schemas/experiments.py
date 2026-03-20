@@ -170,3 +170,8 @@ class EvalColumns(BaseModel, BaseOrmConfig):
     refs: list[str]
     scores: list[str]
     metadata: list[str]
+
+
+class SearchValidationResult(BaseModel):
+    valid: bool
+    error: str | None = None

@@ -14,9 +14,7 @@ def tracker(tmp_path: Path) -> ExperimentTracker:
 
 @pytest.fixture()
 def client(tracker: ExperimentTracker) -> TestClient:
-    init_patch = (
-        "lumlflow.api.experiments.ExperimentsHandler.__init__"
-    )
+    init_patch = "lumlflow.api.experiments.ExperimentsHandler.__init__"
     with patch(init_patch, lambda self: None):
         app = AppService()
 
@@ -35,9 +33,7 @@ class TestMetricKeyWithSlash:
         tracker.log_dynamic("train/loss", 0.3, step=2, experiment_id=exp_id)
         tracker.end_experiment(exp_id)
 
-        response = client.get(
-            f"/api/experiments/{exp_id}/metrics/train%2Floss"
-        )
+        response = client.get(f"/api/experiments/{exp_id}/metrics/train%2Floss")
         assert response.status_code == 200
         data = response.json()
         assert data["key"] == "train/loss"
@@ -50,9 +46,7 @@ class TestMetricKeyWithSlash:
         tracker.log_dynamic("a/b/c/loss", 0.5, step=1, experiment_id=exp_id)
         tracker.end_experiment(exp_id)
 
-        response = client.get(
-            f"/api/experiments/{exp_id}/metrics/a%2Fb%2Fc%2Floss"
-        )
+        response = client.get(f"/api/experiments/{exp_id}/metrics/a%2Fb%2Fc%2Floss")
         assert response.status_code == 200
         data = response.json()
         assert data["key"] == "a/b/c/loss"
@@ -64,9 +58,7 @@ class TestMetricKeyWithSlash:
         tracker.log_dynamic("accuracy", 0.9, step=1, experiment_id=exp_id)
         tracker.end_experiment(exp_id)
 
-        response = client.get(
-            f"/api/experiments/{exp_id}/metrics/accuracy"
-        )
+        response = client.get(f"/api/experiments/{exp_id}/metrics/accuracy")
         assert response.status_code == 200
         data = response.json()
         assert data["key"] == "accuracy"
