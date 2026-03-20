@@ -7,8 +7,8 @@ import zipfile
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
-from sdk.luml.artifacts._base import ArtifactManifest, DiskReference
-from sdk.luml.artifacts._helpers import add_bytes_to_tar
+from luml.artifacts._base import ArtifactManifest, DiskReference
+from luml.artifacts._helpers import add_bytes_to_tar
 
 if TYPE_CHECKING:
     from sdk.luml.experiments.tracker import ExperimentTracker

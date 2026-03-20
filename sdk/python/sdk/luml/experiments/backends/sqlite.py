@@ -13,6 +13,7 @@ from typing import Any, Literal
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
+from luml.experiments.backends._search_utils import SearchExperimentsUtils
 from luml.experiments.backends._sqlite_experiment_ddl import (
     _DDL_EXPERIMENT_CREATE_ATTACHMENTS,
     _DDL_EXPERIMENT_CREATE_DYNAMIC,
@@ -1664,6 +1665,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         return [self._row_to_model(row) for row in cursor.fetchall()]
 
+    def validate_experiments_search(self, search: str | None = None) -> None:
+        return SearchExperimentsUtils.validate_filter_string(search)
+
     def list_group_experiments_pagination(
         self,
         group_id: str,
@@ -1780,9 +1784,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         where_conditions = [("group_id = ?", [group_id])]
 
         if search:
-            where_conditions.append(
-                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
-            )
+            SearchExperimentsUtils.validate_filter_string(search)
+            where_clause, _, filter_params = SearchExperimentsUtils.to_sql(search)
+            if where_clause:
+                where_conditions.append((where_clause, filter_params))
 
         rows = self._execute_paginated_query(
             conn=conn,

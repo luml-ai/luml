@@ -4,7 +4,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Literal
 
-from luml.api.utils.progress import BaseProgressHandler
+from luml_api.utils.progress import BaseProgressHandler
 
 _JOB_TTL_SECONDS = 60 * 10
 
