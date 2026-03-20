@@ -1,5 +1,5 @@
-from sdk.luml.experiments.backends._base import Backend
-from sdk.luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.backends._base import Backend
+from luml.experiments.backends.sqlite import SQLiteBackend
 
 
 class BackendRegistry:

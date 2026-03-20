@@ -6,14 +6,14 @@ import tempfile
 from pathlib import Path
 from typing import Any, Literal
 
-from sdk.luml.artifacts._helpers import add_bytes_to_tar
-from sdk.luml.artifacts.dataset._manifest import (
+from luml.artifacts._helpers import add_bytes_to_tar
+from luml.artifacts.dataset._manifest import (
     DatasetArtifactManifest,
     TabularDatasetPayload,
     TabularSplitInfo,
     TabularSubsetInfo,
 )
-from sdk.luml.artifacts.dataset._reference import DatasetReference
+from luml.artifacts.dataset._reference import DatasetReference
 
 SplitInput = Any
 SubsetDict = dict[str, SplitInput]
@@ -189,8 +189,8 @@ def save_tabular_dataset(
     version: str | None = None,
     output_path: str | None = None,
 ) -> DatasetReference:
-    from sdk.luml import __version__ as luml_sdk_version
-    from sdk.luml._constants import PRODUCER_NAME
+    from luml import __version__ as luml_sdk_version
+    from luml._constants import PRODUCER_NAME
 
     normalized = _normalize_input(data)
 

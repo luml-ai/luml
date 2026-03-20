@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
-from sdk.luml.artifacts._base import (
+from luml.artifacts._base import (
     ArtifactManifest,
     DiskFile,
     DiskReference,

@@ -3,12 +3,12 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from sdk.luml import (
+from luml import (
     ExperimentReference,
     save_experiment,
 )
-from sdk.luml.artifacts._base import ArtifactManifest
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.artifacts._base import ArtifactManifest
+from luml.experiments.tracker import ExperimentTracker
 
 
 @pytest.fixture
@@ -77,7 +77,7 @@ def test_manifest_content(
     manifest = ref.get_manifest()
     assert isinstance(manifest, ArtifactManifest)
     assert manifest.artifact_type == "experiment"
-    assert manifest.name is None
+    assert isinstance(manifest.name, str) and len(manifest.name) > 0
     assert manifest.payload.local_experiment_id == exp_id
     assert manifest.payload.tags == ["test", "unit"]
 

@@ -1,7 +1,7 @@
 from typing import Any
 
 import pytest
-from sdk.luml.experiments.evaluation import (
+from luml.experiments.evaluation import (
     BaseScorer,
     SupervisedFuncScorer,
     SupervisedScorer,

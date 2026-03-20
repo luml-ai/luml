@@ -4,14 +4,14 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-from sdk.luml.experiments.evaluation import (
+from luml.experiments.evaluation import (
     BaseScorer,
     EvalItem,
     EvalResult,
     SupervisedScorer,
     UnsupervisedScorer,
 )
-from sdk.luml.experiments.evaluation.evaluate import (
+from luml.experiments.evaluation.evaluate import (
     _aggregate_scores,
     _call_scorer,
     _evaluate_single_item,

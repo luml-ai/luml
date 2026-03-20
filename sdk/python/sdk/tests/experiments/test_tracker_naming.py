@@ -5,33 +5,6 @@ from unittest.mock import MagicMock, patch
 
 NAME_PATTERN = re.compile(r"^[a-z]+-[a-z]+-\d{3}$")
 
-
-def _ensure_sdk_stubs() -> None:
-    """Stub out the sdk.* namespace so tracker.py can be imported.
-
-    tracker.py uses ``from sdk.luml.<x>`` imports that resolve only when the
-    package is installed as an editable "sdk" namespace.  In the test venv the
-    package is installed as "luml", so we create thin shims that re-export the
-    real modules.
-    """
-    if "sdk" in sys.modules:
-        return
-
-    import luml  # real, installed package
-
-    sdk_pkg = types.ModuleType("sdk")
-    sdk_pkg.__path__ = []  # type: ignore[attr-defined]
-    sys.modules["sdk"] = sdk_pkg
-    sys.modules["sdk.luml"] = luml
-
-    # Walk every already-imported luml.* sub-module and mirror it under sdk.luml.*
-    for name, mod in list(sys.modules.items()):
-        if name.startswith("luml.") and mod is not None:
-            sys.modules[f"sdk.{name}"] = mod
-
-
-_ensure_sdk_stubs()
-
 from luml.experiments.tracker import ExperimentTracker  # noqa: E402
 
 

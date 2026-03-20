@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 
 class TracerManager:
@@ -14,7 +14,7 @@ class TracerManager:
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-        from sdk.luml.experiments.tracing.span_exporter import LumlSpanExporter
+        from luml.experiments.tracing.span_exporter import LumlSpanExporter
 
         service_name: str = "luml-sdk"
         resource_attrs = {"service.name": service_name}
