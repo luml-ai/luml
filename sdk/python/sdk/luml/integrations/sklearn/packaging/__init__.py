@@ -6,12 +6,12 @@ from warnings import warn
 import numpy as np  # type: ignore[import-not-found]
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import NDJSON
-from sdk.luml._constants import FNNX_PRODUCER_NAME
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.integrations.sklearn.packaging._template import SKlearnPyFunc
-from sdk.luml.utils.deps import find_dependencies, has_dependency
-from sdk.luml.utils.imports import get_version
-from sdk.luml.utils.time import get_epoch
+from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
+from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
+from luml.utils.deps import find_dependencies, has_dependency
+from luml.utils.imports import get_version
+from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator

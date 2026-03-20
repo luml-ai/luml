@@ -10,17 +10,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sdk.luml.artifacts._base import DiskFile, _BaseFile
-from sdk.luml.experiments.backends._base import Backend
-from sdk.luml.experiments.backends._data_types import (
+from luml.artifacts._base import DiskFile, _BaseFile
+from luml.experiments.backends._base import Backend
+from luml.experiments.backends._data_types import (
     Experiment,
     ExperimentData,
     ExperimentMetaData,
     Group,
 )
-from sdk.luml.experiments.backends.migration_runner import MigrationRunner
-from sdk.luml.experiments.utils import guess_span_type
-from sdk.luml.utils.tar import create_and_index_tar
+from luml.experiments.backends.migration_runner import MigrationRunner
+from luml.experiments.utils import guess_span_type
+from luml.utils.tar import create_and_index_tar
 
 _DDL_EXPERIMENT_CREATE_STATIC = """
     CREATE TABLE IF NOT EXISTS static_params (

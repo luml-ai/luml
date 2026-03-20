@@ -15,8 +15,8 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from sdk.luml.experiments.backends.migration_runner import MigrationRunner
-from sdk.luml.experiments.backends.migrations import MIGRATIONS_DIR
+from luml.experiments.backends.migration_runner import MigrationRunner
+from luml.experiments.backends.migrations import MIGRATIONS_DIR
 
 
 def get_default_db_path() -> Path:

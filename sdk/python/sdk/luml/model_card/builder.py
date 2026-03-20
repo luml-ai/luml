@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from sdk.luml.model_card.templates import (
+from luml.model_card.templates import (
     get_default_css,
     get_html_template,
     image_container,

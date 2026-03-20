@@ -4,13 +4,13 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Any
 
-from sdk.luml.artifacts._base import DiskFile, FileMap
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.experiments.backends import Backend, BackendRegistry
-from sdk.luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.artifacts._base import DiskFile, FileMap
+from luml.artifacts.model import ModelReference
+from luml.experiments.backends import Backend, BackendRegistry
+from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
 
 if TYPE_CHECKING:
-    from sdk.luml.artifacts.experiment import ExperimentReference
+    from luml.artifacts.experiment import ExperimentReference
 
 
 class ExperimentTracker:
@@ -381,7 +381,7 @@ class ExperimentTracker:
         # All traced functions will be logged to this experiment
         ```
         """
-        from sdk.luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
+        from luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
 
         setup_tracing()
         set_experiment_tracker(self)
@@ -404,7 +404,7 @@ class ExperimentTracker:
         tracker.export("experiment_data.tar", experiment_id=exp_id)
         ```
         """
-        from sdk.luml.artifacts.experiment import save_experiment
+        from luml.artifacts.experiment import save_experiment
 
         experiment_id = experiment_id or self.current_experiment_id
         if experiment_id is None:

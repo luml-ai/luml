@@ -2,7 +2,7 @@ import importlib
 import sqlite3
 from typing import Any
 
-from sdk.luml.experiments.backends.migrations import MIGRATIONS_DIR
+from luml.experiments.backends.migrations import MIGRATIONS_DIR
 
 
 class MigrationRunner:

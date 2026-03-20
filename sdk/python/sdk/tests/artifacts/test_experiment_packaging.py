@@ -3,12 +3,12 @@ import zipfile
 from pathlib import Path
 
 import pytest
-from sdk.luml import (
+from luml import (
     ExperimentReference,
     save_experiment,
 )
-from sdk.luml.artifacts._base import ArtifactManifest
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.artifacts._base import ArtifactManifest
+from luml.experiments.tracker import ExperimentTracker
 
 
 @pytest.fixture

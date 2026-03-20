@@ -2,14 +2,15 @@ import json
 import random
 
 from openai import OpenAI
-from sdk.luml import instrument_openai
-from sdk.luml.experiments.evaluation import (
+
+from luml.experiments.evaluation import (
     EvalItem,
     supervised_scorer,
     unsupervised_scorer,
 )
-from sdk.luml.experiments.evaluation.evaluate import evaluate
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracing import instrument_openai
+from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker()
 client = OpenAI()
