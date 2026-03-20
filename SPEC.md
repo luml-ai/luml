@@ -67,10 +67,10 @@ All words are lowercase, ASCII-only, no hyphens within words.
 
 # Tasks
 
-- [ ] Implement the random name generator
-  - [ ] Create `sdk/python/sdk/luml/utils/naming.py` with `ADJECTIVES` list (~200 entries), `NOUNS` list (~200 entries), and `generate_random_name() -> str` function
-  - [ ] Add tests in `sdk/python/sdk/tests/test_naming.py`: format validation (regex `^[a-z]+-[a-z]+-\d{3}$`), dictionary size assertions (≥150 each), all entries are lowercase ASCII without hyphens, multiple calls produce varying results (with statistical check)
-  - [ ] Verify ruff and type checks pass
+- [x] Implement the random name generator
+  - [x] Create `sdk/python/sdk/luml/utils/naming.py` with `ADJECTIVES` list (~200 entries), `NOUNS` list (~200 entries), and `generate_random_name() -> str` function
+  - [x] Add tests in `sdk/python/sdk/tests/test_naming.py`: format validation (regex `^[a-z]+-[a-z]+-\d{3}$`), dictionary size assertions (≥150 each), all entries are lowercase ASCII without hyphens, multiple calls produce varying results (with statistical check)
+  - [x] Verify ruff and type checks pass
 
 - [ ] Integrate name generator into ExperimentTracker
   - [ ] Modify `start_experiment()` in `sdk/python/sdk/luml/experiments/tracker.py` to call `generate_random_name()` when `name is None`
