@@ -7,6 +7,7 @@ import zipfile
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
+
 from luml.artifacts._base import ArtifactManifest, DiskReference
 from luml.artifacts._helpers import add_bytes_to_tar
 

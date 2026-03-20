@@ -186,7 +186,6 @@ class TestParseSearchFilter:
             SearchExperimentsUtils.parse_search_filter('dataset.name = "x"')
 
 
-
 class TestToSqlWhereClause:
     def test_none_filter(self) -> None:
         w, o, p = SearchExperimentsUtils.to_sql(None)
@@ -338,7 +337,6 @@ class TestToSqlWhereClause:
         assert w1 == w2
 
 
-
 class TestToSqlOrderBy:
     def test_no_order_by(self) -> None:
         _, o, _ = SearchExperimentsUtils.to_sql(None, None)
@@ -383,7 +381,6 @@ class TestToSqlOrderBy:
     def test_invalid_order_by_format_raises(self) -> None:
         with pytest.raises(LumlFilterError, match="Invalid order_by clause"):
             SearchExperimentsUtils.to_sql(None, ["name ASC DESC"])
-
 
 
 class TestParseOrderBy:

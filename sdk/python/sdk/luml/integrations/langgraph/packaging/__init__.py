@@ -8,6 +8,7 @@ from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON, Var
 from langgraph.pregel import Pregel
 from pydantic import BaseModel, create_model
+
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.langgraph.packaging._templates.mermaid import (

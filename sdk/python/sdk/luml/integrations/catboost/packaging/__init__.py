@@ -7,6 +7,7 @@ from catboost import CatBoost
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
+
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.catboost.packaging._templates.pyfunc import CatBoostFunc

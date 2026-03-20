@@ -14,6 +14,7 @@ except ImportError:
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import JSON
 from pydantic import BaseModel, create_model
+
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging import save_sklearn

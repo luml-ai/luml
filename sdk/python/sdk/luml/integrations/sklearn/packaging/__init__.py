@@ -6,6 +6,7 @@ from warnings import warn
 import numpy as np  # type: ignore[import-not-found]
 from fnnx.extras.builder import PyfuncBuilder
 from fnnx.extras.pydantic_models.manifest import NDJSON
+
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc

@@ -9,6 +9,8 @@ class TraceState(IntEnum):
     OK = 1
     ERROR = 2
     IN_PROGRESS = 3
+
+
 @dataclass
 class PaginationCursor:
     id: str
