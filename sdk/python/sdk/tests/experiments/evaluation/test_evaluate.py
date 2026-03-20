@@ -4,7 +4,6 @@ from typing import Any
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
-
 from luml.experiments.evaluation import (
     BaseScorer,
     EvalItem,

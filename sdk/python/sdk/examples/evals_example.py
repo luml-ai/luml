@@ -2,8 +2,7 @@ import json
 import random
 
 from openai import OpenAI
-
-from luml import instrument_openai
+from luml.experiments.tracing import instrument_openai
 from luml.experiments.evaluation import (
     EvalItem,
     supervised_scorer,

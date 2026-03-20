@@ -11,7 +11,7 @@ from luml.experiments.backends.data_types import (
     Experiment,
 )
 from luml.experiments.tracker import ExperimentTracker
-from tests.experiments.conftest import _exp_db, _meta_db
+from tests.conftest import _exp_db, _meta_db
 
 
 def _setup_group(tracker: ExperimentTracker) -> str:

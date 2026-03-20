@@ -13,7 +13,7 @@ from luml.experiments.backends.data_types import (
     Model,
 )
 from luml.experiments.tracker import ExperimentTracker
-from tests.experiments.conftest import _meta_db
+from tests.conftest import _meta_db
 
 np = pytest.importorskip("numpy")
 

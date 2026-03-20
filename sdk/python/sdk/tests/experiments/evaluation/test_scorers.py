@@ -1,7 +1,6 @@
 from typing import Any
 
 import pytest
-
 from luml.experiments.evaluation import (
     BaseScorer,
     SupervisedFuncScorer,

@@ -4,7 +4,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from luml import ModelCardBuilder
 from luml.artifacts.model import ModelReference
 
