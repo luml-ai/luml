@@ -127,11 +127,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     stmt.bind([traceId])
     while (stmt.step()) {
       const row = stmt.getAsObject()
+      const annotationCount = this.getSnapAnnotationsCountByDatabase(db, row.span_id as string)
       const parsedRow = {
         ...row,
         attributes: safeParse(row.attributes as SqlValue),
         events: safeParse(row.events as SqlValue),
         links: safeParse(row.links as SqlValue),
+        annotation_count: annotationCount,
       }
       rows.push(parsedRow)
     }
@@ -761,5 +763,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private async getFlatPromisesResponse<T>(promises: Promise<T[]>[]): Promise<T[]> {
     const results = await Promise.all(promises)
     return results.flat()
+  }
+
+  private getSnapAnnotationsCountByDatabase(database: Database, spanId: string): number {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return 0
+    const queryResult = database.exec(`SELECT COUNT(*) FROM span_annotations WHERE span_id = '${spanId}'`)
+    const count = queryResult[0]?.values[0]?.[0]
+    return this.parseValue(count, 'int')
   }
 }

@@ -6,9 +6,9 @@
     <Skeleton class="h-[calc(100vh-250px)]" height="calc(100vh-250px)"></Skeleton>
   </template>
 
-  <div v-else-if="groupData && experimentStore.experiment" class="flex flex-col flex-1">
+  <div v-else-if="experimentStore.experiment" class="flex flex-col flex-1">
     <DetailsBreadcrumbs
-      :group-name="groupData.name"
+      :group-name="experimentStore.experiment.group_name ?? ''"
       :group-id="groupId"
       :experiment-name="experimentStore.experiment.name"
       :experiment-id="experimentId"
@@ -37,10 +37,8 @@
 </template>
 
 <script setup lang="ts">
-import type { Group } from '@/store/groups/groups.interface'
 import { useRoute } from 'vue-router'
 import { computed, onBeforeMount, onUnmounted, ref, toRef, watch } from 'vue'
-import { apiService } from '@/api/api.service'
 import { useExperimentStore } from '@/store/experiment'
 import { useToast, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
@@ -68,7 +66,6 @@ const annotationsStore = useAnnotationsStore()
 provideTheme(toRef(themeStore, 'theme'))
 
 const loading = ref(true)
-const groupData = ref<Group | null>(null)
 
 const groupId = computed(() => route.params.groupId as string)
 
@@ -84,11 +81,9 @@ const modelsInfo = computed<ModelsInfo>(() => {
   }
 })
 
-async function fetchData(groupId: string, experimentId: string) {
+async function fetchData(experimentId: string) {
   try {
     loading.value = true
-    const group = await apiService.getGroup(groupId)
-    groupData.value = group
     await experimentStore.fetchExperiment(experimentId)
   } catch (error) {
     toast.add(errorToast(error))
@@ -103,7 +98,7 @@ function onTraceVisibleUpdate(value: boolean | undefined) {
   }
 }
 
-watch([groupId, experimentId], ([groupId, experimentId]) => fetchData(groupId, experimentId), {
+watch(experimentId, (experimentId) => fetchData(experimentId), {
   immediate: true,
 })
 

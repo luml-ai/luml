@@ -38,7 +38,7 @@ export interface CheckAuthResponse {
 
 export interface GetExperimentEvalsParams {
   experiment_id: string
-  limit: number
+  limit?: number
   cursor?: string | null
   sort_by: 'created_at'
   order: 'asc' | 'desc'

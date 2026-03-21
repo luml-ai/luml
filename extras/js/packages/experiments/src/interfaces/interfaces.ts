@@ -174,7 +174,7 @@ export interface TraceSpan {
   links: string | null
   children: TraceSpan[]
   dfs_span_type: SpanTypeEnum | null
-  annotation_count: number
+  annotation_count: number | null
 }
 
 export enum SpanTypeEnum {

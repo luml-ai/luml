@@ -19,6 +19,8 @@ export interface Experiment {
   dynamic_params: Record<string, number | string> | null
   status: 'active' | 'completed'
   source: string | null
+  group_name: string | null
+  group_id: string | null
 }
 
 export interface UpdateExperimentPayload {
