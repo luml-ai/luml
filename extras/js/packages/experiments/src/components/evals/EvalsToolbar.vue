@@ -1,44 +1,89 @@
 <template>
   <div class="toolbar">
-    <TableEditColumns
-      :button-icon="Bolt"
-      :columns="columns"
-      :rounded-button="false"
-      :selected-columns="selectedColumns"
-      :disabled-columns="['id']"
-      @edit="(data) => $emit('edit', data)"
-    ></TableEditColumns>
-    <Button severity="secondary" variant="outlined" @click="$emit('export')">
-      <span>Export CSV</span>
-      <Download :size="14"></Download>
-    </Button>
+    <div class="left">
+      <IconField class="icon-field">
+        <InputIcon class="search-icon">
+          <Search :size="12" />
+        </InputIcon>
+        <InputText
+          v-model="searchModel"
+          placeholder="Search evals"
+          size="small"
+          fluid
+          class="search-input"
+        />
+      </IconField>
+    </div>
+    <div class="right">
+      <TableFilter :fields="visibleColumns" disabled />
+      <TableEditColumns
+        :button-icon="Bolt"
+        :columns="columns"
+        :rounded-button="false"
+        :selected-columns="selectedColumns"
+        :disabled-columns="['id']"
+        @edit="(data) => $emit('edit', data)"
+      ></TableEditColumns>
+      <Button
+        severity="secondary"
+        variant="outlined"
+        size="small"
+        :loading="exportLoading"
+        @click="$emit('export')"
+      >
+        <span>Export CSV</span>
+        <Download :size="14"></Download>
+      </Button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { Button } from 'primevue'
-import { Bolt, Download } from 'lucide-vue-next'
+import type { ToolbarEmits, ToolbarProps } from './evals.interface'
+import { Button, IconField, InputIcon, InputText } from 'primevue'
+import { Bolt, Download, Search } from 'lucide-vue-next'
+import { computed } from 'vue'
 import TableEditColumns from '../table/TableEditColumns.vue'
+import TableFilter from '../table/filter/TableFilter.vue'
 
-type Props = {
-  columns: string[]
-  selectedColumns: string[]
-}
+const props = defineProps<ToolbarProps>()
+defineEmits<ToolbarEmits>()
 
-type Emits = {
-  (event: 'edit', list: string[]): void
-  (event: 'export'): void
-}
+const searchModel = defineModel<string>('search', { default: '' })
 
-defineProps<Props>()
-defineEmits<Emits>()
+const visibleColumns = computed(() => {
+  return props.selectedColumns.length ? props.selectedColumns : props.columns
+})
 </script>
 
 <style scoped>
 .toolbar {
   padding: 12px 0;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.left {
+  flex: 1 1;
+}
+
+.right {
+  display: flex;
   gap: 8px;
+  justify-content: flex-end;
+}
+
+.icon-field {
+  max-width: 280px;
+  width: 100%;
+}
+
+.search-input {
+  padding-left: 30px !important;
+}
+
+.search-icon {
+  inset-inline-start: 9px !important;
 }
 </style>

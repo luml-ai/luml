@@ -1,7 +1,7 @@
 <template>
   <div class="fixed w-full h-full overflow-hidden flex flex-col p-4 pt-0">
     <MainHeader class="mb-6 -mx-4" />
-    <main class="flex-1 overflow-y-auto">
+    <main class="flex-1 overflow-y-auto flex flex-col">
       <router-view />
     </main>
   </div>

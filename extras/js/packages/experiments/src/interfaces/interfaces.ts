@@ -1,18 +1,93 @@
+import type {
+  AddAnnotationPayload,
+  Annotation,
+  AnnotationSummary,
+  UpdateAnnotationPayload,
+} from '@/components/annotations/annotations.interface'
+import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
 import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {
-  init: (data: any[], options?: any) => Promise<void>
+  init: (data: any) => Promise<void>
+
   getDynamicMetricsNames: (signal?: AbortSignal) => Promise<string[]>
+
   getDynamicMetricData: (
     metricName: string,
     signal?: AbortSignal,
   ) => Promise<ExperimentSnapshotDynamicMetric[]>
+
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
-  getEvalsList: (signal?: AbortSignal) => Promise<EvalsListType>
+
+  getEvalsColumns: (datasetId: string, signal?: AbortSignal) => Promise<EvalsColumns>
+
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
+
   buildSpanTree: (spans: Omit<TraceSpan, 'children'>[]) => Promise<TraceSpan[]>
+
   getTraceId: (params: SpansParams) => Promise<any>
-  getUniqueTraceIds: (modelId: string) => Promise<string[]>
+
+  getUniqueDatasetsIds: () => Promise<string[]>
+
+  getNextEvalsByDatasetId: (params: GetEvalsByDatasetParams) => Promise<EvalsInfo[]>
+
+  getAllDatasetEvals: (params: Omit<GetEvalsByDatasetParams, 'limit'>) => Promise<EvalsInfo[]>
+
+  resetEvalsDatasetsRequestParams: () => Promise<void>
+
+  resetDatasetPage: (datasetId: string) => Promise<void>
+
+  getDatasetAverageScores: (datasetId: string) => Promise<ModelScores[]>
+
+  createEvalAnnotation?: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateEvalAnnotation?: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  getEvalAnnotations: (
+    artifactId: string,
+    datasetId: string,
+    evalId: string,
+  ) => Promise<Annotation[]>
+
+  deleteEvalAnnotation?: (artifactId: string, annotationId: string) => Promise<void>
+
+  createSpanAnnotation?: (
+    artifactId: string,
+    traceId: string,
+    spanId: string,
+    data: AddAnnotationPayload,
+  ) => Promise<Annotation>
+
+  updateSpanAnnotation?: (
+    artifactId: string,
+    annotationId: string,
+    data: UpdateAnnotationPayload,
+  ) => Promise<Annotation>
+
+  deleteSpanAnnotation?: (artifactId: string, annotationId: string) => Promise<void>
+
+  getEvalsDatasetAnnotationsSummary: (datasetId: string) => Promise<AnnotationSummary>
+
+  getTraces: (params: GetTracesParams) => Promise<Trace[]>
+
+  getAllTraces: (params: Omit<GetTracesParams, 'limit'>) => Promise<Trace[]>
+
+  resetTracesRequestParams: (artifactId?: string) => Promise<void>
+
+  getEvalById: (artifactId: string, evalId: string) => Promise<EvalsInfo>
+
+  getSpanAnnotations: (artifactId: string, traceId: string, spanId: string) => Promise<Annotation[]>
+
+  getTracesAnnotationSummary: (artifactId: string) => Promise<AnnotationSummary>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
@@ -36,6 +111,14 @@ export interface ExperimentSnapshotDynamicMetric {
 
 export type EvalsDatasets = Record<string, EvalsInfo[]>
 
+export interface EvalsColumns {
+  inputs: string[]
+  outputs: string[]
+  refs: string[]
+  scores: string[]
+  metadata: string[]
+}
+
 export interface EvalsInfo {
   id: string
   dataset_id: string
@@ -45,6 +128,7 @@ export interface EvalsInfo {
   scores: Record<string, string | number>
   metadata: Record<string, string | number>
   modelId: string
+  annotations: AnnotationSummary | null
 }
 
 export interface ModelSnapshot {
@@ -83,13 +167,14 @@ export interface TraceSpan {
   kind: number
   start_time_unix_nano: number
   end_time_unix_nano: number
-  status_code: number
+  status_code: number | null
   status_message: string | null
   attributes: string
   events: string | null
   links: string | null
   children: TraceSpan[]
   dfs_span_type: SpanTypeEnum | null
+  annotation_count: number | null
 }
 
 export enum SpanTypeEnum {
@@ -117,4 +202,19 @@ export interface EvalTraceInfo extends BaseTraceInfo {
   modelId: string
   datasetId: string
   evalId: string
+}
+
+export interface GetEvalsByDatasetParams {
+  limit?: number
+  sort_by: 'created_at'
+  order: 'asc' | 'desc'
+  dataset_id: string
+  search: string
+}
+
+export interface GetTracesParams {
+  limit: number
+  sort_by: 'created_at' | 'execution_time' | 'span_count'
+  order: 'asc' | 'desc'
+  search: string
 }
