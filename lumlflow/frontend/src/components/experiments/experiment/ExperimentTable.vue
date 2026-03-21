@@ -15,7 +15,7 @@
   >
     <template #empty>
       <div class="text-center h-full flex items-center justify-center max-w-[calc(100vw-40px)]">
-        No experiments groups found
+        No experiments found.
       </div>
     </template>
     <Column selectionMode="multiple" class="w-[40px]"></Column>

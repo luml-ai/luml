@@ -97,6 +97,16 @@ async function fetchExperiments() {
   }
 }
 
+async function onExperimentsChange(newExperiments: Experiment[]) {
+  try {
+    if (newExperiments.length > 0) await createProvider(newExperiments)
+    else resetProvider()
+  } catch (error) {
+    toast.add(errorToast(error))
+    resetProvider()
+  }
+}
+
 onBeforeMount(async () => {
   allowEdit()
   await fetchExperiments()
@@ -106,19 +116,9 @@ onBeforeUnmount(() => {
   resetProvider()
 })
 
-watch(
-  experiments,
-  (newExperiments) => {
-    if (newExperiments.length > 0) {
-      createProvider(newExperiments)
-    } else {
-      resetProvider()
-    }
-  },
-  {
-    immediate: true,
-  },
-)
+watch(experiments, onExperimentsChange, {
+  immediate: true,
+})
 </script>
 
 <style scoped></style>

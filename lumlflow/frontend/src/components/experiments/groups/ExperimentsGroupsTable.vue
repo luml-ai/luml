@@ -18,7 +18,7 @@
     @sort="onSort"
   >
     <template #empty>
-      <div class="text-center min-h-full">No experiments groups found</div>
+      <div class="text-center min-h-full">No experiment groups found.</div>
     </template>
     <Column selectionMode="multiple" class="w-[40px]"></Column>
     <Column field="name" header="Group name" sortable class="w-[180px]">
