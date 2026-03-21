@@ -49,7 +49,6 @@ class Experiment:
     id: str
     name: str
     status: str
-    group_id: str
     created_at: datetime
     tags: list[str] = field(default_factory=list)
     models: list[Model] = field(default_factory=list)
