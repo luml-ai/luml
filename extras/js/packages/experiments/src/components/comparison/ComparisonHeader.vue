@@ -1,6 +1,6 @@
 <template>
   <header class="header">
-    <h2 class="title">Multi-model comparison</h2>
+    <h2 class="title">Experiments comparison</h2>
   </header>
 </template>
 

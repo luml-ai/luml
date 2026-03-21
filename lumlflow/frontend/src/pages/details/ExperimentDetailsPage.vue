@@ -59,7 +59,7 @@ const route = useRoute()
 const toast = useToast()
 const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
-const { provider } = useExperimentProvider()
+const { provider, createProvider, resetProvider } = useExperimentProvider()
 const themeStore = useThemeStore()
 const annotationsStore = useAnnotationsStore()
 
@@ -103,6 +103,17 @@ watch(experimentId, (experimentId) => fetchData(experimentId), {
 })
 
 watch(
+  () => experimentStore.experiment,
+  (experiment) => {
+    if (experiment) createProvider([experiment])
+    else resetProvider()
+  },
+  {
+    immediate: true,
+  },
+)
+
+watch(
   provider,
   (val) => {
     if (val) evalsStore.setProvider(val)
@@ -119,6 +130,7 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   experimentStore.resetExperiment()
+  resetProvider()
 })
 </script>
 

@@ -27,34 +27,34 @@ import type {
 
 export const apiService = {
   getGroups: async (params: GetGroupsParams) => {
-    const { data } = await api.get<PaginatedResponse<Group>>('/experiment-groups', { params })
+    const { data } = await api.get<PaginatedResponse<Group>>('/groups', { params })
     return data
   },
 
   getGroup: async (groupId: string) => {
-    const { data } = await api.get<Group>(`/experiment-groups/${groupId}/details`)
+    const { data } = await api.get<Group>(`/groups/${groupId}/details`)
     return data
   },
 
   updateGroup: async (groupId: string, payload: UpdateGroupPayload) => {
-    const { data } = await api.patch<Group>(`/experiment-groups/${groupId}`, payload)
+    const { data } = await api.patch<Group>(`/groups/${groupId}`, payload)
     return data
   },
 
   deleteGroup: async (groupId: string) => {
-    const { data } = await api.delete<Group>(`/experiment-groups/${groupId}`)
+    const { data } = await api.delete<Group>(`/groups/${groupId}`)
     return data
   },
 
   getGroupById: async (groupId: string) => {
-    const { data } = await api.get<DetailedGroup>(`/experiment-groups/${groupId}/details`)
+    const { data } = await api.get<DetailedGroup>(`/groups/${groupId}/details`)
     return data
   },
 
   getExperiments: async (params: GetExperimentsParams) => {
     const { group_id, ...rest } = params
     const { data } = await api.get<PaginatedResponse<Experiment>>(
-      `/experiment-groups/${group_id}/experiments`,
+      `/groups/${group_id}/experiments`,
       { params: rest },
     )
     return data
@@ -143,7 +143,7 @@ export const apiService = {
     return data
   },
 
-  getAllExperimentEvals: async (params: GetExperimentEvalsParams) => {
+  getAllExperimentEvals: async (params: Omit<GetExperimentEvalsParams, 'limit'>) => {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<Eval[]>(`/experiments/${experiment_id}/evals/all`, {
       params: rest,
