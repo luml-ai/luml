@@ -1,6 +1,6 @@
 from sqlalchemy import func
 
-from luml_agent.orm import (
+from luml_agent.models import (
     NodeSessionOrm,
     RunEdgeOrm,
     RunEventOrm,
@@ -206,6 +206,17 @@ class RunNodeRepository(RepositoryBase):
                 .order_by(NodeSessionOrm.id)
                 .all()
             )
+
+    def has_waiting_input_nodes(self, run_id: str) -> bool:
+        with self._session_factory() as session:
+            return (
+                session.query(RunNodeOrm)
+                .filter(
+                    RunNodeOrm.run_id == run_id,
+                    RunNodeOrm.status == "waiting_input",
+                )
+                .first()
+            ) is not None
 
     def get_node_by_session(
         self, session_id: str,

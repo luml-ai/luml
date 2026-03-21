@@ -8,19 +8,19 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from luml_agent.config import AppConfig
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeServices,
 )
-from luml_agent.orchestrator.nodes.implement import (
+from luml_agent.services.orchestrator.nodes.implement import (
     ImplementNodeHandler,
 )
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
-_PATCH_CMD = "luml_agent.orchestrator.nodes.implement.build_agent_command"
+_PATCH_CMD = "luml_agent.services.orchestrator.nodes.implement.build_agent_command"
 
 
 @pytest.fixture
@@ -198,12 +198,12 @@ class TestImplementNodeHandler:
         mock_create = AsyncMock(side_effect=capture_create)
         with (
             patch(
-                "luml_agent.orchestrator.nodes"
+                "luml_agent.services.orchestrator.nodes"
                 ".implement.create_worktree",
                 mock_create,
             ),
             patch(
-                "luml_agent.orchestrator.nodes"
+                "luml_agent.services.orchestrator.nodes"
                 ".implement.get_agent",
                 return_value=None,
             ),
@@ -265,12 +265,12 @@ class TestImplementNodeHandler:
         mock_create = AsyncMock(side_effect=capture_create)
         with (
             patch(
-                "luml_agent.orchestrator.nodes"
+                "luml_agent.services.orchestrator.nodes"
                 ".implement.create_worktree",
                 mock_create,
             ),
             patch(
-                "luml_agent.orchestrator.nodes"
+                "luml_agent.services.orchestrator.nodes"
                 ".implement.get_agent",
                 return_value=None,
             ),
@@ -282,7 +282,7 @@ class TestImplementNodeHandler:
 
     def test_can_fork(self) -> None:
         handler = ImplementNodeHandler()
-        from luml_agent.orchestrator.nodes.base import (
+        from luml_agent.services.orchestrator.nodes.base import (
             NodeResult,
         )
 

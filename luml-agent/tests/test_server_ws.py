@@ -5,8 +5,8 @@ import pytest
 from starlette.testclient import TestClient, WebSocketDisconnect
 
 from luml_agent.config import AppConfig
-from luml_agent.models import Database
-from luml_agent.pty_manager import PtyManager
+from luml_agent.database import Database
+from luml_agent.services.pty_manager import PtyManager
 from luml_agent.server import app
 
 

@@ -1,20 +1,20 @@
 import contextlib
 from pathlib import Path
 
-from luml_agent.agents import build_agent_command, get_agent
 from luml_agent.config import AppConfig
-from luml_agent.exceptions import (
+from luml_agent.infra.exceptions import (
     InvalidOperationError,
     RepositoryNotFoundError,
     TaskNotFoundError,
 )
-from luml_agent.merge import get_merge_preview, merge_branch
-from luml_agent.models import TaskStatus
-from luml_agent.orm import TaskOrm
-from luml_agent.pty_manager import PtyManager
+from luml_agent.models import TaskOrm
 from luml_agent.repositories.repository import RepositoryRepository
 from luml_agent.repositories.task import TaskRepository
-from luml_agent.worktree import (
+from luml_agent.schemas.task import TaskStatus
+from luml_agent.services.agents import build_agent_command, get_agent
+from luml_agent.services.merge import get_merge_preview, merge_branch
+from luml_agent.services.pty_manager import PtyManager
+from luml_agent.services.worktree import (
     create_worktree,
     remove_worktree,
 )

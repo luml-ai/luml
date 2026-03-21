@@ -46,8 +46,12 @@ def list_runs(
     repository_id: str | None = None,
 ) -> list[dict[str, Any]]:
     handler = request.app.state.run_handler
+    node_repo = request.app.state.db.nodes
     return [
-        RunOut.from_db(r).model_dump()
+        RunOut.from_db(
+            r,
+            has_waiting_input=node_repo.has_waiting_input_nodes(r.id),
+        ).model_dump()
         for r in handler.list_all(repository_id)
     ]
 
@@ -68,8 +72,12 @@ def get_run(
     request: Request, run_id: str,
 ) -> dict[str, Any]:
     handler = request.app.state.run_handler
+    node_repo = request.app.state.db.nodes
     run = handler.get(run_id)
-    return RunOut.from_db(run).model_dump()
+    return RunOut.from_db(
+        run,
+        has_waiting_input=node_repo.has_waiting_input_nodes(run_id),
+    ).model_dump()
 
 
 @router.post("/{run_id}/start")
@@ -97,6 +105,23 @@ async def restart_run(
     handler = request.app.state.run_handler
     run = await handler.restart(run_id)
     return RunOut.from_db(run).model_dump()
+
+
+@router.post("/{run_id}/merge/preview")
+async def merge_preview(
+    request: Request, run_id: str,
+) -> dict[str, Any]:
+    handler = request.app.state.run_handler
+    return await handler.merge_preview(run_id)
+
+
+@router.post("/{run_id}/merge")
+async def merge_run(
+    request: Request, run_id: str,
+) -> dict[str, str]:
+    handler = request.app.state.run_handler
+    message = await handler.merge(run_id)
+    return {"status": "merged", "message": message}
 
 
 @router.delete("/{run_id}")

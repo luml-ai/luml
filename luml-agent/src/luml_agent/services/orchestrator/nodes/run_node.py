@@ -2,12 +2,12 @@ import asyncio
 import re
 from typing import Any
 
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeSpawnSpec,
 )
-from luml_agent.orchestrator.nodes.result_file import (
+from luml_agent.services.orchestrator.nodes.result_file import (
     parse_stdout_metric,
     read_result_file,
 )
@@ -40,6 +40,7 @@ class RunNodeHandler:
             task_id=ctx.node_id,
             command=command,
             cwd=worktree_path,
+            session_type="run",
         )
 
         ctx.services.db.add_node_session(ctx.node_id, session.session_id)

@@ -135,6 +135,9 @@ export const useDataAgentStore = defineStore('data-agent', () => {
         if (run && event.data.status) {
           run.status = event.data.status
         }
+        if (run && event.data.best_node_id !== undefined) {
+          run.best_node_id = event.data.best_node_id
+        }
         break
       }
     }

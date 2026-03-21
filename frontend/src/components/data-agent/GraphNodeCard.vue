@@ -3,9 +3,10 @@ import { computed } from 'vue'
 import { Terminal } from 'lucide-vue-next'
 import type { RunNode } from '@/lib/api/data-agent/data-agent.interfaces'
 import { useDataAgentStore } from '@/stores/data-agent'
+import { displayStatus } from './board/board.types'
 
 const props = defineProps<{
-  data: RunNode & { onOpenTerminal?: (sessionId: string) => void }
+  data: RunNode & { onOpenTerminal?: (sessionId: string) => void; isBest?: boolean }
   selected: boolean
 }>()
 
@@ -56,6 +57,7 @@ function openTerminal(e: MouseEvent) {
       <div class="header-left">
         <span class="status-dot" :style="{ background: statusColor }" />
         <h3 class="header-title">{{ data.node_type }}</h3>
+        <span v-if="data.isBest" class="best-tag">best</span>
       </div>
       <Terminal
         v-if="hasTerminal"
@@ -67,9 +69,9 @@ function openTerminal(e: MouseEvent) {
       />
     </header>
     <div class="info">
-      <span class="status-label">{{ data.status }}</span>
+      <span class="status-label">{{ displayStatus(data.status) }}</span>
     </div>
-    <div v-if="metric !== null" class="score">
+    <div v-if="metric !== null" class="score" :class="{ 'score-best': data.isBest }">
       <span class="score-label">score</span>
       <span class="score-value">{{ formatMetric(metric) }}</span>
     </div>
@@ -100,6 +102,18 @@ function openTerminal(e: MouseEvent) {
   font-size: 12px;
   font-weight: 500;
   margin: 0;
+}
+
+.best-tag {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-green-500);
+  background: color-mix(in srgb, var(--p-green-500) 12%, transparent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  line-height: 1.4;
 }
 
 .status-dot {
@@ -141,6 +155,14 @@ function openTerminal(e: MouseEvent) {
   color: var(--p-text-color);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.score-best {
+  background: color-mix(in srgb, var(--p-green-500) 12%, transparent);
+}
+
+.score-best .score-value {
+  color: var(--p-green-500);
 }
 
 .terminal-icon {

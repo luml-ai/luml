@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from luml_agent.orchestrator.nodes.result_file import (
+from luml_agent.services.orchestrator.nodes.result_file import (
     RESULT_DIR,
     RESULT_FILENAME,
     parse_stdout_metric,

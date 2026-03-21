@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Tag, Button } from 'primevue'
-import { Waypoints, ListTodo, Play, Trash2, RotateCcw } from 'lucide-vue-next'
+import { Waypoints, ListTodo, Play, Trash2 } from 'lucide-vue-next'
 import { type BoardItem, statusSeverity } from './board.types'
 
 const props = defineProps<{
@@ -12,15 +12,19 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: []
   start: []
-  resume: []
   delete: []
 }>()
 
 const name = computed(() => props.item.data.name)
-const status = computed(() => props.item.data.status)
 const isTask = computed(() => props.item.kind === 'task')
+const waitingInput = computed(() => !!props.item.data.has_waiting_input)
 
-const severityValue = computed(() => statusSeverity(status.value))
+const displayStatus = computed(() =>
+  waitingInput.value ? 'waiting for input' : props.item.data.status,
+)
+const severityValue = computed(() =>
+  waitingInput.value ? 'warn' : statusSeverity(props.item.data.status),
+)
 
 const relativeTime = computed(() => {
   const ms = Date.now() - new Date(props.item.data.updated_at).getTime()
@@ -35,11 +39,6 @@ const relativeTime = computed(() => {
 })
 
 const showStart = computed(() => props.item.data.status === 'pending')
-const showResume = computed(() => {
-  if (props.item.kind !== 'task') return false
-  const task = props.item.data
-  return task.status !== 'pending' && !task.is_alive && !!task.worktree_path
-})
 </script>
 
 <template>
@@ -50,7 +49,7 @@ const showResume = computed(() => {
     </div>
     <div class="card-meta">
       <span class="repo-name">{{ repositoryName }}</span>
-      <Tag :value="status" :severity="severityValue" class="status-tag" />
+      <Tag :value="displayStatus" :severity="severityValue" class="status-tag" />
     </div>
     <div class="card-footer">
       <span class="time">{{ relativeTime }}</span>
@@ -65,17 +64,7 @@ const showResume = computed(() => {
         >
           <template #icon><Play :size="14" /></template>
         </Button>
-        <Button
-          v-if="showResume"
-          variant="text"
-          severity="info"
-          class="action-btn"
-          v-tooltip.top="'Resume'"
-          @click="emit('resume')"
-        >
-          <template #icon><RotateCcw :size="14" /></template>
-        </Button>
-        <Button
+<Button
           variant="text"
           severity="secondary"
           class="action-btn"

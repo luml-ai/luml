@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Button, Tag } from 'primevue'
-import { Play, Check, Trash2 } from 'lucide-vue-next'
+import { Play, GitMerge } from 'lucide-vue-next'
 import type { AgentTask } from '@/lib/api/data-agent/data-agent.interfaces'
 import { api } from '@/lib/api'
 import { statusSeverity } from './board/board.types'
@@ -17,12 +17,8 @@ const emit = defineEmits<{
 
 const showMerge = ref(false)
 
-async function handleDelete() {
-  await api.dataAgent.deleteTask(props.task.id)
-  emit('refresh')
-}
 
-async function handleResume() {
+async function handleStart() {
   await api.dataAgent.openTerminal(props.task.id)
   emit('refresh')
 }
@@ -33,6 +29,24 @@ async function handleResume() {
     <div class="header">
       <h3 class="task-title">{{ task.name }}</h3>
       <Tag :value="task.status" :severity="statusSeverity(task.status)" />
+      <div class="actions">
+        <Button
+          v-if="task.status === 'pending'"
+          severity="success"
+          @click="handleStart"
+        >
+          <Play :size="14" />
+          <span>Start</span>
+        </Button>
+        <Button
+          v-if="task.status === 'succeeded'"
+          severity="success"
+          @click="showMerge = true"
+        >
+          <GitMerge :size="14" />
+          <span>Merge</span>
+        </Button>
+      </div>
     </div>
     <div class="info">
       <div><strong>Branch:</strong> {{ task.branch }}</div>
@@ -41,35 +55,10 @@ async function handleResume() {
       <div v-if="task.prompt"><strong>Prompt:</strong> {{ task.prompt }}</div>
       <div><strong>Created:</strong> {{ task.created_at }}</div>
     </div>
-    <div class="actions">
-      <Button
-        v-if="!task.is_alive && task.worktree_path"
-        severity="info"
-        @click="handleResume"
-      >
-        <Play :size="14" />
-        <span>Resume</span>
-      </Button>
-      <Button
-        v-if="task.status === 'succeeded'"
-        severity="success"
-        @click="showMerge = true"
-      >
-        <Check :size="14" />
-        <span>Merge</span>
-      </Button>
-      <Button
-        severity="warn"
-        variant="outlined"
-        @click="handleDelete"
-      >
-        <Trash2 :size="14" />
-        <span>Delete</span>
-      </Button>
-    </div>
     <MergeDialog
       :visible="showMerge"
-      :task="task"
+      kind="task"
+      :item-id="task.id"
       @close="showMerge = false"
       @merged="showMerge = false; emit('refresh')"
     />
@@ -102,12 +91,12 @@ async function handleResume() {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-bottom: 12px;
   color: var(--p-text-muted-color);
 }
 
 .actions {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 </style>

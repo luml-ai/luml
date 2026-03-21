@@ -4,18 +4,18 @@ from pathlib import Path
 import pytest
 
 from luml_agent.config import AppConfig
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeServices,
 )
-from luml_agent.orchestrator.nodes.run_node import (
+from luml_agent.services.orchestrator.nodes.run_node import (
     RunNodeHandler,
 )
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
 
 @pytest.fixture

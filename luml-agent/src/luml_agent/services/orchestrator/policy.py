@@ -1,5 +1,5 @@
-from luml_agent.models import Database
-from luml_agent.orchestrator.models import RunConfig
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.models import RunConfig
 
 
 def should_spawn_debug(debug_retries: int, config: RunConfig) -> bool:

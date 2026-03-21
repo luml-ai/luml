@@ -3,7 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import Connection, engine_from_config, pool
 
-from luml_agent.orm import Base
+from luml_agent.models import Base
 
 config = context.config
 

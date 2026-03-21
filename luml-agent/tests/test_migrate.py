@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import inspect, text
 
 from luml_agent.migrate import run_migrations
-from luml_agent.orm import create_db_engine
+from luml_agent.infra.db import create_db_engine
 
 
 @pytest.fixture

@@ -1,4 +1,4 @@
-from luml_agent.orm import (
+from luml_agent.models import (
     NodeSessionOrm,
     RunEdgeOrm,
     RunEventOrm,
@@ -95,6 +95,15 @@ class RunRepository(RepositoryBase):
             session.query(RunOrm).filter(
                 RunOrm.id == run_id,
             ).delete(synchronize_session=False)
+            session.commit()
+
+    def update_best_node(
+        self, run_id: str, node_id: str | None,
+    ) -> None:
+        with self._session_factory() as session:
+            session.query(RunOrm).filter(
+                RunOrm.id == run_id,
+            ).update({"best_node_id": node_id, "updated_at": self._now()})
             session.commit()
 
     def reset_data(self, run_id: str) -> None:

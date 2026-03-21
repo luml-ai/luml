@@ -1,7 +1,7 @@
 from sqlalchemy.exc import IntegrityError
 
-from luml_agent.exceptions import InvalidOperationError
-from luml_agent.orm import RepositoryOrm, TaskOrm
+from luml_agent.infra.exceptions import InvalidOperationError
+from luml_agent.models import RepositoryOrm, TaskOrm
 from luml_agent.repositories.base import RepositoryBase
 
 

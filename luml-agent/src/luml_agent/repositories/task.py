@@ -1,4 +1,4 @@
-from luml_agent.orm import TaskOrm
+from luml_agent.models import TaskOrm
 from luml_agent.repositories.base import RepositoryBase
 
 

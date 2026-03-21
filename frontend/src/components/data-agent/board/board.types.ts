@@ -19,6 +19,7 @@ export const COLUMN_DEFS: ColumnDef[] = [
 export const STATUS_TO_COLUMN: Record<string, BoardColumn> = {
   pending: 'pending',
   running: 'running',
+  waiting_input: 'running',
   succeeded: 'completed',
   failed: 'completed',
   canceled: 'completed',
@@ -42,14 +43,22 @@ export function toBoardItem(kind: 'task' | 'run', data: AgentTask | Run): BoardI
   } as BoardItem
 }
 
+export function displayStatus(status: string): string {
+  const map: Record<string, string> = {
+    waiting_input: 'waiting for input',
+  }
+  return map[status] ?? status
+}
+
 export function statusSeverity(status: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
   const map: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
     pending: 'warn',
     running: 'info',
+    waiting_input: 'warn',
     succeeded: 'success',
     failed: 'danger',
     canceled: 'secondary',
-    merged: 'success',
+    merged: 'info',
     archived: 'secondary',
   }
   return map[status] ?? 'secondary'

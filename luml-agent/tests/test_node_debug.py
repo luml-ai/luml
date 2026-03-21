@@ -5,18 +5,18 @@ from unittest.mock import patch
 import pytest
 
 from luml_agent.config import AppConfig
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeServices,
 )
-from luml_agent.orchestrator.nodes.debug import DebugNodeHandler
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.nodes.debug import DebugNodeHandler
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
-_PATCH_CMD = "luml_agent.orchestrator.nodes.debug.build_agent_command"
+_PATCH_CMD = "luml_agent.services.orchestrator.nodes.debug.build_agent_command"
 
 
 @pytest.fixture
