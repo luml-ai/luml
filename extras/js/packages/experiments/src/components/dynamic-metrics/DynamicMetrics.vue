@@ -24,9 +24,12 @@ import type {
   ModelInfo,
 } from '../../interfaces/interfaces'
 import type { PageState } from 'primevue'
+import { useToast } from 'primevue'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import DynamicMetricsItem from './DynamicMetricsItem.vue'
 import DynamicMetricsToolbar from './DynamicMetricsToolbar.vue'
+import { simpleErrorToast } from '../../lib/primevue/data/toasts'
+import axios from 'axios'
 
 const METRICS_LIMIT = 50
 
@@ -42,6 +45,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 let dynamicMetricsController: AbortController | null = null
+
+const toast = useToast()
 
 const page = ref(0)
 const visibleMetricsNames = ref<string[]>([])
@@ -66,8 +71,10 @@ async function getMetrics() {
 }
 
 function handleRejectedMetrics(rejectedMetrics: Record<string, any>) {
-  Object.keys(rejectedMetrics).forEach((name) => {
-    console.error(`Failed to load dynamic metric data for "${name}":`, rejectedMetrics[name])
+  Object.entries(rejectedMetrics).forEach(([name, reason]) => {
+    const isCanceled = axios.isCancel(reason)
+    if (isCanceled) return
+    toast.add(simpleErrorToast(`Failed to load dynamic metric data for "${name}"`))
   })
 }
 

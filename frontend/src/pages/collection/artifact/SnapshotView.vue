@@ -21,7 +21,7 @@
 <script setup lang="ts">
 import type { ModelInfo } from '@luml/experiments'
 import { ExperimentSnapshot } from '@luml/experiments'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { Skeleton } from 'primevue'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
@@ -32,7 +32,7 @@ const artifactsStore = useArtifactsStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
 const themeStore = useThemeStore()
 
-const loading = ref(false)
+const loading = ref(true)
 
 const artifactsInfo = computed(() => {
   const data: Record<string, ModelInfo> = {}
@@ -45,8 +45,11 @@ const artifactsInfo = computed(() => {
   return data
 })
 
-onMounted(async () => {
-  if (artifactsStore.experimentSnapshotProvider) return
+onBeforeMount(async () => {
+  if (artifactsStore.experimentSnapshotProvider) {
+    loading.value = false
+    return
+  }
   try {
     loading.value = true
     if (!artifactsStore.currentArtifact) throw new Error('Current artifact does not exist')
