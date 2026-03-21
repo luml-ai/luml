@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Tag, Button } from 'primevue'
 import { Terminal, X, TrendingUp } from 'lucide-vue-next'
 import { useDataAgentStore } from '@/stores/data-agent'
+import { displayStatus } from './board/board.types'
 import { api } from '@/lib/api'
 
 const store = useDataAgentStore()
@@ -56,7 +57,7 @@ function attachTerminal() {
     <header class="header">
       <div class="header-left">
         <h3 class="node-title">{{ node.node_type }}</h3>
-        <Tag :value="node.status" :severity="statusSeverity(node.status)" />
+        <Tag :value="displayStatus(node.status)" :severity="statusSeverity(node.status)" />
       </div>
       <Button variant="text" severity="secondary" @click="emit('close')">
         <template #icon><X :size="16" /></template>
@@ -116,7 +117,7 @@ function attachTerminal() {
     <!-- Actions -->
     <div v-if="(node.session_id && node.is_alive) || node.status === 'running' || node.status === 'waiting_input'" class="actions">
       <Button
-        v-if="node.session_id && node.is_alive"
+        v-if="node.session_id && (node.is_alive || node.status === 'waiting_input')"
         severity="info"
         @click="attachTerminal"
       >

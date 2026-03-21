@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from luml_agent.exceptions import InvalidOperationError
+from luml_agent.infra.exceptions import InvalidOperationError
 from luml_agent.schemas import (
     BranchListOut,
     BrowseEntryOut,

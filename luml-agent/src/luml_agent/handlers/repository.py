@@ -1,10 +1,10 @@
 from pathlib import Path
 
-from luml_agent.exceptions import RepositoryNotFoundError
-from luml_agent.orm import RepositoryOrm
-from luml_agent.pty_manager import PtyManager
+from luml_agent.infra.exceptions import RepositoryNotFoundError
+from luml_agent.models import RepositoryOrm
 from luml_agent.repositories.repository import RepositoryRepository
 from luml_agent.repositories.task import TaskRepository
+from luml_agent.services.pty_manager import PtyManager
 
 
 class RepositoryHandler:
@@ -23,7 +23,7 @@ class RepositoryHandler:
     ) -> RepositoryOrm:
         resolved = Path(path).resolve()
         if not (resolved / ".git").exists():
-            from luml_agent.exceptions import (
+            from luml_agent.infra.exceptions import (
                 InvalidOperationError,
             )
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button, Tag, Dialog } from 'primevue'
-import { ArrowLeft, Play, X, RotateCcw, Trash2 } from 'lucide-vue-next'
+import { ArrowLeft, Play, X, GitMerge } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useDataAgentStore } from '@/stores/data-agent'
 import { useAgentWebSocket } from '@/hooks/useAgentWebSocket'
@@ -10,6 +10,7 @@ import { statusSeverity } from '@/components/data-agent/board/board.types'
 import RunGraph from '@/components/data-agent/RunGraph.vue'
 import NodeDetail from '@/components/data-agent/NodeDetail.vue'
 import TerminalPanel from '@/components/data-agent/TerminalPanel.vue'
+import MergeDialog from '@/components/data-agent/MergeDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -18,6 +19,25 @@ const store = useDataAgentStore()
 const terminalSessionId = ref<string | null>(null)
 const terminalLabel = ref('Terminal')
 const showTerminal = ref(false)
+const showMergeDialog = ref(false)
+
+const canMerge = computed(() => {
+  const run = store.selectedRun
+  return run && run.status === 'succeeded' && run.best_node_id
+})
+
+const bestScore = computed(() => {
+  const run = store.selectedRun
+  if (!run?.best_node_id) return null
+  const bestNode = store.nodes.find((n) => n.id === run.best_node_id)
+  if (!bestNode) return null
+  const metric = bestNode.result?.artifacts?.metric
+  if (metric === undefined || metric === null) return null
+  if (typeof metric === 'number') {
+    return Number.isInteger(metric) ? String(metric) : metric.toFixed(4)
+  }
+  return String(metric)
+})
 
 const initialId = String(route.params.runId || '')
 if (initialId) {
@@ -51,16 +71,11 @@ async function onCancelRun() {
   store.updateRun(run)
 }
 
-async function onRestartRun() {
-  const run = await api.dataAgent.restartRun(store.selectedRunId!)
-  store.updateRun(run)
-  store.selectRun(run.id)
-}
 
-async function onDeleteRun() {
-  await api.dataAgent.deleteRun(store.selectedRunId!)
-  store.removeRun(store.selectedRunId!)
-  goBack()
+async function onMerged() {
+  showMergeDialog.value = false
+  const run = await api.dataAgent.getRun(store.selectedRunId!)
+  store.updateRun(run)
 }
 
 function openTerminalDialog(sessionId: string, label?: string) {
@@ -113,6 +128,7 @@ onUnmounted(() => {
             <div class="header-info-top">
               <span class="content-title">{{ store.selectedRun.name }}</span>
               <Tag :value="store.selectedRun.status" :severity="statusSeverity(store.selectedRun.status)" />
+              <span v-if="bestScore" class="best-score-label">Best: {{ bestScore }}</span>
             </div>
             <span v-if="store.selectedRun.objective" class="run-objective">{{ store.selectedRun.objective }}</span>
           </div>
@@ -132,22 +148,13 @@ onUnmounted(() => {
             <X :size="14" />
             <span>Cancel</span>
           </Button>
-          <Button
-            v-if="['failed', 'canceled', 'succeeded'].includes(store.selectedRun.status)"
-            severity="warn"
-            @click="onRestartRun"
+<Button
+            v-if="canMerge"
+            severity="success"
+            @click="showMergeDialog = true"
           >
-            <RotateCcw :size="14" />
-            <span>Restart</span>
-          </Button>
-          <Button
-            v-if="store.selectedRun.status !== 'running'"
-            severity="warn"
-            variant="outlined"
-            @click="onDeleteRun"
-          >
-            <Trash2 :size="14" />
-            <span>Delete</span>
+            <GitMerge :size="14" />
+            <span>Merge</span>
           </Button>
         </template>
       </div>
@@ -174,6 +181,15 @@ onUnmounted(() => {
         </div>
       </Teleport>
     </Transition>
+
+    <MergeDialog
+      v-if="store.selectedRun"
+      :visible="showMergeDialog"
+      kind="run"
+      :item-id="store.selectedRun.id"
+      @close="showMergeDialog = false"
+      @merged="onMerged"
+    />
 
     <Dialog
       :visible="showTerminal"
@@ -256,6 +272,16 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.best-score-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--p-green-500);
+  padding: 2px 8px;
+  background: color-mix(in srgb, var(--p-green-500) 12%, transparent);
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 .graph-area {

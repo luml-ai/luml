@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from luml_agent.pty_manager import PtyManager, _has_printable_content
+from luml_agent.services.pty_manager import PtyManager, _has_printable_content
 
 
 @pytest.fixture

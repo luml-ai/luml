@@ -3,25 +3,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from luml_agent.agents import AgentDef
-
-
-class RepositoryCreateIn(BaseModel):
-    name: str
-    path: str
-
-
-class TaskCreateIn(BaseModel):
-    repository_id: str
-    name: str
-    agent_id: str
-    prompt: str = ""
-    base_branch: str = "main"
-
-
-class TaskStatusUpdateIn(BaseModel):
-    status: str
-
 
 class RunCreateIn(BaseModel):
     repository_id: str
@@ -39,49 +20,6 @@ class RunCreateIn(BaseModel):
     auto_terminate_timeout: int = 30
 
 
-class ReorderItem(BaseModel):
-    id: str
-    position: int
-
-
-class ReorderIn(BaseModel):
-    items: list[ReorderItem]
-
-
-class NodeActionIn(BaseModel):
-    action: str
-    payload: dict[str, Any] = {}
-
-
-class NodeInputIn(BaseModel):
-    text: str
-
-
-class RepositoryOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: str
-    name: str
-    path: str
-
-
-class TaskOut(BaseModel):
-    id: str
-    repository_id: str
-    name: str
-    branch: str
-    worktree_path: str
-    agent_id: str
-    status: str
-    prompt: str
-    base_branch: str
-    position: int | None = None
-    created_at: str
-    updated_at: str
-    is_alive: bool = False
-    session_id: str | None = None
-
-
 class RunOut(BaseModel):
     id: str
     repository_id: str
@@ -90,12 +28,18 @@ class RunOut(BaseModel):
     status: str
     config: dict[str, Any] = {}
     base_branch: str = "main"
+    best_node_id: str | None = None
     position: int | None = None
     created_at: str
     updated_at: str
+    has_waiting_input: bool = False
 
     @classmethod
-    def from_db(cls, r: Any) -> "RunOut":  # noqa: ANN401
+    def from_db(
+        cls,
+        r: Any,  # noqa: ANN401
+        has_waiting_input: bool = False,
+    ) -> "RunOut":
         config = json.loads(r.config_json) if r.config_json else {}
         return cls(
             id=r.id,
@@ -105,9 +49,11 @@ class RunOut(BaseModel):
             status=r.status,
             config=config,
             base_branch=r.base_branch,
+            best_node_id=r.best_node_id,
             position=r.position,
             created_at=r.created_at,
             updated_at=r.updated_at,
+            has_waiting_input=has_waiting_input,
         )
 
 
@@ -189,42 +135,3 @@ class RunEventOut(BaseModel):
             ),
             created_at=e.created_at,
         )
-
-
-class AgentOut(BaseModel):
-    id: str
-    name: str
-    cli: str
-    prompt_flag: str
-    auto_approve_flag: str
-    resume_flag: str
-    default_args: list[str]
-
-    @classmethod
-    def from_def(cls, a: AgentDef) -> "AgentOut":
-        return cls(
-            id=a.id,
-            name=a.name,
-            cli=a.cli,
-            prompt_flag=a.prompt_flag,
-            auto_approve_flag=a.auto_approve_flag,
-            resume_flag=a.resume_flag,
-            default_args=a.default_args,
-        )
-
-
-class BrowseEntryOut(BaseModel):
-    name: str
-    path: str
-    is_git: bool
-
-
-class BrowseResultOut(BaseModel):
-    current: str
-    parent: str | None
-    dirs: list[BrowseEntryOut]
-    is_git: bool
-
-
-class BranchListOut(BaseModel):
-    branches: list[str]

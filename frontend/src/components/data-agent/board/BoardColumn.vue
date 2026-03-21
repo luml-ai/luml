@@ -19,7 +19,6 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   select: [item: BoardItem]
   start: [item: BoardItem]
-  resume: [item: BoardItem]
   delete: [item: BoardItem]
   create: []
   reorder: [items: BoardItem[]]
@@ -80,7 +79,6 @@ function itemKey(item: BoardItem): string {
             :repository-name="repoName(element)"
             @select="emit('select', element)"
             @start="emit('start', element)"
-            @resume="emit('resume', element)"
             @delete="emit('delete', element)"
           />
         </template>

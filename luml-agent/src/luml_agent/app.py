@@ -10,17 +10,18 @@ from fastapi.responses import JSONResponse
 
 from luml_agent.api import aggregate_router
 from luml_agent.config import AppConfig, load_config
-from luml_agent.exceptions import ApplicationError
+from luml_agent.database import Database
 from luml_agent.handlers.node import NodeHandler
 from luml_agent.handlers.repository import RepositoryHandler
 from luml_agent.handlers.run import RunHandler
 from luml_agent.handlers.task import TaskHandler
-from luml_agent.models import Database, TaskStatus
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.registry import (
+from luml_agent.infra.exceptions import ApplicationError
+from luml_agent.schemas.task import TaskStatus
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.registry import (
     register_all_handlers,
 )
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.pty_manager import PtyManager
 
 
 async def _monitor_loop(app: FastAPI) -> None:

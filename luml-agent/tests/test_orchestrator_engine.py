@@ -4,21 +4,21 @@ from typing import Any
 
 import pytest
 
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.models import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.models import (
     NodeStatus,
     NodeType,
     RunConfig,
     RunStatus,
 )
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeSpawnSpec,
 )
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
 
 class MockNodeHandler:
@@ -603,7 +603,7 @@ class TestAutoSpawn:
 
         config = RunConfig(
             run_command_template="echo ok",
-            max_depth=2,
+            max_depth=1,
         )
         run_id = await engine.create_run(
             pid, "r", "obj", config, {"prompt": "test"},
@@ -679,6 +679,159 @@ class TestRunCompletion:
         run = db.get_run(run_id)
         assert run is not None
         assert run.status == RunStatus.FAILED
+
+
+class TestBestNodeSelection:
+    @pytest.mark.asyncio
+    async def test_best_node_set_to_highest_metric(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+
+        config = RunConfig(run_command_template="")
+        run_id = await engine.create_run(
+            pid, "r", "", config, {"prompt": "test"},
+        )
+        await engine.start_run(run_id)
+
+        nodes = db.list_run_nodes(run_id)
+        root = nodes[0]
+        db.update_node_status(root.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(root.id, json.dumps({"success": True}))
+
+        impl_a = db.add_run_node(
+            run_id, root.id, NodeType.IMPLEMENT, depth=2,
+        )
+        db.update_node_status(impl_a.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(impl_a.id, json.dumps({"success": True}))
+
+        run_a = db.add_run_node(
+            run_id, impl_a.id, NodeType.RUN, depth=3,
+        )
+        db.update_node_status(run_a.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(run_a.id, json.dumps({
+            "success": True,
+            "artifacts": {"metric": 0.75},
+        }))
+
+        impl_b = db.add_run_node(
+            run_id, root.id, NodeType.IMPLEMENT, depth=2,
+        )
+        db.update_node_status(impl_b.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(impl_b.id, json.dumps({"success": True}))
+
+        run_b = db.add_run_node(
+            run_id, impl_b.id, NodeType.RUN, depth=3,
+        )
+        db.update_node_status(run_b.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(run_b.id, json.dumps({
+            "success": True,
+            "artifacts": {"metric": 0.95},
+        }))
+
+        await engine._check_run_completion(run_id)
+
+        run = db.get_run(run_id)
+        assert run is not None
+        assert run.best_node_id == run_b.id
+        assert run.status == RunStatus.SUCCEEDED
+
+    @pytest.mark.asyncio
+    async def test_best_node_none_when_no_metrics(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+
+        config = RunConfig(run_command_template="")
+        run_id = await engine.create_run(
+            pid, "r", "", config, {"prompt": "test"},
+        )
+        await engine.start_run(run_id)
+
+        nodes = db.list_run_nodes(run_id)
+        root = nodes[0]
+        db.update_node_status(root.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(root.id, json.dumps({"success": True}))
+
+        run_node = db.add_run_node(
+            run_id, root.id, NodeType.RUN, depth=1,
+        )
+        db.update_node_status(run_node.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(run_node.id, json.dumps({
+            "success": True,
+            "artifacts": {},
+        }))
+
+        await engine._check_run_completion(run_id)
+
+        run = db.get_run(run_id)
+        assert run is not None
+        assert run.best_node_id is None
+        assert run.status == RunStatus.SUCCEEDED
+
+    @pytest.mark.asyncio
+    async def test_best_node_in_completion_event(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+
+        config = RunConfig(run_command_template="")
+        run_id = await engine.create_run(
+            pid, "r", "", config, {"prompt": "test"},
+        )
+        await engine.start_run(run_id)
+
+        queue = engine.subscribe(run_id)
+
+        nodes = db.list_run_nodes(run_id)
+        root = nodes[0]
+        db.update_node_status(root.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(root.id, json.dumps({"success": True}))
+
+        impl = db.add_run_node(
+            run_id, root.id, NodeType.IMPLEMENT, depth=2,
+        )
+        db.update_node_status(impl.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(impl.id, json.dumps({"success": True}))
+
+        run_node = db.add_run_node(
+            run_id, impl.id, NodeType.RUN, depth=3,
+        )
+        db.update_node_status(run_node.id, NodeStatus.SUCCEEDED)
+        db.update_node_result(run_node.id, json.dumps({
+            "success": True,
+            "artifacts": {"metric": 0.88},
+        }))
+
+        await engine._check_run_completion(run_id)
+
+        events: list[dict[str, object]] = []
+        while not queue.empty():
+            events.append(queue.get_nowait())
+
+        status_events = [
+            e for e in events if e["type"] == "run_status_changed"
+        ]
+        assert len(status_events) == 1
+        assert status_events[0]["data"]["best_node_id"] == run_node.id
 
 
 class TestEventSubscription:

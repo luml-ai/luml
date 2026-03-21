@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from luml_agent.merge import (
+from luml_agent.services.merge import (
     can_fast_forward,
     get_branch_diff_stats,
     get_merge_preview,

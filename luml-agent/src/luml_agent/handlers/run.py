@@ -1,20 +1,21 @@
 from typing import Any
 
-from luml_agent.exceptions import (
+from luml_agent.infra.exceptions import (
     InvalidOperationError,
     RepositoryNotFoundError,
     RunNotFoundError,
 )
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.models import (
-    RunConfig,
-    RunStatus,
-)
-from luml_agent.orm import RunOrm
+from luml_agent.models import RunOrm
 from luml_agent.repositories.node import RunNodeRepository
 from luml_agent.repositories.repository import RepositoryRepository
 from luml_agent.repositories.run import RunRepository
 from luml_agent.schemas import RunCreateIn
+from luml_agent.services.merge import get_merge_preview, merge_branch
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.models import (
+    RunConfig,
+    RunStatus,
+)
 
 
 class RunHandler:
@@ -106,6 +107,54 @@ class RunHandler:
                 "Cannot delete a running run"
             )
         self._runs.remove(run_id)
+
+    def _get_best_node(self, run_id: str) -> tuple[Any, Any]:
+        run = self._runs.get(run_id)
+        if not run:
+            raise RunNotFoundError
+        if not run.best_node_id:
+            raise InvalidOperationError("Run has no best node")
+        node = self._nodes.get_node(run.best_node_id)
+        if not node:
+            raise InvalidOperationError("Best node not found")
+        return run, node
+
+    async def merge_preview(
+        self, run_id: str,
+    ) -> dict[str, Any]:
+        run, node = self._get_best_node(run_id)
+        repo = self._repositories.get(run.repository_id)
+        if not repo:
+            raise RepositoryNotFoundError
+
+        preview = await get_merge_preview(
+            repo.path, node.branch, run.base_branch,
+        )
+        return {
+            "branch": preview.branch,
+            "base_branch": preview.base_branch,
+            "stats": {
+                "commits_ahead": preview.stats.commits_ahead,
+                "files_changed": preview.stats.files_changed,
+                "insertions": preview.stats.insertions,
+                "deletions": preview.stats.deletions,
+            },
+            "commit_messages": preview.commit_messages,
+            "changed_files": preview.changed_files,
+            "can_fast_forward": preview.can_fast_forward,
+        }
+
+    async def merge(self, run_id: str) -> str:
+        run, node = self._get_best_node(run_id)
+        repo = self._repositories.get(run.repository_id)
+        if not repo:
+            raise RepositoryNotFoundError
+
+        result = await merge_branch(
+            repo.path, node.branch, run.base_branch,
+        )
+        self._runs.update_status(run_id, RunStatus.MERGED)
+        return result
 
     def get_graph(
         self, run_id: str,

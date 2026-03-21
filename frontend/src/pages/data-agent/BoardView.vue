@@ -72,11 +72,6 @@ async function onStart(item: BoardItem) {
   await refresh()
 }
 
-async function onResume(item: BoardItem) {
-  if (item.kind !== 'task') return
-  await api.dataAgent.openTerminal(item.data.id)
-  await refresh()
-}
 
 function onDelete(item: BoardItem) {
   const label = item.kind === 'task' ? 'task' : 'workflow'
@@ -163,7 +158,6 @@ onUnmounted(() => {
         :show-create="col.key === 'pending'"
         @select="onSelect"
         @start="onStart"
-        @resume="onResume"
         @delete="onDelete"
         @create="openCreate"
         @reorder="onReorder"

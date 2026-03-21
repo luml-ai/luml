@@ -20,12 +20,15 @@ function handleOpenTerminal(sessionId: string, nodeType: string, nodeId: string)
 
 const layout = computed(() => computeLayout(store.nodes, store.edges))
 
+const bestNodeId = computed(() => store.selectedRun?.best_node_id ?? null)
+
 const flowNodes = computed(() => {
   return layout.value.nodes.map((n) => ({
     ...n,
     data: {
       ...n.data,
       selected: n.data.id === store.selectedNodeId,
+      isBest: n.data.id === bestNodeId.value,
       onOpenTerminal: (sid: string) => handleOpenTerminal(sid, n.data.node_type, n.data.id),
     },
   }))

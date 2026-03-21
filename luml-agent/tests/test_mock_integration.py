@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.models import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.models import (
     NodeStatus,
     NodeType,
     RunConfig,
     RunStatus,
 )
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
 GIT_ENV = {
     **os.environ,
@@ -104,12 +104,12 @@ def pty() -> PtyManager:
 
 @pytest.fixture
 def registry() -> NodeRegistry:
-    from luml_agent.orchestrator.nodes.debug import DebugNodeHandler
-    from luml_agent.orchestrator.nodes.fork import ForkNodeHandler
-    from luml_agent.orchestrator.nodes.implement import (
+    from luml_agent.services.orchestrator.nodes.debug import DebugNodeHandler
+    from luml_agent.services.orchestrator.nodes.fork import ForkNodeHandler
+    from luml_agent.services.orchestrator.nodes.implement import (
         ImplementNodeHandler,
     )
-    from luml_agent.orchestrator.nodes.run_node import (
+    from luml_agent.services.orchestrator.nodes.run_node import (
         RunNodeHandler,
     )
 

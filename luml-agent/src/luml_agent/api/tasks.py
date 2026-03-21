@@ -16,6 +16,11 @@ def _task_out(
     request: Request, task: Any,  # noqa: ANN401
 ) -> dict[str, Any]:
     pty = request.app.state.pty
+    session_id = pty.get_active_session_id(task.id)
+    has_waiting = (
+        session_id is not None
+        and pty.is_session_waiting_notified(session_id)
+    )
     return TaskOut(
         id=task.id,
         repository_id=task.repository_id,
@@ -30,7 +35,8 @@ def _task_out(
         created_at=task.created_at,
         updated_at=task.updated_at,
         is_alive=pty.is_task_alive(task.id),
-        session_id=pty.get_active_session_id(task.id),
+        session_id=session_id,
+        has_waiting_input=has_waiting,
     ).model_dump()
 
 

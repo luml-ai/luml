@@ -1,8 +1,11 @@
-from enum import StrEnum
 from pathlib import Path
 
+from luml_agent.infra.db import (
+    create_db_engine,
+    create_session_factory,
+)
 from luml_agent.migrate import run_migrations
-from luml_agent.orm import (
+from luml_agent.models import (
     Base,
     NodeSessionOrm,
     RepositoryOrm,
@@ -11,19 +14,8 @@ from luml_agent.orm import (
     RunNodeOrm,
     RunOrm,
     TaskOrm,
-    create_db_engine,
-    create_session_factory,
 )
-
-
-class TaskStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    CANCELED = "canceled"
-    MERGED = "merged"
-    ARCHIVED = "archived"
+from luml_agent.schemas.task import TaskStatus
 
 
 class Database:
@@ -150,6 +142,11 @@ class Database:
         self, run_id: str, status: str,
     ) -> None:
         self.runs.update_status(run_id, status)
+
+    def update_run_best_node(
+        self, run_id: str, node_id: str | None,
+    ) -> None:
+        self.runs.update_best_node(run_id, node_id)
 
     def remove_run(self, run_id: str) -> None:
         self.runs.remove(run_id)

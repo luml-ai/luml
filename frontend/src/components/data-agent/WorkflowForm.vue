@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
 import { InputText, InputNumber, Textarea, Select, Checkbox } from 'primevue'
+import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { AgentRepository, Agent } from '@/lib/api/data-agent/data-agent.interfaces'
 import { api } from '@/lib/api'
 
@@ -36,6 +37,22 @@ const objective = ref('')
 const baseBranch = ref('main')
 const branchOptions = ref<string[]>([])
 const branchesLoading = ref(false)
+const showAgentBranches = ref(false)
+
+const AGENT_PREFIXES = ['agent/', 'luml-agent/']
+
+function isAgentBranch(branch: string): boolean {
+  return AGENT_PREFIXES.some((p) => branch.startsWith(p))
+}
+
+function filteredBranches(): string[] {
+  if (showAgentBranches.value) return branchOptions.value
+  return branchOptions.value.filter((b) => !isAgentBranch(b))
+}
+
+function hasAgentBranches(): boolean {
+  return branchOptions.value.some((b) => isAgentBranch(b))
+}
 const runCommand = ref('uv run main.py')
 const maxDepth = ref(3)
 const maxChildrenPerFork = ref(4)
@@ -45,6 +62,7 @@ const forkAutoApprove = ref(true)
 const autoMode = ref(false)
 const autoTerminateTimeout = ref(30)
 const agents = ref<Agent[]>([])
+const showAdvanced = ref(false)
 
 let branchAbort: AbortController | null = null
 
@@ -58,6 +76,7 @@ onMounted(async () => {
 watch(selectedRepository, async (repo) => {
   branchAbort?.abort()
   branchOptions.value = []
+  showAgentBranches.value = false
 
   if (!repo) return
 
@@ -117,13 +136,17 @@ defineExpose({ submit })
       <label class="label">Base Branch</label>
       <Select
         v-model="baseBranch"
-        :options="branchOptions"
+        :options="filteredBranches()"
         :disabled="!selectedRepository"
         :loading="branchesLoading"
         editable
         :placeholder="branchesLoading ? 'Loading branches…' : 'Select a repository first'"
         class="w-full"
       />
+      <div v-if="hasAgentBranches()" class="agent-branch-toggle">
+        <Checkbox v-model="showAgentBranches" :binary="true" inputId="showAgentBranchesWorkflow" />
+        <label for="showAgentBranchesWorkflow">Show agent branches</label>
+      </div>
     </div>
     <div class="field">
       <label class="label">Workflow Name</label>
@@ -143,40 +166,48 @@ defineExpose({ submit })
         class="w-full"
       />
     </div>
-    <div class="field">
-      <label class="label">Run Command</label>
-      <InputText v-model="runCommand" placeholder="uv run main.py" class="w-full" />
-    </div>
-    <div class="config-row">
-      <div class="field field--small">
-        <label class="label">Max Depth</label>
-        <InputNumber v-model="maxDepth" :min="1" :max="10" />
+    <button type="button" class="advanced-toggle" @click="showAdvanced = !showAdvanced">
+      <component :is="showAdvanced ? ChevronUp : ChevronDown" :size="14" />
+      <span>Advanced options</span>
+    </button>
+    <template v-if="showAdvanced">
+      <div class="field">
+        <label class="label">Run Command</label>
+        <InputText v-model="runCommand" placeholder="uv run main.py" class="w-full" />
       </div>
-      <div class="field field--small">
-        <label class="label">Max Fork Children</label>
-        <InputNumber v-model="maxChildrenPerFork" :min="1" :max="10" />
+      <div class="config-row">
+        <div class="field field--small">
+          <label class="label">Max Depth</label>
+          <InputNumber v-model="maxDepth" :min="1" :max="10" />
+        </div>
+        <div class="field field--small">
+          <label class="label">Max Fork Children</label>
+          <InputNumber v-model="maxChildrenPerFork" :min="1" :max="10" />
+        </div>
       </div>
-      <div class="field field--small">
-        <label class="label">Max Debug Retries</label>
-        <InputNumber v-model="maxDebugRetries" :min="0" :max="10" />
+      <div class="config-row">
+        <div class="field field--small">
+          <label class="label">Max Debug Retries</label>
+          <InputNumber v-model="maxDebugRetries" :min="0" :max="10" />
+        </div>
+        <div class="field field--small">
+          <label class="label">Concurrency</label>
+          <InputNumber v-model="maxConcurrency" :min="1" :max="10" />
+        </div>
       </div>
-      <div class="field field--small">
-        <label class="label">Concurrency</label>
-        <InputNumber v-model="maxConcurrency" :min="1" :max="10" />
+      <div class="field field--checkbox">
+        <Checkbox v-model="forkAutoApprove" :binary="true" inputId="forkAutoApprove" />
+        <label for="forkAutoApprove">Auto-approve fork proposals</label>
       </div>
-    </div>
-    <div class="field field--checkbox">
-      <Checkbox v-model="forkAutoApprove" :binary="true" inputId="forkAutoApprove" />
-      <label for="forkAutoApprove">Auto-approve fork proposals</label>
-    </div>
-    <div class="field field--checkbox">
-      <Checkbox v-model="autoMode" :binary="true" inputId="autoMode" />
-      <label for="autoMode">Auto mode (terminate idle agents)</label>
-    </div>
-    <div v-if="autoMode" class="field field--small">
-      <label class="label">Auto-terminate timeout (seconds)</label>
-      <InputNumber v-model="autoTerminateTimeout" :min="5" :max="300" />
-    </div>
+      <div class="field field--checkbox">
+        <Checkbox v-model="autoMode" :binary="true" inputId="autoMode" />
+        <label for="autoMode">Auto mode (terminate idle agents)</label>
+      </div>
+      <div v-if="autoMode" class="field field--small">
+        <label class="label">Auto-terminate timeout (seconds)</label>
+        <InputNumber v-model="autoTerminateTimeout" :min="5" :max="300" />
+      </div>
+    </template>
   </div>
 </template>
 
@@ -198,6 +229,31 @@ defineExpose({ submit })
   font-weight: 500;
 }
 
+.agent-branch-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--p-text-muted-color);
+}
+
+.advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: var(--p-text-muted-color);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.advanced-toggle:hover {
+  color: var(--p-text-color);
+}
+
 .config-row {
   display: flex;
   gap: 12px;
@@ -205,6 +261,12 @@ defineExpose({ submit })
 
 .field--small {
   flex: 1;
+  min-width: 0;
+}
+
+.field--small :deep(.p-inputnumber),
+.field--small :deep(.p-inputtext) {
+  width: 100%;
 }
 
 .field--checkbox {

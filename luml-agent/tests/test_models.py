@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from luml_agent.models import Database, TaskStatus
+from luml_agent.database import Database, TaskStatus
 
 
 @pytest.fixture

@@ -2,8 +2,8 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from luml_agent.agents import list_agents, list_available_agents
 from luml_agent.schemas import AgentOut
+from luml_agent.services.agents import list_agents, list_available_agents
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 

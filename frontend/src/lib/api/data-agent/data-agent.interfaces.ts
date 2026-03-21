@@ -19,6 +19,7 @@ export interface AgentTask {
   updated_at: string
   is_alive?: boolean
   session_id?: string
+  has_waiting_input?: boolean
 }
 
 export interface Agent {
@@ -93,9 +94,11 @@ export interface Run {
   status: string
   config: RunConfig
   base_branch: string
+  best_node_id?: string | null
   position?: number | null
   created_at: string
   updated_at: string
+  has_waiting_input?: boolean
 }
 
 export interface RunNode {

@@ -9,8 +9,8 @@ from httpx import ASGITransport, AsyncClient
 from luml_agent.config import AppConfig
 from luml_agent.handlers.repository import RepositoryHandler
 from luml_agent.handlers.task import TaskHandler
-from luml_agent.models import Database, TaskStatus
-from luml_agent.pty_manager import PtyManager
+from luml_agent.database import Database, TaskStatus
+from luml_agent.services.pty_manager import PtyManager
 from luml_agent.server import app
 
 needs_git = pytest.mark.skipif(

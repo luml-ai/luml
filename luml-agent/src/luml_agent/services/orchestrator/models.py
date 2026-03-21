@@ -8,6 +8,7 @@ class RunStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELED = "canceled"
+    MERGED = "merged"
 
 
 class NodeStatus(StrEnum):

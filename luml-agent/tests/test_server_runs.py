@@ -8,12 +8,12 @@ from luml_agent.config import load_config
 from luml_agent.handlers.node import NodeHandler
 from luml_agent.handlers.repository import RepositoryHandler
 from luml_agent.handlers.run import RunHandler
-from luml_agent.models import Database
-from luml_agent.orchestrator.engine import OrchestratorEngine
-from luml_agent.orchestrator.registry import (
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.engine import OrchestratorEngine
+from luml_agent.services.orchestrator.registry import (
     register_all_handlers,
 )
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.pty_manager import PtyManager
 from luml_agent.server import app
 
 
@@ -411,6 +411,85 @@ class TestDeleteRun:
     ) -> None:
         resp = await client.delete("/api/runs/nonexistent")
         assert resp.status_code == 404
+
+
+class TestBestNodeInResponse:
+    @pytest.mark.asyncio
+    async def test_best_node_id_in_run_response(
+        self, client: AsyncClient, repository_id: str,
+    ) -> None:
+        create_resp = await client.post(
+            "/api/runs",
+            json={
+                "repository_id": repository_id,
+                "name": "r",
+                "objective": "",
+            },
+        )
+        run_id = create_resp.json()["id"]
+
+        resp = await client.get(f"/api/runs/{run_id}")
+        assert resp.status_code == 200
+        assert resp.json()["best_node_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_best_node_id_set_after_update(
+        self, client: AsyncClient, repository_id: str,
+    ) -> None:
+        create_resp = await client.post(
+            "/api/runs",
+            json={
+                "repository_id": repository_id,
+                "name": "r",
+                "objective": "",
+            },
+        )
+        run_id = create_resp.json()["id"]
+
+        graph = (await client.get(f"/api/runs/{run_id}/graph")).json()
+        node_id = graph["nodes"][0]["id"]
+
+        db = client._transport.app.state.db  # type: ignore[union-attr]
+        db.update_run_best_node(run_id, node_id)
+
+        resp = await client.get(f"/api/runs/{run_id}")
+        assert resp.json()["best_node_id"] == node_id
+
+
+class TestRunMerge:
+    @pytest.mark.asyncio
+    async def test_merge_preview_no_best_node(
+        self, client: AsyncClient, repository_id: str,
+    ) -> None:
+        create_resp = await client.post(
+            "/api/runs",
+            json={
+                "repository_id": repository_id,
+                "name": "r",
+                "objective": "",
+            },
+        )
+        run_id = create_resp.json()["id"]
+
+        resp = await client.post(f"/api/runs/{run_id}/merge/preview")
+        assert resp.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_merge_no_best_node(
+        self, client: AsyncClient, repository_id: str,
+    ) -> None:
+        create_resp = await client.post(
+            "/api/runs",
+            json={
+                "repository_id": repository_id,
+                "name": "r",
+                "objective": "",
+            },
+        )
+        run_id = create_resp.json()["id"]
+
+        resp = await client.post(f"/api/runs/{run_id}/merge")
+        assert resp.status_code == 400
 
 
 class TestNodeEndpoints:

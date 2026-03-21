@@ -1,4 +1,4 @@
-from luml_agent.agents import (
+from luml_agent.services.agents import (
     AgentDef,
     build_agent_command,
     get_agent,

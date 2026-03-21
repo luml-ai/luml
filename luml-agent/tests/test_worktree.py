@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from luml_agent.worktree import (
+from luml_agent.services.worktree import (
     create_worktree,
     generate_short_id,
     get_worktree_status,

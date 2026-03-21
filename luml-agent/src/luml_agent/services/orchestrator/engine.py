@@ -4,21 +4,21 @@ import json
 import logging
 from typing import Any
 
-from luml_agent.models import Database
-from luml_agent.orchestrator.models import (
+from luml_agent.database import Database
+from luml_agent.models import RunNodeOrm
+from luml_agent.services.orchestrator.models import (
     NodeStatus,
     NodeType,
     RunConfig,
     RunStatus,
 )
-from luml_agent.orchestrator.nodes.base import (
+from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeServices,
 )
-from luml_agent.orchestrator.registry import NodeRegistry
-from luml_agent.orm import RunNodeOrm
-from luml_agent.pty_manager import PtyManager
+from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.pty_manager import PtyManager
 
 logger = logging.getLogger("luml_agent.orchestrator")
 
@@ -411,11 +411,10 @@ class OrchestratorEngine:
                 }, "auto")
 
         elif result.success and node.node_type == NodeType.RUN:
-            if node.depth + 1 < config.max_depth:
-                self._spawn_child(run_id, node, NodeType.FORK, {
-                    "objective": self._get_run_objective(run_id),
-                    "context": json.dumps(result.artifacts) if result.artifacts else "",
-                }, "auto")
+            self._spawn_child(run_id, node, NodeType.FORK, {
+                "objective": self._get_run_objective(run_id),
+                "context": json.dumps(result.artifacts) if result.artifacts else "",
+            }, "auto", config=config)
 
         elif not result.success and node.node_type == NodeType.RUN:
             ancestor = self._get_implement_ancestor(node)
@@ -439,17 +438,11 @@ class OrchestratorEngine:
                 node.id, len(result.spawn_next), node.depth, config.max_depth,
             )
         for spec in result.spawn_next:
-            depth_ok = node.depth + 1 < config.max_depth
-            if spec.node_type != NodeType.IMPLEMENT or depth_ok:
-                self._spawn_child(
-                    run_id, node, spec.node_type,
-                    spec.payload, spec.reason,
-                )
-            else:
-                logger.warning(
-                    "Skipping spawn spec %s: depth %d+1 >= max_depth %d",
-                    spec.node_type, node.depth, config.max_depth,
-                )
+            self._spawn_child(
+                run_id, node, spec.node_type,
+                spec.payload, spec.reason,
+                config=config,
+            )
 
     def _spawn_child(
         self,
@@ -458,12 +451,23 @@ class OrchestratorEngine:
         child_type: str,
         payload: dict[str, Any],
         reason: str,
-    ) -> RunNodeOrm:
+        config: RunConfig | None = None,
+    ) -> RunNodeOrm | None:
+        if child_type == NodeType.FORK:
+            child_depth = parent_node.depth + 1
+            if config and child_depth >= config.max_depth:
+                logger.info(
+                    "Skipping fork: depth %d >= max_depth %d",
+                    child_depth, config.max_depth,
+                )
+                return None
+        else:
+            child_depth = parent_node.depth
         child = self._db.add_run_node(
             run_id=run_id,
             parent_node_id=parent_node.id,
             node_type=child_type,
-            depth=parent_node.depth + 1,
+            depth=child_depth,
             payload_json=json.dumps(payload),
             worktree_path=parent_node.worktree_path,
             branch=parent_node.branch,
@@ -567,11 +571,42 @@ class OrchestratorEngine:
                 "Run %s completed: %s (%d nodes)",
                 run_id, new_status, len(nodes),
             )
+
+            best_node_id = self._compute_best_node(nodes) if any_success else None
+            if best_node_id:
+                self._db.update_run_best_node(run_id, best_node_id)
+
             self._db.update_run_status(run_id, new_status)
             self._emit_event(
                 run_id, None, "run_status_changed",
-                {"status": new_status},
+                {"status": new_status, "best_node_id": best_node_id},
             )
+
+    def _compute_best_node(
+        self, nodes: list[RunNodeOrm],
+    ) -> str | None:
+        best_metric: float | None = None
+        best_run_id: str | None = None
+
+        for node in nodes:
+            if node.node_type != NodeType.RUN:
+                continue
+            if node.status != NodeStatus.SUCCEEDED:
+                continue
+            try:
+                result = (
+                    json.loads(node.result_json)
+                    if node.result_json else {}
+                )
+            except (json.JSONDecodeError, TypeError):
+                continue
+            metric = result.get("artifacts", {}).get("metric")
+            if not isinstance(metric, (int, float)):
+                continue
+            if best_metric is None or metric > best_metric:
+                best_metric = metric
+                best_run_id = node.id
+        return best_run_id
 
     def _emit_event(
         self,

@@ -193,6 +193,16 @@ export class DataAgentApi {
     return data
   }
 
+  async getRunMergePreview(runId: string): Promise<MergePreview> {
+    const { data } = await this.api.post<MergePreview>(`/runs/${runId}/merge/preview`)
+    return data
+  }
+
+  async mergeRun(runId: string): Promise<{ status: string; message: string }> {
+    const { data } = await this.api.post(`/runs/${runId}/merge`)
+    return data
+  }
+
   async sendNodeAction(nodeId: string, action: string, payload: Record<string, any> = {}): Promise<void> {
     await this.api.post(`/nodes/${nodeId}/action`, { action, payload })
   }

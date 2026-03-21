@@ -1,7 +1,7 @@
 import pytest
 
-from luml_agent.models import Database
-from luml_agent.orchestrator.models import NodeStatus, NodeType, RunStatus
+from luml_agent.database import Database
+from luml_agent.services.orchestrator.models import NodeStatus, NodeType, RunStatus
 
 
 @pytest.fixture
