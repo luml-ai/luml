@@ -10,13 +10,13 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from fnnx.extras.reader import Reader
 
-from sdk.luml.artifacts._base import (
+from luml.artifacts._base import (
     DiskReference,
     FileMap,
     MemoryFile,
     PathSeparators,
 )
-from sdk.luml.model_card.builder import ModelCardBuilder
+from luml.model_card.builder import ModelCardBuilder
 
 
 class ModelReference(DiskReference):

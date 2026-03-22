@@ -5,16 +5,16 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from sdk.luml.artifacts._cache import (
+from luml.artifacts._cache import (
     default_cache_dir_for_archive,
     extract_archive_cached,
 )
-from sdk.luml.artifacts.dataset._manifest import (
+from luml.artifacts.dataset._manifest import (
     DatasetArtifactManifest,
     HFDatasetPayload,
     TabularDatasetPayload,
 )
-from sdk.luml.artifacts.dataset._reference import DatasetReference
+from luml.artifacts.dataset._reference import DatasetReference
 
 if TYPE_CHECKING:
     import pandas as pd

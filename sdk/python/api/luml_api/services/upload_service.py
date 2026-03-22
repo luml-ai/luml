@@ -2,12 +2,13 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from luml_api._exceptions import LumlAPIError
-from luml_api._types import UploadDetails
-from luml_api.handlers.file_handler_factory import create_file_handler
+from luml.api._exceptions import LumlAPIError
+from luml.api._types import UploadDetails
+from luml.api.utils.file_handler_factory import create_file_handler
+from luml.api.utils.progress import BaseProgressHandler
 
 if TYPE_CHECKING:
-    from luml_api.resources.bucket_secrets import (
+    from luml.api.resources.bucket_secrets import (
         AsyncBucketSecretResource,
         BucketSecretResource,
     )
@@ -23,8 +24,10 @@ class UploadService:
         file_path: str,
         file_size: int,
         file_name: str = "",
+        on_progress: BaseProgressHandler | None = None,
     ) -> httpx.Response:
         handler = create_file_handler(upload_details.type)
+        handler.on_progress = on_progress
 
         if upload_details.multipart:
             upload_id = handler.initiate_multipart_upload(upload_details.url)
@@ -65,8 +68,10 @@ class AsyncUploadService:
         file_path: str,
         file_size: int,
         file_name: str = "",
+        on_progress: BaseProgressHandler | None = None,
     ) -> httpx.Response:
         handler = create_file_handler(upload_details.type)
+        handler.on_progress = on_progress
 
         if upload_details.multipart:
             upload_id = handler.initiate_multipart_upload(upload_details.url)

@@ -10,7 +10,7 @@
         <Bolt :size="14" />
       </template>
     </Button>
-    <Button severity="secondary" variant="text" disabled @click="onCompare">
+    <Button severity="secondary" variant="text" :disabled="compareDisabled" @click="onCompare">
       <template #icon>
         <Repeat :size="14" />
       </template>
@@ -24,14 +24,19 @@
 </template>
 
 <script setup lang="ts">
-import { Button, useConfirm } from 'primevue'
+import { Button, useConfirm, useToast } from 'primevue'
 import { Trash2, Bolt, Repeat, Filter } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { deleteExperimentConfirmOptions } from '@/confirm/confirm'
 import { useExperimentsStore } from '@/store/experiments'
+import { errorToast } from '@/toasts'
+import { useRouter } from 'vue-router'
+import { ROUTE_NAMES } from '@/router/router.const'
 
 const confirm = useConfirm()
+const toast = useToast()
 const experimentsStore = useExperimentsStore()
+const router = useRouter()
 
 const deleteDisabled = computed(() => {
   return experimentsStore.selectedExperiments.length === 0
@@ -41,14 +46,26 @@ const settingsDisabled = computed(() => {
   return experimentsStore.selectedExperiments.length !== 1
 })
 
+const compareDisabled = computed(() => {
+  return experimentsStore.selectedExperiments.length < 2
+})
+
 function onDelete() {
   const ids = experimentsStore.selectedExperiments.map((experiment) => experiment.id)
+  const isMultiple = ids.length > 1
   confirm.require(
     deleteExperimentConfirmOptions(() => {
-      console.log('delete', ids)
-      experimentsStore.deleteExperiments(ids)
-    }, ids.length > 1),
+      onDeleteConfirm(ids)
+    }, isMultiple),
   )
+}
+
+async function onDeleteConfirm(ids: string[]) {
+  try {
+    await experimentsStore.deleteExperiments(ids)
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
 }
 
 function onSettings() {
@@ -58,7 +75,8 @@ function onSettings() {
 }
 
 function onCompare() {
-  console.log('compare')
+  const experimentsIds = experimentsStore.selectedExperiments.map((experiment) => experiment.id)
+  router.push({ name: ROUTE_NAMES.EXPERIMENTS_COMPARISON, query: { ids: experimentsIds } })
 }
 
 function onFilter() {

@@ -21,3 +21,4 @@ node_modules
 /lumlflow/.env
 /sdk/python/api/.venv/
 /sdk/python/sdk/.venv/
+/sdk/python/.coverage

@@ -4,8 +4,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from sdk.luml import ModelCardBuilder
-from sdk.luml.artifacts.model import ModelReference
+
+from luml import ModelCardBuilder
+from luml.artifacts.model import ModelReference
 
 
 def test_basic_builder() -> None:

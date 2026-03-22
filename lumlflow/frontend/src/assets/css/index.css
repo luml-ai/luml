@@ -11,3 +11,44 @@ body {
   color: var(--p-text-color);
   background: var(--p-content-background);
 }
+
+.link {
+  color: var(--p-text-link-color);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+
+  @media (any-hover: hover) {
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.title {
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b80 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #64748b80;
+  border-radius: 10px;
+}
+
+[data-theme='dark'] * {
+  scrollbar-color: #a1a1aa transparent;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
+}

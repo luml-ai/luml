@@ -9,24 +9,18 @@
     }"
     @click="$emit('select', data)"
   >
-    <Button
-      v-if="data.children.length"
-      class="button"
-      severity="secondary"
-      variant="text"
-      size="small"
-      @click.stop="spanOpened = !spanOpened"
-    >
-      <template #icon>
-        <component :is="spanOpened ? ChevronDown : ChevronRight" :size="14"></component>
-      </template>
-    </Button>
+    <button v-if="data.children.length" class="button" @click.stop="spanOpened = !spanOpened">
+      <component :is="spanOpened ? ChevronDown : ChevronRight" :size="14"></component>
+    </button>
     <div v-else style="width: 35px; flex: 0 0 auto"></div>
     <div class="item-body">
-      <h4 class="title">
-        <component :is="spanTypeData.icon" :size="16" :color="spanTypeData.color" />
-        <span>{{ data.name }}</span>
-      </h4>
+      <div class="item-header">
+        <h4 class="title">
+          <component :is="spanTypeData.icon" :size="16" :color="spanTypeData.color" class="icon" />
+          <span>{{ data.name }}</span>
+        </h4>
+        <AnnotationsTag v-if="data.annotation_count" :count="data.annotation_count" />
+      </div>
       <div class="info">
         <History :size="12" />
         <span>{{ time }}</span>
@@ -70,10 +64,11 @@
 
 <script setup lang="ts">
 import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
-import { Button, ProgressBar } from 'primevue'
+import { ProgressBar } from 'primevue'
 import { ChevronDown, ChevronRight, History } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
+import AnnotationsTag from '../../../annotations/AnnotationsTag.vue'
 
 type Props = {
   data: TraceSpanType
@@ -139,18 +134,36 @@ watch(
     background-color 0.2s,
     box-shadow 0.2s;
 }
+
 .item.selected {
   border-color: var(--p-content-border-color);
   background: var(--p-content-background);
   box-shadow: var(--card-shadow);
   cursor: default;
 }
+
 .button {
+  width: 25px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
   flex: 0 0 auto;
+  color: var(--p-datatable-row-toggle-button-color);
+  border-radius: var(--p-button-border-radius);
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: var(--p-datatable-row-toggle-button-hover-background);
+  }
 }
+
 .item-body {
   flex: 1 1 auto;
+  overflow: hidden;
 }
+
 .title {
   display: flex;
   align-items: center;
@@ -158,10 +171,19 @@ watch(
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
+
+.title span {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.icon {
+  flex: 0 0 auto;
+}
+
 .info {
   padding-left: 8px;
   display: flex;
@@ -171,9 +193,11 @@ watch(
   font-size: 12px;
   margin-bottom: 8px;
 }
+
 .progress {
   height: 4px;
 }
+
 .progress-wrapper {
   position: relative;
   border-radius: var(--p-progressbar-border-radius);
@@ -187,5 +211,13 @@ watch(
   z-index: 2;
   height: 4px;
   background: var(--p-progressbar-background);
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  overflow: hidden;
+  gap: 10px;
 }
 </style>

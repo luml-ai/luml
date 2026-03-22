@@ -5,7 +5,8 @@ from pathlib import Path
 import pandas as pd
 import polars as pl
 import pytest
-from sdk.luml import (
+
+from luml import (
     DatasetReference,
     TabularDatasetPayload,
     save_tabular_dataset,

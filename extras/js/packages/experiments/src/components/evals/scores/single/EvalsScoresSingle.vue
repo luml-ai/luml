@@ -2,7 +2,7 @@
   <div class="scores">
     <div v-for="score in scores" :key="score.name" class="score">
       <span class="score-name">{{ score.name }}</span>
-      <span>{{ score.value.toFixed(9) }}</span>
+      <span>{{ score.value.toFixed(3) }}</span>
     </div>
   </div>
 </template>

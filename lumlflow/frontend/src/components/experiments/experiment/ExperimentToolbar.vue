@@ -11,24 +11,25 @@
         @edit="(data) => experimentsStore.setVisibleColumns(data)"
       />
       <div class="max-w-sm w-full">
-        <InputGroup>
-          <InputText v-model="search" placeholder="Serch experiment by name or tags" size="small" />
-          <InputGroupAddon>
-            <Button severity="secondary" class="h-full" size="small" fluid @click="onSearch">
-              <template #icon>
-                <Search :size="12" />
-              </template>
-            </Button>
-          </InputGroupAddon>
-        </InputGroup>
+        <IconField>
+          <InputText
+            v-model="search"
+            placeholder="Search experiment by name or tags"
+            size="small"
+            fluid
+          />
+          <InputIcon>
+            <Search :size="12" />
+          </InputIcon>
+        </IconField>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import { InputGroup, InputGroupAddon, InputText, Button } from 'primevue'
+import { ref, watch } from 'vue'
+import { InputText, IconField, InputIcon } from 'primevue'
 import { Search } from 'lucide-vue-next'
 import { useExperimentsStore } from '@/store/experiments'
 import ExperimentButtons from './ExperimentButtons.vue'
@@ -36,11 +37,13 @@ import TableEditColumns from '@/components/table/TableEditColumns.vue'
 
 const experimentsStore = useExperimentsStore()
 
-const search = ref('')
+const search = ref(experimentsStore.queryParams.search || '')
 
 function onSearch() {
-  console.log(search.value)
+  experimentsStore.setQueryParams({ ...experimentsStore.queryParams, search: search.value })
 }
+
+watch(search, onSearch)
 </script>
 
 <style scoped></style>

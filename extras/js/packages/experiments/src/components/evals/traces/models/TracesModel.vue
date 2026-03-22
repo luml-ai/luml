@@ -7,10 +7,17 @@
             <CircuitBoard :size="16" color="var(--p-primary-color)" />
             <span>{{ name }}</span>
           </div>
-          <Button v-if="spansExist" severity="secondary" variant="outlined" @click="showSpans">
-            <ListTree :size="16" />
-            Trace
-          </Button>
+          <div class="header-right">
+            <Button v-if="spansExist" severity="secondary" variant="outlined" @click="showSpans">
+              <ListTree :size="16" />
+              Trace
+            </Button>
+            <AnnotationsButton
+              v-if="isAnnotationsButtonVisible"
+              :count="annotationsStore.evalAnnotations.length"
+              @click="showAnnotations"
+            />
+          </div>
         </header>
         <div class="items-list">
           <UiMultiTypeText
@@ -63,16 +70,27 @@
       </div>
     </div>
   </div>
+  <AnnotationsView
+    v-if="isAnnotationsVisible"
+    :artifact-id="props.id"
+    :dataset-id="evalsStore.selectedEval?.datasetId"
+    :eval-id="evalsStore.selectedEval?.evalId"
+    @close="closeAnnotations"
+  />
 </template>
 
 <script setup lang="ts">
 import { CircuitBoard, FileText, Minimize2, Maximize2, ListTree } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, onMounted, ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useAnnotationsStore } from '@/store/annotations'
+import { getErrorMessage } from '@/helpers/helpers'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
+import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
+import AnnotationsView from '../../../annotations/view/AnnotationsView.vue'
 
 type Props = {
   id: string
@@ -85,9 +103,12 @@ const evalsStore = useEvalsStore()
 
 const toast = useToast()
 
+const annotationsStore = useAnnotationsStore()
+
 const scoresRef = ref<HTMLDivElement | null>()
 const scoresBlockHeight = ref(0)
 const spansExist = ref(false)
+const isAnnotationsVisible = ref(false)
 
 const modelData = computed(() =>
   evalsStore.currentEvalData?.find((item) => item.modelId === props.id),
@@ -114,6 +135,12 @@ const references = computed(() => {
   return getFormattedItems(references)
 })
 
+const isAnnotationsButtonVisible = computed(() => {
+  if (isAnnotationsVisible.value) return false
+  if (annotationsStore.isEditAvailable) return true
+  return annotationsStore.evalAnnotations.length > 0
+})
+
 function toggleScores() {
   const height = scoresRef.value?.clientHeight || 0
   if (scoresBlockHeight.value === 0) {
@@ -132,11 +159,34 @@ async function showSpans() {
     if (!evalsStore.selectedEval) throw new Error('No dataset or eval selected')
     const { datasetId, evalId } = evalsStore.selectedEval
     const trace = await evalsStore.getEvalSpansTree(props.id, datasetId, evalId)
-    evalsStore.setSelectedTrace(trace)
+    evalsStore.setSelectedTrace(trace, props.id)
   } catch {
     toast.add(simpleErrorToast('Failed to load spans'))
   }
 }
+
+function showAnnotations() {
+  isAnnotationsVisible.value = true
+}
+
+function closeAnnotations() {
+  isAnnotationsVisible.value = false
+}
+
+onBeforeMount(async () => {
+  try {
+    if (!props.id || !evalsStore.selectedEval?.datasetId || !evalsStore.selectedEval?.evalId) {
+      throw new Error('Artifact ID, dataset ID and eval ID are required')
+    }
+    await annotationsStore.getEvalAnnotations(
+      props.id,
+      evalsStore.selectedEval?.datasetId,
+      evalsStore.selectedEval?.evalId,
+    )
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))
+  }
+})
 
 onMounted(async () => {
   if (!evalsStore.selectedEval) {
@@ -175,6 +225,11 @@ onMounted(async () => {
   justify-content: space-between;
   margin-bottom: 20px;
   min-height: 33px;
+}
+.header-right {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 .name {
   display: flex;

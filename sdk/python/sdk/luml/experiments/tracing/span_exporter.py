@@ -11,10 +11,8 @@ class LumlSpanExporter(SpanExporter):
     def __init__(
         self,
         log_fn: Callable,
-        batch_size: int = 100,
     ) -> None:
         self.log_fn = log_fn
-        self.batch_size = batch_size
         self._shutdown = False
 
     def export(self, spans: Sequence[ReadableSpan]) -> SpanExportResult:
