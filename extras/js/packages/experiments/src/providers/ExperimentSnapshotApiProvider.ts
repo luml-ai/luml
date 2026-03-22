@@ -158,6 +158,26 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     return evalsByArtifact.flat()
   }
 
+  async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
+    const responses = this.artifacts.map(async (artifact) => {
+      const cursors = this._datasetsCursors[params.dataset_id] || []
+      const cursorsList = [null, ...cursors]
+      cursorsList.pop()
+      const promises = cursorsList.map(async (cursor) => {
+        const { items } = await this.apiService.getExperimentEvals({
+          ...params,
+          experiment_id: artifact.id,
+          cursor,
+        })
+        return items.map((item) => ({ ...item, modelId: artifact.id }))
+      })
+      const evalsByCursor = await Promise.all(promises)
+      return evalsByCursor.flat()
+    })
+    const evalsByArtifact = await Promise.all(responses)
+    return evalsByArtifact.flat()
+  }
+
   async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
     const responses = this.artifacts.map(async (artifact) => {
       const evals = await this.apiService.getAllExperimentEvals({
@@ -271,6 +291,26 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
       })
       this._tracesCursors[artifact.id] = [...cursors, newCursor]
       return items
+    })
+    const tracesByArtifact = await Promise.all(responses)
+    return tracesByArtifact.flat()
+  }
+
+  async getFreshTraces(params: GetTracesParams) {
+    const responses = this.artifacts.map(async (artifact) => {
+      const cursors = this._tracesCursors[artifact.id] || []
+      const cursorsList = [null, ...cursors]
+      cursorsList.pop()
+      const promises = cursorsList.map(async (cursor) => {
+        const { items } = await this.apiService.getExperimentTraces({
+          ...params,
+          experiment_id: artifact.id,
+          cursor,
+        })
+        return items
+      })
+      const tracesByCursor = await Promise.all(promises)
+      return tracesByCursor.flat()
     })
     const tracesByArtifact = await Promise.all(responses)
     return tracesByArtifact.flat()

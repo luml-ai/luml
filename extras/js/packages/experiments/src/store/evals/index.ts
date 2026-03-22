@@ -141,6 +141,21 @@ export const useEvalsStore = defineStore('evals', () => {
     datasets.value = null
   }
 
+  async function refresh() {
+    if (!datasets.value) return
+    const paramsByDataset = datasets.value.map((item) => item.params)
+    const promises = paramsByDataset.map((item) => getProvider.value.getFreshEvalsByDatasetId(item))
+    const data = await Promise.all(promises)
+    datasets.value = datasets.value.map((item, index) => {
+      if (!data[index]) return item
+      return { ...item, data: data[index] }
+    })
+    const annotationsPromises = paramsByDataset.map((item) => {
+      return annotationsStore.getEvalsDatasetAnnotationsSummary(item.dataset_id)
+    })
+    await Promise.all(annotationsPromises)
+  }
+
   return {
     currentEvalData,
     setProvider,
@@ -162,5 +177,6 @@ export const useEvalsStore = defineStore('evals', () => {
     getNextDatasetPage,
     loading,
     setLoading,
+    refresh,
   }
 })
