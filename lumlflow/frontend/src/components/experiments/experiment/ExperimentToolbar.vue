@@ -14,7 +14,7 @@
         <IconField>
           <InputText
             v-model="search"
-            placeholder="Serch experiment by name or tags"
+            placeholder="Search experiment by name or tags"
             size="small"
             fluid
           />

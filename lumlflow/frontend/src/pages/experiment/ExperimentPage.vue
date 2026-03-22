@@ -2,7 +2,7 @@
   <template v-if="loading">
     <Skeleton height="49px" class="mb-2"></Skeleton>
     <Skeleton height="27px" class="mb-2"></Skeleton>
-    <Skeleton class="h-[calc(100vh-250px)]" height="calc(100vh-200px)"></Skeleton>
+    <Skeleton class="h-[calc(100vh-200px)]" height="calc(100vh-200px)"></Skeleton>
   </template>
   <div v-else>
     <ExperimentBreadcrumbs
@@ -12,7 +12,11 @@
     <h1 v-if="groupsStore.detailedGroup" class="text-2xl font-medium pt-5 mb-7">
       {{ groupsStore.detailedGroup.name }}
     </h1>
-    <ExperimentWrapper v-if="groupId" :group-id="groupId" />
+    <ExperimentWrapper
+      v-if="groupId && groupsStore.detailedGroup"
+      :groups-ids="[groupId]"
+      :dynamic-metrics="groupsStore.detailedGroup.experiments_dynamic_params"
+    />
   </div>
 </template>
 

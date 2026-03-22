@@ -26,6 +26,7 @@ import type {
   TraceDetails,
   UpdateExperimentPayload,
 } from '@/store/experiments/experiments.interface'
+import qs from 'qs'
 import type {
   CollectionInfo,
   OrbitInfo,
@@ -59,12 +60,19 @@ export const apiService = {
     return data
   },
 
+  getGroupsDynamicMetrics: async (groupIds: string[]) => {
+    const { data } = await api.get<string[]>(`/groups/experiments/dynamic-metrics`, {
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+      params: { group_ids: groupIds },
+    })
+    return data
+  },
+
   getExperiments: async (params: GetExperimentsParams) => {
-    const { group_id, ...rest } = params
-    const { data } = await api.get<PaginatedResponse<Experiment>>(
-      `/groups/${group_id}/experiments`,
-      { params: rest },
-    )
+    const { data } = await api.get<PaginatedResponse<Experiment>>(`/groups/experiments`, {
+      params,
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+    })
     return data
   },
 

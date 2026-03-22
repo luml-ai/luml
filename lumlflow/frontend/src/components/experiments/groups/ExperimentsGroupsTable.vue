@@ -58,7 +58,7 @@ import { DataTable, Column, useToast } from 'primevue'
 import { useGroupsStore } from '@/store/groups'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useRouter } from 'vue-router'
-import { onBeforeMount, ref } from 'vue'
+import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { dateToText } from '@/helpers/date'
 import { errorToast } from '@/toasts'
 import { cutStringOnMiddle } from '@/helpers/string'
@@ -106,6 +106,10 @@ onBeforeMount(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onBeforeUnmount(() => {
+  groupsStore.reset()
 })
 </script>
 

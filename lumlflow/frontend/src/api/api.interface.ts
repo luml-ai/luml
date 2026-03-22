@@ -12,7 +12,7 @@ export interface GetGroupsParams {
 }
 
 export interface GetExperimentsParams {
-  group_id: string
+  group_ids: string[]
   limit: number
   cursor: string | null
   search: string | null
