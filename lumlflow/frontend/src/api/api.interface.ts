@@ -98,3 +98,15 @@ export type UpdateAnnotationPayload = Omit<
   AddAnnotationPayload,
   'name' | 'annotation_kind' | 'value_type' | 'created_at'
 >
+
+export interface GetLumlCollectionsParams {
+  organization_id: string
+  orbit_id: string
+  start_after: string | null
+  limit?: number
+  search?: string | null
+}
+
+export interface UploadArtifactResponse {
+  job_id: string
+}

@@ -12,6 +12,8 @@ import type {
   UpdateAnnotationPayload,
   Annotation,
   AnnotationSummary,
+  GetLumlCollectionsParams,
+  UploadArtifactResponse,
 } from './api.interface'
 import { api } from './client'
 import type {
@@ -24,6 +26,12 @@ import type {
   TraceDetails,
   UpdateExperimentPayload,
 } from '@/store/experiments/experiments.interface'
+import type {
+  CollectionInfo,
+  OrbitInfo,
+  OrganizationInfo,
+  UploadArtifactPayload,
+} from '@/components/upload/upload.interface'
 
 export const apiService = {
   getGroups: async (params: GetGroupsParams) => {
@@ -273,6 +281,30 @@ export const apiService = {
     const { data } = await api.get<AnnotationSummary>(
       `/experiments/${experimentId}/traces/annotations/summary`,
     )
+    return data
+  },
+
+  getLumlOrganizations: async () => {
+    const { data } = await api.get<OrganizationInfo[]>(`/luml/organizations`)
+    return data
+  },
+
+  getLumlOrbits: async (organizationId: string) => {
+    const { data } = await api.get<OrbitInfo[]>(`/luml/orbits`, {
+      params: { organization_id: organizationId },
+    })
+    return data
+  },
+
+  getLumlCollections: async (params: GetLumlCollectionsParams) => {
+    const { data } = await api.get<PaginatedResponse<CollectionInfo>>(`/luml/collections`, {
+      params,
+    })
+    return data
+  },
+
+  uploadArtifact: async (payload: UploadArtifactPayload) => {
+    const { data } = await api.post<UploadArtifactResponse>(`/luml/artifact`, payload)
     return data
   },
 }
