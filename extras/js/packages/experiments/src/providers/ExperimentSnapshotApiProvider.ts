@@ -61,7 +61,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
 
   async getStaticParamsList() {
     return this.artifacts.map((artifact) => {
-      return { ...artifact.static_params, modelId: artifact.id }
+      return { ...artifact.staticParams, modelId: artifact.id }
     })
   }
 

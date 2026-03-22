@@ -96,7 +96,7 @@ export interface ExperimentSnapshotProvider {
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
 
-export interface ExperimentSnapshotStaticParams extends Record<string, any> {
+export interface ExperimentSnapshotStaticParams extends Record<string, unknown> {
   modelId: string
 }
 
