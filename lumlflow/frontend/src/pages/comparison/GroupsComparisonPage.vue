@@ -27,7 +27,14 @@ const toast = useToast()
 const dynamicMetrics = ref<string[]>([])
 const loading = ref(true)
 
-const groupsIds = computed(() => route.query.groupsIds as string[])
+const groupsIds = computed(() => {
+  const ids = route.query.groupsIds
+  if (!ids || typeof ids === 'string') {
+    toast.add(errorToast('Groups IDs are required'))
+    return []
+  }
+  return ids.map(String)
+})
 
 onBeforeMount(async () => {
   try {
