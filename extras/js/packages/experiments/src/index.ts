@@ -15,6 +15,8 @@ import { ExperimentSnapshotApiProvider } from './providers/ExperimentSnapshotApi
 import { provideTheme } from './lib/theme/ThemeProvider'
 import { useEvalsStore } from './store/evals'
 import { useAnnotationsStore } from './store/annotations'
+import { useDynamicMetricsStore } from './store/dynamic-metrics'
+import { useTraceStore } from './store/trace'
 import ExperimentSnapshot from './ExperimentSnapshot.vue'
 import ComparisonHeader from './components/comparison/ComparisonHeader.vue'
 import ComparisonModelsList from './components/comparison/ComparisonModelsList.vue'
@@ -51,4 +53,6 @@ export {
   ExperimentSnapshotApiProvider,
   useAnnotationsStore,
   TracesWrapper,
+  useDynamicMetricsStore,
+  useTraceStore,
 }

@@ -3,7 +3,6 @@
     <DynamicMetrics
       :metrics-names="metrics"
       :models-info="modelsInfo"
-      :provider="evalsStore.getProvider"
       :show-title="false"
     ></DynamicMetrics>
   </div>
@@ -14,10 +13,8 @@
 import { computed } from 'vue'
 import { useExperimentStore } from '@/store/experiment'
 import { DynamicMetrics } from '@luml/experiments'
-import { useEvalsStore } from '@luml/experiments'
 
 const experimentStore = useExperimentStore()
-const evalsStore = useEvalsStore()
 
 const metrics = computed(() => {
   if (!experimentStore.experiment) return []

@@ -18,7 +18,6 @@
     <DynamicMetrics
       v-else-if="dynamicMetricsNames"
       :metrics-names="dynamicMetricsNames"
-      :provider="props.provider"
       :models-info="modelsInfo"
     ></DynamicMetrics>
 

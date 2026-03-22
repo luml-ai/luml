@@ -55,6 +55,23 @@ export const useTraceStore = defineStore('trace', () => {
     artifactId.value = null
   }
 
+  async function refresh() {
+    if (loading.value) return
+    setLoading(true)
+    try {
+      const params = JSON.parse(JSON.stringify(requestParams.value))
+      const data = await evalsStore.getProvider.getFreshTraces(params)
+      traces.value = [...data]
+      if (artifactId.value) {
+        await annotationsStore.getTracesAnnotationSummary(artifactId.value)
+      }
+    } catch (error) {
+      toast.add(simpleErrorToast(getErrorMessage(error)))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const debouncedRequestParamsChange = useDebounceFn(async () => {
     try {
       if (loading.value) return
@@ -78,5 +95,6 @@ export const useTraceStore = defineStore('trace', () => {
     setLoading,
     reset,
     setArtifactId,
+    refresh,
   }
 })

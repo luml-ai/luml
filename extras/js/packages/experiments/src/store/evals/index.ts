@@ -9,9 +9,13 @@ import type {
 import type { DatasetData } from '@/components/evals/evals.interface'
 import { INITIAL_PARAMS } from './evals.data'
 import { useAnnotationsStore } from '../annotations'
+import { useToast } from 'primevue'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 
 export const useEvalsStore = defineStore('evals', () => {
   const annotationsStore = useAnnotationsStore()
+  const toast = useToast()
 
   const currentEvalData = ref<EvalsInfo[] | null>(null)
   const provider = ref<ExperimentSnapshotProvider | null>(null)
@@ -141,6 +145,31 @@ export const useEvalsStore = defineStore('evals', () => {
     datasets.value = null
   }
 
+  async function refresh() {
+    if (loading.value) return
+    setLoading(true)
+    try {
+      if (!datasets.value) return
+      const paramsByDataset = datasets.value.map((item) => toRaw(item.params))
+      const promises = paramsByDataset.map((item) =>
+        getProvider.value.getFreshEvalsByDatasetId(item),
+      )
+      const data = await Promise.all(promises)
+      datasets.value = datasets.value.map((item, index) => {
+        if (!data[index]) return item
+        return { ...item, data: data[index] }
+      })
+      const annotationsPromises = paramsByDataset.map((item) => {
+        return annotationsStore.getEvalsDatasetAnnotationsSummary(item.dataset_id)
+      })
+      await Promise.all(annotationsPromises)
+    } catch (error) {
+      toast.add(simpleErrorToast(getErrorMessage(error)))
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return {
     currentEvalData,
     setProvider,
@@ -162,5 +191,6 @@ export const useEvalsStore = defineStore('evals', () => {
     getNextDatasetPage,
     loading,
     setLoading,
+    refresh,
   }
 })
