@@ -12,6 +12,7 @@
       :initial-values="initialValues"
       :resolver="resolver"
       class="flex flex-col gap-3"
+      @submit="handleSubmit"
     >
       <SelectButton
         name="type"
@@ -25,8 +26,8 @@
         </label>
         <Select
           :options="organizations"
-          option-label="label"
-          option-value="value"
+          option-label="name"
+          option-value="id"
           placeholder="Select organization"
           fluid
         />
@@ -35,8 +36,8 @@
         <label for="orbit"> Orbit <span class="text-(--p-badge-warn-background)">*</span> </label>
         <Select
           :options="orbits"
-          option-label="label"
-          option-value="value"
+          option-label="name"
+          option-value="id"
           :disabled="!$form['organization']?.value"
           :placeholder="$form['organization']?.value ? 'Select orbit' : 'Select organization first'"
           fluid
@@ -51,28 +52,13 @@
           </template>
         </Select>
       </FormField>
-      <FormField name="collection" class="flex flex-col gap-2">
-        <label for="collection">
-          Collection <span class="text-(--p-badge-warn-background)">*</span>
-        </label>
-        <Select
-          :options="collections"
-          option-label="label"
-          option-value="value"
-          :disabled="!$form['orbit']?.value"
-          :placeholder="$form['orbit']?.value ? 'Select collection' : 'Select orbit first'"
-          fluid
-        >
-          <template #empty>
-            <div class="max-w-[423px] w-full">
-              There are no collections in this orbit yet. Create your first collection in
-              <a target="_blank" :href="lmlUrl" class="text-primary font-medium hover:underline">
-                LUML.
-              </a>
-            </div>
-          </template></Select
-        >
-      </FormField>
+      <CollectionField
+        fieldName="collection"
+        :organization-id="$form['organization']?.value"
+        :orbit-id="$form['orbit']?.value"
+        :form-ref="formRef"
+        @change-collection="handleChangeCollection"
+      />
       <FormField name="name" class="flex flex-col gap-2">
         <label for="name"> Name <span class="text-(--p-badge-warn-background)">*</span> </label>
         <InputText id="name" placeholder="Enter name" fluid />
@@ -83,10 +69,10 @@
       </FormField>
       <FormField name="tags" class="flex flex-col gap-2">
         <label for="tags">Tags</label>
-        <UiTagsSelect id="tags" :items="[]" placeholder="Type to add tags" />
+        <UiTagsSelect id="tags" :items="existingTags" placeholder="Type to add tags" />
       </FormField>
       <FormField
-        v-if="$form['type']?.value === 'auto'"
+        v-show="$form['type']?.value === UploadTypeEnum.MODEL"
         name="embedExperiment"
         class="flex items-center gap-2"
       >
@@ -95,12 +81,34 @@
       </FormField>
     </Form>
     <template #footer>
-      <Button type="submit" form="upload-form" label="Export" fluid rounded />
+      <div class="flex flex-col gap-4 w-full">
+        <Button
+          type="submit"
+          form="upload-form"
+          label="Export"
+          fluid
+          rounded
+          :loading="uploadLoading"
+        />
+        <ProgressBar
+          v-if="progress !== null && progress !== undefined"
+          :value="progress"
+          class="rounded-full!"
+        ></ProgressBar>
+      </div>
     </template>
   </Dialog>
 </template>
 
 <script setup lang="ts">
+import {
+  UploadTypeEnum,
+  type CollectionInfo,
+  type OrbitInfo,
+  type OrganizationInfo,
+  type UploadArtifactPayload,
+  type UploadModalProps,
+} from './upload.interface'
 import {
   Button,
   Dialog,
@@ -110,18 +118,25 @@ import {
   Textarea,
   ToggleSwitch,
   useToast,
+  ProgressBar,
 } from 'primevue'
 import { CloudUploadIcon } from 'lucide-vue-next'
 import { reactive, watch } from 'vue'
 import { ref } from 'vue'
-import { FormField, Form, type FormInstance } from '@primevue/forms'
+import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { DIALOG_PT, resolver, selectTypeOptions } from './data'
 import { useAuthStore } from '@/store/auth'
-import { errorToast } from '@/toasts'
+import { errorToast, successToast } from '@/toasts'
+import { apiService } from '@/api/api.service'
+import { useUpload } from '@/hooks/useUpload'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
+import CollectionField from './CollectionField.vue'
+
+const props = defineProps<UploadModalProps>()
 
 const authStore = useAuthStore()
 const toast = useToast()
+const { progress, loading: uploadLoading, error, complete, upload } = useUpload()
 
 const initialValues = reactive({
   type: 'auto',
@@ -139,36 +154,13 @@ const formRef = ref<FormInstance>()
 const visible = defineModel<boolean>('visible')
 const loading = ref<boolean>(false)
 
-const organizations = ref<unknown[]>([
-  {
-    label: 'Organization 1',
-    value: 'organization-1',
-  },
-  {
-    label: 'Organization 2',
-    value: 'organization-2',
-  },
-])
-const orbits = ref<unknown[]>([
-  {
-    label: 'Orbit 1',
-    value: 'orbit-1',
-  },
-  {
-    label: 'Orbit 2',
-    value: 'orbit-2',
-  },
-])
-const collections = ref<unknown[]>([
-  {
-    label: 'Collection 1',
-    value: 'collection-1',
-  },
-  {
-    label: 'Collection 2',
-    value: 'collection-2',
-  },
-])
+const organizations = ref<OrganizationInfo[]>([])
+const organizationsLoading = ref<boolean>(false)
+
+const orbits = ref<OrbitInfo[]>([])
+const orbitsLoading = ref<boolean>(false)
+
+const existingTags = ref<string[]>([])
 
 const lmlUrl = import.meta.env.VITE_LUML_URL
 
@@ -189,6 +181,50 @@ async function uploadClick() {
   }
 }
 
+async function getOrganizations() {
+  try {
+    organizationsLoading.value = true
+    organizations.value = await apiService.getLumlOrganizations()
+  } catch (error) {
+    toast.add(errorToast(error))
+  } finally {
+    organizationsLoading.value = false
+  }
+}
+
+async function getOrbits(organizationId: string) {
+  try {
+    orbitsLoading.value = true
+    orbits.value = await apiService.getLumlOrbits(organizationId)
+  } catch (error) {
+    toast.add(errorToast(error))
+  } finally {
+    orbitsLoading.value = false
+  }
+}
+
+function handleChangeCollection(collection: CollectionInfo | undefined) {
+  existingTags.value = collection?.tags || []
+}
+
+function handleSubmit(event: FormSubmitEvent) {
+  if (!event.valid) return
+  const payload: UploadArtifactPayload = {
+    upload_type: event.values.type,
+    embed_experiment: event.values.embedExperiment,
+    experiment_id: props.experimentId,
+    organization_id: event.values.organization,
+    orbit_id: event.values.orbit,
+    collection_id: event.values.collection,
+    artifact: {
+      name: event.values.name,
+      description: event.values.description,
+      tags: event.values.tags,
+    },
+  }
+  upload(payload)
+}
+
 watch(
   () => formRef.value?.states['organization']?.value,
   () => {
@@ -202,6 +238,39 @@ watch(
     formRef.value?.setFieldValue('collection', null)
   },
 )
+
+watch(visible, async (value) => {
+  if (value) {
+    await getOrganizations()
+  } else {
+    organizations.value = []
+    formRef.value?.setFieldValue('organization', null)
+  }
+})
+
+watch(
+  () => formRef.value?.states['organization']?.value,
+  async (value) => {
+    if (value) {
+      await getOrbits(value)
+    } else {
+      orbits.value = []
+      formRef.value?.setFieldValue('orbit', null)
+    }
+  },
+)
+
+watch(error, (value) => {
+  if (value) {
+    toast.add(errorToast(new Error(value)))
+  }
+})
+
+watch(complete, (value) => {
+  if (value) {
+    toast.add(successToast('Successfully uploaded to LUML'))
+  }
+})
 </script>
 
 <style scoped></style>
