@@ -96,7 +96,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
-      const pagesList = Array.from({ length: page }, (_, i) => i + 1)
+      const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
       const promises = pagesList.map(async (page) => {
         return this.getDatabaseEvalsByDatasetId(snapshot.database, {
           ...params,
@@ -312,7 +312,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   async getFreshTraces(params: GetTracesParams) {
     const responses = this.modelsSnapshots.map(async (snapshot) => {
       const page = this.tracesRequestParams[snapshot.modelId] || 1
-      const pagesList = Array.from({ length: page }, (_, i) => i + 1)
+      const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
       const promises = pagesList.map(async (page) => {
         return this.getTracesByDatabase(snapshot.database, {
           ...params,

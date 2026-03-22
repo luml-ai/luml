@@ -56,11 +56,19 @@ export const useTraceStore = defineStore('trace', () => {
   }
 
   async function refresh() {
-    const params = JSON.parse(JSON.stringify(requestParams.value))
-    const data = await evalsStore.getProvider.getFreshTraces(params)
-    traces.value = [...data]
-    if (artifactId.value) {
-      await annotationsStore.getTracesAnnotationSummary(artifactId.value)
+    if (loading.value) return
+    setLoading(true)
+    try {
+      const params = JSON.parse(JSON.stringify(requestParams.value))
+      const data = await evalsStore.getProvider.getFreshTraces(params)
+      traces.value = [...data]
+      if (artifactId.value) {
+        await annotationsStore.getTracesAnnotationSummary(artifactId.value)
+      }
+    } catch (error) {
+      toast.add(simpleErrorToast(getErrorMessage(error)))
+    } finally {
+      setLoading(false)
     }
   }
 
