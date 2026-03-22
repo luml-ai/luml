@@ -60,7 +60,9 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
   }
 
   async getStaticParamsList() {
-    return []
+    return this.artifacts.map((artifact) => {
+      return { ...artifact.static_params, modelId: artifact.id }
+    })
   }
 
   async getTraceSpans(modelId: string, traceId: string): Promise<SpansListType> {

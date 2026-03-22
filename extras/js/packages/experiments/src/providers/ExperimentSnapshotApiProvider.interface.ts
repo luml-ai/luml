@@ -15,6 +15,7 @@ import type {
 export interface ArtifactInfo {
   id: string
   dynamicMetrics: string[]
+  static_params: Record<string, string | number>
 }
 
 export interface TraceInfo {

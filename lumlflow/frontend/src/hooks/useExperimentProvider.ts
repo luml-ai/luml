@@ -15,6 +15,7 @@ export const useExperimentProvider = (): {
     const artifacts = experiments.map((experiment) => ({
       id: experiment.id,
       dynamicMetrics: Object.keys(experiment.dynamic_params ?? {}),
+      static_params: experiment.static_params ?? {}
     }))
     await newProvider.init({ artifacts: artifacts })
     provider.value = newProvider
