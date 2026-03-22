@@ -7,6 +7,7 @@ export const ROUTE_NAMES = {
   EXPERIMENT_TRACES: 'experiment-traces',
   EXPERIMENT_EVALS: 'experiment-evals',
   EXPERIMENT_ATTACHMENTS: 'experiment-attachments',
+  EXPERIMENTS_COMPARISON: 'experiments-comparison',
 }
 
 export const ROUTES = {
@@ -19,4 +20,6 @@ export const ROUTES = {
   [ROUTE_NAMES.EXPERIMENT_TRACES]: 'traces',
   [ROUTE_NAMES.EXPERIMENT_EVALS]: 'evals',
   [ROUTE_NAMES.EXPERIMENT_ATTACHMENTS]: 'attachments',
+
+  [ROUTE_NAMES.EXPERIMENTS_COMPARISON]: 'experiments/comparison',
 }

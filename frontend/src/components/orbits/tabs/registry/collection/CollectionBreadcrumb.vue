@@ -45,7 +45,7 @@ const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
   if (modelsToCompare?.length) {
     const queryString = modelsToCompare.map((id) => `artifacts=${id}`).join('&')
     list.push({
-      label: `Multi-model comparison (${modelsToCompare.length})`,
+      label: `Experiments comparison (${modelsToCompare.length})`,
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/compare?${queryString}`,
     })
   }
