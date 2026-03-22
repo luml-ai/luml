@@ -31,6 +31,8 @@ export interface ExperimentSnapshotProvider {
 
   getNextEvalsByDatasetId: (params: GetEvalsByDatasetParams) => Promise<EvalsInfo[]>
 
+  getFreshEvalsByDatasetId: (params: GetEvalsByDatasetParams) => Promise<EvalsInfo[]>
+
   getAllDatasetEvals: (params: Omit<GetEvalsByDatasetParams, 'limit'>) => Promise<EvalsInfo[]>
 
   resetEvalsDatasetsRequestParams: () => Promise<void>
@@ -78,6 +80,8 @@ export interface ExperimentSnapshotProvider {
   getEvalsDatasetAnnotationsSummary: (datasetId: string) => Promise<AnnotationSummary>
 
   getTraces: (params: GetTracesParams) => Promise<Trace[]>
+
+  getFreshTraces: (params: GetTracesParams) => Promise<Trace[]>
 
   getAllTraces: (params: Omit<GetTracesParams, 'limit'>) => Promise<Trace[]>
 

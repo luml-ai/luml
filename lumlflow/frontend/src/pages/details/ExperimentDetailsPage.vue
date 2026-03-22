@@ -13,7 +13,10 @@
       :experiment-name="experimentStore.experiment.name"
       :experiment-id="experimentId"
     />
-    <h1 class="text-2xl font-medium pt-2 mb-2">Test experiment</h1>
+    <div class="flex gap-2 items-center">
+      <RefreshButton />
+      <h1 class="text-2xl font-medium pt-2 mb-2">Test experiment</h1>
+    </div>
     <DetailsTabs class="mb-4" />
     <RouterView />
     <TracesDialog
@@ -55,6 +58,7 @@ import { provideTheme } from '@luml/experiments'
 import DetailsBreadcrumbs from '@/components/experiments/details/DetailsBreadcrumbs.vue'
 import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
 import type { Experiment } from '@/store/experiments/experiments.interface'
+import RefreshButton from '@/components/experiments/details/RefreshButton.vue'
 
 const route = useRoute()
 const toast = useToast()
@@ -99,7 +103,11 @@ function onTraceVisibleUpdate(value: boolean | undefined) {
   }
 }
 
-async function onExperimentChange(experiment: Experiment | null) {
+async function onExperimentChange(
+  experiment: Experiment | null,
+  oldExperiment?: Experiment | null,
+) {
+  if (oldExperiment?.id === experiment?.id) return
   try {
     if (experiment) await createProvider([experiment])
     else resetProvider()
@@ -113,9 +121,13 @@ watch(experimentId, (experimentId) => fetchData(experimentId), {
   immediate: true,
 })
 
-watch(() => experimentStore.experiment, onExperimentChange, {
-  immediate: true,
-})
+watch(
+  () => experimentStore.experiment,
+  (val, oldValue) => onExperimentChange(val, oldValue),
+  {
+    immediate: true,
+  },
+)
 
 watch(
   provider,

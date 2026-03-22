@@ -93,6 +93,22 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return this.getFlatPromisesResponse(promises)
   }
 
+  async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
+    const promises = this.modelsSnapshots.map(async (snapshot) => {
+      const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
+      const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
+      const promises = pagesList.map(async (page) => {
+        return this.getDatabaseEvalsByDatasetId(snapshot.database, {
+          ...params,
+          page,
+          modelId: snapshot.modelId,
+        })
+      })
+      return this.getFlatPromisesResponse(promises)
+    })
+    return this.getFlatPromisesResponse(promises)
+  }
+
   async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
@@ -291,6 +307,21 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       return artifactTraces
     })
     return tracesByArtifacts.flat()
+  }
+
+  async getFreshTraces(params: GetTracesParams) {
+    const responses = this.modelsSnapshots.map(async (snapshot) => {
+      const page = this.tracesRequestParams[snapshot.modelId] || 1
+      const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
+      const promises = pagesList.map(async (page) => {
+        return this.getTracesByDatabase(snapshot.database, {
+          ...params,
+          page,
+        })
+      })
+      return this.getFlatPromisesResponse(promises)
+    })
+    return this.getFlatPromisesResponse(responses)
   }
 
   async getAllTraces(params: Omit<GetTracesParams, 'limit'>): Promise<Trace[]> {
@@ -768,7 +799,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private getSnapAnnotationsCountByDatabase(database: Database, spanId: string): number {
     const hasAnnotations = this.isDatabaseHasAnnotations(database)
     if (!hasAnnotations) return 0
-    const queryResult = database.exec(`SELECT COUNT(*) FROM span_annotations WHERE span_id = '${spanId}'`)
+    const queryResult = database.exec(
+      `SELECT COUNT(*) FROM span_annotations WHERE span_id = '${spanId}'`,
+    )
     const count = queryResult[0]?.values[0]?.[0]
     return this.parseValue(count, 'int')
   }

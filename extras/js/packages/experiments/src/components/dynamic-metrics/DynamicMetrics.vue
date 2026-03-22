@@ -1,6 +1,6 @@
 <template>
   <DynamicMetricsToolbar
-    v-if="visibleMetricsNames.length > 0"
+    v-if="dynamicMetricsStore.currentMetricsNames.length > 0"
     :limit="METRICS_LIMIT"
     :total="metricsNames.length"
     :show-title="showTitle"
@@ -8,110 +8,46 @@
   />
   <div class="charts">
     <DynamicMetricsItem
-      v-for="name in visibleMetricsNames"
+      v-for="name in dynamicMetricsStore.currentMetricsNames"
       :key="name"
       :metric-name="name"
-      :data="metrics[name]"
+      :data="dynamicMetricsStore.metrics[name]"
       :models-info="modelsInfo"
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import type {
-  ExperimentSnapshotDynamicMetric,
-  ExperimentSnapshotProvider,
-  ModelInfo,
-} from '../../interfaces/interfaces'
 import type { PageState } from 'primevue'
-import { useToast } from 'primevue'
-import { onBeforeUnmount, ref, watch } from 'vue'
+import type { DynamicMetricsProps } from './dynamic-metrics.interface'
+import { onBeforeUnmount, watch } from 'vue'
+import { useDynamicMetricsStore } from '../../store/dynamic-metrics'
+import { METRICS_LIMIT } from '@/store/dynamic-metrics/dynamic-metrics.data'
 import DynamicMetricsItem from './DynamicMetricsItem.vue'
 import DynamicMetricsToolbar from './DynamicMetricsToolbar.vue'
-import { simpleErrorToast } from '../../lib/primevue/data/toasts'
-import axios from 'axios'
 
-const METRICS_LIMIT = 50
+const dynamicMetricsStore = useDynamicMetricsStore()
 
-type Props = {
-  metricsNames: string[]
-  provider: ExperimentSnapshotProvider
-  modelsInfo: Record<string, ModelInfo>
-  showTitle?: boolean
-}
-
-const props = withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<DynamicMetricsProps>(), {
   showTitle: true,
 })
 
-let dynamicMetricsController: AbortController | null = null
-
-const toast = useToast()
-
-const page = ref(0)
-const visibleMetricsNames = ref<string[]>([])
-const metrics = ref<Record<string, ExperimentSnapshotDynamicMetric[]>>({})
-
-function resetMetrics() {
-  metrics.value = {}
-}
-
-async function getMetrics() {
-  const metricsToFetch = visibleMetricsNames.value.filter((name) => !metrics.value[name])
-  const results = await fetchMetrics(metricsToFetch)
-  const rejectedMetrics: Record<string, any> = {}
-  results.forEach((result, index) => {
-    if (result.status === 'rejected') {
-      const name = metricsToFetch[index]
-      if (!name) return
-      rejectedMetrics[name] = result.reason
-    }
-  })
-  handleRejectedMetrics(rejectedMetrics)
-}
-
-function handleRejectedMetrics(rejectedMetrics: Record<string, any>) {
-  Object.entries(rejectedMetrics).forEach(([name, reason]) => {
-    const isCanceled = axios.isCancel(reason)
-    if (isCanceled) return
-    toast.add(simpleErrorToast(`Failed to load dynamic metric data for "${name}"`))
-  })
-}
-
-async function fetchMetrics(names: string[]) {
-  dynamicMetricsController?.abort()
-  dynamicMetricsController = new AbortController()
-  return Promise.allSettled(
-    names.map(async (name) => {
-      const data = await props.provider.getDynamicMetricData(name, dynamicMetricsController?.signal)
-      metrics.value[name] = data
-    }),
-  )
-}
-
 function onPageChange(event: PageState) {
-  page.value = event.page
-}
-
-function setVisibleMetricsNames() {
-  visibleMetricsNames.value = props.metricsNames.slice(
-    page.value * METRICS_LIMIT,
-    (page.value + 1) * METRICS_LIMIT,
-  )
+  dynamicMetricsStore.setPage(event.page)
 }
 
 watch(
-  page,
+  () => props.metricsNames,
   () => {
-    setVisibleMetricsNames()
-    resetMetrics()
-    getMetrics()
+    dynamicMetricsStore.setMetricsNames(props.metricsNames)
   },
-  { immediate: true },
+  {
+    immediate: true,
+  },
 )
 
 onBeforeUnmount(() => {
-  dynamicMetricsController?.abort()
+  dynamicMetricsStore.reset()
 })
 </script>
 
