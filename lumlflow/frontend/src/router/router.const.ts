@@ -8,6 +8,7 @@ export const ROUTE_NAMES = {
   EXPERIMENT_EVALS: 'experiment-evals',
   EXPERIMENT_ATTACHMENTS: 'experiment-attachments',
   EXPERIMENTS_COMPARISON: 'experiments-comparison',
+  GROUPS_COMPARISON: 'groups-comparison',
 }
 
 export const ROUTES = {
@@ -22,4 +23,5 @@ export const ROUTES = {
   [ROUTE_NAMES.EXPERIMENT_ATTACHMENTS]: 'attachments',
 
   [ROUTE_NAMES.EXPERIMENTS_COMPARISON]: 'experiments/comparison',
+  [ROUTE_NAMES.GROUPS_COMPARISON]: 'groups/comparison',
 }

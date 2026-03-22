@@ -69,6 +69,12 @@ export const useGroupsStore = defineStore('groups', () => {
     detailedGroup.value = group
   }
 
+  function reset() {
+    selectedGroups.value = []
+    editableGroup.value = null
+    detailedGroup.value = null
+  }
+
   const debouncedUpdatePaginationParams = useDebounceFn(updatePaginationParams, 500)
 
   watch(queryParams, debouncedUpdatePaginationParams)
@@ -91,5 +97,6 @@ export const useGroupsStore = defineStore('groups', () => {
     detailedGroup,
     setDetailedGroup,
     getGroupById,
+    reset,
   }
 })

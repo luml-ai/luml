@@ -10,8 +10,16 @@ import { useDebounceFn } from '@vueuse/core'
 
 export const useExperimentsStore = defineStore('experiments', () => {
   const toast = useToast()
-  const { data, getInitialPage, getNextPage, setParams, onLazyLoad, getParams, isLoading, reset } =
-    usePagination<Experiment, GetExperimentsParams>(apiService.getExperiments)
+  const {
+    data,
+    getInitialPage,
+    getNextPage,
+    setParams,
+    onLazyLoad,
+    getParams,
+    isLoading,
+    reset: resetList,
+  } = usePagination<Experiment, GetExperimentsParams>(apiService.getExperiments)
 
   const queryParams = ref<Partial<GetExperimentsParams>>({})
 
@@ -67,6 +75,11 @@ export const useExperimentsStore = defineStore('experiments', () => {
     } catch (error) {
       toast.add(errorToast(error))
     }
+  }
+
+  function reset() {
+    resetList()
+    selectedExperiments.value = []
   }
 
   const debouncedUpdatePaginationParams = useDebounceFn(updatePaginationParams, 500)
