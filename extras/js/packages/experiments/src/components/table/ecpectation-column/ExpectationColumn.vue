@@ -27,7 +27,6 @@ const props = defineProps<ExpectationColumnProps>()
 const tagText = computed(() => {
   if (!props.data) return null
   const { total = 0, positive = 0, negative = 0 } = props.data
-  console.log(props.data)
   const count = total - positive - negative - 1
   if (count <= 0) return null
   return `+${count}`

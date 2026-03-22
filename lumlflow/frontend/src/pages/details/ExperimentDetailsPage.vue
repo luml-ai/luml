@@ -54,12 +54,13 @@ import { useThemeStore } from '@/store/theme'
 import { provideTheme } from '@luml/experiments'
 import DetailsBreadcrumbs from '@/components/experiments/details/DetailsBreadcrumbs.vue'
 import DetailsTabs from '@/components/experiments/details/DetailsTabs.vue'
+import type { Experiment } from '@/store/experiments/experiments.interface'
 
 const route = useRoute()
 const toast = useToast()
 const experimentStore = useExperimentStore()
 const evalsStore = useEvalsStore()
-const { provider } = useExperimentProvider()
+const { provider, createProvider, resetProvider } = useExperimentProvider()
 const themeStore = useThemeStore()
 const annotationsStore = useAnnotationsStore()
 
@@ -98,7 +99,21 @@ function onTraceVisibleUpdate(value: boolean | undefined) {
   }
 }
 
+async function onExperimentChange(experiment: Experiment | null) {
+  try {
+    if (experiment) await createProvider([experiment])
+    else resetProvider()
+  } catch (error) {
+    toast.add(errorToast(error))
+    resetProvider()
+  }
+}
+
 watch(experimentId, (experimentId) => fetchData(experimentId), {
+  immediate: true,
+})
+
+watch(() => experimentStore.experiment, onExperimentChange, {
   immediate: true,
 })
 
@@ -119,6 +134,7 @@ onBeforeMount(() => {
 
 onUnmounted(() => {
   experimentStore.resetExperiment()
+  resetProvider()
 })
 </script>
 

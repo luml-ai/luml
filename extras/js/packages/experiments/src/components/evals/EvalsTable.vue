@@ -139,7 +139,10 @@
       </ColumnGroup>
       <Column v-for="column in visibleColumns" :key="column" :field="column">
         <template #body="slotProps">
-          <ModelIdColumn v-if="column === 'modelId'" :data="slotProps.data[column]"></ModelIdColumn>
+          <ModelIdColumn
+            v-if="column === 'modelId'"
+            :data="modelsInfo[slotProps.data.modelId]"
+          ></ModelIdColumn>
           <button
             v-else-if="column === 'id'"
             class="cell link"

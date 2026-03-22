@@ -9,6 +9,7 @@ import MetricsView from '@/pages/details/MetricsView.vue'
 import TracesView from '@/pages/details/TracesView.vue'
 import EvalsView from '@/pages/details/EvalsView.vue'
 import AttachmentsView from '@/pages/details/AttachmentsView.vue'
+import ExperimentsComparison from '@/pages/comparison/ExperimentsComparison.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -58,6 +59,11 @@ const router = createRouter({
               component: AttachmentsView,
             },
           ],
+        },
+        {
+          name: ROUTE_NAMES.EXPERIMENTS_COMPARISON,
+          path: ROUTES[ROUTE_NAMES.EXPERIMENTS_COMPARISON],
+          component: ExperimentsComparison,
         },
       ],
     },

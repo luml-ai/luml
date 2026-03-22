@@ -1,5 +1,5 @@
 <template>
-  <div v-tooltip.top="data.name" class="cell" style="width: 123px">
+  <div v-if="data" v-tooltip.top="data.name" class="cell" style="width: 123px">
     <span class="circle" :style="{ backgroundColor: data.color }"></span>
     {{ data.name }}
   </div>

@@ -29,7 +29,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const breadcrumbs = computed(() => [
-  { label: 'Experiments group ', route: { name: ROUTE_NAMES.HOME } },
+  { label: 'Groups', route: { name: ROUTE_NAMES.HOME } },
   {
     label: props.groupName,
     route: { name: ROUTE_NAMES.EXPERIMENT, params: { groupId: props.groupId } },
@@ -37,7 +37,7 @@ const breadcrumbs = computed(() => [
   {
     label: props.experimentName,
     route: {
-      name: ROUTE_NAMES.EXPERIMENT_DETAILS,
+      name: ROUTE_NAMES.EXPERIMENT_OVERVIEW,
       params: { groupId: props.groupId, experimentId: props.experimentId },
     },
   },

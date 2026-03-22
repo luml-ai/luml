@@ -1,21 +1,22 @@
 import type { Experiment } from '@/store/experiments/experiments.interface'
 import { ExperimentSnapshotApiProvider, type ExperimentSnapshotProvider } from '@luml/experiments'
 import { apiService } from '@/api/api.service'
-import { useExperimentStore } from '@/store/experiment'
-import { ref, watch, type Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 
-export const useExperimentProvider = (): { provider: Ref<ExperimentSnapshotProvider | null> } => {
-  const experimentStore = useExperimentStore()
-
+export const useExperimentProvider = (): {
+  provider: Ref<ExperimentSnapshotProvider | null>
+  createProvider: (experiments: Experiment[]) => Promise<void>
+  resetProvider: () => void
+} => {
   const provider = ref<ExperimentSnapshotProvider | null>(null)
 
-  async function createProvider(experiment: Experiment) {
+  async function createProvider(experiments: Experiment[]) {
     const newProvider = new ExperimentSnapshotApiProvider(apiService)
-    const experimentMainInfo = {
+    const artifacts = experiments.map((experiment) => ({
       id: experiment.id,
       dynamicMetrics: Object.keys(experiment.dynamic_params ?? {}),
-    }
-    await newProvider.init({ artifacts: [experimentMainInfo] })
+    }))
+    await newProvider.init({ artifacts: artifacts })
     provider.value = newProvider
   }
 
@@ -23,18 +24,9 @@ export const useExperimentProvider = (): { provider: Ref<ExperimentSnapshotProvi
     provider.value = null
   }
 
-  watch(
-    () => experimentStore.experiment,
-    (experiment) => {
-      if (experiment) createProvider(experiment)
-      else resetProvider()
-    },
-    {
-      immediate: true,
-    },
-  )
-
   return {
     provider,
+    createProvider,
+    resetProvider,
   }
 }

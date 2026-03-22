@@ -11,7 +11,7 @@ export const COLUMNS_ICONS = {
 
 export const COLUMNS_TITLES_MAP = {
   id: 'ID',
-  modelId: 'Model name',
+  modelId: 'Artifact name',
   feedback: 'feedback',
   inputs: 'inputs',
   outputs: 'outputs',
