@@ -90,7 +90,11 @@
           rounded
           :loading="uploadLoading"
         />
-        <ProgressBar v-if="progress" :value="progress" class="rounded-full!"></ProgressBar>
+        <ProgressBar
+          v-if="progress !== null && progress !== undefined"
+          :value="progress"
+          class="rounded-full!"
+        ></ProgressBar>
       </div>
     </template>
   </Dialog>
@@ -200,11 +204,11 @@ async function getOrbits(organizationId: string) {
 }
 
 function handleChangeCollection(collection: CollectionInfo | undefined) {
-  console.log(collection)
   existingTags.value = collection?.tags || []
 }
 
 function handleSubmit(event: FormSubmitEvent) {
+  if (!event.valid) return
   const payload: UploadArtifactPayload = {
     upload_type: event.values.type,
     embed_experiment: event.values.embedExperiment,

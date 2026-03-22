@@ -20,8 +20,8 @@ export interface OrbitInfo {
   name: string
   organization_id: string
   bucket_secret_id: string
-  total_members: number
-  total_collections: number
+  total_members: number | null
+  total_collections: number | null
   created_at: string
   updated_at: string | null
 }

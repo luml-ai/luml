@@ -15,10 +15,12 @@ export const useUpload = () => {
   async function upload(payload: UploadArtifactPayload) {
     try {
       loading.value = true
+      error.value = null
       const response = await apiService.uploadArtifact(payload)
       initProgressWatch(response.job_id)
-    } catch (error) {
-      toast.add(errorToast(error))
+    } catch (err) {
+      loading.value = false
+      toast.add(errorToast(err))
     }
   }
 
@@ -43,16 +45,26 @@ export const useUpload = () => {
         }
         complete.value = true
         loading.value = false
+        eventSource.close()
         setTimeout(() => {
           reset()
         }, 3000)
       } else if (data.type === 'error') {
         error.value = data.message
         loading.value = false
+        eventSource.close()
+      } else if (data.type === 'not_found') {
+        error.value = 'Upload not found. Please try again.'
+        loading.value = false
+        eventSource.close()
       }
     }
     eventSource.onerror = () => {
       eventSource.close()
+      if (!complete.value) {
+        error.value = error.value ?? 'Failed to receive upload progress. Please try again.'
+        loading.value = false
+      }
     }
   }
 
