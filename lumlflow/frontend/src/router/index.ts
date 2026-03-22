@@ -10,6 +10,7 @@ import TracesView from '@/pages/details/TracesView.vue'
 import EvalsView from '@/pages/details/EvalsView.vue'
 import AttachmentsView from '@/pages/details/AttachmentsView.vue'
 import ExperimentsComparison from '@/pages/comparison/ExperimentsComparison.vue'
+import GroupsComparisonPage from '@/pages/comparison/GroupsComparisonPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -27,6 +28,11 @@ const router = createRouter({
           name: ROUTE_NAMES.EXPERIMENT,
           path: ROUTES[ROUTE_NAMES.EXPERIMENT],
           component: ExperimentPage,
+        },
+        {
+          name: ROUTE_NAMES.GROUPS_COMPARISON,
+          path: ROUTES[ROUTE_NAMES.GROUPS_COMPARISON],
+          component: GroupsComparisonPage,
         },
         {
           name: ROUTE_NAMES.EXPERIMENT_DETAILS,

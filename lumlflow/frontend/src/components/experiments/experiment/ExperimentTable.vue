@@ -89,7 +89,7 @@
         <ExperimentModelsListColumn :models="slotProps.data.models" />
       </template>
     </Column>
-    <template v-for="metric in metricsColumns" :key="metric">
+    <template v-for="metric in dynamicMetrics" :key="metric">
       <Column v-if="showColumn(metric)" :field="metric" :header="metric" class="w-[180px]">
         <template #body="slotProps">
           <span
@@ -111,7 +111,6 @@
 <script setup lang="ts">
 import { DataTable, Column, type VirtualScrollerProps, type DataTableRowClickEvent } from 'primevue'
 import { useExperimentsStore } from '@/store/experiments'
-import { useGroupsStore } from '@/store/groups'
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { FileChartLine } from 'lucide-vue-next'
 import { dateToText, durationToText } from '@/helpers/date'
@@ -122,15 +121,16 @@ import ExperimentModelsListColumn from './ExperimentModelsListColumn.vue'
 import { cutStringOnMiddle } from '@/helpers/string'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useRouter } from 'vue-router'
+import type { Experiment } from '@/store/experiments/experiments.interface'
 
 interface Props {
-  groupId: string
+  groupsIds: string[]
+  dynamicMetrics: string[]
 }
 
 const props = defineProps<Props>()
 
 const experimentsStore = useExperimentsStore()
-const groupsStore = useGroupsStore()
 const router = useRouter()
 
 const loading = ref(true)
@@ -143,10 +143,6 @@ const virtualScrollerOptions: VirtualScrollerProps = {
 
 const statusIconInfo = computed(() => getStatusIconInfo)
 
-const metricsColumns = computed(() => {
-  return groupsStore.detailedGroup?.experiments_dynamic_params || []
-})
-
 const showColumn = computed(() => (columnTitle: string) => {
   return experimentsStore.visibleColumns.includes(columnTitle)
 })
@@ -155,16 +151,18 @@ function onRowClick(event: DataTableRowClickEvent) {
   const target = event.originalEvent.target as HTMLElement
   const rowIncludeCheckbox = !!target.querySelector('input[type="checkbox"]')
   if (rowIncludeCheckbox) return
-  const id = event.data.id
-  if (!id) return
+  const experimentInfo = event.data as Experiment
+  const id = experimentInfo.id
+  const groupId = experimentInfo.group_id
+  if (!id || !groupId) return
   router.push({
     name: ROUTE_NAMES.EXPERIMENT_OVERVIEW,
-    params: { groupId: props.groupId, experimentId: String(id) },
+    params: { groupId: groupId, experimentId: String(id) },
   })
 }
 
 watch(
-  metricsColumns,
+  () => props.dynamicMetrics,
   (metricsColumns) => {
     experimentsStore.setTableColumns([...CONSTANTS_COLUMNS, ...metricsColumns])
     experimentsStore.setVisibleColumns([...CONSTANTS_COLUMNS, ...metricsColumns.slice(0, 20)])
@@ -173,11 +171,11 @@ watch(
 )
 
 watch(
-  () => props.groupId,
-  (groupId) => {
+  () => props.groupsIds,
+  (val) => {
     experimentsStore.setQueryParams({
       ...experimentsStore.queryParams,
-      group_id: groupId,
+      group_ids: val,
     })
   },
   { immediate: true },

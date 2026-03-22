@@ -10,7 +10,7 @@
         <Bolt :size="14" />
       </template>
     </Button>
-    <Button severity="secondary" variant="text" disabled @click="onCompare">
+    <Button severity="secondary" variant="text" :disabled="compareDisabled" @click="onCompare">
       <template #icon>
         <Repeat :size="14" />
       </template>
@@ -29,9 +29,12 @@ import { Trash2, Bolt, Repeat, Filter } from 'lucide-vue-next'
 import { useGroupsStore } from '@/store/groups'
 import { computed } from 'vue'
 import { deleteGroupConfirmOptions } from '@/confirm/confirm'
+import { useRouter } from 'vue-router'
+import { ROUTE_NAMES } from '@/router/router.const'
 
 const groupsStore = useGroupsStore()
 const confirm = useConfirm()
+const router = useRouter()
 
 const deleteDisabled = computed(() => {
   return groupsStore.selectedGroups.length === 0
@@ -39,6 +42,10 @@ const deleteDisabled = computed(() => {
 
 const settingsDisabled = computed(() => {
   return groupsStore.selectedGroups.length !== 1
+})
+
+const compareDisabled = computed(() => {
+  return groupsStore.selectedGroups.length < 2
 })
 
 function onDelete() {
@@ -56,7 +63,8 @@ function onSettings() {
 }
 
 function onCompare() {
-  console.log('compare')
+  const groupsIds = groupsStore.selectedGroups.map((group) => group.id)
+  router.push({ name: ROUTE_NAMES.GROUPS_COMPARISON, query: { groupsIds } })
 }
 
 function onFilter() {

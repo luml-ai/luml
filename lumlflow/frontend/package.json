@@ -13,6 +13,8 @@
     "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "dependencies": {
+    "@luml/attachments": "*",
+    "@luml/experiments": "*",
     "@primeuix/themes": "^2.0.3",
     "@primevue/forms": "^4.3.9",
     "@tailwindcss/vite": "^4.1.18",
@@ -21,12 +23,11 @@
     "lucide-vue-next": "^0.460.0",
     "pinia": "^2.2.6",
     "primevue": "^4.4.1",
+    "qs": "^6.15.0",
     "tailwindcss": "^4.1.18",
     "tailwindcss-primeui": "^0.6.1",
     "vue": "^3.5.12",
     "vue-router": "^4.4.5",
-    "zod": "^4.3.6",
-    "@luml/attachments": "*",
-    "@luml/experiments": "*"
+    "zod": "^4.3.6"
   }
 }
