@@ -5,6 +5,7 @@ from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.trace import Status, StatusCode, Tracer
+
 from luml.experiments.evaluation.scorers.base import (
     BaseScorer,
     SupervisedScorer,

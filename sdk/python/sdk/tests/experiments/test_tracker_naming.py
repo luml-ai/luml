@@ -1,6 +1,4 @@
 import re
-import sys
-import types
 from unittest.mock import MagicMock, patch
 
 NAME_PATTERN = re.compile(r"^[a-z]+-[a-z]+-\d{3}$")

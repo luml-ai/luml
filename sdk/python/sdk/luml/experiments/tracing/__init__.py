@@ -14,6 +14,7 @@ class TracerManager:
         from opentelemetry.sdk.resources import Resource
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
         from luml.experiments.tracing.span_exporter import LumlSpanExporter
 
         service_name: str = "luml-sdk"

@@ -63,7 +63,7 @@ class ExperimentTracker:
 
         Args:
             name (str | None): The name of the experiment. If not provided,
-                the experiment will be initialized without a specific name
+                a random name in the format "adjective-noun-###" will be generated
             group (str): The group to which the experiment belongs. Defaults to
                 "default".
             experiment_id (str | None): A unique identifier for the experiment. If not
@@ -397,6 +397,7 @@ class ExperimentTracker:
         Export the entire experiment tracking data and save as an artifact.
 
         Args:
+            experiment_id:
             output_path: Path to save the exported artifact.
 
         Example:
