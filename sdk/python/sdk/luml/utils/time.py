@@ -1,2 +1,5 @@
+from time import time
+
+
 def get_epoch() -> int:
-    return int(luml.utils.time() * 1000)
+    return int(time() * 1000)

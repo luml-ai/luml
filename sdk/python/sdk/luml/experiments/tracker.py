@@ -403,6 +403,32 @@ class ExperimentTracker:
             exp_id, eval_dataset_id, eval_id, trace_id
         )
 
+    def get_evals_annotation_summaries(
+        self, experiment_id: str, eval_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
+        """
+        Retrieves annotation summaries for a batch of evaluations within an experiment.
+
+        Args:
+            experiment_id (str): The unique identifier of the experiment.
+            eval_ids (list[str]): A list of evaluation IDs to retrieve summaries for.
+
+        Returns:
+            dict[str, AnnotationSummary]: A dictionary mapping each eval ID to its annotation
+            summary. Eval IDs with no annotations are excluded from the result.
+
+        Example:
+            >>> tracker = ExperimentTracker()
+            >>> tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
+            {
+                "eval-xyz": AnnotationSummary(
+                    feedback=[FeedbackSummaryItem(name="quality", total=2, counts={"true": 1, "false": 1})],
+                    expectations=[],
+                ),
+            }
+        """
+        return self.backend.get_evals_annotation_summaries(experiment_id, eval_ids)
+
     def log_attachment(
         self,
         name: str,

@@ -12,7 +12,7 @@ from lumlflow.schemas.experiment_groups import (
     UpdateGroup,
 )
 from lumlflow.schemas.experiments import (
-    ExperimentListed,
+    ExperimentDetails,
     PaginatedExperiments,
     SearchValidationResult,
 )
@@ -164,10 +164,19 @@ class ExperimentGroupsHandler:
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
-        return PaginatedExperiments(
-            items=[ExperimentListed.model_validate(e) for e in result.items],
-            cursor=result.cursor,
-        )
+        groups_map = {}
+        for gid in group_ids:
+            g = self.tracker.get_group(gid)
+            if g:
+                groups_map[gid] = g.name
+
+        items = []
+        for e in result.items:
+            exp = ExperimentDetails.model_validate(e)
+            exp.group_name = groups_map.get(exp.group_id)
+            items.append(exp)
+
+        return PaginatedExperiments(items=items, cursor=result.cursor)
 
     def list_group_experiments(
         self,
@@ -207,7 +216,7 @@ class ExperimentGroupsHandler:
             raise ApplicationError(str(e), status_code=500) from e
 
         return PaginatedExperiments(
-            items=[ExperimentListed.model_validate(e) for e in result.items],
+            items=[ExperimentDetails.model_validate(e) for e in result.items],
             cursor=result.cursor,
         )
 
