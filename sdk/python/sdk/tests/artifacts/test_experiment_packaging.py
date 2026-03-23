@@ -78,7 +78,8 @@ def test_manifest_content(
     manifest = ref.get_manifest()
     assert isinstance(manifest, ArtifactManifest)
     assert manifest.artifact_type == "experiment"
-    assert isinstance(manifest.name, str) and len(manifest.name) > 0
+    assert isinstance(manifest.name, str)
+    assert len(manifest.name) > 0
     assert manifest.payload.local_experiment_id == exp_id
     assert manifest.payload.tags == ["test", "unit"]
 
