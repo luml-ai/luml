@@ -1867,9 +1867,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         where_conditions: list[tuple[str, list]] = [("group_id = ?", [group_id])]
         if search:
-            where_conditions.append(
-                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
-            )
+            where_clause, _, search_params = SearchExperimentsUtils.to_sql(search)
+            if where_clause:
+                where_conditions.append((where_clause, search_params))
         return self._build_experiments_page(
             where_conditions, limit, sort_by, order, cursor_str, json_sort_column
         )
@@ -1951,9 +1951,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             (f"group_id IN ({placeholders})", list(group_ids))
         ]
         if search:
-            where_conditions.append(
-                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
-            )
+            where_clause, _, search_params = SearchExperimentsUtils.to_sql(search)
+            if where_clause:
+                where_conditions.append((where_clause, search_params))
         return self._build_experiments_page(
             where_conditions, limit, sort_by, order, cursor_str, json_sort_column
         )
