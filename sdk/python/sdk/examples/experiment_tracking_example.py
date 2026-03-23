@@ -1,4 +1,3 @@
-
 from sklearn.datasets import load_iris
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.model_selection import cross_val_score

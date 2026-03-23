@@ -1545,7 +1545,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 name=d["name"],
                 description=d["description"],
                 created_at=d["created_at"],
-                tags=d["tags"] if d["tags"] else [],
+                tags=json.loads(d["tags"]) if d["tags"] else [],
                 last_modified=d["last_modified"],
             )
             for d in self._items_to_dict(columns, rows)

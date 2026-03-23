@@ -3,9 +3,9 @@ from collections.abc import Callable, Generator
 
 import httpx
 
-from luml.api._exceptions import FileDownloadError
-from luml.api._types import PartDetails
-from luml.api.utils.progress import BaseProgressHandler, PrintProgressHandler
+from luml_api._exceptions import FileDownloadError
+from luml_api._types import PartDetails
+from luml_api.utils.progress import BaseProgressHandler, PrintProgressHandler
 
 
 class BaseFileHandler(ABC):

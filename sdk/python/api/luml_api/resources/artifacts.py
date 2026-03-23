@@ -13,13 +13,13 @@ from luml_api._types import (
     SortOrder,
     is_uuid,
 )
-from luml.api._utils import find_by_value
-from luml.api.resources._listed_resource import ListedResource
-from luml.api.resources._validators import validate_collection
-from luml.api.services.upload_service import AsyncUploadService, UploadService
-from luml.api.utils.model_artifacts import ModelFileHandler
-from luml.api.utils.progress import BaseProgressHandler
-from luml.api.utils.s3_file_handler import S3FileHandler
+from luml_api._utils import find_by_value
+from luml_api.handlers.model_artifacts import ModelFileHandler
+from luml_api.handlers.s3_file_handler import S3FileHandler
+from luml_api.resources._listed_resource import ListedResource
+from luml_api.resources._validators import validate_collection
+from luml_api.services.upload_service import AsyncUploadService, UploadService
+from luml_api.utils.progress import BaseProgressHandler
 
 if TYPE_CHECKING:
     from luml_api._client import AsyncLumlClient, LumlClient

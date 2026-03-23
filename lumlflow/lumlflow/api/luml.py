@@ -1,8 +1,10 @@
 import time
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Query
 from fastapi.responses import StreamingResponse
+from luml_api import CollectionTypeFilter
 
 from lumlflow.handlers.luml.artifacts import ArtifactHandler
 from lumlflow.handlers.luml.luml import LumlHandler
@@ -39,6 +41,7 @@ def get_luml_collections(
     start_after: str | None = None,
     limit: int = 50,
     search: str | None = None,
+    types: Annotated[list[CollectionTypeFilter] | None, Query()] = None,
 ) -> PaginatedCollections:
     return luml_handler.get_luml_collections(
         organization_id=organization_id,
@@ -46,6 +49,7 @@ def get_luml_collections(
         start_after=start_after,
         limit=limit,
         search=search,
+        types=types,
     )
 
 
