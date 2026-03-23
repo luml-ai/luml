@@ -27,6 +27,8 @@ export const useExperimentsStore = defineStore('experiments', () => {
   const tableColumns = ref<string[]>([])
   const visibleColumns = ref<string[]>([])
   const editableExperiment = ref<Experiment | null>(null)
+  const dynamicMetrics = ref<string[]>([])
+  const staticParams = ref<string[]>([])
 
   function setEditableExperiment(experiment: Experiment | null) {
     editableExperiment.value = experiment
@@ -82,6 +84,32 @@ export const useExperimentsStore = defineStore('experiments', () => {
     selectedExperiments.value = []
   }
 
+  async function fetchDynamicMetrics(groupsIds: string[]) {
+    try {
+      const metrics = await apiService.getDynamicMetrics(groupsIds)
+      dynamicMetrics.value = metrics
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
+  }
+
+  function resetDynamicMetrics() {
+    dynamicMetrics.value = []
+  }
+
+  async function fetchStaticParams(groupsIds: string[]) {
+    try {
+      const params = await apiService.getStaticParams(groupsIds)
+      staticParams.value = params
+    } catch (error) {
+      toast.add(errorToast(error))
+    }
+  }
+
+  function resetStaticParams() {
+    staticParams.value = []
+  }
+
   const debouncedUpdatePaginationParams = useDebounceFn(updatePaginationParams, 500)
 
   watch(queryParams, debouncedUpdatePaginationParams, { deep: true })
@@ -105,5 +133,11 @@ export const useExperimentsStore = defineStore('experiments', () => {
     setQueryParams,
     queryParams,
     reset,
+    dynamicMetrics,
+    fetchDynamicMetrics,
+    resetDynamicMetrics,
+    staticParams,
+    fetchStaticParams,
+    resetStaticParams,
   }
 })

@@ -110,3 +110,8 @@ export interface GetLumlCollectionsParams {
 export interface UploadArtifactResponse {
   job_id: string
 }
+
+export interface ValidateExperimentSearchResponse {
+  valid: boolean
+  error: string | null
+}

@@ -14,6 +14,7 @@ import type {
   AnnotationSummary,
   GetLumlCollectionsParams,
   UploadArtifactResponse,
+  ValidateExperimentSearchResponse,
 } from './api.interface'
 import { api } from './client'
 import type {
@@ -313,6 +314,32 @@ export const apiService = {
 
   uploadArtifact: async (payload: UploadArtifactPayload) => {
     const { data } = await api.post<UploadArtifactResponse>(`/luml/artifact`, payload)
+    return data
+  },
+
+  getDynamicMetrics: async (group_ids: string[]) => {
+    const { data } = await api.get<string[]>(`/groups/experiments/dynamic-metrics`, {
+      params: { group_ids },
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+    })
+    return data
+  },
+
+  getStaticParams: async (group_ids: string[]) => {
+    const { data } = await api.get<string[]>(`/groups/experiments/static-params`, {
+      params: { group_ids },
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+    })
+    return data
+  },
+
+  validateExperimentSearch: async (query: string) => {
+    const { data } = await api.get<ValidateExperimentSearchResponse>(
+      `/groups/experiments/validate-search`,
+      {
+        params: { query },
+      },
+    )
     return data
   },
 }

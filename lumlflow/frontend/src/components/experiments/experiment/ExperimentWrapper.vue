@@ -9,6 +9,8 @@
 </template>
 
 <script setup lang="ts">
+import { onBeforeMount, onBeforeUnmount } from 'vue'
+import { useExperimentsStore } from '@/store/experiments'
 import { Card } from 'primevue'
 import ExperimentToolbar from './ExperimentToolbar.vue'
 import ExperimentTable from './ExperimentTable.vue'
@@ -20,6 +22,18 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+const experimentsStore = useExperimentsStore()
+
+onBeforeMount(async () => {
+  await experimentsStore.fetchDynamicMetrics(props.groupsIds)
+  await experimentsStore.fetchStaticParams(props.groupsIds)
+})
+
+onBeforeUnmount(() => {
+  experimentsStore.resetDynamicMetrics()
+  experimentsStore.resetStaticParams()
+})
 </script>
 
 <style scoped></style>
