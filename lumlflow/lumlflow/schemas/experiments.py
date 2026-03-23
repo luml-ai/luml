@@ -25,14 +25,10 @@ class _ExperimentBase(BaseModel, BaseOrmConfig):
     dynamic_params: dict[str, Any] | None = None
     created_at: datetime
     group_name: str | None = None
+    group_id: str | None = None
 
 
-class Experiment(_ExperimentBase):
-    group_id: str
-
-
-class ExperimentListed(_ExperimentBase):
-    models: list[Model] | None = None
+class Experiment(_ExperimentBase): ...
 
 
 class ExperimentMetaData(BaseModel, BaseOrmConfig):
@@ -71,7 +67,7 @@ class ExperimentsSortBy(StrEnum):
 
 
 class PaginatedExperiments(BaseModel):
-    items: list[ExperimentListed]
+    items: list[ExperimentDetails]
     cursor: str | None = None
 
 

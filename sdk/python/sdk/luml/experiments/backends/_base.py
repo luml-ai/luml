@@ -340,10 +340,6 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
-        pass
-
-    @abstractmethod
     def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
         pass
 
@@ -444,4 +440,10 @@ class Backend(ABC):
 
     @abstractmethod
     def validate_experiments_search(self, search: str | None = None) -> None:
+        pass
+
+    @abstractmethod
+    def get_evals_annotation_summaries(
+        self, experiment_id: str, eval_ids: list[str]
+    ) -> dict[str, AnnotationSummary]:
         pass
