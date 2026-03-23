@@ -2,13 +2,13 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from luml.api._exceptions import LumlAPIError
-from luml.api._types import UploadDetails
-from luml.api.utils.file_handler_factory import create_file_handler
-from luml.api.utils.progress import BaseProgressHandler
+from luml_api._exceptions import LumlAPIError
+from luml_api._types import UploadDetails
+from luml_api.handlers.file_handler_factory import create_file_handler
+from luml_api.utils.progress import BaseProgressHandler
 
 if TYPE_CHECKING:
-    from luml.api.resources.bucket_secrets import (
+    from luml_api.resources.bucket_secrets import (
         AsyncBucketSecretResource,
         BucketSecretResource,
     )

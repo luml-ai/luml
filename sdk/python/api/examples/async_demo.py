@@ -2,7 +2,7 @@
 import asyncio
 
 from luml_api import AsyncLumlClient
-from luml_api._types import CollectionType, ModelArtifactStatus
+from luml_api._types import CollectionType, ArtifactStatus
 
 # Will use Luml API Production url "https://api.luml.ai"
 # And search for LUML_API_KEY in .env
@@ -195,7 +195,7 @@ async def demo_artifacts() -> None:
         artifact_id="0199c455-21ee-74c6-b747-19a82f1a1e75",
         description="Updated: Advanced churn prediction model",
         tags=["xgboost", "churn", "production", "v2.1"],
-        status=ModelArtifactStatus.UPLOADED,
+        status=ArtifactStatus.UPLOADED,
     )
     print(f"Updated artifact: {updated_model}")
 

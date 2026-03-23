@@ -52,6 +52,7 @@ class CollectionResourceBase(ABC):
         limit: int | None = 100,
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> CollectionsList | Coroutine[Any, Any, CollectionsList]:
         raise NotImplementedError()
 
@@ -270,11 +271,11 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                     updated_at=None
                 )
             ],
-            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTwM="
         )
         ```
         """
-        params = {
+        params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
         }
@@ -677,11 +678,11 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
                     updated_at=None
                 )
             ],
-            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTIyVDEyOjU0OjA4LjYwMTI5OCswMDowMCIsICJjcmVhdGVkX2F0Il0="
+            cursor="WyIwMTliNDYxZmNmZDk3NTNhYjMwODJlMDUxZDkzZjVkZiIsICIyMDI1LTEyLTI="
         )
         ```
         """
-        params = {
+        params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
         }

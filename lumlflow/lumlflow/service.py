@@ -20,6 +20,13 @@ class AppService(FastAPI):
     def __init__(self, *args, **kwargs) -> None:  # type: ignore
         super().__init__(*args, **kwargs)
 
+        self.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+
         self.include_router(router=auth_router)
         self.include_router(router=luml_router)
         self.include_router(router=experiment_groups_router)
@@ -30,14 +37,6 @@ class AppService(FastAPI):
         self.include_router(router=annotations_router)
         self.include_error_handlers()
         self.custom_openapi()
-
-        self.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
 
     def include_error_handlers(self) -> None:
         @self.exception_handler(ApplicationError)
