@@ -1762,10 +1762,22 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             [e["id"] for e in experiments_dicts]
         )
 
+        group_ids = list({e["group_id"] for e in experiments_dicts if e["group_id"]})
+        group_names: dict[str, str] = {}
+        if group_ids:
+            placeholders = ",".join("?" * len(group_ids))
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT id, name FROM experiment_groups WHERE id IN ({placeholders})",
+                group_ids,
+            )
+            group_names = {row[0]: row[1] for row in cursor.fetchall()}
+
         items = [
             Experiment(
                 id=e["id"],
                 group_id=e["group_id"],
+                group_name=group_names.get(e["group_id"]),
                 name=e["name"],
                 created_at=e["created_at"],
                 status=e["status"],
