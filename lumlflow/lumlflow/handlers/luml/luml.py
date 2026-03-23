@@ -1,3 +1,5 @@
+from luml_api import CollectionTypeFilter
+
 from lumlflow.handlers.luml.base_luml import BaseLumlHandler
 from lumlflow.infra.exceptions import ApplicationError
 from lumlflow.schemas.luml import (
@@ -29,11 +31,12 @@ class LumlHandler(BaseLumlHandler):
         start_after: str | None = None,
         limit: int = 50,
         search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
     ) -> PaginatedCollections:
         luml = self._get_luml_client(organization_id, orbit_id)
         try:
             result = luml.collections.list(
-                start_after=start_after, limit=limit, search=search
+                start_after=start_after, limit=limit, search=search, types=types
             )
         except Exception as e:
             raise ApplicationError(f"Failed to get luml collections: {str(e)}") from e

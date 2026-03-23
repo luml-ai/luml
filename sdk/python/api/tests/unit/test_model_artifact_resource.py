@@ -383,8 +383,8 @@ def test_upload_forwards_on_progress(
     resource = ArtifactResource(mock_sync_client)
 
     with (
-        patch("luml.api.resources.artifacts.ModelFileHandler") as mock_file_handler,
-        patch("luml.api.resources.artifacts.UploadService") as mock_upload_service_cls,
+        patch("luml_api.resources.artifacts.ModelFileHandler") as mock_file_handler,
+        patch("luml_api.resources.artifacts.UploadService") as mock_upload_service_cls,
     ):
         mock_file_handler.return_value.artifact_details.return_value = Mock(
             file_name="model.fnnx",
@@ -426,9 +426,9 @@ async def test_async_upload_forwards_on_progress(
     resource = AsyncArtifactResource(mock_async_client)
 
     with (
-        patch("luml.api.resources.artifacts.ModelFileHandler") as mock_file_handler,
+        patch("lum_api.resources.artifacts.ModelFileHandler") as mock_file_handler,
         patch(
-            "luml.api.resources.artifacts.AsyncUploadService"
+            "luml_api.resources.artifacts.AsyncUploadService"
         ) as mock_upload_service_cls,
     ):
         mock_file_handler.return_value.artifact_details.return_value = Mock(

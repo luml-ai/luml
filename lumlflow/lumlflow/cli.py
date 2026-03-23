@@ -14,8 +14,8 @@ app = typer.Typer(
 
 @app.command()
 def ui(
-    path: str = typer.Option(
-        "sqlite://./experiments",
+    path: str | None = typer.Option(
+        None,
         "--path",
         help="Backend store URI (e.g. sqlite://./experiments)",
     ),
@@ -25,7 +25,8 @@ def ui(
         False, "--no-browser", help="Don't open browser automatically"
     ),
 ) -> None:
-    os.environ["BACKEND_STORE_URI"] = path
+    if path is not None:
+        os.environ["BACKEND_STORE_URI"] = path
     url = f"http://{host}:{port}"
 
     def open_browser_delayed() -> None:
