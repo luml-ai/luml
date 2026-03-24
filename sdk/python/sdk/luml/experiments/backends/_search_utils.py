@@ -290,6 +290,7 @@ class SearchUtils:
 
 class SearchExperimentsUtils(SearchUtils):
     VALID_SEARCH_ATTRIBUTE_KEYS = {
+        "id",
         "name",
         "status",
         "created_at",
@@ -299,7 +300,7 @@ class SearchExperimentsUtils(SearchUtils):
     }
     VALID_ORDER_BY_ATTRIBUTE_KEYS = {"name", "status", "created_at", "duration", "id"}
     NUMERIC_ATTRIBUTES = {"duration", "created_at"}
-    STRING_ATTRIBUTES = {"name", "status", "description", "group_id"}
+    STRING_ATTRIBUTES = {"id", "name", "status", "description", "group_id"}
 
     # Identifier type constants
     _ATTRIBUTE_IDENTIFIER = "attribute"

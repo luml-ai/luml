@@ -95,7 +95,7 @@ def validate_experiments_search(
 
     Supported filter syntax:
     - **Attributes** (bare key or attribute.<key> / attr.<key>):
-      name, status, description, group_id — operators:
+      id, name, status, description, group_id — operators:
         =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
       created_at, duration — operators: =, !=, >, >=, <, <=
     - **Dynamic metrics**: metric.<key> / metrics.<key> / dynamic_params.<key>
