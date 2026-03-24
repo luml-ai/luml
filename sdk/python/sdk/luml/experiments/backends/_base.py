@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from sdk.luml.artifacts._base import _BaseFile
-from sdk.luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.artifacts._base import _BaseFile
+from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
 
 
 class Backend(ABC):

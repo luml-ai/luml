@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from sdk.luml.artifacts._base import DiskReference
-from sdk.luml.artifacts.dataset._manifest import DatasetArtifactManifest
+from luml.artifacts._base import DiskReference
+from luml.artifacts.dataset._manifest import DatasetArtifactManifest
 
 
 class DatasetReference(DiskReference):
