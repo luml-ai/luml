@@ -15,7 +15,7 @@
     <ExperimentWrapper
       v-if="groupId && groupsStore.detailedGroup"
       :groups-ids="[groupId]"
-      :dynamic-metrics="groupsStore.detailedGroup.experiments_dynamic_params"
+      :dynamic-metrics="experimentsStore.dynamicMetrics"
     />
   </div>
 </template>
@@ -26,12 +26,14 @@ import { useRoute } from 'vue-router'
 import { errorToast } from '@/toasts'
 import { Skeleton, useToast } from 'primevue'
 import { useGroupsStore } from '@/store/groups'
+import { useExperimentsStore } from '@/store/experiments'
 import ExperimentBreadcrumbs from '@/components/experiments/experiment/ExperimentBreadcrumbs.vue'
 import ExperimentWrapper from '@/components/experiments/experiment/ExperimentWrapper.vue'
 
 const toast = useToast()
 const route = useRoute()
 const groupsStore = useGroupsStore()
+const experimentsStore = useExperimentsStore()
 
 const loading = ref(true)
 
@@ -43,6 +45,7 @@ onBeforeMount(async () => {
     const group = await groupsStore.getGroupById(groupId.value)
     if (!group) throw new Error('Group not found')
     groupsStore.setDetailedGroup(group)
+    await experimentsStore.fetchDynamicMetrics([groupId.value])
   } catch (error) {
     toast.add(errorToast(error))
   } finally {
