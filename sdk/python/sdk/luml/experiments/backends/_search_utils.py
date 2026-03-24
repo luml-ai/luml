@@ -290,6 +290,7 @@ class SearchUtils:
 
 class SearchExperimentsUtils(SearchUtils):
     VALID_SEARCH_ATTRIBUTE_KEYS = {
+        "id",
         "name",
         "status",
         "created_at",
@@ -299,7 +300,7 @@ class SearchExperimentsUtils(SearchUtils):
     }
     VALID_ORDER_BY_ATTRIBUTE_KEYS = {"name", "status", "created_at", "duration", "id"}
     NUMERIC_ATTRIBUTES = {"duration", "created_at"}
-    STRING_ATTRIBUTES = {"name", "status", "description", "group_id"}
+    STRING_ATTRIBUTES = {"id", "name", "status", "description", "group_id"}
 
     # Identifier type constants
     _ATTRIBUTE_IDENTIFIER = "attribute"
@@ -456,7 +457,29 @@ class SearchExperimentsUtils(SearchUtils):
         cls._validate_comparison(stripped)
         left, comparator_token, right = stripped
         comp = cls._get_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
-        comp["comparator"] = comparator_token.value.upper()
+        comparator = comparator_token.value.upper()
+
+        if comp["type"] == cls._METRIC_IDENTIFIER:
+            valid_comparators = cls.VALID_METRIC_COMPARATORS
+        elif comp["type"] == cls._PARAM_IDENTIFIER:
+            valid_comparators = cls.VALID_PARAM_COMPARATORS
+        elif comp["type"] == cls._TAG_IDENTIFIER:
+            valid_comparators = cls.VALID_TAG_COMPARATORS
+        elif comp["type"] == cls._ATTRIBUTE_IDENTIFIER:
+            if comp["key"] in cls.NUMERIC_ATTRIBUTES:
+                valid_comparators = cls.VALID_NUMERIC_ATTRIBUTE_COMPARATORS
+            else:
+                valid_comparators = cls.VALID_STRING_ATTRIBUTE_COMPARATORS
+        else:
+            valid_comparators = set()
+
+        if comparator not in valid_comparators:
+            raise LumlFilterError(
+                f"Invalid comparator '{comparator}' for {comp['type']} '{comp['key']}'. "
+                f"Valid comparators are: {sorted(valid_comparators)}"
+            )
+
+        comp["comparator"] = comparator
         comp["value"] = cls._get_value(comp["type"], comp["key"], right)
         return comp
 
