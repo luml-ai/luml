@@ -46,6 +46,7 @@
 </template>
 
 <script setup lang="ts">
+import type { AutoCompleteSuggestion } from './experiment.interface'
 import { computed, ref, watch } from 'vue'
 import {
   IconField,
@@ -73,7 +74,7 @@ const toast = useToast()
 
 const search = ref(experimentsStore.queryParams.search || '')
 
-const suggestions = ref<{ label: string; items: string[] }[]>([])
+const suggestions = ref<AutoCompleteSuggestion[]>([])
 
 const error = ref<string | null>(null)
 
@@ -114,7 +115,7 @@ async function onSearch() {
 function onComplete(event: AutoCompleteCompleteEvent) {
   const filteredMetrics = dynamicMetrics.value.filter((metric) => metric.includes(event.query))
   const filteredStaticParams = staticParams.value.filter((param) => param.includes(event.query))
-  const list = []
+  const list: AutoCompleteSuggestion[] = []
   if (filteredMetrics.length > 0) {
     list.push({
       label: 'Metrics',

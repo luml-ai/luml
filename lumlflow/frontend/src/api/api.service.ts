@@ -69,6 +69,14 @@ export const apiService = {
     return data
   },
 
+  getGroupsStaticParams: async (group_ids: string[]) => {
+    const { data } = await api.get<string[]>(`/groups/experiments/static-params`, {
+      params: { group_ids },
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+    })
+    return data
+  },
+
   getExperiments: async (params: GetExperimentsParams) => {
     const { data } = await api.get<PaginatedResponse<Experiment>>(`/groups/experiments`, {
       params,
@@ -314,22 +322,6 @@ export const apiService = {
 
   uploadArtifact: async (payload: UploadArtifactPayload) => {
     const { data } = await api.post<UploadArtifactResponse>(`/luml/artifact`, payload)
-    return data
-  },
-
-  getDynamicMetrics: async (group_ids: string[]) => {
-    const { data } = await api.get<string[]>(`/groups/experiments/dynamic-metrics`, {
-      params: { group_ids },
-      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
-    })
-    return data
-  },
-
-  getStaticParams: async (group_ids: string[]) => {
-    const { data } = await api.get<string[]>(`/groups/experiments/static-params`, {
-      params: { group_ids },
-      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
-    })
     return data
   },
 

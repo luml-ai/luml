@@ -6,7 +6,7 @@
     <ExperimentWrapper
       v-else-if="groupsIds"
       :groups-ids="groupsIds"
-      :dynamic-metrics="dynamicMetrics"
+      :dynamic-metrics="experimentsStore.dynamicMetrics"
     />
     <div v-else>No groups selected</div>
   </div>
@@ -15,16 +15,16 @@
 <script setup lang="ts">
 import { computed, onBeforeMount, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { apiService } from '@/api/api.service'
 import { useToast, Skeleton } from 'primevue'
 import { errorToast } from '@/toasts'
+import { useExperimentsStore } from '@/store/experiments'
 import GroupsComparisonBreadcrumbs from '@/components/groups-comparison/GroupsComparisonBreadcrumbs.vue'
 import ExperimentWrapper from '@/components/experiments/experiment/ExperimentWrapper.vue'
 
 const route = useRoute()
 const toast = useToast()
+const experimentsStore = useExperimentsStore()
 
-const dynamicMetrics = ref<string[]>([])
 const loading = ref(true)
 
 const groupsIds = computed(() => {
@@ -38,8 +38,7 @@ const groupsIds = computed(() => {
 
 onBeforeMount(async () => {
   try {
-    const metrics = await apiService.getGroupsDynamicMetrics(groupsIds.value)
-    dynamicMetrics.value = metrics
+    await experimentsStore.fetchDynamicMetrics(groupsIds.value)
   } catch (error) {
     toast.add(errorToast(error))
   } finally {

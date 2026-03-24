@@ -86,7 +86,7 @@ export const useExperimentsStore = defineStore('experiments', () => {
 
   async function fetchDynamicMetrics(groupsIds: string[]) {
     try {
-      const metrics = await apiService.getDynamicMetrics(groupsIds)
+      const metrics = await apiService.getGroupsDynamicMetrics(groupsIds)
       dynamicMetrics.value = metrics
     } catch (error) {
       toast.add(errorToast(error))
@@ -99,7 +99,7 @@ export const useExperimentsStore = defineStore('experiments', () => {
 
   async function fetchStaticParams(groupsIds: string[]) {
     try {
-      const params = await apiService.getStaticParams(groupsIds)
+      const params = await apiService.getGroupsStaticParams(groupsIds)
       staticParams.value = params
     } catch (error) {
       toast.add(errorToast(error))

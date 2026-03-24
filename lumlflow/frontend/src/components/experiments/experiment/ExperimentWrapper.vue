@@ -26,7 +26,6 @@ const props = defineProps<Props>()
 const experimentsStore = useExperimentsStore()
 
 onBeforeMount(async () => {
-  await experimentsStore.fetchDynamicMetrics(props.groupsIds)
   await experimentsStore.fetchStaticParams(props.groupsIds)
 })
 
