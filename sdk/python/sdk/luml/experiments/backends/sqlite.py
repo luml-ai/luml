@@ -771,7 +771,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description 
+            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description
             FROM experiments
             """
         )
@@ -1139,10 +1139,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def delete_group(self, group_id: str) -> None:
         """
-        Deletes a group from the experiment groups database.
-
-        This method removes the entry corresponding to the given group ID
-        from the 'experiment_groups' table in the database.
+        Deletes a group and all its experiments from the database, including
+        their associated files and directories on the filesystem.
 
         Args:
             group_id (str): The unique identifier of the group to be deleted.
@@ -1152,6 +1150,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
+        cursor.execute("SELECT id FROM experiments WHERE group_id = ?", (group_id,))
+        experiment_ids = [row[0] for row in cursor.fetchall()]
+
+        for experiment_id in experiment_ids:
+            self.delete_experiment(experiment_id)
+
         cursor.execute("DELETE FROM experiment_groups WHERE id = ?", (group_id,))
         conn.commit()
 
@@ -1523,7 +1527,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         if search:
             where_conditions.append(
-                ("name LIKE ? OR tags LIKE ?", [f"%{search}%", f"%{search}%"])
+                (
+                    "id LIKE ? OR name LIKE ? OR tags LIKE ?",
+                    [f"%{search}%"] * 3,
+                )
             )
 
         rows = self._execute_paginated_query(
@@ -2220,7 +2227,19 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         where_conditions: list[tuple[str, list]] = []
 
         if search:
-            where_conditions.append(("trace_id LIKE ?", [f"%{search}%"]))
+            where_conditions.append(
+                (
+                    """trace_id IN (
+                    SELECT DISTINCT trace_id FROM spans
+                    WHERE trace_id LIKE ?
+                       OR COALESCE(status_message, '') LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR COALESCE(events, '') LIKE ?
+                       OR COALESCE(links, '') LIKE ?
+                )""",
+                    [f"%{search}%"] * 5,
+                )
+            )
 
         if states:
             where_conditions.append(
@@ -2367,8 +2386,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         params: list[Any] = []
 
         if search:
-            where_clauses.append("trace_id LIKE ?")
-            params.append(f"%{search}%")
+            where_clauses.append("""trace_id IN (
+                SELECT DISTINCT trace_id FROM spans
+                WHERE trace_id LIKE ?
+                   OR COALESCE(status_message, '') LIKE ?
+                   OR EXISTS (SELECT 1 FROM json_each(COALESCE(attributes, '{}')) WHERE type = 'text' AND value LIKE ?)
+                   OR COALESCE(events, '') LIKE ?
+                   OR COALESCE(links, '') LIKE ?
+            )""")
+            params.extend([f"%{search}%"] * 5)
         if states:
             where_clauses.append(f"state IN ({', '.join('?' for _ in states)})")
             params.extend(s.value for s in states)
@@ -2604,7 +2630,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             where_conditions.append(("dataset_id = ?", [dataset_id]))
 
         if search:
-            where_conditions.append(("id LIKE ?", [f"%{search}%"]))
+            where_conditions.append(
+                (
+                    """(id LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))""",
+                    [f"%{search}%"] * 6,
+                )
+            )
 
         columns = [
             "id",
@@ -2755,8 +2791,15 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             where_clauses.append("dataset_id = ?")
             params.append(dataset_id)
         if search:
-            where_clauses.append("id LIKE ?")
-            params.append(f"%{search}%")
+            where_clauses.append(
+                """(id LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))"""
+            )
+            params.extend([f"%{search}%"] * 6)
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         sort_expr = self._build_sort_expr(
