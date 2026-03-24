@@ -5,8 +5,10 @@ from pathlib import Path
 import pytest
 
 from luml.experiments.backends.data_types import (
+    ColumnField,
     EvalColumns,
     EvalRecord,
+    EvalTypedColumns,
     PaginatedResponse,
 )
 from luml.experiments.tracker import ExperimentTracker
@@ -596,3 +598,213 @@ class TestLinkEvalSampleToTrace:
             tracker.link_eval_sample_to_trace(
                 eval_dataset_id="ds", eval_id="e", trace_id="t"
             )
+
+
+class TestGetExperimentEvalTypedColumns:
+    def test_returns_eval_typed_columns_type(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(eval_id="e1", dataset_id="ds1", inputs={"q": "hello"})
+
+        result = tracker.get_experiment_eval_typed_columns(exp_id)
+
+        assert isinstance(result, EvalTypedColumns)
+
+    def test_string_type_detected(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1",
+            dataset_id="ds1",
+            inputs={"question": "what is AI?"},
+            outputs={"answer": "a technology"},
+        )
+
+        cols = tracker.get_experiment_eval_typed_columns(exp_id)
+
+        assert any(f.name == "question" and f.type == "string" for f in cols.inputs)
+        assert any(f.name == "answer" and f.type == "string" for f in cols.outputs)
+
+    def test_number_type_detected(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1",
+            dataset_id="ds1",
+            inputs={"x": 1},
+            scores={"accuracy": 0.95, "f1": 0.88},
+        )
+
+        cols = tracker.get_experiment_eval_typed_columns(exp_id)
+
+        assert any(f.name == "accuracy" and f.type == "number" for f in cols.scores)
+        assert any(f.name == "f1" and f.type == "number" for f in cols.scores)
+
+    def test_column_fields_are_column_field_instances(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"q": "hi"}, scores={"acc": 0.9}
+        )
+
+        cols = tracker.get_experiment_eval_typed_columns(exp_id)
+
+        for field in cols.inputs + cols.scores:
+            assert isinstance(field, ColumnField)
+            assert field.type in {"string", "number", "boolean", "unknown"}
+
+    def test_empty_experiment_returns_empty_typed_columns(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+
+        cols = tracker.get_experiment_eval_typed_columns(exp_id)
+
+        assert cols.inputs == []
+        assert cols.scores == []
+
+    def test_filter_by_dataset_id(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds_a", inputs={"x": 1}, scores={"m_a": 0.5}
+        )
+        tracker.log_eval_sample(
+            eval_id="e2", dataset_id="ds_b", inputs={"x": 2}, scores={"m_b": 0.7}
+        )
+
+        cols = tracker.get_experiment_eval_typed_columns(exp_id, dataset_id="ds_a")
+
+        assert any(f.name == "m_a" for f in cols.scores)
+        assert not any(f.name == "m_b" for f in cols.scores)
+
+
+class TestGetExperimentEvalsFilter:
+    def test_filter_by_output_string(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"q": "hi"}, outputs={"label": "yes"}
+        )
+        tracker.log_eval_sample(
+            eval_id="e2", dataset_id="ds1", inputs={"q": "bye"}, outputs={"label": "no"}
+        )
+
+        result = tracker.get_experiment_evals(exp_id, filters=['outputs.label = "yes"'])
+
+        assert len(result.items) == 1
+        assert result.items[0].id == "e1"
+
+    def test_filter_by_score_numeric(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 0.9}
+        )
+        tracker.log_eval_sample(
+            eval_id="e2", dataset_id="ds1", inputs={"x": 2}, scores={"acc": 0.4}
+        )
+
+        result = tracker.get_experiment_evals(exp_id, filters=["scores.acc > 0.7"])
+
+        assert len(result.items) == 1
+        assert result.items[0].id == "e1"
+
+    def test_filter_by_id_like(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(eval_id="train_1", dataset_id="ds1", inputs={"x": 1})
+        tracker.log_eval_sample(eval_id="test_1", dataset_id="ds1", inputs={"x": 1})
+
+        result = tracker.get_experiment_evals(exp_id, filters=['id LIKE "%train%"'])
+
+        assert len(result.items) == 1
+        assert result.items[0].id == "train_1"
+
+    def test_multiple_filters_are_anded(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1",
+            dataset_id="ds1",
+            inputs={"x": 1},
+            scores={"acc": 0.9},
+            outputs={"label": "yes"},
+        )
+        tracker.log_eval_sample(
+            eval_id="e2",
+            dataset_id="ds1",
+            inputs={"x": 2},
+            scores={"acc": 0.9},
+            outputs={"label": "no"},
+        )
+
+        result = tracker.get_experiment_evals(
+            exp_id,
+            filters=["scores.acc > 0.7", 'outputs.label = "yes"'],
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].id == "e1"
+
+    def test_invalid_filter_raises_value_error(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+
+        with pytest.raises(ValueError):
+            tracker.get_experiment_evals(exp_id, filters=["scores.accuracy => 0.5"])
+
+    def test_filter_evals_all_by_score(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 0.9}
+        )
+        tracker.log_eval_sample(
+            eval_id="e2", dataset_id="ds1", inputs={"x": 2}, scores={"acc": 0.3}
+        )
+
+        result = tracker.get_experiment_evals_all(exp_id, filters=["scores.acc >= 0.8"])
+
+        assert len(result) == 1
+        assert result[0].id == "e1"
+
+
+class TestValidateEvalsFilter:
+    def test_valid_filter_returns_none(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        # Should not raise
+        tracker.validate_evals_filter('outputs.prediction LIKE "%bert%"')
+
+    def test_none_is_valid(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.validate_evals_filter(None)
+
+    def test_invalid_comparator_raises(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        with pytest.raises(ValueError):
+            tracker.validate_evals_filter("scores.accuracy => 0.5")
+
+    def test_invalid_column_raises(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        with pytest.raises(ValueError):
+            tracker.validate_evals_filter('unknown_col.key = "x"')
