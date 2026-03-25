@@ -160,6 +160,11 @@ class PaginatedEvals(BaseModel):
     cursor: str | None = None
 
 
+class ColumnField(BaseModel, BaseOrmConfig):
+    name: str
+    type: str  # "string" | "number" | "boolean" | "unknown"
+
+
 class EvalColumns(BaseModel, BaseOrmConfig):
     inputs: list[str]
     outputs: list[str]
@@ -168,6 +173,22 @@ class EvalColumns(BaseModel, BaseOrmConfig):
     metadata: list[str]
 
 
+class EvalTypedColumns(BaseModel, BaseOrmConfig):
+    inputs: list[ColumnField]
+    outputs: list[ColumnField]
+    refs: list[ColumnField]
+    scores: list[ColumnField]
+    metadata: list[ColumnField]
+
+
+class TraceColumns(BaseModel, BaseOrmConfig):
+    attributes: list[str]
+
+
+class TraceTypedColumns(BaseModel, BaseOrmConfig):
+    attributes: list[ColumnField]
+
+
 class SearchValidationResult(BaseModel):
-    valid: bool
+    valid: bool = True
     error: str | None = None

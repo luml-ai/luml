@@ -9,6 +9,7 @@ from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     Eval,
     EvalColumns,
+    EvalTypedColumns,
     Experiment,
     ExperimentDetails,
     ExperimentMetricHistory,
@@ -16,11 +17,14 @@ from lumlflow.schemas.experiments import (
     MetricPoint,
     PaginatedEvals,
     PaginatedTraces,
+    SearchValidationResult,
     Span,
     Trace,
+    TraceColumns,
     TraceDetails,
     TracesSortBy,
     TraceState,
+    TraceTypedColumns,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
@@ -104,6 +108,7 @@ class ExperimentsHandler:
         sort_by: TracesSortBy = TracesSortBy.EXECUTION_TIME,
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedTraces:
         if not self.tracker.get_experiment_record(experiment_id):
@@ -118,8 +123,11 @@ class ExperimentsHandler:
                 sort_by=sort_by,
                 order=order,
                 search=search,
+                filters=filters,
                 states=sdk_states,
             )
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -147,6 +155,7 @@ class ExperimentsHandler:
         sort_by: TracesSortBy = TracesSortBy.EXECUTION_TIME,
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> list[Trace]:
         if not self.tracker.get_experiment_record(experiment_id):
@@ -159,8 +168,11 @@ class ExperimentsHandler:
                 sort_by=sort_by,
                 order=order,
                 search=search,
+                filters=filters,
                 states=sdk_states,
             )
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -230,6 +242,7 @@ class ExperimentsHandler:
         order: SortOrder = SortOrder.DESC,
         dataset_id: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> PaginatedEvals:
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
@@ -251,7 +264,10 @@ class ExperimentsHandler:
                 dataset_id=dataset_id,
                 json_sort_column=json_sort_column,
                 search=search,
+                filters=filters,
             )
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -267,6 +283,7 @@ class ExperimentsHandler:
         order: SortOrder = SortOrder.DESC,
         dataset_id: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> list[Eval]:
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
@@ -287,7 +304,10 @@ class ExperimentsHandler:
                 dataset_id=dataset_id,
                 json_sort_column=json_sort_column,
                 search=search,
+                filters=filters,
             )
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
 
@@ -301,6 +321,45 @@ class ExperimentsHandler:
             return self.tracker.get_experiment_eval_dataset_ids(experiment_id)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
+
+    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.get_experiment_trace_columns(experiment_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return TraceColumns.model_validate(result)
+
+    def get_experiment_trace_typed_columns(
+        self, experiment_id: str
+    ) -> TraceTypedColumns:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.get_experiment_trace_typed_columns(experiment_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return TraceTypedColumns.model_validate(result)
+
+    def get_experiment_eval_typed_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalTypedColumns:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.get_experiment_eval_typed_columns(
+                experiment_id, dataset_id
+            )
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return EvalTypedColumns.model_validate(result)
 
     def get_experiment_eval_columns(
         self, experiment_id: str, dataset_id: str | None = None
@@ -345,3 +404,17 @@ class ExperimentsHandler:
             raise NotFound("Experiment not found")
 
         return Experiment.model_validate(experiment)
+
+    def validate_evals_filter(self, filter_str: str) -> SearchValidationResult:
+        try:
+            self.tracker.validate_evals_filter(filter_str)
+        except Exception as e:
+            return SearchValidationResult(valid=False, error=str(e))
+        return SearchValidationResult()
+
+    def validate_traces_filter(self, filter_str: str) -> SearchValidationResult:
+        try:
+            self.tracker.validate_traces_filter(filter_str)
+        except Exception as e:
+            return SearchValidationResult(valid=False, error=str(e))
+        return SearchValidationResult()

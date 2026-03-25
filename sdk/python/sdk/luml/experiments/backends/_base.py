@@ -9,14 +9,17 @@ from luml.experiments.backends.data_types import (
     AnnotationValueType,
     EvalColumns,
     EvalRecord,
+    EvalTypedColumns,
     Experiment,
     ExperimentData,
     Group,
     Model,
     PaginatedResponse,
+    TraceColumns,
     TraceDetails,
     TraceRecord,
     TraceState,
+    TraceTypedColumns,
 )
 
 
@@ -280,6 +283,7 @@ class Backend(ABC):
         sort_by: str = "execution_time",
         order: str = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
         pass
@@ -291,6 +295,7 @@ class Backend(ABC):
         sort_by: str = "execution_time",
         order: str = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> list[TraceRecord]:
         pass
@@ -314,6 +319,7 @@ class Backend(ABC):
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> PaginatedResponse[EvalRecord]:
         pass
 
@@ -326,6 +332,7 @@ class Backend(ABC):
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> list[EvalRecord]:
         pass
 
@@ -333,6 +340,22 @@ class Backend(ABC):
     def get_experiment_eval_columns(
         self, experiment_id: str, dataset_id: str | None = None
     ) -> EvalColumns:
+        pass
+
+    @abstractmethod
+    def get_experiment_eval_typed_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalTypedColumns:
+        pass
+
+    @abstractmethod
+    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
+        pass
+
+    @abstractmethod
+    def get_experiment_trace_typed_columns(
+        self, experiment_id: str
+    ) -> TraceTypedColumns:
         pass
 
     @abstractmethod
@@ -440,6 +463,14 @@ class Backend(ABC):
 
     @abstractmethod
     def validate_experiments_search(self, search: str | None = None) -> None:
+        pass
+
+    @abstractmethod
+    def validate_evals_filter(self, search: str | None = None) -> None:
+        pass
+
+    @abstractmethod
+    def validate_traces_filter(self, search: str | None = None) -> None:
         pass
 
     @abstractmethod

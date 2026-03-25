@@ -1,10 +1,13 @@
 import pytest
 
 from luml.experiments.backends.data_types import (
+    ColumnField,
     PaginatedResponse,
+    TraceColumns,
     TraceDetails,
     TraceRecord,
     TraceState,
+    TraceTypedColumns,
 )
 from luml.experiments.tracker import ExperimentTracker
 
@@ -748,3 +751,318 @@ class TestGetExperimentTracesAll:
         )
 
         assert all(r.state == TraceState.IN_PROGRESS for r in result)
+
+
+class TestGetExperimentTraceColumns:
+    def test_returns_trace_columns_type(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET"},
+        )
+
+        result = tracker.get_experiment_trace_columns(exp_id)
+
+        assert isinstance(result, TraceColumns)
+
+    def test_attribute_keys_detected(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET", "http.status_code": 200},
+        )
+
+        result = tracker.get_experiment_trace_columns(exp_id)
+
+        assert "http.method" in result.attributes
+        assert "http.status_code" in result.attributes
+
+    def test_empty_experiment_returns_empty_columns(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+
+        result = tracker.get_experiment_trace_columns(exp_id)
+
+        assert result.attributes == []
+
+    def test_spans_without_attributes_ignored(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+        )
+
+        result = tracker.get_experiment_trace_columns(exp_id)
+
+        assert result.attributes == []
+
+
+class TestGetExperimentTraceTypedColumns:
+    def test_returns_trace_typed_columns_type(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET"},
+        )
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+
+        assert isinstance(result, TraceTypedColumns)
+
+    def test_string_type_detected(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET", "service.name": "api"},
+        )
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+
+        assert any(
+            f.name == "http.method" and f.type == "string" for f in result.attributes
+        )
+        assert any(
+            f.name == "service.name" and f.type == "string" for f in result.attributes
+        )
+
+    def test_number_type_detected(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.status_code": 200, "response_time_ms": 42.5},
+        )
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+
+        assert any(
+            f.name == "http.status_code" and f.type == "number"
+            for f in result.attributes
+        )
+        assert any(
+            f.name == "response_time_ms" and f.type == "number"
+            for f in result.attributes
+        )
+
+    def test_column_fields_are_column_field_instances(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"k": "v"},
+        )
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+
+        for field in result.attributes:
+            assert isinstance(field, ColumnField)
+            assert field.type in {"string", "number", "boolean", "unknown"}
+
+    def test_empty_experiment_returns_empty_typed_columns(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+
+        assert result.attributes == []
+
+
+class TestGetExperimentTracesFilter:
+    def test_filter_by_string_attribute(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t_get",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET"},
+        )
+        tracker.log_span(
+            trace_id="t_post",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now + 2,
+            end_time_unix_nano=now + 3,
+            attributes={"http.method": "POST"},
+        )
+
+        result = tracker.get_experiment_traces(
+            exp_id, filters=['attributes.http.method = "GET"']
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].trace_id == "t_get"
+
+    def test_filter_by_numeric_attribute(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t_ok",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.status_code": 200},
+        )
+        tracker.log_span(
+            trace_id="t_err",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now + 2,
+            end_time_unix_nano=now + 3,
+            attributes={"http.status_code": 500},
+        )
+
+        result = tracker.get_experiment_traces(
+            exp_id, filters=["attributes.http.status_code >= 400"]
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].trace_id == "t_err"
+
+    def test_multiple_filters_are_anded(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+            attributes={"http.method": "GET", "http.status_code": 200},
+        )
+        tracker.log_span(
+            trace_id="t2",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now + 2,
+            end_time_unix_nano=now + 3,
+            attributes={"http.method": "GET", "http.status_code": 500},
+        )
+
+        result = tracker.get_experiment_traces(
+            exp_id,
+            filters=[
+                'attributes.http.method = "GET"',
+                "attributes.http.status_code < 400",
+            ],
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].trace_id == "t1"
+
+    def test_filter_traces_all_by_attribute(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        for i, method in enumerate(["GET", "POST", "GET"]):
+            tracker.log_span(
+                trace_id=f"t{i}",
+                span_id=f"s{i}",
+                name="op",
+                start_time_unix_nano=now + i,
+                end_time_unix_nano=now + i + 1,
+                attributes={"http.method": method},
+            )
+
+        result = tracker.get_experiment_traces_all(
+            exp_id, filters=['attributes.http.method = "GET"']
+        )
+
+        assert len(result) == 2
+        assert all(r.trace_id in {"t0", "t2"} for r in result)
+
+    def test_invalid_filter_raises_value_error(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+
+        with pytest.raises(ValueError):
+            tracker.get_experiment_traces(
+                exp_id, filters=["attributes.http.status_code => 400"]
+            )
+
+
+class TestValidateTracesFilter:
+    def test_valid_filter_returns_none(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, _ = tracker_with_experiment
+        tracker.validate_traces_filter('attributes.http.method = "GET"')
+
+    def test_none_is_valid(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, _ = tracker_with_experiment
+        tracker.validate_traces_filter(None)
+
+    def test_missing_attributes_prefix_raises(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, _ = tracker_with_experiment
+        with pytest.raises(ValueError):
+            tracker.validate_traces_filter('http.method = "GET"')
+
+    def test_invalid_comparator_raises(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, _ = tracker_with_experiment
+        with pytest.raises(ValueError):
+            tracker.validate_traces_filter("attributes.http.status_code => 400")
