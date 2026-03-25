@@ -1,4 +1,7 @@
+import mimetypes
+
 from fastapi import APIRouter, status
+from fastapi.responses import Response
 
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.handlers.models import ModelsHandler
@@ -6,6 +9,7 @@ from lumlflow.schemas.experiments import (
     Experiment,
     ExperimentDetails,
     ExperimentMetricHistory,
+    FileNode,
     UpdateExperiment,
 )
 from lumlflow.schemas.models import Model
@@ -48,3 +52,20 @@ def get_experiment_metric_history(
 @experiments_router.get("/{experiment_id}/models", response_model=list[Model])
 def list_experiment_models(experiment_id: str) -> list[Model]:
     return models_handler.list_experiment_models(experiment_id)
+
+
+@experiments_router.get("/{experiment_id}/attachments/content")
+def get_attachment_content(experiment_id: str, file_path: str) -> Response:
+    content = experiments_handler.get_attachment(experiment_id, file_path)
+    media_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+    return Response(content=content, media_type=media_type)
+
+
+
+@experiments_router.get("/{experiment_id}/attachments", response_model=list[FileNode])
+def list_experiment_attachments(
+    experiment_id: str, parent_path: str | None = None
+) -> list[FileNode]:
+    return experiments_handler.list_attachments_tree(
+        experiment_id, parent_path=parent_path
+    )

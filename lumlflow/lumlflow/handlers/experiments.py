@@ -7,6 +7,7 @@ from lumlflow.infra.exceptions import ApplicationError, NotFound
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
+    AttachmentRecord,
     Eval,
     EvalColumns,
     EvalTypedColumns,
@@ -14,6 +15,7 @@ from lumlflow.schemas.experiments import (
     ExperimentDetails,
     ExperimentMetricHistory,
     ExperimentStatus,
+    FileNode,
     MetricPoint,
     PaginatedEvals,
     PaginatedTraces,
@@ -404,6 +406,40 @@ class ExperimentsHandler:
             raise NotFound("Experiment not found")
 
         return Experiment.model_validate(experiment)
+
+    def get_attachment(self, experiment_id: str, file_path: str) -> bytes:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            return self.tracker.get_attachment(file_path, experiment_id=experiment_id)
+        except ValueError as e:
+            raise NotFound(str(e)) from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+    def list_attachments(self, experiment_id: str) -> list[AttachmentRecord]:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+
+        try:
+            result = self.tracker.list_attachments(experiment_id)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return [AttachmentRecord.model_validate(a) for a in result]
+
+    def list_attachments_tree(
+        self, experiment_id: str, parent_path: str | None = None
+    ) -> list[FileNode]:
+        if not self.tracker.get_experiment_record(experiment_id):
+            raise NotFound("Experiment not found")
+        try:
+            result = self.tracker.list_attachments_tree(
+                experiment_id, parent_path=parent_path
+            )
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+        return [FileNode.model_validate(n) for n in result]
 
     def validate_evals_filter(self, filter_str: str) -> SearchValidationResult:
         try:
