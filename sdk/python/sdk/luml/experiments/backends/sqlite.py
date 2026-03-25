@@ -13,7 +13,11 @@ from typing import Any, Literal
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
-from luml.experiments.backends._search_utils import SearchExperimentsUtils
+from luml.experiments.backends._search_utils import (
+    SearchEvalsUtils,
+    SearchExperimentsUtils,
+    SearchTracesUtils,
+)
 from luml.experiments.backends._sqlite_experiment_ddl import (
     _DDL_EXPERIMENT_CREATE_ATTACHMENTS,
     _DDL_EXPERIMENT_CREATE_DYNAMIC,
@@ -31,8 +35,10 @@ from luml.experiments.backends.data_types import (
     AnnotationRecord,
     AnnotationSummary,
     AnnotationValueType,
+    ColumnField,
     EvalColumns,
     EvalRecord,
+    EvalTypedColumns,
     ExpectationSummaryItem,
     Experiment,
     ExperimentData,
@@ -42,9 +48,11 @@ from luml.experiments.backends.data_types import (
     Model,
     PaginatedResponse,
     SpanRecord,
+    TraceColumns,
     TraceDetails,
     TraceRecord,
     TraceState,
+    TraceTypedColumns,
 )
 from luml.experiments.backends.migration_runner import MigrationRunner
 from luml.experiments.utils import guess_span_type
@@ -167,6 +175,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "static_params",
         "dynamic_params",
     ]
+
+    _SQLITE_TYPE_MAP: dict[str, str] = {
+        "text": "string",
+        "integer": "number",
+        "real": "number",
+        "true": "boolean",
+        "false": "boolean",
+    }
 
     def __init__(
         self,
@@ -1722,6 +1738,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def validate_experiments_search(self, search: str | None = None) -> None:
         return SearchExperimentsUtils.validate_filter_string(search)
 
+    def validate_evals_filter(self, search: str | None = None) -> None:
+        return SearchEvalsUtils.validate_filter_string(search)
+
+    def validate_traces_filter(self, search: str | None = None) -> None:
+        return SearchTracesUtils.validate_filter_string(search)
+
     def _build_experiments_page(
         self,
         where_conditions: list[tuple[str, list]],
@@ -2142,6 +2164,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         ] = "execution_time",
         order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
         """
@@ -2241,6 +2264,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 )
             )
 
+        for f in filters or []:
+            filter_where, filter_params = SearchTracesUtils.to_sql(f)
+            if filter_where:
+                where_conditions.append((filter_where, filter_params))
+
         if states:
             where_conditions.append(
                 (
@@ -2305,6 +2333,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         sort_by: str = "execution_time",
         order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> list[TraceRecord]:
         """
@@ -2384,7 +2413,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         where_clauses: list[str] = []
         params: list[Any] = []
-
         if search:
             where_clauses.append("""trace_id IN (
                 SELECT DISTINCT trace_id FROM spans
@@ -2395,6 +2423,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                    OR COALESCE(links, '') LIKE ?
             )""")
             params.extend([f"%{search}%"] * 5)
+        for f in filters or []:
+            filter_where, filter_params = SearchTracesUtils.to_sql(f)
+            if filter_where:
+                where_clauses.append(filter_where)
+                params.extend(filter_params)
         if states:
             where_clauses.append(f"state IN ({', '.join('?' for _ in states)})")
             params.extend(s.value for s in states)
@@ -2558,6 +2591,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> PaginatedResponse[EvalRecord]:
         """
         Retrieve paginated eval samples for a given experiment.
@@ -2642,6 +2676,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 )
             )
 
+        for f in filters or []:
+            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+            if filter_where:
+                where_conditions.append((filter_where, filter_params))
+
         columns = [
             "id",
             "dataset_id",
@@ -2724,6 +2763,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> list[EvalRecord]:
         """
         Retrieve all eval records for a given experiment.
@@ -2800,6 +2840,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))"""
             )
             params.extend([f"%{search}%"] * 6)
+
+        for f in filters or []:
+            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+            if filter_where:
+                where_clauses.append(filter_where)
+                params.extend(filter_params)
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         sort_expr = self._build_sort_expr(
@@ -2948,6 +2994,86 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             refs=_keys("refs"),
             scores=_keys("scores"),
             metadata=_keys("metadata"),
+        )
+
+    def get_experiment_eval_typed_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalTypedColumns:
+        """Like get_experiment_eval_columns but also returns the SQLite type for each key."""
+        conn = self._get_experiment_connection(experiment_id)
+
+        def _fields(col: str) -> list[ColumnField]:
+            cur = conn.cursor()
+            if dataset_id is not None:
+                cur.execute(
+                    f"""
+                    SELECT je.key, je.type
+                    FROM evals, json_each(evals.{col}) AS je
+                    WHERE evals.{col} IS NOT NULL AND evals.dataset_id = ?
+                    GROUP BY je.key
+                    ORDER BY je.key
+                    """,
+                    (dataset_id,),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT je.key, je.type
+                    FROM evals, json_each(evals.{col}) AS je
+                    WHERE evals.{col} IS NOT NULL
+                    GROUP BY je.key
+                    ORDER BY je.key
+                    """
+                )
+            return [
+                ColumnField(
+                    name=row[0], type=self._SQLITE_TYPE_MAP.get(row[1], "unknown")
+                )
+                for row in cur.fetchall()
+            ]
+
+        return EvalTypedColumns(
+            inputs=_fields("inputs"),
+            outputs=_fields("outputs"),
+            refs=_fields("refs"),
+            scores=_fields("scores"),
+            metadata=_fields("metadata"),
+        )
+
+    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
+        """Return distinct attribute keys from all spans in an experiment."""
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.execute(
+            """
+            SELECT DISTINCT je.key
+            FROM spans, json_each(spans.attributes) AS je
+            WHERE spans.attributes IS NOT NULL
+            ORDER BY je.key
+            """
+        )
+        return TraceColumns(attributes=[row[0] for row in cur.fetchall()])
+
+    def get_experiment_trace_typed_columns(
+        self, experiment_id: str
+    ) -> TraceTypedColumns:
+        """Like get_experiment_trace_columns but also returns the type for each key."""
+        conn = self._get_experiment_connection(experiment_id)
+        cur = conn.execute(
+            """
+            SELECT je.key, je.type
+            FROM spans, json_each(spans.attributes) AS je
+            WHERE spans.attributes IS NOT NULL
+            GROUP BY je.key
+            ORDER BY je.key
+            """
+        )
+        return TraceTypedColumns(
+            attributes=[
+                ColumnField(
+                    name=row[0], type=self._SQLITE_TYPE_MAP.get(row[1], "unknown")
+                )
+                for row in cur.fetchall()
+            ]
         )
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:

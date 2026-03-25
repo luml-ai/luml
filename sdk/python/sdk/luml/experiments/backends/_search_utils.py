@@ -268,6 +268,26 @@ class SearchUtils:
     def _process_statement(cls, statement: Statement) -> list[dict]:
         return cls._process_token_list(statement.tokens)
 
+    @staticmethod
+    def _preprocess_filter(filter_string: str) -> str:
+        """Convert CONTAINS operator to LIKE with % wildcards."""
+
+        def replace_contains(m: re.Match) -> str:
+            quote = m.group(1)
+            val = m.group(2)
+            if not val.startswith("%"):
+                val = "%" + val
+            if not val.endswith("%"):
+                val = val + "%"
+            return f"LIKE {quote}{val}{quote}"
+
+        return re.sub(
+            r"\bCONTAINS\b\s+([\"'])(.+?)\1",
+            replace_contains,
+            filter_string,
+            flags=re.IGNORECASE,
+        )
+
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
         if not filter_string:
@@ -313,26 +333,6 @@ class SearchExperimentsUtils(SearchUtils):
     _METRIC_IDENTIFIERS = {"metric", "metrics", "dynamic_params"}
     _TAG_IDENTIFIERS = {"tag", "tags"}
     _ATTRIBUTE_IDENTIFIERS = {"attribute", "attr"}
-
-    @staticmethod
-    def _preprocess_filter(filter_string: str) -> str:
-        """Convert CONTAINS operator to LIKE with % wildcards."""
-
-        def replace_contains(m: re.Match) -> str:
-            quote = m.group(1)
-            val = m.group(2)
-            if not val.startswith("%"):
-                val = "%" + val
-            if not val.endswith("%"):
-                val = val + "%"
-            return f"LIKE {quote}{val}{quote}"
-
-        return re.sub(
-            r"\bCONTAINS\b\s+([\"'])(.+?)\1",
-            replace_contains,
-            filter_string,
-            flags=re.IGNORECASE,
-        )
 
     @classmethod
     def _get_identifier(cls, identifier_str: str, valid_attributes: set) -> dict:
@@ -671,3 +671,396 @@ class SearchExperimentsUtils(SearchUtils):
         where_clause, params = cls._build_sql_filter(parsed_filters)
         order_by_clause = cls._build_sql_order_by(order_by_list or [])
         return where_clause, order_by_clause, params
+
+
+class SearchEvalsUtils(SearchUtils):
+    """Filter evals with SQL-like syntax.
+
+    Supported fields:
+    - id, dataset_id                          → string ops: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - created_at, updated_at                  → date ops:   =, !=, >, >=, <, <=  (ISO string)
+    - inputs.<key>, outputs.<key>, refs.<key> → string or numeric ops based on value
+    - scores.<key>, metadata.<key>            → string or numeric ops based on value
+
+    Examples:
+        outputs.prediction LIKE "%bert%"
+        scores.accuracy > 0.9
+        metadata.latency_ms >= 1000
+        created_at > "2024-01-01"
+        inputs.question CONTAINS "what"
+        scores.accuracy > 0.8 AND metadata.latency_ms < 500
+    """
+
+    VALID_SEARCH_ATTRIBUTE_KEYS = {"id", "dataset_id", "created_at", "updated_at"}
+    NUMERIC_ATTRIBUTES: set[str] = set()
+    DATE_ATTRIBUTES = {"created_at", "updated_at"}
+    STRING_ATTRIBUTES = {"id", "dataset_id"}
+    JSON_COLUMNS = {"inputs", "outputs", "refs", "scores", "metadata"}
+
+    _JSON_IDENTIFIER = "json"
+    _ATTRIBUTE_IDENTIFIER = "attribute"
+
+    VALID_STRING_ATTRIBUTE_COMPARATORS = {"=", "!=", "LIKE", "ILIKE", "IN", "NOT IN"}
+    VALID_DATE_COMPARATORS = {"=", "!=", ">", ">=", "<", "<="}
+    VALID_JSON_COMPARATORS = {
+        "=",
+        "!=",
+        ">",
+        ">=",
+        "<",
+        "<=",
+        "LIKE",
+        "ILIKE",
+        "IN",
+        "NOT IN",
+    }
+
+    @classmethod
+    def _get_identifier(cls, identifier_str: str, valid_attributes: set) -> dict:
+        identifier_str = cls._trim_backticks(identifier_str.strip())
+        parts = identifier_str.split(".", maxsplit=1)
+
+        if len(parts) == 1:
+            key = cls._trim_backticks(cls._strip_quotes(parts[0]))
+            if key not in cls.VALID_SEARCH_ATTRIBUTE_KEYS:
+                raise LumlFilterError(
+                    f"Invalid attribute '{key}'. "
+                    f"Valid attributes: {sorted(cls.VALID_SEARCH_ATTRIBUTE_KEYS)}. "
+                    f"For JSON fields use: <column>.<key> where column is one of "
+                    f"{sorted(cls.JSON_COLUMNS)}."
+                )
+            return {"type": cls._ATTRIBUTE_IDENTIFIER, "key": key}
+
+        prefix, raw_key = parts
+        key = cls._trim_backticks(cls._strip_quotes(raw_key))
+        if prefix.lower() not in cls.JSON_COLUMNS:
+            raise LumlFilterError(
+                f"Invalid field prefix '{prefix}'. "
+                f"Valid JSON columns: {sorted(cls.JSON_COLUMNS)}. "
+                f"Valid bare attributes: {sorted(cls.VALID_SEARCH_ATTRIBUTE_KEYS)}."
+            )
+        return {"type": cls._JSON_IDENTIFIER, "column": prefix.lower(), "key": key}
+
+    @classmethod
+    def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
+        if identifier_type == cls._JSON_IDENTIFIER:
+            if token.ttype in cls.NUMERIC_VALUE_TYPES:
+                return float(token.value)
+            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+                return cls._strip_quotes(token.value, expect_quoted_value=True)
+            if isinstance(token, Parenthesis):
+                return cls._parse_list_from_sql_token(token)
+            raise LumlFilterError(
+                f"Expected string or numeric value for JSON field '{key}'. Got {token.value!r}"
+            )
+
+        # attribute
+        if key in cls.DATE_ATTRIBUTES:
+            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+                return cls._strip_quotes(token.value, expect_quoted_value=True)
+            if token.ttype in cls.NUMERIC_VALUE_TYPES:
+                return token.value
+            raise LumlFilterError(
+                f"Expected ISO date string for '{key}'. Got {token.value!r}"
+            )
+        if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+            return cls._strip_quotes(token.value, expect_quoted_value=True)
+        if isinstance(token, Parenthesis):
+            return cls._parse_list_from_sql_token(token)
+        raise LumlFilterError(
+            f"Expected string value for attribute '{key}'. Got {token.value!r}"
+        )
+
+    @classmethod
+    def _get_comparison(cls, comparison: Comparison) -> dict:
+        stripped = [token for token in comparison.tokens if not token.is_whitespace]
+        cls._validate_comparison(stripped)
+        left, comparator_token, right = stripped
+        comp = cls._get_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
+        comparator = comparator_token.value.upper()
+
+        if comp["type"] == cls._JSON_IDENTIFIER:
+            valid = cls.VALID_JSON_COMPARATORS
+        elif comp["key"] in cls.DATE_ATTRIBUTES:
+            valid = cls.VALID_DATE_COMPARATORS
+        else:
+            valid = cls.VALID_STRING_ATTRIBUTE_COMPARATORS
+
+        if comparator not in valid:
+            field = (
+                f"{comp.get('column', '')}.{comp['key']}"
+                if comp["type"] == cls._JSON_IDENTIFIER
+                else comp["key"]
+            )
+            raise LumlFilterError(
+                f"Invalid comparator '{comparator}' for '{field}'. "
+                f"Valid comparators: {sorted(valid)}"
+            )
+
+        comp["comparator"] = comparator
+        comp["value"] = cls._get_value(comp["type"], comp["key"], right)
+        return comp
+
+    @classmethod
+    def _build_sql_filter(cls, parsed_filters: list[dict]) -> tuple[str, list]:  # noqa: C901
+        sql_parts: list[str] = []
+        params: list[Any] = []
+
+        for item in parsed_filters:
+            if "operator" in item:
+                sql_parts.append(item["operator"])
+                continue
+            if "group" in item:
+                sub_sql, sub_params = cls._build_sql_filter(item["group"])
+                sql_parts.append(f"({sub_sql})")
+                params.extend(sub_params)
+                continue
+
+            key_type = item["type"]
+            key = item["key"]
+            value = item["value"]
+            comparator = item["comparator"].upper()
+
+            if key_type == cls._JSON_IDENTIFIER:
+                col = item["column"]
+                expr = f"json_extract({col}, '$.{key}')"
+                if comparator == "ILIKE":
+                    sql_parts.append(f"UPPER({expr}) LIKE UPPER(?)")
+                    params.append(value)
+                elif comparator == "IN":
+                    sql_parts.append(f"{expr} IN ({','.join('?' * len(value))})")
+                    params.extend(value)
+                elif comparator == "NOT IN":
+                    sql_parts.append(f"{expr} NOT IN ({','.join('?' * len(value))})")
+                    params.extend(value)
+                else:
+                    sql_parts.append(f"{expr} {comparator} ?")
+                    params.append(value)
+            else:
+                if comparator == "ILIKE":
+                    sql_parts.append(f"UPPER({key}) LIKE UPPER(?)")
+                    params.append(value)
+                elif comparator == "IN":
+                    sql_parts.append(f"{key} IN ({','.join('?' * len(value))})")
+                    params.extend(value)
+                elif comparator == "NOT IN":
+                    sql_parts.append(f"{key} NOT IN ({','.join('?' * len(value))})")
+                    params.extend(value)
+                else:
+                    sql_parts.append(f"{key} {comparator} ?")
+                    params.append(value)
+
+        return " ".join(sql_parts), params
+
+    @classmethod
+    def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
+        if not filter_string:
+            return []
+        filter_string = cls._preprocess_filter(filter_string)
+        try:
+            parsed = sqlparse.parse(filter_string)
+        except Exception as e:
+            raise LumlFilterError(f"Error on parsing filter '{filter_string}'") from e
+        if len(parsed) == 0 or not isinstance(parsed[0], Statement):
+            raise LumlFilterError(
+                f"Invalid filter '{filter_string}'. Could not be parsed."
+            )
+        if len(parsed) > 1:
+            raise LumlFilterError(
+                f"Search filter contained multiple expressions {filter_string!r}. "
+                "Provide AND-ed expression list."
+            )
+        return cls._process_statement(parsed[0])
+
+    @classmethod
+    def validate_filter_string(cls, filter_string: str | None) -> None:
+        cls.parse_search_filter(filter_string)
+
+    @classmethod
+    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:  # type: ignore[override]
+        """Parse filter_string into a SQL WHERE clause.
+
+        Returns:
+            (where_clause, params)
+
+        Examples:
+            to_sql('outputs.prediction LIKE "%bert%"')
+            → ("json_extract(outputs, '$.prediction') LIKE ?", ['%bert%'])
+
+            to_sql('scores.accuracy > 0.9 AND metadata.latency_ms < 500')
+            → ("json_extract(scores, '$.accuracy') > ? AND json_extract(metadata, '$.latency_ms') < ?", [0.9, 500.0])
+
+            to_sql('created_at > "2024-01-01"')
+            → ('created_at > ?', ['2024-01-01'])
+        """
+        parsed = cls.parse_search_filter(filter_string)
+        return cls._build_sql_filter(parsed)
+
+
+class SearchTracesUtils(SearchUtils):
+    """Filter traces by span attributes using SQL-like syntax.
+
+    All filters operate on span attributes and are translated to a
+    trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ...) subquery.
+
+    Supported syntax:
+        attributes.<key> {op} <value>
+
+    Operators:
+        String values: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+        Numeric values: =, !=, >, >=, <, <=
+
+    Examples:
+        attributes.http.method = "GET"
+        attributes.http.status_code = 200
+        attributes.db.statement CONTAINS "SELECT"
+        attributes.http.status_code >= 400 AND attributes.http.status_code < 500
+    """
+
+    VALID_SEARCH_ATTRIBUTE_KEYS: set[str] = set()
+    NUMERIC_ATTRIBUTES: set[str] = set()
+    ATTRIBUTES_PREFIX = "attributes"
+    _SPAN_ATTR_IDENTIFIER = "span_attribute"
+
+    VALID_COMPARATORS = {
+        "=",
+        "!=",
+        ">",
+        ">=",
+        "<",
+        "<=",
+        "LIKE",
+        "ILIKE",
+        "IN",
+        "NOT IN",
+    }
+
+    @classmethod
+    def _get_identifier(cls, identifier_str: str, valid_attributes: set) -> dict:
+        identifier_str = cls._trim_backticks(identifier_str.strip())
+        parts = identifier_str.split(".", maxsplit=1)
+
+        if len(parts) < 2 or parts[0].lower() != cls.ATTRIBUTES_PREFIX:
+            raise LumlFilterError(
+                f"Invalid field '{identifier_str}'. "
+                "Trace filters must use the format: attributes.<key>  "
+                f"(e.g. attributes.http.method, attributes.http.status_code)"
+            )
+
+        key = cls._trim_backticks(cls._strip_quotes(parts[1]))
+        return {"type": cls._SPAN_ATTR_IDENTIFIER, "key": key}
+
+    @classmethod
+    def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
+        if token.ttype in cls.NUMERIC_VALUE_TYPES:
+            return float(token.value)
+        if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+            return cls._strip_quotes(token.value, expect_quoted_value=True)
+        if isinstance(token, Parenthesis):
+            return cls._parse_list_from_sql_token(token)
+        raise LumlFilterError(
+            f"Expected string or numeric value for attributes.{key}. Got {token.value!r}"
+        )
+
+    @classmethod
+    def _get_comparison(cls, comparison: Comparison) -> dict:
+        stripped = [token for token in comparison.tokens if not token.is_whitespace]
+        cls._validate_comparison(stripped)
+        left, comparator_token, right = stripped
+        comp = cls._get_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
+        comparator = comparator_token.value.upper()
+
+        if comparator not in cls.VALID_COMPARATORS:
+            raise LumlFilterError(
+                f"Invalid comparator '{comparator}' for 'attributes.{comp['key']}'. "
+                f"Valid comparators: {sorted(cls.VALID_COMPARATORS)}"
+            )
+
+        comp["comparator"] = comparator
+        comp["value"] = cls._get_value(comp["type"], comp["key"], right)
+        return comp
+
+    @classmethod
+    def _build_inner_sql(cls, parsed_filters: list[dict]) -> tuple[str, list]:
+        """Build the inner WHERE clause that runs against the spans table."""
+        sql_parts: list[str] = []
+        params: list[Any] = []
+
+        for item in parsed_filters:
+            if "operator" in item:
+                sql_parts.append(item["operator"])
+                continue
+            if "group" in item:
+                sub_sql, sub_params = cls._build_inner_sql(item["group"])
+                sql_parts.append(f"({sub_sql})")
+                params.extend(sub_params)
+                continue
+
+            key = item["key"]
+            value = item["value"]
+            comparator = item["comparator"].upper()
+            expr = f"json_extract(attributes, '$.\"{key}\"')"
+
+            if comparator == "ILIKE":
+                sql_parts.append(f"UPPER({expr}) LIKE UPPER(?)")
+                params.append(value)
+            elif comparator == "IN":
+                sql_parts.append(f"{expr} IN ({','.join('?' * len(value))})")
+                params.extend(value)
+            elif comparator == "NOT IN":
+                sql_parts.append(f"{expr} NOT IN ({','.join('?' * len(value))})")
+                params.extend(value)
+            else:
+                sql_parts.append(f"{expr} {comparator} ?")
+                params.append(value)
+
+        return " ".join(sql_parts), params
+
+    @classmethod
+    def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
+        if not filter_string:
+            return []
+        filter_string = cls._preprocess_filter(filter_string)
+        try:
+            parsed = sqlparse.parse(filter_string)
+        except Exception as e:
+            raise LumlFilterError(f"Error on parsing filter '{filter_string}'") from e
+        if len(parsed) == 0 or not isinstance(parsed[0], Statement):
+            raise LumlFilterError(
+                f"Invalid filter '{filter_string}'. Could not be parsed."
+            )
+        if len(parsed) > 1:
+            raise LumlFilterError(
+                f"Search filter contained multiple expressions {filter_string!r}. "
+                "Provide AND-ed expression list."
+            )
+        return cls._process_statement(parsed[0])
+
+    @classmethod
+    def validate_filter_string(cls, filter_string: str | None) -> None:
+        cls.parse_search_filter(filter_string)
+
+    @classmethod
+    def to_sql(cls, filter_string: str | None) -> tuple[str, list]:  # type: ignore[override]
+        """Parse filter_string into a trace_id subquery WHERE clause.
+
+        Returns:
+            (where_clause, params) — where_clause is a complete
+            'trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ...)' expression,
+            or empty string if filter_string is None/empty.
+
+        Examples:
+            to_sql('attributes.http.method = "GET"')
+            → ("trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE json_extract(attributes, '$.\"http.method\"') = ?)", ["GET"])
+
+            to_sql('attributes.http.status_code >= 400 AND attributes.http.status_code < 500')
+            → ("trace_id IN (...WHERE json_extract(attributes, '$.\"http.status_code\"') >= ? AND ... < ?)", [400.0, 500.0])
+        """
+        parsed = cls.parse_search_filter(filter_string)
+        if not parsed:
+            return "", []
+        inner_sql, params = cls._build_inner_sql(parsed)
+        return (
+            f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE {inner_sql})",
+            params,
+        )

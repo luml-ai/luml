@@ -132,12 +132,37 @@ class EvalRecord:
 
 
 @dataclass
+class ColumnField:
+    name: str
+    type: str  # "string" | "number" | "boolean" | "unknown"
+
+
+@dataclass
 class EvalColumns:
     inputs: list[str]
     outputs: list[str]
     refs: list[str]
     scores: list[str]
     metadata: list[str]
+
+
+@dataclass
+class EvalTypedColumns:
+    inputs: list[ColumnField]
+    outputs: list[ColumnField]
+    refs: list[ColumnField]
+    scores: list[ColumnField]
+    metadata: list[ColumnField]
+
+
+@dataclass
+class TraceColumns:
+    attributes: list[str]
+
+
+@dataclass
+class TraceTypedColumns:
+    attributes: list[ColumnField]
 
 
 class AnnotationKind(StrEnum):

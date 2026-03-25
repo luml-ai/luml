@@ -3,7 +3,11 @@
 import pytest
 
 from luml.experiments.backends._exceptions import LumlFilterError
-from luml.experiments.backends._search_utils import SearchExperimentsUtils
+from luml.experiments.backends._search_utils import (
+    SearchEvalsUtils,
+    SearchExperimentsUtils,
+    SearchTracesUtils,
+)
 
 
 class TestParseSearchFilter:
@@ -411,3 +415,155 @@ class TestParseOrderBy:
         assert t == "metric"
         assert k == "accuracy"
         assert asc is False
+
+
+class TestSearchEvalsUtilsToSql:
+    def test_none_returns_empty(self) -> None:
+        w, p = SearchEvalsUtils.to_sql(None)
+        assert w == ""
+        assert p == []
+
+    def test_id_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id = "abc123"')
+        assert w == "id = ?"
+        assert p == ["abc123"]
+
+    def test_dataset_id_like(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('dataset_id LIKE "%ds%"')
+        assert w == "dataset_id LIKE ?"
+        assert p == ["%ds%"]
+
+    def test_id_contains(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id CONTAINS "abc"')
+        assert w == "id LIKE ?"
+        assert p == ["%abc%"]
+
+    def test_created_at_gt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at > "2024-01-01"')
+        assert w == "created_at > ?"
+        assert p == ["2024-01-01"]
+
+    def test_updated_at_lte(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('updated_at <= "2024-12-31"')
+        assert w == "updated_at <= ?"
+        assert p == ["2024-12-31"]
+
+    def test_outputs_string_like(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.prediction LIKE "%bert%"')
+        assert w == "json_extract(outputs, '$.prediction') LIKE ?"
+        assert p == ["%bert%"]
+
+    def test_scores_numeric_gt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.accuracy > 0.9")
+        assert w == "json_extract(scores, '$.accuracy') > ?"
+        assert p == [0.9]
+
+    def test_inputs_contains(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('inputs.question CONTAINS "what"')
+        assert w == "json_extract(inputs, '$.question') LIKE ?"
+        assert p == ["%what%"]
+
+    def test_metadata_numeric_lt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("metadata.latency_ms < 100")
+        assert w == "json_extract(metadata, '$.latency_ms') < ?"
+        assert p == [100.0]
+
+    def test_refs_string_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('refs.answer = "yes"')
+        assert w == "json_extract(refs, '$.answer') = ?"
+        assert p == ["yes"]
+
+    def test_outputs_ilike(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.label ILIKE "%Yes%"')
+        assert w == "UPPER(json_extract(outputs, '$.label')) LIKE UPPER(?)"
+        assert p == ["%Yes%"]
+
+    def test_invalid_bare_attribute_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('nonexistent_col = "x"')
+
+    def test_invalid_column_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('invalid_col.key = "val"')
+
+    def test_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql("scores.accuracy => 0.5")
+
+
+class TestSearchEvalsUtilsValidate:
+    def test_none_is_valid(self) -> None:
+        SearchEvalsUtils.validate_filter_string(None)  # should not raise
+
+    def test_valid_filter_passes(self) -> None:
+        SearchEvalsUtils.validate_filter_string('outputs.prediction LIKE "%bert%"')
+
+    def test_valid_date_filter_passes(self) -> None:
+        SearchEvalsUtils.validate_filter_string('created_at > "2024-01-01"')
+
+    def test_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.validate_filter_string("scores.accuracy => 0.5")
+
+    def test_invalid_column_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.validate_filter_string('bad_column.key = "x"')
+
+
+class TestSearchTracesUtilsToSql:
+    def test_none_returns_empty(self) -> None:
+        w, p = SearchTracesUtils.to_sql(None)
+        assert w == ""
+        assert p == []
+
+    def test_attribute_string_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.http.method = "GET"')
+        assert "trace_id IN" in w
+        assert "SELECT DISTINCT trace_id FROM spans" in w
+        assert "json_extract(attributes, '$.\"http.method\"') = ?" in w
+        assert p == ["GET"]
+
+    def test_attribute_numeric_gte(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.http.status_code >= 400")
+        assert "json_extract(attributes, '$.\"http.status_code\"') >= ?" in w
+        assert p == [400.0]
+
+    def test_attribute_contains(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.db.statement CONTAINS "SELECT"')
+        assert "json_extract(attributes, '$.\"db.statement\"') LIKE ?" in w
+        assert p == ["%SELECT%"]
+
+    def test_attribute_ilike(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.service.name ILIKE "%api%"')
+        assert (
+            "UPPER(json_extract(attributes, '$.\"service.name\"')) LIKE UPPER(?)" in w
+        )
+        assert p == ["%api%"]
+
+    def test_no_attributes_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql('http.method = "GET"')
+
+    def test_bare_key_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql('method = "GET"')
+
+    def test_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql("attributes.http.status_code => 400")
+
+
+class TestSearchTracesUtilsValidate:
+    def test_none_is_valid(self) -> None:
+        SearchTracesUtils.validate_filter_string(None)  # should not raise
+
+    def test_valid_filter_passes(self) -> None:
+        SearchTracesUtils.validate_filter_string('attributes.http.method = "GET"')
+
+    def test_invalid_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.validate_filter_string('http.method = "GET"')
+
+    def test_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.validate_filter_string("attributes.code >= === 400")

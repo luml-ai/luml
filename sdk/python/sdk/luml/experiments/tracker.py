@@ -16,14 +16,17 @@ from luml.experiments.backends.data_types import (
     AnnotationValueType,
     EvalColumns,
     EvalRecord,
+    EvalTypedColumns,
     Experiment,
     ExperimentData,
     Group,
     Model,
     PaginatedResponse,
+    TraceColumns,
     TraceDetails,
     TraceRecord,
     TraceState,
+    TraceTypedColumns,
 )
 from luml.utils.naming import generate_random_name
 
@@ -1060,6 +1063,7 @@ class ExperimentTracker:
         sort_by: str = "execution_time",
         order: str = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> PaginatedResponse[TraceRecord]:
         """
@@ -1092,6 +1096,7 @@ class ExperimentTracker:
             sort_by=sort_by,
             order=order,
             search=search,
+            filters=filters,
             states=states,
         )
 
@@ -1101,6 +1106,7 @@ class ExperimentTracker:
         sort_by: str = "execution_time",
         order: str = "desc",
         search: str | None = None,
+        filters: list[str] | None = None,
         states: list[TraceState] | None = None,
     ) -> list[TraceRecord]:
         return self.backend.get_experiment_traces_all(
@@ -1108,6 +1114,7 @@ class ExperimentTracker:
             sort_by=sort_by,
             order=order,
             search=search,
+            filters=filters,
             states=states,
         )
 
@@ -1145,6 +1152,7 @@ class ExperimentTracker:
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> PaginatedResponse[EvalRecord]:
         """
         Retrieve paginated eval samples for an experiment.
@@ -1180,6 +1188,7 @@ class ExperimentTracker:
             dataset_id=dataset_id,
             json_sort_column=json_sort_column,
             search=search,
+            filters=filters,
         )
 
     def get_experiment_evals_all(
@@ -1190,6 +1199,7 @@ class ExperimentTracker:
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
+        filters: list[str] | None = None,
     ) -> list[EvalRecord]:
         return self.backend.get_experiment_evals_all(
             experiment_id,
@@ -1198,6 +1208,7 @@ class ExperimentTracker:
             dataset_id=dataset_id,
             json_sort_column=json_sort_column,
             search=search,
+            filters=filters,
         )
 
     def get_experiment_eval_columns(
@@ -1226,6 +1237,22 @@ class ExperimentTracker:
         ```
         """
         return self.backend.get_experiment_eval_columns(experiment_id, dataset_id)
+
+    def get_experiment_eval_typed_columns(
+        self, experiment_id: str, dataset_id: str | None = None
+    ) -> EvalTypedColumns:
+        """Like get_experiment_eval_columns but also returns the type for each key."""
+        return self.backend.get_experiment_eval_typed_columns(experiment_id, dataset_id)
+
+    def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
+        """Return distinct attribute keys from all spans in an experiment."""
+        return self.backend.get_experiment_trace_columns(experiment_id)
+
+    def get_experiment_trace_typed_columns(
+        self, experiment_id: str
+    ) -> TraceTypedColumns:
+        """Like get_experiment_trace_columns but also returns the type for each key."""
+        return self.backend.get_experiment_trace_typed_columns(experiment_id)
 
     def get_experiment_evals_average_scores(
         self, experiment_id: str, dataset_id: str | None = None
@@ -1660,6 +1687,12 @@ class ExperimentTracker:
 
     def validate_experiments_search(self, search: str | None = None) -> None:
         return self.backend.validate_experiments_search(search)
+
+    def validate_evals_filter(self, search: str | None = None) -> None:
+        return self.backend.validate_evals_filter(search)
+
+    def validate_traces_filter(self, search: str | None = None) -> None:
+        return self.backend.validate_traces_filter(search)
 
     def list_group_experiments_pagination(
         self,
