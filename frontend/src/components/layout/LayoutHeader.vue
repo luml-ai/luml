@@ -72,7 +72,6 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
 })
 
-
 type Emits = {
   (e: 'burgerClick'): void
 }

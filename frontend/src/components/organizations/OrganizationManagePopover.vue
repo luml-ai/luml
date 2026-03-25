@@ -36,13 +36,13 @@
           <button class="menu-item" @click="onOrganizationClick(organization.id)">
             {{ organization.name }}
           </button>
-<OrganizationLeavePopover
-  v-if="
-    organization.id !== organizationStore.currentOrganization?.id &&
-    organization.permissions?.organization?.includes(PermissionEnum.leave)
-  "
-  :organizationId="organization.id"
-/>
+          <OrganizationLeavePopover
+            v-if="
+              organization.id !== organizationStore.currentOrganization?.id &&
+              organization.permissions?.organization?.includes(PermissionEnum.leave)
+            "
+            :organizationId="organization.id"
+          />
         </div>
         <footer class="footer">
           <d-button severity="secondary" @click="onCreateClick">
@@ -115,7 +115,9 @@ const isCreateMode = ref(false)
 
 const isSettingsDisabled = computed(
   () =>
-    !organizationStore.currentOrganization?.permissions?.organization?.includes(PermissionEnum.read),
+    !organizationStore.currentOrganization?.permissions?.organization?.includes(
+      PermissionEnum.read,
+    ),
 )
 const currentOrganizationAvatarLabel = computed(() =>
   organizationStore.currentOrganization?.name.charAt(0).toUpperCase(),
