@@ -69,6 +69,9 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import DeploymentsFormBasicsSettings from '../form/DeploymentsFormBasicsSettings.vue'
 import DeploymentsFormModelSettings from '../form/model-settings/DeploymentsFormModelSettings.vue'
 import DeploymentsFormSatelliteSettings from '../form/DeploymentsFormSatelliteSettings.vue'
+import { useOrbitsStore } from '@/stores/orbits'
+
+const orbitsStore = useOrbitsStore()
 
 type Props = {
   initialCollectionId?: string
@@ -126,18 +129,30 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   }
   const formData = initialValues.value as any as CreateDeploymentForm
   const payload = getPayload(formData)
+
+  if (!orbitsStore.currentOrbitDetails) {
+    toast.add(simpleErrorToast('No orbit selected'))
+    return
+  }
+
   try {
     loading.value = true
     await deploymentsStore.createDeployment(
-      collectionsStore.requestInfo.organizationId,
-      collectionsStore.requestInfo.orbitId,
+      orbitsStore.currentOrbitDetails.organization_id,
+      orbitsStore.currentOrbitDetails.id,
       payload,
     )
     visible.value = false
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `Deployment ${payload.name} was successfully created.<br><a href="#" class="toast-action-link" data-route="orbit-deployments" data-params="{}">Go to Deployments</a>`,
+      detail: `Deployment ${payload.name} was successfully created.<br><a href="#" class="toast-action-link" data-route="orbit-deployments" data-params='${JSON.stringify(
+        {
+          organizationId: orbitsStore.currentOrbitDetails.organization_id,
+        },
+      )}' data-query='${JSON.stringify({
+        orbitId: orbitsStore.currentOrbitDetails.id,
+      })}'>Go to Deployments</a>`,
       life: 5000,
     })
   } catch (e) {

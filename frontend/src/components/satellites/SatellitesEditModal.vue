@@ -75,8 +75,10 @@ import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { satellitesResolver } from '@/utils/forms/resolvers'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
-import { useRoute } from 'vue-router'
 import SatelliteDelete from './SatelliteDelete.vue'
+import { useOrbitsStore } from '@/stores/orbits'
+
+const orbitsStore = useOrbitsStore()
 
 type Props = {
   data: Satellite
@@ -85,7 +87,6 @@ type Props = {
 const props = defineProps<Props>()
 
 const toast = useToast()
-const route = useRoute()
 const satellitesStore = useSatellitesStore()
 
 const dialogPT = {
@@ -103,13 +104,13 @@ const initialValues = ref({
 })
 
 const organizationId = computed(() => {
-  const id = route.params.organizationId
-  if (!id || Array.isArray(id)) throw new Error('Current organization was not found')
+  const id = orbitsStore.currentOrbitDetails?.organization_id
+  if (!id) throw new Error('Current organization was not found')
   return id
 })
 const orbitId = computed(() => {
-  const id = route.params.id
-  if (!id || Array.isArray(id)) throw new Error('Current orbit was not found')
+  const id = orbitsStore.currentOrbitDetails?.id
+  if (!id) throw new Error('Current orbit was not found')
   return id
 })
 
@@ -123,11 +124,11 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       props.data.id,
       initialValues.value,
     )
+    toast.add(simpleSuccessToast(`${props.data.name} updated successfully.`))
     visible.value = false
   } catch (e: any) {
     toast.add(simpleErrorToast(e?.response?.data?.detail || 'Failed to update satellite'))
   } finally {
-    toast.add(simpleSuccessToast(`${props.data.name} updated successfully.`))
     loading.value = false
   }
 }

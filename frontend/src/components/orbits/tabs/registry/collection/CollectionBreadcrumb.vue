@@ -26,7 +26,7 @@ const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
   const list = [
     {
       label: 'Registry',
-      route: `/organization/${route.params.organizationId}/orbit/${route.params.id}`,
+      route: `/organization/${route.params.organizationId}/registry?orbitId=${route.params.id}`,
     },
   ]
   if (collectionStore.currentCollection) {

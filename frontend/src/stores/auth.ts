@@ -9,6 +9,8 @@ import { ref } from 'vue'
 import { useUserStore } from './user'
 import { AnalyticsService } from '@/lib/analytics/AnalyticsService'
 import { useRoute, useRouter } from 'vue-router'
+import { useOrbitsStore } from './orbits'
+import { useOrganizationStore } from './organization'
 
 export const useAuthStore = defineStore('auth', () => {
   const usersStore = useUserStore()
@@ -42,18 +44,20 @@ export const useAuthStore = defineStore('auth', () => {
     if (isLoggingOut.value) {
       return
     }
-
     isLoggingOut.value = true
-
     try {
       await api.logout()
     } catch (e) {
       console.error('Logout error:', e)
     } finally {
+      const orbitsStore = useOrbitsStore()
+      const organizationStore = useOrganizationStore()
+
       usersStore.resetUser()
+      orbitsStore.reset()
+      organizationStore.reset()
       isAuth.value = false
       isLoggingOut.value = false
-
       if (route.meta.requireAuth) {
         setTimeout(() => {
           router.push({ name: 'home' }).catch(() => {})

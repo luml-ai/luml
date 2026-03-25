@@ -1,20 +1,38 @@
 <template>
   <header id="header" class="header">
     <router-link :to="{ name: 'home' }" class="logo">
-      <img :src="mainLogo" alt="LUML" class="logo-img" />
+      <img src="@/assets/img/Logo_Full_light_mode.svg" alt="LUML" class="logo-img logo-light" />
+      <img src="@/assets/img/Logo_Full_dark_mode.svg" alt="LUML" class="logo-img logo-dark" />
     </router-link>
+    <div v-if="authStore.isAuth" class="logo-group">
+      <OrganizationManagePopover />
+      <span class="separator">/</span>
+      <OrbitManagePopover />
+    </div>
+
     <div v-if="isActivesVisible" class="actives">
       <user-toolbar v-if="authStore.isAuth" />
       <div v-else class="buttons">
-        <d-button label="Log in" @click="$router.push({ name: 'sign-in' })" />
+        <d-button
+          label="Log in"
+          severity="contrast"
+          variant="text"
+          @click="$router.push({ name: 'sign-in' })"
+        />
         <d-button
           class="sign-up-button"
           label="Sign up"
-          severity="help"
+          severity="primary"
+          variant="text"
           @click="$router.push({ name: 'sign-up' })"
         />
       </div>
-      <d-button class="burger-button" @click="$emit('burgerClick')">
+      <d-button
+        class="burger-button"
+        variant="text"
+        severity="contrast"
+        @click="$emit('burgerClick')"
+      >
         <template #icon>
           <transition>
             <X v-if="isBurgerOpen" :size="24" />
@@ -27,15 +45,33 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeMount, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ref, provide, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
-import logo from '@/assets/img/logo.svg'
-import logoMobile from '@/assets/img/logo-mobile.svg'
-
 import UserToolbar from '../user/UserToolbar.vue'
 import { useAuthStore } from '@/stores/auth'
-
 import { X, Menu } from 'lucide-vue-next'
+import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
+import OrbitManagePopover from '../orbits/OrbitManagePopover.vue'
+
+const activePopover = ref<string | null>(null)
+provide('activePopover', activePopover)
+
+const headerRef = ref<HTMLElement | null>(null)
+
+function onDocumentClick(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('.p-popover') || target.closest('.logo-group')) return
+  activePopover.value = null
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
+
 
 type Emits = {
   (e: 'burgerClick'): void
@@ -54,22 +90,6 @@ defineProps({
 const emit = defineEmits<Emits>()
 
 const authStore = useAuthStore()
-
-const mainLogo = ref(logo)
-
-function setLogo() {
-  mainLogo.value = window.innerWidth > 768 ? logo : logoMobile
-}
-
-onBeforeMount(() => {
-  setLogo()
-
-  window.addEventListener('resize', setLogo)
-})
-
-onBeforeUnmount(() => {
-  window.removeEventListener('resize', setLogo)
-})
 </script>
 
 <style scoped>
@@ -77,10 +97,11 @@ onBeforeUnmount(() => {
   padding: 10px 16px;
   min-height: 64px;
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 40px;
-  background-color: var(--p-primary-color);
+  border-bottom: 1px solid var(--p-divider-border-color);
+  background-color: var(--p-content-hover-background);
+  flex-wrap: wrap;
 }
 .p-overflow-hidden .header {
   padding-right: calc(var(--p-scrollbar-width) + 16px);
@@ -92,29 +113,27 @@ onBeforeUnmount(() => {
   max-width: 202px;
   height: 36px;
 }
+.logo-group {
+  display: flex;
+  align-items: center;
+}
+.separator {
+  color: var(--p-text-muted-color);
+  font-size: 16px;
+  padding: 0 2px;
+  user-select: none;
+}
 .actives {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-left: auto;
 }
 .buttons {
   display: flex;
   gap: 11px;
   align-items: center;
 }
-
-@media (min-width: 769px) {
-  .burger-button {
-    display: none;
-  }
-}
-
-@media (max-width: 768px) {
-  .sign-up-button {
-    display: none;
-  }
-}
-
 .v-enter-active,
 .v-leave-active {
   transition: width 0.5s ease;
@@ -123,5 +142,42 @@ onBeforeUnmount(() => {
 .v-enter-from,
 .v-leave-to {
   width: 0;
+}
+
+.logo-dark {
+  display: none;
+}
+
+.burger-button {
+  display: none;
+}
+
+@media (max-width: 992px) {
+  .logo-group {
+    order: 3;
+    width: 100%;
+    padding-top: 8px;
+    border-top: 1px solid var(--p-divider-border-color);
+    margin-top: 8px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .burger-button {
+    display: flex;
+  }
+
+  .sign-up-button {
+    display: none;
+  }
+}
+
+[data-theme='dark'] .logo-light {
+  display: none;
+}
+
+[data-theme='dark'] .logo-dark {
+  display: block;
 }
 </style>

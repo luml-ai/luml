@@ -1,5 +1,8 @@
 <template>
-  <div class="wrapper" :style="{ paddingLeft: sidebarWidth + 'px' }">
+  <div
+    class="wrapper"
+    :style="{ paddingLeft: sidebarWidth + 'px', paddingTop: headerSizes.height + 'px' }"
+  >
     <UiClosablePlug
       v-if="plugStore.visible"
       text="Some operations may not behave correctly on mobile."
@@ -63,7 +66,6 @@ router.afterEach(() => {
 <style scoped>
 .wrapper {
   min-height: 100svh;
-  padding-top: 64px;
   padding-bottom: 60px;
   overflow-x: hidden;
 }

@@ -98,11 +98,13 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
 import { Select, useToast, InputText, InputNumber, ToggleButton } from 'primevue'
 import { computed, nextTick, onBeforeMount, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import { FormField } from '@primevue/forms'
 import { Rocket, Info } from 'lucide-vue-next'
 import { useSatelliteFields } from '@/hooks/satellites/useSatelliteFields'
 import { watch } from 'vue'
+import { useOrbitsStore } from '@/stores/orbits'
+
+const orbitsStore = useOrbitsStore()
 
 type Props = {
   selectedModel: ModelArtifact | null
@@ -111,7 +113,6 @@ type Props = {
 const props = defineProps<Props>()
 
 const satellitesStore = useSatellitesStore()
-const route = useRoute()
 const toast = useToast()
 const { fields: fieldsForShowing, setFields } = useSatelliteFields()
 
@@ -176,18 +177,14 @@ function getSatelliteErrorMessage(variantValid: boolean, tagsValid: boolean) {
 
 async function getSatellites() {
   try {
-    const organizationIdParam = route.params.organizationId
-    const orbitIdParam = route.params.id
-
-    const organizationId =
-      typeof organizationIdParam === 'string' ? organizationIdParam : organizationIdParam[0]
-
-    const orbitId = typeof orbitIdParam === 'string' ? orbitIdParam : orbitIdParam[0]
-
-    const list = await satellitesStore.loadSatellites(organizationId, orbitId)
+    if (!orbitsStore.currentOrbitDetails) return
+    const list = await satellitesStore.loadSatellites(
+      orbitsStore.currentOrbitDetails.organization_id,
+      orbitsStore.currentOrbitDetails.id,
+    )
     satellitesStore.setList(list)
   } catch (e: any) {
-    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load collections')))
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load satellites')))
   }
 }
 

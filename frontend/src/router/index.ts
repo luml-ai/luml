@@ -94,42 +94,29 @@ const router = createRouter({
       },
     },
     {
-      path: '/organization/:organizationId/orbits',
-      name: 'orbits',
-      component: () => import('../pages/orbits/index.vue'),
-      meta: {
-        requireAuth: true,
-      },
+      path: '/organization/:organizationId?/registry',
+      name: 'orbit-registry',
+      component: () => import('../pages/orbits/OrbitRegistryView.vue'),
+      meta: { orbitMiddleware: true },
     },
     {
-      path: '/organization/:organizationId/orbit/:id',
-      name: 'orbit',
-      component: () => import('../pages/orbits/OrbitPage.vue'),
-      meta: {
-        requireAuth: true,
-      },
-      children: [
-        {
-          path: '',
-          name: 'orbit-registry',
-          component: () => import('../pages/orbits/OrbitRegistryView.vue'),
-        },
-        {
-          path: 'deployments',
-          name: 'orbit-deployments',
-          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
-        },
-        {
-          path: 'satellites',
-          name: 'orbit-satellites',
-          component: () => import('../pages/orbits/OrbitSatellitesView.vue'),
-        },
-        {
-          path: 'secrets',
-          name: 'orbit-secrets',
-          component: () => import('../pages/orbits/OrbitSecretsView.vue'),
-        },
-      ],
+      path: '/organization/:organizationId?/deployments',
+      name: 'orbit-deployments',
+      component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+      meta: { orbitMiddleware: true },
+    },
+    {
+      path: '/organization/:organizationId?/satellites',
+      name: 'orbit-satellites',
+      component: () => import('../pages/orbits/OrbitSatellitesView.vue'),
+      meta: { orbitMiddleware: true },
+    },
+
+    {
+      path: '/organization/:organizationId?/secrets',
+      name: 'orbit-secrets',
+      component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+      meta: { orbitMiddleware: true },
     },
     {
       path: '/organization/:organizationId/orbit/:id/collection/:collectionId',

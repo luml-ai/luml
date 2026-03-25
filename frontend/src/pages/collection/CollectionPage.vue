@@ -61,7 +61,10 @@ watch(
   () => organizationStore.currentOrganization?.id,
   async (id) => {
     if (!id || route.params.organizationId === id) return
-    await router.push({ name: 'orbits', params: { organizationId: id } })
+    await router.push({
+      name: 'orbit-registry',
+      params: id ? { organizationId: id } : {},
+    })
   },
 )
 

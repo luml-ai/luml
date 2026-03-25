@@ -37,7 +37,7 @@
     <template #footer>
       <div>
         <Button
-          v-if="orbit.permissions.orbit.includes(PermissionEnum.delete)"
+          v-if="orbit.permissions?.orbit?.includes(PermissionEnum.delete)"
           variant="outlined"
           severity="warn"
           :disabled="loading"

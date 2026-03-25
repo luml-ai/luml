@@ -8,16 +8,63 @@ import type {
   UpdateOrbitPayload,
 } from '@/lib/api/api.interfaces'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useOrganizationStore } from './organization'
 
 export const useOrbitsStore = defineStore('orbit', () => {
   const organizationStore = useOrganizationStore()
 
   const orbitsList = ref<Orbit[]>([])
+  const currentOrbitId = ref<string | null>(null)
   const currentOrbitDetails = ref<OrbitDetails | null>(null)
+  const isLoadingOrbitDetails = ref(false)
 
+  const currentOrbit = computed(
+    () => orbitsList.value.find((o) => o.id === currentOrbitId.value) ?? null,
+  )
+  const hasCurrentOrbit = computed(() => currentOrbitId.value !== null)
   const getCurrentOrbitPermissions = computed(() => currentOrbitDetails.value?.permissions)
+
+  function setCurrentOrbitId(id: string | null) {
+    if (currentOrbitId.value === id) return
+
+    currentOrbitId.value = id
+    currentOrbitDetails.value = null
+
+    if (id) {
+      isLoadingOrbitDetails.value = true
+    } else {
+      isLoadingOrbitDetails.value = false
+    }
+  }
+
+  watch(currentOrbitId, async (id) => {
+    if (!id) {
+      currentOrbitDetails.value = null
+      isLoadingOrbitDetails.value = false
+      return
+    }
+
+    const orgId = organizationStore.currentOrganization?.id
+    if (!orgId) return
+
+    isLoadingOrbitDetails.value = true
+
+    try {
+      const details = await getOrbitDetails(orgId, id)
+      if (currentOrbitId.value !== id) return
+      currentOrbitDetails.value = details
+    } catch (e) {
+      console.error('Failed to load orbit details', e)
+      if (currentOrbitId.value !== id) return
+      currentOrbitId.value = null
+      currentOrbitDetails.value = null
+    } finally {
+      if (currentOrbitId.value === id) {
+        isLoadingOrbitDetails.value = false
+      }
+    }
+  })
 
   async function loadOrbitsList(organizationId: string) {
     orbitsList.value = await api.getOrganizationOrbits(organizationId)
@@ -33,11 +80,22 @@ export const useOrbitsStore = defineStore('orbit', () => {
   async function updateOrbit(organizationId: string, payload: UpdateOrbitPayload) {
     const orbit = await api.updateOrbit(organizationId, payload)
     orbitsList.value = updatedOrbitsList(orbitsList.value, orbit)
+
     if (!organizationStore.organizationDetails) return
     organizationStore.organizationDetails.orbits = updatedOrbitsList(
       organizationStore.organizationDetails.orbits,
       orbit,
     )
+    if (currentOrbitId.value === orbit.id) {
+      try {
+        const details = await getOrbitDetails(organizationId, orbit.id)
+        if (currentOrbitId.value === orbit.id) {
+          currentOrbitDetails.value = details
+        }
+      } catch (e) {
+        console.error('Failed to reload orbit details', e)
+      }
+    }
   }
 
   function updatedOrbitsList(list: Orbit[], orbit: Orbit) {
@@ -50,6 +108,11 @@ export const useOrbitsStore = defineStore('orbit', () => {
   async function deleteOrbit(organizationId: string, orbitId: string) {
     await api.deleteOrbit(organizationId, orbitId)
     orbitsList.value = orbitsList.value.filter((orbit) => orbit.id !== orbitId)
+
+    if (currentOrbitId.value === orbitId) {
+      currentOrbitId.value = null
+      currentOrbitDetails.value = null
+    }
   }
 
   async function addMemberToOrbit(organizationId: string, payload: AddMemberToOrbitPayload) {
@@ -78,13 +141,20 @@ export const useOrbitsStore = defineStore('orbit', () => {
 
   function reset() {
     orbitsList.value = []
+    currentOrbitId.value = null
     currentOrbitDetails.value = null
+    isLoadingOrbitDetails.value = false
   }
 
   return {
     orbitsList,
+    currentOrbit,
+    currentOrbitId,
     currentOrbitDetails,
+    isLoadingOrbitDetails,
+    hasCurrentOrbit,
     getCurrentOrbitPermissions,
+    setCurrentOrbitId,
     createOrbit,
     addMemberToOrbit,
     getOrbitDetails,

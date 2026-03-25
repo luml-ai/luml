@@ -26,7 +26,12 @@
             <RouterLink
               :to="{
                 name: 'artifact',
-                params: { collectionId: data.collection_id, artifactId: data.artifact_id },
+                params: {
+                  organizationId: route.params.organizationId,
+                  id: data.orbit_id,
+                  collectionId: data.collection_id,
+                  artifactId: data.artifact_id,
+                },
               }"
               class="link"
             >
@@ -95,7 +100,15 @@
           <div class="cell">
             <router-link
               v-if="data.schemas && !!Object.keys(data.schemas).length"
-              :to="{ name: 'deployment-schema', params: { deploymentId: data.id } }"
+              :to="{
+                name: 'deployment-schema',
+                params: {
+                  organizationId: route.params.organizationId,
+                  id: data.orbit_id,
+                  collectionId: data.collection_id,
+                  deploymentId: data.id,
+                },
+              }"
               class="link"
             >
               View Schema
@@ -142,6 +155,9 @@ import {
 import DeploymentsEditor from '../edit/DeploymentsEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
 import DeploymentErrorModal from '../error/DeploymentErrorModal.vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
 
 type Props = {
   data: Deployment[]

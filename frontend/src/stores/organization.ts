@@ -45,7 +45,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     const details = await api.updateOrganization(organizationId, payload)
     availableOrganizations.value = availableOrganizations.value.map((organization) => {
       return organization.id === organizationId
-        ? { ...details, role: organization.role }
+        ? { ...organization, name: details.name }
         : organization
     })
     organizationDetails.value = details

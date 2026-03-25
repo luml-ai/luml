@@ -96,10 +96,14 @@ describe('OrbitsStore', () => {
     vi.clearAllMocks()
   })
 
-  describe(' 1 - initial state', () => {
+  describe('1 - initial state', () => {
     it('has empty list and null details', () => {
       expect(store.orbitsList).toEqual([])
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.currentOrbit).toBeNull()
       expect(store.currentOrbitDetails).toBeNull()
+      expect(store.isLoadingOrbitDetails).toBe(false)
+      expect(store.hasCurrentOrbit).toBe(false)
       expect(store.getCurrentOrbitPermissions).toBeUndefined()
     })
   })
@@ -256,6 +260,41 @@ describe('OrbitsStore', () => {
       ).toBeUndefined()
     })
 
+    it('resets current orbit when deleting the active one', async () => {
+      store.orbitsList = [
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'),
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
+      ]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')
+
+      mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
+      await store.deleteOrbit(
+        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
+      )
+
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(store.orbitsList).toHaveLength(1)
+    })
+
+    it('does not reset current orbit when deleting a different one', async () => {
+      store.orbitsList = [
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'),
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
+      ]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
+      await store.deleteOrbit(
+        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
+      )
+
+      expect(store.currentOrbitId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      expect(store.orbitsList).toHaveLength(1)
+    })
+
     it('does nothing if id not found', async () => {
       const original = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
       store.orbitsList = [...original]
@@ -360,7 +399,53 @@ describe('OrbitsStore', () => {
     })
   })
 
-  describe('7 - local state helpers', () => {
+  describe('7 - setCurrentOrbitId', () => {
+    it('sets currentOrbitId and marks loading', () => {
+      store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      expect(store.currentOrbitId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      expect(store.isLoadingOrbitDetails).toBe(true)
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(store.hasCurrentOrbit).toBe(true)
+    })
+
+    it('sets null and clears loading', () => {
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      store.setCurrentOrbitId(null)
+
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.isLoadingOrbitDetails).toBe(false)
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(store.hasCurrentOrbit).toBe(false)
+    })
+
+    it('does nothing when setting the same id', () => {
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      const details = createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      store.setCurrentOrbitDetails(details)
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      expect(store.currentOrbitDetails).toEqual(details)
+    })
+
+    it('currentOrbit computed returns matching orbit', () => {
+      const orbit = createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      store.orbitsList = [orbit, createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      expect(store.currentOrbit).toEqual(orbit)
+    })
+
+    it('currentOrbit returns null when no match', () => {
+      store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
+      store.setCurrentOrbitId('ffffffff-ffff-ffff-ffff-ffffffffffff')
+
+      expect(store.currentOrbit).toBeNull()
+    })
+  })
+
+  describe('8 - local state helpers', () => {
     it('setCurrentOrbitDetails works', () => {
       const perm = {
         orbit: PermissionEnum.read,
@@ -377,13 +462,16 @@ describe('OrbitsStore', () => {
       expect(store.getCurrentOrbitPermissions).toEqual(details.permissions)
     })
 
-    it('reset clears state', () => {
+    it('reset clears all state', () => {
       store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
-
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       store.setCurrentOrbitDetails(createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'))
       store.reset()
       expect(store.orbitsList).toEqual([])
+      expect(store.currentOrbitId).toBeNull()
       expect(store.currentOrbitDetails).toBeNull()
+      expect(store.isLoadingOrbitDetails).toBe(false)
+      expect(store.hasCurrentOrbit).toBe(false)
       expect(store.getCurrentOrbitPermissions).toBeUndefined()
     })
   })
