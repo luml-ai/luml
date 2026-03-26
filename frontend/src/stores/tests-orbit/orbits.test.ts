@@ -387,8 +387,6 @@ describe('OrbitsStore', () => {
       expect(store.currentOrbitId).toBe(orbitId)
       expect(store.isLoadingOrbitDetails).toBe(true)
       expect(store.hasCurrentOrbit).toBe(true)
-
-      // Wait for loadOrbitDetails to complete
       await vi.waitFor(() => {
         expect(store.isLoadingOrbitDetails).toBe(false)
       })
@@ -437,15 +435,12 @@ describe('OrbitsStore', () => {
       const details1 = createMockOrbitDetails(orbitId1)
       const details2 = createMockOrbitDetails(orbitId2)
 
-      // First call resolves slowly
       mockApi.getOrbitDetails
         .mockImplementationOnce(
           () => new Promise((resolve) => setTimeout(() => resolve(details1), 100)),
         )
         .mockResolvedValueOnce(details2)
-
       store.setCurrentOrbitId(orbitId1, ORG_ID)
-      // Quickly switch to another orbit
       store.setCurrentOrbitId(orbitId2, ORG_ID)
 
       await vi.waitFor(() => {
