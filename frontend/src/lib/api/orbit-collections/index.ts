@@ -22,7 +22,7 @@ export class OrbitCollectionsApi {
   ) {
     console.log('params', params)
     const { data: responseData } = await this.api.get<GetCollectionsListResponse>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/collections`,
       { params, paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }) },
     )
     return responseData
@@ -30,7 +30,7 @@ export class OrbitCollectionsApi {
 
   async createCollection(organizationId: string, orbitId: string, data: OrbitCollectionCreator) {
     const { data: responseData } = await this.api.post<ExtendedOrbitCollection>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/collections`,
       data,
     )
     return responseData
@@ -43,7 +43,7 @@ export class OrbitCollectionsApi {
     data: Omit<OrbitCollectionCreator, 'type'>,
   ) {
     const { data: responseData } = await this.api.patch<ExtendedOrbitCollection>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
       data,
     )
     return responseData
@@ -51,7 +51,7 @@ export class OrbitCollectionsApi {
 
   async deleteCollection(organizationId: string, orbitId: string, collectionId: string) {
     const { data: responseData } = await this.api.delete<BaseDetailResponse>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
     )
     return responseData
   }
@@ -62,7 +62,7 @@ export class OrbitCollectionsApi {
     collectionId: string,
   ): Promise<ExtendedOrbitCollection> {
     const { data: responseData } = await this.api.get<ExtendedOrbitCollection>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}`,
     )
     return responseData
   }
