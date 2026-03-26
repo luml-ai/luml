@@ -441,16 +441,26 @@ class ExperimentsHandler:
             raise ApplicationError(str(e), status_code=500) from e
         return [FileNode.model_validate(n) for n in result]
 
-    def validate_evals_filter(self, filter_str: str) -> SearchValidationResult:
-        try:
-            self.tracker.validate_evals_filter(filter_str)
-        except Exception as e:
-            return SearchValidationResult(valid=False, error=str(e))
-        return SearchValidationResult()
+    def validate_evals_filter(
+        self, filter_strings: list[str]
+    ) -> list[SearchValidationResult]:
+        results = []
+        for s in filter_strings:
+            try:
+                self.tracker.validate_evals_filter(s)
+                results.append(SearchValidationResult())
+            except Exception as e:
+                results.append(SearchValidationResult(valid=False, error=str(e)))
+        return results
 
-    def validate_traces_filter(self, filter_str: str) -> SearchValidationResult:
-        try:
-            self.tracker.validate_traces_filter(filter_str)
-        except Exception as e:
-            return SearchValidationResult(valid=False, error=str(e))
-        return SearchValidationResult()
+    def validate_traces_filter(
+        self, filter_strings: list[str]
+    ) -> list[SearchValidationResult]:
+        results = []
+        for s in filter_strings:
+            try:
+                self.tracker.validate_traces_filter(s)
+                results.append(SearchValidationResult())
+            except Exception as e:
+                results.append(SearchValidationResult(valid=False, error=str(e)))
+        return results

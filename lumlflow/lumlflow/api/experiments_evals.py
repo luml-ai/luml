@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Body, Query
 
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.schemas.base import SortOrder
@@ -12,6 +14,11 @@ from lumlflow.schemas.experiments import (
 
 experiments_evals_router = APIRouter(
     prefix="/api/experiments/{experiment_id}/evals",
+    tags=["experiment-evals"],
+)
+
+experiments_general_evals_router = APIRouter(
+    prefix="/api/experiments/evals",
     tags=["experiment-evals"],
 )
 
@@ -115,15 +122,21 @@ def get_experiment_evals(
     )
 
 
-@experiments_evals_router.get("/validate-filter", response_model=SearchValidationResult)
-def validate_evals_filter(filter_str: str) -> SearchValidationResult:
+@experiments_general_evals_router.post(
+    "/validate-filter", response_model=list[SearchValidationResult]
+)
+def validate_evals_filter(
+    filter_strings: Annotated[list[str], Body(...)],
+) -> list[SearchValidationResult]:
     """
     Validate an evals filter string without executing it.
 
     Supported syntax:
-    - **Bare attributes**: id, dataset_id — operators: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - **Bare attributes**: id, dataset_id — operators:
+        =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
     - **Date attributes**: created_at, updated_at — operators: =, !=, >, >=, <, <=
-    - **JSON fields**: inputs.<key>, outputs.<key>, refs.<key>, scores.<key>, metadata.<key>
+    - **JSON fields**:
+        inputs.<key>, outputs.<key>, refs.<key>, scores.<key>, metadata.<key>
       — string or numeric operators based on value type
 
     Examples:
@@ -134,7 +147,7 @@ def validate_evals_filter(filter_str: str) -> SearchValidationResult:
      - scores.accuracy > 0.9
      - scores.accuracy > 0.8 AND metadata.latency_ms < 500
     """
-    return experiments_handler.validate_evals_filter(filter_str)
+    return experiments_handler.validate_evals_filter(filter_strings)
 
 
 @experiments_evals_router.get("/{eval_id}", response_model=Eval)
