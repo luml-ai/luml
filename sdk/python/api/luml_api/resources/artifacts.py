@@ -462,7 +462,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             ]
 
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
             params=params,
         )
 
@@ -508,7 +508,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         return self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
         )
 
     @validate_collection
@@ -545,7 +545,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         return self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
     @validate_collection
@@ -909,7 +909,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         response = self._client.post(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
             json={
                 "file_name": file_name,
                 "extra_values": extra_values,
@@ -1037,7 +1037,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         """
         return self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
             json=self._client.filter_none(
                 {
                     "file_name": file_name,
@@ -1087,7 +1087,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 find model in your storage.
         """
         return self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
         )
 
 
@@ -1440,7 +1440,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             ]
 
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
             params=params,
         )
         if response is None:
@@ -1489,7 +1489,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         return await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
         )
 
     @validate_collection
@@ -1533,7 +1533,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         return await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
         )
 
     @validate_collection
@@ -1670,7 +1670,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         response = await self._client.post(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
             json={
                 "file_name": file_name,
                 "extra_values": extra_values,
@@ -1991,7 +1991,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
         return await self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
             json=self._client.filter_none(
                 {
                     "file_name": file_name,
@@ -2050,5 +2050,5 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             find model in your storage.
         """
         return await self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
         )

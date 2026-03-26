@@ -145,7 +145,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
     def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
         try:
             response = self._client.get(
-                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+                f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
             )
             if response is None:
                 return None
@@ -291,7 +291,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                 t.value if isinstance(t, CollectionTypeFilter) else t for t in types
             ]
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             params=params,
         )
         if response is None:
@@ -345,7 +345,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         response = self._client.post(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             json={
                 "description": description,
                 "name": name,
@@ -417,7 +417,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         response = self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
             json=self._client.filter_none(
                 {
                     "description": description,
@@ -466,7 +466,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             important data before deletion.
         """
         return self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
         )
 
 
@@ -543,7 +543,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
     async def _get_by_id(self, collection_id: str) -> CollectionDetails | None:
         try:
             response = await self._client.get(
-                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+                f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
             )
             if response is None:
                 return None
@@ -699,7 +699,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             ]
 
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             params=params,
         )
         if response is None:
@@ -759,7 +759,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         response = await self._client.post(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
             json={
                 "description": description,
                 "name": name,
@@ -835,7 +835,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         ```
         """
         response = await self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}",
             json=self._client.filter_none(
                 {
                     "description": description,
@@ -891,5 +891,5 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             important data before deletion.
         """
         return await self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
+            f"/api/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}"
         )
