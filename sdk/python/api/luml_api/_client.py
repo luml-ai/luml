@@ -16,6 +16,7 @@ from luml_api._exceptions import (
 from luml_api._types import is_uuid
 
 if TYPE_CHECKING:
+    from luml_api.resources import AsyncOrbitResource, OrbitResource
     from luml_api.resources.artifacts import (
         ArtifactResource,
         AsyncArtifactResource,
@@ -28,7 +29,6 @@ if TYPE_CHECKING:
         AsyncCollectionResource,
         CollectionResource,
     )
-    from luml_api.resources import AsyncOrbitResource, OrbitResource
     from luml_api.resources.organizations import (
         AsyncOrganizationResource,
         OrganizationResource,
@@ -361,7 +361,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     @cached_property
     def orbits(self) -> "AsyncOrbitResource":
         """Orbits interface."""
-        from luml_api.resources import AsyncOrbitResource
+        from luml_api.resources.orbits import AsyncOrbitResource
 
         return AsyncOrbitResource(self)
 
@@ -570,7 +570,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
     @cached_property
     def orbits(self) -> "OrbitResource":
         """Orbits interface."""
-        from luml_api.resources import OrbitResource
+        from luml_api.resources.orbits import OrbitResource
 
         return OrbitResource(self)
 
