@@ -61,7 +61,6 @@ def get_attachment_content(experiment_id: str, file_path: str) -> Response:
     return Response(content=content, media_type=media_type)
 
 
-
 @experiments_router.get("/{experiment_id}/attachments", response_model=list[FileNode])
 def list_experiment_attachments(
     experiment_id: str, parent_path: str | None = None
