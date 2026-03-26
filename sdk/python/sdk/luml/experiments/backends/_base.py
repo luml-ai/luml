@@ -7,11 +7,13 @@ from luml.experiments.backends.data_types import (
     AnnotationRecord,
     AnnotationSummary,
     AnnotationValueType,
+    AttachmentRecord,
     EvalColumns,
     EvalRecord,
     EvalTypedColumns,
     Experiment,
     ExperimentData,
+    FileNode,
     Group,
     Model,
     PaginatedResponse,
@@ -109,6 +111,16 @@ class Backend(ABC):
 
     @abstractmethod
     def get_attachment(self, experiment_id: str, name: str) -> Any:  # noqa: ANN401
+        pass
+
+    @abstractmethod
+    def list_attachments(self, experiment_id: str) -> list[AttachmentRecord]:
+        pass
+
+    @abstractmethod
+    def list_attachments_tree(
+        self, experiment_id: str, parent_path: str | None = None
+    ) -> list[FileNode]:
         pass
 
     @abstractmethod

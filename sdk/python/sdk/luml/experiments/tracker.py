@@ -14,11 +14,13 @@ from luml.experiments.backends.data_types import (
     AnnotationRecord,
     AnnotationSummary,
     AnnotationValueType,
+    AttachmentRecord,
     EvalColumns,
     EvalRecord,
     EvalTypedColumns,
     Experiment,
     ExperimentData,
+    FileNode,
     Group,
     Model,
     PaginatedResponse,
@@ -520,6 +522,35 @@ class ExperimentTracker:
         if exp_id is None:
             raise ValueError("No active experiment. Call start_experiment() first.")
         return self.backend.get_attachment(exp_id, name)
+
+    def list_attachments(
+        self, experiment_id: str | None = None
+    ) -> list[AttachmentRecord]:
+        """
+        List all attachments logged for an experiment.
+
+        Args:
+            experiment_id (str | None): Experiment ID. Uses current experiment if not specified.
+
+        Returns:
+            list[AttachmentRecord]: List of attachment records with ``name``, ``file_path``,
+                and ``created_at`` fields.
+
+        Raises:
+            ValueError: If no experiment is active and ``experiment_id`` is not provided.
+        """
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.list_attachments(exp_id)
+
+    def list_attachments_tree(
+        self, experiment_id: str | None = None, parent_path: str | None = None
+    ) -> list[FileNode]:
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment. Call start_experiment() first.")
+        return self.backend.list_attachments_tree(exp_id, parent_path=parent_path)
 
     def list_experiments(self) -> list[Experiment]:
         """

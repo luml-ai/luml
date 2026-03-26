@@ -1,7 +1,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import IntEnum, StrEnum
-from typing import Any
+from typing import Any, Literal
+
+
+class ColumnType(StrEnum):
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    UNKNOWN = "unknown"
 
 
 class TraceState(IntEnum):
@@ -72,6 +79,21 @@ class ExperimentMetaData:
 
 
 @dataclass
+class AttachmentRecord:
+    id: str | None
+    name: str
+    file_path: str
+    created_at: datetime
+
+
+@dataclass
+class FileNode:
+    name: str
+    type: Literal["file", "folder"]
+    path: str | None = None
+
+
+@dataclass
 class ExperimentData:
     experiment_id: str
     metadata: ExperimentMetaData
@@ -134,7 +156,7 @@ class EvalRecord:
 @dataclass
 class ColumnField:
     name: str
-    type: str  # "string" | "number" | "boolean" | "unknown"
+    type: ColumnType
 
 
 @dataclass

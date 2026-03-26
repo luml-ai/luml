@@ -567,3 +567,360 @@ class TestSearchTracesUtilsValidate:
     def test_invalid_comparator_raises(self) -> None:
         with pytest.raises(LumlFilterError):
             SearchTracesUtils.validate_filter_string("attributes.code >= === 400")
+
+
+# ---------------------------------------------------------------------------
+# Evals — bare string attributes: id, dataset_id
+# Allowed: = != LIKE ILIKE IN NOT IN CONTAINS
+# Forbidden: > >= < <=
+# ---------------------------------------------------------------------------
+class TestSearchEvalsStringAttributes:
+    def test_id_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id = "abc123"')
+        assert w == "id = ?"
+        assert p == ["abc123"]
+
+    def test_id_neq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id != "abc123"')
+        assert w == "id != ?"
+        assert p == ["abc123"]
+
+    def test_id_like(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id LIKE "%abc%"')
+        assert w == "id LIKE ?"
+        assert p == ["%abc%"]
+
+    def test_id_ilike(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id ILIKE "%ABC%"')
+        assert w == "UPPER(id) LIKE UPPER(?)"
+        assert p == ["%ABC%"]
+
+    def test_id_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id IN ("abc", "def")')
+        assert w == "id IN (?,?)"
+        assert p == ["abc", "def"]
+
+    def test_id_not_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id NOT IN ("abc", "def")')
+        assert "id NOT IN" in w
+        assert p == ["abc", "def"]
+
+    def test_id_contains(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id CONTAINS "abc"')
+        assert w == "id LIKE ?"
+        assert p == ["%abc%"]
+
+    def test_dataset_id_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('dataset_id = "ds-001"')
+        assert w == "dataset_id = ?"
+        assert p == ["ds-001"]
+
+    def test_id_gt_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('id > "abc"')
+
+    def test_id_gte_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('id >= "abc"')
+
+    def test_id_lt_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('id < "abc"')
+
+    def test_id_lte_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('id <= "abc"')
+
+
+# ---------------------------------------------------------------------------
+# Evals — date attributes: created_at, updated_at
+# Allowed: = != > >= < <=
+# Forbidden: LIKE ILIKE IN NOT IN CONTAINS
+# ---------------------------------------------------------------------------
+class TestSearchEvalsDateAttributes:
+    def test_created_at_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at = "2024-01-01"')
+        assert w == "created_at = ?"
+        assert p == ["2024-01-01"]
+
+    def test_created_at_neq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at != "2024-01-01"')
+        assert w == "created_at != ?"
+        assert p == ["2024-01-01"]
+
+    def test_created_at_gt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at > "2024-01-01"')
+        assert w == "created_at > ?"
+        assert p == ["2024-01-01"]
+
+    def test_created_at_gte(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at >= "2024-01-01"')
+        assert w == "created_at >= ?"
+        assert p == ["2024-01-01"]
+
+    def test_created_at_lt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at < "2024-12-31"')
+        assert w == "created_at < ?"
+        assert p == ["2024-12-31"]
+
+    def test_created_at_lte(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('created_at <= "2024-12-31"')
+        assert w == "created_at <= ?"
+        assert p == ["2024-12-31"]
+
+    def test_updated_at_gt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('updated_at > "2024-06-01"')
+        assert w == "updated_at > ?"
+        assert p == ["2024-06-01"]
+
+    def test_created_at_like_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('created_at LIKE "%2024%"')
+
+    def test_created_at_ilike_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('created_at ILIKE "%2024%"')
+
+    def test_created_at_in_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('created_at IN ("2024-01-01")')
+
+    def test_created_at_not_in_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('created_at NOT IN ("2024-01-01")')
+
+    def test_created_at_contains_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchEvalsUtils.to_sql('created_at CONTAINS "2024"')
+
+
+# ---------------------------------------------------------------------------
+# Evals — JSON fields: inputs.*, outputs.*, refs.*, scores.*, metadata.*
+# All operators allowed; type auto-detected from value
+# ---------------------------------------------------------------------------
+class TestSearchEvalsJsonFields:
+    # --- string ---
+    def test_outputs_string_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.label = "positive"')
+        assert w == "json_extract(outputs, '$.label') = ?"
+        assert p == ["positive"]
+
+    def test_outputs_string_neq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.label != "negative"')
+        assert w == "json_extract(outputs, '$.label') != ?"
+        assert p == ["negative"]
+
+    def test_outputs_string_like(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.text LIKE "%hello%"')
+        assert w == "json_extract(outputs, '$.text') LIKE ?"
+        assert p == ["%hello%"]
+
+    def test_outputs_string_ilike(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.text ILIKE "%HELLO%"')
+        assert w == "UPPER(json_extract(outputs, '$.text')) LIKE UPPER(?)"
+        assert p == ["%HELLO%"]
+
+    def test_outputs_string_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.label IN ("pos", "neg")')
+        assert w == "json_extract(outputs, '$.label') IN (?,?)"
+        assert p == ["pos", "neg"]
+
+    def test_outputs_string_not_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.label NOT IN ("pos", "neg")')
+        assert "json_extract(outputs, '$.label') NOT IN" in w
+        assert p == ["pos", "neg"]
+
+    def test_outputs_string_contains(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.text CONTAINS "hello"')
+        assert w == "json_extract(outputs, '$.text') LIKE ?"
+        assert p == ["%hello%"]
+
+    # --- number ---
+    def test_scores_number_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.accuracy = 1.0")
+        assert w == "json_extract(scores, '$.accuracy') = ?"
+        assert p == [1.0]
+
+    def test_scores_number_neq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.accuracy != 0.0")
+        assert w == "json_extract(scores, '$.accuracy') != ?"
+        assert p == [0.0]
+
+    def test_scores_number_gt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.accuracy > 0.9")
+        assert w == "json_extract(scores, '$.accuracy') > ?"
+        assert p == [0.9]
+
+    def test_scores_number_gte(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.f1 >= 0.8")
+        assert w == "json_extract(scores, '$.f1') >= ?"
+        assert p == [0.8]
+
+    def test_scores_number_lt(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.loss < 0.5")
+        assert w == "json_extract(scores, '$.loss') < ?"
+        assert p == [0.5]
+
+    def test_metadata_number_lte(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("metadata.latency_ms <= 200")
+        assert w == "json_extract(metadata, '$.latency_ms') <= ?"
+        assert p == [200.0]
+
+    # --- boolean ---
+    def test_metadata_bool_true_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("metadata.normalize = true")
+        assert w == "json_extract(metadata, '$.normalize') = ?"
+        assert p == [1.0]
+
+    def test_metadata_bool_false_eq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("metadata.normalize = false")
+        assert w == "json_extract(metadata, '$.normalize') = ?"
+        assert p == [0.0]
+
+    def test_metadata_bool_neq(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("metadata.active != true")
+        assert w == "json_extract(metadata, '$.active') != ?"
+        assert p == [1.0]
+
+    def test_bool_python_style_True(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.passed = True")
+        assert p == [1.0]
+
+    def test_bool_python_style_False(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.passed = False")
+        assert p == [0.0]
+
+    def test_bool_uppercase_TRUE(self) -> None:
+        w, p = SearchEvalsUtils.to_sql("scores.passed = TRUE")
+        assert p == [1.0]
+
+    # --- all json columns accessible ---
+    def test_inputs_field(self) -> None:
+        w, _ = SearchEvalsUtils.to_sql('inputs.question LIKE "%what%"')
+        assert "json_extract(inputs, '$.question')" in w
+
+    def test_refs_field(self) -> None:
+        w, _ = SearchEvalsUtils.to_sql('refs.answer = "yes"')
+        assert "json_extract(refs, '$.answer')" in w
+
+    def test_metadata_field(self) -> None:
+        w, _ = SearchEvalsUtils.to_sql("metadata.latency_ms > 100")
+        assert "json_extract(metadata, '$.latency_ms')" in w
+
+
+# ---------------------------------------------------------------------------
+# Traces — attributes.*
+# All operators allowed; type auto-detected from value
+# ---------------------------------------------------------------------------
+class TestSearchTracesAllOperators:
+    # --- string ---
+    def test_attr_string_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.http.method = "GET"')
+        assert "json_extract(attributes, '$.\"http.method\"') = ?" in w
+        assert p == ["GET"]
+
+    def test_attr_string_neq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.http.method != "POST"')
+        assert "json_extract(attributes, '$.\"http.method\"') != ?" in w
+        assert p == ["POST"]
+
+    def test_attr_string_like(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.service.name LIKE "%api%"')
+        assert "json_extract(attributes, '$.\"service.name\"') LIKE ?" in w
+        assert p == ["%api%"]
+
+    def test_attr_string_ilike(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.service.name ILIKE "%API%"')
+        assert (
+            "UPPER(json_extract(attributes, '$.\"service.name\"')) LIKE UPPER(?)" in w
+        )
+        assert p == ["%API%"]
+
+    def test_attr_string_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.http.method IN ("GET", "POST")')
+        assert "json_extract(attributes, '$.\"http.method\"') IN (?,?)" in w
+        assert p == ["GET", "POST"]
+
+    def test_attr_string_not_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql(
+            'attributes.http.method NOT IN ("DELETE", "PUT")'
+        )
+        assert "NOT IN" in w
+        assert p == ["DELETE", "PUT"]
+
+    def test_attr_string_contains(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.db.statement CONTAINS "SELECT"')
+        assert "json_extract(attributes, '$.\"db.statement\"') LIKE ?" in w
+        assert p == ["%SELECT%"]
+
+    # --- number ---
+    def test_attr_number_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.http.status_code = 200")
+        assert "json_extract(attributes, '$.\"http.status_code\"') = ?" in w
+        assert p == [200.0]
+
+    def test_attr_number_neq(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.http.status_code != 404")
+        assert "json_extract(attributes, '$.\"http.status_code\"') != ?" in w
+        assert p == [404.0]
+
+    def test_attr_number_gt(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.http.status_code > 400")
+        assert "json_extract(attributes, '$.\"http.status_code\"') > ?" in w
+        assert p == [400.0]
+
+    def test_attr_number_gte(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.http.status_code >= 500")
+        assert "json_extract(attributes, '$.\"http.status_code\"') >= ?" in w
+        assert p == [500.0]
+
+    def test_attr_number_lt(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.duration_ms < 1000")
+        assert "json_extract(attributes, '$.\"duration_ms\"') < ?" in w
+        assert p == [1000.0]
+
+    def test_attr_number_lte(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.retry_count <= 3")
+        assert "json_extract(attributes, '$.\"retry_count\"') <= ?" in w
+        assert p == [3.0]
+
+    # --- boolean ---
+    def test_attr_bool_true_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.error = true")
+        assert "json_extract(attributes, '$.\"error\"') = ?" in w
+        assert p == [1.0]
+
+    def test_attr_bool_false_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.error = false")
+        assert "json_extract(attributes, '$.\"error\"') = ?" in w
+        assert p == [0.0]
+
+    def test_attr_bool_neq(self) -> None:
+        w, p = SearchTracesUtils.to_sql("attributes.is_root != true")
+        assert "json_extract(attributes, '$.\"is_root\"') != ?" in w
+        assert p == [1.0]
+
+    def test_attr_bool_python_style_True(self) -> None:
+        _, p = SearchTracesUtils.to_sql("attributes.error = True")
+        assert p == [1.0]
+
+    def test_attr_bool_python_style_False(self) -> None:
+        _, p = SearchTracesUtils.to_sql("attributes.error = False")
+        assert p == [0.0]
+
+    def test_attr_bool_uppercase_TRUE(self) -> None:
+        _, p = SearchTracesUtils.to_sql("attributes.error = TRUE")
+        assert p == [1.0]
+
+    # --- error cases ---
+    def test_missing_attributes_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql('http.method = "GET"')
+
+    def test_bare_key_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql('method = "GET"')
+
+    def test_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.to_sql("attributes.status_code => 400")

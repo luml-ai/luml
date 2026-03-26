@@ -35,7 +35,9 @@ from luml.experiments.backends.data_types import (
     AnnotationRecord,
     AnnotationSummary,
     AnnotationValueType,
+    AttachmentRecord,
     ColumnField,
+    ColumnType,
     EvalColumns,
     EvalRecord,
     EvalTypedColumns,
@@ -44,6 +46,7 @@ from luml.experiments.backends.data_types import (
     ExperimentData,
     ExperimentMetaData,
     FeedbackSummaryItem,
+    FileNode,
     Group,
     Model,
     PaginatedResponse,
@@ -176,12 +179,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "dynamic_params",
     ]
 
-    _SQLITE_TYPE_MAP: dict[str, str] = {
-        "text": "string",
-        "integer": "number",
-        "real": "number",
-        "true": "boolean",
-        "false": "boolean",
+    _SQLITE_TYPE_MAP: dict[str, ColumnType] = {
+        "text": ColumnType.STRING,
+        "integer": ColumnType.NUMBER,
+        "real": ColumnType.NUMBER,
+        "true": ColumnType.BOOLEAN,
+        "false": ColumnType.BOOLEAN,
     }
 
     def __init__(
@@ -445,16 +448,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
 
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO attachments (name, file_path)
-            VALUES (?, ?)
-        """,
-            (
-                name,
-                str(file_path.relative_to(self._get_attachments_dir(experiment_id))),
-            ),
+        relative_path = str(
+            file_path.relative_to(self._get_attachments_dir(experiment_id))
         )
+        cursor.execute("SELECT id FROM attachments WHERE name = ?", (name,))
+        existing = cursor.fetchone()
+        if existing and existing[0] is not None:
+            cursor.execute(
+                "UPDATE attachments SET file_path = ? WHERE name = ?",
+                (relative_path, name),
+            )
+        elif existing:
+            cursor.execute(
+                "UPDATE attachments SET id = ?, file_path = ? WHERE name = ?",
+                (str(uuid.uuid4()), relative_path, name),
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO attachments (id, name, file_path) VALUES (?, ?, ?)",
+                (str(uuid.uuid4()), name, relative_path),
+            )
 
         conn.commit()
 
@@ -769,6 +782,51 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         with file_path.open("rb") as f:
             return f.read()
+
+    def list_attachments(self, experiment_id: str) -> list[AttachmentRecord]:
+        self._ensure_experiment_initialized(experiment_id)
+        conn = self._get_experiment_connection(experiment_id)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, name, file_path, created_at FROM attachments ORDER BY file_path"
+        )
+        return [
+            AttachmentRecord(
+                id=id_, name=name, file_path=file_path or "", created_at=created_at
+            )
+            for id_, name, file_path, created_at in cursor.fetchall()
+        ]
+
+    def list_attachments_tree(
+        self, experiment_id: str, parent_path: str | None = None
+    ) -> list[FileNode]:
+        self._ensure_experiment_initialized(experiment_id)
+        conn = self._get_experiment_connection(experiment_id)
+        cursor = conn.cursor()
+        prefix = (parent_path.rstrip("/") + "/") if parent_path else ""
+        if prefix:
+            cursor.execute(
+                "SELECT name FROM attachments WHERE name LIKE ? ORDER BY name",
+                (prefix + "%",),
+            )
+        else:
+            cursor.execute("SELECT name FROM attachments ORDER BY name")
+        result: list[FileNode] = []
+        seen_folders: set[str] = set()
+        for (name,) in cursor.fetchall():
+            relative = name[len(prefix) :]
+            parts = relative.split("/")
+            if len(parts) == 1:
+                result.append(FileNode(name=parts[0], type="file", path=name))
+            else:
+                folder_name = parts[0]
+                folder_path = prefix + folder_name
+                if folder_path not in seen_folders:
+                    seen_folders.add(folder_path)
+                    result.append(
+                        FileNode(name=folder_name, type="folder", path=folder_path)
+                    )
+        return result
 
     def list_experiments(self) -> list[Experiment]:  # noqa: ANN401
         """
@@ -3027,7 +3085,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 )
             return [
                 ColumnField(
-                    name=row[0], type=self._SQLITE_TYPE_MAP.get(row[1], "unknown")
+                    name=row[0],
+                    type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
                 )
                 for row in cur.fetchall()
             ]
@@ -3070,7 +3129,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return TraceTypedColumns(
             attributes=[
                 ColumnField(
-                    name=row[0], type=self._SQLITE_TYPE_MAP.get(row[1], "unknown")
+                    name=row[0],
+                    type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
                 )
                 for row in cur.fetchall()
             ]

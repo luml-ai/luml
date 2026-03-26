@@ -112,7 +112,9 @@ class SearchUtils:
         "NOT IN",
     }
     VALID_NUMERIC_ATTRIBUTE_COMPARATORS = VALID_METRIC_COMPARATORS
+    VALID_BOOLEAN_ATTRIBUTE_COMPARATORS = {"=", "!="}
     NUMERIC_ATTRIBUTES: set[str] = set()
+    BOOLEAN_KEYWORD_VALUES = frozenset({"TRUE", "FALSE"})
     STRING_VALUE_TYPES = {TokenType.Literal.String.Single}
     DELIMITER_VALUE_TYPES = {TokenType.Punctuation}
     WHITESPACE_VALUE_TYPE = TokenType.Text.Whitespace
@@ -125,6 +127,13 @@ class SearchUtils:
     _PARAM_IDENTIFIER = "param"
     _TAG_IDENTIFIER = "tag"
     _ATTRIBUTE_IDENTIFIER = "attribute"
+
+    @classmethod
+    def _is_boolean_token(cls, token: Token) -> bool:
+        return (
+            token.ttype == TokenType.Keyword
+            and token.value.upper() in cls.BOOLEAN_KEYWORD_VALUES
+        )
 
     @staticmethod
     def get_comparison_func(comparator: str):  # noqa: ANN205
@@ -270,7 +279,9 @@ class SearchUtils:
 
     @staticmethod
     def _preprocess_filter(filter_string: str) -> str:
-        """Convert CONTAINS operator to LIKE with % wildcards."""
+        """Convert CONTAINS operator to LIKE with % wildcards.
+        Convert bare boolean literals to integers (true→1, false→0).
+        """
 
         def replace_contains(m: re.Match) -> str:
             quote = m.group(1)
@@ -281,12 +292,16 @@ class SearchUtils:
                 val = val + "%"
             return f"LIKE {quote}{val}{quote}"
 
-        return re.sub(
+        filter_string = re.sub(
             r"\bCONTAINS\b\s+([\"'])(.+?)\1",
             replace_contains,
             filter_string,
             flags=re.IGNORECASE,
         )
+        # Replace bare boolean keywords with integers so sqlparse forms a valid Comparison.
+        # Quoted strings like 'true' / "false" are excluded by the quote lookahead/lookbehind.
+        filter_string = re.sub(r"(?<!['\"])\btrue\b(?!['\"])", "1", filter_string, flags=re.IGNORECASE)
+        return re.sub(r"(?<!['\"])\bfalse\b(?!['\"])", "0", filter_string, flags=re.IGNORECASE)
 
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
@@ -411,6 +426,8 @@ class SearchExperimentsUtils(SearchUtils):
                 return float(token.value)
             if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
                 return cls._strip_quotes(token.value, expect_quoted_value=True)
+            if cls._is_boolean_token(token):
+                return token.value.upper() == "TRUE"
             raise LumlFilterError(
                 f"Expected string or numeric value for param. Got {token.value!r}"
             )
@@ -742,17 +759,23 @@ class SearchEvalsUtils(SearchUtils):
         return {"type": cls._JSON_IDENTIFIER, "column": prefix.lower(), "key": key}
 
     @classmethod
+    def _get_json_value(cls, key: str, token: Token) -> Any:  # noqa: ANN401
+        if token.ttype in cls.NUMERIC_VALUE_TYPES:
+            return float(token.value)
+        if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+            return cls._strip_quotes(token.value, expect_quoted_value=True)
+        if isinstance(token, Parenthesis):
+            return cls._parse_list_from_sql_token(token)
+        if cls._is_boolean_token(token):
+            return token.value.upper() == "TRUE"
+        raise LumlFilterError(
+            f"Expected string or numeric value for JSON field '{key}'. Got {token.value!r}"
+        )
+
+    @classmethod
     def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
         if identifier_type == cls._JSON_IDENTIFIER:
-            if token.ttype in cls.NUMERIC_VALUE_TYPES:
-                return float(token.value)
-            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
-                return cls._strip_quotes(token.value, expect_quoted_value=True)
-            if isinstance(token, Parenthesis):
-                return cls._parse_list_from_sql_token(token)
-            raise LumlFilterError(
-                f"Expected string or numeric value for JSON field '{key}'. Got {token.value!r}"
-            )
+            return cls._get_json_value(key, token)
 
         # attribute
         if key in cls.DATE_ATTRIBUTES:
@@ -958,6 +981,8 @@ class SearchTracesUtils(SearchUtils):
             return cls._strip_quotes(token.value, expect_quoted_value=True)
         if isinstance(token, Parenthesis):
             return cls._parse_list_from_sql_token(token)
+        if cls._is_boolean_token(token):
+            return token.value.upper() == "TRUE"
         raise LumlFilterError(
             f"Expected string or numeric value for attributes.{key}. Got {token.value!r}"
         )

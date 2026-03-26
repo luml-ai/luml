@@ -53,6 +53,7 @@ class CollectionResourceBase(ABC):
         sort_by: CollectionSortBy | None = None,
         order: SortOrder | None = SortOrder.DESC,
         types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None,
     ) -> CollectionsList | Coroutine[Any, Any, CollectionsList]:
         raise NotImplementedError()
 
@@ -162,6 +163,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None,
     ) -> Iterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -173,6 +175,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            orbit_id: Orbit ID to list collections from. If not provided,
+                uses the default orbit set in the client.
 
         Returns:
             Collection objects from all pages.
@@ -187,6 +191,12 @@ class CollectionResource(CollectionResourceBase, ListedResource):
 
         for collection in luml.collections.list_all(limit=50):
             print(collection.id)
+
+        # List collections from a specific orbit
+        for collection in luml.collections.list_all(
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+        ):
+            print(collection.name)
 
         # Search by name or tags
         for collection in luml.collections.list_all(search="model"):
@@ -206,6 +216,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             order=order,
             search=search,
             types=types,
+            orbit_id=orbit_id,
         )
 
     def list(
@@ -217,6 +228,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -230,6 +242,8 @@ class CollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            orbit_id: Orbit ID to list collections from. If not provided,
+                uses the default orbit set in the client.
 
         Returns:
             CollectionsList object with items and cursor.
@@ -240,6 +254,11 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         result = luml.collections.list()
         for collection in result.items:
             print(collection.name)
+
+        # List collections from a specific orbit
+        result = luml.collections.list(
+            orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+        )
 
         # Sort by name
         result = luml.collections.list(
@@ -275,6 +294,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
         )
         ```
         """
+        orbit = orbit_id or self._client.orbit
         params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
@@ -292,7 +312,7 @@ class CollectionResource(CollectionResourceBase, ListedResource):
                 t.value if isinstance(t, CollectionTypeFilter) else t for t in types
             ]
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/organizations/{self._client.organization}/orbits/{orbit}/collections",
             params=params,
         )
         if response is None:
@@ -560,6 +580,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None,
     ) -> AsyncIterator[Collection]:
         """
         List all orbit collections with auto-paging.
@@ -571,6 +592,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            orbit_id: Orbit ID to list collections from. If not provided,
+                uses the default orbit set in the client.
 
         Returns:
             Collection objects from all pages.
@@ -590,6 +613,12 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             async for collection in luml.collections.list_all(limit=50):
                 print(collection.id)
 
+            # List collections from a specific orbit
+            async for collection in luml.collections.list_all(
+                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+            ):
+                print(collection.name)
+
             # Search by name or tags
             async for collection in luml.collections.list_all(search="model"):
                 print(collection.name)
@@ -608,6 +637,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             order=order,
             search=search,
             types=types,
+            orbit_id=orbit_id,
         )
 
     async def list(
@@ -619,6 +649,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         order: SortOrder | None = SortOrder.DESC,
         search: str | None = None,
         types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None,
     ) -> CollectionsList:
         """
         List all collections in the default orbit.
@@ -632,6 +663,8 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             search: Search string to filter collections by name or tags.
             types: Filter by collection types:
                 "model", "dataset", "experiment", "mixed".
+            orbit_id: Orbit ID to list collections from. If not provided,
+                uses the default orbit set in the client.
 
         Returns:
             CollectionsList object with items and cursor.
@@ -647,6 +680,11 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             result = await luml.collections.list()
             for collection in result.items:
                 print(collection.name)
+
+            # List collections from a specific orbit
+            result = await luml.collections.list(
+                orbit_id="0199c455-21ed-7aba-9fe5-5231611220de"
+            )
 
             # Sort by name
             result = await luml.collections.list(
@@ -682,6 +720,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
         )
         ```
         """
+        orbit = orbit_id or self._client.orbit
         params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
@@ -700,7 +739,7 @@ class AsyncCollectionResource(CollectionResourceBase, ListedResource):
             ]
 
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections",
+            f"/organizations/{self._client.organization}/orbits/{orbit}/collections",
             params=params,
         )
         if response is None:

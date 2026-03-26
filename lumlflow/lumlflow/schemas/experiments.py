@@ -160,9 +160,34 @@ class PaginatedEvals(BaseModel):
     cursor: str | None = None
 
 
+class ColumnType(StrEnum):
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    UNKNOWN = "unknown"
+
+
+class AttachmentRecord(BaseModel, BaseOrmConfig):
+    id: str | None
+    name: str
+    file_path: str
+    created_at: datetime
+
+
+class FileNodeType(StrEnum):
+    FILE = "file"
+    FOLDER = "folder"
+
+
+class FileNode(BaseModel, BaseOrmConfig):
+    name: str
+    type: FileNodeType
+    path: str | None = None
+
+
 class ColumnField(BaseModel, BaseOrmConfig):
     name: str
-    type: str  # "string" | "number" | "boolean" | "unknown"
+    type: ColumnType
 
 
 class EvalColumns(BaseModel, BaseOrmConfig):
