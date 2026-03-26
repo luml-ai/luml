@@ -102,6 +102,7 @@ import OrganizationLeavePopover from './OrganizationLeavePopover.vue'
 import UiId from '../ui/UiId.vue'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useRouter, useRoute } from 'vue-router'
+import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -112,7 +113,6 @@ const orbitsStore = useOrbitsStore()
 
 const popover = ref()
 const isCreateMode = ref(false)
-
 const isSettingsDisabled = computed(
   () =>
     !organizationStore.currentOrganization?.permissions?.organization?.includes(
@@ -141,16 +141,26 @@ if (activePopover) {
 }
 
 function onCreateClick() {
-  popover.value.toggle(false)
+  popover.value.hide()
   isCreateMode.value = true
 }
 
 async function onOrganizationClick(organizationId: string) {
-  await organizationStore.setCurrentOrganizationId(organizationId)
-  orbitsStore.setCurrentOrbitId(null)
-  if (route.meta.orbitMiddleware) {
-    router.replace({ query: {} })
+  await organizationStore.switchOrganization(organizationId)
+
+  const firstOrbit = orbitsStore.orbitsList[0]
+  const tab = ROUTE_TO_TAB[route.name as string] ?? 'registry'
+  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+
+  if (firstOrbit) {
+    await router.push({
+      name: targetRoute,
+      params: { organizationId, id: firstOrbit.id },
+    })
+  } else {
+    await router.push({ name: 'setup', query: { tab } })
   }
+
   popover.value.hide()
 }
 </script>

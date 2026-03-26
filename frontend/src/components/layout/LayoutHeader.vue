@@ -56,8 +56,6 @@ import OrbitManagePopover from '../orbits/OrbitManagePopover.vue'
 const activePopover = ref<string | null>(null)
 provide('activePopover', activePopover)
 
-const headerRef = ref<HTMLElement | null>(null)
-
 function onDocumentClick(event: MouseEvent) {
   const target = event.target as HTMLElement
   if (target.closest('.p-popover') || target.closest('.logo-group')) return

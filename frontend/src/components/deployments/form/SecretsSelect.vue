@@ -21,11 +21,11 @@
       </template>
     </Select>
     <SecretCreator
-      v-if="isCreating && orbitsStore.currentOrbitDetails"
+      v-if="isCreating"
       v-model:visible="isCreating"
-      :organization-id="orbitsStore.currentOrbitDetails.organization_id"
-      :orbit-id="orbitsStore.currentOrbitDetails.id"
-    />
+      :organization-id="String($route.params.organizationId)"
+      :orbit-id="String($route.params.id)"
+    ></SecretCreator>
   </div>
 </template>
 
@@ -35,9 +35,6 @@ import { Select, Button } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 import { ref } from 'vue'
 import SecretCreator from '@/components/orbit-secrets/SecretCreator.vue'
-import { useOrbitsStore } from '@/stores/orbits'
-
-const orbitsStore = useOrbitsStore()
 
 type Props = {
   secretsList: OrbitSecret[]

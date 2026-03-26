@@ -96,31 +96,17 @@ import OrbitCreator from './creator/OrbitCreator.vue'
 import UiId from '@/components/ui/UiId.vue'
 import OrbitEditor from './editor/OrbitEditor.vue'
 import { useRouter, useRoute } from 'vue-router'
+import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 
 const router = useRouter()
 const route = useRoute()
 const activePopover = inject<Ref<string | null>>('activePopover')
-
-const ORBIT_ROUTES = ['orbit-registry', 'orbit-deployments', 'orbit-satellites', 'orbit-secrets']
-const DEEP_ROUTES = [
-  'collection',
-  'artifact',
-  'model-card',
-  'experiment-snapshot',
-  'attachments',
-  'compare',
-  'deployment-schema',
-]
 
 const orbitsStore = useOrbitsStore()
 const organizationStore = useOrganizationStore()
 const isSettingsMode = ref(false)
 const popover = ref()
 const isCreateMode = ref(false)
-
-function isOnOrbitRoute() {
-  return ORBIT_ROUTES.includes(route.name as string)
-}
 
 const isOrbitLimitReached = computed(() => {
   const details = organizationStore.organizationDetails
@@ -152,70 +138,30 @@ if (activePopover) {
 }
 
 async function onOrbitClick(orbitId: string) {
-  const currentRouteName = route.name as string
   const orgId = organizationStore.currentOrganization?.id
+  if (!orgId) return
 
-  if (DEEP_ROUTES.includes(currentRouteName)) {
-    await router.replace({
-      name: 'orbit-registry',
-      params: orgId ? { organizationId: orgId } : {},
-      query: { orbitId },
-    })
-  } else if (isOnOrbitRoute()) {
-    await router.push({ query: { ...route.query, orbitId } })
-  } else {
-    orbitsStore.setCurrentOrbitId(orbitId)
-  }
+  const currentName = route.name as string
+  const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
+  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+
+  await router.push({
+    name: targetRoute,
+    params: { organizationId: orgId, id: orbitId },
+  })
 
   popover.value.hide()
 }
 
 function onSettingsClick() {
-  popover.value.toggle(false)
+  popover.value.hide()
   isSettingsMode.value = true
 }
 
 function onCreateClick() {
-  popover.value.toggle(false)
+  popover.value.hide()
   isCreateMode.value = true
 }
-
-watch(
-  () => organizationStore.currentOrganization?.id,
-  async (id, oldId) => {
-    if (!id) {
-      orbitsStore.reset()
-      return
-    }
-
-    if (id === oldId && orbitsStore.orbitsList.length) return
-
-    orbitsStore.reset()
-    await orbitsStore.loadOrbitsList(id)
-
-    try {
-      await organizationStore.getOrganizationDetails(id)
-    } catch (e) {
-      console.warn('No permission to load organization details')
-    }
-
-    const orbitIdFromQuery = route.query.orbitId as string | undefined
-    const targetOrbitId =
-      orbitIdFromQuery && orbitsStore.orbitsList.some((o) => o.id === orbitIdFromQuery)
-        ? orbitIdFromQuery
-        : (orbitsStore.orbitsList[0]?.id ?? null)
-
-    if (targetOrbitId) {
-      orbitsStore.setCurrentOrbitId(targetOrbitId)
-      if (isOnOrbitRoute() && route.query.orbitId !== targetOrbitId) {
-        await router.replace({
-          query: { ...route.query, orbitId: targetOrbitId },
-        })
-      }
-    }
-  },
-  { immediate: true },
-)
 </script>
 
 <style scoped>
@@ -371,11 +317,6 @@ watch(
   transform: none !important;
 }
 
-:deep(.p-popover) {
-  top: calc(100% + 4px) !important;
-  left: 0 !important;
-  transform: none !important;
-}
 .orbit-item :deep(.p-button) {
   flex-shrink: 0;
   min-width: 32px;

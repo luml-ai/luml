@@ -97,6 +97,7 @@ import { useOrganizationStore } from '@/stores/organization'
 import { GitHubService } from '@/lib/github/GitHubService'
 import { useLayout } from '@/hooks/useLayout'
 import { useOrbitsStore } from '@/stores/orbits'
+import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
 
 const route = useRoute()
 const router = useRouter()
@@ -110,7 +111,7 @@ const isSidebarOpened = ref(true)
 const githubStarsCount = ref(null)
 
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
-const ORBIT_ROUTES = ['orbit-registry', 'orbit-deployments', 'orbit-satellites', 'orbit-secrets']
+const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
 const DEPLOYMENTS_GROUP = ['orbit-deployments', 'orbit-secrets']
 
 const getFormattedGithubStars = computed(() => {
@@ -121,6 +122,10 @@ const getFormattedGithubStars = computed(() => {
 
 function isActive(routeName: string): boolean {
   const currentRouteName = route.name as string
+  if (currentRouteName === 'setup') {
+    const tab = (route.query.tab as string) ?? 'registry'
+    return TAB_TO_ROUTE[tab] === routeName
+  }
   if (routeName === 'orbit-deployments') {
     return DEPLOYMENTS_GROUP.includes(currentRouteName)
   }
@@ -135,11 +140,16 @@ function getRouteParams(routeName: string) {
   if (ORBIT_ROUTES.includes(routeName)) {
     const orgId = organizationsStore.currentOrganization?.id
     const orbitId = orbitsStore.currentOrbitId
-    const query = orbitId ? { orbitId } : {}
-
-    return orgId
-      ? { name: routeName, params: { organizationId: orgId }, query }
-      : { name: routeName, query }
+    if (orgId && orbitId) {
+      return {
+        name: routeName,
+        params: { organizationId: orgId, id: orbitId },
+      }
+    }
+    return {
+      name: 'setup',
+      query: { tab: ROUTE_TO_TAB[routeName] },
+    }
   }
 
   if (requiresOrgId(routeName)) {
@@ -251,7 +261,6 @@ onMounted(() => {
   color: var(--p-surface-400);
 }
 
-.menu-link.router-link-active,
 .menu-link.active {
   background-color: var(--p-surface-0);
   color: var(--p-menu-item-focus-color);
@@ -290,7 +299,6 @@ onMounted(() => {
   text-align: left;
 }
 
-.menu-link.router-link-active .icon,
 .menu-link.active .icon {
   color: var(--p-menu-item-icon-focus-color);
 }
@@ -299,7 +307,6 @@ onMounted(() => {
   width: 30px;
 }
 
-[data-theme='dark'] .router-link-active,
 [data-theme='dark'] .active {
   background-color: var(--p-surface-900);
   color: #fff;
@@ -321,7 +328,6 @@ onMounted(() => {
     color: var(--p-menu-item-focus-color);
   }
 
-  .menu-link.router-link-active:hover,
   .menu-link.active:hover {
     background-color: var(--p-surface-0);
   }
@@ -341,7 +347,6 @@ onMounted(() => {
     color: var(--p-surface-400);
   }
 
-  [data-theme='dark'] .menu-link.router-link-active,
   [data-theme='dark'] .menu-link.active {
     background-color: var(--p-surface-900);
   }

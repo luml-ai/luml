@@ -8,7 +8,7 @@ import type {
   UpdateOrbitPayload,
 } from '@/lib/api/api.interfaces'
 import { defineStore } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { useOrganizationStore } from './organization'
 
 export const useOrbitsStore = defineStore('orbit', () => {
@@ -25,46 +25,35 @@ export const useOrbitsStore = defineStore('orbit', () => {
   const hasCurrentOrbit = computed(() => currentOrbitId.value !== null)
   const getCurrentOrbitPermissions = computed(() => currentOrbitDetails.value?.permissions)
 
-  function setCurrentOrbitId(id: string | null) {
-    if (currentOrbitId.value === id) return
-
+  function setCurrentOrbitId(id: string | null, orgId?: string) {
     currentOrbitId.value = id
     currentOrbitDetails.value = null
 
     if (id) {
-      isLoadingOrbitDetails.value = true
-    } else {
-      isLoadingOrbitDetails.value = false
+      const resolvedOrgId = orgId ?? organizationStore.currentOrganization?.id
+      if (resolvedOrgId) {
+        loadOrbitDetails(resolvedOrgId, id)
+      }
     }
   }
 
-  watch(currentOrbitId, async (id) => {
-    if (!id) {
-      currentOrbitDetails.value = null
-      isLoadingOrbitDetails.value = false
-      return
-    }
-
-    const orgId = organizationStore.currentOrganization?.id
-    if (!orgId) return
-
+  async function loadOrbitDetails(orgId: string, orbitId: string) {
     isLoadingOrbitDetails.value = true
 
     try {
-      const details = await getOrbitDetails(orgId, id)
-      if (currentOrbitId.value !== id) return
+      const details = await getOrbitDetails(orgId, orbitId)
+      if (currentOrbitId.value !== orbitId) return
       currentOrbitDetails.value = details
     } catch (e) {
       console.error('Failed to load orbit details', e)
-      if (currentOrbitId.value !== id) return
-      currentOrbitId.value = null
+      if (currentOrbitId.value !== orbitId) return
       currentOrbitDetails.value = null
     } finally {
-      if (currentOrbitId.value === id) {
+      if (currentOrbitId.value === orbitId) {
         isLoadingOrbitDetails.value = false
       }
     }
-  })
+  }
 
   async function loadOrbitsList(organizationId: string) {
     orbitsList.value = await api.getOrganizationOrbits(organizationId)
@@ -73,8 +62,9 @@ export const useOrbitsStore = defineStore('orbit', () => {
   async function createOrbit(organizationId: string, payload: CreateOrbitPayload) {
     const orbit = await api.createOrbit(organizationId, payload)
     orbitsList.value.push(orbit)
-    if (!organizationStore.organizationDetails) return
+    if (!organizationStore.organizationDetails) return orbit
     organizationStore.organizationDetails.orbits.push(orbit)
+    return orbit
   }
 
   async function updateOrbit(organizationId: string, payload: UpdateOrbitPayload) {
@@ -155,6 +145,7 @@ export const useOrbitsStore = defineStore('orbit', () => {
     hasCurrentOrbit,
     getCurrentOrbitPermissions,
     setCurrentOrbitId,
+    loadOrbitDetails,
     createOrbit,
     addMemberToOrbit,
     getOrbitDetails,

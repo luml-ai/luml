@@ -46,9 +46,6 @@ import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { satellitesResolver } from '@/utils/forms/resolvers'
-import { useOrbitsStore } from '@/stores/orbits'
-
-const orbitsStore = useOrbitsStore()
 
 type Emits = {
   create: [CreateSatelliteResponse]
@@ -82,9 +79,12 @@ const loading = ref(false)
 
 async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
+  const organizationIdParam = route.params.organizationId
+  const orbitIdParam = route.params.id
 
-  const organizationId = orbitsStore.currentOrbitDetails?.organization_id
-  const orbitId = orbitsStore.currentOrbitDetails?.id
+  const organizationId =
+    typeof organizationIdParam === 'string' ? organizationIdParam : organizationIdParam?.[0]
+  const orbitId = typeof orbitIdParam === 'string' ? orbitIdParam : orbitIdParam?.[0]
 
   try {
     if (!organizationId) {

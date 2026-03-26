@@ -23,9 +23,7 @@ import DOMPurify from 'dompurify'
 const router = useRouter()
 
 function sanitizeDetail(detail: string) {
-  return DOMPurify.sanitize(detail, {
-    ADD_ATTR: ['data-route', 'data-params', 'data-query'],
-  })
+  return DOMPurify.sanitize(detail)
 }
 
 function handleLinkClick(event: MouseEvent) {
@@ -34,12 +32,10 @@ function handleLinkClick(event: MouseEvent) {
     event.preventDefault()
     const routeName = target.getAttribute('data-route')
     const routeParams = target.getAttribute('data-params')
-    const routeQuery = target.getAttribute('data-query')
     if (routeName) {
       router.push({
         name: routeName,
         params: routeParams ? JSON.parse(routeParams) : {},
-        query: routeQuery ? JSON.parse(routeQuery) : {},
       })
     }
   }

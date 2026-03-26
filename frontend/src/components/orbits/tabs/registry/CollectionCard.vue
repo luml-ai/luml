@@ -52,9 +52,6 @@ import { getLastUpdateText } from '@/helpers/helpers'
 import { COLLECTION_TYPE_CONFIG } from './collection.const'
 import CollectionEditor from './CollectionEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
-import { useOrganizationStore } from '@/stores/organization'
-
-const organizationStore = useOrganizationStore()
 
 type Props = {
   data: OrbitCollection
@@ -75,7 +72,6 @@ function goToCollection() {
   router.push({
     name: 'collection',
     params: {
-      organizationId: organizationStore.currentOrganization?.id,
       id: props.data.orbit_id,
       collectionId: props.data.id,
     },

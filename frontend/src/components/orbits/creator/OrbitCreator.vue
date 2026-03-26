@@ -107,6 +107,11 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useUserStore } from '@/stores/user'
 import { orbitCreatorResolver } from '@/utils/forms/resolvers'
+import type { Orbit } from '@/lib/api/api.interfaces'
+
+const emit = defineEmits<{
+  created: [orbit: Orbit]
+}>()
 
 type Props = {
   organizationId: string
@@ -191,8 +196,9 @@ async function onSubmit({ valid }: FormSubmitEvent) {
   try {
     loading.value = true
     const payload = initialValues.value as CreateOrbitPayload
-    await orbitsStore.createOrbit(props.organizationId, payload)
+    const orbit = await orbitsStore.createOrbit(props.organizationId, payload)
     toast.add(simpleSuccessToast('Orbit created'))
+    if (orbit) emit('created', orbit)
     visible.value = false
   } catch (e: any) {
     toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create orbit'))

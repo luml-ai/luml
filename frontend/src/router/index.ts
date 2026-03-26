@@ -94,35 +94,50 @@ const router = createRouter({
       },
     },
     {
-      path: '/organization/:organizationId?/registry',
-      name: 'orbit-registry',
-      component: () => import('../pages/orbits/OrbitRegistryView.vue'),
-      meta: { orbitMiddleware: true },
+      path: '/setup',
+      name: 'setup',
+      component: () => import('../pages/orbits/SetupPage.vue'),
     },
     {
-      path: '/organization/:organizationId?/deployments',
-      name: 'orbit-deployments',
-      component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
-      meta: { orbitMiddleware: true },
+      path: '/organization/:organizationId/orbits',
+      name: 'orbits',
+      component: () => import('../pages/orbits/index.vue'),
+      meta: { requireAuth: true },
     },
     {
-      path: '/organization/:organizationId?/satellites',
-      name: 'orbit-satellites',
-      component: () => import('../pages/orbits/OrbitSatellitesView.vue'),
-      meta: { orbitMiddleware: true },
-    },
-
-    {
-      path: '/organization/:organizationId?/secrets',
-      name: 'orbit-secrets',
-      component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
-      meta: { orbitMiddleware: true },
+      path: '/organization/:organizationId/orbit/:id',
+      name: 'orbit',
+      component: () => import('../pages/orbits/OrbitPage.vue'),
+      meta: { requireAuth: true, orbitMiddleware: true },
+      children: [
+        {
+          path: '',
+          name: 'orbit-registry',
+          component: () => import('../pages/orbits/OrbitRegistryView.vue'),
+        },
+        {
+          path: 'deployments',
+          name: 'orbit-deployments',
+          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+        },
+        {
+          path: 'satellites',
+          name: 'orbit-satellites',
+          component: () => import('../pages/orbits/OrbitSatellitesView.vue'),
+        },
+        {
+          path: 'secrets',
+          name: 'orbit-secrets',
+          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
+        },
+      ],
     },
     {
       path: '/organization/:organizationId/orbit/:id/collection/:collectionId',
       component: () => import('../pages/collection/CollectionPage.vue'),
       meta: {
         requireAuth: true,
+        orbitMiddleware: true,
       },
       children: [
         {
@@ -169,6 +184,7 @@ const router = createRouter({
       component: () => import('../pages/DeploymentSchemaPage.vue'),
       meta: {
         requireAuth: true,
+        orbitMiddleware: true,
       },
     },
     {

@@ -4,7 +4,7 @@
       <Rocket :size="20" class="page-header__icon" />
       <h1 class="page-header__title">Deployments</h1>
     </div>
-    <template v-if="orbitsStore.currentOrbitDetails && authStore.isAuth">
+    <template v-if="authStore.isAuth">
       <d-button
         v-if="activeTab === 'deployments'"
         label="Create deployment"
@@ -22,58 +22,54 @@
     </template>
   </div>
 
-  <UiPageLoader v-if="orbitsStore.isLoadingOrbitDetails" />
+  <div class="tabs">
+    <button
+      class="tab"
+      :class="{ active: activeTab === 'deployments' }"
+      @click="switchTab('deployments')"
+    >
+      <Rocket :size="14" />
+      <span>Deployments</span>
+    </button>
+    <button class="tab" :class="{ active: activeTab === 'secrets' }" @click="switchTab('secrets')">
+      <Lock :size="14" />
+      <span>Secrets</span>
+    </button>
+  </div>
 
-  <OrbitEmptyState v-else-if="!orbitsStore.currentOrbitId" :cards="deploymentsCards" />
-
-  <template v-else>
-    <div class="tabs">
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'deployments' }"
-        @click="switchTab('deployments')"
-      >
-        <Rocket :size="14" />
-        <span>Deployments</span>
-      </button>
-      <button
-        class="tab"
-        :class="{ active: activeTab === 'secrets' }"
-        @click="switchTab('secrets')"
-      >
-        <Lock :size="14" />
-        <span>Secrets</span>
-      </button>
+  <template v-if="activeTab === 'deployments'">
+    <div v-if="deploymentsLoading" class="loading-container">
+      <Skeleton v-for="i in 3" :key="i" style="height: 60px" />
     </div>
-
-    <template v-if="activeTab === 'deployments'">
-      <div v-if="!deploymentsLoading">
-        <template v-if="deploymentsStore.deployments.length">
-          <div class="message">
-            <BellRing :size="14" /> In order to use the inference URL, please authorize with your
-            API key
-          </div>
-          <DeploymentsTable :data="deploymentsStore.deployments" />
-        </template>
-        <div v-else class="list">
-          <UiCardAdd
-            title="Add new Deployment"
-            text="Instantly deploy models in a single click."
-            @add="deploymentsStore.showCreator()"
-          />
+    <div v-else>
+      <template v-if="deploymentsStore.deployments.length">
+        <div class="message">
+          <BellRing :size="14" /> In order to use the inference URL, please authorize with your API
+          key
         </div>
-      </div>
-    </template>
-
-    <template v-if="activeTab === 'secrets'">
-      <div v-if="!secretsLoading && orbitsStore.currentOrbitDetails">
-        <SecretsList
-          :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
-          :edit-available="true"
-          :copy-available="true"
+        <DeploymentsTable :data="deploymentsStore.deployments" />
+      </template>
+      <div v-else class="list">
+        <UiCardAdd
+          title="Add new Deployment"
+          text="Instantly deploy models in a single click."
+          @add="deploymentsStore.showCreator()"
         />
       </div>
-    </template>
+    </div>
+  </template>
+
+  <template v-else-if="activeTab === 'secrets'">
+    <div v-if="secretsLoading" class="loading-container">
+      <Skeleton v-for="i in 3" :key="i" style="height: 60px" />
+    </div>
+    <div v-else>
+      <SecretsList
+        :organization-id="route.params.organizationId as string"
+        :edit-available="true"
+        :copy-available="true"
+      />
+    </div>
   </template>
 
   <DeploymentsCreateModal
@@ -84,8 +80,8 @@
     "
   />
   <SecretCreator
-    :organization-id="orbitsStore.currentOrbitDetails?.organization_id"
-    :orbit-id="orbitsStore.currentOrbitId ?? undefined"
+    :organization-id="route.params.organizationId as string"
+    :orbit-id="route.params.id as string"
     v-model:visible="secretsStore.creatorVisible"
     @update:visible="(val) => (val ? secretsStore.showCreator() : secretsStore.hideCreator())"
   />
@@ -95,26 +91,22 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useDeploymentsStore } from '@/stores/deployments'
-import { useOrbitsStore } from '@/stores/orbits'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { useAuthStore } from '@/stores/auth'
-import { useToast } from 'primevue'
+import { Skeleton, useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { BellRing, Rocket, Lock, Plus } from 'lucide-vue-next'
 import UiCardAdd from '@/components/ui/UiCardAdd.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import DeploymentsTable from '@/components/deployments/table/DeploymentsTable.vue'
-import OrbitEmptyState from '@/components/orbits/OrbitEmptyState.vue'
 import SecretsList from '@/components/orbit-secrets/SecretsList.vue'
 import SecretCreator from '@/components/orbit-secrets/SecretCreator.vue'
-import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const deploymentsStore = useDeploymentsStore()
-const orbitsStore = useOrbitsStore()
 const secretsStore = useSecretsStore()
 const toast = useToast()
 
@@ -130,18 +122,17 @@ function switchTab(tab: 'deployments' | 'secrets') {
   router.push({
     name: targetRoute,
     params: route.params,
-    query: route.query,
   })
 }
 
 async function loadDeployments() {
-  if (!orbitsStore.currentOrbitDetails) return
+  const organizationId = route.params.organizationId as string
+  const orbitId = route.params.id as string
+  if (!organizationId || !orbitId) return
+
   try {
     deploymentsLoading.value = true
-    const deployments = await deploymentsStore.getDeployments(
-      orbitsStore.currentOrbitDetails.organization_id,
-      orbitsStore.currentOrbitDetails.id,
-    )
+    const deployments = await deploymentsStore.getDeployments(organizationId, orbitId)
     deploymentsStore.setDeployments(deployments)
   } catch (e: any) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load deployments list')))
@@ -151,13 +142,13 @@ async function loadDeployments() {
 }
 
 async function loadSecrets() {
-  if (!orbitsStore.currentOrbitDetails) return
+  const organizationId = route.params.organizationId as string
+  const orbitId = route.params.id as string
+  if (!organizationId || !orbitId) return
+
   try {
     secretsLoading.value = true
-    await secretsStore.loadSecrets(
-      orbitsStore.currentOrbitDetails.organization_id,
-      orbitsStore.currentOrbitDetails.id,
-    )
+    await secretsStore.loadSecrets(organizationId, orbitId)
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load secrets'))
   } finally {
@@ -166,25 +157,11 @@ async function loadSecrets() {
 }
 
 async function loadAll() {
-  if (!orbitsStore.currentOrbitDetails) return
   await Promise.all([loadDeployments(), loadSecrets()])
 }
 
-const deploymentsCards = [
-  {
-    title: 'Deployments',
-    description:
-      'A Deployment transforms a model from the Registry into a live endpoint by linking it to a Satellite. You can create, update, stop, or delete it without changing the model itself.',
-  },
-  {
-    title: 'Secrets',
-    description:
-      'Secrets is a secure store for sensitive data scoped to an Orbit. When a key is rotated, the update automatically propagates to all linked deployments.',
-  },
-]
-
 watch(
-  () => orbitsStore.currentOrbitDetails?.id,
+  () => route.params.id,
   async (newId) => {
     if (!newId) return
     await loadAll()

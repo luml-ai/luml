@@ -86,12 +86,12 @@
       v-if="isDeleting"
       :visible="isDeleting"
       :deploymentId="data.id"
-      :organizationId="organizationId"
-      :orbitId="data.orbit_id"
+      :organizationId="collectionsStore.requestInfo.organizationId"
+      :orbitId="collectionsStore.requestInfo.orbitId"
       :name="data.name"
       @update:visible="isDeleting = false"
       @delete="onDelete"
-    />
+    ></DeploymentsDelete>
     <ForceDeleteConfirmDialog
       v-if="isForceDeleting"
       v-model:visible="isForceDeleting"

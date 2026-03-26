@@ -5,18 +5,18 @@
       <CollectionSelect
         v-model="collectionId"
         :disabled="!!initialCollectionId"
-        :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
-        :orbit-id="orbitsStore.currentOrbitDetails!.id"
+        :organization-id="String($route.params.organizationId)"
+        :orbit-id="String($route.params.id)"
         :initial-collection-id="initialCollectionId"
-      />
+      ></CollectionSelect>
       <ModelSelect
         v-model="modelId"
         :disabled="!!initialModelId"
-        :organization-id="orbitsStore.currentOrbitDetails!.organization_id"
-        :orbit-id="orbitsStore.currentOrbitDetails!.id"
+        :organization-id="String($route.params.organizationId)"
+        :orbit-id="String($route.params.id)"
         :collection-id="collectionId || null"
         :initial-model-id="initialModelId"
-      />
+      ></ModelSelect>
       <Accordion
         v-if="secretDynamicAttributes.length || secretEnvs.length"
         :multiple="true"
@@ -186,9 +186,6 @@ import { useRoute } from 'vue-router'
 import SecretsSelect from '../../form/SecretsSelect.vue'
 import CollectionSelect from './CollectionSelect.vue'
 import ModelSelect from './ModelSelect.vue'
-import { useOrbitsStore } from '@/stores/orbits'
-
-const orbitsStore = useOrbitsStore()
 
 type Props = {
   initialCollectionId?: string
@@ -234,11 +231,8 @@ const selectedModel = ref<ModelArtifact | null>(null)
 
 async function getSecrets() {
   try {
-    if (!orbitsStore.currentOrbitDetails) return
-    await secretsStore.loadSecrets(
-      orbitsStore.currentOrbitDetails.organization_id,
-      orbitsStore.currentOrbitDetails.id,
-    )
+    const { organizationId, orbitId } = collectionsStore.requestInfo
+    await secretsStore.loadSecrets(organizationId, orbitId)
   } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load secrets')))
   }
@@ -252,10 +246,9 @@ async function onModelIdChange(modelId: string | null | undefined) {
   try {
     if (modelId) {
       if (!collectionId.value) throw new Error('Collection ID is required')
-      if (!orbitsStore.currentOrbitDetails) throw new Error('No orbit selected')
       const requestInfo = {
-        organizationId: orbitsStore.currentOrbitDetails.organization_id,
-        orbitId: orbitsStore.currentOrbitDetails.id,
+        organizationId: String(route.params.organizationId),
+        orbitId: String(route.params.id),
         collectionId: collectionId.value,
       }
       const model = await artifactsStore.getArtifact(modelId, requestInfo)
