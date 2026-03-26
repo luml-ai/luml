@@ -9,7 +9,8 @@ export class ApiKeysApi {
   }
 
   async createApiKey() {
-    const { data: responseData } = await this.api.post<CreateApiKeyResponse>(`/api/v1/users/me/api-keys`)
+    const { data: responseData } =
+      await this.api.post<CreateApiKeyResponse>(`/api/v1/users/me/api-keys`)
     return responseData
   }
 
