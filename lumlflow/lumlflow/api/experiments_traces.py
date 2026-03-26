@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query
+from typing import Annotated
+
+from fastapi import APIRouter, Body, Query
 
 from lumlflow.handlers.experiments import ExperimentsHandler
 from lumlflow.schemas.base import SortOrder
@@ -15,6 +17,11 @@ from lumlflow.schemas.experiments import (
 
 experiments_traces_router = APIRouter(
     prefix="/api/experiments/{experiment_id}/traces",
+    tags=["experiment-traces"],
+)
+
+experiments_general_traces_router = APIRouter(
+    prefix="/api/experiments/traces",
     tags=["experiment-traces"],
 )
 
@@ -87,10 +94,12 @@ def get_experiment_traces(
     )
 
 
-@experiments_traces_router.get(
-    "/validate-filter", response_model=SearchValidationResult
+@experiments_general_traces_router.post(
+    "/validate-filter", response_model=list[SearchValidationResult]
 )
-def validate_traces_filter(filter_str: str) -> SearchValidationResult:
+def validate_traces_filter(
+    filter_strings: Annotated[list[str], Body(...)],
+) -> list[SearchValidationResult]:
     """
     Validate a traces filter string without executing it.
 
@@ -105,7 +114,7 @@ def validate_traces_filter(filter_str: str) -> SearchValidationResult:
      - attributes.db.statement CONTAINS "SELECT"
      - attributes.http.status_code >= 400 AND attributes.http.status_code < 500
     """
-    return experiments_handler.validate_traces_filter(filter_str)
+    return experiments_handler.validate_traces_filter(filter_strings)
 
 
 @experiments_traces_router.get("/{trace_id}", response_model=TraceDetails)

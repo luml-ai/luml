@@ -9,8 +9,14 @@ from lumlflow.api.annotations import annotations_router
 from lumlflow.api.auth import auth_router
 from lumlflow.api.experiment_groups import experiment_groups_router
 from lumlflow.api.experiments import experiments_router
-from lumlflow.api.experiments_evals import experiments_evals_router
-from lumlflow.api.experiments_traces import experiments_traces_router
+from lumlflow.api.experiments_evals import (
+    experiments_evals_router,
+    experiments_general_evals_router,
+)
+from lumlflow.api.experiments_traces import (
+    experiments_general_traces_router,
+    experiments_traces_router,
+)
 from lumlflow.api.luml import luml_router
 from lumlflow.api.models import models_router
 from lumlflow.infra.exceptions import ApplicationError
@@ -32,7 +38,9 @@ class AppService(FastAPI):
         self.include_router(router=experiment_groups_router)
         self.include_router(router=experiments_router)
         self.include_router(router=experiments_evals_router)
+        self.include_router(router=experiments_general_evals_router)
         self.include_router(router=experiments_traces_router)
+        self.include_router(router=experiments_general_traces_router)
         self.include_router(router=models_router)
         self.include_router(router=annotations_router)
         self.include_error_handlers()

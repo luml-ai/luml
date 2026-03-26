@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Body, Query, status
 
 from lumlflow.handlers.experiment_groups import ExperimentGroupsHandler
 from lumlflow.schemas.base import SortOrder
@@ -84,11 +84,11 @@ def get_groups_dynamic_metrics_keys(
     return groups_handler.get_groups_dynamic_metrics_keys(group_ids)
 
 
-@experiment_groups_router.get(
+@experiment_groups_router.post(
     "/experiments/validate-search", response_model=SearchValidationResult
 )
 def validate_experiments_search(
-    query: str | None = None,
+    query: str | None = Body(default=None),
 ) -> SearchValidationResult:
     """
     Validate a search query string without executing it.

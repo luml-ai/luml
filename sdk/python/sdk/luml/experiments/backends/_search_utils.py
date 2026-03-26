@@ -2,6 +2,7 @@
 
 import operator
 import re
+from datetime import date
 from typing import Any
 
 import sqlparse
@@ -165,6 +166,15 @@ class SearchUtils:
             return cls._trim_ends(entity_type)
         return entity_type
 
+    @staticmethod
+    def _validate_date_string(value: str, key: str) -> None:
+        try:
+            date.fromisoformat(value)
+        except ValueError as e:
+            raise LumlFilterError(
+                f"Invalid date value '{value}' for '{key}'. Expected ISO format: YYYY-MM-DD."
+            ) from e
+
     @classmethod
     def _strip_quotes(cls, value: str, expect_quoted_value: bool = False) -> str:
         """
@@ -300,8 +310,12 @@ class SearchUtils:
         )
         # Replace bare boolean keywords with integers so sqlparse forms a valid Comparison.
         # Quoted strings like 'true' / "false" are excluded by the quote lookahead/lookbehind.
-        filter_string = re.sub(r"(?<!['\"])\btrue\b(?!['\"])", "1", filter_string, flags=re.IGNORECASE)
-        return re.sub(r"(?<!['\"])\bfalse\b(?!['\"])", "0", filter_string, flags=re.IGNORECASE)
+        filter_string = re.sub(
+            r"(?<!['\"])\btrue\b(?!['\"])", "1", filter_string, flags=re.IGNORECASE
+        )
+        return re.sub(
+            r"(?<!['\"])\bfalse\b(?!['\"])", "0", filter_string, flags=re.IGNORECASE
+        )
 
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
@@ -451,7 +465,9 @@ class SearchExperimentsUtils(SearchUtils):
                 if token.ttype in cls.STRING_VALUE_TYPES or isinstance(
                     token, Identifier
                 ):
-                    return cls._strip_quotes(token.value, expect_quoted_value=True)
+                    date_str = cls._strip_quotes(token.value, expect_quoted_value=True)
+                    cls._validate_date_string(date_str, key)
+                    return date_str
                 if token.ttype in cls.NUMERIC_VALUE_TYPES:
                     return token.value
                 raise LumlFilterError(
@@ -780,7 +796,9 @@ class SearchEvalsUtils(SearchUtils):
         # attribute
         if key in cls.DATE_ATTRIBUTES:
             if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
-                return cls._strip_quotes(token.value, expect_quoted_value=True)
+                date_str = cls._strip_quotes(token.value, expect_quoted_value=True)
+                cls._validate_date_string(date_str, key)
+                return date_str
             if token.ttype in cls.NUMERIC_VALUE_TYPES:
                 return token.value
             raise LumlFilterError(
