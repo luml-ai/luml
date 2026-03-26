@@ -11,21 +11,21 @@ export class OrbitSecretsApi {
 
   public async getSecrets(organizationId: string, orbitId: string) {
     const { data } = await this.api.get<OrbitSecret[]>(
-      `/organizations/${organizationId}/orbits/${orbitId}/secrets`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/secrets`,
     )
     return data
   }
 
   public async getSecretById(organizationId: string, orbitId: string, secretId: string) {
     const { data } = await this.api.get<OrbitSecret>(
-      `/organizations/${organizationId}/orbits/${orbitId}/secrets/${secretId}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/secrets/${secretId}`,
     )
     return data
   }
 
   public async createSecret(organizationId: string, orbitId: string, payload: CreateSecretPayload) {
     const { data } = await this.api.post<OrbitSecret>(
-      `/organizations/${organizationId}/orbits/${orbitId}/secrets`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/secrets`,
       payload,
     )
     return data
@@ -33,7 +33,7 @@ export class OrbitSecretsApi {
 
   public async updateSecret(organizationId: string, orbitId: string, payload: UpdateSecretPayload) {
     const { data } = await this.api.patch<OrbitSecret>(
-      `/organizations/${organizationId}/orbits/${orbitId}/secrets/${payload.id}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/secrets/${payload.id}`,
       payload,
     )
     return data
@@ -41,7 +41,7 @@ export class OrbitSecretsApi {
 
   public async deleteSecret(organizationId: string, orbitId: string, secretId: string) {
     const { data } = await this.api.delete<{ detail: string }>(
-      `/organizations/${organizationId}/orbits/${orbitId}/secrets/${secretId}`,
+      `/api/v1/organizations/${organizationId}/orbits/${orbitId}/secrets/${secretId}`,
     )
     return data
   }
