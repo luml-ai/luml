@@ -327,10 +327,7 @@ describe('OrbitsStore', () => {
     it('getOrbitDetails returns details', async () => {
       const details = createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       mockApi.getOrbitDetails.mockResolvedValueOnce(details)
-      const result = await store.getOrbitDetails(
-        ORG_ID,
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
-      )
+      const result = await store.getOrbitDetails(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       expect(mockApi.getOrbitDetails).toHaveBeenCalledWith(
         ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
@@ -361,11 +358,7 @@ describe('OrbitsStore', () => {
         OrbitRoleEnum.admin,
       )
       mockApi.updateOrbitMember.mockResolvedValueOnce(updatedMember)
-      const result = await store.updateMember(
-        ORG_ID,
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
-        data,
-      )
+      const result = await store.updateMember(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001', data)
       expect(mockApi.updateOrbitMember).toHaveBeenCalledWith(
         ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
