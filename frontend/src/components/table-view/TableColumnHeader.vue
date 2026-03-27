@@ -92,7 +92,7 @@ const emit = defineEmits<Emits>()
 
 const menu = ref()
 const menuItems = computed<MenuItem[]>(() => {
-const items: MenuItem[] = [
+  const items: MenuItem[] = [
     {
       label: 'Set as group',
       iconComponent: Blocks,
