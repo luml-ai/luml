@@ -11,6 +11,7 @@ import { ref } from 'vue'
 import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import { computed } from 'vue'
+import { useOrbitsStore } from './orbits'
 
 export const useOrganizationStore = defineStore('organization', () => {
   const availableOrganizations = ref<Organization[]>([])
@@ -45,7 +46,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     const details = await api.updateOrganization(organizationId, payload)
     availableOrganizations.value = availableOrganizations.value.map((organization) => {
       return organization.id === organizationId
-        ? { ...details, role: organization.role }
+        ? { ...organization, name: details.name }
         : organization
     })
     organizationDetails.value = details
@@ -63,9 +64,25 @@ export const useOrganizationStore = defineStore('organization', () => {
     setInitialOrganization()
   }
 
-  async function setCurrentOrganizationId(id: string) {
+  function setCurrentOrganizationId(id: string) {
     currentOrganizationId.value = id
     LocalStorageService.set('currentOrganizationId', `${id}`)
+  }
+  async function switchOrganization(id: string) {
+    setCurrentOrganizationId(id)
+
+    const orbitsStore = useOrbitsStore()
+    orbitsStore.reset()
+    await orbitsStore.loadOrbitsList(id)
+
+    const firstOrbit = orbitsStore.orbitsList[0]
+    orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
+
+    try {
+      await getOrganizationDetails(id)
+    } catch (e) {
+      console.warn('No permission to load organization details')
+    }
   }
 
   async function getOrganizationDetails(id: string) {
@@ -86,7 +103,7 @@ export const useOrganizationStore = defineStore('organization', () => {
       ? organizationInStorageAvailable.id
       : availableOrganizations.value?.[0]?.id
     if (!organizationForSelect) return
-    await setCurrentOrganizationId(organizationForSelect)
+    await switchOrganization(organizationForSelect)
   }
 
   function resetCurrentOrganization() {
@@ -147,6 +164,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     currentOrganization,
     loading,
     organizationDetails,
+    switchOrganization,
     getAvailableOrganizations,
     createOrganization,
     updateOrganization,

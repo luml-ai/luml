@@ -7,6 +7,9 @@ import {
   Notebook,
   BotMessageSquare,
   MessageCircleCode,
+  Satellite,
+  Rocket,
+  Folders,
 } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
@@ -45,14 +48,35 @@ export const SIDEBAR_MENU = [
     authRequired: false,
   },
   {
-    id: 3,
-    label: 'Orbits',
-    icon: Orbit,
-    route: 'orbits',
+    id: 6,
+    label: 'Registry',
+    icon: Folders,
+    route: 'orbit-registry',
     disabled: false,
     tooltipMessage: null,
-    analyticsOption: 'orbits',
-    authRequired: true,
+    analyticsOption: 'orbit-registry',
+    authRequired: false,
+  },
+  {
+    id: 7,
+    label: 'Deployments',
+    icon: Rocket,
+    route: 'orbit-deployments',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'orbit-deployments',
+    authRequired: false,
+  },
+
+  {
+    id: 8,
+    label: 'Satellites',
+    icon: Satellite,
+    route: 'orbit-satellites',
+    disabled: false,
+    tooltipMessage: null,
+    analyticsOption: 'orbit-satellites',
+    authRequired: false,
   },
 ]
 

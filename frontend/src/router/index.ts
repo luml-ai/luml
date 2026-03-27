@@ -94,20 +94,21 @@ const router = createRouter({
       },
     },
     {
+      path: '/setup',
+      name: 'setup',
+      component: () => import('../pages/orbits/SetupPage.vue'),
+    },
+    {
       path: '/organization/:organizationId/orbits',
       name: 'orbits',
       component: () => import('../pages/orbits/index.vue'),
-      meta: {
-        requireAuth: true,
-      },
+      meta: { requireAuth: true },
     },
     {
       path: '/organization/:organizationId/orbit/:id',
       name: 'orbit',
       component: () => import('../pages/orbits/OrbitPage.vue'),
-      meta: {
-        requireAuth: true,
-      },
+      meta: { requireAuth: true, orbitMiddleware: true },
       children: [
         {
           path: '',
@@ -127,7 +128,7 @@ const router = createRouter({
         {
           path: 'secrets',
           name: 'orbit-secrets',
-          component: () => import('../pages/orbits/OrbitSecretsView.vue'),
+          component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
         },
       ],
     },
@@ -136,6 +137,7 @@ const router = createRouter({
       component: () => import('../pages/collection/CollectionPage.vue'),
       meta: {
         requireAuth: true,
+        orbitMiddleware: true,
       },
       children: [
         {
@@ -182,6 +184,7 @@ const router = createRouter({
       component: () => import('../pages/DeploymentSchemaPage.vue'),
       meta: {
         requireAuth: true,
+        orbitMiddleware: true,
       },
     },
     {
