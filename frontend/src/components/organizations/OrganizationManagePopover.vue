@@ -37,10 +37,7 @@
             {{ organization.name }}
           </button>
           <OrganizationLeavePopover
-            v-if="
-              organization.id !== organizationStore.currentOrganization?.id &&
-              organization.permissions?.organization?.includes(PermissionEnum.leave)
-            "
+            v-if="organization.permissions?.organization?.includes(PermissionEnum.leave)"
             :organizationId="organization.id"
           />
         </div>

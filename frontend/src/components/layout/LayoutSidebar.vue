@@ -100,11 +100,9 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
 
 const route = useRoute()
-const router = useRouter()
 const orbitsStore = useOrbitsStore()
 const { headerSizes } = useLayout()
 const { width } = useWindowSize()
-const authStore = useAuthStore()
 const organizationsStore = useOrganizationStore()
 
 const isSidebarOpened = ref(true)
