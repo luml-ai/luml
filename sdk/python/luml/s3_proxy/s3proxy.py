@@ -17,46 +17,55 @@ from luml.s3_proxy.schemas import (
 )
 
 
+class S3ProxyServer(HTTPServer):
+    def __init__(
+        self,
+        server_address: tuple[str, int],
+        handler_class: type,
+        storage_root: str,
+        credentials: dict[str, str],
+        cors_enabled: bool,
+        debug: bool,
+    ) -> None:
+        self.storage_root = storage_root
+        self.credentials = credentials
+        self.cors_enabled = cors_enabled
+        self.debug = debug
+        self.multipart_uploads: dict[str, MultipartUpload] = {}
+        self._auth: AwsSignatureValidator | None = None
+        super().__init__(server_address, handler_class)
+
+    def get_auth(self) -> AwsSignatureValidator:
+        if self._auth is None:
+            self._auth = AwsSignatureValidator(
+                credentials=self.credentials, debug=self.debug
+            )
+        return self._auth
+
+
 class S3ProxyHandler(BaseHTTPRequestHandler):
-    STORAGE_ROOT: str = "./s3_storage"  # Storage root directory
-    CREDENTIALS: dict[str, str] = {}
     MAX_FILE_SIZE: int = 5_497_558_138_880  # 5 TB
 
-    CORS_ENABLED: bool = False
     CORS_ORIGINS: str = "*"
     CORS_METHODS: str = "GET, PUT, POST, DELETE, HEAD, OPTIONS"
     CORS_HEADERS: str = "Authorization, Content-Type, Content-MD5, x-amz-*, Range"
     CORS_MAX_AGE: str = "3600"
 
-    multipart_uploads: dict[str, MultipartUpload] = {}
-
-    DEBUG: bool = False
-    _auth: AwsSignatureValidator | None = None
-
-    @classmethod
-    def get_auth(cls) -> AwsSignatureValidator:
-        if cls._auth is None:
-            cls._auth = AwsSignatureValidator(
-                credentials=cls.CREDENTIALS, debug=cls.DEBUG
-            )
-        return cls._auth
-
-    @classmethod
-    def reset_auth(cls) -> None:
-        cls._auth = None
-
-    def __init__(self, *args, **kwargs) -> None:
-        os.makedirs(self.STORAGE_ROOT, exist_ok=True)
-        super().__init__(*args, **kwargs)
+    def __init__(self, request, client_address, server: S3ProxyServer) -> None:
+        self.storage_root = server.storage_root
+        self.cors_enabled = server.cors_enabled
+        self.debug = server.debug
+        os.makedirs(self.storage_root, exist_ok=True)
+        super().__init__(request, client_address, server)
 
     def log_message(self, format, *args) -> None:
         message = format % args if args else format
-        if message.startswith("[AUTH]") and not self.DEBUG:
+        if message.startswith("[AUTH]") and not self.debug:
             return
         super().log_message("%s", message)
 
     def add_cors_headers(self) -> None:
-        if self.CORS_ENABLED:
+        if self.cors_enabled:
             self.send_header("Access-Control-Allow-Origin", self.CORS_ORIGINS)
             self.send_header("Access-Control-Allow-Methods", self.CORS_METHODS)
             self.send_header("Access-Control-Allow-Headers", self.CORS_HEADERS)
@@ -189,7 +198,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         )
 
     def get_file_path(self, bucket: str, key: str) -> Path:
-        storage_root = Path(self.STORAGE_ROOT).resolve()
+        storage_root = Path(self.storage_root).resolve()
         file_path = (storage_root / bucket / key).resolve()
         if os.path.commonpath([str(storage_root), str(file_path)]) != str(storage_root):
             raise ValueError("Invalid bucket or key path.")
@@ -197,7 +206,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
     def check_auth(self) -> bool:
         try:
-            self.get_auth().validate_request(
+            self.server.get_auth().validate_request(  # type: ignore[attr-defined]
                 dict(self.headers), self.command, self.path
             )
             self.log_message("[AUTH] Authentication successful")
@@ -208,7 +217,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             return False
 
     def do_OPTIONS(self) -> None:
-        if self.CORS_ENABLED:
+        if self.cors_enabled:
             self.send_response(200)
             self.add_cors_headers()
             self.send_header("Content-Length", "0")
@@ -375,7 +384,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     def _handle_initiate_multipart(self, req: S3Request) -> None:
         upload_id = os.urandom(16).hex()
 
-        self.multipart_uploads[upload_id] = MultipartUpload(
+        self.server.multipart_uploads[upload_id] = MultipartUpload(  # type: ignore[attr-defined]
             bucket=req.bucket,  # type: ignore[arg-type]
             key=req.key,  # type: ignore[arg-type]
         )
@@ -391,7 +400,8 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         upload_id = req.query_params["uploadId"]
         part_number = int(req.query_params["partNumber"])
 
-        if upload_id not in self.multipart_uploads:
+        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"
             )
@@ -402,7 +412,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             return
         content = self.rfile.read(content_length)
 
-        temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
+        temp_dir = Path(self.storage_root) / ".multipart" / upload_id
         part_file = temp_dir / f"part_{part_number}"
 
         if not self._safe_write_file(part_file, content):
@@ -410,7 +420,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         etag = hashlib.md5(content).hexdigest()
 
-        self.multipart_uploads[upload_id].parts[part_number] = PartInfo(
+        multipart_uploads[upload_id].parts[part_number] = PartInfo(
             etag=etag,
             size=len(content),
             file=part_file,
@@ -424,13 +434,14 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     def _handle_complete_multipart(self, req: S3Request) -> None:
         upload_id = req.query_params["uploadId"]
 
-        if upload_id not in self.multipart_uploads:
+        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"
             )
             return
 
-        upload_info = self.multipart_uploads[upload_id]
+        upload_info = multipart_uploads[upload_id]
 
         content_length = self._get_content_length()
         self.rfile.read(content_length).decode("utf-8")
@@ -452,10 +463,10 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         etag = self._compute_etag(file_path)
 
-        temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
+        temp_dir = Path(self.storage_root) / ".multipart" / upload_id
         self._safe_cleanup_temp_dir(temp_dir)
 
-        del self.multipart_uploads[upload_id]
+        del multipart_uploads[upload_id]
 
         response = CompleteMultipartUploadResponse(
             location=f"/{req.bucket}/{req.key}",
@@ -468,16 +479,17 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
     def _handle_abort_multipart(self, req: S3Request) -> None:
         upload_id = req.query_params["uploadId"]
 
-        if upload_id not in self.multipart_uploads:
+        multipart_uploads = self.server.multipart_uploads  # type: ignore[attr-defined]
+        if upload_id not in multipart_uploads:
             self.send_error_response(
                 404, "NoSuchUpload", "The specified upload does not exist"
             )
             return
 
-        temp_dir = Path(self.STORAGE_ROOT) / ".multipart" / upload_id
+        temp_dir = Path(self.storage_root) / ".multipart" / upload_id
         self._safe_cleanup_temp_dir(temp_dir)
 
-        del self.multipart_uploads[upload_id]
+        del multipart_uploads[upload_id]
 
         self.send_response(204)
         self.add_cors_headers()
@@ -493,18 +505,16 @@ def run_server(
     cors_enabled: bool = False,
     debug: bool = False,
 ) -> None:
-    S3ProxyHandler.STORAGE_ROOT = storage_root
-    S3ProxyHandler.DEBUG = debug
+    credentials = {access_key: secret_key} if access_key and secret_key else {}
 
-    if access_key and secret_key:
-        S3ProxyHandler.CREDENTIALS = {access_key: secret_key}
-    else:
-        S3ProxyHandler.CREDENTIALS = {}
-
-    S3ProxyHandler.CORS_ENABLED = cors_enabled
-
-    server_address = (host, port)
-    httpd = HTTPServer(server_address, S3ProxyHandler)
+    httpd = S3ProxyServer(
+        (host, port),
+        S3ProxyHandler,
+        storage_root=storage_root,
+        credentials=credentials,
+        cors_enabled=cors_enabled,
+        debug=debug,
+    )
 
     try:
         httpd.serve_forever()
