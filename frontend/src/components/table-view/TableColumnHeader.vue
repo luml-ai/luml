@@ -91,23 +91,30 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const menu = ref()
-const menuItems: MenuItem[] = [
-  {
-    label: 'Set as group',
-    iconComponent: Blocks,
-    disabled: true,
-    command() {
-      emit('changeGroup', props.column)
+const menuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
+    {
+      label: 'Set as group',
+      iconComponent: Blocks,
+      disabled: true,
+      command() {
+        emit('changeGroup', props.column)
+      },
     },
-  },
-  {
-    label: 'Set as target',
-    iconComponent: Target,
-    command() {
-      emit('setTarget', props.column)
-    },
-  },
-]
+  ]
+
+  if (props.column !== props.target) {
+    items.push({
+      label: 'Set as target',
+      iconComponent: Target,
+      command() {
+        emit('setTarget', props.column)
+      },
+    })
+  }
+
+  return items
+})
 
 const getCurrentMenuIconColor = computed(() => (icon: LucideIcon) => {
   if (icon === Target) return 'var(--p-message-error-color)'
