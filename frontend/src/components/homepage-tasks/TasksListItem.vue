@@ -30,6 +30,7 @@
         :label="task.btnText"
         severity="secondary"
         class="w-full"
+        :disabled="task.isDisabled"
         @click="onButtonClick"
       />
     </div>
