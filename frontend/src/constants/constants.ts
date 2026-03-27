@@ -93,7 +93,7 @@ const appTasks: IAppTaskData[] = [
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
-    {
+  {
     id: 5,
     icon: ConversationalQAIcon,
     title: 'Prompt Optimization',
@@ -109,7 +109,7 @@ const appTasks: IAppTaskData[] = [
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
-    {
+  {
     id: 4,
     icon: Notebook,
     title: 'Notebook',
