@@ -20,6 +20,7 @@ from luml_agent.services.orchestrator.nodes.base import (
 from luml_agent.services.orchestrator.registry import NodeRegistry
 from luml_agent.services.orchestrator.utils import ensure_global_luml_dir
 from luml_agent.services.pty_manager import PtyManager
+from luml_agent.services.upload_queue import UploadQueue
 
 logger = logging.getLogger("luml_agent.orchestrator")
 
@@ -36,10 +37,12 @@ class OrchestratorEngine:
         db: Database,
         pty: PtyManager,
         registry: NodeRegistry,
+        upload_queue: UploadQueue | None = None,
     ) -> None:
         self._db = db
         self._pty = pty
         self._registry = registry
+        self._upload_queue = upload_queue
         self._running_nodes: dict[str, asyncio.Task[None]] = {}
         self._session_exit_events: dict[str, asyncio.Event] = {}
         self._session_exit_codes: dict[str, int | None] = {}
@@ -449,9 +452,15 @@ class OrchestratorEngine:
             arts = result.artifacts or {}
             experiment_ids = arts.get("experiment_ids", [])
             metrics = arts.get("metrics", {})
+            model_path = arts.get("model_path")
             discovered_keys = sorted(metrics) if metrics else []
 
             self._record_discovered_metric_keys(run_id, discovered_keys)
+
+            if config.luml_collection_id and experiment_ids and model_path:
+                self._enqueue_upload(
+                    run_id, node.id, model_path, experiment_ids, config,
+                )
 
             self._spawn_child(run_id, node, NodeType.FORK, {
                 "objective": self._get_run_objective(run_id),
@@ -693,6 +702,36 @@ class OrchestratorEngine:
         if isinstance(fallback, (int, float)):
             return float(fallback)
         return None
+
+    def _enqueue_upload(
+        self,
+        run_id: str,
+        node_id: str,
+        model_path: str,
+        experiment_ids: list[str],
+        config: RunConfig,
+    ) -> None:
+        if not self._upload_queue:
+            return
+        try:
+            upload = self._upload_queue.enqueue(
+                run_id, node_id, model_path, experiment_ids,
+            )
+            self._emit_event(run_id, node_id, "upload_ready", {
+                "upload_id": upload.id,
+                "run_id": run_id,
+                "node_id": node_id,
+                "file_size": upload.file_size,
+                "experiment_ids": experiment_ids,
+                "collection_id": config.luml_collection_id,
+                "organization_id": config.luml_organization_id,
+                "orbit_id": config.luml_orbit_id,
+            })
+        except Exception:
+            logger.warning(
+                "Failed to enqueue upload for node %s in run %s",
+                node_id, run_id, exc_info=True,
+            )
 
     def _emit_event(
         self,

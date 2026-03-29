@@ -1365,13 +1365,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Add REST endpoint `GET /api/runs/{run_id}/uploads?status=pending` — returns pending uploads for reconnect
   - [x] Implement retry logic: on upload failure, increment `retry_count`, set back to PENDING if < 3, FAILED if >= 3
   - [x] Tests: verify enqueue/claim/complete/fail state transitions, verify claim is atomic (concurrent claims), verify retry count behavior, verify cleanup of old entries, verify REST endpoint responses (202, 409)
-- [ ] Task 12: Upload integration — engine + WebSocket events + worktree deferral
-  - [ ] In `engine.py` `_process_result()`: after successful RUN node with `luml_collection_id`, link experiment to model via `ExperimentTracker("sqlite://~/.luml-agent/experiments")`, then enqueue upload
-  - [ ] Emit `upload_ready` event via WebSocket (with upload_id, run_id, node_id, file_size, experiment_ids, collection/org/orbit IDs)
-  - [ ] Emit `upload_completed` and `upload_failed` events from the upload background task
-  - [ ] Implement upload-aware worktree cleanup: check upload queue before removing worktrees, defer if pending, emit `worktrees_pending_upload`. On `upload_completed`/`upload_failed`, trigger deferred cleanup if all uploads resolved
-  - [ ] On run deletion/cancellation: cancel pending uploads, clean up immediately
-  - [ ] Tests: verify upload enqueue on successful RUN with collection ID, verify no enqueue without collection ID or model_path, verify worktree deferral, verify cleanup after upload completion, verify deletion cancels uploads
+- [x] Task 12: Upload integration — engine + WebSocket events + worktree deferral
+  - [x] In `engine.py` `_process_result()`: after successful RUN node with `luml_collection_id`, link experiment to model via `ExperimentTracker("sqlite://~/.luml-agent/experiments")`, then enqueue upload
+  - [x] Emit `upload_ready` event via WebSocket (with upload_id, run_id, node_id, file_size, experiment_ids, collection/org/orbit IDs)
+  - [x] Emit `upload_completed` and `upload_failed` events from the upload background task
+  - [x] Implement upload-aware worktree cleanup: check upload queue before removing worktrees, defer if pending, emit `worktrees_pending_upload`. On `upload_completed`/`upload_failed`, trigger deferred cleanup if all uploads resolved
+  - [x] On run deletion/cancellation: cancel pending uploads, clean up immediately
+  - [x] Tests: verify upload enqueue on successful RUN with collection ID, verify no enqueue without collection ID or model_path, verify worktree deferral, verify cleanup after upload completion, verify deletion cancels uploads
 - [ ] Task 13: Collection-linked uploads — frontend
   - [ ] Add `luml_collection_id`, `luml_organization_id`, `luml_orbit_id` to frontend `RunConfig` interface (`data-agent.interfaces.ts`)
   - [ ] Add collection selector dropdown to WorkflowForm.vue (advanced options section): fetch collections from main LUML backend, only show if authenticated

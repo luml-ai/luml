@@ -17,6 +17,7 @@ from luml_agent.services.orchestrator.models import (
     RunConfig,
     RunStatus,
 )
+from luml_agent.services.upload_queue import UploadQueue
 from luml_agent.services.worktree import remove_worktree
 
 logger = logging.getLogger(__name__)
@@ -29,11 +30,13 @@ class RunHandler:
         node_repo: RunNodeRepository,
         repository_repo: RepositoryRepository,
         engine: OrchestratorEngine,
+        upload_queue: UploadQueue | None = None,
     ) -> None:
         self._runs = run_repo
         self._nodes = node_repo
         self._repositories = repository_repo
         self._engine = engine
+        self._upload_queue = upload_queue
 
     async def create(self, body: RunCreateIn) -> RunOrm:
         if not self._repositories.get(body.repository_id):
@@ -53,6 +56,9 @@ class RunHandler:
             ),
             primary_metric=body.primary_metric,
             metric_direction=body.metric_direction,
+            luml_collection_id=body.luml_collection_id,
+            luml_organization_id=body.luml_organization_id,
+            luml_orbit_id=body.luml_orbit_id,
         )
 
         run_id = await self._engine.create_run(
@@ -87,7 +93,9 @@ class RunHandler:
             raise RunNotFoundError
         await self._engine.cancel_run(run_id)
         run = self._runs.get(run_id)
-        await self._cleanup_run_worktrees(run_id)
+        if self._upload_queue:
+            self._upload_queue.cancel_pending(run_id)
+        await self._cleanup_run_worktrees(run_id, force=True)
         return run  # type: ignore[return-value]
 
     async def restart(self, run_id: str) -> RunOrm:
@@ -114,7 +122,9 @@ class RunHandler:
             raise InvalidOperationError(
                 "Cannot delete a running run"
             )
-        await self._cleanup_run_worktrees(run_id)
+        if self._upload_queue:
+            self._upload_queue.cancel_pending(run_id)
+        await self._cleanup_run_worktrees(run_id, force=True)
         self._runs.remove(run_id)
 
     def _get_best_node(self, run_id: str) -> tuple[Any, Any]:
@@ -186,7 +196,9 @@ class RunHandler:
             run_id, after_seq,
         )
 
-    async def _cleanup_run_worktrees(self, run_id: str) -> None:
+    async def _cleanup_run_worktrees(
+        self, run_id: str, *, force: bool = False,
+    ) -> None:
         run = self._runs.get(run_id)
         if not run:
             return
@@ -194,6 +206,18 @@ class RunHandler:
         if not repo:
             return
         nodes = self._nodes.list_nodes(run_id)
+
+        deferred_node_ids: set[str] = set()
+        if not force and self._upload_queue:
+            all_node_ids = [n.id for n in nodes]
+            active_uploads = self._upload_queue.get_active_for_nodes(all_node_ids)
+            deferred_node_ids = {u.node_id for u in active_uploads}
+
+        if deferred_node_ids:
+            self._engine._emit_event(run_id, None, "worktrees_pending_upload", {
+                "deferred_node_ids": sorted(deferred_node_ids),
+            })
+
         seen_paths: set[str] = set()
         for node in nodes:
             wt = node.worktree_path
@@ -201,6 +225,8 @@ class RunHandler:
             if not wt or not branch or wt in seen_paths:
                 continue
             seen_paths.add(wt)
+            if node.id in deferred_node_ids:
+                continue
             try:
                 await remove_worktree(repo.path, wt, branch)
             except Exception:
@@ -208,3 +234,12 @@ class RunHandler:
                     "Failed to clean up worktree %s for run %s",
                     wt, run_id, exc_info=True,
                 )
+
+    async def try_deferred_worktree_cleanup(self, run_id: str) -> None:
+        if not self._upload_queue:
+            return
+        nodes = self._nodes.list_nodes(run_id)
+        all_node_ids = [n.id for n in nodes]
+        active = self._upload_queue.get_active_for_nodes(all_node_ids)
+        if not active:
+            await self._cleanup_run_worktrees(run_id, force=True)

@@ -51,3 +51,6 @@ class RunConfig:
     fork_timeout: int = 900
     primary_metric: str = "metric"
     metric_direction: str = "max"
+    luml_collection_id: str | None = None
+    luml_organization_id: str | None = None
+    luml_orbit_id: str | None = None

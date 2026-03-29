@@ -81,13 +81,15 @@ async def _lifespan(
             )
 
     registry = register_all_handlers()
-    engine = OrchestratorEngine(
-        db=db, pty=pty, registry=registry,
-    )
-    await engine.start()
 
     global_dir = ensure_global_luml_dir()
     upload_queue = UploadQueue(global_dir / "uploads.db")
+
+    engine = OrchestratorEngine(
+        db=db, pty=pty, registry=registry,
+        upload_queue=upload_queue,
+    )
+    await engine.start()
 
     app.state.config = config
     app.state.db = db
@@ -111,6 +113,7 @@ async def _lifespan(
         node_repo=db.nodes,
         repository_repo=db.repositories,
         engine=engine,
+        upload_queue=upload_queue,
     )
     app.state.node_handler = NodeHandler(
         node_repo=db.nodes,

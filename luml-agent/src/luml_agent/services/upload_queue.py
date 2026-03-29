@@ -212,6 +212,21 @@ class UploadQueue:
         finally:
             conn.close()
 
+    def get_active_for_nodes(self, node_ids: list[str]) -> list[PendingUpload]:
+        if not node_ids:
+            return []
+        conn = self._connect()
+        try:
+            placeholders = ",".join("?" * len(node_ids))
+            rows = conn.execute(
+                f"SELECT * FROM uploads WHERE node_id IN ({placeholders}) "
+                f"AND status IN (?, ?)",
+                [*node_ids, UploadStatus.PENDING, UploadStatus.IN_PROGRESS],
+            ).fetchall()
+            return [_row_to_upload(r) for r in rows]
+        finally:
+            conn.close()
+
     def cancel_pending(self, run_id: str) -> None:
         now = _now()
         conn = self._connect()
