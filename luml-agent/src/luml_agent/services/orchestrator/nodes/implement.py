@@ -9,7 +9,10 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
-from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
+from luml_agent.services.orchestrator.utils import (
+    ensure_luml_agent_dir,
+    ensure_luml_dependency,
+)
 from luml_agent.services.worktree import auto_commit_changes, create_worktree
 
 logger = logging.getLogger(__name__)
@@ -40,6 +43,7 @@ class ImplementNodeHandler:
 
         ctx.services.db.update_node_worktree(ctx.node_id, worktree_path, branch)
         ensure_luml_agent_dir(worktree_path)
+        ensure_luml_dependency(worktree_path)
 
         agent = get_agent(agent_id)
         if agent is None:

@@ -1,4 +1,8 @@
+import logging
+import subprocess
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_luml_agent_dir(worktree_path: str) -> Path:
@@ -11,3 +15,45 @@ def ensure_global_luml_dir() -> Path:
     home = Path.home() / ".luml-agent"
     (home / "experiments").mkdir(parents=True, exist_ok=True)
     return home
+
+
+def _has_luml_dependency(pyproject_path: Path) -> bool:
+    text = pyproject_path.read_text()
+    for line in text.splitlines():
+        stripped = line.strip().rstrip(",").strip().strip('"').strip("'")
+        if (
+            stripped == "luml"
+            or stripped.startswith("luml>=")
+            or stripped.startswith("luml[")
+        ):
+            return True
+    return False
+
+
+def ensure_luml_dependency(worktree_path: str) -> None:
+    pyproject = Path(worktree_path) / "pyproject.toml"
+    if not pyproject.exists():
+        logger.info(
+            "No pyproject.toml in %s, skipping luml injection",
+            worktree_path,
+        )
+        return
+
+    if _has_luml_dependency(pyproject):
+        return
+
+    try:
+        subprocess.run(
+            ["uv", "add", "luml"],
+            cwd=worktree_path,
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+    except FileNotFoundError:
+        logger.warning("uv not available, skipping luml dependency injection")
+    except subprocess.CalledProcessError as exc:
+        stderr = exc.stderr.decode(errors="replace") if exc.stderr else ""
+        logger.warning("uv add luml failed: %s", stderr or exc)
+    except subprocess.TimeoutExpired:
+        logger.warning("uv add luml timed out in %s", worktree_path)

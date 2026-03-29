@@ -1330,12 +1330,12 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] In `fork.py`: when creating child implement node payloads, copy `objective`, `experiment_ids`, and `discovered_metric_keys` from the fork's own payload
   - [x] Implement `_compute_best_node()` in `engine.py`: compare successful RUN nodes by `artifacts["metrics"][primary_metric]` using `metric_direction`. Store `best_node_id` on the Run. Fall back to `artifacts["metric"]` when metrics dict is missing
   - [x] Tests: verify fork payload contains experiment IDs. Verify child payloads contain parent data. Verify best-node selection with max and min direction. Verify fallback behavior
-- [ ] Task 6: Auto-dependency injection (`luml` SDK)
-  - [ ] Create helper `_ensure_luml_dependency(worktree_path: str) -> None` in `implement.py` or shared utility
-  - [ ] Check `pyproject.toml` for `luml` in dependencies. If missing, run `uv add luml` via subprocess
-  - [ ] Handle edge cases: no `pyproject.toml` (skip with info log), `uv` not available (skip with warning), network error (skip with warning), `luml` already present (no-op)
-  - [ ] Call before `pty.spawn()` in `implement.py`
-  - [ ] Tests: verify injection into a fresh worktree, verify no-op when already present, verify skip when no `pyproject.toml`, verify graceful handling of `uv` failure
+- [x] Task 6: Auto-dependency injection (`luml` SDK)
+  - [x] Create helper `_ensure_luml_dependency(worktree_path: str) -> None` in `implement.py` or shared utility
+  - [x] Check `pyproject.toml` for `luml` in dependencies. If missing, run `uv add luml` via subprocess
+  - [x] Handle edge cases: no `pyproject.toml` (skip with info log), `uv` not available (skip with warning), network error (skip with warning), `luml` already present (no-op)
+  - [x] Call before `pty.spawn()` in `implement.py`
+  - [x] Tests: verify injection into a fresh worktree, verify no-op when already present, verify skip when no `pyproject.toml`, verify graceful handling of `uv` failure
 - [ ] Task 7: `luml-inspect` CLI — core commands (`list`, `show`, `params`)
   - [ ] Create `src/luml_agent/cli/inspect.py` with Typer app
   - [ ] Register `luml-inspect` entry point in `pyproject.toml`
