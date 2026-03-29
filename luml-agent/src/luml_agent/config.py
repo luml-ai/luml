@@ -9,8 +9,8 @@ def _default_preserve_patterns() -> list[str]:
     return [".env", ".env.local", ".env.development", ".env.production"]
 
 
-def _default_exclude_patterns() -> list[str]:
-    return ["node_modules", ".git", "__pycache__", ".venv", "venv"]
+def _default_shared_paths() -> list[str]:
+    return ["data"]
 
 
 def _default_cors_origins() -> list[str]:
@@ -24,7 +24,7 @@ class AppConfig:
     branch_prefix: str = "luml-agent"
     default_agent_id: str = "claude"
     preserve_patterns: list[str] = field(default_factory=_default_preserve_patterns)
-    exclude_patterns: list[str] = field(default_factory=_default_exclude_patterns)
+    shared_paths: list[str] = field(default_factory=_default_shared_paths)
     cors_origins: list[str] = field(default_factory=_default_cors_origins)
 
 
@@ -46,7 +46,7 @@ def load_config() -> AppConfig:
         "branch_prefix": "luml-agent",
         "default_agent_id": "claude",
         "preserve_patterns": _default_preserve_patterns(),
-        "exclude_patterns": _default_exclude_patterns(),
+        "shared_paths": _default_shared_paths(),
         "cors_origins": _default_cors_origins(),
     }
 
@@ -66,6 +66,6 @@ def load_config() -> AppConfig:
         branch_prefix=defaults["branch_prefix"],
         default_agent_id=defaults["default_agent_id"],
         preserve_patterns=defaults["preserve_patterns"],
-        exclude_patterns=defaults["exclude_patterns"],
+        shared_paths=defaults["shared_paths"],
         cors_origins=defaults["cors_origins"],
     )

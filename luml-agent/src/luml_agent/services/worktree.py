@@ -1,9 +1,12 @@
 import asyncio
+import logging
 import re
 import shutil
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -58,6 +61,7 @@ async def create_worktree(
     base_branch: str,
     branch_prefix: str = "luml-agent",
     preserve_patterns: list[str] | None = None,
+    shared_paths: list[str] | None = None,
 ) -> tuple[str, str]:
     repo = Path(repo_path).resolve()
     slug = slugify(task_name)
@@ -76,8 +80,16 @@ async def create_worktree(
     if rc != 0:
         raise RuntimeError(f"Failed to create worktree: {stderr}")
 
-    preserve_env_files(repo, worktree_path, preserve_patterns)
-    _setup_gitignore(worktree_path)
+    try:
+        preserve_env_files(repo, worktree_path, preserve_patterns)
+    except Exception:
+        logger.warning(
+            "Failed to preserve env files in worktree %s", worktree_path,
+            exc_info=True,
+        )
+
+    linked = setup_shared_paths(repo, worktree_path, shared_paths or [])
+    _setup_gitignore(worktree_path, extra_entries=linked)
 
     return str(worktree_path), branch_name
 
@@ -135,15 +147,66 @@ async def get_worktree_status(
 _OBSOLETE_ENTRIES = {".luml-fork.json", ".proposals/", "result.json"}
 
 
-def _setup_gitignore(worktree_path: Path) -> None:
+def _setup_gitignore(
+    worktree_path: Path,
+    extra_entries: list[str] | None = None,
+) -> None:
     gitignore = worktree_path / ".gitignore"
-    entry = ".luml-agent/"
+    required = {".luml-agent/"}
+    if extra_entries:
+        for e in extra_entries:
+            entry = e.rstrip("/") + "/"
+            required.add(entry)
 
     if gitignore.exists():
         lines = gitignore.read_text().splitlines()
         filtered = [ln for ln in lines if ln.strip() not in _OBSOLETE_ENTRIES]
-        if entry not in (ln.strip() for ln in filtered):
-            filtered.append(entry)
+        existing = {ln.strip() for ln in filtered}
+        for entry in required:
+            if entry not in existing:
+                filtered.append(entry)
         gitignore.write_text("\n".join(filtered) + "\n")
     else:
-        gitignore.write_text(f"{entry}\n")
+        gitignore.write_text("\n".join(required) + "\n")
+
+
+def setup_shared_paths(
+    repo_path: Path,
+    worktree_path: Path,
+    shared_paths: list[str],
+) -> list[str]:
+    linked: list[str] = []
+    for rel_path in shared_paths:
+        source = repo_path / rel_path
+        target = worktree_path / rel_path
+        if not source.exists():
+            continue
+        if target.exists() or target.is_symlink():
+            if target.is_symlink():
+                target.unlink()
+            elif target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+        target.symlink_to(source.resolve())
+        linked.append(rel_path)
+    return linked
+
+
+async def auto_commit_changes(worktree_path: str | Path) -> bool:
+    wt = Path(worktree_path)
+    rc, out, _ = await _run_git(["status", "--porcelain"], cwd=wt)
+    if rc != 0 or not out.strip():
+        return False
+    rc, _, stderr = await _run_git(["add", "-A"], cwd=wt)
+    if rc != 0:
+        logger.warning("auto-commit: git add failed in %s: %s", wt, stderr)
+        return False
+    rc, _, stderr = await _run_git(
+        ["commit", "-m", "luml-agent: auto-commit uncommitted changes"],
+        cwd=wt,
+    )
+    if rc != 0:
+        logger.warning("auto-commit: git commit failed in %s: %s", wt, stderr)
+        return False
+    return True

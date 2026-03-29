@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from luml_agent.infra.exceptions import MergeConflictError
 from luml_agent.services.merge import (
     can_fast_forward,
     get_branch_diff_stats,
@@ -169,5 +170,5 @@ async def test_merge_conflict_aborts(git_repo: Path) -> None:
         cwd=git_repo, capture_output=True, env=env,
     )
 
-    with pytest.raises(RuntimeError, match="Merge failed"):
+    with pytest.raises(MergeConflictError):
         await merge_branch(git_repo, "conflict-branch", "main")

@@ -131,9 +131,14 @@ async def _handle_app_error(
     request: Request,
     exc: ApplicationError,
 ) -> JSONResponse:
+    from luml_agent.infra.exceptions import MergeConflictError
+
+    content: dict[str, object] = {"detail": exc.message}
+    if isinstance(exc, MergeConflictError):
+        content["conflicting_files"] = exc.conflicting_files
     return JSONResponse(
         status_code=exc.status_code,
-        content={"detail": exc.message},
+        content=content,
     )
 
 

@@ -30,3 +30,12 @@ class NodeNotFoundError(NotFoundError):
 
 class InvalidOperationError(ApplicationError):
     message = "Invalid operation"
+
+
+class MergeConflictError(ApplicationError):
+    status_code = 409
+    message = "Merge conflicts detected"
+
+    def __init__(self, conflicting_files: list[str]) -> None:
+        super().__init__(self.message)
+        self.conflicting_files = conflicting_files

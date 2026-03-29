@@ -125,11 +125,11 @@ async def merge_run(
 
 
 @router.delete("/{run_id}")
-def delete_run(
+async def delete_run(
     request: Request, run_id: str,
 ) -> dict[str, str]:
     handler = request.app.state.run_handler
-    handler.delete(run_id)
+    await handler.delete(run_id)
     return {"status": "deleted"}
 
 
