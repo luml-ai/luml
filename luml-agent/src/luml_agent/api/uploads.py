@@ -39,7 +39,8 @@ async def _do_upload(
     upload_id: str,
     model_path: str,
     presigned_url: str,
-    event_bus: Any,  # noqa: ANN401
+    engine: Any,  # noqa: ANN401
+    run_handler: Any,  # noqa: ANN401
     run_id: str,
     node_id: str,
 ) -> None:
@@ -49,9 +50,9 @@ async def _do_upload(
                 resp = await client.put(presigned_url, content=f.read(), timeout=300)
             resp.raise_for_status()
         upload_queue.complete(upload_id)
-        if event_bus is not None:
-            event_bus.emit(
-                "upload_completed",
+        if engine is not None:
+            engine._emit_event(
+                run_id, node_id, "upload_completed",
                 {
                     "upload_id": upload_id,
                     "run_id": run_id,
@@ -64,9 +65,9 @@ async def _do_upload(
         upload_queue.fail(upload_id, error_msg)
         upload = upload_queue.get(upload_id)
         status = upload.status if upload else UploadStatus.FAILED
-        if event_bus is not None:
-            event_bus.emit(
-                "upload_failed",
+        if engine is not None:
+            engine._emit_event(
+                run_id, node_id, "upload_failed",
                 {
                     "upload_id": upload_id,
                     "run_id": run_id,
@@ -74,6 +75,13 @@ async def _do_upload(
                     "error": error_msg,
                     "status": str(status),
                 },
+            )
+    if run_handler is not None:
+        try:
+            await run_handler.try_deferred_worktree_cleanup(run_id)
+        except Exception:
+            logger.warning(
+                "Deferred cleanup failed for run %s", run_id, exc_info=True,
             )
 
 
@@ -102,14 +110,16 @@ async def post_upload_url(
             content={"detail": "Upload not found"},
         )
 
-    event_bus = getattr(request.app.state, "event_bus", None)
+    engine = getattr(request.app.state, "engine", None)
+    run_handler = getattr(request.app.state, "run_handler", None)
     asyncio.create_task(
         _do_upload(
             upload_queue=upload_queue,
             upload_id=upload_id,
             model_path=upload.model_path,
             presigned_url=body.presigned_url,
-            event_bus=event_bus,
+            engine=engine,
+            run_handler=run_handler,
             run_id=run_id,
             node_id=upload.node_id,
         ),
