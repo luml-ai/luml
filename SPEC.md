@@ -1390,9 +1390,9 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Integrate into `implement.py` and `debug.py` — call prompt builders, pass result to agent
   - [x] In `debug.py` handler: compute `git diff {base_branch}...HEAD` before spawning agent
   - [x] Tests: verify root vs fork-child prompt differentiation, verify metric consistency section in fork-child, verify log truncation at `max_log_tail`, verify guide.md reference in all prompts
-- [ ] Task 15: Prompt construction — fork
-  - [ ] `build_fork_prompt(payload, run_config) -> str`: objective + experiment IDs + guide.md reference + decomposition guidelines + output format (`.luml-agent/fork.json`)
-  - [ ] Integrate into `fork.py` — call prompt builder, pass result to agent
-  - [ ] Update fork node handler: read proposals from `.luml-agent/fork.json` (primary), fall back to `.luml-agent/result.json`, fall back to `.luml-agent/proposals/` directory. All reads wrapped in try/except
-  - [ ] Update child payload construction: copy `objective`, `experiment_ids`, `discovered_metric_keys` from fork's payload into each child's payload alongside the proposal `prompt`
-  - [ ] Tests: verify prompt includes experiment IDs and guide.md reference, verify proposal reading from all three sources, verify fallback order, verify child payload construction
+- [x] Task 15: Prompt construction — fork
+  - [x] `build_fork_prompt(payload, run_config) -> str`: objective + experiment IDs + guide.md reference + decomposition guidelines + output format (`.luml-agent/fork.json`)
+  - [x] Integrate into `fork.py` — call prompt builder, pass result to agent
+  - [x] Update fork node handler: read proposals from `.luml-agent/fork.json` (primary), fall back to `.luml-agent/result.json`, fall back to `.luml-agent/proposals/` directory. All reads wrapped in try/except
+  - [x] Update child payload construction: copy `objective`, `experiment_ids`, `discovered_metric_keys` from fork's payload into each child's payload alongside the proposal `prompt`
+  - [x] Tests: verify prompt includes experiment IDs and guide.md reference, verify proposal reading from all three sources, verify fallback order, verify child payload construction

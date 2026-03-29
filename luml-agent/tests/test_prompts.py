@@ -1,6 +1,7 @@
 from luml_agent.services.orchestrator.prompts import (
     _GUIDE_REF,
     build_debug_prompt,
+    build_fork_prompt,
     build_implement_prompt,
 )
 
@@ -191,6 +192,80 @@ class TestBuildDebugPrompt:
         assert "experiment tracking" in result.lower()
 
 
+class TestBuildForkPrompt:
+    def test_includes_objective(self) -> None:
+        payload = {"objective": "Train a classifier on iris dataset"}
+        result = build_fork_prompt(payload, {})
+        assert "Train a classifier on iris dataset" in result
+
+    def test_includes_experiment_ids(self) -> None:
+        payload = {
+            "objective": "test",
+            "experiment_ids": ["exp-abc", "exp-def"],
+        }
+        result = build_fork_prompt(payload, {})
+        assert "exp-abc" in result
+        assert "exp-def" in result
+        assert "luml-inspect" in result
+
+    def test_references_guide_md(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert ".luml-agent/guide.md" in result
+
+    def test_includes_decomposition_guidelines(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert "diverse" in result.lower()
+        assert "self-contained" in result.lower()
+
+    def test_includes_output_format(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert ".luml-agent/fork.json" in result
+        assert '"prompt"' in result
+        assert '"title"' in result
+
+    def test_includes_max_children(self) -> None:
+        result = build_fork_prompt(
+            {"objective": "test"},
+            {"max_children_per_fork": 5},
+        )
+        assert "5" in result
+
+    def test_default_max_children(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert "3" in result
+
+    def test_includes_metric_keys(self) -> None:
+        payload = {
+            "objective": "test",
+            "discovered_metric_keys": ["accuracy", "loss"],
+        }
+        result = build_fork_prompt(payload, {})
+        assert "accuracy" in result
+        assert "loss" in result
+        assert "metric consistency" in result.lower()
+
+    def test_no_metrics_shows_none(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert "(none specified)" in result
+
+    def test_no_experiment_ids_shows_none(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert "(none available)" in result
+
+    def test_includes_run_artifacts_context(self) -> None:
+        payload = {
+            "objective": "test",
+            "context": '{"metric": 0.95, "model_path": "model.luml"}',
+        }
+        result = build_fork_prompt(payload, {})
+        assert "0.95" in result
+        assert "model.luml" in result
+
+    def test_no_context_shows_placeholder(self) -> None:
+        result = build_fork_prompt({"objective": "test"}, {})
+        assert "(no artifacts from parent run)" in result
+
+
 class TestGuideRefInAllPrompts:
     def test_guide_ref_constant(self) -> None:
         assert ".luml-agent/guide.md" in _GUIDE_REF
@@ -208,6 +283,10 @@ class TestGuideRefInAllPrompts:
             {},
             worktree_path="", base_branch="",
         )
+        assert _GUIDE_REF in result
+
+    def test_fork_has_guide_ref(self) -> None:
+        result = build_fork_prompt({"objective": ""}, {})
         assert _GUIDE_REF in result
 
     def test_debug_has_guide_ref(self) -> None:

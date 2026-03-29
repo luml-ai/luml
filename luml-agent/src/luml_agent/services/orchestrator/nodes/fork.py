@@ -11,6 +11,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.prompts import build_fork_prompt
 from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 
 logger = logging.getLogger(__name__)
@@ -28,8 +29,6 @@ class ForkNodeHandler:
         if not worktree_path:
             return NodeResult(success=False, error_message="No worktree path for fork")
 
-        objective = ctx.payload.get("objective", "")
-        context_info = ctx.payload.get("context", "")
         max_children = ctx.run_config.get("max_children_per_fork", 3)
 
         ensure_luml_agent_dir(worktree_path)
@@ -41,15 +40,7 @@ class ForkNodeHandler:
         _ensure_gitignore_entry(gitignore_path, ".proposals/")
         _ensure_gitignore_entry(gitignore_path, ".luml-fork.json")
 
-        fork_prompt = (
-            f"Decompose the following objective into at most {max_children} "
-            f"atomic, independently implementable changes.\n\n"
-            f"Objective: {objective}\n\n"
-            f"Context: {context_info}\n\n"
-            f"Write a file called .luml-fork.json in the repo root.\n"
-            f"It must be a JSON array of strings, where each string is a "
-            f"self-contained prompt describing one change to implement."
-        )
+        fork_prompt = build_fork_prompt(ctx.payload, ctx.run_config)
 
         agent_id = ctx.run_config.get("agent_id", "claude")
         agent = get_agent(agent_id)
@@ -90,37 +81,32 @@ class ForkNodeHandler:
                 error_message=f"Node execution timed out after {timeout}s",
             )
 
-        exit_code = ctx.services.engine.get_session_exit_code(session.session_id)
+        ctx.services.engine.get_session_exit_code(session.session_id)
 
-        result_data = read_result_file(worktree_path)
+        try:
+            result_data = read_result_file(worktree_path)
+        except Exception:
+            logger.warning(
+                "Fork node %d: error reading result file", ctx.node_id,
+                exc_info=True,
+            )
+            result_data = None
+
         if result_data is not None and not result_data.success:
             return NodeResult(
                 success=False,
                 error_message=result_data.error_message or "Fork agent failed",
             )
 
-        fork_strings = _read_fork_file(worktree_path, max_children)
-        if fork_strings is not None:
-            logger.info(
-                "Fork node %d: read %d proposals from .luml-fork.json",
-                ctx.node_id, len(fork_strings),
-            )
-            proposals = [{"prompt": s} for s in fork_strings]
-        elif result_data is not None:
-            proposals: list[dict[str, Any]] = []
-            logger.info(
-                "Fork node %d: read %d proposals from result file",
-                ctx.node_id, len(proposals),
-            )
-        else:
-            proposals = _read_proposals(proposals_dir, max_children)
-            logger.info(
-                "Fork node %d: read %d proposals from .proposals/",
-                ctx.node_id, len(proposals),
-            )
+        proposals = _collect_proposals(
+            worktree_path, proposals_dir, max_children, ctx.node_id,
+        )
 
-        if exit_code != 0 and not proposals:
-            return NodeResult(success=False, error_message="Fork agent failed")
+        if not proposals:
+            return NodeResult(
+                success=False,
+                error_message="Failed to read fork proposals: no valid proposals found",
+            )
 
         fork_auto_approve = ctx.run_config.get("fork_auto_approve", True)
         parent_objective = ctx.payload.get("objective", "")
@@ -131,7 +117,7 @@ class ForkNodeHandler:
         if fork_auto_approve:
             for proposal in proposals:
                 child_payload: dict[str, Any] = {
-                    "prompt": proposal.get("prompt", ""),
+                    "proposal": proposal,
                     "objective": parent_objective,
                     "experiment_ids": parent_experiment_ids,
                     "discovered_metric_keys": parent_metric_keys,
@@ -157,6 +143,76 @@ class ForkNodeHandler:
 
     def default_next_nodes(self, result: NodeResult) -> list[NodeSpawnSpec]:
         return []
+
+
+def _collect_proposals(
+    worktree_path: str,
+    proposals_dir: Path,
+    max_children: int,
+    node_id: int,
+) -> list[dict[str, Any]]:
+    proposals: list[dict[str, Any]] = []
+    try:
+        fork_objects = _read_fork_json(worktree_path, max_children)
+        if fork_objects is not None:
+            proposals = fork_objects
+            logger.info(
+                "Fork node %d: read %d proposals from .luml-agent/fork.json",
+                node_id, len(proposals),
+            )
+    except Exception:
+        logger.warning(
+            "Fork node %d: error reading .luml-agent/fork.json",
+            node_id, exc_info=True,
+        )
+
+    if not proposals:
+        try:
+            fork_strings = _read_fork_file(worktree_path, max_children)
+            if fork_strings is not None:
+                proposals = [{"prompt": s} for s in fork_strings]
+                logger.info(
+                    "Fork node %d: read %d proposals from .luml-fork.json",
+                    node_id, len(proposals),
+                )
+        except Exception:
+            logger.warning(
+                "Fork node %d: error reading .luml-fork.json",
+                node_id, exc_info=True,
+            )
+
+    if not proposals:
+        try:
+            proposals = _read_proposals(proposals_dir, max_children)
+            if proposals:
+                logger.info(
+                    "Fork node %d: read %d proposals from .proposals/",
+                    node_id, len(proposals),
+                )
+        except Exception:
+            logger.warning(
+                "Fork node %d: error reading .proposals/",
+                node_id, exc_info=True,
+            )
+
+    return proposals
+
+
+def _read_fork_json(worktree_path: str, max_count: int) -> list[dict[str, Any]] | None:
+    path = Path(worktree_path) / ".luml-agent" / "fork.json"
+    if not path.exists():
+        return None
+    with open(path) as f:
+        data = json.load(f)
+    if not isinstance(data, list):
+        return None
+    proposals: list[dict[str, Any]] = []
+    for item in data[:max_count]:
+        if isinstance(item, dict) and "prompt" in item:
+            proposals.append(item)
+        elif isinstance(item, str):
+            proposals.append({"prompt": item})
+    return proposals if proposals else None
 
 
 def _read_fork_file(worktree_path: str, max_count: int) -> list[str] | None:

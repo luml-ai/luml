@@ -6,6 +6,7 @@ from luml_agent.services.orchestrator.nodes.fork import (
     ForkNodeHandler,
     _ensure_gitignore_entry,
     _read_fork_file,
+    _read_fork_json,
     _read_proposals,
 )
 
@@ -163,3 +164,109 @@ class TestEnsureGitignoreEntry:
         assert (
             gitignore.read_text().count(".proposals/") == 1
         )
+
+
+class TestReadForkJson:
+    def test_reads_object_proposals(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps([
+            {"prompt": "Try SVM", "title": "SVM"},
+            {"prompt": "Try RF", "title": "RF"},
+        ]))
+        result = _read_fork_json(str(tmp_path), 5)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0]["prompt"] == "Try SVM"
+        assert result[1]["title"] == "RF"
+
+    def test_reads_string_proposals_as_objects(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps(["do A", "do B"]))
+        result = _read_fork_json(str(tmp_path), 5)
+        assert result is not None
+        assert len(result) == 2
+        assert result[0] == {"prompt": "do A"}
+        assert result[1] == {"prompt": "do B"}
+
+    def test_respects_max_count(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps([
+            {"prompt": f"p{i}", "title": f"t{i}"} for i in range(10)
+        ]))
+        result = _read_fork_json(str(tmp_path), 3)
+        assert result is not None
+        assert len(result) == 3
+
+    def test_returns_none_for_missing_file(self, tmp_path: Path) -> None:
+        assert _read_fork_json(str(tmp_path), 3) is None
+
+    def test_returns_none_for_non_list(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps({"key": "val"}))
+        assert _read_fork_json(str(tmp_path), 3) is None
+
+    def test_returns_none_for_empty_valid_items(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps([42, True, None]))
+        assert _read_fork_json(str(tmp_path), 5) is None
+
+    def test_raises_on_invalid_json(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text("not json {{{")
+        import pytest
+        with pytest.raises(json.JSONDecodeError):
+            _read_fork_json(str(tmp_path), 3)
+
+    def test_skips_objects_without_prompt(self, tmp_path: Path) -> None:
+        luml_dir = tmp_path / ".luml-agent"
+        luml_dir.mkdir()
+        (luml_dir / "fork.json").write_text(json.dumps([
+            {"title": "no prompt"},
+            {"prompt": "has prompt", "title": "ok"},
+        ]))
+        result = _read_fork_json(str(tmp_path), 5)
+        assert result is not None
+        assert len(result) == 1
+        assert result[0]["prompt"] == "has prompt"
+
+
+class TestChildPayloadConstruction:
+    def test_child_payload_has_proposal_dict(self) -> None:
+        proposals = [
+            {"prompt": "Try SVM", "title": "SVM"},
+            {"prompt": "Try RF", "title": "RF"},
+        ]
+        parent_objective = "Train classifier"
+        parent_experiment_ids = ["exp-1", "exp-2"]
+        parent_metric_keys = ["accuracy", "loss"]
+
+        spawn_next = []
+        for proposal in proposals:
+            from luml_agent.services.orchestrator.nodes.base import NodeSpawnSpec
+            child_payload = {
+                "proposal": proposal,
+                "objective": parent_objective,
+                "experiment_ids": parent_experiment_ids,
+                "discovered_metric_keys": parent_metric_keys,
+            }
+            spawn_next.append(NodeSpawnSpec(
+                node_type="implement",
+                payload=child_payload,
+                reason="fork",
+            ))
+
+        assert len(spawn_next) == 2
+        p0 = spawn_next[0].payload
+        assert p0["proposal"] == {"prompt": "Try SVM", "title": "SVM"}
+        assert p0["objective"] == "Train classifier"
+        assert p0["experiment_ids"] == ["exp-1", "exp-2"]
+        assert p0["discovered_metric_keys"] == ["accuracy", "loss"]
+
+        p1 = spawn_next[1].payload
+        assert p1["proposal"]["prompt"] == "Try RF"

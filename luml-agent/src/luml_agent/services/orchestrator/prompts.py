@@ -58,6 +58,53 @@ The following experiment IDs are from the parent run. \
 Use `luml-inspect show <id>` or `luml-inspect metrics <id> <key>` to explore them:
 {experiment_ids}"""
 
+_FORK = """\
+# Decomposition Task
+
+Analyze the results of the previous experiment and propose up to {max_children} \
+diverse approaches to improve on it.
+
+## Original Objective
+
+{objective}
+
+## Parent Experiments
+
+The following experiment IDs are from the parent run. \
+Use `luml-inspect show <id>` or `luml-inspect metrics <id> <key>` to investigate:
+{experiment_ids}
+
+## Run Artifacts
+
+{run_artifacts}
+
+## Reference
+
+{guide_ref}
+
+## Guidelines
+- Explore diverse strategies (e.g. different algorithms, hyperparameter ranges, \
+data preprocessing, feature engineering).
+- Each proposal must be self-contained — an agent receiving only that proposal \
+and the original objective should be able to implement it.
+- Preserve metric consistency: instruct each proposal to use the same metric \
+name(s) and calculation as the parent so results are comparable. \
+Metric(s) to preserve: {metric_keys}
+- Do NOT simply re-run the same approach with minor tweaks — each proposal should \
+represent a meaningfully different direction.
+
+## Output Format
+
+Write your proposals to `.luml-agent/fork.json` in the worktree root.
+It must be a JSON array of objects with `"prompt"` (str) and `"title"` (str):
+
+```json
+[
+  {{"prompt": "Detailed instruction for approach 1...", "title": "Short title"}},
+  {{"prompt": "Detailed instruction for approach 2...", "title": "Short title"}}
+]
+```"""
+
 _DEBUG = """\
 # Debug Task
 
@@ -170,4 +217,32 @@ def build_debug_prompt(
         log_tail=log_tail,
         max_log_tail=max_log_tail,
         guide_ref=_GUIDE_REF,
+    )
+
+
+def build_fork_prompt(
+    payload: dict[str, Any],
+    run_config: dict[str, Any],
+) -> str:
+    objective = payload.get("objective", "")
+    context_info = payload.get("context", "")
+    experiment_ids = payload.get("experiment_ids", [])
+    metric_keys = payload.get("discovered_metric_keys", [])
+    max_children = run_config.get("max_children_per_fork", 3)
+
+    exp_ids_str = (
+        "\n".join(f"- {eid}" for eid in experiment_ids)
+        if experiment_ids
+        else "- (none available)"
+    )
+    metric_keys_str = ", ".join(metric_keys) if metric_keys else "(none specified)"
+    run_artifacts = context_info if context_info else "(no artifacts from parent run)"
+
+    return _FORK.format(
+        max_children=max_children,
+        objective=objective,
+        experiment_ids=exp_ids_str,
+        run_artifacts=run_artifacts,
+        guide_ref=_GUIDE_REF,
+        metric_keys=metric_keys_str,
     )
