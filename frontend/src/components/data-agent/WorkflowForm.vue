@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { InputText, InputNumber, Textarea, Select, Checkbox } from 'primevue'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { AgentRepository, Agent } from '@/lib/api/data-agent/data-agent.interfaces'
+import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { api } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth'
+import { useOrganizationStore } from '@/stores/organization'
+import { useOrbitsStore } from '@/stores/orbits'
 
 defineProps<{
   repositories: AgentRepository[]
@@ -28,6 +32,10 @@ export interface WorkflowFormData {
   run_timeout: number
   debug_timeout: number
   fork_timeout: number
+  metric_direction: string
+  luml_collection_id: string | undefined
+  luml_organization_id: string | undefined
+  luml_orbit_id: string | undefined
 }
 
 const emit = defineEmits<{
@@ -69,15 +77,53 @@ const implementTimeout = ref(1800)
 const runTimeout = ref(0)
 const debugTimeout = ref(1800)
 const forkTimeout = ref(900)
+const metricDirection = ref('max')
+const metricDirectionOptions = [
+  { label: 'Maximize (higher is better)', value: 'max' },
+  { label: 'Minimize (lower is better)', value: 'min' },
+]
+
 const agents = ref<Agent[]>([])
 const showAdvanced = ref(false)
 
+const authStore = useAuthStore()
+const orgStore = useOrganizationStore()
+const orbitsStore = useOrbitsStore()
+
+const collections = ref<OrbitCollection[]>([])
+const selectedCollection = ref<OrbitCollection | null>(null)
+const collectionsLoading = ref(false)
+
+const showCollectionSelector = computed(() => authStore.isAuth && orgStore.currentOrganizationId)
+
 let branchAbort: AbortController | null = null
+
+async function loadCollections() {
+  const orgId = orgStore.currentOrganizationId
+  const orbitId = orbitsStore.currentOrbitDetails?.id
+  if (!orgId || !orbitId) return
+
+  collectionsLoading.value = true
+  try {
+    const resp = await api.orbitCollections.getCollectionsList(orgId, orbitId, {
+      cursor: null,
+      limit: 100,
+    })
+    collections.value = resp.items
+  } catch {
+    collections.value = []
+  } finally {
+    collectionsLoading.value = false
+  }
+}
 
 onMounted(async () => {
   agents.value = await api.dataAgent.listAvailableAgents()
   if (agents.value.length > 0) {
     selectedAgent.value = agents.value[0]
+  }
+  if (showCollectionSelector.value) {
+    loadCollections()
   }
 })
 
@@ -105,6 +151,7 @@ watch(selectedRepository, async (repo) => {
 
 function submit() {
   if (!selectedRepository.value) return
+  const col = selectedCollection.value
   emit('submit', {
     repository_id: selectedRepository.value.id,
     name: name.value,
@@ -123,10 +170,15 @@ function submit() {
     run_timeout: runTimeout.value,
     debug_timeout: debugTimeout.value,
     fork_timeout: forkTimeout.value,
+    metric_direction: metricDirection.value,
+    luml_collection_id: col?.id,
+    luml_organization_id: col ? orgStore.currentOrganizationId ?? undefined : undefined,
+    luml_orbit_id: col ? orbitsStore.currentOrbitDetails?.id : undefined,
   })
   name.value = ''
   objective.value = ''
   runCommand.value = 'uv run main.py'
+  selectedCollection.value = null
 }
 
 defineExpose({ submit })
@@ -183,6 +235,28 @@ defineExpose({ submit })
       <span>Advanced options</span>
     </button>
     <template v-if="showAdvanced">
+      <div v-if="showCollectionSelector" class="field">
+        <label class="label">Upload to Collection</label>
+        <Select
+          v-model="selectedCollection"
+          :options="collections"
+          optionLabel="name"
+          :loading="collectionsLoading"
+          placeholder="None (no artifact upload)"
+          showClear
+          class="w-full"
+        />
+      </div>
+      <div class="field">
+        <label class="label">Metric Direction</label>
+        <Select
+          v-model="metricDirection"
+          :options="metricDirectionOptions"
+          optionLabel="label"
+          optionValue="value"
+          class="w-full"
+        />
+      </div>
       <div class="field">
         <label class="label">Run Command</label>
         <InputText v-model="runCommand" placeholder="uv run main.py" class="w-full" />

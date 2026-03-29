@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Button, Tag, Dialog } from 'primevue'
-import { ArrowLeft, Play, X, GitMerge } from 'lucide-vue-next'
+import { Button, Tag, Dialog, Message } from 'primevue'
+import { ArrowLeft, Play, X, GitMerge, RefreshCw } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { useDataAgentStore } from '@/stores/data-agent'
+import { useUploadFlow } from '@/hooks/useUploadFlow'
 import { useAgentWebSocket } from '@/hooks/useAgentWebSocket'
 import { statusSeverity } from '@/components/data-agent/board/board.types'
+import type { UploadReadyEvent } from '@/lib/api/data-agent/data-agent.interfaces'
 import RunGraph from '@/components/data-agent/RunGraph.vue'
 import NodeDetail from '@/components/data-agent/NodeDetail.vue'
 import TerminalPanel from '@/components/data-agent/TerminalPanel.vue'
@@ -15,6 +17,8 @@ import MergeDialog from '@/components/data-agent/MergeDialog.vue'
 const route = useRoute()
 const router = useRouter()
 const store = useDataAgentStore()
+
+const uploadFlow = useUploadFlow()
 
 const terminalSessionId = ref<string | null>(null)
 const terminalLabel = ref('Terminal')
@@ -43,7 +47,7 @@ const initialId = String(route.params.runId || '')
 if (initialId) {
   store.selectRun(initialId)
 }
-useAgentWebSocket()
+useAgentWebSocket(uploadFlow)
 
 async function loadInitialData() {
   const id = String(route.params.runId || '')
@@ -56,9 +60,37 @@ async function loadInitialData() {
     ])
     store.updateRun(run)
     store.applySnapshot({ ...graph, run })
+
+    const config = run.config
+    if (config.luml_collection_id && config.luml_organization_id && config.luml_orbit_id) {
+      uploadFlow.resumePendingUploads(
+        id,
+        config.luml_collection_id,
+        config.luml_organization_id,
+        config.luml_orbit_id,
+      )
+    }
   } catch {
     // WS will provide data
   }
+}
+
+function onRetryUpload(uploadId: string) {
+  const run = store.selectedRun
+  if (!run?.config.luml_collection_id) return
+  const entry = uploadFlow.uploads.value.get(uploadId)
+  if (!entry) return
+  const event: UploadReadyEvent = {
+    upload_id: uploadId,
+    run_id: entry.runId,
+    node_id: entry.nodeId,
+    file_size: 0,
+    experiment_ids: [],
+    collection_id: run.config.luml_collection_id!,
+    organization_id: run.config.luml_organization_id!,
+    orbit_id: run.config.luml_orbit_id!,
+  }
+  uploadFlow.retryUpload(uploadId, event)
 }
 
 async function onStartRun() {
@@ -157,6 +189,21 @@ onUnmounted(() => {
             <span>Merge</span>
           </Button>
         </template>
+      </div>
+
+      <div v-if="uploadFlow.worktreesPendingMessage.value" class="upload-banner">
+        <Message severity="info" :closable="false">
+          {{ uploadFlow.worktreesPendingMessage.value }}
+        </Message>
+      </div>
+      <div v-for="entry in uploadFlow.failedUploads.value" :key="entry.uploadId" class="upload-banner">
+        <Message severity="error" :closable="false">
+          <span>Upload failed for node {{ entry.nodeId }}: {{ entry.error }}</span>
+          <Button size="small" severity="secondary" text @click="onRetryUpload(entry.uploadId)">
+            <RefreshCw :size="12" />
+            <span>Retry</span>
+          </Button>
+        </Message>
       </div>
 
       <div class="graph-area">
@@ -289,6 +336,17 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   position: relative;
+}
+
+.upload-banner {
+  padding: 0 16px;
+  flex-shrink: 0;
+}
+
+.upload-banner :deep(.p-message) {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .graph-loading {

@@ -12,6 +12,7 @@ import type {
   RunCreate,
   RunGraph,
   RunEvent,
+  PendingUpload,
 } from './data-agent.interfaces'
 
 const STORAGE_KEY = 'luml-agent-backend-url'
@@ -214,6 +215,22 @@ export class DataAgentApi {
 
   createTerminalWebSocket(sessionId: string): WebSocket {
     return new WebSocket(`${this.wsBaseUrl()}/terminal/${sessionId}`)
+  }
+
+  async getPendingUploads(runId: string): Promise<PendingUpload[]> {
+    const { data } = await this.api.get<PendingUpload[]>(`/runs/${runId}/uploads`, {
+      params: { status: 'pending' },
+    })
+    return data
+  }
+
+  async postUploadUrl(runId: string, uploadId: string, presignedUrl: string): Promise<number> {
+    const resp = await this.api.post(
+      `/runs/${runId}/uploads/${uploadId}/url`,
+      { presigned_url: presignedUrl },
+      { validateStatus: (s) => s === 202 || s === 409 },
+    )
+    return resp.status
   }
 
   createRunWebSocket(runId: string): WebSocket {
