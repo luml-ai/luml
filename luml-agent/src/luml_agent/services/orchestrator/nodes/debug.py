@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from typing import Any
 
 from luml_agent.services.agents import build_agent_command, get_agent
@@ -9,6 +10,8 @@ from luml_agent.services.orchestrator.nodes.base import (
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
 from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
+
+logger = logging.getLogger(__name__)
 
 _MAX_LOG_TAIL = 3000
 
@@ -63,7 +66,22 @@ class DebugNodeHandler:
         exit_event = asyncio.Event()
         ctx.services.engine.register_session_completion(session.session_id, exit_event)
 
-        await exit_event.wait()
+        timeout = ctx.run_config.get("debug_timeout", 1800)
+        try:
+            await asyncio.wait_for(
+                exit_event.wait(),
+                timeout=timeout if timeout > 0 else None,
+            )
+        except TimeoutError:
+            logger.warning(
+                "Debug node %s timed out after %ds", ctx.node_id, timeout,
+            )
+            ctx.services.pty.terminate(session.session_id)
+            return NodeResult(
+                success=False,
+                artifacts={"session_id": session.session_id},
+                error_message=f"Node execution timed out after {timeout}s",
+            )
 
         result_exit_code = ctx.services.engine.get_session_exit_code(session.session_id)
 

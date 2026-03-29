@@ -66,7 +66,10 @@ class PtyManager:
         rows: int = 40,
         session_type: str = "agent",
     ) -> PtySession:
-        master_fd, slave_fd = pty.openpty()
+        try:
+            master_fd, slave_fd = pty.openpty()
+        except OSError as e:
+            raise OSError(f"Failed to open PTY: {e}") from e
 
         winsize = struct.pack("HHHH", rows, cols, 0, 0)
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
@@ -76,16 +79,21 @@ class PtyManager:
         env["COLUMNS"] = str(cols)
         env["LINES"] = str(rows)
 
-        process = subprocess.Popen(
-            command,
-            stdin=slave_fd,
-            stdout=slave_fd,
-            stderr=slave_fd,
-            cwd=cwd,
-            env=env,
-            preexec_fn=os.setsid,
-            close_fds=True,
-        )
+        try:
+            process = subprocess.Popen(
+                command,
+                stdin=slave_fd,
+                stdout=slave_fd,
+                stderr=slave_fd,
+                cwd=cwd,
+                env=env,
+                preexec_fn=os.setsid,
+                close_fds=True,
+            )
+        except OSError:
+            os.close(master_fd)
+            os.close(slave_fd)
+            raise
         os.close(slave_fd)
 
         session_id = uuid.uuid4().hex
@@ -123,7 +131,7 @@ class PtyManager:
                 except OSError as e:
                     if e.errno in (errno.EIO, errno.EBADF):
                         break
-                    raise
+                    break
                 if not data:
                     break
                 if _has_printable_content(data):
@@ -143,6 +151,8 @@ class PtyManager:
                         self._push_to_subscribers(session, data)
                 else:
                     self._push_to_subscribers(session, data)
+        except Exception:
+            pass
         finally:
             loop = self._loop
             if loop is not None and loop.is_running():
@@ -180,7 +190,8 @@ class PtyManager:
         except subprocess.TimeoutExpired:
             with contextlib.suppress(ProcessLookupError):
                 os.kill(session.pid, signal.SIGKILL)
-            session.process.wait(timeout=2)
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                session.process.wait(timeout=2)
         with contextlib.suppress(OSError):
             os.close(session.fd)
         if session.reader_thread and session.reader_thread.is_alive():

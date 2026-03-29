@@ -45,3 +45,7 @@ class RunConfig:
     fork_auto_approve: bool = True
     auto_mode: bool = False
     auto_terminate_timeout: int = 30
+    implement_timeout: int = 1800
+    run_timeout: int = 0
+    debug_timeout: int = 1800
+    fork_timeout: int = 900
