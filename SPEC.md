@@ -1358,13 +1358,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Register `data/guide.md` as package data in `pyproject.toml`
   - [x] Update `ensure_luml_agent_dir()` (from Task 1) to also copy `guide.md` into `{worktree}/.luml-agent/guide.md` using `importlib.resources`
   - [x] Tests: verify `guide.md` is accessible via `importlib.resources`, verify it's copied to worktree, verify content includes all required sections
-- [ ] Task 11: Upload queue + REST endpoints
-  - [ ] Create `src/luml_agent/services/upload_queue.py` with `PendingUpload` dataclass and `UploadStatus` enum
-  - [ ] Implement SQLite-backed queue at `~/.luml-agent/uploads.db`: `enqueue()`, `claim()` (atomic PENDING→IN_PROGRESS), `complete()`, `fail()`, `get_pending()`, `cleanup_resolved()`
-  - [ ] Add REST endpoint `POST /api/runs/{run_id}/uploads/{upload_id}/url` — claims upload, starts background file upload to presigned URL, returns 202 or 409
-  - [ ] Add REST endpoint `GET /api/runs/{run_id}/uploads?status=pending` — returns pending uploads for reconnect
-  - [ ] Implement retry logic: on upload failure, increment `retry_count`, set back to PENDING if < 3, FAILED if >= 3
-  - [ ] Tests: verify enqueue/claim/complete/fail state transitions, verify claim is atomic (concurrent claims), verify retry count behavior, verify cleanup of old entries, verify REST endpoint responses (202, 409)
+- [x] Task 11: Upload queue + REST endpoints
+  - [x] Create `src/luml_agent/services/upload_queue.py` with `PendingUpload` dataclass and `UploadStatus` enum
+  - [x] Implement SQLite-backed queue at `~/.luml-agent/uploads.db`: `enqueue()`, `claim()` (atomic PENDING→IN_PROGRESS), `complete()`, `fail()`, `get_pending()`, `cleanup_resolved()`
+  - [x] Add REST endpoint `POST /api/runs/{run_id}/uploads/{upload_id}/url` — claims upload, starts background file upload to presigned URL, returns 202 or 409
+  - [x] Add REST endpoint `GET /api/runs/{run_id}/uploads?status=pending` — returns pending uploads for reconnect
+  - [x] Implement retry logic: on upload failure, increment `retry_count`, set back to PENDING if < 3, FAILED if >= 3
+  - [x] Tests: verify enqueue/claim/complete/fail state transitions, verify claim is atomic (concurrent claims), verify retry count behavior, verify cleanup of old entries, verify REST endpoint responses (202, 409)
 - [ ] Task 12: Upload integration — engine + WebSocket events + worktree deferral
   - [ ] In `engine.py` `_process_result()`: after successful RUN node with `luml_collection_id`, link experiment to model via `ExperimentTracker("sqlite://~/.luml-agent/experiments")`, then enqueue upload
   - [ ] Emit `upload_ready` event via WebSocket (with upload_id, run_id, node_id, file_size, experiment_ids, collection/org/orbit IDs)
