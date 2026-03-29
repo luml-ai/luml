@@ -21,7 +21,9 @@ from luml_agent.services.orchestrator.engine import OrchestratorEngine
 from luml_agent.services.orchestrator.registry import (
     register_all_handlers,
 )
+from luml_agent.services.orchestrator.utils import ensure_global_luml_dir
 from luml_agent.services.pty_manager import PtyManager
+from luml_agent.services.upload_queue import UploadQueue
 
 
 async def _monitor_loop(app: FastAPI) -> None:
@@ -84,10 +86,14 @@ async def _lifespan(
     )
     await engine.start()
 
+    global_dir = ensure_global_luml_dir()
+    upload_queue = UploadQueue(global_dir / "uploads.db")
+
     app.state.config = config
     app.state.db = db
     app.state.pty = pty
     app.state.engine = engine
+    app.state.upload_queue = upload_queue
 
     app.state.repository_handler = RepositoryHandler(
         repository_repo=db.repositories,

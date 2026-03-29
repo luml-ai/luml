@@ -11,6 +11,7 @@ from luml_agent.api.repositories import (
 )
 from luml_agent.api.runs import router as runs_router
 from luml_agent.api.tasks import router as tasks_router
+from luml_agent.api.uploads import router as uploads_router
 from luml_agent.api.websockets import router as ws_router
 
 _debug_router = APIRouter(tags=["debug"])
@@ -45,6 +46,7 @@ def aggregate_router() -> APIRouter:
     root.include_router(nodes_router)
     root.include_router(browse_router)
     root.include_router(agents_router)
+    root.include_router(uploads_router)
     root.include_router(ws_router)
     root.include_router(health_router)
     root.include_router(_debug_router)
