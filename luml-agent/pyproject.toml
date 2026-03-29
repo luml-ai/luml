@@ -7,12 +7,14 @@ dependencies = [
     "alembic>=1.18.4",
     "fastapi>=0.115.0",
     "sqlalchemy>=2.0.47",
+    "typer>=0.15.0",
     "uvicorn[standard]>=0.34.0",
 ]
 
 [project.scripts]
 luml-agent = "luml_agent.server:main"
 mock-agent = "luml_agent.mock_agent:main"
+luml-inspect = "luml_agent.cli.inspect:main"
 
 [build-system]
 requires = ["hatchling"]

@@ -1336,14 +1336,14 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Handle edge cases: no `pyproject.toml` (skip with info log), `uv` not available (skip with warning), network error (skip with warning), `luml` already present (no-op)
   - [x] Call before `pty.spawn()` in `implement.py`
   - [x] Tests: verify injection into a fresh worktree, verify no-op when already present, verify skip when no `pyproject.toml`, verify graceful handling of `uv` failure
-- [ ] Task 7: `luml-inspect` CLI — core commands (`list`, `show`, `params`)
-  - [ ] Create `src/luml_agent/cli/inspect.py` with Typer app
-  - [ ] Register `luml-inspect` entry point in `pyproject.toml`
-  - [ ] Implement `list` command: query ExperimentTracker at `~/.luml-agent/experiments`, format as compact table, default cap 20, `--all`/`--limit`/`--group`/`--tag` flags. Include final metric values per experiment
-  - [ ] Implement `show <id>` command: metadata + static params + per-metric summary (STEPS, FINAL, MIN, MAX, MEAN)
-  - [ ] Implement `params <id>` command: compact key-value dump
-  - [ ] Global `--db` flag, default `~/.luml-agent/experiments`
-  - [ ] Tests: seed an experiment DB with known data, verify output formatting, verify default caps, verify `--all` override, verify `--db` flag
+- [x] Task 7: `luml-inspect` CLI — core commands (`list`, `show`, `params`)
+  - [x] Create `src/luml_agent/cli/inspect.py` with Typer app
+  - [x] Register `luml-inspect` entry point in `pyproject.toml`
+  - [x] Implement `list` command: query ExperimentTracker at `~/.luml-agent/experiments`, format as compact table, default cap 20, `--all`/`--limit`/`--group`/`--tag` flags. Include final metric values per experiment
+  - [x] Implement `show <id>` command: metadata + static params + per-metric summary (STEPS, FINAL, MIN, MAX, MEAN)
+  - [x] Implement `params <id>` command: compact key-value dump
+  - [x] Global `--db` flag, default `~/.luml-agent/experiments`
+  - [x] Tests: seed an experiment DB with known data, verify output formatting, verify default caps, verify `--all` override, verify `--db` flag
 - [ ] Task 8: `luml-inspect` CLI — `metrics` command with bucketing
   - [ ] Implement `metrics <id> <key>` command
   - [ ] Implement bucketing logic: divide steps into N buckets (default 20), each row shows representative STEP + VALUE at that step + MIN/MAX across the bucket. Header shows total steps and bucket count
