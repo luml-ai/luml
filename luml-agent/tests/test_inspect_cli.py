@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 
 from typer.testing import CliRunner
 
@@ -78,6 +79,22 @@ def _create_exp_db(db_path: Path, experiment_id: str) -> None:
             name TEXT NOT NULL,
             file_path TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE evals (
+            id TEXT NOT NULL,
+            dataset_id TEXT NOT NULL,
+            inputs TEXT NOT NULL,
+            outputs TEXT,
+            refs TEXT,
+            scores TEXT,
+            metadata TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (dataset_id, id)
         )
         """
     )
@@ -183,6 +200,49 @@ def _seed_db(tmp_path: Path) -> Path:
         },
     )
 
+    return db_path
+
+
+def _seed_evals(
+    db_path: Path,
+    experiment_id: str,
+    evals_data: list[dict[str, Any]],
+) -> None:
+    exp_db = db_path / experiment_id / "exp.db"
+    conn = sqlite3.connect(str(exp_db))
+    for ev in evals_data:
+        conn.execute(
+            "INSERT INTO evals (id, dataset_id, inputs, outputs, scores) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (
+                ev["id"],
+                ev["dataset_id"],
+                json.dumps(ev.get("inputs", {})),
+                json.dumps(ev.get("outputs")) if ev.get("outputs") else None,
+                json.dumps(ev.get("scores")) if ev.get("scores") else None,
+            ),
+        )
+    conn.commit()
+    conn.close()
+
+
+def _seed_db_three(tmp_path: Path) -> Path:
+    db_path = _seed_db(tmp_path)
+    _seed_experiment(
+        db_path,
+        experiment_id="ghi-789",
+        name="med-lr",
+        tags=["gbt", "v2"],
+        static_params={
+            "learning_rate": ("0.05", "float"),
+            "batch_size": ("64", "int"),
+            "model_type": ("gradient_boosting", "str"),
+        },
+        metrics={
+            "accuracy": [(i, 0.40 + 0.50 * (i / 500)) for i in range(1, 501)],
+            "loss": [(i, 1.27 - 1.17 * (i / 500)) for i in range(1, 501)],
+        },
+    )
     return db_path
 
 
@@ -702,3 +762,309 @@ class TestDbFlag:
         )
         assert result.exit_code == 0
         assert "learning_rate" in result.output
+
+
+class TestCompareCommand:
+    def test_compare_two_experiments(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            ["compare", "abc-123", "def-456", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "PARAMS DIFF" in result.output
+        assert "abc-123" in result.output
+        assert "def-456" in result.output
+        assert "learning_rate" in result.output
+        assert "METRIC: accuracy" in result.output
+        assert "METRIC: loss" in result.output
+
+    def test_compare_three_experiments(self, tmp_path: Path) -> None:
+        db_path = _seed_db_three(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "compare", "abc-123", "def-456", "ghi-789",
+                "--db", str(db_path),
+            ],
+        )
+        assert result.exit_code == 0
+        assert "PARAMS DIFF" in result.output
+        assert "abc-123" in result.output
+        assert "def-456" in result.output
+        assert "ghi-789" in result.output
+        assert "learning_rate" in result.output
+        assert "batch_size" in result.output
+
+    def test_compare_params_diff_same_marker(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            ["compare", "abc-123", "def-456", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        lines = result.output.strip().split("\n")
+        batch_line = [ln for ln in lines if "batch_size" in ln][0]
+        assert "(same)" in batch_line
+        lr_line = [ln for ln in lines if "learning_rate" in ln][0]
+        assert "(same)" not in lr_line
+
+    def test_compare_params_diff_three_mixed(self, tmp_path: Path) -> None:
+        db_path = _seed_db_three(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "compare", "abc-123", "def-456", "ghi-789",
+                "--db", str(db_path),
+            ],
+        )
+        assert result.exit_code == 0
+        lines = result.output.strip().split("\n")
+        model_line = [ln for ln in lines if "model_type" in ln][0]
+        assert "(same)" in model_line
+        batch_line = [ln for ln in lines if "batch_size" in ln][0]
+        assert "(same)" not in batch_line
+
+    def test_compare_default_bucketing(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            ["compare", "abc-123", "def-456", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "20 buckets" in result.output
+
+    def test_compare_summary_flag(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "compare", "abc-123", "def-456",
+                "--db", str(db_path), "--summary",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "PARAMS DIFF" in result.output
+        assert "METRIC: accuracy" in result.output
+        assert "FINAL" in result.output
+        assert "MIN" in result.output
+        assert "MAX" in result.output
+        assert "MEAN" in result.output
+        assert "STEP" not in result.output
+
+    def test_compare_custom_buckets(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "compare", "abc-123", "def-456",
+                "--db", str(db_path), "--buckets", "5",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "5 buckets" in result.output
+
+    def test_compare_all_flag(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path, "e1", "exp1",
+            static_params={"lr": ("0.01", "float")},
+            metrics={"acc": [(1, 0.5), (2, 0.7), (3, 0.9)]},
+        )
+        _seed_experiment(
+            db_path, "e2", "exp2",
+            static_params={"lr": ("0.1", "float")},
+            metrics={"acc": [(1, 0.4), (2, 0.6), (3, 0.8)]},
+        )
+        result = runner.invoke(
+            app,
+            ["compare", "e1", "e2", "--db", str(db_path), "--all"],
+        )
+        assert result.exit_code == 0
+        assert "buckets" not in result.output
+
+    def test_compare_too_few_ids(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app, ["compare", "abc-123", "--db", str(db_path)],
+        )
+        assert result.exit_code != 0
+
+
+class TestEvalsCommand:
+    def test_evals_basic(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        _seed_evals(
+            db_path,
+            "abc-123",
+            [
+                {
+                    "id": "eval-001",
+                    "dataset_id": "ds-01",
+                    "inputs": {"query": "what is ML?"},
+                    "scores": {"f1": 0.91, "em": 0.85},
+                },
+                {
+                    "id": "eval-002",
+                    "dataset_id": "ds-01",
+                    "inputs": {"query": "how does backprop work?"},
+                    "scores": {"f1": 0.78, "em": 0.70},
+                },
+            ],
+        )
+        result = runner.invoke(
+            app, ["evals", "abc-123", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "ds-01" in result.output
+        assert "eval-001" in result.output
+        assert "eval-002" in result.output
+        assert "f1=0.91" in result.output
+        assert "em=0.85" in result.output
+        assert "(2 of 2 samples)" in result.output
+
+    def test_evals_default_cap_10(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(db_path, "big", "big-eval")
+        evals_data = [
+            {
+                "id": f"eval-{i:03d}",
+                "dataset_id": "ds-01",
+                "inputs": {"q": f"question {i}"},
+                "scores": {"f1": 0.5 + i * 0.01},
+            }
+            for i in range(25)
+        ]
+        _seed_evals(db_path, "big", evals_data)
+        result = runner.invoke(
+            app, ["evals", "big", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "(10 of 25 samples, use --all for full list)" in result.output
+
+    def test_evals_all_flag(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(db_path, "big", "big-eval")
+        evals_data = [
+            {
+                "id": f"eval-{i:03d}",
+                "dataset_id": "ds-01",
+                "inputs": {"q": f"question {i}"},
+                "scores": {"f1": 0.5},
+            }
+            for i in range(25)
+        ]
+        _seed_evals(db_path, "big", evals_data)
+        result = runner.invoke(
+            app, ["evals", "big", "--db", str(db_path), "--all"],
+        )
+        assert result.exit_code == 0
+        assert "(25 of 25 samples)" in result.output
+
+    def test_evals_limit_flag(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(db_path, "big", "big-eval")
+        evals_data = [
+            {
+                "id": f"eval-{i:03d}",
+                "dataset_id": "ds-01",
+                "inputs": {"q": f"question {i}"},
+                "scores": {"f1": 0.5},
+            }
+            for i in range(25)
+        ]
+        _seed_evals(db_path, "big", evals_data)
+        result = runner.invoke(
+            app, ["evals", "big", "--db", str(db_path), "--limit", "5"],
+        )
+        assert result.exit_code == 0
+        assert "(5 of 25 samples, use --all for full list)" in result.output
+
+    def test_evals_dataset_filter(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        _seed_evals(
+            db_path,
+            "abc-123",
+            [
+                {
+                    "id": "eval-001",
+                    "dataset_id": "ds-01",
+                    "inputs": {"q": "a"},
+                    "scores": {"f1": 0.9},
+                },
+                {
+                    "id": "eval-002",
+                    "dataset_id": "ds-02",
+                    "inputs": {"q": "b"},
+                    "scores": {"f1": 0.8},
+                },
+            ],
+        )
+        result = runner.invoke(
+            app,
+            ["evals", "abc-123", "--db", str(db_path), "--dataset", "ds-01"],
+        )
+        assert result.exit_code == 0
+        assert "ds-01" in result.output
+        assert "ds-02" not in result.output
+
+    def test_evals_truncation(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        long_input = {"query": "x" * 100}
+        _seed_evals(
+            db_path,
+            "abc-123",
+            [
+                {
+                    "id": "eval-001",
+                    "dataset_id": "ds-01",
+                    "inputs": long_input,
+                    "scores": {"f1": 0.9},
+                },
+            ],
+        )
+        result = runner.invoke(
+            app, ["evals", "abc-123", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "..." in result.output
+
+    def test_evals_no_samples(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app, ["evals", "abc-123", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "No eval samples found" in result.output
+
+    def test_evals_header_present(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        _seed_evals(
+            db_path,
+            "abc-123",
+            [
+                {
+                    "id": "eval-001",
+                    "dataset_id": "ds-01",
+                    "inputs": {"q": "test"},
+                    "scores": {"f1": 0.9},
+                },
+            ],
+        )
+        result = runner.invoke(
+            app, ["evals", "abc-123", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        first_line = result.output.strip().split("\n")[0]
+        assert "DATASET" in first_line
+        assert "EVAL_ID" in first_line
+        assert "SCORES" in first_line
+        assert "INPUTS(trunc)" in first_line

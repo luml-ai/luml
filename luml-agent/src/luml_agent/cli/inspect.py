@@ -420,6 +420,331 @@ def params(
         typer.echo(f"{k.ljust(key_width)}  {v}")
 
 
+def _detect_mode(
+    *, all_points: bool, last: int, every: int, summary: bool,
+) -> str:
+    if summary:
+        return "summary"
+    if all_points or last > 0 or every > 0:
+        return "raw"
+    return "bucketed"
+
+
+def _collect_ordered_keys(
+    maps: list[dict[str, Any]],
+) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for m in maps:
+        for k in m:
+            if k not in seen:
+                result.append(k)
+                seen.add(k)
+    return result
+
+
+def _print_params_diff(
+    experiment_ids: list[str],
+    all_params: dict[str, dict[str, Any]],
+    id_widths: list[int],
+) -> None:
+    all_keys = _collect_ordered_keys(list(all_params.values()))
+    key_width = max((len(k) for k in all_keys), default=3)
+
+    typer.echo("PARAMS DIFF")
+    header_parts = [f"  {'KEY'.ljust(key_width)}"]
+    for eid, w in zip(experiment_ids, id_widths, strict=True):
+        header_parts.append(eid.ljust(w))
+    typer.echo("  ".join(header_parts))
+
+    for k in all_keys:
+        val_strs = [
+            str(all_params[eid].get(k)) if all_params[eid].get(k) is not None else "-"
+            for eid in experiment_ids
+        ]
+        parts = [f"  {k.ljust(key_width)}"]
+        for vs, w in zip(val_strs, id_widths, strict=True):
+            parts.append(vs.ljust(w))
+        line = "  ".join(parts)
+        if len(set(val_strs)) == 1:
+            line += "  (same)"
+        typer.echo(line)
+
+
+def _print_metric_summary(
+    mk: str,
+    experiment_ids: list[str],
+    points_per_exp: dict[str, list[MetricPoint]],
+    id_widths: list[int],
+) -> None:
+    typer.echo(f"METRIC: {mk}")
+    hdr = [f"  {'':>8}"]
+    for eid, w in zip(experiment_ids, id_widths, strict=True):
+        hdr.append(eid.center(w))
+    typer.echo("  ".join(hdr))
+    accessors: list[tuple[str, str]] = [
+        ("FINAL", "final"), ("MIN", "min_val"),
+        ("MAX", "max_val"), ("MEAN", "mean_val"),
+    ]
+    for label, attr in accessors:
+        row_parts = [f"  {label:>8}"]
+        for eid, w in zip(experiment_ids, id_widths, strict=True):
+            pts = points_per_exp[eid]
+            if pts:
+                s = _compute_metric_summary(pts)
+                row_parts.append(_format_val(getattr(s, attr)).rjust(w))
+            else:
+                row_parts.append("-".rjust(w))
+        typer.echo("  ".join(row_parts))
+
+
+def _print_metric_raw(
+    mk: str,
+    experiment_ids: list[str],
+    points_per_exp: dict[str, list[MetricPoint]],
+    max_steps: int,
+    *,
+    all_points: bool,
+    last: int,
+    every: int,
+) -> None:
+    typer.echo(f"METRIC: {mk} ({max_steps} steps)")
+    col_hdr = [f"  {'STEP':>8}"]
+    sub_hdr = [f"  {'':>8}"]
+    for eid in experiment_ids:
+        col_hdr.append(f"  {eid}")
+        sub_hdr.append(f"  {'VAL':>8}")
+    typer.echo("".join(col_hdr))
+    typer.echo("".join(sub_hdr))
+
+    all_steps: list[int] = []
+    steps_seen: set[int] = set()
+    for pts in points_per_exp.values():
+        selected: list[MetricPoint] = []
+        if all_points:
+            selected = pts
+        elif last > 0:
+            selected = pts[-last:]
+        elif every > 0:
+            selected = [p for i, p in enumerate(pts) if i % every == 0]
+        for p in selected:
+            if p.step not in steps_seen:
+                all_steps.append(p.step)
+                steps_seen.add(p.step)
+    all_steps.sort()
+
+    step_val_maps = {
+        eid: {p.step: p.value for p in points_per_exp[eid]}
+        for eid in experiment_ids
+    }
+    for step in all_steps:
+        row = [f"  {step:>8}"]
+        for eid in experiment_ids:
+            v = step_val_maps[eid].get(step)
+            row.append(f"  {_format_val(v) if v is not None else '-':>8}")
+        typer.echo("".join(row))
+
+
+def _print_metric_bucketed(
+    mk: str,
+    experiment_ids: list[str],
+    points_per_exp: dict[str, list[MetricPoint]],
+    max_steps: int,
+    num_buckets: int,
+) -> None:
+    typer.echo(f"METRIC: {mk} ({max_steps} steps, {num_buckets} buckets)")
+    col_hdr = [f"  {'STEP':>8}"]
+    sub_hdr = [f"  {'':>8}"]
+    for eid in experiment_ids:
+        col_hdr.append(f"    {eid}")
+        sub_hdr.append(f"    {'VAL':>8}{'MIN':>5}{'MAX':>5}")
+    typer.echo("".join(col_hdr))
+    typer.echo("".join(sub_hdr))
+
+    bucketed_data = {
+        eid: _bucket_points(pts, num_buckets) if pts else []
+        for eid, pts in points_per_exp.items()
+    }
+    max_bucket_len = max(
+        (len(bl) for bl in bucketed_data.values()), default=0
+    )
+    for i in range(max_bucket_len):
+        step_val = next(
+            (bucketed_data[eid][i].step for eid in experiment_ids
+             if i < len(bucketed_data[eid])),
+            None,
+        )
+        row = [f"  {step_val:>8}" if step_val is not None else f"  {'-':>8}"]
+        for eid in experiment_ids:
+            if i < len(bucketed_data[eid]):
+                b = bucketed_data[eid][i]
+                row.append(
+                    f"    {_format_val(b.value):>8}"
+                    f"{_format_val(b.min_val):>5}"
+                    f"{_format_val(b.max_val):>5}"
+                )
+            else:
+                row.append(f"    {'-':>8}{'-':>5}{'-':>5}")
+        typer.echo("".join(row))
+
+
+@app.command()
+def compare(
+    experiment_ids: list[str] = typer.Argument(  # noqa: B008
+        ..., help="Experiment IDs to compare",
+    ),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="Experiment DB path"),
+    all_points: bool = typer.Option(
+        False, "--all", help="Show all steps (no bucketing)"
+    ),
+    last: int = typer.Option(0, "--last", help="Show last N raw data points"),
+    every: int = typer.Option(0, "--every", help="Show every Nth step"),
+    summary: bool = typer.Option(False, "--summary", help="Only show summary line"),
+    buckets: int = typer.Option(20, "--buckets", help="Number of buckets"),
+) -> None:
+    if len(experiment_ids) < 2:
+        typer.echo("Error: compare requires at least 2 experiment IDs", err=True)
+        raise typer.Exit(1)
+
+    id_widths = [max(len(eid), 6) for eid in experiment_ids]
+    all_params = {eid: _load_static_params(db, eid) for eid in experiment_ids}
+    _print_params_diff(experiment_ids, all_params, id_widths)
+
+    exp_metrics = {eid: _load_metrics(db, eid) for eid in experiment_ids}
+    all_metric_keys = _collect_ordered_keys(list(exp_metrics.values()))
+    mode = _detect_mode(
+        all_points=all_points, last=last, every=every, summary=summary,
+    )
+
+    for mk in all_metric_keys:
+        points_per_exp = {
+            eid: exp_metrics[eid].get(mk, []) for eid in experiment_ids
+        }
+        max_steps = max(
+            (len(pts) for pts in points_per_exp.values()), default=0
+        )
+        if max_steps == 0:
+            continue
+
+        typer.echo("")
+        if mode == "summary":
+            _print_metric_summary(mk, experiment_ids, points_per_exp, id_widths)
+        elif mode == "raw":
+            _print_metric_raw(
+                mk, experiment_ids, points_per_exp, max_steps,
+                all_points=all_points, last=last, every=every,
+            )
+        else:
+            _print_metric_bucketed(
+                mk, experiment_ids, points_per_exp, max_steps, buckets,
+            )
+
+
+@dataclass
+class EvalSample:
+    eval_id: str
+    dataset_id: str
+    inputs: str
+    outputs: str | None
+    scores: dict[str, Any]
+
+
+def _load_evals(
+    db: str, experiment_id: str, dataset: str = "",
+) -> list[EvalSample]:
+    conn = _connect_exp(db, experiment_id)
+    cursor = conn.cursor()
+    if dataset:
+        cursor.execute(
+            "SELECT id, dataset_id, inputs, outputs, scores "
+            "FROM evals WHERE dataset_id = ? ORDER BY dataset_id, id",
+            (dataset,),
+        )
+    else:
+        cursor.execute(
+            "SELECT id, dataset_id, inputs, outputs, scores "
+            "FROM evals ORDER BY dataset_id, id"
+        )
+    samples: list[EvalSample] = []
+    for row in cursor.fetchall():
+        scores = json.loads(row[4]) if row[4] else {}
+        samples.append(
+            EvalSample(
+                eval_id=row[0],
+                dataset_id=row[1],
+                inputs=row[2] or "",
+                outputs=row[3],
+                scores=scores,
+            )
+        )
+    conn.close()
+    return samples
+
+
+def _truncate(s: str, max_len: int = 40) -> str:
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 3] + "..."
+
+
+def _format_scores(scores: dict[str, Any]) -> str:
+    if not scores:
+        return ""
+    parts = []
+    for k, v in scores.items():
+        if isinstance(v, float):
+            parts.append(f"{k}={_format_val(v)}")
+        else:
+            parts.append(f"{k}={v}")
+    return " ".join(parts)
+
+
+@app.command()
+def evals(
+    experiment_id: str = typer.Argument(..., help="Experiment ID"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="Experiment DB path"),
+    all_rows: bool = typer.Option(False, "--all", help="Show all eval samples"),
+    limit: int = typer.Option(0, "--limit", help="Max samples to show"),
+    dataset: str = typer.Option("", "--dataset", help="Filter by dataset ID"),
+) -> None:
+    samples = _load_evals(db, experiment_id, dataset=dataset)
+    total = len(samples)
+
+    if total == 0:
+        typer.echo("No eval samples found.")
+        return
+
+    cap = 10
+    if all_rows:
+        cap = total
+    elif limit > 0:
+        cap = limit
+    shown = samples[:cap]
+
+    col_ds = max(len(s.dataset_id) for s in shown)
+    col_ds = max(col_ds, 7)
+    col_id = max(len(s.eval_id) for s in shown)
+    col_id = max(col_id, 7)
+
+    header = (
+        f"{'DATASET'.ljust(col_ds)}  {'EVAL_ID'.ljust(col_id)}  "
+        f"{'SCORES':<24}  INPUTS(trunc)"
+    )
+    typer.echo(header)
+
+    for s in shown:
+        ds = s.dataset_id.ljust(col_ds)
+        eid = s.eval_id.ljust(col_id)
+        scores_str = _format_scores(s.scores).ljust(24)
+        inputs_str = _truncate(s.inputs)
+        typer.echo(f"{ds}  {eid}  {scores_str}  {inputs_str}")
+
+    if cap < total:
+        typer.echo(f"({cap} of {total} samples, use --all for full list)")
+    else:
+        typer.echo(f"({total} of {total} samples)")
+
+
 def main() -> None:
     app()
 
