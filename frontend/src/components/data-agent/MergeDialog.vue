@@ -19,6 +19,7 @@ const emit = defineEmits<{
 const preview = ref<MergePreview | null>(null)
 const loading = ref(false)
 const error = ref('')
+const conflictingFiles = ref<string[]>([])
 
 watch(
   () => props.visible,
@@ -43,6 +44,7 @@ watch(
 
 async function confirmMerge() {
   error.value = ''
+  conflictingFiles.value = []
   try {
     if (props.kind === 'task') {
       await api.dataAgent.mergeTask(props.itemId)
@@ -51,7 +53,13 @@ async function confirmMerge() {
     }
     emit('merged')
   } catch (e: any) {
-    error.value = e?.response?.data?.detail ?? 'Merge failed'
+    const data = e?.response?.data
+    if (e?.response?.status === 409 && data?.conflicting_files) {
+      conflictingFiles.value = data.conflicting_files
+      error.value = data.detail ?? 'Merge conflicts detected'
+    } else {
+      error.value = data?.detail ?? 'Merge failed'
+    }
   }
 }
 </script>
@@ -100,7 +108,15 @@ async function confirmMerge() {
         </ul>
       </div>
     </div>
-    <div v-if="error" class="error">{{ error }}</div>
+    <div v-if="error" class="error">
+      {{ error }}
+      <div v-if="conflictingFiles.length > 0" class="conflict-files">
+        <strong>Conflicting files:</strong>
+        <ul>
+          <li v-for="f in conflictingFiles" :key="f">{{ f }}</li>
+        </ul>
+      </div>
+    </div>
     <template #footer>
       <Button severity="secondary" @click="emit('close')">
         <span>Cancel</span>
@@ -198,5 +214,19 @@ async function confirmMerge() {
   color: var(--p-red-500);
   font-size: 14px;
   margin-top: 8px;
+}
+
+.conflict-files {
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.conflict-files ul {
+  margin: 4px 0 0;
+  padding-left: 20px;
+}
+
+.conflict-files li {
+  color: var(--p-red-400);
 }
 </style>

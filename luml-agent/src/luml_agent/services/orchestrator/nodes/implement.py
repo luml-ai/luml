@@ -10,7 +10,7 @@ from luml_agent.services.orchestrator.nodes.base import (
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
 from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
-from luml_agent.services.worktree import create_worktree
+from luml_agent.services.worktree import auto_commit_changes, create_worktree
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ class ImplementNodeHandler:
             source_branch,
             app_config.branch_prefix,
             app_config.preserve_patterns,
+            app_config.shared_paths,
         )
 
         ctx.services.db.update_node_worktree(ctx.node_id, worktree_path, branch)
@@ -77,6 +78,8 @@ class ImplementNodeHandler:
             )
 
         exit_code = ctx.services.engine.get_session_exit_code(session.session_id)
+
+        await auto_commit_changes(worktree_path)
 
         result_data = read_result_file(worktree_path)
         if result_data is not None:

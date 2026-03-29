@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from luml_agent.infra.exceptions import (
@@ -16,6 +17,9 @@ from luml_agent.services.orchestrator.models import (
     RunConfig,
     RunStatus,
 )
+from luml_agent.services.worktree import remove_worktree
+
+logger = logging.getLogger(__name__)
 
 
 class RunHandler:
@@ -80,7 +84,9 @@ class RunHandler:
         if not self._runs.get(run_id):
             raise RunNotFoundError
         await self._engine.cancel_run(run_id)
-        return self._runs.get(run_id)  # type: ignore[return-value]
+        run = self._runs.get(run_id)
+        await self._cleanup_run_worktrees(run_id)
+        return run  # type: ignore[return-value]
 
     async def restart(self, run_id: str) -> RunOrm:
         run = self._runs.get(run_id)
@@ -98,7 +104,7 @@ class RunHandler:
         await self._engine.restart_run(run_id)
         return self._runs.get(run_id)  # type: ignore[return-value]
 
-    def delete(self, run_id: str) -> None:
+    async def delete(self, run_id: str) -> None:
         run = self._runs.get(run_id)
         if not run:
             raise RunNotFoundError
@@ -106,6 +112,7 @@ class RunHandler:
             raise InvalidOperationError(
                 "Cannot delete a running run"
             )
+        await self._cleanup_run_worktrees(run_id)
         self._runs.remove(run_id)
 
     def _get_best_node(self, run_id: str) -> tuple[Any, Any]:
@@ -154,6 +161,7 @@ class RunHandler:
             repo.path, node.branch, run.base_branch,
         )
         self._runs.update_status(run_id, RunStatus.MERGED)
+        await self._cleanup_run_worktrees(run_id)
         return result
 
     def get_graph(
@@ -175,3 +183,26 @@ class RunHandler:
         return self._nodes.list_events(
             run_id, after_seq,
         )
+
+    async def _cleanup_run_worktrees(self, run_id: str) -> None:
+        run = self._runs.get(run_id)
+        if not run:
+            return
+        repo = self._repositories.get(run.repository_id)
+        if not repo:
+            return
+        nodes = self._nodes.list_nodes(run_id)
+        seen_paths: set[str] = set()
+        for node in nodes:
+            wt = node.worktree_path
+            branch = node.branch
+            if not wt or not branch or wt in seen_paths:
+                continue
+            seen_paths.add(wt)
+            try:
+                await remove_worktree(repo.path, wt, branch)
+            except Exception:
+                logger.warning(
+                    "Failed to clean up worktree %s for run %s",
+                    wt, run_id, exc_info=True,
+                )

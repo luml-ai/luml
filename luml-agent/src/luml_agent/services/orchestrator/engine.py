@@ -26,6 +26,10 @@ logger = logging.getLogger("luml_agent.orchestrator")
 _TERMINAL_STATUSES = {NodeStatus.SUCCEEDED, NodeStatus.FAILED, NodeStatus.CANCELED}
 
 
+class _UnrecoverableSchedulerError(Exception):
+    pass
+
+
 class OrchestratorEngine:
     def __init__(
         self,
@@ -306,14 +310,43 @@ class OrchestratorEngine:
             await asyncio.sleep(0.5)
             try:
                 await self._schedule_tick()
+            except _UnrecoverableSchedulerError:
+                logger.exception("Unrecoverable scheduler error — stopping")
+                await self._fail_all_running_runs()
+                return
             except Exception:
                 logger.exception("Scheduler tick failed")
 
+    async def _fail_all_running_runs(self) -> None:
+        try:
+            runs = self._db.list_runs()
+        except Exception:
+            logger.exception("Cannot list runs during emergency shutdown")
+            return
+        for run in runs:
+            if run.status != RunStatus.RUNNING:
+                continue
+            for node in self._db.list_run_nodes(run.id):
+                if node.status not in _TERMINAL_STATUSES:
+                    self._db.update_node_status(node.id, NodeStatus.FAILED)
+                    self._emit_event(
+                        run.id, node.id, "node_status_changed",
+                        {"status": NodeStatus.FAILED},
+                    )
+            self._db.update_run_status(run.id, RunStatus.FAILED)
+            self._emit_event(
+                run.id, None, "run_status_changed",
+                {"status": RunStatus.FAILED},
+            )
+
     async def _schedule_tick(self) -> None:
-        running_runs = [
-            r for r in self._db.list_runs()
-            if r.status == RunStatus.RUNNING
-        ]
+        try:
+            running_runs = [
+                r for r in self._db.list_runs()
+                if r.status == RunStatus.RUNNING
+            ]
+        except Exception as exc:
+            raise _UnrecoverableSchedulerError(str(exc)) from exc
         for run in running_runs:
             config = self._load_config(run.config_json)
             active_count = self._count_active_nodes(run.id)

@@ -2,6 +2,8 @@ import asyncio
 from dataclasses import dataclass
 from pathlib import Path
 
+from luml_agent.infra.exceptions import MergeConflictError
+
 
 @dataclass
 class BranchDiffStats:
@@ -138,9 +140,15 @@ async def merge_branch(
 
     rc, out, stderr = await _run_git(["merge", "--no-ff", branch], cwd=repo)
     if rc != 0:
+        _, conflict_out, _ = await _run_git(
+            ["diff", "--name-only", "--diff-filter=U"], cwd=repo,
+        )
         await _run_git(["merge", "--abort"], cwd=repo)
         if original_branch and original_branch != base_branch:
             await _run_git(["checkout", original_branch], cwd=repo)
+        if conflict_out.strip():
+            conflicting_files = conflict_out.strip().splitlines()
+            raise MergeConflictError(conflicting_files)
         raise RuntimeError(f"Merge failed: {stderr}")
 
     if original_branch and original_branch != base_branch and original_branch != branch:

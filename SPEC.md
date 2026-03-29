@@ -1308,14 +1308,14 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] PTY spawn error handling: wrap `openpty()` and `Popen()` in try/except, clean up FDs on failure
   - [x] Log full stack traces via `logger.exception()` in engine's `_run_node()` exception handler
   - [x] Tests: mock a hanging process → verify timeout fires. Mock a crashing process → verify error propagation. Mock spawn failure → verify FD cleanup. Verify `logger.exception()` called
-- [ ] Task 3: Worktree lifecycle — cleanup, shared paths, auto-commit, merge conflicts
-  - [ ] Add worktree cleanup after merge, on run deletion, and on run cancellation (`handlers/run.py`). Cleanup errors logged but don't fail the parent operation
-  - [ ] Implement shared data symlinks: `shared_paths` config in `AppConfig`, `_setup_shared_paths()` in `worktree.py`. Add shared paths to worktree `.gitignore`
-  - [ ] Implement auto-commit in `implement.py` and `debug.py`: after agent exits, check `git status --porcelain`, if dirty run `git add -A && git commit -m "luml-agent: auto-commit uncommitted changes"`
-  - [ ] Remove unused `exclude_patterns` from config
-  - [ ] Merge conflict detection: in `merge.py`, detect conflicts, return `MergeConflictError` with `conflicting_files` list (409 response). Frontend `MergeDialog.vue` displays the list
-  - [ ] Scheduler resilience: distinguish recoverable vs unrecoverable errors in `_schedule_tick()`. On unrecoverable: mark all running runs as FAILED and stop
-  - [ ] Tests: verify cleanup on merge/delete/cancel, verify symlink creation, verify auto-commit, verify no auto-commit when clean, verify merge conflict detection and 409 response, verify scheduler stops on unrecoverable error
+- [x] Task 3: Worktree lifecycle — cleanup, shared paths, auto-commit, merge conflicts
+  - [x] Add worktree cleanup after merge, on run deletion, and on run cancellation (`handlers/run.py`). Cleanup errors logged but don't fail the parent operation
+  - [x] Implement shared data symlinks: `shared_paths` config in `AppConfig`, `_setup_shared_paths()` in `worktree.py`. Add shared paths to worktree `.gitignore`
+  - [x] Implement auto-commit in `implement.py` and `debug.py`: after agent exits, check `git status --porcelain`, if dirty run `git add -A && git commit -m "luml-agent: auto-commit uncommitted changes"`
+  - [x] Remove unused `exclude_patterns` from config
+  - [x] Merge conflict detection: in `merge.py`, detect conflicts, return `MergeConflictError` with `conflicting_files` list (409 response). Frontend `MergeDialog.vue` displays the list
+  - [x] Scheduler resilience: distinguish recoverable vs unrecoverable errors in `_schedule_tick()`. On unrecoverable: mark all running runs as FAILED and stop
+  - [x] Tests: verify cleanup on merge/delete/cancel, verify symlink creation, verify auto-commit, verify no auto-commit when clean, verify merge conflict detection and 409 response, verify scheduler stops on unrecoverable error
 - [ ] Task 4: Result file contract + `result_file.py`
   - [ ] Create `src/luml_agent/services/orchestrator/result_file.py` with `read_result_file(worktree_path: str) -> ResultData`
   - [ ] `ResultData` dataclass: `success: bool`, `experiment_id: str | None`, `experiment_ids: list[str]`, `metrics: dict[str, float]`, `model_path: str | None`, `error_message: str | None`
