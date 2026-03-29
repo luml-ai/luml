@@ -1349,10 +1349,10 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Implement bucketing logic: divide steps into N buckets (default 20), each row shows representative STEP + VALUE at that step + MIN/MAX across the bucket. Header shows total steps and bucket count
   - [x] Implement flags: `--all` (raw, no bucketing), `--last N` (last N raw points), `--every N` (every Nth step, raw), `--summary` (only final/min/max/mean), `--buckets N` (override bucket count)
   - [x] Tests: verify bucketing with known data (exact step/min/max values), verify all flags, edge cases (fewer steps than buckets, single step, empty metrics)
-- [ ] Task 9: `luml-inspect` CLI — `compare` and `evals` commands
-  - [ ] Implement `compare <id1> <id2> [...]` command: params diff table (highlight differences, mark same values), per-metric bucketed comparison with VAL/MIN/MAX per experiment per bucket. Same subsampling flags as `metrics`
-  - [ ] Implement `evals <id>` command: tabular eval samples, default cap 10, `--all`/`--limit`/`--dataset` flags, truncate long input/output strings
-  - [ ] Tests: verify compare output with 2 and 3 experiments, verify params diff formatting, verify evals truncation and caps
+- [x] Task 9: `luml-inspect` CLI — `compare` and `evals` commands
+  - [x] Implement `compare <id1> <id2> [...]` command: params diff table (highlight differences, mark same values), per-metric bucketed comparison with VAL/MIN/MAX per experiment per bucket. Same subsampling flags as `metrics`
+  - [x] Implement `evals <id>` command: tabular eval samples, default cap 10, `--all`/`--limit`/`--dataset` flags, truncate long input/output strings
+  - [x] Tests: verify compare output with 2 and 3 experiments, verify params diff formatting, verify evals truncation and caps
 - [ ] Task 10: `guide.md` template + worktree injection
   - [ ] Create `src/luml_agent/data/guide.md` with: `luml-inspect` CLI reference (all commands, flags, examples), `.luml-agent/result.json` schema, `.luml-agent/fork.json` schema, ExperimentTracker connection string convention (`sqlite://~/.luml-agent/experiments`), metric consistency rules
   - [ ] Register `data/guide.md` as package data in `pyproject.toml`
