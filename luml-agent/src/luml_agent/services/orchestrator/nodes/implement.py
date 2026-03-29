@@ -83,8 +83,8 @@ class ImplementNodeHandler:
 
         result_data = read_result_file(worktree_path)
         if result_data is not None:
-            success = result_data["success"]
-            error_message = result_data.get("error_message", "")
+            success = result_data.success
+            error_message = result_data.error_message or ""
         else:
             success = exit_code == 0
             error_message = ""
@@ -95,11 +95,8 @@ class ImplementNodeHandler:
             "exit_code": exit_code or 0,
             "session_id": session.session_id,
         }
-        if result_data:
-            if "artifacts" in result_data:
-                artifacts.update(result_data["artifacts"])
-            if "metrics" in result_data:
-                artifacts["metrics"] = result_data["metrics"]
+        if result_data and result_data.metrics:
+            artifacts["metrics"] = result_data.metrics
 
         return NodeResult(
             success=success,

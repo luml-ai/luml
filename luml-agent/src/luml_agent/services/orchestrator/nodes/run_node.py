@@ -78,28 +78,39 @@ class RunNodeHandler:
         scrollback = ctx.services.engine.get_session_scrollback(session.session_id)
         logs = scrollback.decode("utf-8", errors="replace")
 
+        result_data = read_result_file(worktree_path)
         stdout_metric = parse_stdout_metric(logs)
 
-        result_data = read_result_file(worktree_path)
         if result_data is not None:
-            success = result_data["success"]
-            metrics = result_data.get("metrics", {})
-            error_message = result_data.get("error_message", "")
+            success = result_data.success
+            metrics = result_data.metrics
+            error_message = result_data.error_message or ""
+            experiment_ids = result_data.experiment_ids
+            model_path = result_data.model_path
         else:
             success = exit_code == 0
             metrics = self._parse_metrics(logs, ctx.payload.get("metrics_pattern"))
             error_message = ""
+            experiment_ids = []
+            model_path = None
+
+        if not metrics and stdout_metric is not None:
+            metrics = {"metric": float(stdout_metric)}
 
         artifacts: dict[str, Any] = {
             "exit_code": exit_code or 0,
             "logs": logs[-10000:] if len(logs) > 10000 else logs,
             "metrics": metrics,
+            "experiment_ids": experiment_ids,
             "session_id": session.session_id,
         }
         if stdout_metric is not None:
             artifacts["metric"] = stdout_metric
-        if result_data and "artifacts" in result_data:
-            artifacts.update(result_data["artifacts"])
+        elif metrics:
+            first_value = next(iter(metrics.values()))
+            artifacts["metric"] = first_value
+        if model_path is not None:
+            artifacts["model_path"] = model_path
 
         return NodeResult(
             success=success,

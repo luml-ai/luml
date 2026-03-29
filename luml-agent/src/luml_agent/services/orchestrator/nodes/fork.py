@@ -93,10 +93,10 @@ class ForkNodeHandler:
         exit_code = ctx.services.engine.get_session_exit_code(session.session_id)
 
         result_data = read_result_file(worktree_path)
-        if result_data is not None and not result_data["success"]:
+        if result_data is not None and not result_data.success:
             return NodeResult(
                 success=False,
-                error_message=result_data.get("error_message", "Fork agent failed"),
+                error_message=result_data.error_message or "Fork agent failed",
             )
 
         fork_strings = _read_fork_file(worktree_path, max_children)
@@ -107,7 +107,7 @@ class ForkNodeHandler:
             )
             proposals = [{"prompt": s} for s in fork_strings]
         elif result_data is not None:
-            proposals = result_data.get("proposals", [])[:max_children]
+            proposals: list[dict[str, Any]] = []
             logger.info(
                 "Fork node %d: read %d proposals from result file",
                 ctx.node_id, len(proposals),
