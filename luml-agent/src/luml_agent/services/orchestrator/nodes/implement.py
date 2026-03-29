@@ -9,6 +9,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.prompts import build_implement_prompt
 from luml_agent.services.orchestrator.utils import (
     ensure_luml_agent_dir,
     ensure_luml_dependency,
@@ -27,7 +28,6 @@ class ImplementNodeHandler:
             raise ValueError("Implement node requires 'prompt' in payload")
 
     async def execute(self, ctx: NodeExecutionContext) -> NodeResult:
-        prompt = ctx.payload.get("prompt", "")
         agent_id = ctx.run_config.get("agent_id", "claude")
         app_config = ctx.services.config
 
@@ -49,6 +49,12 @@ class ImplementNodeHandler:
         if agent is None:
             return NodeResult(success=False, error_message=f"Unknown agent: {agent_id}")
 
+        prompt = build_implement_prompt(
+            ctx.payload,
+            ctx.run_config,
+            worktree_path=worktree_path,
+            base_branch=ctx.base_branch,
+        )
         cmd_str = build_agent_command(agent, prompt)
         command = ["bash", "-c", cmd_str]
 

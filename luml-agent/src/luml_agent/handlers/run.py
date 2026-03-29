@@ -54,6 +54,7 @@ class RunHandler:
             auto_terminate_timeout=(
                 body.auto_terminate_timeout
             ),
+            max_log_tail=body.max_log_tail,
             primary_metric=body.primary_metric,
             metric_direction=body.metric_direction,
             luml_collection_id=body.luml_collection_id,

@@ -88,6 +88,7 @@ export interface RunConfig {
   run_timeout: number
   debug_timeout: number
   fork_timeout: number
+  max_log_tail: number
   primary_metric: string
   metric_direction: string
   luml_collection_id: string | null

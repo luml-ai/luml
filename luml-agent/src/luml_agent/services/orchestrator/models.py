@@ -49,6 +49,7 @@ class RunConfig:
     run_timeout: int = 0
     debug_timeout: int = 1800
     fork_timeout: int = 900
+    max_log_tail: int = 10000
     primary_metric: str = "metric"
     metric_direction: str = "max"
     luml_collection_id: str | None = None

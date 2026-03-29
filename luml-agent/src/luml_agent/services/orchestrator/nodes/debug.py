@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import subprocess
 from typing import Any
 
 from luml_agent.services.agents import build_agent_command, get_agent
@@ -9,12 +10,11 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.prompts import build_debug_prompt
 from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 from luml_agent.services.worktree import auto_commit_changes
 
 logger = logging.getLogger(__name__)
-
-_MAX_LOG_TAIL = 3000
 
 
 class DebugNodeHandler:
@@ -24,22 +24,35 @@ class DebugNodeHandler:
     def validate_payload(self, payload: dict[str, Any]) -> None:
         pass
 
+    @staticmethod
+    def _compute_git_diff(
+        worktree_path: str,
+        base_branch: str,
+    ) -> str:
+        try:
+            result = subprocess.run(
+                ["git", "diff", f"{base_branch}...HEAD"],
+                cwd=worktree_path,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            return result.stdout
+        except (subprocess.TimeoutExpired, subprocess.SubprocessError, OSError) as exc:
+            logger.warning("git diff failed in %s: %s", worktree_path, exc)
+            return "(git diff unavailable)"
+
     async def execute(self, ctx: NodeExecutionContext) -> NodeResult:
         worktree_path = ctx.parent_worktree_path
         if not worktree_path:
             return NodeResult(success=False, error_message="No worktree path for debug")
 
         failure_context = ctx.payload.get("failure_context", {})
-        objective = ctx.payload.get("objective", "")
-        exit_code = failure_context.get("exit_code", "unknown")
         logs = failure_context.get("logs", "")
-        log_tail = logs[-_MAX_LOG_TAIL:] if len(logs) > _MAX_LOG_TAIL else logs
 
-        debug_prompt = (
-            f"The previous run command failed with exit code {exit_code}.\n"
-            f"Original objective: {objective}\n\n"
-            f"Failure logs (last {_MAX_LOG_TAIL} chars):\n{log_tail}\n\n"
-            f"Please analyze the failure and fix the code in this worktree."
+        git_diff = self._compute_git_diff(worktree_path, ctx.base_branch)
+        debug_prompt = build_debug_prompt(
+            ctx.payload, git_diff, logs, ctx.run_config,
         )
 
         ensure_luml_agent_dir(worktree_path)
