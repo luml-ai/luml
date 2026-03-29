@@ -11,6 +11,7 @@ from luml_agent.services.orchestrator.nodes.result_file import (
     parse_stdout_metric,
     read_result_file,
 )
+from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 
 
 class RunNodeHandler:
@@ -33,6 +34,8 @@ class RunNodeHandler:
         worktree_path = ctx.parent_worktree_path or ""
         if not worktree_path:
             return NodeResult(success=False, error_message="No worktree path available")
+
+        ensure_luml_agent_dir(worktree_path)
 
         command = ["bash", "-c", command_str]
 

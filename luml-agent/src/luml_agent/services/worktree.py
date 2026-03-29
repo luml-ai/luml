@@ -77,6 +77,7 @@ async def create_worktree(
         raise RuntimeError(f"Failed to create worktree: {stderr}")
 
     preserve_env_files(repo, worktree_path, preserve_patterns)
+    _setup_gitignore(worktree_path)
 
     return str(worktree_path), branch_name
 
@@ -129,3 +130,20 @@ async def get_worktree_status(
         commits_ahead=commits_ahead,
         changed_files=changed_files,
     )
+
+
+_OBSOLETE_ENTRIES = {".luml-fork.json", ".proposals/", "result.json"}
+
+
+def _setup_gitignore(worktree_path: Path) -> None:
+    gitignore = worktree_path / ".gitignore"
+    entry = ".luml-agent/"
+
+    if gitignore.exists():
+        lines = gitignore.read_text().splitlines()
+        filtered = [ln for ln in lines if ln.strip() not in _OBSOLETE_ENTRIES]
+        if entry not in (ln.strip() for ln in filtered):
+            filtered.append(entry)
+        gitignore.write_text("\n".join(filtered) + "\n")
+    else:
+        gitignore.write_text(f"{entry}\n")

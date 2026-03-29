@@ -158,6 +158,6 @@ async def test_get_worktree_status(
     )
     assert status.branch == branch
     assert status.commits_ahead == 1
-    assert status.changed_files == 1
+    assert status.changed_files == 2  # new_file.txt + .gitignore
 
     await remove_worktree(git_repo, worktree_path, branch)

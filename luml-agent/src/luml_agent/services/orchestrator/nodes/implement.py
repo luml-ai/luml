@@ -8,6 +8,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 from luml_agent.services.worktree import create_worktree
 
 
@@ -34,6 +35,7 @@ class ImplementNodeHandler:
         )
 
         ctx.services.db.update_node_worktree(ctx.node_id, worktree_path, branch)
+        ensure_luml_agent_dir(worktree_path)
 
         agent = get_agent(agent_id)
         if agent is None:

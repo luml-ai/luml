@@ -8,6 +8,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 
 _MAX_LOG_TAIL = 3000
 
@@ -36,6 +37,8 @@ class DebugNodeHandler:
             f"Failure logs (last {_MAX_LOG_TAIL} chars):\n{log_tail}\n\n"
             f"Please analyze the failure and fix the code in this worktree."
         )
+
+        ensure_luml_agent_dir(worktree_path)
 
         agent_id = ctx.run_config.get("agent_id", "claude")
         agent = get_agent(agent_id)
