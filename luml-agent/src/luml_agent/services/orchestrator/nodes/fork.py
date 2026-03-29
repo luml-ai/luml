@@ -11,6 +11,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
+from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,8 @@ class ForkNodeHandler:
         objective = ctx.payload.get("objective", "")
         context_info = ctx.payload.get("context", "")
         max_children = ctx.run_config.get("max_children_per_fork", 3)
+
+        ensure_luml_agent_dir(worktree_path)
 
         proposals_dir = Path(worktree_path) / ".proposals"
         proposals_dir.mkdir(exist_ok=True)

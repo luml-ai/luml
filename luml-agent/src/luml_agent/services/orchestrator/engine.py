@@ -18,6 +18,7 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeServices,
 )
 from luml_agent.services.orchestrator.registry import NodeRegistry
+from luml_agent.services.orchestrator.utils import ensure_global_luml_dir
 from luml_agent.services.pty_manager import PtyManager
 
 logger = logging.getLogger("luml_agent.orchestrator")
@@ -44,6 +45,7 @@ class OrchestratorEngine:
         self._waiting_input_nodes: set[str] = set()
 
     async def start(self) -> None:
+        ensure_global_luml_dir()
         self._recover_orphaned_runs()
         self._scheduler_task = asyncio.create_task(self._scheduler_loop())
 
