@@ -1301,13 +1301,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Call `ensure_luml_agent_dir()` in each node handler (`implement.py`, `fork.py`, `debug.py`, `run_node.py`) before spawning the agent
   - [x] Call `ensure_global_luml_dir()` in engine startup
   - [x] Tests: verify directory creation (idempotent), `.gitignore` content, old entries removed
-- [ ] Task 2: Error handling — node execution timeout + PTY crash recovery
-  - [ ] Add per-node-type timeout fields to `RunConfig` (`implement_timeout`, `run_timeout`, `debug_timeout`, `fork_timeout`). Add to `RunCreateIn` schema, frontend `RunConfig` interface, and API client
-  - [ ] In each node handler, call `exit_event.wait(timeout=...)`. On timeout: mark node FAILED, terminate PTY session, emit `node_completed` event with timeout error
-  - [ ] PTY crash recovery in `pty_manager.py`: `cleanup_dead()` always calls `notify_session_exit()`, reader thread catches unhandled exceptions and calls `notify_session_exit(exit_code=-1)`, `terminate()` handles `TimeoutExpired` after SIGKILL
-  - [ ] PTY spawn error handling: wrap `openpty()` and `Popen()` in try/except, clean up FDs on failure
-  - [ ] Log full stack traces via `logger.exception()` in engine's `_run_node()` exception handler
-  - [ ] Tests: mock a hanging process → verify timeout fires. Mock a crashing process → verify error propagation. Mock spawn failure → verify FD cleanup. Verify `logger.exception()` called
+- [x] Task 2: Error handling — node execution timeout + PTY crash recovery
+  - [x] Add per-node-type timeout fields to `RunConfig` (`implement_timeout`, `run_timeout`, `debug_timeout`, `fork_timeout`). Add to `RunCreateIn` schema, frontend `RunConfig` interface, and API client
+  - [x] In each node handler, call `exit_event.wait(timeout=...)`. On timeout: mark node FAILED, terminate PTY session, emit `node_completed` event with timeout error
+  - [x] PTY crash recovery in `pty_manager.py`: `cleanup_dead()` always calls `notify_session_exit()`, reader thread catches unhandled exceptions and calls `notify_session_exit(exit_code=-1)`, `terminate()` handles `TimeoutExpired` after SIGKILL
+  - [x] PTY spawn error handling: wrap `openpty()` and `Popen()` in try/except, clean up FDs on failure
+  - [x] Log full stack traces via `logger.exception()` in engine's `_run_node()` exception handler
+  - [x] Tests: mock a hanging process → verify timeout fires. Mock a crashing process → verify error propagation. Mock spawn failure → verify FD cleanup. Verify `logger.exception()` called
 - [ ] Task 3: Worktree lifecycle — cleanup, shared paths, auto-commit, merge conflicts
   - [ ] Add worktree cleanup after merge, on run deletion, and on run cancellation (`handlers/run.py`). Cleanup errors logged but don't fail the parent operation
   - [ ] Implement shared data symlinks: `shared_paths` config in `AppConfig`, `_setup_shared_paths()` in `worktree.py`. Add shared paths to worktree `.gitignore`

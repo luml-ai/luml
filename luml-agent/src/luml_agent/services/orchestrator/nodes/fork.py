@@ -73,7 +73,22 @@ class ForkNodeHandler:
         exit_event = asyncio.Event()
         ctx.services.engine.register_session_completion(session.session_id, exit_event)
 
-        await exit_event.wait()
+        timeout = ctx.run_config.get("fork_timeout", 900)
+        try:
+            await asyncio.wait_for(
+                exit_event.wait(),
+                timeout=timeout if timeout > 0 else None,
+            )
+        except TimeoutError:
+            logger.warning(
+                "Fork node %s timed out after %ds", ctx.node_id, timeout,
+            )
+            ctx.services.pty.terminate(session.session_id)
+            return NodeResult(
+                success=False,
+                artifacts={"session_id": session.session_id},
+                error_message=f"Node execution timed out after {timeout}s",
+            )
 
         exit_code = ctx.services.engine.get_session_exit_code(session.session_id)
 

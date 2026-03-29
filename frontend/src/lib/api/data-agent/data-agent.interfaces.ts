@@ -84,6 +84,10 @@ export interface RunConfig {
   fork_auto_approve: boolean
   auto_mode: boolean
   auto_terminate_timeout: number
+  implement_timeout: number
+  run_timeout: number
+  debug_timeout: number
+  fork_timeout: number
 }
 
 export interface Run {
@@ -153,4 +157,8 @@ export interface RunCreate {
   fork_auto_approve?: boolean
   auto_mode?: boolean
   auto_terminate_timeout?: number
+  implement_timeout?: number
+  run_timeout?: number
+  debug_timeout?: number
+  fork_timeout?: number
 }

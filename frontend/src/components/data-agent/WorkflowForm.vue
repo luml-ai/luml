@@ -24,6 +24,10 @@ export interface WorkflowFormData {
   fork_auto_approve: boolean
   auto_mode: boolean
   auto_terminate_timeout: number
+  implement_timeout: number
+  run_timeout: number
+  debug_timeout: number
+  fork_timeout: number
 }
 
 const emit = defineEmits<{
@@ -61,6 +65,10 @@ const maxConcurrency = ref(3)
 const forkAutoApprove = ref(true)
 const autoMode = ref(false)
 const autoTerminateTimeout = ref(30)
+const implementTimeout = ref(1800)
+const runTimeout = ref(0)
+const debugTimeout = ref(1800)
+const forkTimeout = ref(900)
 const agents = ref<Agent[]>([])
 const showAdvanced = ref(false)
 
@@ -111,6 +119,10 @@ function submit() {
     fork_auto_approve: forkAutoApprove.value,
     auto_mode: autoMode.value,
     auto_terminate_timeout: autoTerminateTimeout.value,
+    implement_timeout: implementTimeout.value,
+    run_timeout: runTimeout.value,
+    debug_timeout: debugTimeout.value,
+    fork_timeout: forkTimeout.value,
   })
   name.value = ''
   objective.value = ''
@@ -206,6 +218,26 @@ defineExpose({ submit })
       <div v-if="autoMode" class="field field--small">
         <label class="label">Auto-terminate timeout (seconds)</label>
         <InputNumber v-model="autoTerminateTimeout" :min="5" :max="300" />
+      </div>
+      <div class="config-row">
+        <div class="field field--small">
+          <label class="label">Implement timeout (s)</label>
+          <InputNumber v-model="implementTimeout" :min="0" :max="7200" />
+        </div>
+        <div class="field field--small">
+          <label class="label">Run timeout (s, 0=none)</label>
+          <InputNumber v-model="runTimeout" :min="0" :max="86400" />
+        </div>
+      </div>
+      <div class="config-row">
+        <div class="field field--small">
+          <label class="label">Debug timeout (s)</label>
+          <InputNumber v-model="debugTimeout" :min="0" :max="7200" />
+        </div>
+        <div class="field field--small">
+          <label class="label">Fork timeout (s)</label>
+          <InputNumber v-model="forkTimeout" :min="0" :max="7200" />
+        </div>
       </div>
     </template>
   </div>
