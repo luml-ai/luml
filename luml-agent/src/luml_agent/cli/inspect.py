@@ -285,6 +285,127 @@ def show(
             )
 
 
+@dataclass
+class Bucket:
+    step: int
+    value: float
+    min_val: float
+    max_val: float
+
+
+def _bucket_points(
+    points: list[MetricPoint], num_buckets: int
+) -> list[Bucket]:
+    n = len(points)
+    if n == 0:
+        return []
+    if n <= num_buckets:
+        return [
+            Bucket(step=p.step, value=p.value, min_val=p.value, max_val=p.value)
+            for p in points
+        ]
+    buckets: list[Bucket] = []
+    for i in range(num_buckets):
+        start = i * n // num_buckets
+        end = (i + 1) * n // num_buckets
+        chunk = points[start:end]
+        values = [p.value for p in chunk]
+        rep = chunk[-1]
+        buckets.append(
+            Bucket(
+                step=rep.step,
+                value=rep.value,
+                min_val=min(values),
+                max_val=max(values),
+            )
+        )
+    return buckets
+
+
+def _load_metric_key(
+    db: str, experiment_id: str, key: str
+) -> list[MetricPoint]:
+    conn = _connect_exp(db, experiment_id)
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT step, value FROM dynamic_metrics WHERE key = ? ORDER BY step",
+        (key,),
+    )
+    points = [MetricPoint(step=row[0], value=row[1]) for row in cursor.fetchall()]
+    conn.close()
+    return points
+
+
+@app.command()
+def metrics(
+    experiment_id: str = typer.Argument(..., help="Experiment ID"),
+    key: str = typer.Argument(..., help="Metric key"),
+    db: str = typer.Option(DEFAULT_DB, "--db", help="Experiment DB path"),
+    all_points: bool = typer.Option(
+        False, "--all", help="Show all steps (no bucketing)"
+    ),
+    last: int = typer.Option(0, "--last", help="Show last N raw data points"),
+    every: int = typer.Option(0, "--every", help="Show every Nth step"),
+    summary: bool = typer.Option(False, "--summary", help="Only show summary line"),
+    buckets: int = typer.Option(20, "--buckets", help="Number of buckets"),
+) -> None:
+    points = _load_metric_key(db, experiment_id, key)
+    if not points:
+        typer.echo(f"No data for metric '{key}'")
+        return
+
+    total_steps = len(points)
+
+    if summary:
+        s = _compute_metric_summary(points)
+        s = MetricSummary(
+            key=key,
+            steps=s.steps,
+            final=s.final,
+            min_val=s.min_val,
+            max_val=s.max_val,
+            mean_val=s.mean_val,
+        )
+        typer.echo(f"{key} ({total_steps} steps)")
+        typer.echo(
+            f"  FINAL={_format_val(s.final)}  MIN={_format_val(s.min_val)}  "
+            f"MAX={_format_val(s.max_val)}  MEAN={_format_val(s.mean_val)}"
+        )
+        return
+
+    if all_points:
+        typer.echo(f"{key} ({total_steps} steps)")
+        typer.echo(f"  {'STEP':>8}  {'VALUE':>8}")
+        for p in points:
+            typer.echo(f"  {p.step:>8}  {_format_val(p.value):>8}")
+        return
+
+    if last > 0:
+        subset = points[-last:]
+        typer.echo(f"{key} (last {len(subset)} of {total_steps} steps)")
+        typer.echo(f"  {'STEP':>8}  {'VALUE':>8}")
+        for p in subset:
+            typer.echo(f"  {p.step:>8}  {_format_val(p.value):>8}")
+        return
+
+    if every > 0:
+        subset = [p for i, p in enumerate(points) if i % every == 0]
+        typer.echo(f"{key} (every {every}, {len(subset)} of {total_steps} steps)")
+        typer.echo(f"  {'STEP':>8}  {'VALUE':>8}")
+        for p in subset:
+            typer.echo(f"  {p.step:>8}  {_format_val(p.value):>8}")
+        return
+
+    bucketed = _bucket_points(points, buckets)
+    typer.echo(f"{key} ({total_steps} steps, showing {len(bucketed)} buckets)")
+    typer.echo(f"  {'STEP':>8}  {'VALUE':>8}  {'MIN':>8}  {'MAX':>8}")
+    for b in bucketed:
+        typer.echo(
+            f"  {b.step:>8}  {_format_val(b.value):>8}  "
+            f"{_format_val(b.min_val):>8}  {_format_val(b.max_val):>8}"
+        )
+
+
 @app.command()
 def params(
     experiment_id: str = typer.Argument(..., help="Experiment ID"),

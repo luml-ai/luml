@@ -1344,11 +1344,11 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Implement `params <id>` command: compact key-value dump
   - [x] Global `--db` flag, default `~/.luml-agent/experiments`
   - [x] Tests: seed an experiment DB with known data, verify output formatting, verify default caps, verify `--all` override, verify `--db` flag
-- [ ] Task 8: `luml-inspect` CLI — `metrics` command with bucketing
-  - [ ] Implement `metrics <id> <key>` command
-  - [ ] Implement bucketing logic: divide steps into N buckets (default 20), each row shows representative STEP + VALUE at that step + MIN/MAX across the bucket. Header shows total steps and bucket count
-  - [ ] Implement flags: `--all` (raw, no bucketing), `--last N` (last N raw points), `--every N` (every Nth step, raw), `--summary` (only final/min/max/mean), `--buckets N` (override bucket count)
-  - [ ] Tests: verify bucketing with known data (exact step/min/max values), verify all flags, edge cases (fewer steps than buckets, single step, empty metrics)
+- [x] Task 8: `luml-inspect` CLI — `metrics` command with bucketing
+  - [x] Implement `metrics <id> <key>` command
+  - [x] Implement bucketing logic: divide steps into N buckets (default 20), each row shows representative STEP + VALUE at that step + MIN/MAX across the bucket. Header shows total steps and bucket count
+  - [x] Implement flags: `--all` (raw, no bucketing), `--last N` (last N raw points), `--every N` (every Nth step, raw), `--summary` (only final/min/max/mean), `--buckets N` (override bucket count)
+  - [x] Tests: verify bucketing with known data (exact step/min/max values), verify all flags, edge cases (fewer steps than buckets, single step, empty metrics)
 - [ ] Task 9: `luml-inspect` CLI — `compare` and `evals` commands
   - [ ] Implement `compare <id1> <id2> [...]` command: params diff table (highlight differences, mark same values), per-metric bucketed comparison with VAL/MIN/MAX per experiment per bucket. Same subsampling flags as `metrics`
   - [ ] Implement `evals <id>` command: tabular eval samples, default cap 10, `--all`/`--limit`/`--dataset` flags, truncate long input/output strings
