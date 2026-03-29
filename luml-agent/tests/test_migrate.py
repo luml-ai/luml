@@ -43,7 +43,7 @@ class TestRunMigrations:
                 text("SELECT version_num FROM alembic_version")
             ).fetchone()
             assert row is not None
-            assert row[0] == "b3d5e7f9a124"
+            assert row[0] == "e5c7b9d3f612"
 
         engine.dispose()
 

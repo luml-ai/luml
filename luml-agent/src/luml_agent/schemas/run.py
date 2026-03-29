@@ -22,6 +22,8 @@ class RunCreateIn(BaseModel):
     run_timeout: int = 0
     debug_timeout: int = 1800
     fork_timeout: int = 900
+    primary_metric: str = "metric"
+    metric_direction: str = "max"
 
 
 class RunOut(BaseModel):
@@ -33,6 +35,7 @@ class RunOut(BaseModel):
     config: dict[str, Any] = {}
     base_branch: str = "main"
     best_node_id: str | None = None
+    discovered_metric_keys: list[str] = []
     position: int | None = None
     created_at: str
     updated_at: str
@@ -45,6 +48,8 @@ class RunOut(BaseModel):
         has_waiting_input: bool = False,
     ) -> "RunOut":
         config = json.loads(r.config_json) if r.config_json else {}
+        raw_keys = r.discovered_metric_keys_json
+        discovered = json.loads(raw_keys) if raw_keys else []
         return cls(
             id=r.id,
             repository_id=r.repository_id,
@@ -54,6 +59,7 @@ class RunOut(BaseModel):
             config=config,
             base_branch=r.base_branch,
             best_node_id=r.best_node_id,
+            discovered_metric_keys=discovered,
             position=r.position,
             created_at=r.created_at,
             updated_at=r.updated_at,

@@ -148,6 +148,11 @@ class Database:
     ) -> None:
         self.runs.update_best_node(run_id, node_id)
 
+    def update_run_discovered_metric_keys(
+        self, run_id: str, keys_json: str,
+    ) -> None:
+        self.runs.update_discovered_metric_keys(run_id, keys_json)
+
     def remove_run(self, run_id: str) -> None:
         self.runs.remove(run_id)
 

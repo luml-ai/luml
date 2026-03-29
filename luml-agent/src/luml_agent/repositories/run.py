@@ -106,6 +106,18 @@ class RunRepository(RepositoryBase):
             ).update({"best_node_id": node_id, "updated_at": self._now()})
             session.commit()
 
+    def update_discovered_metric_keys(
+        self, run_id: str, keys_json: str,
+    ) -> None:
+        with self._session_factory() as session:
+            session.query(RunOrm).filter(
+                RunOrm.id == run_id,
+            ).update({
+                "discovered_metric_keys_json": keys_json,
+                "updated_at": self._now(),
+            })
+            session.commit()
+
     def reset_data(self, run_id: str) -> None:
         with self._session_factory() as session:
             node_ids = [

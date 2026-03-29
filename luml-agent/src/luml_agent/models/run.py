@@ -20,6 +20,9 @@ class RunOrm(Base):
     best_node_id: Mapped[str | None] = mapped_column(
         String(32), ForeignKey("run_nodes.id", ondelete="SET NULL"), nullable=True,
     )
+    discovered_metric_keys_json: Mapped[str] = mapped_column(
+        Text, nullable=False, default="[]",
+    )
     created_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_utc)
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_utc)
 

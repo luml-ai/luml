@@ -123,12 +123,22 @@ class ForkNodeHandler:
             return NodeResult(success=False, error_message="Fork agent failed")
 
         fork_auto_approve = ctx.run_config.get("fork_auto_approve", True)
+        parent_objective = ctx.payload.get("objective", "")
+        parent_experiment_ids = ctx.payload.get("experiment_ids", [])
+        parent_metric_keys = ctx.payload.get("discovered_metric_keys", [])
+
         spawn_next: list[NodeSpawnSpec] = []
         if fork_auto_approve:
             for proposal in proposals:
+                child_payload: dict[str, Any] = {
+                    "prompt": proposal.get("prompt", ""),
+                    "objective": parent_objective,
+                    "experiment_ids": parent_experiment_ids,
+                    "discovered_metric_keys": parent_metric_keys,
+                }
                 spawn_next.append(NodeSpawnSpec(
                     node_type="implement",
-                    payload={"prompt": proposal.get("prompt", "")},
+                    payload=child_payload,
                     reason="fork",
                 ))
 
