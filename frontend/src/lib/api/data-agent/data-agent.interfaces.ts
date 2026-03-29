@@ -88,6 +88,8 @@ export interface RunConfig {
   run_timeout: number
   debug_timeout: number
   fork_timeout: number
+  primary_metric: string
+  metric_direction: string
 }
 
 export interface Run {
@@ -99,6 +101,7 @@ export interface Run {
   config: RunConfig
   base_branch: string
   best_node_id?: string | null
+  discovered_metric_keys?: string[]
   position?: number | null
   created_at: string
   updated_at: string
@@ -161,4 +164,6 @@ export interface RunCreate {
   run_timeout?: number
   debug_timeout?: number
   fork_timeout?: number
+  primary_metric?: string
+  metric_direction?: string
 }

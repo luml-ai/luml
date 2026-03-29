@@ -49,3 +49,5 @@ class RunConfig:
     run_timeout: int = 0
     debug_timeout: int = 1800
     fork_timeout: int = 900
+    primary_metric: str = "metric"
+    metric_direction: str = "max"

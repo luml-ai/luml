@@ -446,9 +446,18 @@ class OrchestratorEngine:
                 }, "auto")
 
         elif result.success and node.node_type == NodeType.RUN:
+            arts = result.artifacts or {}
+            experiment_ids = arts.get("experiment_ids", [])
+            metrics = arts.get("metrics", {})
+            discovered_keys = sorted(metrics) if metrics else []
+
+            self._record_discovered_metric_keys(run_id, discovered_keys)
+
             self._spawn_child(run_id, node, NodeType.FORK, {
                 "objective": self._get_run_objective(run_id),
                 "context": json.dumps(result.artifacts) if result.artifacts else "",
+                "experiment_ids": experiment_ids,
+                "discovered_metric_keys": discovered_keys,
             }, "auto", config=config)
 
         elif not result.success and node.node_type == NodeType.RUN:
@@ -577,6 +586,20 @@ class OrchestratorEngine:
             current = parent
         return None
 
+    def _record_discovered_metric_keys(
+        self, run_id: str, keys: list[str],
+    ) -> None:
+        if not keys:
+            return
+        run = self._db.get_run(run_id)
+        if not run:
+            return
+        raw = run.discovered_metric_keys_json
+        existing = json.loads(raw) if raw else []
+        if existing:
+            return
+        self._db.update_run_discovered_metric_keys(run_id, json.dumps(keys))
+
     def _get_run_objective(self, run_id: str) -> str:
         run = self._db.get_run(run_id)
         return run.objective if run else ""
@@ -607,7 +630,11 @@ class OrchestratorEngine:
                 run_id, new_status, len(nodes),
             )
 
-            best_node_id = self._compute_best_node(nodes) if any_success else None
+            config = self._load_config(run.config_json)
+            best_node_id = (
+                self._compute_best_node(nodes, config)
+                if any_success else None
+            )
             if best_node_id:
                 self._db.update_run_best_node(run_id, best_node_id)
 
@@ -618,30 +645,54 @@ class OrchestratorEngine:
             )
 
     def _compute_best_node(
-        self, nodes: list[RunNodeOrm],
+        self, nodes: list[RunNodeOrm], config: RunConfig | None = None,
     ) -> str | None:
+        primary_metric = config.primary_metric if config else "metric"
+        use_min = config is not None and config.metric_direction == "min"
+
         best_metric: float | None = None
-        best_run_id: str | None = None
+        best_node_id: str | None = None
 
         for node in nodes:
-            if node.node_type != NodeType.RUN:
+            metric = self._extract_node_metric(node, primary_metric)
+            if metric is None:
                 continue
-            if node.status != NodeStatus.SUCCEEDED:
-                continue
-            try:
-                result = (
-                    json.loads(node.result_json)
-                    if node.result_json else {}
-                )
-            except (json.JSONDecodeError, TypeError):
-                continue
-            metric = result.get("artifacts", {}).get("metric")
-            if not isinstance(metric, (int, float)):
-                continue
-            if best_metric is None or metric > best_metric:
+            is_better = (
+                best_metric is None
+                or (use_min and metric < best_metric)
+                or (not use_min and metric > best_metric)
+            )
+            if is_better:
                 best_metric = metric
-                best_run_id = node.id
-        return best_run_id
+                best_node_id = node.id
+
+        return best_node_id
+
+    @staticmethod
+    def _extract_node_metric(
+        node: RunNodeOrm, primary_metric: str,
+    ) -> float | None:
+        if node.node_type != NodeType.RUN:
+            return None
+        if node.status != NodeStatus.SUCCEEDED:
+            return None
+        try:
+            result = (
+                json.loads(node.result_json)
+                if node.result_json else {}
+            )
+        except (json.JSONDecodeError, TypeError):
+            return None
+        artifacts = result.get("artifacts", {})
+        metrics_dict = artifacts.get("metrics")
+        if isinstance(metrics_dict, dict):
+            val = metrics_dict.get(primary_metric)
+            if isinstance(val, (int, float)):
+                return float(val)
+        fallback = artifacts.get("metric")
+        if isinstance(fallback, (int, float)):
+            return float(fallback)
+        return None
 
     def _emit_event(
         self,

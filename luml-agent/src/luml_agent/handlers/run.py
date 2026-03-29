@@ -51,6 +51,8 @@ class RunHandler:
             auto_terminate_timeout=(
                 body.auto_terminate_timeout
             ),
+            primary_metric=body.primary_metric,
+            metric_direction=body.metric_direction,
         )
 
         run_id = await self._engine.create_run(

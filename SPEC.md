@@ -1323,13 +1323,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Integrate into `run_node.py`: after run command execution, call `read_result_file()` and store normalized data in `result.artifacts`
   - [x] Fall back to stdout parsing (`parse_stdout_metric()`) when result file is missing
   - [x] Tests: test all result file variants (single ID, multiple IDs, legacy `metric` float, missing file, malformed JSON, missing fields, stdout fallback)
-- [ ] Task 5: Experiment ID propagation through node graph
-  - [ ] Add `primary_metric: str = "metric"` and `metric_direction: str = "max"` to `RunConfig`, `RunCreateIn`, frontend interfaces
-  - [ ] Add `discovered_metric_keys: list[str]` field on Run DB model. Set on first successful run node. DB migration needed
-  - [ ] In `engine.py` `_process_result()`: when spawning a fork node after a successful run, include `experiment_ids` and `discovered_metric_keys` in the fork payload
-  - [ ] In `fork.py`: when creating child implement node payloads, copy `objective`, `experiment_ids`, and `discovered_metric_keys` from the fork's own payload
-  - [ ] Implement `_compute_best_node()` in `engine.py`: compare successful RUN nodes by `artifacts["metrics"][primary_metric]` using `metric_direction`. Store `best_node_id` on the Run. Fall back to `artifacts["metric"]` when metrics dict is missing
-  - [ ] Tests: verify fork payload contains experiment IDs. Verify child payloads contain parent data. Verify best-node selection with max and min direction. Verify fallback behavior
+- [x] Task 5: Experiment ID propagation through node graph
+  - [x] Add `primary_metric: str = "metric"` and `metric_direction: str = "max"` to `RunConfig`, `RunCreateIn`, frontend interfaces
+  - [x] Add `discovered_metric_keys: list[str]` field on Run DB model. Set on first successful run node. DB migration needed
+  - [x] In `engine.py` `_process_result()`: when spawning a fork node after a successful run, include `experiment_ids` and `discovered_metric_keys` in the fork payload
+  - [x] In `fork.py`: when creating child implement node payloads, copy `objective`, `experiment_ids`, and `discovered_metric_keys` from the fork's own payload
+  - [x] Implement `_compute_best_node()` in `engine.py`: compare successful RUN nodes by `artifacts["metrics"][primary_metric]` using `metric_direction`. Store `best_node_id` on the Run. Fall back to `artifacts["metric"]` when metrics dict is missing
+  - [x] Tests: verify fork payload contains experiment IDs. Verify child payloads contain parent data. Verify best-node selection with max and min direction. Verify fallback behavior
 - [ ] Task 6: Auto-dependency injection (`luml` SDK)
   - [ ] Create helper `_ensure_luml_dependency(worktree_path: str) -> None` in `implement.py` or shared utility
   - [ ] Check `pyproject.toml` for `luml` in dependencies. If missing, run `uv add luml` via subprocess
