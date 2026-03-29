@@ -1372,17 +1372,17 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Implement upload-aware worktree cleanup: check upload queue before removing worktrees, defer if pending, emit `worktrees_pending_upload`. On `upload_completed`/`upload_failed`, trigger deferred cleanup if all uploads resolved
   - [x] On run deletion/cancellation: cancel pending uploads, clean up immediately
   - [x] Tests: verify upload enqueue on successful RUN with collection ID, verify no enqueue without collection ID or model_path, verify worktree deferral, verify cleanup after upload completion, verify deletion cancels uploads
-- [ ] Task 13: Collection-linked uploads — frontend
-  - [ ] Add `luml_collection_id`, `luml_organization_id`, `luml_orbit_id` to frontend `RunConfig` interface (`data-agent.interfaces.ts`)
-  - [ ] Add collection selector dropdown to WorkflowForm.vue (advanced options section): fetch collections from main LUML backend, only show if authenticated
-  - [ ] Add `metric_direction` dropdown to WorkflowForm.vue (advanced options)
-  - [ ] Pass new fields in `createRun()` API client
-  - [ ] Handle `upload_ready` WebSocket event: create artifact on main LUML backend, get presigned URL, POST to agent-backend. Handle 409 (another tab claimed it)
-  - [ ] Handle `upload_completed`: confirm upload to main LUML backend
-  - [ ] Handle `upload_failed`: show error, offer retry button
-  - [ ] On page load/reconnect: call `GET /api/runs/{run_id}/uploads?status=pending`, resume flow for each
-  - [ ] Handle `worktrees_pending_upload` event: display status message
-  - [ ] Tests: verify form fields, verify WebSocket event handling, verify 409 handling, verify reconnect flow
+- [x] Task 13: Collection-linked uploads — frontend
+  - [x] Add `luml_collection_id`, `luml_organization_id`, `luml_orbit_id` to frontend `RunConfig` interface (`data-agent.interfaces.ts`)
+  - [x] Add collection selector dropdown to WorkflowForm.vue (advanced options section): fetch collections from main LUML backend, only show if authenticated
+  - [x] Add `metric_direction` dropdown to WorkflowForm.vue (advanced options)
+  - [x] Pass new fields in `createRun()` API client
+  - [x] Handle `upload_ready` WebSocket event: create artifact on main LUML backend, get presigned URL, POST to agent-backend. Handle 409 (another tab claimed it)
+  - [x] Handle `upload_completed`: confirm upload to main LUML backend
+  - [x] Handle `upload_failed`: show error, offer retry button
+  - [x] On page load/reconnect: call `GET /api/runs/{run_id}/uploads?status=pending`, resume flow for each
+  - [x] Handle `worktrees_pending_upload` event: display status message
+  - [x] Tests: verify form fields, verify WebSocket event handling, verify 409 handling, verify reconnect flow
 - [ ] Task 14: Prompt construction — implement + debug
   - [ ] Create `src/luml_agent/services/orchestrator/prompts.py` with pure functions (no I/O)
   - [ ] `build_implement_prompt(payload, run_config) -> str`: root variant (objective + environment + guide.md reference) and fork-child variant (proposal as primary instruction + objective as context + metric consistency + parent experiment IDs)

@@ -90,6 +90,34 @@ export interface RunConfig {
   fork_timeout: number
   primary_metric: string
   metric_direction: string
+  luml_collection_id: string | null
+  luml_organization_id: string | null
+  luml_orbit_id: string | null
+}
+
+export interface PendingUpload {
+  id: string
+  run_id: string
+  node_id: string
+  model_path: string
+  experiment_ids: string[]
+  file_size: number
+  status: string
+  error: string | null
+  retry_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface UploadReadyEvent {
+  upload_id: string
+  run_id: string
+  node_id: string
+  file_size: number
+  experiment_ids: string[]
+  collection_id: string
+  organization_id: string
+  orbit_id: string
 }
 
 export interface Run {
@@ -166,4 +194,7 @@ export interface RunCreate {
   fork_timeout?: number
   primary_metric?: string
   metric_direction?: string
+  luml_collection_id?: string
+  luml_organization_id?: string
+  luml_orbit_id?: string
 }

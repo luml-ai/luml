@@ -1,12 +1,20 @@
 import { watch, onUnmounted, ref } from 'vue'
 import { useDataAgentStore } from '@/stores/data-agent'
 import { api } from '@/lib/api'
+import type { useUploadFlow } from '@/hooks/useUploadFlow'
 
 const MAX_RECONNECT_ATTEMPTS = 20
 const BASE_DELAY_MS = 1000
 const MAX_DELAY_MS = 10000
 
-export function useAgentWebSocket() {
+const UPLOAD_EVENT_TYPES = new Set([
+  'upload_ready',
+  'upload_completed',
+  'upload_failed',
+  'worktrees_pending_upload',
+])
+
+export function useAgentWebSocket(uploadFlow?: ReturnType<typeof useUploadFlow>) {
   const store = useDataAgentStore()
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
@@ -73,7 +81,12 @@ export function useAgentWebSocket() {
         if (msg.type === 'snapshot') {
           store.applySnapshot(msg.data)
         } else if (msg.type === 'event') {
-          store.applyEvent(msg.data)
+          const eventData = msg.data
+          if (uploadFlow && eventData.type && UPLOAD_EVENT_TYPES.has(eventData.type)) {
+            uploadFlow.handleEvent(eventData.type, eventData.data ?? eventData)
+          } else {
+            store.applyEvent(eventData)
+          }
         }
       } catch {
         // ignore malformed messages
