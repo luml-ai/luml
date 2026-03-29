@@ -1383,13 +1383,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] On page load/reconnect: call `GET /api/runs/{run_id}/uploads?status=pending`, resume flow for each
   - [x] Handle `worktrees_pending_upload` event: display status message
   - [x] Tests: verify form fields, verify WebSocket event handling, verify 409 handling, verify reconnect flow
-- [ ] Task 14: Prompt construction — implement + debug
-  - [ ] Create `src/luml_agent/services/orchestrator/prompts.py` with pure functions (no I/O)
-  - [ ] `build_implement_prompt(payload, run_config) -> str`: root variant (objective + environment + guide.md reference) and fork-child variant (proposal as primary instruction + objective as context + metric consistency + parent experiment IDs)
-  - [ ] `build_debug_prompt(payload, git_diff, failure_logs, run_config) -> str`: failure details + diff + truncated logs + guide.md reference
-  - [ ] Integrate into `implement.py` and `debug.py` — call prompt builders, pass result to agent
-  - [ ] In `debug.py` handler: compute `git diff {base_branch}...HEAD` before spawning agent
-  - [ ] Tests: verify root vs fork-child prompt differentiation, verify metric consistency section in fork-child, verify log truncation at `max_log_tail`, verify guide.md reference in all prompts
+- [x] Task 14: Prompt construction — implement + debug
+  - [x] Create `src/luml_agent/services/orchestrator/prompts.py` with pure functions (no I/O)
+  - [x] `build_implement_prompt(payload, run_config) -> str`: root variant (objective + environment + guide.md reference) and fork-child variant (proposal as primary instruction + objective as context + metric consistency + parent experiment IDs)
+  - [x] `build_debug_prompt(payload, git_diff, failure_logs, run_config) -> str`: failure details + diff + truncated logs + guide.md reference
+  - [x] Integrate into `implement.py` and `debug.py` — call prompt builders, pass result to agent
+  - [x] In `debug.py` handler: compute `git diff {base_branch}...HEAD` before spawning agent
+  - [x] Tests: verify root vs fork-child prompt differentiation, verify metric consistency section in fork-child, verify log truncation at `max_log_tail`, verify guide.md reference in all prompts
 - [ ] Task 15: Prompt construction — fork
   - [ ] `build_fork_prompt(payload, run_config) -> str`: objective + experiment IDs + guide.md reference + decomposition guidelines + output format (`.luml-agent/fork.json`)
   - [ ] Integrate into `fork.py` — call prompt builder, pass result to agent
