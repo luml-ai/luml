@@ -446,6 +446,228 @@ class TestParamsCommand:
         assert "True" in result.output
 
 
+class TestMetricsCommand:
+    def test_metrics_default_bucketing(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app, ["metrics", "abc-123", "accuracy", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "accuracy (500 steps, showing 20 buckets)" in result.output
+        assert "STEP" in result.output
+        assert "VALUE" in result.output
+        assert "MIN" in result.output
+        assert "MAX" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 20
+
+    def test_metrics_bucketing_values(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path,
+            experiment_id="bkt",
+            name="bucket-test",
+            metrics={
+                "val": [
+                    (1, 10.0),
+                    (2, 20.0),
+                    (3, 5.0),
+                    (4, 15.0),
+                    (5, 25.0),
+                    (6, 8.0),
+                ],
+            },
+        )
+        result = runner.invoke(
+            app,
+            ["metrics", "bkt", "val", "--db", str(db_path), "--buckets", "2"],
+        )
+        assert result.exit_code == 0
+        assert "6 steps, showing 2 buckets" in result.output
+        lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(lines) == 2
+        # Bucket 1: steps 1-3, values [10, 20, 5], rep step=3, val=5, min=5, max=20
+        assert "3" in lines[0]
+        assert "5" in lines[0]
+        assert "20" in lines[0]
+        # Bucket 2: steps 4-6, values [15, 25, 8], rep step=6, val=8, min=8, max=25
+        assert "6" in lines[1]
+        assert "8" in lines[1]
+        assert "25" in lines[1]
+
+    def test_metrics_all_flag(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app, ["metrics", "abc-123", "accuracy", "--db", str(db_path), "--all"],
+        )
+        assert result.exit_code == 0
+        assert "accuracy (500 steps)" in result.output
+        assert "MIN" not in result.output
+        assert "MAX" not in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 500
+
+    def test_metrics_last_flag(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            ["metrics", "abc-123", "accuracy", "--db", str(db_path), "--last", "10"],
+        )
+        assert result.exit_code == 0
+        assert "last 10 of 500 steps" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 10
+        # Should contain the last step
+        assert "500" in data_lines[-1]
+
+    def test_metrics_every_flag(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            ["metrics", "abc-123", "accuracy", "--db", str(db_path), "--every", "100"],
+        )
+        assert result.exit_code == 0
+        assert "every 100" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 5  # steps 0, 100, 200, 300, 400 (0-indexed)
+
+    def test_metrics_summary_flag(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path,
+            experiment_id="s1",
+            name="summary-test",
+            metrics={"acc": [(1, 0.5), (2, 0.7), (3, 0.9)]},
+        )
+        result = runner.invoke(
+            app,
+            ["metrics", "s1", "acc", "--db", str(db_path), "--summary"],
+        )
+        assert result.exit_code == 0
+        assert "acc (3 steps)" in result.output
+        assert "FINAL=0.9" in result.output
+        assert "MIN=0.5" in result.output
+        assert "MAX=0.9" in result.output
+        assert "MEAN=" in result.output
+        assert "STEP" not in result.output
+
+    def test_metrics_custom_buckets(self, tmp_path: Path) -> None:
+        db_path = _seed_db(tmp_path)
+        result = runner.invoke(
+            app,
+            [
+                "metrics", "abc-123", "accuracy",
+                "--db", str(db_path), "--buckets", "5",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "showing 5 buckets" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 5
+
+    def test_metrics_fewer_steps_than_buckets(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path,
+            experiment_id="few",
+            name="few-steps",
+            metrics={"acc": [(1, 0.5), (2, 0.7), (3, 0.9)]},
+        )
+        result = runner.invoke(
+            app,
+            ["metrics", "few", "acc", "--db", str(db_path), "--buckets", "20"],
+        )
+        assert result.exit_code == 0
+        assert "showing 3 buckets" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 3
+
+    def test_metrics_single_step(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path,
+            experiment_id="one",
+            name="one-step",
+            metrics={"acc": [(1, 0.42)]},
+        )
+        result = runner.invoke(
+            app, ["metrics", "one", "acc", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "1 steps, showing 1 buckets" in result.output
+        assert "0.42" in result.output
+
+    def test_metrics_empty(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(db_path, experiment_id="emp", name="empty")
+        result = runner.invoke(
+            app, ["metrics", "emp", "acc", "--db", str(db_path)],
+        )
+        assert result.exit_code == 0
+        assert "No data for metric 'acc'" in result.output
+
+    def test_metrics_last_exceeds_total(self, tmp_path: Path) -> None:
+        db_path = tmp_path / "experiments"
+        db_path.mkdir()
+        _create_meta_db(db_path)
+        _seed_experiment(
+            db_path,
+            experiment_id="sm",
+            name="small",
+            metrics={"acc": [(1, 0.5), (2, 0.7)]},
+        )
+        result = runner.invoke(
+            app,
+            ["metrics", "sm", "acc", "--db", str(db_path), "--last", "100"],
+        )
+        assert result.exit_code == 0
+        assert "last 2 of 2 steps" in result.output
+        data_lines = [
+            ln
+            for ln in result.output.strip().split("\n")
+            if ln.strip() and ln.strip()[0].isdigit()
+        ]
+        assert len(data_lines) == 2
+
+
 class TestDbFlag:
     def test_custom_db_path(self, tmp_path: Path) -> None:
         custom_path = tmp_path / "custom-db"
