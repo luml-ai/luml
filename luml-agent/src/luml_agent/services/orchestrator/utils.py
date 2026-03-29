@@ -1,13 +1,25 @@
+import importlib.resources
 import logging
+import shutil
 import subprocess
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 
+def _copy_guide_md(dest_dir: Path) -> None:
+    dest = dest_dir / "guide.md"
+    if dest.exists():
+        return
+    source = importlib.resources.files("luml_agent.data").joinpath("guide.md")
+    with importlib.resources.as_file(source) as src_path:
+        shutil.copy2(src_path, dest)
+
+
 def ensure_luml_agent_dir(worktree_path: str) -> Path:
     p = Path(worktree_path) / ".luml-agent"
     p.mkdir(exist_ok=True)
+    _copy_guide_md(p)
     return p
 
 

@@ -1353,11 +1353,11 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Implement `compare <id1> <id2> [...]` command: params diff table (highlight differences, mark same values), per-metric bucketed comparison with VAL/MIN/MAX per experiment per bucket. Same subsampling flags as `metrics`
   - [x] Implement `evals <id>` command: tabular eval samples, default cap 10, `--all`/`--limit`/`--dataset` flags, truncate long input/output strings
   - [x] Tests: verify compare output with 2 and 3 experiments, verify params diff formatting, verify evals truncation and caps
-- [ ] Task 10: `guide.md` template + worktree injection
-  - [ ] Create `src/luml_agent/data/guide.md` with: `luml-inspect` CLI reference (all commands, flags, examples), `.luml-agent/result.json` schema, `.luml-agent/fork.json` schema, ExperimentTracker connection string convention (`sqlite://~/.luml-agent/experiments`), metric consistency rules
-  - [ ] Register `data/guide.md` as package data in `pyproject.toml`
-  - [ ] Update `ensure_luml_agent_dir()` (from Task 1) to also copy `guide.md` into `{worktree}/.luml-agent/guide.md` using `importlib.resources`
-  - [ ] Tests: verify `guide.md` is accessible via `importlib.resources`, verify it's copied to worktree, verify content includes all required sections
+- [x] Task 10: `guide.md` template + worktree injection
+  - [x] Create `src/luml_agent/data/guide.md` with: `luml-inspect` CLI reference (all commands, flags, examples), `.luml-agent/result.json` schema, `.luml-agent/fork.json` schema, ExperimentTracker connection string convention (`sqlite://~/.luml-agent/experiments`), metric consistency rules
+  - [x] Register `data/guide.md` as package data in `pyproject.toml`
+  - [x] Update `ensure_luml_agent_dir()` (from Task 1) to also copy `guide.md` into `{worktree}/.luml-agent/guide.md` using `importlib.resources`
+  - [x] Tests: verify `guide.md` is accessible via `importlib.resources`, verify it's copied to worktree, verify content includes all required sections
 - [ ] Task 11: Upload queue + REST endpoints
   - [ ] Create `src/luml_agent/services/upload_queue.py` with `PendingUpload` dataclass and `UploadStatus` enum
   - [ ] Implement SQLite-backed queue at `~/.luml-agent/uploads.db`: `enqueue()`, `claim()` (atomic PENDING→IN_PROGRESS), `complete()`, `fail()`, `get_pending()`, `cleanup_resolved()`

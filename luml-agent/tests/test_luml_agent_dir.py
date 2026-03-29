@@ -1,3 +1,4 @@
+import importlib.resources
 import os
 import subprocess
 from pathlib import Path
@@ -82,6 +83,51 @@ def test_setup_gitignore_removes_obsolete_entries(tmp_path: Path) -> None:
     assert ".luml-agent/" in content
     assert "node_modules/" in content
     assert ".env" in content
+
+
+def test_guide_md_accessible_via_importlib() -> None:
+    source = importlib.resources.files("luml_agent.data").joinpath("guide.md")
+    with importlib.resources.as_file(source) as path:
+        assert path.exists()
+        content = path.read_text()
+        assert len(content) > 0
+
+
+def test_guide_md_copied_to_worktree(tmp_path: Path) -> None:
+    ensure_luml_agent_dir(str(tmp_path))
+    guide = tmp_path / ".luml-agent" / "guide.md"
+    assert guide.exists()
+    content = guide.read_text()
+    assert "luml-inspect" in content
+
+
+def test_guide_md_not_overwritten_if_exists(tmp_path: Path) -> None:
+    agent_dir = tmp_path / ".luml-agent"
+    agent_dir.mkdir()
+    guide = agent_dir / "guide.md"
+    guide.write_text("custom content")
+
+    ensure_luml_agent_dir(str(tmp_path))
+    assert guide.read_text() == "custom content"
+
+
+def test_guide_md_contains_required_sections(tmp_path: Path) -> None:
+    ensure_luml_agent_dir(str(tmp_path))
+    content = (tmp_path / ".luml-agent" / "guide.md").read_text()
+
+    assert "luml-inspect list" in content
+    assert "luml-inspect show" in content
+    assert "luml-inspect metrics" in content
+    assert "luml-inspect params" in content
+    assert "luml-inspect compare" in content
+    assert "luml-inspect evals" in content
+
+    assert "result.json" in content
+    assert "fork.json" in content
+
+    assert "sqlite://~/.luml-agent/experiments" in content
+
+    assert "Metric Consistency" in content
 
 
 @pytest.fixture
