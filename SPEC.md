@@ -1316,13 +1316,13 @@ Corresponding additions to `RunCreateIn` and frontend `RunConfig` interface (Wor
   - [x] Merge conflict detection: in `merge.py`, detect conflicts, return `MergeConflictError` with `conflicting_files` list (409 response). Frontend `MergeDialog.vue` displays the list
   - [x] Scheduler resilience: distinguish recoverable vs unrecoverable errors in `_schedule_tick()`. On unrecoverable: mark all running runs as FAILED and stop
   - [x] Tests: verify cleanup on merge/delete/cancel, verify symlink creation, verify auto-commit, verify no auto-commit when clean, verify merge conflict detection and 409 response, verify scheduler stops on unrecoverable error
-- [ ] Task 4: Result file contract + `result_file.py`
-  - [ ] Create `src/luml_agent/services/orchestrator/result_file.py` with `read_result_file(worktree_path: str) -> ResultData`
-  - [ ] `ResultData` dataclass: `success: bool`, `experiment_id: str | None`, `experiment_ids: list[str]`, `metrics: dict[str, float]`, `model_path: str | None`, `error_message: str | None`
-  - [ ] Parse `.luml-agent/result.json` — normalize `experiment_id` (singular) to `experiment_ids` (list). Normalize `metric` (float) to `metrics: {"metric": value}` for backward compat
-  - [ ] Integrate into `run_node.py`: after run command execution, call `read_result_file()` and store normalized data in `result.artifacts`
-  - [ ] Fall back to stdout parsing (`parse_stdout_metric()`) when result file is missing
-  - [ ] Tests: test all result file variants (single ID, multiple IDs, legacy `metric` float, missing file, malformed JSON, missing fields, stdout fallback)
+- [x] Task 4: Result file contract + `result_file.py`
+  - [x] Create `src/luml_agent/services/orchestrator/result_file.py` with `read_result_file(worktree_path: str) -> ResultData`
+  - [x] `ResultData` dataclass: `success: bool`, `experiment_id: str | None`, `experiment_ids: list[str]`, `metrics: dict[str, float]`, `model_path: str | None`, `error_message: str | None`
+  - [x] Parse `.luml-agent/result.json` — normalize `experiment_id` (singular) to `experiment_ids` (list). Normalize `metric` (float) to `metrics: {"metric": value}` for backward compat
+  - [x] Integrate into `run_node.py`: after run command execution, call `read_result_file()` and store normalized data in `result.artifacts`
+  - [x] Fall back to stdout parsing (`parse_stdout_metric()`) when result file is missing
+  - [x] Tests: test all result file variants (single ID, multiple IDs, legacy `metric` float, missing file, malformed JSON, missing fields, stdout fallback)
 - [ ] Task 5: Experiment ID propagation through node graph
   - [ ] Add `primary_metric: str = "metric"` and `metric_direction: str = "max"` to `RunConfig`, `RunCreateIn`, frontend interfaces
   - [ ] Add `discovered_metric_keys: list[str]` field on Run DB model. Set on first successful run node. DB migration needed
