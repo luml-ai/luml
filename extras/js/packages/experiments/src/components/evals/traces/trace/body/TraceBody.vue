@@ -73,7 +73,7 @@ import type { TraceSpan } from '@/interfaces/interfaces'
 import { computed, ref, watch } from 'vue'
 import { History } from 'lucide-vue-next'
 import { Tabs, TabList, Tab, TabPanels, TabPanel, useToast } from 'primevue'
-import { getErrorMessage, getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
+import { getErrorMessage, getFormattedTime, getSpanTypeData, safeParse } from '@/helpers/helpers'
 import { useAnnotationsStore } from '@/store/annotations'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../../ui/UiMultiTypeText.vue'
@@ -105,14 +105,22 @@ const time = computed(() => {
 
 const sortedAttributes = computed(() => {
   if (!props.data.attributes) return null
-  return Object.entries(props.data.attributes).sort((a, b) => {
+  const parsed =
+    typeof props.data.attributes === 'string'
+      ? safeParse(props.data.attributes)
+      : props.data.attributes
+  if (!parsed || typeof parsed !== 'object') return null
+  return Object.entries(parsed).sort((a, b) => {
     return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
   })
 })
 
 const sortedEvents = computed(() => {
   if (!props.data.events) return null
-  return Object.entries(props.data.events).sort((a, b) => {
+  const parsed =
+    typeof props.data.events === 'string' ? safeParse(props.data.events) : props.data.events
+  if (!parsed || typeof parsed !== 'object') return null
+  return Object.entries(parsed).sort((a, b) => {
     return a[0].localeCompare(b[0], undefined, { numeric: true, sensitivity: 'base' })
   })
 })
