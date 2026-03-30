@@ -4,7 +4,7 @@ import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classifi
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
 import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg'
-import Notebook from '@/assets/img/cards-icons/notebook.svg'
+import Notebooks from '@/assets/img/cards-icons/notebook.svg'
 
 export const SIDEBAR_MENU = [
   {
@@ -111,8 +111,8 @@ const appTasks: IAppTaskData[] = [
   },
   {
     id: 4,
-    icon: Notebook,
-    title: 'Notebook',
+    icon: Notebooks,
+    title: 'Notebooks',
     description:
       'Run Jupyter notebooks directly in the browser with no setup or backend. Create, test, and export models locally with automatic discovery, while managing instances entirely client-side.',
     btnText: 'next',
