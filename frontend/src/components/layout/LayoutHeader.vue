@@ -17,14 +17,14 @@
           label="Log in"
           severity="contrast"
           variant="text"
-          @click="$router.push({ name: 'sign-in' })"
+          @click="$router.push({ name: 'sign-in', query: { redirect: $route.fullPath } })"
         />
         <d-button
           class="sign-up-button"
           label="Sign up"
           severity="primary"
           variant="text"
-          @click="$router.push({ name: 'sign-up' })"
+          @click="$router.push({ name: 'sign-up', query: { redirect: $route.fullPath } })"
         />
       </div>
       <d-button

@@ -39,7 +39,7 @@
 
   <template v-if="activeTab === 'deployments'">
     <div v-if="deploymentsLoading" class="loading-container">
-      <Skeleton v-for="i in 3" :key="i" style="height: 60px" />
+      <Skeleton v-for="i in 1" :key="i" style="height: 100px" />
     </div>
     <div v-else>
       <template v-if="deploymentsStore.deployments.length">
@@ -246,5 +246,9 @@ onUnmounted(() => {
   color: var(--p-tag-primary-color);
   background-color: var(--p-tag-primary-background);
   margin-bottom: 20px;
+}
+.loading-container {
+  display: flex;
+  flex-direction: column;
 }
 </style>
