@@ -32,6 +32,7 @@ datasets-polars = [
 [project.scripts]
 generate-docs = "generate_docs:main"
 luml-migrations = "luml.experiments.backends.migrations.__main__:main"
+s3-proxy = "luml.s3_proxy:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -39,7 +40,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["luml"]
-
 
 
 [dependency-groups]
