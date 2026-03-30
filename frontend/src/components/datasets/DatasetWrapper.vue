@@ -3,7 +3,6 @@
     <div class="dataset-header">
       <Database :size="20" color="var(--p-primary-color)" />
       <h2 class="title">Dataset</h2>
-      <CircleHelp :size="12" color="var(--p-button-text-secondary-color)" />
     </div>
     <div class="dataset-body">
       <slot></slot>
@@ -12,7 +11,7 @@
 </template>
 
 <script setup lang="ts">
-import { Database, CircleHelp } from 'lucide-vue-next'
+import { Database } from 'lucide-vue-next'
 </script>
 
 <style scoped>
