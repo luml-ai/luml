@@ -500,12 +500,12 @@ def run_server(
     host: str = "127.0.0.1",
     port: int = 9000,
     storage_root: str = "./s3_storage",
-    access_key: str | None = None,
-    secret_key: str | None = None,
+    # access_key: str | None = None,
+    # secret_key: str | None = None,
     cors_enabled: bool = False,
     debug: bool = False,
 ) -> None:
-    credentials = {access_key: secret_key} if access_key and secret_key else {}
+    credentials: dict[str, str] = {}
 
     httpd = S3ProxyServer(
         (host, port),

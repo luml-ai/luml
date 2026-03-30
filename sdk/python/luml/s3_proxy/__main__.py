@@ -12,8 +12,8 @@ def main() -> None:
     parser.add_argument(
         "--storage", default="./s3_storage", help="Storage root directory"
     )
-    parser.add_argument("--access-key", help="AWS access key for authentication")
-    parser.add_argument("--secret-key", help="AWS secret key for authentication")
+    # parser.add_argument("--access-key", help="AWS access key for authentication")
+    # parser.add_argument("--secret-key", help="AWS secret key for authentication")
     parser.add_argument("--cors", action="store_true", help="Enable CORS support")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -22,8 +22,8 @@ def main() -> None:
     run_server(
         port=args.port,
         storage_root=args.storage,
-        access_key=args.access_key,
-        secret_key=args.secret_key,
+        # access_key=args.access_key,
+        # secret_key=args.secret_key,
         cors_enabled=args.cors,
         debug=args.debug,
     )
