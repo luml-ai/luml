@@ -14,7 +14,13 @@
             <Bolt :size="16" />
           </template>
         </Button>
-        <Button variant="text" severity="secondary" v-tooltip="'Deploy'" @click="initDeploy">
+        <Button
+          v-if="isDeployButtonVisible"
+          variant="text"
+          severity="secondary"
+          v-tooltip="'Deploy'"
+          @click="initDeploy"
+        >
           <template #icon>
             <Rocket :size="16" />
           </template>
@@ -27,14 +33,16 @@
       </div>
     </div>
     <ArtifactTabs
-      :show-model-card="isModelCardAvailable"
-      :show-experiment-snapshot="isExperimentSnapshotCardAvailable"
-      :show-model-attachments="isModelAttachmentsAvailable"
+      :card-disabled="!isCardAvailable"
+      :experiment-snapshot-disabled="!isExperimentSnapshotCardAvailable"
+      :model-attachments-disabled="!isModelAttachmentsAvailable"
+      :show-data-tab="isDataTabVisible"
+      :show-card="true"
+      :show-experiment-snapshot="isExperimentSnapshotVisible"
+      :show-model-attachments="isModelAttachmentsVisible"
     ></ArtifactTabs>
     <div class="view-wrapper">
-      <RouterView v-slot="{ Component }">
-        <component :is="Component" />
-      </RouterView>
+      <RouterView></RouterView>
     </div>
   </div>
   <DeploymentsCreateModal
@@ -56,7 +64,7 @@
 </template>
 
 <script setup lang="ts">
-import type { Artifact } from '@/lib/api/artifacts/interfaces'
+import { ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -68,6 +76,7 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useCollectionsStore } from '@/stores/collections'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
+import { useDatasetsStore } from '@/stores/datasets'
 import ArtifactTabs from '@/components/orbits/tabs/registry/collection/artifact/ArtifactTabs.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import ArtifactEditor from '@/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue'
@@ -78,11 +87,37 @@ const router = useRouter()
 const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
+const datasetsStore = useDatasetsStore()
 
 const modelForDeployment = ref<string | null>(null)
 const modelForEdit = ref<Artifact | null>(null)
 
-const isModelCardAvailable = computed(() => {
+const isDeployButtonVisible = computed(() => {
+  return artifactsStore.currentArtifact?.type === ArtifactTypeEnum.model
+})
+
+const isDataTabVisible = computed(() => {
+  if (!artifactsStore.currentArtifact) return false
+  return artifactsStore.currentArtifact.type === ArtifactTypeEnum.dataset
+})
+
+const isExperimentSnapshotVisible = computed(() => {
+  if (!artifactsStore.currentArtifact) return false
+  return (
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment ||
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model
+  )
+})
+
+const isModelAttachmentsVisible = computed(() => {
+  if (!artifactsStore.currentArtifact) return false
+  return (
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.model ||
+    artifactsStore.currentArtifact.type === ArtifactTypeEnum.experiment
+  )
+})
+
+const isCardAvailable = computed(() => {
   if (!artifactsStore.currentArtifact) return false
   const fileIndex = artifactsStore.currentArtifact.file_index
   const includeSupportedTag = FnnxService.getTypeTag(artifactsStore.currentArtifact.manifest)
@@ -181,6 +216,7 @@ onUnmounted(() => {
   artifactsStore.resetCurrentModelMetadata()
   artifactsStore.resetCurrentModelHtmlBlobUrl()
   artifactsStore.resetExperimentSnapshotProvider()
+  datasetsStore.reset()
 })
 </script>
 

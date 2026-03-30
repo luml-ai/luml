@@ -23,6 +23,10 @@ export class TarHandler {
     return trimmed ? parseInt(trimmed, 8) : 0
   }
 
+  private readFile(offset: number, size: number): Uint8Array {
+    return new Uint8Array(this.buffer, offset, size)
+  }
+
   scan(): Map<string, [number, number]> {
     const results = new Map<string, [number, number]>()
     let off = 0
@@ -112,5 +116,20 @@ export class TarHandler {
     }
 
     return results
+  }
+
+  getManifest() {
+    const indexMap = this.scan()
+
+    const decoder = new TextDecoder()
+
+    for (const [path, [offset, size]] of indexMap) {
+      if (path.includes('manifest.json')) {
+        const data = this.readFile(offset, size)
+        const manifest = JSON.parse(decoder.decode(data))
+        return manifest
+      }
+    }
+    throw new Error('Manifest not found')
   }
 }

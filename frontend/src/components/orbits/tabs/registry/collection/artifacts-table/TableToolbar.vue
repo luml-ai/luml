@@ -41,7 +41,7 @@
         variant="text"
         severity="secondary"
         v-tooltip="'Deploy'"
-        :disabled="selectedArtifacts.length !== 1"
+        :disabled="deployButtonDisabled"
         @click="onDeployClick"
       >
         <template #icon>
@@ -91,7 +91,7 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useOrbitsStore } from '@/stores/orbits'
 import { Bolt, Download, Repeat, Rocket, Trash2 } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { ArtifactStatusEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
+import { ArtifactStatusEnum, ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { Button, useConfirm, useToast } from 'primevue'
@@ -152,6 +152,16 @@ const forceDeleteTitle = computed(() => {
   return props.selectedArtifacts.length > 1
     ? 'Force delete these artifacts?'
     : 'Force delete this artifact?'
+})
+
+const deployButtonDisabled = computed(() => {
+  if (props.selectedArtifacts.length !== 1) return true
+  const artifact = props.selectedArtifacts[0]
+  const isUploaded = artifact.status === ArtifactStatusEnum.uploaded
+  if (!isUploaded) return true
+  const isModel = artifact.type === ArtifactTypeEnum.model
+  if (isModel) return false
+  return true
 })
 
 async function onDeleteClick() {

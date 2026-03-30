@@ -25,9 +25,9 @@ export const COLLECTION_TYPE_SELECT_PT: MultiSelectPassThroughOptions = {
 
 export const COLLECTION_TYPE_OPTIONS = [
   { label: 'Model', value: OrbitCollectionTypeEnum.model, disabled: false },
-  { label: 'Dataset', value: OrbitCollectionTypeEnum.dataset, disabled: true },
-  { label: 'Experiment', value: OrbitCollectionTypeEnum.experiment, disabled: true },
-  { label: 'Mixed', value: OrbitCollectionTypeEnum.mixed, disabled: true },
+  { label: 'Dataset', value: OrbitCollectionTypeEnum.dataset, disabled: false },
+  { label: 'Experiment', value: OrbitCollectionTypeEnum.experiment, disabled: false },
+  { label: 'Mixed', value: OrbitCollectionTypeEnum.mixed, disabled: false },
 ]
 
 export const COLLECTION_TYPE_CONFIG = {

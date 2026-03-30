@@ -68,7 +68,7 @@ const items = computed(() => [
   },
   {
     label: 'Model card',
-    routeName: 'model-card',
+    routeName: 'artifact-card',
     icon: FolderDot,
     disabled: true,
   },

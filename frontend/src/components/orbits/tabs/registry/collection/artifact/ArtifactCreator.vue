@@ -22,7 +22,7 @@
           <label for="type" class="label required">Type</label>
           <Select
             v-model="formData.type"
-            :options="ARTIFACT_TYPE_OPTIONS"
+            :options="availableArtifactTypes"
             option-label="label"
             option-value="value"
             option-disabled="disabled"
@@ -78,7 +78,7 @@
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { FormSubmitEvent } from '@primevue/forms'
 import { useRoute } from 'vue-router'
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { artifactCreateResolver } from '@/utils/forms/resolvers'
 import { Form } from '@primevue/forms'
 import {
@@ -97,6 +97,8 @@ import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
 import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import { isCorrectFileName, isDatasetFile, isExperimentFile, isModelFile } from '@/helpers/files'
+import { useCollectionsStore } from '@/stores/collections'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import FileInput from '@/components/ui/FileInput.vue'
 
 interface FormData {
@@ -130,20 +132,37 @@ const initialFormData: FormData = makeInitialFormData()
 
 const ARTIFACT_TYPE_OPTIONS = [
   { label: 'Model', value: ArtifactTypeEnum.model, disabled: false },
-  { label: 'Dataset', value: ArtifactTypeEnum.dataset, disabled: true },
-  { label: 'Experiment', value: ArtifactTypeEnum.experiment, disabled: true },
+  { label: 'Dataset', value: ArtifactTypeEnum.dataset, disabled: false },
+  { label: 'Experiment', value: ArtifactTypeEnum.experiment, disabled: false },
 ]
 
 const { upload, progress } = useArtifactUpload()
 const { getTagsByQuery, loadTags } = useArtifactsTags()
 const toast = useToast()
 const route = useRoute()
+const collectionsStore = useCollectionsStore()
 
 const visible = defineModel<boolean>('visible')
 const loading = ref(false)
 const formData = ref<FormData>(initialFormData)
 const fileError = ref(false)
 const autocompleteItems = ref<string[]>([])
+
+const availableArtifactTypes = computed(() => {
+  const collectionType = collectionsStore.currentCollection?.type
+  if (collectionType === OrbitCollectionTypeEnum.model) {
+    return ARTIFACT_TYPE_OPTIONS.filter((type) => type.value === ArtifactTypeEnum.model)
+  } else if (collectionType === OrbitCollectionTypeEnum.dataset) {
+    return ARTIFACT_TYPE_OPTIONS.filter((type) => type.value === ArtifactTypeEnum.dataset)
+  } else if (collectionType === OrbitCollectionTypeEnum.experiment) {
+    return ARTIFACT_TYPE_OPTIONS.filter((type) => type.value === ArtifactTypeEnum.experiment)
+  } else if (collectionType === OrbitCollectionTypeEnum.mixed) {
+    return ARTIFACT_TYPE_OPTIONS.filter(
+      (type) => type.value === ArtifactTypeEnum.model || type.value === ArtifactTypeEnum.experiment,
+    )
+  }
+  return ARTIFACT_TYPE_OPTIONS
+})
 
 const fileInfo = computed(() => {
   const file = formData.value.file
@@ -158,9 +177,9 @@ const fileInputAcceptText = computed(() => {
   if (formData.value.type === ArtifactTypeEnum.model) {
     return 'Accepts .luml, .dfs, .fnnx, .pyfnx file type'
   } else if (formData.value.type === ArtifactTypeEnum.experiment) {
-    return 'Accepts experiment file type'
+    return 'Accepts .luml file type'
   } else if (formData.value.type === ArtifactTypeEnum.dataset) {
-    return 'Accepts dataset file type'
+    return 'Accepts .tar file type'
   } else return ''
 })
 
@@ -199,6 +218,18 @@ function checkFileFormat(fileName: string) {
 function onRemoveFile() {
   fileError.value = false
   formData.value.file = null
+}
+
+function getInitialArtifactType() {
+  const collectionType = collectionsStore.currentCollection?.type
+  if (collectionType === OrbitCollectionTypeEnum.model) {
+    return ArtifactTypeEnum.model
+  } else if (collectionType === OrbitCollectionTypeEnum.dataset) {
+    return ArtifactTypeEnum.dataset
+  } else if (collectionType === OrbitCollectionTypeEnum.experiment) {
+    return ArtifactTypeEnum.experiment
+  }
+  return ArtifactTypeEnum.model
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
@@ -251,6 +282,10 @@ async function initTags() {
     toast.add(simpleErrorToast(message))
   }
 }
+
+onBeforeMount(() => {
+  formData.value.type = getInitialArtifactType()
+})
 
 watch(visible, (val) => {
   val ? initTags() : reset()

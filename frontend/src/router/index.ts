@@ -155,8 +155,13 @@ const router = createRouter({
               component: () => import('../pages/collection/artifact/DashboardView.vue'),
             },
             {
+              path: 'data',
+              name: 'dataset',
+              component: () => import('../pages/collection/artifact/DatasetView.vue'),
+            },
+            {
               path: 'card',
-              name: 'model-card',
+              name: 'artifact-card',
               component: () => import('../pages/collection/artifact/CardView.vue'),
             },
             {
@@ -168,6 +173,11 @@ const router = createRouter({
               path: 'attachments',
               name: 'attachments',
               component: () => import('../pages/collection/artifact/AttachmentsView.vue'),
+            },
+            {
+              path: 'data',
+              name: 'dataset',
+              component: () => import('../pages/collection/artifact/DatasetView.vue'),
             },
           ],
         },

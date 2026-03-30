@@ -1,31 +1,37 @@
 <template>
   <Tabs :value="$route.name as string">
     <TabList :pt="tabsListPT">
-      <Tab
-        :pt="tabPT"
-        v-for="tab in items"
-        :key="tab.label"
-        :value="tab.routeName"
-        :disabled="tab.disabled"
-        class="tab"
-        @click="$router.push({ name: tab.routeName })"
-      >
-        <component :is="tab.icon" :size="14" />
-        <span>{{ tab.label }}</span>
-      </Tab>
+      <template v-for="tab in items" :key="tab.label">
+        <Tab
+          v-if="tab.visible"
+          :pt="tabPT"
+          :value="tab.routeName"
+          :disabled="tab.disabled"
+          class="tab"
+          @click="$router.push({ name: tab.routeName })"
+        >
+          <component :is="tab.icon" :size="14" />
+          <span>{{ tab.label }}</span>
+        </Tab>
+      </template>
     </TabList>
   </Tabs>
 </template>
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { LayoutDashboard, FileChartLine, ScanEye, Paperclip } from 'lucide-vue-next'
+import { LayoutDashboard, FileChartLine, ScanEye, Paperclip, Database } from 'lucide-vue-next'
 import { computed } from 'vue'
 
 type Props = {
-  showModelCard: boolean
+  showDataTab: boolean
+  showCard: boolean
   showExperimentSnapshot: boolean
   showModelAttachments: boolean
+
+  cardDisabled: boolean
+  experimentSnapshotDisabled: boolean
+  modelAttachmentsDisabled: boolean
 }
 
 const tabsListPT = {
@@ -41,24 +47,34 @@ const items = computed(() => [
     label: 'Overview',
     routeName: 'artifact',
     icon: LayoutDashboard,
+    visible: true,
   },
   {
-    label: 'Model card',
-    routeName: 'model-card',
+    label: 'Data',
+    routeName: 'dataset',
+    icon: Database,
+    visible: props.showDataTab,
+  },
+  {
+    label: 'Сard',
+    routeName: 'artifact-card',
     icon: FileChartLine,
-    disabled: !props.showModelCard,
+    visible: props.showCard,
+    disabled: props.cardDisabled,
   },
   {
     label: 'Experiment snapshot',
     routeName: 'experiment-snapshot',
     icon: ScanEye,
-    disabled: !props.showExperimentSnapshot,
+    visible: props.showExperimentSnapshot,
+    disabled: props.experimentSnapshotDisabled,
   },
   {
     label: 'Attachments',
     routeName: 'attachments',
     icon: Paperclip,
-    disabled: !props.showModelAttachments,
+    visible: props.showModelAttachments,
+    disabled: props.modelAttachmentsDisabled,
   },
 ])
 </script>
