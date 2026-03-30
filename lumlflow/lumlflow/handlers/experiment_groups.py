@@ -171,10 +171,13 @@ class ExperimentGroupsHandler:
                 groups_map[gid] = g.name
 
         items = []
-        for e in result.items:
-            exp = ExperimentDetails.model_validate(e)
-            exp.group_name = groups_map.get(exp.group_id)
-            items.append(exp)
+        try:
+            for e in result.items:
+                exp = ExperimentDetails.model_validate(e)
+                exp.group_name = groups_map.get(exp.group_id)
+                items.append(exp)
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
 
         return PaginatedExperiments(items=items, cursor=result.cursor)
 
