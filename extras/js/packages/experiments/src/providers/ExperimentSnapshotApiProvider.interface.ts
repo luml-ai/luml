@@ -42,7 +42,9 @@ export interface ApiServiceInterface {
     params: GetTracesParams & { experiment_id: string; cursor?: string | null },
   ) => Promise<{ items: Trace[]; cursor: string | null }>
 
-  getAllExperimentTraces: (params: Omit<GetTracesParams, 'limit'> & { experiment_id: string }) => Promise<Trace[]>
+  getAllExperimentTraces: (
+    params: Omit<GetTracesParams, 'limit'> & { experiment_id: string },
+  ) => Promise<Trace[]>
 
   getExperimentEvalColumns: (artifactId: string, datasetId: string) => Promise<EvalsColumns>
 
