@@ -12,6 +12,7 @@ from lumlflow.schemas.models import Model
 class ExperimentStatus(StrEnum):
     ACTIVE = "active"
     COMPLETED = "completed"
+    ERROR = "error"
 
 
 class _ExperimentBase(BaseModel, BaseOrmConfig):

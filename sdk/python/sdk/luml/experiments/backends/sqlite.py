@@ -2063,6 +2063,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             where_conditions, limit, sort_by, order, cursor_str, json_sort_column
         )
 
+    def fail_experiment(self, experiment_id: str) -> None:
+        meta_conn = self._get_meta_connection()
+        meta_cursor = meta_conn.cursor()
+        meta_cursor.execute(
+            """
+            UPDATE experiments
+            SET status = 'error',
+                duration = (julianday('now') - julianday(created_at)) * 86400.0
+            WHERE id = ?
+            """,
+            (experiment_id,),
+        )
+        meta_conn.commit()
+        self.pool.mark_experiment_inactive(experiment_id)
+
     def end_experiment(self, experiment_id: str) -> None:
         """
         Finalizes the experiment by setting its status to 'completed' and saving its static
