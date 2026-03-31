@@ -1,4 +1,6 @@
 # flake8: noqa: E501
+import atexit
+import contextlib
 import importlib
 import uuid
 import zipfile
@@ -77,6 +79,24 @@ class ExperimentTracker:
     def __init__(self, connection_string: str = "sqlite://./experiments") -> None:
         self.backend = self._parse_connection_string(connection_string)
         self.current_experiment_id: str | None = None
+        atexit.register(self._cleanup_on_exit)
+
+    def _cleanup_on_exit(self) -> None:
+        if self.current_experiment_id:
+            with contextlib.suppress(Exception):
+                self.fail_experiment()
+
+    def __enter__(self) -> "ExperimentTracker":
+        return self
+
+    def __exit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> bool:
+        if self.current_experiment_id:
+            if exc_type is not None:
+                with contextlib.suppress(Exception):
+                    self.fail_experiment()
+            else:
+                self.end_experiment()
+        return False
 
     @staticmethod
     def _parse_connection_string(connection_string: str) -> Backend:
@@ -148,6 +168,17 @@ class ExperimentTracker:
             raise ValueError("No active experiment to end.")
 
         self.backend.end_experiment(exp_id)
+
+        if exp_id == self.current_experiment_id:
+            self.current_experiment_id = None
+
+    def fail_experiment(self, experiment_id: str | None = None) -> None:
+        """Mark an experiment as failed due to an error or interruption."""
+        exp_id = experiment_id or self.current_experiment_id
+        if exp_id is None:
+            raise ValueError("No active experiment to fail.")
+
+        self.backend.fail_experiment(exp_id)
 
         if exp_id == self.current_experiment_id:
             self.current_experiment_id = None

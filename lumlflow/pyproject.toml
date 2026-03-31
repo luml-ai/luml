@@ -9,6 +9,7 @@ dependencies = [
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
     "luml-sdk[core]>=0.1.0rc3",
+    "luml-api>=0.1.0",
     "pydantic-settings>=2.12.0",
     "httpx>=0.28.0",
     "keyring>=25.0.0",
@@ -61,4 +62,5 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 
 [tool.uv.sources]
-luml-sdk = { path = "../sdk/python", editable = true }
+luml-sdk = { path = "../sdk/python/sdk", editable = true }
+luml-api = { path = "../sdk/python/api", editable = true }
