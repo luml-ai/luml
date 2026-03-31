@@ -1,23 +1,18 @@
-<a id="luml.api._client"></a>
-<a id="luml.api._client"></a>
+<a id="luml_api._client"></a>
 
-# luml.api._client
+# luml\_api.\_client
 
-<a id="luml.api._client.AsyncLumlClient"></a>
-<a id="luml.api._client.AsyncLumlClient"></a>
+<a id="luml_api._client.AsyncLumlClient"></a>
 
-## AsyncLumlClient Objects
 ## AsyncLumlClient Objects
 
 ```python
 class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
-class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 ```
 
-<a id="luml.api._client.AsyncLumlClient.setup_config"></a>
-<a id="luml.api._client.AsyncLumlClient.setup_config"></a>
+<a id="luml_api._client.AsyncLumlClient.setup_config"></a>
 
-#### setup_config
+#### setup\_config
 
 ```python
 async def setup_config(
@@ -28,7 +23,6 @@ async def setup_config(
 ) -> None
 ```
 
-Method for setting default values for AsyncLumlClient
 Method for setting default values for AsyncLumlClient
 
 **Arguments**:
@@ -53,7 +47,7 @@ async def main():
     )
 ```
 
-<a id="luml.api._client.AsyncLumlClient.organizations"></a>
+<a id="luml_api._client.AsyncLumlClient.organizations"></a>
 
 #### organizations
 
@@ -64,9 +58,9 @@ def organizations() -> "AsyncOrganizationResource"
 
 Organizations interface.
 
-<a id="luml.api._client.AsyncLumlClient.bucket_secrets"></a>
+<a id="luml_api._client.AsyncLumlClient.bucket_secrets"></a>
 
-#### bucket_secrets
+#### bucket\_secrets
 
 ```python
 @cached_property
@@ -75,7 +69,7 @@ def bucket_secrets() -> "AsyncBucketSecretResource"
 
 Bucket Secrets interface.
 
-<a id="luml.api._client.AsyncLumlClient.orbits"></a>
+<a id="luml_api._client.AsyncLumlClient.orbits"></a>
 
 #### orbits
 
@@ -86,7 +80,7 @@ def orbits() -> "AsyncOrbitResource"
 
 Orbits interface.
 
-<a id="luml.api._client.AsyncLumlClient.collections"></a>
+<a id="luml_api._client.AsyncLumlClient.collections"></a>
 
 #### collections
 
@@ -97,7 +91,7 @@ def collections() -> "AsyncCollectionResource"
 
 Collections interface.
 
-<a id="luml.api._client.AsyncLumlClient.artifacts"></a>
+<a id="luml_api._client.AsyncLumlClient.artifacts"></a>
 
 #### artifacts
 
@@ -108,7 +102,7 @@ def artifacts() -> "AsyncArtifactResource"
 
 Artifacts interface.
 
-<a id="luml.api._client.LumlClient"></a>
+<a id="luml_api._client.LumlClient"></a>
 
 ## LumlClient Objects
 
@@ -116,7 +110,7 @@ Artifacts interface.
 class LumlClient(LumlClientBase, SyncBaseClient)
 ```
 
-<a id="luml.api._client.LumlClient.organizations"></a>
+<a id="luml_api._client.LumlClient.organizations"></a>
 
 #### organizations
 
@@ -127,9 +121,9 @@ def organizations() -> "OrganizationResource"
 
 Organizations interface.
 
-<a id="luml.api._client.LumlClient.bucket_secrets"></a>
+<a id="luml_api._client.LumlClient.bucket_secrets"></a>
 
-#### bucket_secrets
+#### bucket\_secrets
 
 ```python
 @cached_property
@@ -138,7 +132,7 @@ def bucket_secrets() -> "BucketSecretResource"
 
 Bucket Secrets interface.
 
-<a id="luml.api._client.LumlClient.orbits"></a>
+<a id="luml_api._client.LumlClient.orbits"></a>
 
 #### orbits
 
@@ -149,7 +143,7 @@ def orbits() -> "OrbitResource"
 
 Orbits interface.
 
-<a id="luml.api._client.LumlClient.collections"></a>
+<a id="luml_api._client.LumlClient.collections"></a>
 
 #### collections
 
@@ -160,7 +154,7 @@ def collections() -> "CollectionResource"
 
 Collections interface.
 
-<a id="luml.api._client.LumlClient.artifacts"></a>
+<a id="luml_api._client.LumlClient.artifacts"></a>
 
 #### artifacts
 
