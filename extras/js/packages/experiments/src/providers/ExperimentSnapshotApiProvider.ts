@@ -1,5 +1,4 @@
 import type {
-  EvalsColumns,
   EvalsInfo,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
@@ -8,6 +7,9 @@ import type {
   SpansListType,
   SpansParams,
   TraceSpan,
+  TypedEvalsColumns,
+  TypedTracesColumns,
+  ValidateResponseItem,
 } from '@/interfaces/interfaces'
 import type {
   ArtifactInfo,
@@ -103,35 +105,39 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     )
   }
 
-  async getEvalsColumns(datasetId: string): Promise<EvalsColumns> {
+  async getEvalsColumns(datasetId: string): Promise<TypedEvalsColumns> {
     const responses = this.artifacts.map(async (artifact) => {
-      return this.apiService.getExperimentEvalColumns(artifact.id, datasetId)
+      return this.apiService.getTypedEvalsColumns(artifact.id, datasetId)
     })
     const columnsByArtifact = await Promise.all(responses)
-    const columnsSets = columnsByArtifact.reduce(
+    const result = columnsByArtifact.reduce(
       (acc, columns) => {
-        columns.inputs.forEach((item) => acc.inputs.add(item))
-        columns.outputs.forEach((item) => acc.outputs.add(item))
-        columns.refs.forEach((item) => acc.refs.add(item))
-        columns.scores.forEach((item) => acc.scores.add(item))
-        columns.metadata.forEach((item) => acc.metadata.add(item))
+        const keys: (keyof TypedEvalsColumns)[] = [
+          'inputs',
+          'outputs',
+          'refs',
+          'scores',
+          'metadata',
+        ]
+        keys.forEach((key) => {
+          columns[key].forEach((item) => {
+            const columnExists = acc[key].find((column) => column.name === item.name)
+            if (!columnExists) {
+              acc[key].push(item)
+            }
+          })
+        })
         return acc
       },
       {
-        inputs: new Set<string>(),
-        outputs: new Set<string>(),
-        refs: new Set<string>(),
-        scores: new Set<string>(),
-        metadata: new Set<string>(),
+        inputs: [],
+        outputs: [],
+        refs: [],
+        scores: [],
+        metadata: [],
       },
     )
-    return {
-      inputs: Array.from(columnsSets.inputs),
-      outputs: Array.from(columnsSets.outputs),
-      refs: Array.from(columnsSets.refs),
-      scores: Array.from(columnsSets.scores),
-      metadata: Array.from(columnsSets.metadata),
-    }
+    return result
   }
 
   async getUniqueDatasetsIds(): Promise<string[]> {
@@ -340,6 +346,18 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
       ...info,
       modelId: artifactId,
     }
+  }
+
+  async getTracesColumns(artifactId: string): Promise<TypedTracesColumns> {
+    return this.apiService.getTypedTracesColumns(artifactId)
+  }
+
+  async validateEvalsFilter(filters: string[]): Promise<ValidateResponseItem[]> {
+    return this.apiService.validateEvalsFilter(filters)
+  }
+
+  async validateTracesFilter(filters: string[]): Promise<ValidateResponseItem[]> {
+    return this.apiService.validateTracesFilter(filters)
   }
 
   private prepareMetricData(metricHistory: ExperimentMetricHistory) {

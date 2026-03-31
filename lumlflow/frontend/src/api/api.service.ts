@@ -15,11 +15,13 @@ import type {
   GetLumlCollectionsParams,
   UploadArtifactResponse,
   ValidateExperimentSearchResponse,
+  TypedTracesColumns,
+  TypedEvalsColumns,
+  ValidateResponseItem,
 } from './api.interface'
 import { api } from './client'
 import type {
   Eval,
-  EvalScores,
   Experiment,
   ExperimentMetricHistory,
   Model,
@@ -122,7 +124,10 @@ export const apiService = {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<PaginatedResponse<Trace>>(
       `/experiments/${experiment_id}/traces`,
-      { params: rest },
+      {
+        params: rest,
+        paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+      },
     )
     return data
   },
@@ -131,6 +136,7 @@ export const apiService = {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<Trace[]>(`/experiments/${experiment_id}/traces/all`, {
       params: rest,
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
     })
     return data
   },
@@ -164,6 +170,7 @@ export const apiService = {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experiment_id}/evals`, {
       params: rest,
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
     })
     return data
   },
@@ -172,19 +179,13 @@ export const apiService = {
     const { experiment_id, ...rest } = params
     const { data } = await api.get<Eval[]>(`/experiments/${experiment_id}/evals/all`, {
       params: rest,
+      paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
     })
     return data
   },
 
   getEvalById: async (experimentId: string, evalId: string) => {
     const { data } = await api.get<Eval>(`/experiments/${experimentId}/evals/${evalId}`)
-    return data
-  },
-
-  getExperimentEvalColumns: async (experimentId: string, datasetId: string) => {
-    const { data } = await api.get<EvalScores>(`/experiments/${experimentId}/evals/columns`, {
-      params: { dataset_id: datasetId },
-    })
     return data
   },
 
@@ -331,6 +332,37 @@ export const apiService = {
       {
         params: { query },
       },
+    )
+    return data
+  },
+
+  getTypedTracesColumns: async (experimentId: string) => {
+    const { data } = await api.get<TypedTracesColumns>(
+      `/experiments/${experimentId}/traces/typed-columns`,
+    )
+    return data
+  },
+
+  getTypedEvalsColumns: async (experimentId: string, datasetId: string) => {
+    const { data } = await api.get<TypedEvalsColumns>(
+      `/experiments/${experimentId}/evals/typed-columns`,
+      { params: { dataset_id: datasetId } },
+    )
+    return data
+  },
+
+  validateEvalsFilter: async (filters: string[]) => {
+    const { data } = await api.post<ValidateResponseItem[]>(
+      `/experiments/evals/validate-filter`,
+      filters,
+    )
+    return data
+  },
+
+  validateTracesFilter: async (filters: string[]) => {
+    const { data } = await api.post<ValidateResponseItem[]>(
+      `/experiments/traces/validate-filter`,
+      filters,
     )
     return data
   },

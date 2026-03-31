@@ -14,7 +14,7 @@
       :export-loading="exportLoading"
       @edit="onEdit"
       @export="exportCSV"
-      @filter-change="onFilterChange"
+      @filters-change="onFilterChange"
       @update:search="onSearchUpdate"
     />
     <TracesTable
@@ -29,7 +29,6 @@
 
 <script setup lang="ts">
 import type { SortParams, TracesWrapperProps } from './traces.interface'
-import type { FilterItem } from '../table/filter/filter.interface'
 import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { useToast, Skeleton } from 'primevue'
 import { ListTree } from 'lucide-vue-next'
@@ -91,8 +90,8 @@ function onEdit(data: string[]) {
   selectedColumns.value = data
 }
 
-function onFilterChange(filters: FilterItem[]) {
-  console.log('onFilterChange', filters)
+function onFilterChange(filters: string[]) {
+  traceStore.setRequestParams({ filters })
 }
 
 function onSearchUpdate(search: string) {
@@ -115,6 +114,7 @@ onBeforeMount(async () => {
   try {
     traceStore.setArtifactId(props.artifactId)
     firstLoading.value = true
+    await traceStore.getTypedColumns()
     await getNextPage(true)
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)
   } catch (error) {

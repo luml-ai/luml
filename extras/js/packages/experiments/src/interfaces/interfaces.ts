@@ -19,7 +19,7 @@ export interface ExperimentSnapshotProvider {
 
   getStaticParamsList: (signal?: AbortSignal) => Promise<ExperimentSnapshotStaticParams[]>
 
-  getEvalsColumns: (datasetId: string, signal?: AbortSignal) => Promise<EvalsColumns>
+  getEvalsColumns: (datasetId: string, signal?: AbortSignal) => Promise<TypedEvalsColumns>
 
   getTraceSpans: (modelId: string, traceId: string) => Promise<SpansListType>
 
@@ -92,6 +92,12 @@ export interface ExperimentSnapshotProvider {
   getSpanAnnotations: (artifactId: string, traceId: string, spanId: string) => Promise<Annotation[]>
 
   getTracesAnnotationSummary: (artifactId: string) => Promise<AnnotationSummary>
+
+  getTracesColumns: (artifactId: string) => Promise<TypedTracesColumns>
+
+  validateEvalsFilter: (filters: string[]) => Promise<ValidateResponseItem[]>
+
+  validateTracesFilter: (filters: string[]) => Promise<ValidateResponseItem[]>
 }
 
 export type GetDynamicMetricsListResult = Record<string, ExperimentSnapshotDynamicMetric[]>
@@ -110,14 +116,6 @@ export interface ExperimentSnapshotDynamicMetric {
 }
 
 export type EvalsDatasets = Record<string, EvalsInfo[]>
-
-export interface EvalsColumns {
-  inputs: string[]
-  outputs: string[]
-  refs: string[]
-  scores: string[]
-  metadata: string[]
-}
 
 export interface EvalsInfo {
   id: string
@@ -210,6 +208,7 @@ export interface GetEvalsByDatasetParams {
   order: 'asc' | 'desc'
   dataset_id: string
   search: string
+  filters: string[]
 }
 
 export interface GetTracesParams {
@@ -217,4 +216,31 @@ export interface GetTracesParams {
   sort_by: 'created_at' | 'execution_time' | 'span_count'
   order: 'asc' | 'desc'
   search: string
+  filters: string[]
+}
+
+export interface TypedColumnInfo {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'unknown'
+}
+
+export interface TypedTracesColumns {
+  attributes: TypedColumnInfo[]
+}
+
+export interface TypedEvalsColumns {
+  inputs: TypedColumnInfo[]
+  outputs: TypedColumnInfo[]
+  refs: TypedColumnInfo[]
+  scores: TypedColumnInfo[]
+  metadata: TypedColumnInfo[]
+}
+
+export interface TypedTracesColumns {
+  attributes: TypedColumnInfo[]
+}
+
+export interface ValidateResponseItem {
+  valid: boolean
+  error: string | null
 }

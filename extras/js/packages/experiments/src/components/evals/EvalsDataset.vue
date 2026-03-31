@@ -22,14 +22,17 @@
       :models-info="modelsInfo"
       :annotations-summary="annotationsSummary || { feedback: [], expectations: [] }"
       :dataset-id="datasetId"
+      :typed-columns="typedColumnsList"
+      :filters="filter.filters"
       @get-next-page="getNextPage"
       @sort="onSort"
+      @filters-change="filtersChange"
     ></EvalsTable>
   </UiCard>
 </template>
 
 <script setup lang="ts">
-import type { EvalsColumns, ModelScores } from '../../interfaces/interfaces'
+import type { ModelScores, TypedColumnInfo, TypedEvalsColumns } from '../../interfaces/interfaces'
 import type {
   DatasetEmits,
   DatasetProps,
@@ -57,6 +60,7 @@ const props = defineProps<DatasetProps>()
 
 const filter = reactive<FilterInterface>({
   search: '',
+  filters: [],
 })
 
 const averageScores = ref<ModelScores[] | null>(null)
@@ -79,7 +83,7 @@ const columnsTree = computed(() => {
   for (const column of Object.keys(props.columns)) {
     tree.push({
       title: column,
-      children: props.columns[column as keyof EvalsColumns],
+      children: props.columns[column as keyof TypedEvalsColumns].map((item) => item.name) || [],
     })
   }
   const feedbackColumns = annotationsSummary.value?.feedback.map((item) => item.name) || []
@@ -95,6 +99,14 @@ const columnsTree = computed(() => {
   return tree
 })
 
+const typedColumnsList = computed<TypedColumnInfo[]>(() => {
+  const entries = Object.entries(props.columns)
+  const formattedEntries = entries.map(([key, list]) => {
+    return list.map((item: TypedColumnInfo) => ({ name: key + '.' + item.name, type: item.type }))
+  })
+  return formattedEntries.flat()
+})
+
 function onSort(sortParams: SortParams) {
   emit('sort', sortParams)
 }
@@ -105,6 +117,10 @@ function getNextPage() {
 
 function onFilterChange() {
   emit('filter-change', filter)
+}
+
+function filtersChange(filters: string[]) {
+  filter.filters = filters
 }
 
 const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)

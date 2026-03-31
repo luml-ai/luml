@@ -23,7 +23,13 @@
       <div class="content">
         <div v-if="items.length" class="items">
           <template v-for="(item, i) in items" :key="item.id">
-            <TableFilterItem v-model="items[i]!" :fields="fields" @remove="removeFilter(item.id)" />
+            <TableFilterItem
+              v-model="items[i]!"
+              :fields="filteredFields"
+              :errors="itemsErrors[i]"
+              @remove="removeFilter(item.id)"
+              @clear-errors="clearItemErrors(i)"
+            />
           </template>
         </div>
         <div v-else class="empty">Filters list is empty</div>
@@ -44,17 +50,24 @@
 <script setup lang="ts">
 import {
   type FilterEmits,
-  FilterOperatorEnum,
   type FilterItem,
+  type FilterItemsErrors,
   type FilterProps,
 } from './filter.interface'
-import { onBeforeMount, ref } from 'vue'
-import { Button, Popover } from 'primevue'
+import type { ValidateResponseItem } from '@/interfaces/interfaces'
+import { computed, onBeforeMount, ref } from 'vue'
+import { Button, Popover, useToast } from 'primevue'
 import { Filter, ChevronDown, ChevronUp, Plus } from 'lucide-vue-next'
 import { v4 as uuidv4 } from 'uuid'
+import { formSchema } from './filter.const'
+import { mapZodErrors } from '@/helpers/forms'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import TableFilterItem from './TableFilterItem.vue'
 
-defineProps<FilterProps>()
+const toast = useToast()
+
+const props = defineProps<FilterProps>()
 
 const emit = defineEmits<FilterEmits>()
 
@@ -64,11 +77,19 @@ const isOpen = ref(false)
 
 const items = ref<FilterItem[]>([])
 
+const itemsErrors = ref<FilterItemsErrors>([])
+
+const filteredFields = computed(() => {
+  return props.fields.filter((field) => field.type !== 'unknown')
+})
+
 function togglePopover(event: any) {
   popover.value.toggle(event)
 }
 
-function apply(event: any) {
+async function apply(event: any) {
+  const isValid = await validate()
+  if (!isValid) return
   emit('apply', items.value)
   popover.value.toggle(event)
 }
@@ -77,13 +98,64 @@ function addFilterItem() {
   items.value.push({
     id: uuidv4(),
     field: '',
-    operator: FilterOperatorEnum.equal,
+    operator: null,
     value: '',
   })
 }
 
 function removeFilter(id: string) {
   items.value = items.value.filter((item) => item.id !== id)
+}
+
+function clearItemsErrors() {
+  itemsErrors.value = []
+}
+
+function clearItemErrors(index: number) {
+  itemsErrors.value[index] = {}
+}
+
+function setItemsErrors(errors: Record<string, string>) {
+  const errorsEntries = Object.entries(errors)
+  errorsEntries.forEach(([key, errorMessage]) => {
+    const [, index, field] = key.split('.')
+    const itemIndex = parseInt(index!)
+    const itemErrors = itemsErrors.value[itemIndex] || {}
+    itemErrors[field!] = errorMessage
+    itemsErrors.value[itemIndex] = itemErrors
+  })
+}
+
+function setGlobalErrors(results: ValidateResponseItem[]) {
+  results.forEach((result, index) => {
+    if (result.valid || !result.error) return
+    const itemErrors = itemsErrors.value[index] || {}
+    itemErrors.global = result.error
+    itemsErrors.value[index] = itemErrors
+  })
+}
+
+async function validate() {
+  clearItemsErrors()
+  const result = formSchema.safeParse({ items: items.value })
+  if (result.success) return asyncValidate()
+  const errors = mapZodErrors(result.error)
+  setItemsErrors(errors)
+  return false
+}
+
+async function asyncValidate() {
+  if (!props.asyncValidateCallback) return true
+  try {
+    const results = await props.asyncValidateCallback(items.value)
+    const hasErrors = results.some((result) => !result.valid)
+    if (!hasErrors) return true
+    setGlobalErrors(results)
+    return false
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to validate filters')))
+    return false
+  }
 }
 
 onBeforeMount(() => {

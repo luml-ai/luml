@@ -5,11 +5,13 @@ import type {
   UpdateAnnotationPayload,
 } from '@/components/annotations/annotations.interface'
 import type {
-  EvalsColumns,
   EvalsInfo,
   GetEvalsByDatasetParams,
   GetTracesParams,
   ScoreInfo,
+  TypedEvalsColumns,
+  TypedTracesColumns,
+  ValidateResponseItem,
 } from '@/interfaces/interfaces'
 
 export interface ArtifactInfo {
@@ -45,8 +47,6 @@ export interface ApiServiceInterface {
   getAllExperimentTraces: (
     params: Omit<GetTracesParams, 'limit'> & { experiment_id: string },
   ) => Promise<Trace[]>
-
-  getExperimentEvalColumns: (artifactId: string, datasetId: string) => Promise<EvalsColumns>
 
   getExperimentUniqueDatasetsIds: (artifactId: string) => Promise<string[]>
 
@@ -101,6 +101,14 @@ export interface ApiServiceInterface {
   deleteSpanAnnotation: (artifactId: string, annotationId: string) => Promise<void>
 
   getTracesAnnotationSummary: (artifactId: string) => Promise<AnnotationSummary>
+
+  getTypedTracesColumns: (artifactId: string) => Promise<TypedTracesColumns>
+
+  getTypedEvalsColumns: (artifactId: string, datasetId: string) => Promise<TypedEvalsColumns>
+
+  validateEvalsFilter: (filters: string[]) => Promise<ValidateResponseItem[]>
+
+  validateTracesFilter: (filters: string[]) => Promise<ValidateResponseItem[]>
 }
 
 export interface ExperimentMetricHistory {

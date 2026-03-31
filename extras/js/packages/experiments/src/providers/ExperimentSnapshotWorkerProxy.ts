@@ -1,6 +1,5 @@
 import type { Annotation, AnnotationSummary } from '@/components/annotations/annotations.interface'
 import type {
-  EvalsColumns,
   EvalsInfo,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
@@ -9,8 +8,11 @@ import type {
   GetTracesParams,
   ModelScores,
   SpansListType,
+  TypedEvalsColumns,
   SpansParams,
   TraceSpan,
+  TypedTracesColumns,
+  ValidateResponseItem,
 } from '../interfaces/interfaces'
 import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 
@@ -96,7 +98,7 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
   }
 
   getEvalsColumns(datasetId: string, signal?: AbortSignal) {
-    return this.call<EvalsColumns>('getEvalsColumns', [datasetId], signal)
+    return this.call<TypedEvalsColumns>('getEvalsColumns', [datasetId], signal)
   }
 
   getUniqueDatasetsIds(signal?: AbortSignal) {
@@ -161,5 +163,17 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getTracesAnnotationSummary(artifactId: string) {
     return this.call<AnnotationSummary>('getTracesAnnotationSummary', [artifactId])
+  }
+
+  getTracesColumns(artifactId: string) {
+    return this.call<TypedTracesColumns>('getTracesColumns', [artifactId])
+  }
+
+  validateEvalsFilter(filters: string[]) {
+    return this.call<ValidateResponseItem[]>('validateEvalsFilter', [filters])
+  }
+
+  validateTracesFilter(filters: string[]) {
+    return this.call<ValidateResponseItem[]>('validateTracesFilter', [filters])
   }
 }
