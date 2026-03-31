@@ -10,6 +10,20 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+def _parse_timestamp(s: bytes) -> datetime:
+    dt = datetime.fromisoformat(s.decode())
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def _adapt_datetime(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.isoformat()
+
+
+sqlite3.register_converter("TIMESTAMP", _parse_timestamp)
+sqlite3.register_adapter(datetime, _adapt_datetime)
+
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
@@ -86,7 +100,11 @@ class ConnectionPool:
             if len(self._connections) >= self.max_connections:
                 self._evict_inactive_connection()
 
-            conn = sqlite3.Connection(db_path, check_same_thread=False)
+            conn = sqlite3.Connection(
+                db_path,
+                check_same_thread=False,
+                detect_types=sqlite3.PARSE_DECLTYPES,
+            )
             conn.execute("PRAGMA foreign_keys = ON")
             conn.execute("PRAGMA journal_mode = WAL")
 
@@ -1738,7 +1756,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 experiment_ids,
             )
             for row in cursor.fetchall():
-                models_by_experiment.setdefault(row[5], []).append(
+                models_by_experiment.setdefault(row[6], []).append(
                     self._row_to_model(row)
                 )
 
@@ -1828,6 +1846,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
         conn = self._get_meta_connection()
 
+        cursor_value = str(use_cursor.value) if use_cursor and use_cursor.value is not None else None
+
         rows = self._execute_paginated_query(
             conn=conn,
             table="experiments",
@@ -1836,9 +1856,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             sort_by=sort_by,
             order=order,
             cursor_id=use_cursor.id if use_cursor else None,
-            cursor_value=str(use_cursor.value)
-            if use_cursor and use_cursor.value is not None
-            else None,
+            cursor_value=cursor_value,
             where=where_conditions,
             json_sort_column=json_sort_column,
             allowed_sort_columns=self._STANDARD_EXPERIMENT_SORT_COLUMNS,
@@ -2044,6 +2062,21 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         return self._build_experiments_page(
             where_conditions, limit, sort_by, order, cursor_str, json_sort_column
         )
+
+    def fail_experiment(self, experiment_id: str) -> None:
+        meta_conn = self._get_meta_connection()
+        meta_cursor = meta_conn.cursor()
+        meta_cursor.execute(
+            """
+            UPDATE experiments
+            SET status = 'error',
+                duration = (julianday('now') - julianday(created_at)) * 86400.0
+            WHERE id = ?
+            """,
+            (experiment_id,),
+        )
+        meta_conn.commit()
+        self.pool.mark_experiment_inactive(experiment_id)
 
     def end_experiment(self, experiment_id: str) -> None:
         """
