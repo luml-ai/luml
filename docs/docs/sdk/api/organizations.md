@@ -1,8 +1,8 @@
-<a id="luml.api.resources.organizations"></a>
+<a id="luml_api.resources.organizations"></a>
 
-# luml.api.resources.organizations
+# luml\_api.resources.organizations
 
-<a id="luml.api.resources.organizations.OrganizationResource"></a>
+<a id="luml_api.resources.organizations.OrganizationResource"></a>
 
 ## OrganizationResource Objects
 
@@ -12,7 +12,7 @@ class OrganizationResource(OrganizationResourceBase)
 
 Resource for managing organizations.
 
-<a id="luml.api.resources.organizations.OrganizationResource.get"></a>
+<a id="luml_api.resources.organizations.OrganizationResource.get"></a>
 
 #### get
 
@@ -63,7 +63,7 @@ Organization(
 )
 ```
 
-<a id="luml.api.resources.organizations.OrganizationResource.list"></a>
+<a id="luml_api.resources.organizations.OrganizationResource.list"></a>
 
 #### list
 
@@ -100,7 +100,7 @@ orgs = luml.organizations.list()
 ]
 ```
 
-<a id="luml.api.resources.organizations.AsyncOrganizationResource"></a>
+<a id="luml_api.resources.organizations.AsyncOrganizationResource"></a>
 
 ## AsyncOrganizationResource Objects
 
@@ -110,7 +110,7 @@ class AsyncOrganizationResource(OrganizationResourceBase)
 
 Resource for managing organizations for async client.
 
-<a id="luml.api.resources.organizations.AsyncOrganizationResource.get"></a>
+<a id="luml_api.resources.organizations.AsyncOrganizationResource.get"></a>
 
 #### get
 
@@ -162,7 +162,7 @@ Organization(
 )
 ```
 
-<a id="luml.api.resources.organizations.AsyncOrganizationResource.list"></a>
+<a id="luml_api.resources.organizations.AsyncOrganizationResource.list"></a>
 
 #### list
 

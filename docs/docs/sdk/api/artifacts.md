@@ -1,8 +1,8 @@
-<a id="luml.api.resources.artifacts"></a>
+<a id="luml_api.resources.artifacts"></a>
 
-# luml.api.resources.artifacts
+# luml\_api.resources.artifacts
 
-<a id="luml.api.resources.artifacts.ArtifactResource"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource"></a>
 
 ## ArtifactResource Objects
 
@@ -12,7 +12,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource)
 
 Resource for managing artifacts.
 
-<a id="luml.api.resources.artifacts.ArtifactResource.get"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.get"></a>
 
 #### get
 
@@ -130,7 +130,7 @@ Artifact(
 )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.list_all"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.list_all"></a>
 
 #### list\_all
 
@@ -157,7 +157,8 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types:
+  "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -194,7 +195,7 @@ for artifact in luml.artifacts.list_all(
     print(artifact.name)
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.list"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.list"></a>
 
 #### list
 
@@ -225,7 +226,8 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types:
+  "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -336,7 +338,7 @@ ArtifactsList(
 )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.download_url"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.download_url"></a>
 
 #### download\_url
 
@@ -384,7 +386,7 @@ url_info = luml.artifacts.download_url(
 download_url = url_info["url"]
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.delete_url"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.delete_url"></a>
 
 #### delete\_url
 
@@ -431,7 +433,7 @@ url_info = luml.artifacts.delete_url(
 )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.upload"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.upload"></a>
 
 #### upload
 
@@ -441,9 +443,10 @@ def upload(
     file_path: str,
     name: str | None = None,
     description: str | None = None,
-    tags: List[str] | None = None,
+    tags: builtins.list[str] | None = None,
     *,
-    collection_id: str | None = None
+    collection_id: str | None = None,
+    on_progress: BaseProgressHandler | None = None
 ) -> Artifact
 ```
 
@@ -454,6 +457,8 @@ If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
+- `on_progress` - handler for upload progress handling.
+- `Example` - printing in the console or for SSE.
 - `file_path` - Path to the local model file to upload.
 - `name` - Name for the artifact. If not provided, uses the file name.
 - `description` - Optional description of the model.
@@ -556,7 +561,7 @@ Artifact(
 )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.download"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.download"></a>
 
 #### download
 
@@ -616,24 +621,22 @@ luml.artifacts.download(
 )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.create"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.create"></a>
 
 #### create
 
 ```python
 @validate_collection
-def create(
-    collection_id: str | None,
-    file_name: str,
-    extra_values: dict,
-    manifest: dict,
-    file_hash: str,
-    file_index: dict[str, tuple[int, int]],
-    size: int,
-    name: str,
-    description: str | None = None,
-    tags: List[str] | None = None
-) -> CreatedArtifact
+def create(collection_id: str | None,
+           file_name: str,
+           extra_values: dict,
+           manifest: dict,
+           file_hash: str,
+           file_index: dict[str, tuple[int, int]],
+           size: int,
+           name: str,
+           description: str | None = None,
+           tags: builtins.list[str] | None = None) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -758,7 +761,7 @@ artifact = result.artifact
     )
 ```
 
-<a id="luml.api.resources.artifacts.ArtifactResource.update"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.update"></a>
 
 #### update
 
@@ -769,7 +772,7 @@ def update(
     file_name: str | None = None,
     name: str | None = None,
     description: str | None = None,
-    tags: List[str] | None = None,
+    tags: builtins.list[str] | None = None,
     status: ArtifactStatus | None = None,
     *,
     collection_id: str | None = None
@@ -882,7 +885,7 @@ Artifact(
     updated_at=None
 )
 
-<a id="luml.api.resources.artifacts.ArtifactResource.delete"></a>
+<a id="luml_api.resources.artifacts.ArtifactResource.delete"></a>
 
 #### delete
 
@@ -935,7 +938,7 @@ luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
   will be permanently lost from database, but you can still
   find model in your storage.
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource"></a>
 
 ## AsyncArtifactResource Objects
 
@@ -945,7 +948,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource)
 
 Resource for managing artifacts for async client.
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.get"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.get"></a>
 
 #### get
 
@@ -1013,8 +1016,8 @@ Artifact(
     name="my_model",
     file_name="model.fnnx",
     description="Trained model",
-    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
-    manifest={
+    metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
+    manifest=\{
         "variant": "pipeline",
         "name": None,
         "version": None,
@@ -1026,29 +1029,29 @@ Artifact(
             "dataforce.studio::tabular_regression:v1",
         ],
         "inputs": [
-            {
+            \{
                 "name": "age",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": ["falcon.beastbyte.ai::numeric:v1"],
                 "shape": ["batch", 1],
-            },
+            \},
         ],
         "outputs": [
-            {
+            \{
                 "name": "y_pred",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": None,
                 "shape": ["batch", 1],
-            }
+            \}
         ],
         "dynamic_attributes": [],
         "env_vars": [],
-    },
+    \},
     bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
     file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-    file_index = {
+    file_index = \{
         "env.json": (3584, 2),
         "ops.json": (7168, 1869),
         "meta.json": (239616, 3279),
@@ -1056,7 +1059,7 @@ Artifact(
         "manifest.json": (512, 2353),
         "variant_config.json": (4608, 372),
         "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-    },
+    \},
     size=245760,
     unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
     status='pending_upload',
@@ -1067,7 +1070,7 @@ Artifact(
 )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.list_all"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.list_all"></a>
 
 #### list\_all
 
@@ -1094,7 +1097,8 @@ List all collection artifacts with auto-paging.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types:
+  "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -1126,7 +1130,7 @@ async def main():
         order="desc",
         limit=50
     ):
-        print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
+        print(f"\{artifact.name\}: F1=\{artifact.metrics.get('F1')\}")
 
     # Filter by artifact types
     async for artifact in luml.artifacts.list_all(
@@ -1135,7 +1139,7 @@ async def main():
         print(artifact.name)
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.list"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.list"></a>
 
 #### list
 
@@ -1166,7 +1170,8 @@ If collection_id is None, uses the default collection from client.
 - `Options` - name, created_at, size, description, status
   and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types: "model", "dataset", or "experiment".
+- `types` - Filter by artifact types:
+  "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -1224,8 +1229,8 @@ ArtifactsList(
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
-            manifest={
+            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
+            manifest=\{
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1237,29 +1242,29 @@ ArtifactsList(
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    {
+                    \{
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    },
+                    \},
                 ],
                 "outputs": [
-                    {
+                    \{
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    }
+                    \}
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            },
+            \},
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = {
+            file_index = \{
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1267,7 +1272,7 @@ ArtifactsList(
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            },
+            \},
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1281,7 +1286,7 @@ ArtifactsList(
 )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.download_url"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.download_url"></a>
 
 #### download\_url
 
@@ -1336,7 +1341,7 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.delete_url"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_url"></a>
 
 #### delete\_url
 
@@ -1391,24 +1396,22 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.create"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.create"></a>
 
 #### create
 
 ```python
 @validate_collection
-async def create(
-    collection_id: str | None,
-    file_name: str,
-    extra_values: dict,
-    manifest: dict,
-    file_hash: str,
-    file_index: dict[str, tuple[int, int]],
-    size: int,
-    name: str,
-    description: str | None = None,
-    tags: List[str] | None = None
-) -> CreatedArtifact
+async def create(collection_id: str | None,
+                 file_name: str,
+                 extra_values: dict,
+                 manifest: dict,
+                 file_hash: str,
+                 file_index: dict[str, tuple[int, int]],
+                 size: int,
+                 name: str,
+                 description: str | None = None,
+                 tags: builtins.list[str] | None = None) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -1457,10 +1460,10 @@ async def main():
 
     result = await luml.artifacts.create(
         file_name="model.fnnx",
-        extra_values={"accuracy": 0.95},
-        manifest={"version": "1.0"},
+        extra_values=\{"accuracy": 0.95\},
+        manifest=\{"version": "1.0"\},
         file_hash="abc123",
-        file_index={"layer1": (0, 1024)},
+        file_index=\{"layer1": (0, 1024)\},
         size=1048576,
         name="Test Model"
     )
@@ -1475,8 +1478,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
-            manifest={
+            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
+            manifest=\{
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1488,29 +1491,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    {
+                    \{
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    },
+                    \},
                 ],
                 "outputs": [
-                    {
+                    \{
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    }
+                    \}
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            },
+            \},
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = {
+            file_index = \{
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1518,7 +1521,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            },
+            \},
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1536,7 +1539,7 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.upload"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.upload"></a>
 
 #### upload
 
@@ -1546,9 +1549,10 @@ async def upload(
     file_path: str,
     name: str | None = None,
     description: str | None = None,
-    tags: List[str] | None = None,
+    tags: builtins.list[str] | None = None,
     *,
-    collection_id: str | None = None
+    collection_id: str | None = None,
+    on_progress: BaseProgressHandler | None = None
 ) -> Artifact
 ```
 
@@ -1560,6 +1564,8 @@ uses the default collection from client.
 
 **Arguments**:
 
+- `on_progress` - handler for upload progress handling.
+- `Example` - printing in the console or for SSE.
 - `file_path` - Path to the local model file to upload.
 - `name` - Name for the artifact. If not provided, uses the file name.
 - `description` - Optional description of the model.
@@ -1579,7 +1585,7 @@ uses the default collection from client.
 - `FileError` - If file size exceeds 5GB or unsupported format.
 - `FileUploadError` - If upload to storage fails.
 - `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+  no default collection is set.
   
 
 **Example**:
@@ -1613,8 +1619,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
-            manifest={
+            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
+            manifest=\{
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1626,29 +1632,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    {
+                    \{
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    },
+                    \},
                 ],
                 "outputs": [
-                    {
+                    \{
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    }
+                    \}
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            },
+            \},
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = {
+            file_index = \{
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1656,7 +1662,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            },
+            \},
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1674,7 +1680,7 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.download"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.download"></a>
 
 #### download
 
@@ -1741,7 +1747,7 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.update"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.update"></a>
 
 #### update
 
@@ -1752,7 +1758,7 @@ async def update(
     file_name: str | None = None,
     name: str | None = None,
     description: str | None = None,
-    tags: List[str] | None = None,
+    tags: builtins.list[str] | None = None,
     status: ArtifactStatus | None = None,
     *,
     collection_id: str | None = None
@@ -1808,7 +1814,7 @@ async def main():
     )
 ```
 
-<a id="luml.api.resources.artifacts.AsyncArtifactResource.delete"></a>
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.delete"></a>
 
 #### delete
 
