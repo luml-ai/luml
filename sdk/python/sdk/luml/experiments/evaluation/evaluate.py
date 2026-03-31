@@ -24,6 +24,29 @@ def _call_scorer(
     eval_item: EvalItem,
     model_response: Any,  # noqa: ANN401
 ) -> dict[str, Any]:  # noqa: ANN401
+    """
+    Calls the given scorer with the provided evaluation item and model response, handling
+    both supervised and unsupervised scoring methods. This function determines the type
+    of scorer and appropriately invokes its scoring mechanism. The result of the scoring
+    is formatted as a dictionary for uniformity.
+
+    Args:
+        scorer (BaseScorer): The scorer instance to evaluate the provided inputs. Must
+            be an instance of either SupervisedScorer or UnsupervisedScorer.
+        eval_item (EvalItem): The evaluation item containing inputs and, in the case of
+            supervised scoring, the expected output.
+        model_response (Any): The model's response to the inputs in the evaluation item.
+
+    Returns:
+        dict[str, Any]: A dictionary containing the scorer's name as the key and the
+            evaluation result as the value.
+
+    Raises:
+        ValueError: If a supervised scorer is provided but the `expected_output` field of
+            the evaluation item is missing.
+        TypeError: If the provided scorer is neither a SupervisedScorer nor an
+            UnsupervisedScorer.
+    """
     if isinstance(scorer, SupervisedScorer):
         if eval_item.expected_output is None:
             raise ValueError(
@@ -60,6 +83,31 @@ def evaluate(
     experiment_tracker: ExperimentTracker,
     n_threads: int = 1,
 ) -> EvalResults:
+    """
+    Evaluates a dataset using the given inference function and scorers.
+
+    This function processes each evaluation item from the input dataset, applies the
+    provided inference function to generate predictions, and scores these predictions
+    using the specified scorers. Results are aggregated across the dataset and returned.
+
+    Args:
+        eval_dataset (list[EvalItem]): The dataset to evaluate, where each item contains
+            the necessary data for inference and scoring.
+        inference_fn (Callable[[dict[str, Any]], Any]): A callable that generates predictions
+            for a single evaluation input. The callable receives a dictionary of input
+            data and returns the corresponding prediction.
+        scorers (list[BaseScorer]): A list of scorer objects used to evaluate the
+            predictions for each item in the dataset.
+        dataset_id (str): A unique identifier for the dataset being evaluated.
+        experiment_tracker (ExperimentTracker): An object for tracking evaluation results
+            and metadata during the experiment.
+        n_threads (int): The number of threads to use for parallel evaluation. Defaults to 1,
+            which performs evaluation sequentially.
+
+    Returns:
+        EvalResults: An object containing detailed evaluation results for each item,
+            aggregated scores across the dataset, and the associated dataset ID.
+    """
     tracer = trace.get_tracer(__name__)
 
     def evaluate_item(item: EvalItem) -> EvalResult:
@@ -95,6 +143,42 @@ def _evaluate_single_item(
     experiment_tracker: ExperimentTracker,
     tracer: Tracer,
 ) -> EvalResult:
+    """
+    Executes the evaluation of a single item by using the provided inference function and
+    a set of scoring objects.
+
+    The function performs several steps:
+    1. Generates a model response via the provided inference function.
+    2. Applies multiple scoring functions to evaluate the model response against the
+       inputs and expectations of the evaluation item.
+    3. Logs the evaluation results into the experiment tracker, if provided.
+    4. Records tracing details for debugging and monitoring purposes.
+
+    Args:
+        eval_item (EvalItem): The evaluation item containing input data, expected
+            output, and metadata.
+        inference_fn (Callable[[dict[str, Any]], Any]): A callable function to
+            generate the model's inference results.
+        scorers (list[BaseScorer]): A list of scoring objects to compute evaluation
+            scores for the model's response.
+        dataset_id (str): The identifier of the dataset that this evaluation item
+            belongs to.
+        experiment_tracker (ExperimentTracker): An object to log evaluation metadata
+            and results.
+        tracer (Tracer): A tracing object used to generate spans for performance
+            monitoring.
+
+    Returns:
+        EvalResult: An object containing the evaluation item, the response produced
+            by the inference function, computed scores, and the trace ID of the
+            spanning context.
+
+    Raises:
+        Exception: If any unexpected error occurs during the evaluation process. This
+            exception is captured and logged, and the function still returns an
+            `EvalResult` object indicating the failure.
+
+    """
     with tracer.start_as_current_span(name="eval_request") as span:
         trace_id = f"{span.context.trace_id:032x}"  # type: ignore
 
@@ -169,6 +253,24 @@ def _evaluate_single_item(
 
 
 def _aggregate_scores(results: list[EvalResult]) -> dict[str, float | int]:
+    """
+    Aggregates scores from a list of evaluation results into a dictionary of calculated metrics.
+
+    The function processes a list of `EvalResult` objects and computes statistical
+    aggregations (mean, minimum, maximum, count) for each score key found in the results,
+    excluding those that represent errors. Additionally, it calculates the total number
+    of items and the number of successful items (those without errors).
+
+    Args:
+        results (list[EvalResult]): A list of evaluation result objects, where each
+            object contains a `scores` dictionary holding score metrics and their
+            corresponding values.
+
+    Returns:
+        dict[str, float | int]: A dictionary containing aggregated statistics for each
+        score metric, along with metadata like the total number of items and the number
+        of successful items.
+    """
     if not results:
         return {}
 
