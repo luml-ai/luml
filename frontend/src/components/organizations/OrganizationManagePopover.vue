@@ -145,17 +145,28 @@ function onCreateClick() {
 async function onOrganizationClick(organizationId: string) {
   await organizationStore.switchOrganization(organizationId)
 
-  const firstOrbit = orbitsStore.orbitsList[0]
-  const tab = ROUTE_TO_TAB[route.name as string] ?? 'registry'
-  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+  const currentName = route.name as string
+  const isOnOrgPage = route.matched.some((r) => r.name === 'organization')
+  const hasOrgInUrl = !!route.params.organizationId
 
-  if (firstOrbit) {
+  if (isOnOrgPage) {
     await router.push({
-      name: targetRoute,
-      params: { organizationId, id: firstOrbit.id },
+      name: currentName,
+      params: { id: organizationId },
     })
-  } else {
-    await router.push({ name: 'setup', query: { tab } })
+  } else if (hasOrgInUrl) {
+    const firstOrbit = orbitsStore.orbitsList[0]
+    const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
+    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+
+    if (firstOrbit) {
+      await router.push({
+        name: targetRoute,
+        params: { organizationId, id: firstOrbit.id },
+      })
+    } else {
+      await router.push({ name: 'setup', query: { tab } })
+    }
   }
 
   popover.value.hide()
