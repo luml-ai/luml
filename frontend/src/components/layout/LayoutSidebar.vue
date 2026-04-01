@@ -88,11 +88,10 @@
 <script setup lang="ts">
 import { ArrowLeftToLine, Github, Star } from 'lucide-vue-next'
 import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { SIDEBAR_MENU, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
-import { useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
 import { GitHubService } from '@/lib/github/GitHubService'
 import { useLayout } from '@/hooks/useLayout'

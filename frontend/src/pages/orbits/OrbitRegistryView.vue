@@ -43,7 +43,6 @@
 import { onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Skeleton, useToast } from 'primevue'
-import { useOrbitsStore } from '@/stores/orbits'
 import { useAuthStore } from '@/stores/auth'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
@@ -57,7 +56,6 @@ import { Folders, Plus } from 'lucide-vue-next'
 
 const route = useRoute()
 const authStore = useAuthStore()
-const orbitsStore = useOrbitsStore()
 const collectionsStore = useCollectionsStore()
 const toast = useToast()
 

@@ -39,9 +39,11 @@ export async function orbitMiddleware(
   ) {
     const hasAccess = organizationStore.availableOrganizations.some((o) => o.id === urlOrgId)
     if (hasAccess) {
-      organizationStore.setCurrentOrganizationId(urlOrgId)
-      orbitsStore.reset()
-      await orbitsStore.loadOrbitsList(urlOrgId)
+      try {
+        await organizationStore.switchOrganization(urlOrgId)
+      } catch {
+        return toSetup(next, targetTab)
+      }
     } else {
       return toSetup(next, targetTab)
     }

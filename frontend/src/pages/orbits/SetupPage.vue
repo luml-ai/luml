@@ -189,41 +189,6 @@ function onOrbitCreated(orbit: Orbit) {
     },
   })
 }
-
-onMounted(() => {
-  isLoading.value = false
-})
-watch(
-  () => organizationStore.currentOrganization?.id,
-  async (orgId) => {
-    if (!orgId || !authStore.isAuth) return
-
-    isLoading.value = true
-
-    if (!orbitsStore.orbitsList.length) {
-      try {
-        await orbitsStore.loadOrbitsList(orgId)
-      } catch {
-        isLoading.value = false
-        return
-      }
-    }
-
-    const firstOrbit = orbitsStore.orbitsList[0]
-    if (!firstOrbit) {
-      isLoading.value = false
-      return
-    }
-
-    const tab = (route.query.tab as string) ?? 'registry'
-    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
-
-    router.replace({
-      name: targetRoute,
-      params: { organizationId: orgId, id: firstOrbit.id },
-    })
-  },
-)
 </script>
 
 <style scoped>

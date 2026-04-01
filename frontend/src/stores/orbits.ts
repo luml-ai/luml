@@ -28,12 +28,16 @@ export const useOrbitsStore = defineStore('orbit', () => {
   function setCurrentOrbitId(id: string | null, orgId?: string) {
     currentOrbitId.value = id
     currentOrbitDetails.value = null
+    isLoadingOrbitDetails.value = false
 
-    if (id) {
-      const resolvedOrgId = orgId ?? organizationStore.currentOrganization?.id
-      if (resolvedOrgId) {
-        loadOrbitDetails(resolvedOrgId, id)
-      }
+    if (!id) {
+      isLoadingOrbitDetails.value = false
+      return
+    }
+
+    const resolvedOrgId = orgId ?? organizationStore.currentOrganization?.id
+    if (resolvedOrgId) {
+      loadOrbitDetails(resolvedOrgId, id)
     }
   }
 

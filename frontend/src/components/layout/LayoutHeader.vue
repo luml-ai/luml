@@ -46,7 +46,6 @@
 
 <script setup lang="ts">
 import { ref, provide, onMounted, onUnmounted } from 'vue'
-import { RouterLink } from 'vue-router'
 import UserToolbar from '../user/UserToolbar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { X, Menu } from 'lucide-vue-next'
@@ -84,7 +83,7 @@ defineProps({
   },
 })
 
-const emit = defineEmits<Emits>()
+defineEmits<Emits>()
 
 const authStore = useAuthStore()
 </script>

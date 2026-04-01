@@ -78,10 +78,12 @@ export const useOrganizationStore = defineStore('organization', () => {
     const firstOrbit = orbitsStore.orbitsList[0]
     orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
 
+    organizationDetails.value = null
     try {
       await getOrganizationDetails(id)
     } catch (e) {
-      console.warn('No permission to load organization details')
+      organizationDetails.value = null
+      console.warn('No permission to load organization details', e)
     }
   }
 
