@@ -84,12 +84,14 @@ class AttachmentRecord:
     name: str
     file_path: str
     created_at: datetime
+    size: int | None = None
 
 
 @dataclass
 class FileNode:
     name: str
     type: Literal["file", "folder"]
+    size: int
     path: str | None = None
 
 
