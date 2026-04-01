@@ -27,7 +27,7 @@
           </div>
         </header>
         <div v-if="orbitsStore.orbitsList.length" class="popover-label">Switch to Orbit</div>
-        <template v-if="orbitsStore.orbitsList.length">
+        <div v-if="orbitsStore.orbitsList.length" class="list-scroll">
           <div
             v-for="orbit in orbitsStore.orbitsList"
             :key="orbit.id"
@@ -52,7 +52,7 @@
               </template>
             </d-button>
           </div>
-        </template>
+        </div>
         <div v-else class="empty">
           <p class="empty-text-header">Add new Orbit</p>
           <p class="empty-text">Start by creating an Orbit to organize your team's work</p>
@@ -142,13 +142,19 @@ async function onOrbitClick(orbitId: string) {
   if (!orgId) return
 
   const currentName = route.name as string
-  const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
-  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+  const isOnOrbitRoute = !!route.params.organizationId && !!route.params.id
 
-  await router.push({
-    name: targetRoute,
-    params: { organizationId: orgId, id: orbitId },
-  })
+  if (isOnOrbitRoute) {
+    const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
+    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+
+    await router.push({
+      name: targetRoute,
+      params: { organizationId: orgId, id: orbitId },
+    })
+  } else {
+    orbitsStore.setCurrentOrbitId(orbitId, orgId)
+  }
 
   popover.value.hide()
 }
@@ -320,6 +326,10 @@ function onCreateClick() {
 .orbit-item :deep(.p-button) {
   flex-shrink: 0;
   min-width: 32px;
+}
+.list-scroll {
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 @media (max-width: 768px) {

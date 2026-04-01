@@ -28,18 +28,20 @@
           </div>
         </header>
         <div class="popover-label">Switch to Organization</div>
-        <div
-          v-for="organization in organizationStore.availableOrganizations"
-          class="organization"
-          :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
-        >
-          <button class="menu-item" @click="onOrganizationClick(organization.id)">
-            {{ organization.name }}
-          </button>
-          <OrganizationLeavePopover
-            v-if="organization.permissions?.organization?.includes(PermissionEnum.leave)"
-            :organizationId="organization.id"
-          />
+        <div class="list-scroll">
+          <div
+            v-for="organization in organizationStore.availableOrganizations"
+            class="organization"
+            :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
+          >
+            <button class="menu-item" @click="onOrganizationClick(organization.id)">
+              {{ organization.name }}
+            </button>
+            <OrganizationLeavePopover
+              v-if="organization.permissions?.organization?.includes(PermissionEnum.leave)"
+              :organizationId="organization.id"
+            />
+          </div>
         </div>
         <footer class="footer">
           <d-button severity="secondary" @click="onCreateClick">
@@ -307,6 +309,10 @@ async function onOrganizationClick(organizationId: string) {
   left: auto !important;
   right: 0 !important;
   transform: none !important;
+}
+.list-scroll {
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 @media (max-width: 768px) {
