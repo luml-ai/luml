@@ -1,11 +1,17 @@
-from typing import Any
+from __future__ import annotations
 
 import lightgbm as lgb
 import numpy as np
-import pandas as pd
-import scipy.sparse
-from fnnx.utils import to_thread
-from fnnx.variants.pyfunc import PyFunc
+from scipy.sparse import csr_matrix
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None  # type: ignore[assignment]
+
+
+from fnnx.utils import to_thread  # type: ignore[import-untyped]
+from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 
 
 class LightGBMFunc(PyFunc):
@@ -17,98 +23,83 @@ class LightGBMFunc(PyFunc):
 
         self.model = lgb.Booster(model_file=model_path)
 
-    def _prepare_outputs(self, predictions: Any) -> dict:  # noqa: ANN401
-        def to_json_serializable(obj: Any) -> Any:  # noqa: ANN401
-            if isinstance(obj, np.ndarray):
-                return obj.tolist()
-            if isinstance(obj, np.integer):
-                return int(obj)
-            if isinstance(obj, np.floating):
-                return float(obj)
-            if isinstance(obj, list | tuple):
-                return [to_json_serializable(item) for item in obj]
-            if isinstance(obj, dict):
-                return {key: to_json_serializable(value) for key, value in obj.items()}
-            return obj
-
-        return {
-            "predictions": to_json_serializable(predictions),
-        }
-
-    def _response(self, outputs: dict) -> dict:
-        return {"lightgbm_output": outputs}
-
-    def _prepare_inputs(  # noqa: C901
-        self, data_input: dict
-    ) -> np.ndarray | pd.DataFrame | scipy.sparse.csr_matrix:
-        data_format = data_input.get("data_format", "dense")
-        feature_names = data_input.get("feature_names")
-        categorical_features = data_input.get("categorical_features") or None
-
-        if data_format == "dense":
-            raw_data = data_input["data"]
-
-            if categorical_features:
-                if feature_names is None:
-                    raise ValueError(
-                        "feature_names must be provided when categorical_features "
-                        "is specified for dense data_format"
-                    )
-                # Validate that categorical_features are consistent with feature_names
-                feature_names_seq = list(feature_names)
-                num_features = len(feature_names_seq)
-                for col in categorical_features:
-                    if isinstance(col, int) and (col < 0 or col >= num_features):
-                        raise ValueError(
-                            f"categorical_features index {col} is out of bounds "
-                            f"for {num_features} features"
-                        )
-                    if isinstance(col, str) and col not in feature_names_seq:
-                        raise ValueError(
-                            f"categorical feature name '{col}' not found in "
-                            f"feature_names"
-                        )
-                df = pd.DataFrame(raw_data, columns=feature_names_seq)
-
-                # Convert categorical_features indices to column names if needed
-                cat_columns = []
-                for col in categorical_features:
-                    if isinstance(col, int):
-                        cat_columns.append(df.columns[col])
-                    else:
-                        cat_columns.append(col)
-
-                for col in cat_columns:
-                    df[col] = df[col].astype("category")
-                return df
-
-            return np.asarray(raw_data)
-
-        if data_format == "csr":
-            required_fields = ["data", "indices", "indptr", "shape"]
-            missing_fields = [f for f in required_fields if data_input.get(f) is None]
-            if missing_fields:
-                raise ValueError(f"CSR format requires: {', '.join(missing_fields)}")
-
-            return scipy.sparse.csr_matrix(
-                (data_input["data"], data_input["indices"], data_input["indptr"]),
-                shape=data_input["shape"],
+        self.input_order = self.fnnx_context.get_value("input_order")
+        if not self.input_order:
+            raise RuntimeError(
+                "Input order not found. Make sure to have "
+                "'input_order' in the fnnx context."
             )
 
-        raise ValueError(f"Unsupported data_format: {data_format}")
+        self.input_format = self.fnnx_context.get_value("input_format") or "unified"
+        self.categorical_features = (
+            self.fnnx_context.get_value("categorical_features") or {}
+        )
 
-    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:
-        payload = inputs["payload"]
+    def compute(self, inputs: dict, dynamic_attributes: dict) -> dict:  # noqa: C901
+        x: np.ndarray | pd.DataFrame | csr_matrix
 
-        data_input = payload["data"]
-        predict_config = payload.get("predict_config") or {}
+        if self.input_format == "native":
+            payload = inputs["payload"]
+            ds_input = payload["dataset"]
+            predict_config = payload.get("predict_config") or {}
 
-        data = self._prepare_inputs(data_input)
+            data_format = ds_input.get("data_format", "dense")
+            if data_format == "csr":
+                x = csr_matrix(
+                    (
+                        np.asarray(ds_input["data"]),
+                        np.asarray(ds_input["indices"]),
+                        np.asarray(ds_input["indptr"]),
+                    ),
+                    shape=tuple(ds_input["shape"]),
+                )
+            elif data_format == "dense":
+                x = np.asarray(ds_input["data"])
+                if x.ndim == 1:
+                    x = x.reshape(1, -1)
+            else:
+                raise ValueError(
+                    f"Unsupported data_format: {data_format!r}. "
+                    f"Expected 'dense' or 'csr'."
+                )
 
-        predictions = self.model.predict(data, **predict_config)
+            predict_kwargs: dict = {}
+            if predict_config:
+                for key in [
+                    "start_iteration",
+                    "num_iteration",
+                    "raw_score",
+                    "pred_leaf",
+                    "pred_contrib",
+                    "validate_features",
+                ]:
+                    if key in predict_config:
+                        predict_kwargs[key] = predict_config[key]
 
-        outputs = self._prepare_outputs(predictions)
-        return self._response(outputs)
+            predictions = self.model.predict(x, **predict_kwargs)
+            return {
+                "lightgbm_output": {"predictions": np.asarray(predictions).tolist()}
+            }
+
+        if self.categorical_features:
+            if pd is None:
+                raise RuntimeError(
+                    "pandas is required for categorical features but is not installed."
+                )
+            data: dict = {}
+            for col in self.input_order:
+                if col in self.categorical_features:
+                    categories = self.categorical_features[col]
+                    data[col] = pd.Categorical(inputs[col], categories=categories)
+                else:
+                    data[col] = inputs[col]
+            x = pd.DataFrame(data)
+        else:
+            columns = [inputs[col] for col in self.input_order]
+            x = np.column_stack(columns)
+
+        predictions = self.model.predict(x)
+        return {"y": np.asarray(predictions).tolist()}
 
     async def compute_async(self, inputs: dict, dynamic_attributes: dict) -> dict:
         executor = self.fnnx_context.executor

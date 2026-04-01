@@ -3,27 +3,31 @@ import tempfile
 from typing import Any, Literal, Union
 from warnings import warn
 
+import numpy as np
+import pandas as pd
+import scipy.sparse as sp
 import xgboost as xgb
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from pydantic import BaseModel
 from xgboost import Booster
+from xgboost.sklearn import XGBModel
 
-try:
-    from xgboost.sklearn import XGBModel
-except ImportError:
-    XGBModel = None  # type: ignore[assignment, misc]
-
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import JSON
-from pydantic import BaseModel, create_model
-from sdk.luml._constants import FNNX_PRODUCER_NAME
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.integrations.sklearn.packaging import save_sklearn
-from sdk.luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
-from sdk.luml.utils.deps import find_dependencies
-from sdk.luml.utils.imports import (
-    extract_top_level_modules,
+from luml._constants import FNNX_PRODUCER_NAME
+from luml.artifacts.model import ModelReference
+from luml.integrations.sklearn.packaging import save_sklearn
+from luml.integrations.xgboost.packaging._templates.pyfunc import XGBoostFunc
+from luml.utils.imports import (
     get_version,
 )
-from sdk.luml.utils.time import get_epoch
+from luml.utils.packaging import (
+    add_dependencies,
+    add_native_io,
+    add_unified_inputs,
+    add_unified_output,
+    is_sklearn_estimator,
+    normalize_inputs,
+)
+from luml.utils.time import get_epoch
 
 
 class _DMatrixInputSchema(BaseModel):
@@ -40,7 +44,7 @@ class _DMatrixInputSchema(BaseModel):
     feature_types: list[str] | None = None
 
 
-class _PredictConfigSchema(BaseModel):
+class _XGBoostPredictConfigSchema(BaseModel):
     iteration_range: tuple[int, int] | None = None
     output_margin: bool = False
     pred_leaf: bool = False
@@ -52,103 +56,72 @@ class _PredictConfigSchema(BaseModel):
     strict_shape: bool = False
 
 
-def _build_input_schema() -> type[BaseModel]:
-    input_fields = {
-        "dmatrix": (_DMatrixInputSchema, ...),
-        "predict_config": (_PredictConfigSchema | None, None),
-    }
+class _XGBoostInputSchema(BaseModel):
+    dmatrix: _DMatrixInputSchema
+    predict_config: _XGBoostPredictConfigSchema | None = None
 
-    return create_model(
-        "XGBoostInputModel",
-        __base__=BaseModel,
-        **input_fields,  # type: ignore[call-overload]
+
+class _XGBoostOutputSchema(BaseModel):
+    predictions: list[float] | list[list[float]] | list[list[list[float]]]
+
+
+def _add_io(
+    builder: PyfuncBuilder,
+    estimator: xgb.Booster,
+    inputs: Any,  # noqa: ANN401
+    input_format: Literal["unified", "native"] = "unified",
+) -> None:
+    x, input_order, categorical_features = normalize_inputs(
+        inputs, input_format, allow_dmatrix=True
     )
 
-
-def _build_output_schema() -> type[BaseModel]:
-    output_fields = {
-        "predictions": (list[float] | list[list[float]] | list[list[list[float]]], ...),
-    }
-
-    return create_model(
-        "XGBoostOutputModel",
-        __base__=BaseModel,
-        **output_fields,  # type: ignore[call-overload]
+    feature_types = (
+        list(inputs.feature_types)
+        if isinstance(inputs, xgb.DMatrix) and inputs.feature_types
+        else None
     )
 
-
-def _add_io(builder: PyfuncBuilder) -> None:
-    input_schema = _build_input_schema()
-    output_schema = _build_output_schema()
-    builder.define_dtype("ext::input", input_schema)
-    builder.define_dtype("ext::output", output_schema)
-    builder.add_input(JSON(name="payload", content_type="JSON", dtype="ext::input"))
-    builder.add_output(
-        JSON(name="xgboost_output", content_type="JSON", dtype="ext::output")
+    builder.set_extra_values(
+        {
+            "input_order": input_order,
+            "input_format": input_format,
+            "categorical_features": categorical_features,
+            **({"feature_types": feature_types} if feature_types else {}),
+        }
     )
 
+    if input_format == "native":
+        add_native_io(
+            builder,
+            _XGBoostInputSchema,
+            _XGBoostOutputSchema,
+            "xgboost_output",
+        )
+        return
 
-def _get_default_deps() -> list[str]:
-    return [
-        "xgboost==" + get_version("xgboost"),
-        "numpy==" + get_version("numpy"),
-        "scipy==" + get_version("scipy"),
-    ]
+    add_unified_inputs(
+        builder, inputs, input_order, categorical_features, feature_types
+    )
+
+    if not isinstance(x, xgb.DMatrix):
+        x = xgb.DMatrix(
+            x,
+            feature_names=input_order,
+            enable_categorical=bool(categorical_features),
+        )
+
+    add_unified_output(builder, estimator, x)
 
 
 def _get_default_tags() -> list[str]:
     return [FNNX_PRODUCER_NAME + "::xgboost:v1"]
 
 
-def _add_dependencies(
-    builder: PyfuncBuilder,
-    dependencies: Literal["default"] | Literal["all"] | list[str],
-    extra_dependencies: list[str] | None,
-    extra_code_modules: list[str] | Literal["auto"] | None,
-) -> None:
-    auto_pip_dependencies: list[str] = []
-    auto_local_dependencies: list[str] = []
-
-    if dependencies == "all" or extra_code_modules == "auto":
-        auto_pip_dependencies, auto_local_dependencies = find_dependencies()
-
-    pip_deps: list[str]
-    if dependencies == "all":
-        pip_deps = auto_pip_dependencies
-    elif dependencies == "default":
-        pip_deps = _get_default_deps()
-        builder.add_fnnx_runtime_dependency()
-    else:
-        pip_deps = dependencies
-
-    local_dependencies = []
-    if extra_code_modules == "auto":
-        local_dependencies.extend(auto_local_dependencies)
-    elif isinstance(extra_code_modules, list):
-        local_dependencies.extend(extra_code_modules)
-
-    for dep in pip_deps:
-        builder.add_runtime_dependency(dep)
-
-    if extra_dependencies:
-        for dep in extra_dependencies:
-            builder.add_runtime_dependency(dep)
-
-    local_dependencies = extract_top_level_modules(local_dependencies)
-    for module in local_dependencies:
-        builder.add_module(module)
-
-
-def _is_xgboost_sklearn_estimator(obj: object) -> bool:
-    if XGBModel is None:
-        return False
-    return isinstance(obj, xgb.XGBModel)
-
-
 def save_xgboost(  # noqa: C901
     estimator: "Union[Booster, xgb.XGBModel]",  # noqa: UP007
-    inputs: Any | None = None,  # noqa: ANN401
+    inputs: Any,  # noqa: ANN401
     path: str | None = None,
+    input_format: Literal["unified", "native"] = "unified",
     dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
     extra_dependencies: list[str] | None = None,
     extra_code_modules: list[str] | Literal["auto"] | None = None,
@@ -163,6 +136,10 @@ def save_xgboost(  # noqa: C901
         estimator: The XGBoost Booster or XGBModel to save.
         inputs: Example input data for the model.
         path: Path where the model will be saved. Auto-generated if None.
+        input_format: Input format for inference:
+            - "unified": per-feature NDJSON inputs (default).
+            - "native": single JSON payload with DMatrix structure and optional
+              predict config; supports both dense row data and CSR sparse matrices.
         dependencies: Dependency management strategy ("default", "all", or list).
         extra_dependencies: Additional pip dependencies to include.
         extra_code_modules: Local code modules to package ("auto" or list).
@@ -176,7 +153,7 @@ def save_xgboost(  # noqa: C901
 
     path = path or f"xgboost_model_{get_epoch()}.luml"
 
-    if _is_xgboost_sklearn_estimator(estimator):
+    if is_sklearn_estimator(estimator, XGBModel):
         warn(
             "Detected XGBoost scikit-learn estimator. Delegating to save_sklearn().",
             UserWarning,
@@ -187,6 +164,7 @@ def save_xgboost(  # noqa: C901
 
         if extra_dependencies is None:
             extra_dependencies = [xgboost_dep]
+
         else:
             extra_dependencies = list(extra_dependencies)
             if not any("xgboost" in dep.lower() for dep in extra_dependencies):
@@ -210,6 +188,26 @@ def save_xgboost(  # noqa: C901
             f"got {type(estimator)}"
         )
 
+    if inputs is None:
+        raise ValueError(
+            "inputs is required for XGBoost Booster. "
+            "Please provide the DMatrix, numpy array, or DataFrame used for training."
+        )
+
+    is_dataframe = isinstance(inputs, pd.DataFrame)
+    is_ndarray = isinstance(inputs, np.ndarray)
+    is_sparse = sp.issparse(inputs)
+    if (
+        not isinstance(inputs, xgb.DMatrix)
+        and not is_dataframe
+        and not is_ndarray
+        and not is_sparse
+    ):
+        raise TypeError(
+            f"inputs must be xgb.DMatrix, numpy array, scipy.sparse matrix, "
+            f"or pandas DataFrame, got {type(inputs)}"
+        )
+
     builder = PyfuncBuilder(
         XGBoostFunc,
         model_name=manifest_model_name,
@@ -229,18 +227,29 @@ def save_xgboost(  # noqa: C901
         estimator.save_model(tmp_file.name)
         tmp_model_path = tmp_file.name
 
-    builder.add_file(tmp_model_path, target_path=model_filename)
-    builder.set_extra_values({"input_order": ["payload"], "model_path": model_filename})
+    try:
+        builder.add_file(tmp_model_path, target_path=model_filename)
 
-    _add_io(builder)
+        _add_io(
+            builder,
+            estimator,
+            inputs,
+            input_format=input_format,
+        )
 
-    _add_dependencies(
-        builder,
-        dependencies,
-        extra_dependencies,
-        extra_code_modules,
-    )
+        needs_pandas = isinstance(inputs, pd.DataFrame)
 
-    builder.save(path)
-    os.remove(tmp_model_path)
+        add_dependencies(
+            builder,
+            dependencies,
+            extra_dependencies,
+            extra_code_modules,
+            needs_pandas=needs_pandas,
+            framework="xgboost",
+        )
+
+        builder.save(path)
+    finally:
+        os.remove(tmp_model_path)
+
     return ModelReference(path)

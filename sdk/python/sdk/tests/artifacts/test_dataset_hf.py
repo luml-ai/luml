@@ -4,7 +4,8 @@ from pathlib import Path
 
 import datasets
 import pytest
-from sdk.luml import (
+
+from luml import (
     DatasetReference,
     HFDatasetPayload,
     save_hf_dataset,

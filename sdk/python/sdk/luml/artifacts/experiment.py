@@ -7,11 +7,12 @@ import zipfile
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
-from sdk.luml.artifacts._base import ArtifactManifest, DiskReference
-from sdk.luml.artifacts._helpers import add_bytes_to_tar
+
+from luml.artifacts._base import ArtifactManifest, DiskReference
+from luml.artifacts._helpers import add_bytes_to_tar
 
 if TYPE_CHECKING:
-    from sdk.luml.experiments.tracker import ExperimentTracker
+    from luml.experiments.tracker import ExperimentTracker
 
 
 class ExperimentManifestPayload(BaseModel):
@@ -43,8 +44,8 @@ def save_experiment(
     experiment_id: str,
     output_path: str | None = None,
 ) -> ExperimentReference:
-    from sdk.luml import __version__ as luml_sdk_version
-    from sdk.luml._constants import PRODUCER_NAME
+    from luml import __version__ as luml_sdk_version
+    from luml._constants import PRODUCER_NAME
 
     exp_data = tracker.get_experiment(experiment_id)
     metadata = exp_data.metadata

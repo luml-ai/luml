@@ -4,7 +4,7 @@ networks:
 
 services:
   model-image:
-    image: df-random-svc:latest
+    image: luml-random-svc:latest
     build:
       context: model_server
     command: ["true"]
@@ -13,7 +13,7 @@ services:
       - satellite-network
 
   agent:
-    image: df-satellite-agent:latest
+    image: luml-satellite-agent:latest
     build:
       context: .
       dockerfile: Dockerfile
@@ -23,7 +23,7 @@ services:
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-http://localhost:8000}
       BASE_URL: ${BASE_URL:-http://localhost}
-      MODEL_IMAGE: ${MODEL_IMAGE:-df-random-svc:latest}
+      MODEL_IMAGE: ${MODEL_IMAGE:-luml-random-svc:latest}
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

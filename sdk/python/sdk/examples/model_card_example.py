@@ -10,7 +10,7 @@ making it clear what artifacts are being created and how they're added to the ca
 
 import tempfile
 
-from sdk.luml import ModelCardBuilder
+from luml import ModelCardBuilder
 
 
 def create_metrics_dataframe():  # type: ignore[no-untyped-def]

@@ -9,8 +9,6 @@
     </div>
     <div class="body">
       <tasks-list label="Available tasks" :tasks="availableTasks" />
-      <div class="divider"></div>
-      <tasks-list label="Coming Next" :tasks="notAvailableTasks" />
     </div>
   </div>
 </template>
@@ -24,7 +22,7 @@ import { useUserStore } from '@/stores/user'
 import { useToast } from 'primevue/usetoast'
 
 import { passwordResetSuccessToast } from '@/lib/primevue/data/toasts'
-import { availableTasks, notAvailableTasks } from '@/constants/constants'
+import { availableTasks } from '@/constants/constants'
 
 const userStore = useUserStore()
 const toast = useToast()

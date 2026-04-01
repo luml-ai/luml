@@ -7,6 +7,7 @@ export interface TaskData {
   linkName?: string
   tooltipData: string
   isAvailable: boolean
+  isDisabled?: boolean
   analyticsTaskName: string
   dropdownOptions?: TaskDropdownOption[]
 }

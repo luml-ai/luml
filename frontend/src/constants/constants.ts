@@ -1,20 +1,19 @@
 import type { TaskData } from '@/components/homepage-tasks/interfaces'
 import {
-  CirclePlay,
   Zap,
   File,
   Orbit,
-  Notebook,
   BotMessageSquare,
   MessageCircleCode,
-  Satellite,
-  Rocket,
   Folders,
+  Rocket,
+  Satellite,
 } from 'lucide-vue-next'
 import TabularClassificationIcon from '@/assets/img/cards-icons/tabular-classification.svg'
 import TabularRegressionIcon from '@/assets/img/cards-icons/tabular-regression.svg'
 import ForecastingIcon from '@/assets/img/cards-icons/forecasting.svg'
 import ConversationalQAIcon from '@/assets/img/cards-icons/conversational-qa.svg'
+import Notebooks from '@/assets/img/cards-icons/notebook.svg'
 
 export const SIDEBAR_MENU = [
   {
@@ -25,16 +24,6 @@ export const SIDEBAR_MENU = [
     disabled: false,
     tooltipMessage: null,
     analyticsOption: 'express_tasks',
-    authRequired: false,
-  },
-  {
-    id: 4,
-    label: 'Notebooks',
-    icon: Notebook,
-    route: 'notebooks',
-    disabled: false,
-    tooltipMessage: null,
-    analyticsOption: 'notebook',
     authRequired: false,
   },
   {
@@ -135,17 +124,6 @@ const appTasks: IAppTaskData[] = [
     ],
   },
   {
-    id: 3,
-    icon: ForecastingIcon,
-    title: 'Time Series Forecasting',
-    description:
-      'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
-    tooltipData:
-      'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
-    isAvailable: false,
-    analyticsTaskName: '',
-  },
-  {
     id: 5,
     icon: ConversationalQAIcon,
     title: 'Prompt Optimization',
@@ -161,10 +139,36 @@ const appTasks: IAppTaskData[] = [
       { label: 'Upload for inference', route: 'runtime' },
     ],
   },
+  {
+    id: 4,
+    icon: Notebooks,
+    title: 'Notebooks',
+    description:
+      'Run Jupyter notebooks directly in the browser with no setup or backend. Create, test, and export models locally with automatic discovery, while managing instances entirely client-side.',
+    btnText: 'next',
+    linkName: 'notebooks',
+    tooltipData:
+      'Run Jupyter notebooks fully in the browser using a WebAssembly-based Python runtime with no backend or setup required. All data is stored locally in the browser, with options to export, back up, and automatically surface saved models in the platform UI.',
+    isAvailable: true,
+    analyticsTaskName: 'notebook',
+  },
+
+  {
+    id: 3,
+    icon: ForecastingIcon,
+    title: 'Time Series Forecasting',
+    description:
+      'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
+    btnText: 'coming soon',
+    tooltipData:
+      'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
+    isAvailable: true,
+    isDisabled: true,
+    analyticsTaskName: '',
+  },
 ]
 
 export const availableTasks = appTasks.filter((task) => task.isAvailable)
-export const notAvailableTasks = appTasks.filter((task) => !task.isAvailable)
 
 export const classificationResources = [
   {

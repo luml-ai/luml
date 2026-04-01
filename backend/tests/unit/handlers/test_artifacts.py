@@ -1913,7 +1913,7 @@ async def test_is_metric_sort_custom_metric_not_found(
 def test_define_artifact_type_with_luml_manifest() -> None:
     artifact = Mock(
         manifest=LumlArtifactManifest(
-            type="model",
+            artifact_type="model",
             variant="pipeline",
             producer_name="test",
             producer_version="1.0",
@@ -1931,7 +1931,7 @@ def test_define_artifact_type_with_luml_manifest() -> None:
 def test_define_artifact_type_with_luml_manifest_unsupported_type() -> None:
     artifact = Mock(
         manifest=LumlArtifactManifest(
-            type="unsupported_type",
+            artifact_type="unsupported_type",
             variant="pipeline",
             producer_name="test",
             producer_version="1.0",

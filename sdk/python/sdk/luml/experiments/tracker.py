@@ -4,13 +4,14 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING, Any
 
-from sdk.luml.artifacts._base import DiskFile, FileMap
-from sdk.luml.artifacts.model import ModelReference
-from sdk.luml.experiments.backends import Backend, BackendRegistry
-from sdk.luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.artifacts._base import DiskFile, FileMap
+from luml.artifacts.model import ModelReference
+from luml.experiments.backends import Backend, BackendRegistry
+from luml.experiments.backends._data_types import Experiment, ExperimentData, Group
+from luml.utils.naming import generate_random_name
 
 if TYPE_CHECKING:
-    from sdk.luml.artifacts.experiment import ExperimentReference
+    from luml.artifacts.experiment import ExperimentReference
 
 
 class ExperimentTracker:
@@ -62,7 +63,7 @@ class ExperimentTracker:
 
         Args:
             name (str | None): The name of the experiment. If not provided,
-                the experiment will be initialized without a specific name
+                a random name in the format "adjective-noun-###" will be generated
             group (str): The group to which the experiment belongs. Defaults to
                 "default".
             experiment_id (str | None): A unique identifier for the experiment. If not
@@ -75,6 +76,9 @@ class ExperimentTracker:
         """
         if experiment_id is None:
             experiment_id = str(uuid.uuid4())
+
+        if name is None:
+            name = generate_random_name()
 
         self.backend.initialize_experiment(experiment_id, group, name, tags)
         self.current_experiment_id = experiment_id
@@ -381,7 +385,7 @@ class ExperimentTracker:
         # All traced functions will be logged to this experiment
         ```
         """
-        from sdk.luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
+        from luml.experiments.tracing import setup_tracing, set_experiment_tracker  # noqa: I001
 
         setup_tracing()
         set_experiment_tracker(self)
@@ -393,6 +397,7 @@ class ExperimentTracker:
         Export the entire experiment tracking data and save as an artifact.
 
         Args:
+            experiment_id:
             output_path: Path to save the exported artifact.
 
         Example:
@@ -404,7 +409,7 @@ class ExperimentTracker:
         tracker.export("experiment_data.tar", experiment_id=exp_id)
         ```
         """
-        from sdk.luml.artifacts.experiment import save_experiment
+        from luml.artifacts.experiment import save_experiment
 
         experiment_id = experiment_id or self.current_experiment_id
         if experiment_id is None:
