@@ -206,6 +206,8 @@ class EvalTypedColumns(BaseModel, BaseOrmConfig):
     refs: list[ColumnField]
     scores: list[ColumnField]
     metadata: list[ColumnField]
+    annotations_feedback: list[ColumnField] = []
+    annotations_expectations: list[ColumnField] = []
 
 
 class TraceColumns(BaseModel, BaseOrmConfig):
@@ -214,6 +216,8 @@ class TraceColumns(BaseModel, BaseOrmConfig):
 
 class TraceTypedColumns(BaseModel, BaseOrmConfig):
     attributes: list[ColumnField]
+    annotations_feedback: list[ColumnField] = []
+    annotations_expectations: list[ColumnField] = []
 
 
 class SearchValidationResult(BaseModel):

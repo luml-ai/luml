@@ -73,7 +73,7 @@ def get_experiment_traces(
     order: SortOrder = SortOrder.DESC,
     search: str | None = None,
     filters: list[str] = Query(default_factory=list),  # noqa: B008
-    states: list[TraceState] | None = None,
+    states: list[TraceState] | None = Query(default=None),
 ) -> PaginatedTraces:
     """
     search: An optional search by trace_id
