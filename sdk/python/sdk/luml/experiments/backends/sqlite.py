@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
+
 def _parse_timestamp(s: bytes) -> datetime:
     dt = datetime.fromisoformat(s.decode())
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
@@ -752,7 +753,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             attachments=attachments,
         )
 
-    def get_attachment(self, experiment_id: str, name: str) -> Any:  # noqa: ANN401
+    def get_attachment(self, experiment_id: str, name: str) -> bytes:
         """
         Fetches the content of a specific attachment file associated with an experiment.
 
@@ -795,7 +796,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
         return [
             AttachmentRecord(
-                id=id_, name=name, file_path=file_path or "", size=size, created_at=created_at
+                id=id_,
+                name=name,
+                file_path=file_path or "",
+                size=size,
+                created_at=created_at,
             )
             for id_, name, file_path, size, created_at in cursor.fetchall()
         ]
@@ -837,19 +842,27 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         folder_sizes: dict[str, int] = {}
 
         for name, size in cursor.fetchall():
-            relative = name[len(prefix):]
+            relative = name[len(prefix) :]
             parts = relative.split("/")
 
             if len(parts) == 1:
-                result.append(FileNode(name=parts[0], type="file", size=size, path=name))
+                result.append(
+                    FileNode(name=parts[0], type="file", size=size, path=name)
+                )
             else:
                 folder_name = parts[0]
                 folder_path = prefix + folder_name
-                folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (size or 0)
+                folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (
+                    size or 0
+                )
 
         for folder_path, total_size in folder_sizes.items():
-            folder_name = folder_path[len(prefix):]
-            result.append(FileNode(name=folder_name, type="folder", path=folder_path, size=total_size))
+            folder_name = folder_path[len(prefix) :]
+            result.append(
+                FileNode(
+                    name=folder_name, type="folder", path=folder_path, size=total_size
+                )
+            )
 
         return result
 
@@ -1853,7 +1866,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
         conn = self._get_meta_connection()
 
-        cursor_value = str(use_cursor.value) if use_cursor and use_cursor.value is not None else None
+        cursor_value = (
+            str(use_cursor.value)
+            if use_cursor and use_cursor.value is not None
+            else None
+        )
 
         rows = self._execute_paginated_query(
             conn=conn,
@@ -3094,6 +3111,12 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             metadata=_keys("metadata"),
         )
 
+    _ANNOTATION_VALUE_TYPE_MAP: dict[str, ColumnType] = {
+        "bool": ColumnType.BOOLEAN,
+        "int": ColumnType.NUMBER,
+        "string": ColumnType.STRING,
+    }
+
     def get_experiment_eval_typed_columns(
         self, experiment_id: str, dataset_id: str | None = None
     ) -> EvalTypedColumns:
@@ -3131,12 +3154,50 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 for row in cur.fetchall()
             ]
 
+        def _annotation_fields(kind: str) -> list[ColumnField]:
+            if not self._has_annotation_tables(experiment_id):
+                return []
+            cur = conn.cursor()
+            if dataset_id is not None:
+                cur.execute(
+                    """
+                    SELECT name, value_type
+                    FROM eval_annotations
+                    WHERE annotation_kind = ? AND dataset_id = ?
+                    GROUP BY name
+                    ORDER BY name
+                    """,
+                    (kind, dataset_id),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT name, value_type
+                    FROM eval_annotations
+                    WHERE annotation_kind = ?
+                    GROUP BY name
+                    ORDER BY name
+                    """,
+                    (kind,),
+                )
+            return [
+                ColumnField(
+                    name=row[0],
+                    type=self._ANNOTATION_VALUE_TYPE_MAP.get(
+                        row[1], ColumnType.UNKNOWN
+                    ),
+                )
+                for row in cur.fetchall()
+            ]
+
         return EvalTypedColumns(
             inputs=_fields("inputs"),
             outputs=_fields("outputs"),
             refs=_fields("refs"),
             scores=_fields("scores"),
             metadata=_fields("metadata"),
+            annotations_feedback=_annotation_fields("feedback"),
+            annotations_expectations=_annotation_fields("expectation"),
         )
 
     def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
@@ -3166,14 +3227,41 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ORDER BY je.key
             """
         )
-        return TraceTypedColumns(
-            attributes=[
+        attributes = [
+            ColumnField(
+                name=row[0],
+                type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
+            )
+            for row in cur.fetchall()
+        ]
+
+        def _annotation_fields(kind: str) -> list[ColumnField]:
+            if not self._has_annotation_tables(experiment_id):
+                return []
+            rows = conn.execute(
+                """
+                SELECT name, value_type
+                FROM span_annotations
+                WHERE annotation_kind = ?
+                GROUP BY name
+                ORDER BY name
+                """,
+                (kind,),
+            ).fetchall()
+            return [
                 ColumnField(
                     name=row[0],
-                    type=self._SQLITE_TYPE_MAP.get(row[1], ColumnType.UNKNOWN),
+                    type=self._ANNOTATION_VALUE_TYPE_MAP.get(
+                        row[1], ColumnType.UNKNOWN
+                    ),
                 )
-                for row in cur.fetchall()
+                for row in rows
             ]
+
+        return TraceTypedColumns(
+            attributes=attributes,
+            annotations_feedback=_annotation_fields("feedback"),
+            annotations_expectations=_annotation_fields("expectation"),
         )
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:

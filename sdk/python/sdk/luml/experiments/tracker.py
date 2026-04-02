@@ -91,7 +91,9 @@ class ExperimentTracker:
     def __enter__(self) -> "ExperimentTracker":
         return self
 
-    def __exit__(self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object) -> bool:
+    def __exit__(
+        self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object
+    ) -> bool:
         if self.current_experiment_id:
             if exc_type is not None:
                 with contextlib.suppress(Exception):
@@ -525,7 +527,7 @@ class ExperimentTracker:
         """
         return self.backend.get_experiment_data(experiment_id)
 
-    def get_attachment(self, name: str, experiment_id: str | None = None) -> Any:  # noqa: ANN401
+    def get_attachment(self, name: str, experiment_id: str | None = None) -> bytes:
         """
         Retrieve a previously logged attachment by name.
 
