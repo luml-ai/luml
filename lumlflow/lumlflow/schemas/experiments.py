@@ -184,6 +184,7 @@ class FileNode(BaseModel, BaseOrmConfig):
     name: str
     type: FileNodeType
     path: str | None = None
+    size: int | None = None
 
 
 class ColumnField(BaseModel, BaseOrmConfig):
