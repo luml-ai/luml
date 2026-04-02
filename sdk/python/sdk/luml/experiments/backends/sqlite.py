@@ -803,10 +803,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     def list_attachments_tree(
         self, experiment_id: str, parent_path: str | None = None
     ) -> list[FileNode]:
+        """
+        Retrieves a structured representation of the attachments associated with a specific
+        experiment, organized as a tree. Distinguishes between individual files and folders,
+        aggregating folder sizes based on their contents.
+
+        Args:
+            experiment_id: A string representing the identifier for the experiment whose
+                attachments are being queried.
+            parent_path: An optional string representing the parent folder path used as a
+                base for filtering and structuring the attachments. Defaults to None.
+
+        Returns:
+            A list of `FileNode` objects organized into a tree structure. Each `FileNode`
+            represents either a file or a folder. Files have their size specified, while
+            folder sizes are aggregated based on their contents.
+        """
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
+
         prefix = (parent_path.rstrip("/") + "/") if parent_path else ""
+
         if prefix:
             cursor.execute(
                 "SELECT name, size FROM attachments WHERE name LIKE ? ORDER BY name",
@@ -814,21 +832,25 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         else:
             cursor.execute("SELECT name, size FROM attachments ORDER BY name")
+
         result: list[FileNode] = []
-        seen_folders: set[str] = set()
+        folder_sizes: dict[str, int] = {}
+
         for name, size in cursor.fetchall():
-            relative = name[len(prefix) :]
+            relative = name[len(prefix):]
             parts = relative.split("/")
+
             if len(parts) == 1:
-                result.append(FileNode(name=parts[0], type="file", size=size or 0, path=name))
+                result.append(FileNode(name=parts[0], type="file", size=size, path=name))
             else:
                 folder_name = parts[0]
                 folder_path = prefix + folder_name
-                if folder_path not in seen_folders:
-                    seen_folders.add(folder_path)
-                    result.append(
-                        FileNode(name=folder_name, type="folder", path=folder_path)
-                    )
+                folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (size or 0)
+
+        for folder_path, total_size in folder_sizes.items():
+            folder_name = folder_path[len(prefix):]
+            result.append(FileNode(name=folder_name, type="folder", path=folder_path, size=total_size))
+
         return result
 
     def list_experiments(self) -> list[Experiment]:  # noqa: ANN401

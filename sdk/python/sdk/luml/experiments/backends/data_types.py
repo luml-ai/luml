@@ -91,8 +91,8 @@ class AttachmentRecord:
 class FileNode:
     name: str
     type: Literal["file", "folder"]
-    size: int
     path: str | None = None
+    size: int | None = None
 
 
 @dataclass

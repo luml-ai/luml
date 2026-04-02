@@ -22,6 +22,10 @@ def up(conn: sqlite3.Connection) -> None:
                 (full_path.stat().st_size, att_id),
             )
 
+    cursor.execute("PRAGMA user_version = 2")
+
 
 def down(conn: sqlite3.Connection) -> None:
-    conn.cursor().execute("ALTER TABLE attachments DROP COLUMN size")
+    cursor = conn.cursor()
+    cursor.execute("ALTER TABLE attachments DROP COLUMN size")
+    cursor.execute("PRAGMA user_version = 1")
