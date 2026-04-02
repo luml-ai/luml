@@ -111,5 +111,5 @@ export interface Split {
   num_rows: number
   num_chunks: number
   chunk_files: string[]
-  file_format: 'parquet'
+  file_format: 'parquet' | 'csv'
 }

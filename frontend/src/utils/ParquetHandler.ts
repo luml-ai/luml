@@ -7,9 +7,7 @@ export interface PreviewResult {
 }
 
 export class ParquetHandler {
-  constructor(private buffer: ArrayBuffer) {
-    this.buffer = buffer
-  }
+  constructor(private buffer: ArrayBuffer) {}
 
   async init() {
     await initParquet(new URL('/parquet_wasm_bg.wasm', import.meta.url).toString())

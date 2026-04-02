@@ -1,5 +1,6 @@
 export class TarHandler {
   private view: DataView
+  private fileIndex: Map<string, [number, number]> | null = null
 
   constructor(private buffer: ArrayBuffer) {
     this.view = new DataView(buffer)
@@ -115,15 +116,16 @@ export class TarHandler {
       off = dataStart + dataSpan
     }
 
-    return results
+    this.fileIndex = results
+
+    return this.fileIndex
   }
 
   getManifest() {
-    const indexMap = this.scan()
-
+    if (!this.fileIndex) throw new Error('File index not scanned. Call scan() first.')
     const decoder = new TextDecoder()
 
-    for (const [path, [offset, size]] of indexMap) {
+    for (const [path, [offset, size]] of this.fileIndex) {
       if (path.includes('manifest.json')) {
         const data = this.readFile(offset, size)
         const manifest = JSON.parse(decoder.decode(data))

@@ -56,7 +56,7 @@ const items = computed(() => [
     visible: props.showDataTab,
   },
   {
-    label: 'Сard',
+    label: 'Card',
     routeName: 'artifact-card',
     icon: FileChartLine,
     visible: props.showCard,

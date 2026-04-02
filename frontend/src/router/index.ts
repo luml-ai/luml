@@ -174,11 +174,6 @@ const router = createRouter({
               name: 'attachments',
               component: () => import('../pages/collection/artifact/AttachmentsView.vue'),
             },
-            {
-              path: 'data',
-              name: 'dataset',
-              component: () => import('../pages/collection/artifact/DatasetView.vue'),
-            },
           ],
         },
         {
