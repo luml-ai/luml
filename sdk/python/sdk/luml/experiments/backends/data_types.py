@@ -177,6 +177,8 @@ class EvalTypedColumns:
     refs: list[ColumnField]
     scores: list[ColumnField]
     metadata: list[ColumnField]
+    annotations_feedback: list[ColumnField] = field(default_factory=list)
+    annotations_expectations: list[ColumnField] = field(default_factory=list)
 
 
 @dataclass
@@ -187,6 +189,8 @@ class TraceColumns:
 @dataclass
 class TraceTypedColumns:
     attributes: list[ColumnField]
+    annotations_feedback: list[ColumnField] = field(default_factory=list)
+    annotations_expectations: list[ColumnField] = field(default_factory=list)
 
 
 class AnnotationKind(StrEnum):

@@ -167,6 +167,47 @@ class SearchUtils:
         return entity_type
 
     @staticmethod
+    def _build_annotation_value_expr(comparator: str, value: Any) -> tuple[str, list]:
+        """Build SQL expression for comparing annotation `value` column.
+
+        Annotations store all values as TEXT:
+          bool  → 'true' / 'false'
+          int   → '1', '42', ...
+          str   → arbitrary text
+
+        Numeric tokens (1, 0, 42) passed by the user are mapped to their TEXT
+        equivalent so that ``= 1`` matches both ``'1'`` and ``'true'``,
+        and ``= 0`` matches both ``'0'`` and ``'false'``.
+        Range comparators (>, >=, <, <=) use CAST(value AS REAL).
+        """
+        numeric_comparators = {">", ">=", "<", "<="}
+        if comparator in numeric_comparators:
+            return f"CAST(value AS REAL) {comparator} ?", [value]
+        if comparator == "ILIKE":
+            return "UPPER(value) LIKE UPPER(?)", [value]
+        if comparator == "IN":
+            return f"value IN ({','.join('?' * len(value))})", list(value)
+        if comparator == "NOT IN":
+            return f"value NOT IN ({','.join('?' * len(value))})", list(value)
+
+        # = / != : convert numeric to TEXT, with special bool aliases for 1/0
+        if isinstance(value, float):
+            str_val = str(int(value)) if value == int(value) else str(value)
+            if value == 1.0:
+                if comparator == "=":
+                    return "(value = ? OR value = 'true')", [str_val]
+                # !=
+                return "(value != ? AND value != 'true')", [str_val]
+            if value == 0.0:
+                if comparator == "=":
+                    return "(value = ? OR value = 'false')", [str_val]
+                # !=
+                return "(value != ? AND value != 'false')", [str_val]
+            return f"value {comparator} ?", [str_val]
+
+        return f"value {comparator} ?", [value]
+
+    @staticmethod
     def _validate_date_string(value: str, key: str) -> None:
         try:
             date.fromisoformat(value)
@@ -714,6 +755,9 @@ class SearchEvalsUtils(SearchUtils):
     - created_at, updated_at                  → date ops:   =, !=, >, >=, <, <=  (ISO string)
     - inputs.<key>, outputs.<key>, refs.<key> → string or numeric ops based on value
     - scores.<key>, metadata.<key>            → string or numeric ops based on value
+    - annotations.<name>                      → match any annotation by name and value
+    - annotations.feedback.<name>             → match only feedback annotations
+    - annotations.expectation.<name>          → match only expectation annotations
 
     Examples:
         outputs.prediction LIKE "%bert%"
@@ -722,6 +766,9 @@ class SearchEvalsUtils(SearchUtils):
         created_at > "2024-01-01"
         inputs.question CONTAINS "what"
         scores.accuracy > 0.8 AND metadata.latency_ms < 500
+        annotations.feedback.quality = "true"
+        annotations.expectation.expected_answer = "bird"
+        annotations.score >= 0.9
     """
 
     VALID_SEARCH_ATTRIBUTE_KEYS = {"id", "dataset_id", "created_at", "updated_at"}
@@ -729,9 +776,12 @@ class SearchEvalsUtils(SearchUtils):
     DATE_ATTRIBUTES = {"created_at", "updated_at"}
     STRING_ATTRIBUTES = {"id", "dataset_id"}
     JSON_COLUMNS = {"inputs", "outputs", "refs", "scores", "metadata"}
+    ANNOTATION_PREFIX = "annotations"
+    ANNOTATION_KINDS = {"feedback", "expectation", "expectations"}
 
     _JSON_IDENTIFIER = "json"
     _ATTRIBUTE_IDENTIFIER = "attribute"
+    _ANNOTATION_IDENTIFIER = "annotation"
 
     VALID_STRING_ATTRIBUTE_COMPARATORS = {"=", "!=", "LIKE", "ILIKE", "IN", "NOT IN"}
     VALID_DATE_COMPARATORS = {"=", "!=", ">", ">=", "<", "<="}
@@ -747,6 +797,7 @@ class SearchEvalsUtils(SearchUtils):
         "IN",
         "NOT IN",
     }
+    VALID_ANNOTATION_COMPARATORS = VALID_JSON_COMPARATORS
 
     @classmethod
     def _get_identifier(cls, identifier_str: str, valid_attributes: set) -> dict:
@@ -765,12 +816,25 @@ class SearchEvalsUtils(SearchUtils):
             return {"type": cls._ATTRIBUTE_IDENTIFIER, "key": key}
 
         prefix, raw_key = parts
+        if prefix.lower() == cls.ANNOTATION_PREFIX:
+            # annotations.<name>  OR  annotations.<kind>.<name>
+            kind_parts = raw_key.split(".", maxsplit=1)
+            if len(kind_parts) == 2 and kind_parts[0].lower() in cls.ANNOTATION_KINDS:
+                kind_str = kind_parts[0].lower()
+                kind = "expectation" if kind_str == "expectations" else kind_str
+                ann_name = cls._trim_backticks(cls._strip_quotes(kind_parts[1]))
+            else:
+                kind = None
+                ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {"type": cls._ANNOTATION_IDENTIFIER, "kind": kind, "key": ann_name}
+
         key = cls._trim_backticks(cls._strip_quotes(raw_key))
         if prefix.lower() not in cls.JSON_COLUMNS:
             raise LumlFilterError(
                 f"Invalid field prefix '{prefix}'. "
                 f"Valid JSON columns: {sorted(cls.JSON_COLUMNS)}. "
-                f"Valid bare attributes: {sorted(cls.VALID_SEARCH_ATTRIBUTE_KEYS)}."
+                f"Valid bare attributes: {sorted(cls.VALID_SEARCH_ATTRIBUTE_KEYS)}. "
+                f"Use '{cls.ANNOTATION_PREFIX}.<name>' to filter by annotation."
             )
         return {"type": cls._JSON_IDENTIFIER, "column": prefix.lower(), "key": key}
 
@@ -790,6 +854,9 @@ class SearchEvalsUtils(SearchUtils):
 
     @classmethod
     def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
+        if identifier_type == cls._ANNOTATION_IDENTIFIER:
+            return cls._get_json_value(key, token)
+
         if identifier_type == cls._JSON_IDENTIFIER:
             return cls._get_json_value(key, token)
 
@@ -822,17 +889,25 @@ class SearchEvalsUtils(SearchUtils):
 
         if comp["type"] == cls._JSON_IDENTIFIER:
             valid = cls.VALID_JSON_COMPARATORS
+        elif comp["type"] == cls._ANNOTATION_IDENTIFIER:
+            valid = cls.VALID_ANNOTATION_COMPARATORS
         elif comp["key"] in cls.DATE_ATTRIBUTES:
             valid = cls.VALID_DATE_COMPARATORS
         else:
             valid = cls.VALID_STRING_ATTRIBUTE_COMPARATORS
 
         if comparator not in valid:
-            field = (
-                f"{comp.get('column', '')}.{comp['key']}"
-                if comp["type"] == cls._JSON_IDENTIFIER
-                else comp["key"]
-            )
+            if comp["type"] == cls._ANNOTATION_IDENTIFIER:
+                kind = comp.get("kind")
+                field = (
+                    f"annotations.{kind}.{comp['key']}"
+                    if kind
+                    else f"annotations.{comp['key']}"
+                )
+            elif comp["type"] == cls._JSON_IDENTIFIER:
+                field = f"{comp.get('column', '')}.{comp['key']}"
+            else:
+                field = comp["key"]
             raise LumlFilterError(
                 f"Invalid comparator '{comparator}' for '{field}'. "
                 f"Valid comparators: {sorted(valid)}"
@@ -862,7 +937,21 @@ class SearchEvalsUtils(SearchUtils):
             value = item["value"]
             comparator = item["comparator"].upper()
 
-            if key_type == cls._JSON_IDENTIFIER:
+            if key_type == cls._ANNOTATION_IDENTIFIER:
+                ann_name = key
+                kind = item.get("kind")
+                kind_clause = f" AND annotation_kind = '{kind}'" if kind else ""
+                value_expr, value_params = cls._build_annotation_value_expr(
+                    comparator, value
+                )
+                sql_parts.append(
+                    f"EXISTS (SELECT 1 FROM eval_annotations"
+                    f" WHERE eval_id = evals.id AND name = ?{kind_clause} AND {value_expr})"
+                )
+                params.append(ann_name)
+                params.extend(value_params)
+
+            elif key_type == cls._JSON_IDENTIFIER:
                 col = item["column"]
                 expr = f"json_extract({col}, '$.{key}')"
                 if comparator == "ILIKE":
@@ -933,35 +1022,77 @@ class SearchEvalsUtils(SearchUtils):
 
             to_sql('created_at > "2024-01-01"')
             → ('created_at > ?', ['2024-01-01'])
+
+            to_sql('annotations.feedback.quality = "true"')
+            → ("EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'feedback' AND value = ?)", ['quality', 'true'])
+
+            to_sql('annotations.expected_answer = "bird"')
+            → ("EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND value = ?)", ['expected_answer', 'bird'])
         """
         parsed = cls.parse_search_filter(filter_string)
         return cls._build_sql_filter(parsed)
 
 
 class SearchTracesUtils(SearchUtils):
-    """Filter traces by span attributes using SQL-like syntax.
+    """Filter traces using SQL-like syntax.
 
-    All filters operate on span attributes and are translated to a
-    trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ...) subquery.
-
-    Supported syntax:
-        attributes.<key> {op} <value>
-
-    Operators:
-        String values: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
-        Numeric values: =, !=, >, >=, <, <=
+    Supported fields:
+    - trace_id / id                 → string ops: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - state                         → =, !=, IN, NOT IN  (values: "ok", "error", "in_progress", "unspecified" or int)
+    - execution_time                → numeric ops: =, !=, >, >=, <, <=  (nanoseconds, same as DB)
+    - span_count                    → numeric ops: =, !=, >, >=, <, <=
+    - created_at                    → date ops: =, !=, >, >=, <, <=  (ISO string)
+    - evals                         → string ops: =, !=, LIKE, ILIKE, CONTAINS  (matches eval_id in linked evals)
+    - attributes.<key>              → string or numeric ops based on value
+    - annotations.<name>            → string or numeric ops based on value
+    - annotations.feedback.<n>      → only feedback annotations
+    - annotations.expectation.<n>   → only expectation annotations
 
     Examples:
+        trace_id LIKE "%abc%"
+        state = "error"
+        state IN ("ok", "error")
+        execution_time > 5
+        span_count >= 3
+        created_at > "2024-01-01"
+        evals = "eval-001"
         attributes.http.method = "GET"
-        attributes.http.status_code = 200
-        attributes.db.statement CONTAINS "SELECT"
-        attributes.http.status_code >= 400 AND attributes.http.status_code < 500
+        attributes.http.status_code >= 400
+        annotations.feedback.quality = "true"
+        annotations.expectation.expected_answer = "bird"
+        state = "error" AND execution_time > 10
     """
 
     VALID_SEARCH_ATTRIBUTE_KEYS: set[str] = set()
     NUMERIC_ATTRIBUTES: set[str] = set()
     ATTRIBUTES_PREFIX = "attributes"
+    ANNOTATION_PREFIX = "annotations"
+    ANNOTATION_KINDS = {"feedback", "expectation", "expectations"}
+
+    TRACE_COLUMNS = {
+        "trace_id",
+        "id",
+        "execution_time",
+        "span_count",
+        "created_at",
+        "state",
+    }
+    NUMERIC_TRACE_COLUMNS = {"execution_time", "span_count"}
+    DATE_TRACE_COLUMNS = {"created_at"}
+    STATE_COLUMN = "state"
+    EVALS_COLUMN = "evals"
+    STATE_NAME_MAP = {
+        "ok": 1,
+        "error": 2,
+        "in_progress": 3,
+        "state_unspecified": 0,
+        "unspecified": 0,
+    }
+
     _SPAN_ATTR_IDENTIFIER = "span_attribute"
+    _ANNOTATION_IDENTIFIER = "annotation"
+    _TRACE_COLUMN_IDENTIFIER = "trace_column"
+    _EVALS_IDENTIFIER = "evals"
 
     VALID_COMPARATORS = {
         "=",
@@ -975,24 +1106,96 @@ class SearchTracesUtils(SearchUtils):
         "IN",
         "NOT IN",
     }
+    VALID_NUMERIC_COMPARATORS = {"=", "!=", ">", ">=", "<", "<="}
+    VALID_STRING_COMPARATORS = {"=", "!=", "LIKE", "ILIKE", "IN", "NOT IN"}
+    VALID_DATE_COMPARATORS = {"=", "!=", ">", ">=", "<", "<="}
+    VALID_STATE_COMPARATORS = {"=", "!=", "IN", "NOT IN"}
 
     @classmethod
     def _get_identifier(cls, identifier_str: str, valid_attributes: set) -> dict:
         identifier_str = cls._trim_backticks(identifier_str.strip())
         parts = identifier_str.split(".", maxsplit=1)
 
-        if len(parts) < 2 or parts[0].lower() != cls.ATTRIBUTES_PREFIX:
+        # bare attribute (no dot) — trace columns or evals
+        if len(parts) == 1:
+            key = cls._trim_backticks(cls._strip_quotes(parts[0])).lower()
+            if key in cls.TRACE_COLUMNS:
+                return {"type": cls._TRACE_COLUMN_IDENTIFIER, "key": key}
+            if key == cls.EVALS_COLUMN:
+                return {"type": cls._EVALS_IDENTIFIER, "key": key}
             raise LumlFilterError(
                 f"Invalid field '{identifier_str}'. "
-                "Trace filters must use the format: attributes.<key>  "
-                f"(e.g. attributes.http.method, attributes.http.status_code)"
+                f"Bare fields: {sorted(cls.TRACE_COLUMNS | {cls.EVALS_COLUMN})}. "
+                "For span attributes use: attributes.<key>. "
+                "For annotations use: annotations.<name>."
             )
 
-        key = cls._trim_backticks(cls._strip_quotes(parts[1]))
-        return {"type": cls._SPAN_ATTR_IDENTIFIER, "key": key}
+        prefix = parts[0].lower()
+        raw_key = parts[1]
+
+        if prefix == cls.ANNOTATION_PREFIX:
+            kind_parts = raw_key.split(".", maxsplit=1)
+            if len(kind_parts) == 2 and kind_parts[0].lower() in cls.ANNOTATION_KINDS:
+                kind_str = kind_parts[0].lower()
+                kind = "expectation" if kind_str == "expectations" else kind_str
+                ann_name = cls._trim_backticks(cls._strip_quotes(kind_parts[1]))
+            else:
+                kind = None
+                ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {"type": cls._ANNOTATION_IDENTIFIER, "kind": kind, "key": ann_name}
+
+        if prefix == cls.ATTRIBUTES_PREFIX:
+            key = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {"type": cls._SPAN_ATTR_IDENTIFIER, "key": key}
+
+        raise LumlFilterError(
+            f"Invalid field prefix '{parts[0]}'. "
+            f"Bare fields: {sorted(cls.TRACE_COLUMNS | {cls.EVALS_COLUMN})}. "
+            "For span attributes use: attributes.<key>. "
+            "For annotations use: annotations.<name>."
+        )
+
+    @classmethod
+    def _resolve_state_value(cls, raw: Any) -> int:  # noqa: ANN401
+        if isinstance(raw, str):
+            mapped = cls.STATE_NAME_MAP.get(raw.lower())
+            if mapped is None:
+                raise LumlFilterError(
+                    f"Invalid state value '{raw}'. "
+                    f"Valid values: {sorted(cls.STATE_NAME_MAP)} or integer 0-3."
+                )
+            return mapped
+        return int(raw)
 
     @classmethod
     def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
+        if identifier_type == cls._TRACE_COLUMN_IDENTIFIER and key == cls.STATE_COLUMN:
+            if token.ttype in cls.NUMERIC_VALUE_TYPES:
+                return int(float(token.value))
+            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+                raw = cls._strip_quotes(token.value, expect_quoted_value=True)
+                return cls._resolve_state_value(raw)
+            if isinstance(token, Parenthesis):
+                items = cls._parse_list_from_sql_token(token)
+                return tuple(cls._resolve_state_value(v) for v in items)
+            raise LumlFilterError(
+                f"Expected state name or integer for 'state'. Got {token.value!r}"
+            )
+
+        if (
+            identifier_type == cls._TRACE_COLUMN_IDENTIFIER
+            and key in cls.DATE_TRACE_COLUMNS
+        ):
+            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+                date_str = cls._strip_quotes(token.value, expect_quoted_value=True)
+                cls._validate_date_string(date_str, key)
+                return date_str
+            if token.ttype in cls.NUMERIC_VALUE_TYPES:
+                return token.value
+            raise LumlFilterError(
+                f"Expected ISO date string for '{key}'. Got {token.value!r}"
+            )
+
         if token.ttype in cls.NUMERIC_VALUE_TYPES:
             return float(token.value)
         if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
@@ -1002,7 +1205,7 @@ class SearchTracesUtils(SearchUtils):
         if cls._is_boolean_token(token):
             return token.value.upper() == "TRUE"
         raise LumlFilterError(
-            f"Expected string or numeric value for attributes.{key}. Got {token.value!r}"
+            f"Expected string or numeric value for '{key}'. Got {token.value!r}"
         )
 
     @classmethod
@@ -1013,10 +1216,25 @@ class SearchTracesUtils(SearchUtils):
         comp = cls._get_identifier(left.value, cls.VALID_SEARCH_ATTRIBUTE_KEYS)
         comparator = comparator_token.value.upper()
 
-        if comparator not in cls.VALID_COMPARATORS:
+        if comp["type"] == cls._TRACE_COLUMN_IDENTIFIER:
+            key = comp["key"]
+            if key in cls.NUMERIC_TRACE_COLUMNS:
+                valid = cls.VALID_NUMERIC_COMPARATORS
+            elif key in cls.DATE_TRACE_COLUMNS:
+                valid = cls.VALID_DATE_COMPARATORS
+            elif key == cls.STATE_COLUMN:
+                valid = cls.VALID_STATE_COMPARATORS
+            else:  # trace_id / id
+                valid = cls.VALID_STRING_COMPARATORS
+        elif comp["type"] == cls._EVALS_IDENTIFIER:
+            valid = cls.VALID_STRING_COMPARATORS
+        else:
+            valid = cls.VALID_COMPARATORS
+
+        if comparator not in valid:
             raise LumlFilterError(
-                f"Invalid comparator '{comparator}' for 'attributes.{comp['key']}'. "
-                f"Valid comparators: {sorted(cls.VALID_COMPARATORS)}"
+                f"Invalid comparator '{comparator}' for '{comp.get('key', '')}'. "
+                f"Valid comparators: {sorted(valid)}"
             )
 
         comp["comparator"] = comparator
@@ -1024,8 +1242,8 @@ class SearchTracesUtils(SearchUtils):
         return comp
 
     @classmethod
-    def _build_inner_sql(cls, parsed_filters: list[dict]) -> tuple[str, list]:
-        """Build the inner WHERE clause that runs against the spans table."""
+    def _build_sql(cls, parsed_filters: list[dict]) -> tuple[str, list]:  # noqa: C901
+        """Build WHERE clause mixing direct trace columns, spans subqueries, and annotation subqueries."""
         sql_parts: list[str] = []
         params: list[Any] = []
 
@@ -1034,28 +1252,118 @@ class SearchTracesUtils(SearchUtils):
                 sql_parts.append(item["operator"])
                 continue
             if "group" in item:
-                sub_sql, sub_params = cls._build_inner_sql(item["group"])
+                sub_sql, sub_params = cls._build_sql(item["group"])
                 sql_parts.append(f"({sub_sql})")
                 params.extend(sub_params)
                 continue
 
+            item_type = item["type"]
             key = item["key"]
             value = item["value"]
             comparator = item["comparator"].upper()
-            expr = f"json_extract(attributes, '$.\"{key}\"')"
+            numeric_comparators = {">", ">=", "<", "<="}
 
-            if comparator == "ILIKE":
-                sql_parts.append(f"UPPER({expr}) LIKE UPPER(?)")
-                params.append(value)
-            elif comparator == "IN":
-                sql_parts.append(f"{expr} IN ({','.join('?' * len(value))})")
-                params.extend(value)
-            elif comparator == "NOT IN":
-                sql_parts.append(f"{expr} NOT IN ({','.join('?' * len(value))})")
-                params.extend(value)
-            else:
-                sql_parts.append(f"{expr} {comparator} ?")
-                params.append(value)
+            if item_type == cls._TRACE_COLUMN_IDENTIFIER:
+                col = "trace_id" if key == "id" else key
+                if key == "execution_time":
+                    sql_parts.append(f"{col} {comparator} ?")
+                    params.append(int(float(value)))
+                elif key == cls.STATE_COLUMN:
+                    if comparator == "IN":
+                        sql_parts.append(f"{col} IN ({','.join('?' * len(value))})")
+                        params.extend(value)
+                    elif comparator == "NOT IN":
+                        sql_parts.append(f"{col} NOT IN ({','.join('?' * len(value))})")
+                        params.extend(value)
+                    else:
+                        sql_parts.append(f"{col} {comparator} ?")
+                        params.append(value)
+                elif key == "trace_id" or key == "id":
+                    if comparator == "ILIKE":
+                        sql_parts.append("UPPER(trace_id) LIKE UPPER(?)")
+                        params.append(value)
+                    elif comparator == "IN":
+                        sql_parts.append(f"trace_id IN ({','.join('?' * len(value))})")
+                        params.extend(value)
+                    elif comparator == "NOT IN":
+                        sql_parts.append(
+                            f"trace_id NOT IN ({','.join('?' * len(value))})"
+                        )
+                        params.extend(value)
+                    else:
+                        sql_parts.append(f"trace_id {comparator} ?")
+                        params.append(value)
+                else:
+                    sql_parts.append(f"{col} {comparator} ?")
+                    params.append(value)
+
+            elif item_type == cls._EVALS_IDENTIFIER:
+                if comparator == "!=":
+                    sql_parts.append(
+                        "trace_id NOT IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id = ?)"
+                    )
+                    params.append(value)
+                elif comparator == "ILIKE":
+                    sql_parts.append(
+                        "trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE UPPER(eval_id) LIKE UPPER(?))"
+                    )
+                    params.append(value)
+                elif comparator in ("LIKE",):
+                    sql_parts.append(
+                        "trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id LIKE ?)"
+                    )
+                    params.append(value)
+                elif comparator == "IN":
+                    sql_parts.append(
+                        f"trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id IN ({','.join('?' * len(value))}))"
+                    )
+                    params.extend(value)
+                elif comparator == "NOT IN":
+                    sql_parts.append(
+                        f"trace_id NOT IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id IN ({','.join('?' * len(value))}))"
+                    )
+                    params.extend(value)
+                else:
+                    sql_parts.append(
+                        "trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id = ?)"
+                    )
+                    params.append(value)
+
+            elif item_type == cls._ANNOTATION_IDENTIFIER:
+                kind = item.get("kind")
+                kind_clause = f" AND annotation_kind = '{kind}'" if kind else ""
+                value_expr, value_params = cls._build_annotation_value_expr(
+                    comparator, value
+                )
+                sql_parts.append(
+                    f"trace_id IN (SELECT DISTINCT trace_id FROM span_annotations"
+                    f" WHERE name = ?{kind_clause} AND {value_expr})"
+                )
+                params.append(key)
+                params.extend(value_params)
+
+            else:  # _SPAN_ATTR_IDENTIFIER
+                expr = f"json_extract(attributes, '$.\"{key}\"')"
+                if comparator == "ILIKE":
+                    sql_parts.append(
+                        f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE UPPER({expr}) LIKE UPPER(?))"
+                    )
+                    params.append(value)
+                elif comparator == "IN":
+                    sql_parts.append(
+                        f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE {expr} IN ({','.join('?' * len(value))}))"
+                    )
+                    params.extend(value)
+                elif comparator == "NOT IN":
+                    sql_parts.append(
+                        f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE {expr} NOT IN ({','.join('?' * len(value))}))"
+                    )
+                    params.extend(value)
+                else:
+                    sql_parts.append(
+                        f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE {expr} {comparator} ?)"
+                    )
+                    params.append(value)
 
         return " ".join(sql_parts), params
 
@@ -1085,25 +1393,31 @@ class SearchTracesUtils(SearchUtils):
 
     @classmethod
     def to_sql(cls, filter_string: str | None) -> tuple[str, list]:  # type: ignore[override]
-        """Parse filter_string into a trace_id subquery WHERE clause.
+        """Parse filter_string into a WHERE clause for the trace summary query.
 
         Returns:
-            (where_clause, params) — where_clause is a complete
-            'trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ...)' expression,
-            or empty string if filter_string is None/empty.
+            (where_clause, params) — direct SQL condition or empty string if filter is None/empty.
 
         Examples:
-            to_sql('attributes.http.method = "GET"')
-            → ("trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE json_extract(attributes, '$.\"http.method\"') = ?)", ["GET"])
+            to_sql('state = "error"')
+            → ('state = ?', [2])
 
-            to_sql('attributes.http.status_code >= 400 AND attributes.http.status_code < 500')
-            → ("trace_id IN (...WHERE json_extract(attributes, '$.\"http.status_code\"') >= ? AND ... < ?)", [400.0, 500.0])
+            to_sql('execution_time > 18000')
+            → ('execution_time > ?', [18000])
+
+            to_sql('span_count >= 3 AND state = "ok"')
+            → ('span_count >= ? AND state = ?', [3.0, 1])
+
+            to_sql('evals = "eval-001"')
+            → ('trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id = ?)', ['eval-001'])
+
+            to_sql('attributes.http.method = "GET"')
+            → ('trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE json_extract(attributes, \'$."http.method"\') = ?)', ['GET'])
+
+            to_sql('annotations.feedback.quality = "true"')
+            → ("trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'feedback' AND value = ?)", ['quality', 'true'])
         """
         parsed = cls.parse_search_filter(filter_string)
         if not parsed:
             return "", []
-        inner_sql, params = cls._build_inner_sql(parsed)
-        return (
-            f"trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE {inner_sql})",
-            params,
-        )
+        return cls._build_sql(parsed)

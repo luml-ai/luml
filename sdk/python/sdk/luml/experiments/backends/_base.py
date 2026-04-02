@@ -110,7 +110,7 @@ class Backend(ABC):
         pass
 
     @abstractmethod
-    def get_attachment(self, experiment_id: str, name: str) -> Any:  # noqa: ANN401
+    def get_attachment(self, experiment_id: str, name: str) -> bytes:
         pass
 
     @abstractmethod
