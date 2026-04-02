@@ -32,17 +32,6 @@ from luml.experiments.backends._search_utils import (
     SearchExperimentsUtils,
     SearchTracesUtils,
 )
-from luml.experiments.backends._sqlite_experiment_ddl import (
-    _DDL_EXPERIMENT_CREATE_ATTACHMENTS,
-    _DDL_EXPERIMENT_CREATE_DYNAMIC,
-    _DDL_EXPERIMENT_CREATE_EVAL_ANNOTATIONS,
-    _DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE,
-    _DDL_EXPERIMENT_CREATE_EVALS,
-    _DDL_EXPERIMENT_CREATE_SPAN_ANNOTATIONS,
-    _DDL_EXPERIMENT_CREATE_SPANS,
-    _DDL_EXPERIMENT_CREATE_STATIC,
-    EXPERIMENT_DDL_VERSION,
-)
 from luml.experiments.backends._sqlite_pagination_mixin import SQLitePaginationMixin
 from luml.experiments.backends.data_types import (
     AnnotationKind,
@@ -71,7 +60,10 @@ from luml.experiments.backends.data_types import (
     TraceState,
     TraceTypedColumns,
 )
-from luml.experiments.backends.migration_runner import MigrationRunner
+from luml.experiments.backends.migration_runner import (
+    ExperimentMigrationRunner,
+    MetaDBMigrationRunner,
+)
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
 
@@ -214,6 +206,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self.meta_db_path = self.base_path / "meta.db"
 
         self.pool = ConnectionPool(10)
+        self._migrated_experiment_dbs: set[str] = set()
 
         self._initialize_meta_db()
         weakref.finalize(self, self._cleanup)
@@ -226,6 +219,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
+        if experiment_id not in self._migrated_experiment_dbs:
+            conn = self._get_experiment_connection(experiment_id)
+            ExperimentMigrationRunner(conn).migrate()
+            self._migrated_experiment_dbs.add(experiment_id)
 
     def _get_meta_connection(self) -> sqlite3.Connection:
         return self.pool.get_connection(self.meta_db_path)
@@ -263,29 +260,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def _initialize_meta_db(self) -> None:
         conn = self._get_meta_connection()
-        runner = MigrationRunner(conn)
-        runner.migrate()
+        MetaDBMigrationRunner(conn).migrate()
 
     def _initialize_experiment_db(self, experiment_id: str) -> None:
         exp_dir = self._get_experiment_dir(experiment_id)
         exp_dir.mkdir(exist_ok=True)
-        attachments_dir = self._get_attachments_dir(experiment_id)
-        attachments_dir.mkdir(exist_ok=True)
+        self._get_attachments_dir(experiment_id).mkdir(exist_ok=True)
 
-        db_path = self._get_experiment_db_path(experiment_id)
-        conn = self.pool.get_connection(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute(_DDL_EXPERIMENT_CREATE_STATIC)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_DYNAMIC)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_ATTACHMENTS)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_SPANS)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_EVALS)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_EVAL_TRACES_BRIDGE)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_EVAL_ANNOTATIONS)
-        cursor.execute(_DDL_EXPERIMENT_CREATE_SPAN_ANNOTATIONS)
-        cursor.execute(f"PRAGMA user_version = {EXPERIMENT_DDL_VERSION}")
-        conn.commit()
+        conn = self.pool.get_connection(self._get_experiment_db_path(experiment_id))
+        ExperimentMigrationRunner(conn).migrate()
+        self._migrated_experiment_dbs.add(experiment_id)
 
     @staticmethod
     def _row_to_model(row: sqlite3.Row) -> Model:
@@ -462,6 +446,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         with file_path.open("wb+" if binary else "w+") as f:
             f.write(data)
+        size = file_path.stat().st_size
 
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
@@ -473,18 +458,18 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         existing = cursor.fetchone()
         if existing and existing[0] is not None:
             cursor.execute(
-                "UPDATE attachments SET file_path = ? WHERE name = ?",
-                (relative_path, name),
+                "UPDATE attachments SET file_path = ?, size = ? WHERE name = ?",
+                (relative_path, size, name),
             )
         elif existing:
             cursor.execute(
-                "UPDATE attachments SET id = ?, file_path = ? WHERE name = ?",
-                (str(uuid.uuid4()), relative_path, name),
+                "UPDATE attachments SET id = ?, file_path = ?, size = ? WHERE name = ?",
+                (str(uuid.uuid4()), relative_path, size, name),
             )
         else:
             cursor.execute(
-                "INSERT INTO attachments (id, name, file_path) VALUES (?, ?, ?)",
-                (str(uuid.uuid4()), name, relative_path),
+                "INSERT INTO attachments (id, name, file_path, size) VALUES (?, ?, ?, ?)",
+                (str(uuid.uuid4()), name, relative_path, size),
             )
 
         conn.commit()
@@ -806,44 +791,66 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, file_path, created_at FROM attachments ORDER BY file_path"
+            "SELECT id, name, file_path, size, created_at FROM attachments ORDER BY file_path"
         )
         return [
             AttachmentRecord(
-                id=id_, name=name, file_path=file_path or "", created_at=created_at
+                id=id_, name=name, file_path=file_path or "", size=size, created_at=created_at
             )
-            for id_, name, file_path, created_at in cursor.fetchall()
+            for id_, name, file_path, size, created_at in cursor.fetchall()
         ]
 
     def list_attachments_tree(
         self, experiment_id: str, parent_path: str | None = None
     ) -> list[FileNode]:
+        """
+        Retrieves a structured representation of the attachments associated with a specific
+        experiment, organized as a tree. Distinguishes between individual files and folders,
+        aggregating folder sizes based on their contents.
+
+        Args:
+            experiment_id: A string representing the identifier for the experiment whose
+                attachments are being queried.
+            parent_path: An optional string representing the parent folder path used as a
+                base for filtering and structuring the attachments. Defaults to None.
+
+        Returns:
+            A list of `FileNode` objects organized into a tree structure. Each `FileNode`
+            represents either a file or a folder. Files have their size specified, while
+            folder sizes are aggregated based on their contents.
+        """
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
+
         prefix = (parent_path.rstrip("/") + "/") if parent_path else ""
+
         if prefix:
             cursor.execute(
-                "SELECT name FROM attachments WHERE name LIKE ? ORDER BY name",
+                "SELECT name, size FROM attachments WHERE name LIKE ? ORDER BY name",
                 (prefix + "%",),
             )
         else:
-            cursor.execute("SELECT name FROM attachments ORDER BY name")
+            cursor.execute("SELECT name, size FROM attachments ORDER BY name")
+
         result: list[FileNode] = []
-        seen_folders: set[str] = set()
-        for (name,) in cursor.fetchall():
-            relative = name[len(prefix) :]
+        folder_sizes: dict[str, int] = {}
+
+        for name, size in cursor.fetchall():
+            relative = name[len(prefix):]
             parts = relative.split("/")
+
             if len(parts) == 1:
-                result.append(FileNode(name=parts[0], type="file", path=name))
+                result.append(FileNode(name=parts[0], type="file", size=size, path=name))
             else:
                 folder_name = parts[0]
                 folder_path = prefix + folder_name
-                if folder_path not in seen_folders:
-                    seen_folders.add(folder_path)
-                    result.append(
-                        FileNode(name=folder_name, type="folder", path=folder_path)
-                    )
+                folder_sizes[folder_path] = folder_sizes.get(folder_path, 0) + (size or 0)
+
+        for folder_path, total_size in folder_sizes.items():
+            folder_name = folder_path[len(prefix):]
+            result.append(FileNode(name=folder_name, type="folder", path=folder_path, size=total_size))
+
         return result
 
     def list_experiments(self) -> list[Experiment]:  # noqa: ANN401

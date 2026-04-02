@@ -15,7 +15,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-from luml.experiments.backends.migration_runner import MigrationRunner
+from luml.experiments.backends.migration_runner import MetaDBMigrationRunner
 from luml.experiments.backends.migrations import MIGRATIONS_DIR
 
 
@@ -35,7 +35,7 @@ def cmd_status(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
-    runner = MigrationRunner(conn)
+    runner = MetaDBMigrationRunner(conn)
     status = runner.get_status()
 
     print(f"Database: {db_path}")  # noqa: T201
@@ -47,7 +47,7 @@ def cmd_status(args: argparse.Namespace) -> None:
         print("\nApplied:")  # noqa: T201
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT version, applied_at FROM schema_migrations ORDER BY version"
+            f"SELECT version, applied_at FROM {runner.table_name} ORDER BY version"
         )
         for version, applied_at in cursor.fetchall():
             print(f"  [{version}] (applied: {applied_at})")  # noqa: T201
@@ -68,7 +68,7 @@ def cmd_migrate(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
-    runner = MigrationRunner(conn)
+    runner = MetaDBMigrationRunner(conn)
 
     pending = runner.get_pending_migrations()
     if not pending:
@@ -102,7 +102,7 @@ def cmd_rollback(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     conn = sqlite3.connect(db_path)
-    runner = MigrationRunner(conn)
+    runner = MetaDBMigrationRunner(conn)
 
     current = runner.get_current_version()
     target = args.target
