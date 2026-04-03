@@ -208,6 +208,13 @@ export class DataAgentApi {
     await this.api.post(`/nodes/${nodeId}/action`, { action, payload })
   }
 
+  async getSessionScrollback(nodeId: string, sessionId: string): Promise<ArrayBuffer> {
+    const { data } = await this.api.get(`/nodes/${nodeId}/sessions/${sessionId}/scrollback`, {
+      responseType: 'arraybuffer',
+    })
+    return data
+  }
+
   async getDebugSessions(): Promise<any[]> {
     const { data } = await this.api.get('/debug/sessions')
     return data
@@ -231,6 +238,14 @@ export class DataAgentApi {
       { validateStatus: (s) => s === 202 || s === 409 },
     )
     return resp.status
+  }
+
+  async postArtifactLink(
+    runId: string,
+    uploadId: string,
+    artifactLink: { artifact_id: string; organization_id: string; orbit_id: string; collection_id: string },
+  ): Promise<void> {
+    await this.api.post(`/runs/${runId}/uploads/${uploadId}/artifact-link`, artifactLink)
   }
 
   createRunWebSocket(runId: string): WebSocket {

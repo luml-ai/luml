@@ -5,15 +5,15 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from luml_agent.config import AppConfig
+from luml_agent.database import Database
 from luml_agent.handlers.node import NodeHandler
 from luml_agent.handlers.repository import RepositoryHandler
 from luml_agent.handlers.run import RunHandler
 from luml_agent.handlers.task import TaskHandler
-from luml_agent.database import Database
+from luml_agent.server import app
 from luml_agent.services.orchestrator.engine import OrchestratorEngine
 from luml_agent.services.orchestrator.registry import register_all_handlers
 from luml_agent.services.pty_manager import PtyManager
-from luml_agent.server import app
 
 
 @pytest.fixture
@@ -77,13 +77,13 @@ async def client(
 
 
 def test_task_position_default_none(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(repo.id, "t", "b", "/wt", "claude")
     assert task.position is None
 
 
 def test_task_update_positions(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     t1 = db.add_task(repo.id, "t1", "b1", "/wt1", "claude")
     t2 = db.add_task(repo.id, "t2", "b2", "/wt2", "claude")
     t3 = db.add_task(repo.id, "t3", "b3", "/wt3", "claude")
@@ -100,7 +100,7 @@ def test_task_update_positions(db: Database) -> None:
 def test_task_list_order_positioned_before_unpositioned(
     db: Database,
 ) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     db.add_task(repo.id, "unpositioned", "b1", "/wt1", "claude")
     t2 = db.add_task(repo.id, "positioned", "b2", "/wt2", "claude")
 
@@ -112,13 +112,13 @@ def test_task_list_order_positioned_before_unpositioned(
 
 
 def test_run_position_default_none(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     run = db.add_run(repo.id, "r", "obj")
     assert run.position is None
 
 
 def test_run_update_positions(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     r1 = db.add_run(repo.id, "r1", "obj1")
     r2 = db.add_run(repo.id, "r2", "obj2")
     r3 = db.add_run(repo.id, "r3", "obj3")

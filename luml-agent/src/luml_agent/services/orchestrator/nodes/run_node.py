@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import re
+from pathlib import Path
 from typing import Any
 
 from luml_agent.services.orchestrator.nodes.base import (
@@ -9,6 +10,8 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeSpawnSpec,
 )
 from luml_agent.services.orchestrator.nodes.result_file import (
+    RESULT_DIR,
+    RESULT_FILENAME,
     parse_stdout_metric,
     read_result_file,
 )
@@ -40,6 +43,10 @@ class RunNodeHandler:
 
         ensure_luml_agent_dir(worktree_path)
 
+        stale_result = Path(worktree_path) / RESULT_DIR / RESULT_FILENAME
+        if stale_result.exists():
+            stale_result.unlink()
+
         command = ["bash", "-c", command_str]
 
         session = ctx.services.pty.spawn(
@@ -50,6 +57,7 @@ class RunNodeHandler:
         )
 
         ctx.services.db.add_node_session(ctx.node_id, session.session_id)
+        ctx.services.engine.notify_session_started(ctx.node_id, session.session_id)
         ctx.services.db.update_node_worktree(
             ctx.node_id, worktree_path, ctx.parent_branch or "",
         )
@@ -78,6 +86,19 @@ class RunNodeHandler:
         scrollback = ctx.services.engine.get_session_scrollback(session.session_id)
         logs = scrollback.decode("utf-8", errors="replace")
 
+        return self._build_result(
+            worktree_path, logs, exit_code,
+            session.session_id, ctx.payload.get("metrics_pattern"),
+        )
+
+    def _build_result(
+        self,
+        worktree_path: str,
+        logs: str,
+        exit_code: int | None,
+        session_id: str,
+        metrics_pattern: str | None = None,
+    ) -> NodeResult:
         result_data = read_result_file(worktree_path)
         stdout_metric = parse_stdout_metric(logs)
 
@@ -89,7 +110,7 @@ class RunNodeHandler:
             model_path = result_data.model_path
         else:
             success = exit_code == 0
-            metrics = self._parse_metrics(logs, ctx.payload.get("metrics_pattern"))
+            metrics = self._parse_metrics(logs, metrics_pattern)
             error_message = ""
             experiment_ids = []
             model_path = None
@@ -102,7 +123,7 @@ class RunNodeHandler:
             "logs": logs[-10000:] if len(logs) > 10000 else logs,
             "metrics": metrics,
             "experiment_ids": experiment_ids,
-            "session_id": session.session_id,
+            "session_id": session_id,
         }
         if stdout_metric is not None:
             artifacts["metric"] = stdout_metric

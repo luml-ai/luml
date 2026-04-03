@@ -1,5 +1,10 @@
 from typing import Any
 
+
+def _esc(s: str) -> str:
+    return s.replace("{", "{{").replace("}", "}}")
+
+
 _GUIDE_REF = (
     "Refer to `.luml-agent/guide.md` in the worktree root "
     "for tooling, CLI usage, and output conventions."
@@ -9,7 +14,8 @@ _ENVIRONMENT_BLOCK = """\
 ## Environment
 - Package manager: `uv`
 - Worktree path: {worktree_path}
-- Base branch: {base_branch}"""
+- Base branch: {base_branch}
+- Run command: `{run_command}`"""
 
 _IMPLEMENT_ROOT = """\
 # Objective
@@ -18,16 +24,46 @@ _IMPLEMENT_ROOT = """\
 
 {environment}
 
+## How This Works
+
+Your job is to **write the code** that accomplishes the objective. \
+You do NOT run the training yourself — after you finish, the orchestrator \
+will automatically execute the run command (`{run_command}`) in a separate \
+step. So implement everything needed so that the run command works \
+end-to-end when executed from the worktree root.
+
 ## Reference
 
 {guide_ref}
 
 ## Guidelines
-- Inspect the repository to understand the existing structure before writing code.
-- Keep a persistent entrypoint (e.g. `main.py`) that can be run \
-with the configured run command.
+- Inspect the repository to understand the existing structure before \
+writing code.
+- Ensure the entrypoint file referenced by the run command exists and \
+works when invoked from the worktree root.
 - Prefer simple, working solutions over complex ones.
-- Write experiment tracking code using `luml` (see guide.md for details)."""
+- Write experiment tracking code using the `luml-sdk` package \
+(import as `luml`, install as `luml-sdk`; see guide.md for details).
+- Save the trained model as a LUML artifact at \
+`.luml-agent/artifact.luml` using \
+`save_sklearn(model, X, path=".luml-agent/artifact.luml")` \
+(or the equivalent for your framework).
+
+## Metric Rules (CRITICAL)
+
+The orchestrator **always maximizes** the reported metric to select the best run. \
+You must follow these rules:
+
+1. **Higher is always better.** If your natural metric should be minimized \
+(e.g. loss, error rate, RMSE), **invert it** before reporting \
+(e.g. report `1 - error_rate`, or `-loss`, or `1 / (1 + rmse)`).
+2. **Choose one primary metric** and add a code comment explaining what it is \
+and how it is computed (e.g. `# Metric: neg_rmse = -RMSE, higher is better`).
+3. **Never change the metric across runs.** If a metric is already defined in \
+the codebase, use the exact same name and calculation. Check existing code \
+and `.luml-agent/result.json` from prior runs before defining a new metric.
+4. Report the metric in `.luml-agent/result.json` under `"metrics"` \
+(see guide.md for the schema)."""
 
 _IMPLEMENT_FORK_CHILD = """\
 # Task
@@ -36,21 +72,43 @@ _IMPLEMENT_FORK_CHILD = """\
 
 ## Background Context
 
-The original objective for this run (for context only — follow the task above):
+The original objective for this run (for context only — follow the \
+task above):
 
 > {objective}
 
 {environment}
 
+## How This Works
+
+Your job is to **write the code** that accomplishes the task. \
+You do NOT run the training yourself — after you finish, the \
+orchestrator will automatically execute the run command shown above \
+in a separate step. Implement everything needed so that the run \
+command works end-to-end from the worktree root.
+
 ## Reference
 
 {guide_ref}
 
-## Metric Consistency
+## Metric Rules (CRITICAL)
 
-You MUST use the same metric name(s) and calculation as the parent experiment \
-so results are comparable.
-Required metric(s): {metric_keys}
+The orchestrator **always maximizes** the reported metric. You MUST:
+1. Use the **exact same metric name(s) and calculation** as the \
+parent experiment. Required metric(s): {metric_keys}
+2. If the metric inverts a natural loss (e.g. `-RMSE`), keep the \
+same inversion.
+3. Do NOT rename, redefine, or add new primary metrics — results \
+must be comparable.
+4. Check the parent experiment with `luml-inspect` if unsure \
+about the metric definition.
+
+## Output Requirements
+
+Your code must produce these when run via the run command:
+- `.luml-agent/result.json` with metrics and experiment IDs (see guide.md)
+- `.luml-agent/artifact.luml` — the LUML model artifact \
+(e.g. `save_sklearn(model, X, path=".luml-agent/artifact.luml")`)
 
 ## Parent Experiments
 
@@ -71,32 +129,43 @@ diverse approaches to improve on it.
 ## Parent Experiments
 
 The following experiment IDs are from the parent run. \
-Use `luml-inspect show <id>` or `luml-inspect metrics <id> <key>` to investigate:
+Use the bash tool to run `luml-inspect` commands and investigate them:
 {experiment_ids}
 
-## Run Artifacts
+For example:
+- `luml-inspect show <id>` — full experiment details
+- `luml-inspect metrics <id> <key>` — metric history
+- `luml-inspect params <id>` — parameters used
+- `luml-inspect compare <id1> <id2>` — side-by-side comparison
 
-{run_artifacts}
+## CRITICAL RULES
 
-## Reference
-
-{guide_ref}
+1. **Do NOT modify any code files.** No changes to `.py`, `.toml`, \
+`.json`, or any other source files. The ONLY file you create is \
+`.luml-agent/fork.json`.
+2. **Use `luml-inspect` via bash** to understand what the parent \
+experiment did, what metrics it achieved, and what parameters it used.
+3. Based on your analysis, write diverse proposals to \
+`.luml-agent/fork.json`.
 
 ## Guidelines
-- Explore diverse strategies (e.g. different algorithms, hyperparameter ranges, \
-data preprocessing, feature engineering).
-- Each proposal must be self-contained — an agent receiving only that proposal \
-and the original objective should be able to implement it.
-- Preserve metric consistency: instruct each proposal to use the same metric \
-name(s) and calculation as the parent so results are comparable. \
-Metric(s) to preserve: {metric_keys}
-- Do NOT simply re-run the same approach with minor tweaks — each proposal should \
-represent a meaningfully different direction.
+- Explore diverse strategies (e.g. different algorithms, hyperparameter \
+ranges, data preprocessing, feature engineering).
+- Each proposal must be self-contained — an agent receiving only that \
+proposal and the original objective should be able to implement it.
+- Preserve metric consistency: instruct each proposal to use the exact \
+same metric name(s) and calculation as the parent (the orchestrator \
+always maximizes). Metric(s) to preserve: {metric_keys}
+- Do NOT simply re-run the same approach with minor tweaks — each \
+proposal should represent a meaningfully different direction.
 
 ## Output Format
 
-Write your proposals to `.luml-agent/fork.json` in the worktree root.
-It must be a JSON array of objects with `"prompt"` (str) and `"title"` (str):
+Write ONLY `.luml-agent/fork.json` in the worktree root. \
+No other files may be created or modified.
+
+It must be a JSON array of objects with `"prompt"` (str) and \
+`"title"` (str):
 
 ```json
 [
@@ -143,10 +212,12 @@ The previous run command failed.
 def _format_environment(
     worktree_path: str,
     base_branch: str,
+    run_command: str = "",
 ) -> str:
     return _ENVIRONMENT_BLOCK.format(
         worktree_path=worktree_path,
         base_branch=base_branch,
+        run_command=run_command or "(not configured)",
     )
 
 
@@ -161,7 +232,8 @@ def build_implement_prompt(
     worktree_path: str = "",
     base_branch: str = "",
 ) -> str:
-    environment = _format_environment(worktree_path, base_branch)
+    run_command = run_config.get("run_command_template", "")
+    environment = _format_environment(worktree_path, base_branch, run_command)
 
     if _is_fork_child(payload):
         proposal = payload["proposal"]
@@ -178,18 +250,19 @@ def build_implement_prompt(
         )
 
         return _IMPLEMENT_FORK_CHILD.format(
-            proposal=prompt_text,
-            objective=objective,
+            proposal=_esc(prompt_text),
+            objective=_esc(objective),
             environment=environment,
             guide_ref=_GUIDE_REF,
-            metric_keys=metric_keys_str,
-            experiment_ids=exp_ids_str,
+            metric_keys=_esc(metric_keys_str),
+            experiment_ids=_esc(exp_ids_str),
         )
 
     objective = payload.get("prompt", "")
     return _IMPLEMENT_ROOT.format(
-        objective=objective,
+        objective=_esc(objective),
         environment=environment,
+        run_command=_esc(run_command or "(not configured)"),
         guide_ref=_GUIDE_REF,
     )
 
@@ -212,9 +285,9 @@ def build_debug_prompt(
 
     return _DEBUG.format(
         exit_code=exit_code,
-        objective=objective,
-        git_diff=git_diff,
-        log_tail=log_tail,
+        objective=_esc(objective),
+        git_diff=_esc(git_diff),
+        log_tail=_esc(log_tail),
         max_log_tail=max_log_tail,
         guide_ref=_GUIDE_REF,
     )
@@ -225,7 +298,6 @@ def build_fork_prompt(
     run_config: dict[str, Any],
 ) -> str:
     objective = payload.get("objective", "")
-    context_info = payload.get("context", "")
     experiment_ids = payload.get("experiment_ids", [])
     metric_keys = payload.get("discovered_metric_keys", [])
     max_children = run_config.get("max_children_per_fork", 3)
@@ -236,13 +308,10 @@ def build_fork_prompt(
         else "- (none available)"
     )
     metric_keys_str = ", ".join(metric_keys) if metric_keys else "(none specified)"
-    run_artifacts = context_info if context_info else "(no artifacts from parent run)"
 
     return _FORK.format(
         max_children=max_children,
-        objective=objective,
-        experiment_ids=exp_ids_str,
-        run_artifacts=run_artifacts,
-        guide_ref=_GUIDE_REF,
-        metric_keys=metric_keys_str,
+        objective=_esc(objective),
+        experiment_ids=_esc(exp_ids_str),
+        metric_keys=_esc(metric_keys_str),
     )

@@ -134,6 +134,20 @@ Flags:
 
 ---
 
+## How the Run Node Works
+
+After the implement agent finishes, the orchestrator automatically executes the configured **run command** (shown in the Environment block of the prompt, e.g. `uv run main.py`) in the worktree root directory.
+
+The run command is executed in a clean environment — the worktree's own virtual environment is used, not the server's. The command must exit 0 for the run to be considered successful.
+
+**Important:**
+- The entrypoint file referenced by the run command must exist (e.g., if the command is `uv run main.py`, there must be a `main.py` at the worktree root).
+- The run command is executed from the worktree root, so all imports and file paths should be relative to that directory.
+- Any stale `.luml-agent/result.json` from the implement phase is cleared before the run starts. The run command must write a fresh `result.json` to report metrics and experiment IDs.
+- If no `result.json` is written, the run node falls back to the exit code (0 = success) and parses stdout for metrics.
+
+---
+
 ## `.luml-agent/result.json` Schema
 
 The training code writes this file after execution. The run node reads it to extract results.
@@ -147,9 +161,6 @@ The training code writes this file after execution. The run node reads it to ext
     "accuracy": 0.92,
     "f1_score": 0.88
   },
-  "artifacts": {
-    "model_path": "model.luml"
-  },
   "error_message": ""
 }
 ```
@@ -162,14 +173,40 @@ The training code writes this file after execution. The run node reads it to ext
 | `experiment_id` | `string` | No | Single experiment ID (use for single-experiment runs) |
 | `experiment_ids` | `string[]` | No | Multiple experiment IDs (use for grid search / multi-experiment runs) |
 | `metrics` | `dict[string, float]` | No | Named metrics (e.g. `{"accuracy": 0.92}`) |
-| `artifacts.model_path` | `string` | No | Path to the trained model file (relative to worktree) |
 | `error_message` | `string` | No | Error description if `success` is `false` |
 
 ### Notes
 
 - Use `experiment_id` (singular) for single-experiment runs and `experiment_ids` (list) for multi-experiment runs. Both are normalized to a list internally.
 - For backward compatibility, a top-level `"metric": 0.5` (float) is accepted and treated as `{"metric": 0.5}`.
-- The `model_path` can also be specified at the top level: `"model_path": "model.luml"`.
+
+---
+
+## `.luml-agent/artifact.luml` — Model Artifact for Upload
+
+When a workflow is configured with collection upload, the system uploads the file at `.luml-agent/artifact.luml` in the worktree root. This must be a LUML-format model (`.luml` TAR archive) created with `save_sklearn()`, `save_lightgbm()`, or equivalent.
+
+After training and saving the model, use `link_to_model()` to embed experiment data, then save the artifact to the well-known path:
+
+```python
+from pathlib import Path
+from luml import ExperimentTracker
+from luml.integrations.sklearn import save_sklearn
+
+tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml-agent/experiments")
+exp_id = tracker.start_experiment(name="my-experiment")
+# ... training ...
+tracker.log_metrics({"accuracy": 0.92}, step=0)
+
+model_ref = save_sklearn(model, X_train, path=".luml-agent/artifact.luml")
+tracker.link_to_model(model_ref)
+tracker.set_status("completed")
+```
+
+The upload is triggered automatically when:
+1. The run succeeds with `experiment_ids` in result.json
+2. `.luml-agent/artifact.luml` exists in the worktree
+3. The workflow has a collection configured
 
 ---
 
@@ -203,6 +240,8 @@ Each element in the array:
 
 ## ExperimentTracker Convention
 
+**PyPI package:** `luml-sdk` (import as `from luml import ExperimentTracker`)
+
 All experiments are stored in a shared global database at:
 
 ```
@@ -211,16 +250,17 @@ All experiments are stored in a shared global database at:
 
 ### Connection String
 
-```
-sqlite://~/.luml-agent/experiments
+```python
+f"sqlite://{Path.home()}/.luml-agent/experiments"
 ```
 
 ### Usage in Training Code
 
 ```python
+from pathlib import Path
 from luml import ExperimentTracker
 
-tracker = ExperimentTracker("sqlite://~/.luml-agent/experiments")
+tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml-agent/experiments")
 exp = tracker.create_experiment(name="my-experiment")
 exp.log_params({"learning_rate": 0.01, "batch_size": 32})
 

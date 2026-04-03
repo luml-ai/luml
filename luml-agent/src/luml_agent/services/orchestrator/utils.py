@@ -34,9 +34,8 @@ def _has_luml_dependency(pyproject_path: Path) -> bool:
     for line in text.splitlines():
         stripped = line.strip().rstrip(",").strip().strip('"').strip("'")
         if (
-            stripped == "luml"
-            or stripped.startswith("luml>=")
-            or stripped.startswith("luml[")
+            stripped in ("luml", "luml-sdk")
+            or stripped.startswith(("luml>=", "luml[", "luml-sdk>=", "luml-sdk["))
         ):
             return True
     return False
@@ -56,7 +55,7 @@ def ensure_luml_dependency(worktree_path: str) -> None:
 
     try:
         subprocess.run(
-            ["uv", "add", "luml"],
+            ["uv", "add", "luml-sdk"],
             cwd=worktree_path,
             check=True,
             capture_output=True,

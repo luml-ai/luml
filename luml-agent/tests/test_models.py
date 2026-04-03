@@ -1,7 +1,7 @@
 import pytest
-from sqlalchemy.exc import IntegrityError
 
 from luml_agent.database import Database, TaskStatus
+from luml_agent.infra.exceptions import InvalidOperationError
 
 
 @pytest.fixture
@@ -10,7 +10,7 @@ def db() -> Database:
 
 
 def test_add_and_get_repository(db: Database) -> None:
-    repo = db.add_repository("test-proj", "/tmp/test", "main")
+    repo = db.add_repository("test-proj", "/tmp/test")
     assert repo.id is not None
     assert repo.name == "test-proj"
     fetched = db.get_repository(repo.id)
@@ -19,8 +19,8 @@ def test_add_and_get_repository(db: Database) -> None:
 
 
 def test_list_repositories(db: Database) -> None:
-    db.add_repository("alpha", "/tmp/a", "main")
-    db.add_repository("beta", "/tmp/b", "develop")
+    db.add_repository("alpha", "/tmp/a")
+    db.add_repository("beta", "/tmp/b")
     repos = db.list_repositories()
     assert len(repos) == 2
     names = [p.name for p in repos]
@@ -29,7 +29,7 @@ def test_list_repositories(db: Database) -> None:
 
 
 def test_remove_repository_cascades_tasks(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     db.add_task(
         repository_id=repo.id,
         name="task1",
@@ -43,7 +43,7 @@ def test_remove_repository_cascades_tasks(db: Database) -> None:
 
 
 def test_add_and_get_task(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(
         repository_id=repo.id,
         name="fix-bug",
@@ -62,8 +62,8 @@ def test_add_and_get_task(db: Database) -> None:
 
 
 def test_list_tasks_by_repository(db: Database) -> None:
-    p1 = db.add_repository("p1", "/tmp/p1", "main")
-    p2 = db.add_repository("p2", "/tmp/p2", "main")
+    p1 = db.add_repository("p1", "/tmp/p1")
+    p2 = db.add_repository("p2", "/tmp/p2")
     db.add_task(p1.id, "t1", "b1", "/wt1", "claude")
     db.add_task(p1.id, "t2", "b2", "/wt2", "codex")
     db.add_task(p2.id, "t3", "b3", "/wt3", "claude")
@@ -74,7 +74,7 @@ def test_list_tasks_by_repository(db: Database) -> None:
 
 
 def test_update_task_status(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(repo.id, "t", "b", "/wt", "claude")
     db.update_task_status(task.id, TaskStatus.SUCCEEDED)
     updated = db.get_task(task.id)
@@ -82,7 +82,7 @@ def test_update_task_status(db: Database) -> None:
 
 
 def test_update_task_tmux_session(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(repo.id, "t", "b", "/wt", "claude")
     db.update_task_tmux_session(task.id, "new-session")
     updated = db.get_task(task.id)
@@ -90,7 +90,7 @@ def test_update_task_tmux_session(db: Database) -> None:
 
 
 def test_remove_task(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(repo.id, "t", "b", "/wt", "claude")
     db.remove_task(task.id)
     assert db.get_task(task.id) is None
@@ -105,13 +105,13 @@ def test_get_nonexistent_task(db: Database) -> None:
 
 
 def test_repository_unique_path(db: Database) -> None:
-    db.add_repository("p1", "/tmp/unique", "main")
-    with pytest.raises(IntegrityError):
-        db.add_repository("p2", "/tmp/unique", "main")
+    db.add_repository("p1", "/tmp/unique")
+    with pytest.raises(InvalidOperationError):
+        db.add_repository("p2", "/tmp/unique")
 
 
 def test_task_timestamps_set(db: Database) -> None:
-    repo = db.add_repository("proj", "/tmp/p", "main")
+    repo = db.add_repository("proj", "/tmp/p")
     task = db.add_task(repo.id, "t", "b", "/wt", "claude")
     assert task.created_at
     assert task.updated_at

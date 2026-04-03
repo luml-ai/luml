@@ -90,7 +90,6 @@ export interface RunConfig {
   fork_timeout: number
   max_log_tail: number
   primary_metric: string
-  metric_direction: string
   luml_collection_id: string | null
   luml_organization_id: string | null
   luml_orbit_id: string | null
@@ -119,6 +118,8 @@ export interface UploadReadyEvent {
   collection_id: string
   organization_id: string
   orbit_id: string
+  manifest: Record<string, any>
+  file_index: Record<string, [number, number]>
 }
 
 export interface Run {
@@ -194,7 +195,6 @@ export interface RunCreate {
   debug_timeout?: number
   fork_timeout?: number
   primary_metric?: string
-  metric_direction?: string
   luml_collection_id?: string
   luml_organization_id?: string
   luml_orbit_id?: string

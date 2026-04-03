@@ -22,8 +22,15 @@ const uploadFlow = useUploadFlow()
 
 const terminalSessionId = ref<string | null>(null)
 const terminalLabel = ref('Terminal')
+const terminalReadonly = ref(false)
 const showTerminal = ref(false)
 const showMergeDialog = ref(false)
+
+const nodeArtifact = computed(() => {
+  const nodeId = store.selectedNode?.id
+  if (!nodeId) return undefined
+  return uploadFlow.getNodeArtifact(nodeId)
+})
 
 const canMerge = computed(() => {
   const run = store.selectedRun
@@ -89,6 +96,8 @@ function onRetryUpload(uploadId: string) {
     collection_id: run.config.luml_collection_id!,
     organization_id: run.config.luml_organization_id!,
     orbit_id: run.config.luml_orbit_id!,
+    manifest: {},
+    file_index: {},
   }
   uploadFlow.retryUpload(uploadId, event)
 }
@@ -110,9 +119,10 @@ async function onMerged() {
   store.updateRun(run)
 }
 
-function openTerminalDialog(sessionId: string, label?: string) {
+function openTerminalDialog(sessionId: string, label?: string, readonly = false) {
   terminalSessionId.value = sessionId
   terminalLabel.value = label ?? 'Terminal'
+  terminalReadonly.value = readonly
   showTerminal.value = true
 }
 
@@ -121,10 +131,10 @@ function closeTerminal() {
   terminalSessionId.value = null
 }
 
-function onAttachTerminal(sessionId: string) {
+function onAttachTerminal(sessionId: string, readonly = false) {
   const node = store.selectedNode
   const label = node ? `${node.node_type} #${node.id}` : 'Terminal'
-  openTerminalDialog(sessionId, label)
+  openTerminalDialog(sessionId, label, readonly)
 }
 
 function onGraphOpenTerminal(sessionId: string, label: string) {
@@ -221,6 +231,7 @@ onUnmounted(() => {
         >
           <div class="node-sidebar">
             <NodeDetail
+              :artifact="nodeArtifact"
               @attach-terminal="onAttachTerminal"
               @close="closeNodeDetail"
             />
@@ -258,8 +269,10 @@ onUnmounted(() => {
       <TerminalPanel
         v-if="terminalSessionId"
         :session-id="terminalSessionId"
+        :node-id="store.selectedNode?.id ?? ''"
         :active="showTerminal"
         :task-name="terminalLabel"
+        :readonly="terminalReadonly"
       />
     </Dialog>
   </div>

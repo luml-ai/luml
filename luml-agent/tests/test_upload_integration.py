@@ -20,6 +20,10 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeResult,
     NodeSpawnSpec,
 )
+from luml_agent.services.orchestrator.nodes.result_file import (
+    ARTIFACT_FILENAME,
+    RESULT_DIR,
+)
 from luml_agent.services.orchestrator.registry import NodeRegistry
 from luml_agent.services.pty_manager import PtyManager
 from luml_agent.services.upload_queue import UploadQueue, UploadStatus
@@ -77,10 +81,18 @@ def upload_queue(tmp_path: Path) -> UploadQueue:
 
 
 @pytest.fixture
-def model_file(tmp_path: Path) -> Path:
-    f = tmp_path / "model.luml"
-    f.write_bytes(b"model-data")
-    return f
+def worktree_with_artifact(tmp_path: Path) -> Path:
+    wt = tmp_path / "worktree"
+    agent_dir = wt / RESULT_DIR
+    agent_dir.mkdir(parents=True)
+    artifact = agent_dir / ARTIFACT_FILENAME
+    artifact.write_bytes(b"model-data")
+    return wt
+
+
+@pytest.fixture
+def model_file(worktree_with_artifact: Path) -> Path:
+    return worktree_with_artifact / RESULT_DIR / ARTIFACT_FILENAME
 
 
 @pytest.fixture
@@ -114,7 +126,7 @@ class TestUploadEnqueueOnSuccessfulRun:
         db: Database,
         registry: NodeRegistry,
         upload_queue: UploadQueue,
-        model_file: Path,
+        worktree_with_artifact: Path,
     ) -> None:
         pid = db.list_repositories()[0].id
         registry.register(MockNodeHandler("implement"))
@@ -127,7 +139,6 @@ class TestUploadEnqueueOnSuccessfulRun:
                     "experiment_ids": ["exp-1", "exp-2"],
                     "metrics": {"accuracy": 0.92},
                     "metric": 0.92,
-                    "model_path": str(model_file),
                 },
             ),
         ))
@@ -142,7 +153,9 @@ class TestUploadEnqueueOnSuccessfulRun:
             pid, "test", "objective", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "test-branch")
+        db.update_node_worktree(
+            nodes[0].id, str(worktree_with_artifact), "test-branch",
+        )
 
         await engine.start_run(run_id)
         await engine._schedule_tick()
@@ -154,7 +167,10 @@ class TestUploadEnqueueOnSuccessfulRun:
         assert len(pending) == 1
         assert pending[0].run_id == run_id
         assert pending[0].experiment_ids == ["exp-1", "exp-2"]
-        assert pending[0].model_path == str(model_file)
+        expected_path = str(
+            worktree_with_artifact / RESULT_DIR / ARTIFACT_FILENAME,
+        )
+        assert pending[0].model_path == expected_path
 
     @pytest.mark.asyncio
     async def test_emits_upload_ready_event(
@@ -162,7 +178,7 @@ class TestUploadEnqueueOnSuccessfulRun:
         engine: OrchestratorEngine,
         db: Database,
         registry: NodeRegistry,
-        model_file: Path,
+        worktree_with_artifact: Path,
     ) -> None:
         pid = db.list_repositories()[0].id
         registry.register(MockNodeHandler("implement"))
@@ -175,7 +191,6 @@ class TestUploadEnqueueOnSuccessfulRun:
                     "experiment_ids": ["exp-1"],
                     "metrics": {"accuracy": 0.9},
                     "metric": 0.9,
-                    "model_path": str(model_file),
                 },
             ),
         ))
@@ -190,7 +205,9 @@ class TestUploadEnqueueOnSuccessfulRun:
             pid, "test", "obj", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "br")
+        db.update_node_worktree(
+            nodes[0].id, str(worktree_with_artifact), "br",
+        )
 
         queue = engine.subscribe(run_id)
 
@@ -224,7 +241,7 @@ class TestNoUploadWithoutRequiredFields:
         db: Database,
         registry: NodeRegistry,
         upload_queue: UploadQueue,
-        model_file: Path,
+        worktree_with_artifact: Path,
     ) -> None:
         pid = db.list_repositories()[0].id
         registry.register(MockNodeHandler("implement"))
@@ -237,7 +254,6 @@ class TestNoUploadWithoutRequiredFields:
                     "experiment_ids": ["exp-1"],
                     "metrics": {"accuracy": 0.9},
                     "metric": 0.9,
-                    "model_path": str(model_file),
                 },
             ),
         ))
@@ -247,7 +263,9 @@ class TestNoUploadWithoutRequiredFields:
             pid, "test", "obj", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "br")
+        db.update_node_worktree(
+            nodes[0].id, str(worktree_with_artifact), "br",
+        )
 
         await engine.start_run(run_id)
         await engine._schedule_tick()
@@ -259,13 +277,17 @@ class TestNoUploadWithoutRequiredFields:
         assert len(pending) == 0
 
     @pytest.mark.asyncio
-    async def test_no_enqueue_without_model_path(
+    async def test_no_enqueue_without_artifact_file(
         self,
         engine: OrchestratorEngine,
         db: Database,
         registry: NodeRegistry,
         upload_queue: UploadQueue,
+        tmp_path: Path,
     ) -> None:
+        wt = tmp_path / "empty-worktree"
+        wt.mkdir()
+
         pid = db.list_repositories()[0].id
         registry.register(MockNodeHandler("implement"))
         registry.register(MockNodeHandler("fork"))
@@ -289,7 +311,7 @@ class TestNoUploadWithoutRequiredFields:
             pid, "test", "obj", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "br")
+        db.update_node_worktree(nodes[0].id, str(wt), "br")
 
         await engine.start_run(run_id)
         await engine._schedule_tick()
@@ -307,7 +329,7 @@ class TestNoUploadWithoutRequiredFields:
         db: Database,
         registry: NodeRegistry,
         upload_queue: UploadQueue,
-        model_file: Path,
+        worktree_with_artifact: Path,
     ) -> None:
         pid = db.list_repositories()[0].id
         registry.register(MockNodeHandler("implement"))
@@ -320,7 +342,6 @@ class TestNoUploadWithoutRequiredFields:
                     "experiment_ids": [],
                     "metrics": {"accuracy": 0.9},
                     "metric": 0.9,
-                    "model_path": str(model_file),
                 },
             ),
         ))
@@ -333,7 +354,9 @@ class TestNoUploadWithoutRequiredFields:
             pid, "test", "obj", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "br")
+        db.update_node_worktree(
+            nodes[0].id, str(worktree_with_artifact), "br",
+        )
 
         await engine.start_run(run_id)
         await engine._schedule_tick()
@@ -628,7 +651,7 @@ class TestEngineWithoutUploadQueue:
         db: Database,
         pty: PtyManager,
         registry: NodeRegistry,
-        model_file: Path,
+        worktree_with_artifact: Path,
     ) -> None:
         engine = OrchestratorEngine(db=db, pty=pty, registry=registry)
         registry.register(MockNodeHandler("implement"))
@@ -641,7 +664,6 @@ class TestEngineWithoutUploadQueue:
                     "experiment_ids": ["exp-1"],
                     "metrics": {"accuracy": 0.9},
                     "metric": 0.9,
-                    "model_path": str(model_file),
                 },
             ),
         ))
@@ -655,7 +677,9 @@ class TestEngineWithoutUploadQueue:
             pid, "test", "obj", config, {"prompt": "test"},
         )
         nodes = db.list_run_nodes(run_id)
-        db.update_node_worktree(nodes[0].id, "/tmp/wt", "br")
+        db.update_node_worktree(
+            nodes[0].id, str(worktree_with_artifact), "br",
+        )
 
         await engine.start_run(run_id)
         await engine._schedule_tick()

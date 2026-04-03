@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from luml_agent.database import Database
@@ -16,6 +17,10 @@ from luml_agent.services.orchestrator.nodes.base import (
     NodeExecutionContext,
     NodeResult,
     NodeServices,
+)
+from luml_agent.services.orchestrator.nodes.result_file import (
+    ARTIFACT_FILENAME,
+    RESULT_DIR,
 )
 from luml_agent.services.orchestrator.registry import NodeRegistry
 from luml_agent.services.orchestrator.utils import ensure_global_luml_dir
@@ -61,50 +66,25 @@ class OrchestratorEngine:
             if run.status != RunStatus.RUNNING:
                 continue
             nodes = self._db.list_run_nodes(run.id)
-            recovered = False
             for node in nodes:
                 if node.status in (NodeStatus.RUNNING, NodeStatus.WAITING_INPUT):
-                    logger.warning(
-                        "Recovery: marking orphaned node %s (run %s) as failed",
+                    logger.info(
+                        "Recovery: re-queuing orphaned node %s (run %s)",
                         node.id, run.id,
                     )
-                    self._db.update_node_status(node.id, NodeStatus.FAILED)
-                    self._db.update_node_result(
-                        node.id,
-                        json.dumps({"error": "Orphaned after server restart"}),
-                    )
+                    self._db.update_node_status(node.id, NodeStatus.QUEUED)
                     self._emit_event(
                         run.id, node.id, "node_status_changed",
-                        {"status": NodeStatus.FAILED},
+                        {"status": NodeStatus.QUEUED},
                     )
-                    recovered = True
-            if recovered:
-                all_terminal = all(
-                    self._db.get_run_node(n.id).status in _TERMINAL_STATUSES  # type: ignore[union-attr]
-                    for n in nodes
-                )
-                if all_terminal:
-                    any_success = any(
-                        self._db.get_run_node(n.id).status == NodeStatus.SUCCEEDED  # type: ignore[union-attr]
-                        for n in nodes
-                    )
-                    new_status = (
-                        RunStatus.SUCCEEDED if any_success
-                        else RunStatus.FAILED
-                    )
-                    self._db.update_run_status(run.id, new_status)
-                    self._emit_event(
-                        run.id, None, "run_status_changed",
-                        {"status": new_status},
-                    )
-                    logger.info("Recovery: run %s marked as %s", run.id, new_status)
 
     async def stop(self) -> None:
         if self._scheduler_task:
             self._scheduler_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._scheduler_task
-        for _node_id, task in list(self._running_nodes.items()):
+        for node_id, task in list(self._running_nodes.items()):
+            self._db.update_node_status(node_id, NodeStatus.QUEUED)
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -235,9 +215,30 @@ class OrchestratorEngine:
     ) -> None:
         self._session_exit_codes[session_id] = exit_code
         self._session_scrollback[session_id] = scrollback
+        self._persist_scrollback(session_id, scrollback)
         event = self._session_exit_events.pop(session_id, None)
         if event is not None:
             event.set()
+
+    @staticmethod
+    def _persist_scrollback(session_id: str, scrollback: bytes) -> None:
+        if not scrollback:
+            return
+        try:
+            sessions_dir = Path.home() / ".luml-agent" / "sessions"
+            sessions_dir.mkdir(parents=True, exist_ok=True)
+            (sessions_dir / f"{session_id}.log").write_bytes(scrollback)
+        except Exception:
+            logger.warning(
+                "Failed to persist scrollback for %s", session_id, exc_info=True,
+            )
+
+    @staticmethod
+    def load_scrollback(session_id: str) -> bytes:
+        path = Path.home() / ".luml-agent" / "sessions" / f"{session_id}.log"
+        if path.exists():
+            return path.read_bytes()
+        return b""
 
     def get_session_exit_code(self, session_id: str) -> int | None:
         return self._session_exit_codes.get(session_id)
@@ -411,10 +412,9 @@ class OrchestratorEngine:
             logger.exception("Node %s execution failed", node.id)
             result = NodeResult(success=False, error_message=str(exc))
 
-        if node.node_type in (NodeType.IMPLEMENT, NodeType.DEBUG):
-            refreshed = self._db.get_run_node(node.id)
-            if refreshed:
-                node = refreshed
+        refreshed = self._db.get_run_node(node.id)
+        if refreshed:
+            node = refreshed
 
         self._waiting_input_nodes.discard(node.id)
         new_status = NodeStatus.SUCCEEDED if result.success else NodeStatus.FAILED
@@ -452,15 +452,13 @@ class OrchestratorEngine:
             arts = result.artifacts or {}
             experiment_ids = arts.get("experiment_ids", [])
             metrics = arts.get("metrics", {})
-            model_path = arts.get("model_path")
             discovered_keys = sorted(metrics) if metrics else []
 
             self._record_discovered_metric_keys(run_id, discovered_keys)
 
-            if config.luml_collection_id and experiment_ids and model_path:
-                self._enqueue_upload(
-                    run_id, node.id, model_path, experiment_ids, config,
-                )
+            self._maybe_upload(
+                run_id, node, experiment_ids, config,
+            )
 
             self._spawn_child(run_id, node, NodeType.FORK, {
                 "objective": self._get_run_objective(run_id),
@@ -632,8 +630,20 @@ class OrchestratorEngine:
             return
         all_terminal = all(n.status in _TERMINAL_STATUSES for n in nodes)
         if all_terminal:
-            any_success = any(n.status == NodeStatus.SUCCEEDED for n in nodes)
-            new_status = RunStatus.SUCCEEDED if any_success else RunStatus.FAILED
+            run_nodes = [n for n in nodes if n.node_type == NodeType.RUN]
+            any_run_succeeded = any(
+                n.status == NodeStatus.SUCCEEDED for n in run_nodes
+            )
+            any_fork_failed = any(
+                n.node_type == NodeType.FORK
+                and n.status == NodeStatus.FAILED
+                for n in nodes
+            )
+            new_status = (
+                RunStatus.SUCCEEDED
+                if any_run_succeeded and not any_fork_failed
+                else RunStatus.FAILED
+            )
             logger.info(
                 "Run %s completed: %s (%d nodes)",
                 run_id, new_status, len(nodes),
@@ -642,7 +652,7 @@ class OrchestratorEngine:
             config = self._load_config(run.config_json)
             best_node_id = (
                 self._compute_best_node(nodes, config)
-                if any_success else None
+                if any_run_succeeded else None
             )
             if best_node_id:
                 self._db.update_run_best_node(run_id, best_node_id)
@@ -657,7 +667,6 @@ class OrchestratorEngine:
         self, nodes: list[RunNodeOrm], config: RunConfig | None = None,
     ) -> str | None:
         primary_metric = config.primary_metric if config else "metric"
-        use_min = config is not None and config.metric_direction == "min"
 
         best_metric: float | None = None
         best_node_id: str | None = None
@@ -666,12 +675,7 @@ class OrchestratorEngine:
             metric = self._extract_node_metric(node, primary_metric)
             if metric is None:
                 continue
-            is_better = (
-                best_metric is None
-                or (use_min and metric < best_metric)
-                or (not use_min and metric > best_metric)
-            )
-            if is_better:
+            if best_metric is None or metric > best_metric:
                 best_metric = metric
                 best_node_id = node.id
 
@@ -703,6 +707,41 @@ class OrchestratorEngine:
             return float(fallback)
         return None
 
+    def _find_artifact(self, node: RunNodeOrm) -> str | None:
+        worktree = node.worktree_path
+        if not worktree:
+            return None
+        artifact = Path(worktree) / RESULT_DIR / ARTIFACT_FILENAME
+        if artifact.exists():
+            return str(artifact)
+        return None
+
+    def _maybe_upload(
+        self,
+        run_id: str,
+        node: RunNodeOrm,
+        experiment_ids: list[str],
+        config: RunConfig,
+    ) -> None:
+        if not config.luml_collection_id:
+            return
+        if not experiment_ids:
+            logger.info(
+                "Skipping upload for node %s: no experiment_ids in result",
+                node.id,
+            )
+            return
+        artifact_path = self._find_artifact(node)
+        if not artifact_path:
+            logger.warning(
+                "Skipping upload for node %s: artifact not found (worktree=%s)",
+                node.id, node.worktree_path,
+            )
+            return
+        self._enqueue_upload(
+            run_id, node.id, artifact_path, experiment_ids, config,
+        )
+
     def _enqueue_upload(
         self,
         run_id: str,
@@ -717,6 +756,7 @@ class OrchestratorEngine:
             upload = self._upload_queue.enqueue(
                 run_id, node_id, model_path, experiment_ids,
             )
+            manifest, file_index = self._read_tar_metadata(model_path)
             self._emit_event(run_id, node_id, "upload_ready", {
                 "upload_id": upload.id,
                 "run_id": run_id,
@@ -726,12 +766,40 @@ class OrchestratorEngine:
                 "collection_id": config.luml_collection_id,
                 "organization_id": config.luml_organization_id,
                 "orbit_id": config.luml_orbit_id,
+                "manifest": manifest,
+                "file_index": file_index,
             })
         except Exception:
             logger.warning(
                 "Failed to enqueue upload for node %s in run %s",
                 node_id, run_id, exc_info=True,
             )
+
+    @staticmethod
+    def _read_tar_metadata(
+        model_path: str,
+    ) -> tuple[dict[str, Any], dict[str, list[int]]]:
+        manifest: dict[str, Any] = {}
+        file_index: dict[str, list[int]] = {}
+        try:
+            import tarfile
+
+            with tarfile.open(model_path, "r") as tar:
+                for member in tar.getmembers():
+                    if member.isfile():
+                        file_index[member.name] = [
+                            member.offset_data, member.size,
+                        ]
+                        if member.name == "manifest.json":
+                            f = tar.extractfile(member)
+                            if f:
+                                manifest = json.loads(f.read())
+        except Exception:
+            logger.warning(
+                "Failed to read TAR metadata from %s",
+                model_path, exc_info=True,
+            )
+        return manifest, file_index
 
     def _emit_event(
         self,
