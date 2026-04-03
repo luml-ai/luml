@@ -167,7 +167,7 @@ class SearchUtils:
         return entity_type
 
     @staticmethod
-    def _build_annotation_value_expr(comparator: str, value: Any) -> tuple[str, list]:
+    def _build_annotation_value_expr(comparator: str, value: Any) -> tuple[str, list]:  # noqa: ANN401
         """Build SQL expression for comparing annotation `value` column.
 
         Annotations store all values as TEXT:
@@ -1261,7 +1261,6 @@ class SearchTracesUtils(SearchUtils):
             key = item["key"]
             value = item["value"]
             comparator = item["comparator"].upper()
-            numeric_comparators = {">", ">=", "<", "<="}
 
             if item_type == cls._TRACE_COLUMN_IDENTIFIER:
                 col = "trace_id" if key == "id" else key
