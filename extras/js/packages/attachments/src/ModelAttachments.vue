@@ -8,6 +8,7 @@
     <template v-else>
       <FileTree :tree="provider.getTree()" :selected="selectedFile" @select="handleSelect" />
       <FilePreview
+        :is-downloading="isDownloading"
         :file-name="fileName"
         :file-size="fileSize"
         :file-path="filePath"
@@ -41,6 +42,7 @@ const props = defineProps<Props>()
 
 const toast = useToast()
 const selectedFile = ref<FileNode | null>(null)
+const isDownloading = ref(false)
 
 const {
   error: previewError,
@@ -87,9 +89,22 @@ async function handleCopyPath() {
   }
 }
 
-function handleDownload() {
-  if (!selectedFile.value) return
-  downloadFile(selectedFile.value.name)
+async function handleDownload() {
+  if (!selectedFile.value || isDownloading.value) return
+  try {
+    isDownloading.value = true
+    await downloadFile(selectedFile.value.name)
+  } catch (error) {
+    console.error('Failed to download file:', error)
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: 'Failed to download file',
+      life: 3000,
+    })
+  } finally {
+    isDownloading.value = false
+  }
 }
 </script>
 
