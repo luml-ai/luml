@@ -816,7 +816,8 @@ class SearchEvalsUtils(SearchUtils):
             return {"type": cls._ATTRIBUTE_IDENTIFIER, "key": key}
 
         prefix, raw_key = parts
-        if prefix.lower() == cls.ANNOTATION_PREFIX:
+        prefix_lower = prefix.lower()
+        if prefix_lower == cls.ANNOTATION_PREFIX:
             # annotations.<name>  OR  annotations.<kind>.<name>
             kind_parts = raw_key.split(".", maxsplit=1)
             if len(kind_parts) == 2 and kind_parts[0].lower() in cls.ANNOTATION_KINDS:
@@ -827,6 +828,24 @@ class SearchEvalsUtils(SearchUtils):
                 kind = None
                 ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
             return {"type": cls._ANNOTATION_IDENTIFIER, "kind": kind, "key": ann_name}
+
+        if prefix_lower in ("annotations_feedback",):
+            # annotations_feedback.<name>
+            ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {
+                "type": cls._ANNOTATION_IDENTIFIER,
+                "kind": "feedback",
+                "key": ann_name,
+            }
+
+        if prefix_lower in ("annotations_expectations", "annotations_expectation"):
+            # annotations_expectations.<name>
+            ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {
+                "type": cls._ANNOTATION_IDENTIFIER,
+                "kind": "expectation",
+                "key": ann_name,
+            }
 
         key = cls._trim_backticks(cls._strip_quotes(raw_key))
         if prefix.lower() not in cls.JSON_COLUMNS:
@@ -1143,6 +1162,22 @@ class SearchTracesUtils(SearchUtils):
                 kind = None
                 ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
             return {"type": cls._ANNOTATION_IDENTIFIER, "kind": kind, "key": ann_name}
+
+        if prefix in ("annotations_feedback",):
+            ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {
+                "type": cls._ANNOTATION_IDENTIFIER,
+                "kind": "feedback",
+                "key": ann_name,
+            }
+
+        if prefix in ("annotations_expectations", "annotations_expectation"):
+            ann_name = cls._trim_backticks(cls._strip_quotes(raw_key))
+            return {
+                "type": cls._ANNOTATION_IDENTIFIER,
+                "kind": "expectation",
+                "key": ann_name,
+            }
 
         if prefix == cls.ATTRIBUTES_PREFIX:
             key = cls._trim_backticks(cls._strip_quotes(raw_key))
