@@ -50,11 +50,11 @@ export interface Artifact {
 }
 
 export interface UpdateArtifactPayload {
-  id: string
-  file_name: string
-  name: string
-  description: string
-  tags: string[]
+  id?: string
+  file_name?: string
+  name?: string
+  description?: string
+  tags?: string[]
   status?: ArtifactStatusEnum
 }
 

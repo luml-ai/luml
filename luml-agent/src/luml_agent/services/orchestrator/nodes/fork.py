@@ -13,6 +13,7 @@ from luml_agent.services.orchestrator.nodes.base import (
 from luml_agent.services.orchestrator.nodes.result_file import read_result_file
 from luml_agent.services.orchestrator.prompts import build_fork_prompt
 from luml_agent.services.orchestrator.utils import ensure_luml_agent_dir
+from luml_agent.services.worktree import auto_commit_changes
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +33,7 @@ class ForkNodeHandler:
         max_children = ctx.run_config.get("max_children_per_fork", 3)
 
         ensure_luml_agent_dir(worktree_path)
-
-        proposals_dir = Path(worktree_path) / ".proposals"
-        proposals_dir.mkdir(exist_ok=True)
-
-        gitignore_path = Path(worktree_path) / ".gitignore"
-        _ensure_gitignore_entry(gitignore_path, ".proposals/")
-        _ensure_gitignore_entry(gitignore_path, ".luml-fork.json")
+        proposals_dir = _prepare_fork_workspace(worktree_path)
 
         fork_prompt = build_fork_prompt(ctx.payload, ctx.run_config)
 
@@ -57,6 +52,7 @@ class ForkNodeHandler:
         )
 
         ctx.services.db.add_node_session(ctx.node_id, session.session_id)
+        ctx.services.engine.notify_session_started(ctx.node_id, session.session_id)
         ctx.services.db.update_node_worktree(
             ctx.node_id, worktree_path, ctx.parent_branch or "",
         )
@@ -82,12 +78,13 @@ class ForkNodeHandler:
             )
 
         ctx.services.engine.get_session_exit_code(session.session_id)
+        await auto_commit_changes(worktree_path)
 
         try:
             result_data = read_result_file(worktree_path)
         except Exception:
             logger.warning(
-                "Fork node %d: error reading result file", ctx.node_id,
+                "Fork node %s: error reading result file", ctx.node_id,
                 exc_info=True,
             )
             result_data = None
@@ -145,6 +142,25 @@ class ForkNodeHandler:
         return []
 
 
+def _prepare_fork_workspace(worktree_path: str) -> Path:
+    for stale in ("fork.json", "result.json"):
+        stale_path = Path(worktree_path) / ".luml-agent" / stale
+        if stale_path.exists():
+            stale_path.unlink()
+
+    proposals_dir = Path(worktree_path) / ".proposals"
+    if proposals_dir.exists():
+        for f in proposals_dir.iterdir():
+            f.unlink(missing_ok=True)
+    proposals_dir.mkdir(exist_ok=True)
+
+    gitignore_path = Path(worktree_path) / ".gitignore"
+    _ensure_gitignore_entry(gitignore_path, ".proposals/")
+    _ensure_gitignore_entry(gitignore_path, ".luml-fork.json")
+
+    return proposals_dir
+
+
 def _collect_proposals(
     worktree_path: str,
     proposals_dir: Path,
@@ -157,12 +173,12 @@ def _collect_proposals(
         if fork_objects is not None:
             proposals = fork_objects
             logger.info(
-                "Fork node %d: read %d proposals from .luml-agent/fork.json",
+                "Fork node %s: read %d proposals from .luml-agent/fork.json",
                 node_id, len(proposals),
             )
     except Exception:
         logger.warning(
-            "Fork node %d: error reading .luml-agent/fork.json",
+            "Fork node %s: error reading .luml-agent/fork.json",
             node_id, exc_info=True,
         )
 
@@ -172,12 +188,12 @@ def _collect_proposals(
             if fork_strings is not None:
                 proposals = [{"prompt": s} for s in fork_strings]
                 logger.info(
-                    "Fork node %d: read %d proposals from .luml-fork.json",
+                    "Fork node %s: read %d proposals from .luml-fork.json",
                     node_id, len(proposals),
                 )
         except Exception:
             logger.warning(
-                "Fork node %d: error reading .luml-fork.json",
+                "Fork node %s: error reading .luml-fork.json",
                 node_id, exc_info=True,
             )
 
@@ -186,12 +202,12 @@ def _collect_proposals(
             proposals = _read_proposals(proposals_dir, max_children)
             if proposals:
                 logger.info(
-                    "Fork node %d: read %d proposals from .proposals/",
+                    "Fork node %s: read %d proposals from .proposals/",
                     node_id, len(proposals),
                 )
         except Exception:
             logger.warning(
-                "Fork node %d: error reading .proposals/",
+                "Fork node %s: error reading .proposals/",
                 node_id, exc_info=True,
             )
 
@@ -204,6 +220,11 @@ def _read_fork_json(worktree_path: str, max_count: int) -> list[dict[str, Any]] 
         return None
     with open(path) as f:
         data = json.load(f)
+    if isinstance(data, dict):
+        for key in ("proposals", "forks", "children"):
+            if isinstance(data.get(key), list):
+                data = data[key]
+                break
     if not isinstance(data, list):
         return None
     proposals: list[dict[str, Any]] = []

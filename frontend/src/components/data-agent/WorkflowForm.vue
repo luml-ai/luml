@@ -3,11 +3,11 @@ import { ref, watch, onMounted, computed } from 'vue'
 import { InputText, InputNumber, Textarea, Select, Checkbox } from 'primevue'
 import { ChevronDown, ChevronUp } from 'lucide-vue-next'
 import type { AgentRepository, Agent } from '@/lib/api/data-agent/data-agent.interfaces'
+import type { Orbit } from '@/lib/api/api.interfaces'
 import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
-import { useOrbitsStore } from '@/stores/orbits'
 
 defineProps<{
   repositories: AgentRepository[]
@@ -32,7 +32,6 @@ export interface WorkflowFormData {
   run_timeout: number
   debug_timeout: number
   fork_timeout: number
-  metric_direction: string
   luml_collection_id: string | undefined
   luml_organization_id: string | undefined
   luml_orbit_id: string | undefined
@@ -77,30 +76,41 @@ const implementTimeout = ref(1800)
 const runTimeout = ref(0)
 const debugTimeout = ref(1800)
 const forkTimeout = ref(900)
-const metricDirection = ref('max')
-const metricDirectionOptions = [
-  { label: 'Maximize (higher is better)', value: 'max' },
-  { label: 'Minimize (lower is better)', value: 'min' },
-]
 
 const agents = ref<Agent[]>([])
 const showAdvanced = ref(false)
 
 const authStore = useAuthStore()
 const orgStore = useOrganizationStore()
-const orbitsStore = useOrbitsStore()
-
+const orbits = ref<Orbit[]>([])
+const selectedOrbit = ref<Orbit | null>(null)
+const orbitsLoading = ref(false)
 const collections = ref<OrbitCollection[]>([])
 const selectedCollection = ref<OrbitCollection | null>(null)
 const collectionsLoading = ref(false)
+const uploadEnabled = ref(false)
 
-const showCollectionSelector = computed(() => authStore.isAuth && orgStore.currentOrganizationId)
+const showCollectionSelector = computed(() => authStore.isAuth && orgStore.currentOrganization)
 
 let branchAbort: AbortController | null = null
 
+async function loadOrbits() {
+  const orgId = orgStore.currentOrganization?.id
+  if (!orgId) return
+
+  orbitsLoading.value = true
+  try {
+    orbits.value = await api.getOrganizationOrbits(orgId)
+  } catch {
+    orbits.value = []
+  } finally {
+    orbitsLoading.value = false
+  }
+}
+
 async function loadCollections() {
-  const orgId = orgStore.currentOrganizationId
-  const orbitId = orbitsStore.currentOrbitDetails?.id
+  const orgId = orgStore.currentOrganization?.id
+  const orbitId = selectedOrbit.value?.id
   if (!orgId || !orbitId) return
 
   collectionsLoading.value = true
@@ -122,7 +132,21 @@ onMounted(async () => {
   if (agents.value.length > 0) {
     selectedAgent.value = agents.value[0]
   }
-  if (showCollectionSelector.value) {
+})
+
+watch(uploadEnabled, (enabled) => {
+  if (!enabled) {
+    selectedOrbit.value = null
+    selectedCollection.value = null
+  } else if (orbits.value.length === 0) {
+    loadOrbits()
+  }
+})
+
+watch(selectedOrbit, (orbit) => {
+  selectedCollection.value = null
+  collections.value = []
+  if (orbit) {
     loadCollections()
   }
 })
@@ -170,14 +194,15 @@ function submit() {
     run_timeout: runTimeout.value,
     debug_timeout: debugTimeout.value,
     fork_timeout: forkTimeout.value,
-    metric_direction: metricDirection.value,
     luml_collection_id: col?.id,
-    luml_organization_id: col ? orgStore.currentOrganizationId ?? undefined : undefined,
-    luml_orbit_id: col ? orbitsStore.currentOrbitDetails?.id : undefined,
+    luml_organization_id: col ? orgStore.currentOrganization?.id : undefined,
+    luml_orbit_id: col ? selectedOrbit.value?.id : undefined,
   })
   name.value = ''
   objective.value = ''
   runCommand.value = 'uv run main.py'
+  uploadEnabled.value = false
+  selectedOrbit.value = null
   selectedCollection.value = null
 }
 
@@ -230,33 +255,44 @@ defineExpose({ submit })
         class="w-full"
       />
     </div>
+    <div class="option-group">
+      <div class="field field--checkbox">
+        <Checkbox v-model="uploadEnabled" :binary="true" inputId="uploadEnabled" :disabled="!showCollectionSelector" />
+        <label for="uploadEnabled" :class="{ 'label--disabled': !showCollectionSelector }">Upload artifacts to collection</label>
+      </div>
+      <p v-if="!showCollectionSelector" class="hint">Sign in to upload artifacts to a collection.</p>
+      <template v-if="uploadEnabled && showCollectionSelector">
+        <div class="field">
+          <label class="label">Orbit</label>
+          <Select
+            v-model="selectedOrbit"
+            :options="orbits"
+            optionLabel="name"
+            :loading="orbitsLoading"
+            placeholder="Select an orbit"
+            showClear
+            class="w-full"
+          />
+        </div>
+        <div v-if="selectedOrbit" class="field">
+          <label class="label">Collection</label>
+          <Select
+            v-model="selectedCollection"
+            :options="collections"
+            optionLabel="name"
+            :loading="collectionsLoading"
+            placeholder="Select a collection"
+            showClear
+            class="w-full"
+          />
+        </div>
+      </template>
+    </div>
     <button type="button" class="advanced-toggle" @click="showAdvanced = !showAdvanced">
       <component :is="showAdvanced ? ChevronUp : ChevronDown" :size="14" />
       <span>Advanced options</span>
     </button>
     <template v-if="showAdvanced">
-      <div v-if="showCollectionSelector" class="field">
-        <label class="label">Upload to Collection</label>
-        <Select
-          v-model="selectedCollection"
-          :options="collections"
-          optionLabel="name"
-          :loading="collectionsLoading"
-          placeholder="None (no artifact upload)"
-          showClear
-          class="w-full"
-        />
-      </div>
-      <div class="field">
-        <label class="label">Metric Direction</label>
-        <Select
-          v-model="metricDirection"
-          :options="metricDirectionOptions"
-          optionLabel="label"
-          optionValue="value"
-          class="w-full"
-        />
-      </div>
       <div class="field">
         <label class="label">Run Command</label>
         <InputText v-model="runCommand" placeholder="uv run main.py" class="w-full" />
@@ -341,6 +377,25 @@ defineExpose({ submit })
   gap: 6px;
   margin-top: 2px;
   font-size: 12px;
+  color: var(--p-text-muted-color);
+}
+
+.option-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 6px;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--p-text-muted-color);
+  margin: 0;
+}
+
+.label--disabled {
   color: var(--p-text-muted-color);
 }
 

@@ -32,12 +32,13 @@ class TestBuildImplementPromptRoot:
         )
         assert ".luml-agent/guide.md" in result
 
-    def test_root_prompt_does_not_include_metric_consistency(self) -> None:
+    def test_root_prompt_includes_metric_rules(self) -> None:
         result = build_implement_prompt(
             {"prompt": "test"}, {},
             worktree_path="/tmp/wt", base_branch="main",
         )
-        assert "Metric Consistency" not in result
+        assert "Metric Rules" in result
+        assert "always maximizes" in result
 
     def test_root_prompt_does_not_include_parent_experiments(self) -> None:
         result = build_implement_prompt(
@@ -82,7 +83,7 @@ class TestBuildImplementPromptForkChild:
             payload, {},
             worktree_path="/tmp/wt", base_branch="main",
         )
-        assert "Metric Consistency" in result
+        assert "Metric Rules" in result
         assert "accuracy" in result
         assert "loss" in result
 
@@ -208,9 +209,9 @@ class TestBuildForkPrompt:
         assert "exp-def" in result
         assert "luml-inspect" in result
 
-    def test_references_guide_md(self) -> None:
+    def test_references_fork_json(self) -> None:
         result = build_fork_prompt({"objective": "test"}, {})
-        assert ".luml-agent/guide.md" in result
+        assert ".luml-agent/fork.json" in result
 
     def test_includes_decomposition_guidelines(self) -> None:
         result = build_fork_prompt({"objective": "test"}, {})
@@ -252,18 +253,9 @@ class TestBuildForkPrompt:
         result = build_fork_prompt({"objective": "test"}, {})
         assert "(none available)" in result
 
-    def test_includes_run_artifacts_context(self) -> None:
-        payload = {
-            "objective": "test",
-            "context": '{"metric": 0.95, "model_path": "model.luml"}',
-        }
-        result = build_fork_prompt(payload, {})
-        assert "0.95" in result
-        assert "model.luml" in result
-
-    def test_no_context_shows_placeholder(self) -> None:
+    def test_includes_no_code_modification_rule(self) -> None:
         result = build_fork_prompt({"objective": "test"}, {})
-        assert "(no artifacts from parent run)" in result
+        assert "Do NOT modify any code files" in result
 
 
 class TestGuideRefInAllPrompts:
@@ -283,10 +275,6 @@ class TestGuideRefInAllPrompts:
             {},
             worktree_path="", base_branch="",
         )
-        assert _GUIDE_REF in result
-
-    def test_fork_has_guide_ref(self) -> None:
-        result = build_fork_prompt({"objective": ""}, {})
         assert _GUIDE_REF in result
 
     def test_debug_has_guide_ref(self) -> None:

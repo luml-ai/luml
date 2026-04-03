@@ -23,7 +23,6 @@ describe('RunConfig collection fields', () => {
       debug_timeout: 1800,
       fork_timeout: 900,
       primary_metric: 'metric',
-      metric_direction: 'max',
       luml_collection_id: 'col-1',
       luml_organization_id: 'org-1',
       luml_orbit_id: 'orb-1',
@@ -49,7 +48,6 @@ describe('RunConfig collection fields', () => {
       debug_timeout: 1800,
       fork_timeout: 900,
       primary_metric: 'metric',
-      metric_direction: 'max',
       luml_collection_id: null,
       luml_organization_id: null,
       luml_orbit_id: null,
@@ -113,6 +111,8 @@ describe('UploadReadyEvent interface', () => {
       collection_id: 'col-1',
       organization_id: 'org-1',
       orbit_id: 'orb-1',
+      manifest: { type: 'model', variant: 'test' },
+      file_index: { 'manifest.json': [0, 100] },
     }
     expect(event.collection_id).toBe('col-1')
     expect(event.file_size).toBe(2048)

@@ -17,7 +17,6 @@ def main() -> None:
         "luml_agent.server:app",
         host="127.0.0.1",
         port=8420,
-        reload=True,
     )
 
 

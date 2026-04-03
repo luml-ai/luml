@@ -9,8 +9,10 @@ import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{
   sessionId: string
+  nodeId: string
   active: boolean
   taskName: string
+  readonly?: boolean
 }>()
 
 const toast = useToast()
@@ -56,6 +58,17 @@ function onOutputReceived() {
 }
 
 let scrollbackDone = false
+
+async function loadReadonly() {
+  if (!terminal) return
+  try {
+    const buf = await api.dataAgent.getSessionScrollback(props.nodeId, props.sessionId)
+    terminal.write(new Uint8Array(buf))
+    terminal.write('\r\n\x1b[33m[Session ended]\x1b[0m\r\n')
+  } catch {
+    terminal.write('\x1b[31m[No scrollback available]\x1b[0m\r\n')
+  }
+}
 
 function connect() {
   if (!terminal) return
@@ -118,7 +131,8 @@ function sendResize() {
 
 onMounted(() => {
   terminal = new Terminal({
-    cursorBlink: true,
+    cursorBlink: !props.readonly,
+    disableStdin: props.readonly,
     fontSize: 14,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
     theme: {
@@ -144,8 +158,12 @@ onMounted(() => {
 
     setTimeout(() => {
       fitAddon?.fit()
-      sendResize()
-      connect()
+      if (props.readonly) {
+        loadReadonly()
+      } else {
+        sendResize()
+        connect()
+      }
     }, 200)
   }
 })

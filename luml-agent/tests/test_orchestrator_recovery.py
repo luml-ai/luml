@@ -1,3 +1,4 @@
+import asyncio
 import json
 from pathlib import Path
 
@@ -86,11 +87,11 @@ class TestRecovery:
 
         recovered_node = db.get_run_node(node.id)
         assert recovered_node is not None
-        assert recovered_node.status == NodeStatus.FAILED
+        assert recovered_node.status == NodeStatus.QUEUED
 
         recovered_run = db.get_run(run.id)
         assert recovered_run is not None
-        assert recovered_run.status == RunStatus.FAILED
+        assert recovered_run.status == RunStatus.RUNNING
 
         await engine.stop()
 
@@ -117,7 +118,7 @@ class TestRecovery:
 
         recovered_node = db.get_run_node(node.id)
         assert recovered_node is not None
-        assert recovered_node.status == NodeStatus.FAILED
+        assert recovered_node.status == NodeStatus.QUEUED
 
         await engine.stop()
 
@@ -155,11 +156,11 @@ class TestRecovery:
 
         n2 = db.get_run_node(node2.id)
         assert n2 is not None
-        assert n2.status == NodeStatus.FAILED
+        assert n2.status == NodeStatus.QUEUED
 
         recovered_run = db.get_run(run.id)
         assert recovered_run is not None
-        assert recovered_run.status == RunStatus.SUCCEEDED
+        assert recovered_run.status == RunStatus.RUNNING
 
         await engine.stop()
 
@@ -211,8 +212,36 @@ class TestRecovery:
         await engine.start()
 
         events = db.list_run_events(run.id)
-        event_types = [e.event_type for e in events]
-        assert "node_status_changed" in event_types
-        assert "run_status_changed" in event_types
+        status_events = [
+            e for e in events if e.event_type == "node_status_changed"
+        ]
+        assert len(status_events) >= 1
+        last_data = json.loads(status_events[-1].data_json)
+        assert last_data["status"] == NodeStatus.QUEUED
 
         await engine.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_requeues_running_nodes(
+        self, db: Database, pty: PtyManager,
+    ) -> None:
+        config = make_config()
+        pid = db.list_repositories()[0].id
+        run = _add_run(db, pid, config, RunStatus.RUNNING)
+        node = _add_node(
+            db, run.id, None,
+            NodeType.IMPLEMENT, 0, {"prompt": "x"},
+        )
+        db.update_node_status(node.id, NodeStatus.RUNNING)
+
+        registry = register_all_handlers()
+        engine = OrchestratorEngine(
+            db=db, pty=pty, registry=registry,
+        )
+        engine._running_nodes[node.id] = asyncio.create_task(asyncio.sleep(3600))
+
+        await engine.stop()
+
+        stopped_node = db.get_run_node(node.id)
+        assert stopped_node is not None
+        assert stopped_node.status == NodeStatus.QUEUED

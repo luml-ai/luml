@@ -256,26 +256,7 @@ class TestComputeBestNodeWithMetricDirection:
             db, run.id, root.id, metrics={"f1_score": 0.88},
         )
 
-        config = RunConfig(primary_metric="f1_score", metric_direction="max")
-        nodes = db.list_run_nodes(run.id)
-        best = engine._compute_best_node(nodes, config)
-        assert best == expected
-
-    def test_min_direction_selects_lowest(
-        self, db: Database, engine: OrchestratorEngine,
-    ) -> None:
-        pid = db.list_repositories()[0].id
-        run = db.add_run(pid, "test", "obj")
-        root = db.add_run_node(run.id, None, NodeType.IMPLEMENT, 0)
-
-        self._make_run_node(
-            db, run.id, root.id, metrics={"loss": 0.3},
-        )
-        expected = self._make_run_node(
-            db, run.id, root.id, metrics={"loss": 0.1},
-        )
-
-        config = RunConfig(primary_metric="loss", metric_direction="min")
+        config = RunConfig(primary_metric="f1_score", )
         nodes = db.list_run_nodes(run.id)
         best = engine._compute_best_node(nodes, config)
         assert best == expected
@@ -294,7 +275,7 @@ class TestComputeBestNodeWithMetricDirection:
             db, run.id, root.id, metric=0.9,
         )
 
-        config = RunConfig(primary_metric="f1_score", metric_direction="max")
+        config = RunConfig(primary_metric="f1_score", )
         nodes = db.list_run_nodes(run.id)
         best = engine._compute_best_node(nodes, config)
         assert best == expected
@@ -315,7 +296,7 @@ class TestComputeBestNodeWithMetricDirection:
             metrics={"accuracy": 0.80}, metric=0.9,
         )
 
-        config = RunConfig(primary_metric="accuracy", metric_direction="max")
+        config = RunConfig(primary_metric="accuracy", )
         nodes = db.list_run_nodes(run.id)
         best = engine._compute_best_node(nodes, config)
         assert best == expected
@@ -464,15 +445,13 @@ class TestRunConfigNewFields:
     def test_default_values(self) -> None:
         config = RunConfig()
         assert config.primary_metric == "metric"
-        assert config.metric_direction == "max"
 
     def test_custom_values(self) -> None:
-        config = RunConfig(primary_metric="f1_score", metric_direction="min")
+        config = RunConfig(primary_metric="f1_score")
         assert config.primary_metric == "f1_score"
-        assert config.metric_direction == "min"
 
     def test_config_serialization_roundtrip(self) -> None:
-        config = RunConfig(primary_metric="loss", metric_direction="min")
+        config = RunConfig(primary_metric="loss")
         serialized = json.dumps(config.__dict__)
         data = json.loads(serialized)
         restored = RunConfig(**{
@@ -480,4 +459,3 @@ class TestRunConfigNewFields:
             if k in RunConfig.__dataclass_fields__
         })
         assert restored.primary_metric == "loss"
-        assert restored.metric_direction == "min"

@@ -630,7 +630,7 @@ class TestAutoSpawn:
 
 class TestRunCompletion:
     @pytest.mark.asyncio
-    async def test_run_completes_on_success(
+    async def test_run_fails_without_successful_run_node(
         self,
         engine: OrchestratorEngine,
         db: Database,
@@ -651,7 +651,7 @@ class TestRunCompletion:
 
         run = db.get_run(run_id)
         assert run is not None
-        assert run.status == RunStatus.SUCCEEDED
+        assert run.status == RunStatus.FAILED
 
     @pytest.mark.asyncio
     async def test_run_fails_when_all_failed(
@@ -1263,3 +1263,102 @@ class TestCancelRun:
         nodes = db.list_run_nodes(run_id)
         for node in nodes:
             assert node.status == NodeStatus.CANCELED
+
+
+class TestRunCompletionStatus:
+    @pytest.mark.asyncio
+    async def test_run_fails_when_implement_succeeds_but_run_fails(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+        registry.register(MockNodeHandler(
+            "run", NodeResult(success=False, error_message="crashed"),
+        ))
+
+        config = RunConfig(
+            run_command_template="fail",
+            max_debug_retries=0,
+        )
+        run_id = await engine.create_run(
+            pid, "r", "obj", config, {"prompt": "test"},
+        )
+        nodes = db.list_run_nodes(run_id)
+        db.update_node_worktree(nodes[0].id, "/tmp/wt", "test")
+
+        await engine.start_run(run_id)
+        await engine._schedule_tick()
+        await asyncio.sleep(0.05)
+        await engine._schedule_tick()
+        await asyncio.sleep(0.05)
+
+        run = db.get_run(run_id)
+        assert run is not None
+        assert run.status == RunStatus.FAILED
+
+    @pytest.mark.asyncio
+    async def test_run_succeeds_when_run_node_succeeds(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+        registry.register(MockNodeHandler(
+            "run", NodeResult(
+                success=True,
+                artifacts={"metrics": {"metric": 0.9}},
+            ),
+        ))
+        registry.register(MockNodeHandler("fork"))
+
+        config = RunConfig(
+            run_command_template="ok",
+            max_depth=1,
+        )
+        run_id = await engine.create_run(
+            pid, "r", "obj", config, {"prompt": "test"},
+        )
+        nodes = db.list_run_nodes(run_id)
+        db.update_node_worktree(nodes[0].id, "/tmp/wt", "test")
+
+        await engine.start_run(run_id)
+        for _ in range(6):
+            await engine._schedule_tick()
+            await asyncio.sleep(0.05)
+
+        run = db.get_run(run_id)
+        assert run is not None
+        assert run.status == RunStatus.SUCCEEDED
+
+    @pytest.mark.asyncio
+    async def test_run_fails_when_only_implement_succeeds_no_run_command(
+        self,
+        engine: OrchestratorEngine,
+        db: Database,
+        registry: NodeRegistry,
+    ) -> None:
+        pid = db.list_repositories()[0].id
+        registry.register(MockNodeHandler(
+            "implement", NodeResult(success=True),
+        ))
+
+        config = RunConfig(run_command_template="")
+        run_id = await engine.create_run(
+            pid, "r", "obj", config, {"prompt": "test"},
+        )
+        await engine.start_run(run_id)
+        await engine._schedule_tick()
+        await asyncio.sleep(0.05)
+
+        run = db.get_run(run_id)
+        assert run is not None
+        assert run.status == RunStatus.FAILED

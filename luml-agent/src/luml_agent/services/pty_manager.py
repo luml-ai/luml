@@ -75,6 +75,8 @@ class PtyManager:
         fcntl.ioctl(master_fd, termios.TIOCSWINSZ, winsize)
 
         env = os.environ.copy()
+        for key in ("VIRTUAL_ENV", "UV_PROJECT_ENVIRONMENT", "CONDA_PREFIX"):
+            env.pop(key, None)
         env["TERM"] = "xterm-256color"
         env["COLUMNS"] = str(cols)
         env["LINES"] = str(rows)

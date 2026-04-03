@@ -2,10 +2,11 @@
 name = "luml-agent"
 version = "0.2.0"
 description = "Web UI for orchestrating coding agents in isolated Git worktrees"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.4",
     "fastapi>=0.115.0",
+    "luml-sdk",
     "sqlalchemy>=2.0.47",
     "typer>=0.15.0",
     "uvicorn[standard]>=0.34.0",
@@ -47,7 +48,7 @@ dev = [
 [tool.ruff]
 line-length = 88
 indent-width = 4
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -82,4 +83,4 @@ quote-style = "double"
 
 [tool.mypy]
 strict = true
-python_version = "3.11"
+python_version = "3.12"

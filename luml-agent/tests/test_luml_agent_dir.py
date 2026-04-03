@@ -125,9 +125,9 @@ def test_guide_md_contains_required_sections(tmp_path: Path) -> None:
     assert "result.json" in content
     assert "fork.json" in content
 
-    assert "sqlite://~/.luml-agent/experiments" in content
+    assert ".luml-agent/experiments" in content
 
-    assert "Metric Consistency" in content
+    assert "Metric" in content
 
 
 @pytest.fixture

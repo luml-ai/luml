@@ -1,11 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { Tag, Button } from 'primevue'
-import { Terminal, X, TrendingUp } from 'lucide-vue-next'
+import { Terminal, X, TrendingUp, ExternalLink } from 'lucide-vue-next'
 import { useDataAgentStore } from '@/stores/data-agent'
 import { displayStatus } from './board/board.types'
 import { api } from '@/lib/api'
+import type { ArtifactContext } from '@/hooks/useUploadFlow'
 
+const props = defineProps<{
+  artifact?: ArtifactContext
+}>()
+
+const router = useRouter()
 const store = useDataAgentStore()
 
 const node = computed(() => store.selectedNode)
@@ -14,6 +21,20 @@ const metric = computed(() => {
   if (node.value?.node_type !== 'run') return null
   const val = node.value?.result?.artifacts?.metric
   return val !== undefined && val !== null ? val : null
+})
+
+const resolvedArtifact = computed((): ArtifactContext | undefined => {
+  if (props.artifact) return props.artifact
+  const link = node.value?.result?.artifact_link
+  if (link?.artifact_id) {
+    return {
+      artifactId: link.artifact_id,
+      organizationId: link.organization_id,
+      orbitId: link.orbit_id,
+      collectionId: link.collection_id,
+    }
+  }
+  return undefined
 })
 
 function formatMetric(val: any): string {
@@ -36,7 +57,7 @@ function statusSeverity(status: string): 'success' | 'info' | 'warn' | 'danger' 
 }
 
 const emit = defineEmits<{
-  'attach-terminal': [sessionId: string]
+  'attach-terminal': [sessionId: string, readonly: boolean]
   close: []
 }>()
 
@@ -45,10 +66,31 @@ async function cancelNode() {
   await api.dataAgent.sendNodeAction(node.value.id, 'cancel')
 }
 
+const isSessionLive = computed(() => {
+  const n = node.value
+  if (!n?.session_id) return false
+  return n.is_alive || n.status === 'waiting_input'
+})
+
 function attachTerminal() {
   if (node.value?.session_id) {
-    emit('attach-terminal', node.value.session_id)
+    emit('attach-terminal', node.value.session_id, !isSessionLive.value)
   }
+}
+
+function openArtifact() {
+  const ctx = resolvedArtifact.value
+  if (!ctx) return
+  const route = router.resolve({
+    name: 'artifact',
+    params: {
+      organizationId: ctx.organizationId,
+      id: ctx.orbitId,
+      collectionId: ctx.collectionId,
+      artifactId: ctx.artifactId,
+    },
+  })
+  window.open(route.href, '_blank')
 }
 </script>
 
@@ -101,6 +143,15 @@ function attachTerminal() {
         </div>
       </section>
 
+      <!-- Artifact -->
+      <section v-if="resolvedArtifact" class="section">
+        <h4 class="section-title">Artifact</h4>
+        <button class="artifact-link" @click="openArtifact">
+          <ExternalLink :size="13" />
+          <span>View uploaded artifact</span>
+        </button>
+      </section>
+
       <!-- Payload -->
       <section v-if="Object.keys(node.payload).length > 0" class="section">
         <h4 class="section-title">Payload</h4>
@@ -115,14 +166,14 @@ function attachTerminal() {
     </div>
 
     <!-- Actions -->
-    <div v-if="(node.session_id && node.is_alive) || node.status === 'running' || node.status === 'waiting_input'" class="actions">
+    <div v-if="node.session_id || node.status === 'running' || node.status === 'waiting_input'" class="actions">
       <Button
-        v-if="node.session_id && (node.is_alive || node.status === 'waiting_input')"
-        severity="info"
+        v-if="node.session_id"
+        :severity="isSessionLive ? 'info' : 'secondary'"
         @click="attachTerminal"
       >
         <Terminal :size="14" />
-        <span>Terminal</span>
+        <span>{{ isSessionLive ? 'Terminal' : 'View Log' }}</span>
       </Button>
       <Button
         v-if="node.status === 'running' || node.status === 'waiting_input'"
@@ -270,6 +321,24 @@ function attachTerminal() {
   white-space: pre-wrap;
   word-break: break-all;
   line-height: 1.5;
+}
+
+.artifact-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: var(--p-highlight-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 6px;
+  color: var(--p-primary-color);
+  font-size: 13px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.artifact-link:hover {
+  background: var(--p-content-hover-background);
 }
 
 .actions {

@@ -38,7 +38,6 @@ const makeRun = (overrides: Partial<Run> = {}): Run => ({
     debug_timeout: 1800,
     fork_timeout: 900,
     primary_metric: 'metric',
-    metric_direction: 'max',
     luml_collection_id: null,
     luml_organization_id: null,
     luml_orbit_id: null,

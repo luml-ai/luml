@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 RESULT_DIR = ".luml-agent"
 RESULT_FILENAME = "result.json"
+ARTIFACT_FILENAME = "artifact.luml"
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
@@ -64,6 +65,13 @@ def _extract_model_path(data: dict[str, Any]) -> str | None:
             return str(mp)
     if data.get("model_path") is not None:
         return str(data["model_path"])
+    return None
+
+
+def resolve_artifact_path(worktree_path: str) -> str | None:
+    path = Path(worktree_path) / RESULT_DIR / ARTIFACT_FILENAME
+    if path.exists():
+        return str(path)
     return None
 
 

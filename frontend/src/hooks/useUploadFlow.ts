@@ -5,7 +5,7 @@ import type {
   PendingUpload,
 } from '@/lib/api/data-agent/data-agent.interfaces'
 import type { CreateArtifactResponse } from '@/lib/api/artifacts/interfaces'
-import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import { ArtifactTypeEnum, ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 
 export interface UploadEntry {
   uploadId: string
@@ -13,11 +13,20 @@ export interface UploadEntry {
   nodeId: string
   status: 'pending' | 'uploading' | 'completed' | 'failed'
   error: string | null
+  artifact?: ArtifactContext
+}
+
+export interface ArtifactContext {
+  artifactId: string
+  organizationId: string
+  orbitId: string
+  collectionId: string
 }
 
 export function useUploadFlow() {
   const uploads = ref<Map<string, UploadEntry>>(new Map())
   const worktreesPendingMessage = ref<string | null>(null)
+  const artifactContexts = new Map<string, ArtifactContext>()
 
   const activeUploads = computed(() => Array.from(uploads.value.values()))
   const failedUploads = computed(() =>
@@ -58,8 +67,8 @@ export function useUploadFlow() {
           file_name: `model-${event.node_id}.luml`,
           file_hash: '',
           size: event.file_size,
-          manifest: {} as any,
-          file_index: {},
+          manifest: event.manifest as any,
+          file_index: event.file_index as any,
           extra_values: { experiment_ids: event.experiment_ids as any },
           tags: ['agent-upload'],
         },
@@ -74,6 +83,13 @@ export function useUploadFlow() {
       })
       return
     }
+
+    artifactContexts.set(event.upload_id, {
+      artifactId: artifactResponse.artifact.id,
+      organizationId: event.organization_id,
+      orbitId: event.orbit_id,
+      collectionId: event.collection_id,
+    })
 
     const presignedUrl = artifactResponse.upload_details.url
     try {
@@ -114,14 +130,37 @@ export function useUploadFlow() {
     run_id: string
     node_id: string
   }): Promise<void> {
+    const ctx = artifactContexts.get(data.upload_id)
+    if (ctx) {
+      try {
+        await api.artifacts.update(
+          ctx.organizationId, ctx.orbitId, ctx.collectionId, ctx.artifactId,
+          { status: ArtifactStatusEnum.uploaded },
+        )
+      } catch {
+        // best-effort confirmation
+      }
+      try {
+        await api.dataAgent.postArtifactLink(data.run_id, data.upload_id, {
+          artifact_id: ctx.artifactId,
+          organization_id: ctx.organizationId,
+          orbit_id: ctx.orbitId,
+          collection_id: ctx.collectionId,
+        })
+      } catch {
+        // best-effort persistence
+      }
+      artifactContexts.delete(data.upload_id)
+    }
+
     _setUpload({
       uploadId: data.upload_id,
       runId: data.run_id,
       nodeId: data.node_id,
       status: 'completed',
       error: null,
+      artifact: ctx ?? undefined,
     })
-    setTimeout(() => _removeUpload(data.upload_id), 5000)
   }
 
   function handleUploadFailed(data: {
@@ -175,6 +214,8 @@ export function useUploadFlow() {
         collection_id: collectionId,
         organization_id: organizationId,
         orbit_id: orbitId,
+        manifest: {},
+        file_index: {},
       }
       handleUploadReady(event)
     }
@@ -205,11 +246,21 @@ export function useUploadFlow() {
     }
   }
 
+  function getNodeArtifact(nodeId: string): ArtifactContext | undefined {
+    for (const entry of uploads.value.values()) {
+      if (entry.nodeId === nodeId && entry.status === 'completed' && entry.artifact) {
+        return entry.artifact
+      }
+    }
+    return undefined
+  }
+
   return {
     uploads,
     activeUploads,
     failedUploads,
     worktreesPendingMessage,
+    getNodeArtifact,
     handleEvent,
     handleUploadReady,
     handleUploadCompleted,

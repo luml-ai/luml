@@ -130,6 +130,13 @@ export const useDataAgentStore = defineStore('data-agent', () => {
         }
         break
       }
+      case 'node_updated': {
+        const node = nodes.value.find((n) => n.id === event.node_id)
+        if (node && event.data.result) {
+          node.result = event.data.result
+        }
+        break
+      }
       case 'run_status_changed': {
         const run = runs.value.find((r) => r.id === selectedRunId.value)
         if (run && event.data.status) {

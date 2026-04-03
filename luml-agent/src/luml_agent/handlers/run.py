@@ -56,7 +56,6 @@ class RunHandler:
             ),
             max_log_tail=body.max_log_tail,
             primary_metric=body.primary_metric,
-            metric_direction=body.metric_direction,
             luml_collection_id=body.luml_collection_id,
             luml_organization_id=body.luml_organization_id,
             luml_orbit_id=body.luml_orbit_id,
