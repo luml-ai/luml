@@ -3,8 +3,8 @@
 	"private": true,
 	"workspaces": [
 		"frontend",
-		"extras/js/packages/*",
-		"lumlflow/frontend"
+		"lumlflow/frontend",
+		"extras/js/packages/*"
 	],
 	"devDependencies": {
 		"vite": "^6.4.1",

@@ -1,6 +1,8 @@
 import type { App } from 'vue'
 import PrimeVue from 'primevue/config'
-import Aura from '@primeuix/themes/aura'
+import { ConfirmationService } from 'primevue'
+import ToastService from 'primevue/toastservice'
+import Aura from '@primevue/themes/aura'
 
 export const PrimeVueProvider = {
   install: (app: App) => {
@@ -12,5 +14,7 @@ export const PrimeVueProvider = {
         },
       },
     })
+    app.use(ToastService)
+    app.use(ConfirmationService)
   },
 }
