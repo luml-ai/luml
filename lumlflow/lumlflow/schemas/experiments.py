@@ -123,7 +123,7 @@ class TraceState(IntEnum):
 
 class Trace(BaseModel, BaseOrmConfig):
     trace_id: str
-    execution_time: float  # seconds
+    execution_time: float  # nanoseconds
     span_count: int
     created_at: datetime
     state: TraceState = TraceState.STATE_UNSPECIFIED

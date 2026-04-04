@@ -2423,7 +2423,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         items = [
             TraceRecord(
                 trace_id=row[0],
-                execution_time=row[1] / 1_000_000_000,
+                execution_time=row[1],
                 span_count=row[2],
                 created_at=row[3],
                 state=TraceState(row[4]),
@@ -2576,7 +2576,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         items = [
             TraceRecord(
                 trace_id=row[0],
-                execution_time=row[1] / 1_000_000_000,
+                execution_time=row[1],
                 span_count=row[2],
                 created_at=row[3],
                 state=TraceState(row[4]),

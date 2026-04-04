@@ -1058,7 +1058,7 @@ class SearchTracesUtils(SearchUtils):
     Supported fields:
     - trace_id / id                 → string ops: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
     - state                         → =, !=, IN, NOT IN  (values: "ok", "error", "in_progress", "unspecified" or int)
-    - execution_time                → numeric ops: =, !=, >, >=, <, <=  (nanoseconds, same as DB)
+    - execution_time                → numeric ops: =, !=, >, >=, <, <=  (nanoseconds)
     - span_count                    → numeric ops: =, !=, >, >=, <, <=
     - created_at                    → date ops: =, !=, >, >=, <, <=  (ISO string)
     - evals                         → string ops: =, !=, LIKE, ILIKE, CONTAINS  (matches eval_id in linked evals)
