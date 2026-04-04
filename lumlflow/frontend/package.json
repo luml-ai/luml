@@ -10,16 +10,22 @@
     "type-check": "vue-tsc --build --force"
   },
   "dependencies": {
+    "@luml/attachments": "*",
+    "@luml/experiments": "*",
+    "@primevue/forms": "^4.3.9",
+    "@primevue/themes": "^4.3.9",
+    "@vueuse/core": "^14.1.0",
     "axios": "^1.13.5",
-    "vue": "^3.5.12"
+    "lucide-vue-next": "^0.460.0",
+    "pinia": "^2.2.6",
+    "primevue": "^4.4.1",
+    "vue": "^3.5.12",
+    "vue-router": "^4.4.5",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@tsconfig/node22": "^22.0.0",
-    "@types/node": "^22.9.0",
-    "@vitejs/plugin-vue": "^5.2.4",
-    "@vue/tsconfig": "^0.5.1",
-    "typescript": "^5.9.2",
-    "vite": "^6.4.1",
-    "vue-tsc": "^2.1.10"
+    "@tailwindcss/vite": "^4.2.2",
+    "tailwindcss": "^4.2.2",
+    "tailwindcss-primeui": "^0.6.1"
   }
 }

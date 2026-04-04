@@ -3,6 +3,7 @@
 	"private": true,
 	"workspaces": [
 		"frontend",
+		"lumlflow/frontend",
 		"extras/js/packages/*"
 	],
 	"devDependencies": {

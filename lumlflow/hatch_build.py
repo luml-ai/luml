@@ -8,26 +8,39 @@ class FrontendBuildHook(BuildHookInterface):
     PLUGIN_NAME = "frontend"
 
     def initialize(self, version: str, build_data: dict) -> None:
-        root = Path(self.root)
-        frontend_dir = root / "frontend"
-        static_dir = root / "lumlflow" / "static"
+        package_root = Path(self.root)
+        repo_root = package_root.parent
+        frontend_dir = package_root / "frontend"
+        static_dir = package_root / "lumlflow" / "static"
+        force_include = build_data.setdefault("force_include", {})
 
-        if not frontend_dir.exists():
+        workspace_manifest = repo_root / "package.json"
+        workspace_lockfile = repo_root / "package-lock.json"
+        if workspace_manifest.exists() and workspace_lockfile.exists():
+            if not frontend_dir.exists():
+                raise RuntimeError(
+                    "lumlflow frontend workspace is missing at "
+                    f"{frontend_dir}. The Python package build requires the "
+                    "repository workspace checkout to include lumlflow/frontend."
+                )
+            subprocess.run(
+                ["npm", "ci"],
+                cwd=repo_root,
+                check=True,
+            )
+            subprocess.run(
+                ["npm", "run", "build", "--workspace=lumlflow-ui"],
+                cwd=repo_root,
+                check=True,
+            )
+        elif static_dir.exists():
+            force_include[str(static_dir)] = "lumlflow/static"
             return
-
-        # Install npm dependencies
-        subprocess.run(
-            ["npm", "ci"],
-            cwd=frontend_dir,
-            check=True,
-        )
-
-        # Build frontend
-        subprocess.run(
-            ["npm", "run", "build"],
-            cwd=frontend_dir,
-            check=True,
-        )
+        else:
+            raise RuntimeError(
+                "lumlflow frontend must be built from the repository root workspace "
+                "or from a source artifact that already contains lumlflow/static."
+            )
 
         # Copy dist to static
         dist_dir = frontend_dir / "dist"
@@ -39,4 +52,4 @@ class FrontendBuildHook(BuildHookInterface):
             shutil.copytree(dist_dir, static_dir)
 
             # Include static directory in wheel
-            build_data["force_include"][str(static_dir)] = "lumlflow/static"
+            force_include[str(static_dir)] = "lumlflow/static"
