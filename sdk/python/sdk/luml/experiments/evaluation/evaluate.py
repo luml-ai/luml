@@ -25,10 +25,11 @@ def _call_scorer(
     model_response: Any,  # noqa: ANN401
 ) -> dict[str, Any]:  # noqa: ANN401
     """
-    Calls the given scorer with the provided evaluation item and model response, handling
-    both supervised and unsupervised scoring methods. This function determines the type
-    of scorer and appropriately invokes its scoring mechanism. The result of the scoring
-    is formatted as a dictionary for uniformity.
+    Calls the given scorer with the provided evaluation item and
+    model response, handling both supervised and unsupervised scoring methods.
+    This function determines the type of scorer and appropriately invokes
+    its scoring mechanism. The result of the scoring is formatted as a
+    dictionary for uniformity.
 
     Args:
         scorer (BaseScorer): The scorer instance to evaluate the provided inputs. Must
@@ -42,8 +43,8 @@ def _call_scorer(
             evaluation result as the value.
 
     Raises:
-        ValueError: If a supervised scorer is provided but the `expected_output` field of
-            the evaluation item is missing.
+        ValueError: If a supervised scorer is provided but the
+            `expected_output` field of the evaluation item is missing.
         TypeError: If the provided scorer is neither a SupervisedScorer nor an
             UnsupervisedScorer.
     """
@@ -93,16 +94,16 @@ def evaluate(
     Args:
         eval_dataset (list[EvalItem]): The dataset to evaluate, where each item contains
             the necessary data for inference and scoring.
-        inference_fn (Callable[[dict[str, Any]], Any]): A callable that generates predictions
-            for a single evaluation input. The callable receives a dictionary of input
-            data and returns the corresponding prediction.
+        inference_fn (Callable[[dict[str, Any]], Any]): A callable that generates
+            predictions for a single evaluation input. The callable receives a
+            dictionary of input data and returns the corresponding prediction.
         scorers (list[BaseScorer]): A list of scorer objects used to evaluate the
             predictions for each item in the dataset.
         dataset_id (str): A unique identifier for the dataset being evaluated.
-        experiment_tracker (ExperimentTracker): An object for tracking evaluation results
-            and metadata during the experiment.
-        n_threads (int): The number of threads to use for parallel evaluation. Defaults to 1,
-            which performs evaluation sequentially.
+        experiment_tracker (ExperimentTracker): An object for tracking evaluation
+            results and metadata during the experiment.
+        n_threads (int): The number of threads to use for parallel evaluation.
+            Defaults to 1, which performs evaluation sequentially.
 
     Returns:
         EvalResults: An object containing detailed evaluation results for each item,
@@ -144,8 +145,8 @@ def _evaluate_single_item(
     tracer: Tracer,
 ) -> EvalResult:
     """
-    Executes the evaluation of a single item by using the provided inference function and
-    a set of scoring objects.
+    Executes the evaluation of a single item by using the provided inference function
+    and a set of scoring objects.
 
     The function performs several steps:
     1. Generates a model response via the provided inference function.
@@ -254,12 +255,13 @@ def _evaluate_single_item(
 
 def _aggregate_scores(results: list[EvalResult]) -> dict[str, float | int]:
     """
-    Aggregates scores from a list of evaluation results into a dictionary of calculated metrics.
+    Aggregates scores from a list of evaluation results into a dictionary of calculated
+    metrics.
 
     The function processes a list of `EvalResult` objects and computes statistical
-    aggregations (mean, minimum, maximum, count) for each score key found in the results,
-    excluding those that represent errors. Additionally, it calculates the total number
-    of items and the number of successful items (those without errors).
+    aggregations (mean, minimum, maximum, count) for each score key found in the
+    results, excluding those that represent errors. Additionally, it calculates the
+    total number of items and the number of successful items (those without errors).
 
     Args:
         results (list[EvalResult]): A list of evaluation result objects, where each
