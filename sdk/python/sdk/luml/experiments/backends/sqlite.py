@@ -10,21 +10,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
-
-def _parse_timestamp(s: bytes) -> datetime:
-    dt = datetime.fromisoformat(s.decode())
-    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
-
-
-def _adapt_datetime(dt: datetime) -> str:
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.isoformat()
-
-
-sqlite3.register_converter("TIMESTAMP", _parse_timestamp)
-sqlite3.register_adapter(datetime, _adapt_datetime)
-
 from luml.artifacts._base import DiskFile, _BaseFile
 from luml.experiments.backends._base import Backend
 from luml.experiments.backends._cursor import Cursor
@@ -67,6 +52,21 @@ from luml.experiments.backends.migration_runner import (
 )
 from luml.experiments.utils import guess_span_type
 from luml.utils.tar import create_and_index_tar
+
+
+def _parse_timestamp(s: bytes) -> datetime:
+    dt = datetime.fromisoformat(s.decode())
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=UTC)
+
+
+def _adapt_datetime(dt: datetime) -> str:
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt.isoformat()
+
+
+sqlite3.register_converter("TIMESTAMP", _parse_timestamp)
+sqlite3.register_adapter(datetime, _adapt_datetime)
 
 
 class ConnectionPool:
@@ -524,6 +524,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
+        self._ensure_experiment_initialized(experiment_id)
         attributes_json = json.dumps(attributes) if attributes else None
         events_json = json.dumps(events) if events else None
         links_json = json.dumps(links) if links else None
@@ -598,6 +599,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
+        self._ensure_experiment_initialized(experiment_id)
         inputs_json = json.dumps(inputs)
         outputs_json = json.dumps(outputs) if outputs else None
         references_json = json.dumps(references) if references else None
@@ -648,6 +650,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
 
+        self._ensure_experiment_initialized(experiment_id)
         write_lock = self._get_experiment_write_lock(experiment_id)
         with write_lock:
             conn = self._get_experiment_connection(experiment_id)
@@ -699,6 +702,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
 
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
 
@@ -2234,6 +2238,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         db_path = self._get_experiment_db_path(experiment_id)
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
         cursor.execute(
@@ -2344,6 +2349,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
 
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         subquery = """(
@@ -2417,7 +2423,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         items = [
             TraceRecord(
                 trace_id=row[0],
-                execution_time=row[1] / 1_000_000_000,
+                execution_time=row[1],
                 span_count=row[2],
                 created_at=row[3],
                 state=TraceState(row[4]),
@@ -2508,6 +2514,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
 
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         subquery = """(
@@ -2569,7 +2576,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         items = [
             TraceRecord(
                 trace_id=row[0],
-                execution_time=row[1] / 1_000_000_000,
+                execution_time=row[1],
                 span_count=row[2],
                 created_at=row[3],
                 state=TraceState(row[4]),
@@ -2638,6 +2645,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ]
             )
         """
+        self._ensure_experiment_initialized(experiment_id)
         has_annotations = self._has_annotation_tables(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.cursor()
@@ -2937,6 +2945,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not found")
 
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         where_clauses: list[str] = []
@@ -3034,6 +3043,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 annotations=None
             )
         """
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         row = conn.execute(
@@ -3078,6 +3088,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             list[EvalColumns]: All evals with scoring-relevant fields.
 
         """
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         def _keys(col: str) -> list[str]:
@@ -3121,6 +3132,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self, experiment_id: str, dataset_id: str | None = None
     ) -> EvalTypedColumns:
         """Like get_experiment_eval_columns but also returns the SQLite type for each key."""
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
         def _fields(col: str) -> list[ColumnField]:
@@ -3202,6 +3214,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def get_experiment_trace_columns(self, experiment_id: str) -> TraceColumns:
         """Return distinct attribute keys from all spans in an experiment."""
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.execute(
             """
@@ -3217,6 +3230,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self, experiment_id: str
     ) -> TraceTypedColumns:
         """Like get_experiment_trace_columns but also returns the type for each key."""
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.execute(
             """
@@ -3265,6 +3279,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.cursor()
         cur.execute("SELECT DISTINCT dataset_id FROM evals ORDER BY dataset_id")
@@ -3313,6 +3328,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             dict[str, float]: A dictionary where the keys are evaluation metric names and the values
                 are their corresponding average scores.
         """
+        self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.cursor()
         if dataset_id is not None:

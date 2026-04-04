@@ -48,9 +48,18 @@ def get_experiment_traces_all(
     states: list[TraceState] | None = None,
 ) -> list[Trace]:
     """
-    search: An optional search by trace_id
-    filters: list of filter conditions on span attributes, all AND-ed together.
-    Each condition: attributes.<key> <op> <value>
+    search: An optional search by trace_id.
+    filters: List of filter conditions, all AND-ed together. Supported fields:
+    - trace_id / id — string ops: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - state — =, !=, IN, NOT IN (values: "ok", "error", "in_progress", "unspecified")
+    - execution_time — numeric ops: =, !=, >, >=, <, <= (nanoseconds)
+    - span_count — numeric ops: =, !=, >, >=, <, <=
+    - created_at — date ops: =, !=, >, >=, <, <= (ISO string)
+    - evals — string ops: =, !=, LIKE, ILIKE, CONTAINS (matches eval_id)
+    - attributes.<key> — string or numeric ops based on value
+    - annotations.<name> — match any span annotation by name and value
+    - annotations.feedback.<name> — match only feedback annotations
+    - annotations.expectation.<name> — match only expectation annotations
 
     states: An optional list of TraceState objects to filter traces by their state.
     """
@@ -76,9 +85,18 @@ def get_experiment_traces(
     states: list[TraceState] | None = Query(default=None),
 ) -> PaginatedTraces:
     """
-    search: An optional search by trace_id
-    filters: list of filter conditions on span attributes, all AND-ed together.
-    Each condition: attributes.<key> <op> <value>
+    search: An optional search by trace_id.
+    filters: List of filter conditions, all AND-ed together. Supported fields:
+    - trace_id / id — string ops: =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - state — =, !=, IN, NOT IN (values: "ok", "error", "in_progress", "unspecified")
+    - execution_time — numeric ops: =, !=, >, >=, <, <= (nanoseconds)
+    - span_count — numeric ops: =, !=, >, >=, <, <=
+    - created_at — date ops: =, !=, >, >=, <, <= (ISO string)
+    - evals — string ops: =, !=, LIKE, ILIKE, CONTAINS (matches eval_id)
+    - attributes.<key> — string or numeric ops based on value
+    - annotations.<name> — match any span annotation by name and value
+    - annotations.feedback.<name> — match only feedback annotations
+    - annotations.expectation.<name> — match only expectation annotations
 
     states: An optional list of TraceState objects to filter traces by their state.
     """
@@ -103,16 +121,30 @@ def validate_traces_filter(
     """
     Validate a traces filter string without executing it.
 
-    Supported syntax:
-    - **Span attributes**: attributes.<key>
-      — string or numeric operators based on value type
-      — Operators: =, !=, >, >=, <, <=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    Supported fields:
+    - **trace_id / id** — =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
+    - **state** — =, !=, IN, NOT IN (values: "ok", "error", "in_progress", "unspecified")
+    - **execution_time** — =, !=, >, >=, <, <= (nanoseconds)
+    - **span_count** — =, !=, >, >=, <, <=
+    - **created_at** — =, !=, >, >=, <, <= (ISO date string)
+    - **evals** — =, !=, LIKE, ILIKE, CONTAINS (matches eval_id)
+    - **attributes.<key>** — string or numeric ops based on value type
+    - **annotations.<name>** — match any span annotation
+    - **annotations.feedback.<name>** — match only feedback annotations
+    - **annotations.expectation.<name>** — match only expectation annotations
 
     Examples:
+     - trace_id LIKE "%abc%"
+     - state = "error"
+     - state IN ("ok", "error")
+     - execution_time > 5
+     - span_count >= 3
+     - created_at > "2024-01-01"
+     - evals = "eval-001"
      - attributes.http.method = "GET"
      - attributes.http.status_code >= 400
-     - attributes.db.statement CONTAINS "SELECT"
-     - attributes.http.status_code >= 400 AND attributes.http.status_code < 500
+     - annotations.feedback.quality = "true"
+     - state = "error" AND execution_time > 10
     """
     return experiments_handler.validate_traces_filter(filter_strings)
 

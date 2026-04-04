@@ -1,4 +1,5 @@
 import sqlite3
+import uuid
 from pathlib import Path
 
 VERSION = 2
@@ -12,6 +13,13 @@ def up(conn: sqlite3.Connection) -> None:
     cursor.execute("PRAGMA database_list")
     db_path = Path(cursor.fetchone()[2])
     attachments_dir = db_path.parent / "attachments"
+
+    cursor.execute("SELECT rowid FROM attachments WHERE id IS NULL")
+    for (rowid,) in cursor.fetchall():
+        cursor.execute(
+            "UPDATE attachments SET id = ? WHERE rowid = ?",
+            (str(uuid.uuid4()), rowid),
+        )
 
     cursor.execute("SELECT id, file_path FROM attachments WHERE file_path IS NOT NULL")
     for att_id, file_path in cursor.fetchall():

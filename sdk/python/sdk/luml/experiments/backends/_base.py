@@ -239,6 +239,7 @@ class Backend(ABC):
     def end_experiment(self, experiment_id: str) -> None:
         pass
 
+    @abstractmethod
     def fail_experiment(self, experiment_id: str) -> None:
         pass
 
