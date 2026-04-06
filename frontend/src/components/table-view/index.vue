@@ -123,15 +123,10 @@ const tableHeight = ref(0)
 
 const currentColumns = computed(() => (props.value.length ? Object.keys(props.value[0]) : []))
 const dataForFilters = computed(() => {
-  const row = props.value[0]
-  const data: FilterDataItem[] = []
-  for (const key in row) {
-    data.push({
-      name: key,
-      type: typeof row[key as keyof typeof row] === 'number' ? 'number' : 'string',
-    })
-  }
-  return data
+  return props.allColumns.map((key) => ({
+    name: key,
+    type: (props.columnTypes[key] === 'number' ? 'number' : 'string') as 'number' | 'string',
+  }))
 })
 
 function calcTableHeight() {
