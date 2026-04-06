@@ -332,6 +332,8 @@ class SearchUtils:
     def _preprocess_filter(filter_string: str) -> str:
         """Convert CONTAINS operator to LIKE with % wildcards.
         Convert bare boolean literals to integers (true→1, false→0).
+        Wrap annotation keys that contain spaces in backticks so sqlparse
+        treats them as a single identifier token.
         """
 
         def replace_contains(m: re.Match) -> str:
@@ -349,14 +351,31 @@ class SearchUtils:
             filter_string,
             flags=re.IGNORECASE,
         )
-        # Replace bare boolean keywords with integers so sqlparse forms a valid Comparison.
-        # Quoted strings like 'true' / "false" are excluded by the quote lookahead/lookbehind.
+
         filter_string = re.sub(
             r"(?<!['\"])\btrue\b(?!['\"])", "1", filter_string, flags=re.IGNORECASE
         )
-        return re.sub(
+        filter_string = re.sub(
             r"(?<!['\"])\bfalse\b(?!['\"])", "0", filter_string, flags=re.IGNORECASE
         )
+
+        def _backtick_annotation_key(m: re.Match) -> str:
+            prefix = m.group(1)
+            key = m.group(2).rstrip()
+            if " " in key or "\t" in key:
+                return f"{prefix}`{key}`"
+            return m.group(0)
+
+        filter_string = re.sub(
+            r"((?:annotations(?:\.(?:feedback|expectations?))?|annotations_(?:feedback|expectations?))\.)"
+            r"([^=!<>'\"` \t\n\r][^=!<>'\"` \n\r]*(?:[ \t]+[^=!<>'\"` \n\r]+)*)"
+            r"(?=[ \t]*(?:!=|>=?|<=?|=|\bLIKE\b|\bILIKE\b|\bNOT[ \t]+IN\b|\bIN\b|\bCONTAINS\b))",
+            _backtick_annotation_key,
+            filter_string,
+            flags=re.IGNORECASE,
+        )
+
+        return filter_string
 
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
