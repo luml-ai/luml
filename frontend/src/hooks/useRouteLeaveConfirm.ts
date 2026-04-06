@@ -1,12 +1,11 @@
 import type { ConfirmationOptions } from 'primevue/confirmationoptions'
 import { useConfirm } from 'primevue/useconfirm'
-import { onUnmounted, ref } from 'vue'
+import { onBeforeMount, onBeforeUnmount, ref } from 'vue'
 import { type NavigationGuardNext, useRouter } from 'vue-router'
 
 export const useRouteLeaveConfirm = (confirmationOptions: ConfirmationOptions) => {
   const router = useRouter()
   const confirm = useConfirm()
-
   const guard = ref(true)
 
   function setGuard(value: boolean) {
@@ -27,8 +26,18 @@ export const useRouteLeaveConfirm = (confirmationOptions: ConfirmationOptions) =
     confirmExit(next)
   })
 
-  onUnmounted(() => {
+  function onBeforeUnload(event: BeforeUnloadEvent) {
+    if (!guard.value) return
+    event.preventDefault()
+  }
+
+  onBeforeMount(() => {
+    window.addEventListener('beforeunload', onBeforeUnload)
+  })
+
+  onBeforeUnmount(() => {
     removeGuard()
+    window.removeEventListener('beforeunload', onBeforeUnload)
   })
 
   return { setGuard }
