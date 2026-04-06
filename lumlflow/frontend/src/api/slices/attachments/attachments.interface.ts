@@ -5,8 +5,8 @@ export interface GetAttachmentsParams {
 export interface GetAttachmentsResponseItem {
   name: string
   type: 'file' | 'folder'
-  path: string
-  size: number
+  path?: string
+  size?: number
 }
 
 export interface GetAttachmentContentParams {

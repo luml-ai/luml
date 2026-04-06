@@ -10,6 +10,8 @@ export function useAttachmentsProvider(experimentId: string) {
 
   async function init() {
     try {
+      loading.value = true
+      error.value = null
       const attachments = await apiService.getAttachments(experimentId)
       const tree = await createTree(attachments)
       provider.value = {
@@ -22,8 +24,9 @@ export function useAttachmentsProvider(experimentId: string) {
         },
         isEmpty: () => tree.length === 0,
       }
-    } catch (error) {
-      console.error(error)
+    } catch (err: unknown) {
+      error.value = err instanceof Error ? err.message : 'Unknown error'
+      console.error(err)
     } finally {
       loading.value = false
     }
@@ -32,8 +35,16 @@ export function useAttachmentsProvider(experimentId: string) {
   async function createTree(attachments: GetAttachmentsResponseItem[]): Promise<FileNode[]> {
     const promises = attachments.map(async (attachment) => {
       if (attachment.type === 'folder') {
+        const attachmentPath = typeof attachment.path === 'string' ? attachment.path.trim() : ''
+        if (!attachmentPath) {
+          return {
+            ...attachment,
+            size: attachment.size,
+            children: [],
+          }
+        }
         const childrenList = await apiService.getAttachments(experimentId, {
-          parent_path: attachment.path,
+          parent_path: attachmentPath,
         })
         const children = await createTree(childrenList)
         return {
