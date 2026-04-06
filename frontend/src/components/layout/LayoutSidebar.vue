@@ -1,20 +1,11 @@
 <template>
-  <aside id="sidebar" class="sidebar" :class="{ closed: !isSidebarOpened }">
+  <aside
+    id="sidebar"
+    class="sidebar"
+    :class="{ closed: !isSidebarOpened }"
+    :style="{ paddingTop: headerSizes.height + 32 + 'px' }"
+  >
     <div>
-      <div class="organization-button-wrapper">
-        <OrganizationManagePopover v-if="authStore.isAuth"></OrganizationManagePopover>
-        <d-button
-          v-else
-          disabled
-          variant="text"
-          class="menu-link disabled"
-          v-tooltip.right="'Log in to unlock this feature.'"
-        >
-          <Users :size="14" class="icon"></Users>
-          <span class="label">My Org...</span>
-          <ChevronDown :size="20" class="icon" />
-        </d-button>
-      </div>
       <nav class="nav">
         <ul class="list">
           <li v-for="item in SIDEBAR_MENU" :key="item.id" class="item">
@@ -24,34 +15,29 @@
               v-tooltip.right="!isSidebarOpened ? item.tooltipMessage : null"
               class="menu-link disabled"
             >
-              <component :is="item.icon" :size="14" class="icon"></component>
-              <span>{{ item.label }}</span>
-            </div>
-
-            <div
-              v-else-if="item.authRequired && !authStore.isAuth"
-              v-tooltip.right="'Log in to unlock this feature.'"
-              class="menu-link disabled"
-            >
-              <component :is="item.icon" :size="14" class="icon"></component>
-              <span>{{ item.label }}</span>
-            </div>
-            <div
-              v-else-if="requiresOrgId(item.route) && !organizationsStore.currentOrganization?.id"
-              class="menu-link disabled"
-              v-tooltip.right="'Please select an organization'"
-            >
-              <component :is="item.icon" :size="14" class="icon"></component>
+              <component :is="item.icon" :size="14" class="icon" />
               <span>{{ item.label }}</span>
             </div>
 
             <router-link
-              v-else
-              :to="getRouteParams(item.route)"
+              v-else-if="getRouteParams(item.route)"
+              :to="getRouteParams(item.route)!"
               class="menu-link"
+              :class="{ active: isActive(item.route) }"
               @click="sendAnalytics(item.analyticsOption)"
             >
-              <component :is="item.icon" :size="14" class="icon"></component>
+              <component :is="item.icon" :size="14" class="icon" />
+              <span>{{ item.label }}</span>
+            </router-link>
+
+            <router-link
+              v-else
+              :to="{ name: item.route }"
+              class="menu-link"
+              :class="{ active: isActive(item.route) }"
+              @click="sendAnalytics(item.analyticsOption)"
+            >
+              <component :is="item.icon" :size="14" class="icon" />
               <span>{{ item.label }}</span>
             </router-link>
           </li>
@@ -100,23 +86,30 @@
 </template>
 
 <script setup lang="ts">
-import { ArrowLeftToLine, ChevronDown, Users, Github, Star } from 'lucide-vue-next'
+import { ArrowLeftToLine, Github, Star } from 'lucide-vue-next'
 import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { SIDEBAR_MENU, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
-import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
-import { useAuthStore } from '@/stores/auth'
 import { useOrganizationStore } from '@/stores/organization'
 import { GitHubService } from '@/lib/github/GitHubService'
+import { useLayout } from '@/hooks/useLayout'
+import { useOrbitsStore } from '@/stores/orbits'
+import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
 
+const route = useRoute()
+const orbitsStore = useOrbitsStore()
+const { headerSizes } = useLayout()
 const { width } = useWindowSize()
-const authStore = useAuthStore()
 const organizationsStore = useOrganizationStore()
 
 const isSidebarOpened = ref(true)
 const githubStarsCount = ref(null)
-const ROUTES_REQUIRING_ORG_ID = ['orbits', 'orbit', 'organization', 'collection']
+
+const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
+const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
+const DEPLOYMENTS_GROUP = ['orbit-deployments', 'orbit-secrets']
 
 const getFormattedGithubStars = computed(() => {
   if (githubStarsCount.value === null) return null
@@ -124,51 +117,62 @@ const getFormattedGithubStars = computed(() => {
   else return (githubStarsCount.value / 1000).toFixed() + 'K'
 })
 
+function isActive(routeName: string): boolean {
+  const currentRouteName = route.name as string
+  if (currentRouteName === 'setup') {
+    const tab = (route.query.tab as string) ?? 'registry'
+    return TAB_TO_ROUTE[tab] === routeName
+  }
+  if (routeName === 'orbit-deployments') {
+    return DEPLOYMENTS_GROUP.includes(currentRouteName)
+  }
+  return currentRouteName === routeName
+}
+
 function requiresOrgId(routeName: string): boolean {
   return ROUTES_REQUIRING_ORG_ID.includes(routeName)
 }
 
 function getRouteParams(routeName: string) {
-  const baseRoute = { name: routeName }
-  if (!requiresOrgId(routeName)) {
-    return baseRoute
-  }
-
-  const orgId = organizationsStore.currentOrganization?.id
-  if (!orgId) {
-    console.warn(`Route "${routeName}" requires organizationId but none is selected`)
-    return baseRoute
-  }
-  if (routeName === 'orbits') {
+  if (ORBIT_ROUTES.includes(routeName)) {
+    const orgId = organizationsStore.currentOrganization?.id
+    const orbitId = orbitsStore.currentOrbitId
+    if (orgId && orbitId) {
+      return {
+        name: routeName,
+        params: { organizationId: orgId, id: orbitId },
+      }
+    }
     return {
-      ...baseRoute,
-      params: { organizationId: orgId },
+      name: 'setup',
+      query: { tab: ROUTE_TO_TAB[routeName] },
     }
   }
 
-  if (routeName === 'organization') {
-    return {
-      ...baseRoute,
-      params: { id: orgId },
-    }
+  if (requiresOrgId(routeName)) {
+    const orgId = organizationsStore.currentOrganization?.id
+    if (!orgId) return null
+    if (routeName === 'organization') return { name: routeName, params: { id: orgId } }
+    return { name: routeName, params: { organizationId: orgId } }
   }
-  return {
-    ...baseRoute,
-    params: { organizationId: orgId },
-  }
+
+  return null
 }
 
 const toggleSidebar = () => {
   isSidebarOpened.value = !isSidebarOpened.value
 }
+
 function windowResizeHandler() {
   if (window.innerWidth < 992 && isSidebarOpened.value === true) {
     isSidebarOpened.value = false
   }
 }
+
 function sendAnalytics(option: string) {
   AnalyticsService.track(AnalyticsTrackKeysEnum.side_menu_select, { option })
 }
+
 async function getGithubStarsCount() {
   try {
     githubStarsCount.value = await GitHubService.getStarsCount()
@@ -192,7 +196,7 @@ onMounted(() => {
 
 <style scoped>
 .sidebar {
-  padding: 96px 16px 16px;
+  padding: 0 16px 16px;
   background-color: var(--p-content-background);
   border-right: 1px solid var(--p-divider-border-color);
   width: 180px;
@@ -254,7 +258,7 @@ onMounted(() => {
   color: var(--p-surface-400);
 }
 
-.menu-link.router-link-active {
+.menu-link.active {
   background-color: var(--p-surface-0);
   color: var(--p-menu-item-focus-color);
   box-shadow: var(--card-shadow);
@@ -292,7 +296,7 @@ onMounted(() => {
   text-align: left;
 }
 
-.menu-link.router-link-active .icon {
+.menu-link.active .icon {
   color: var(--p-menu-item-icon-focus-color);
 }
 
@@ -300,7 +304,7 @@ onMounted(() => {
   width: 30px;
 }
 
-[data-theme='dark'] .router-link-active {
+[data-theme='dark'] .active {
   background-color: var(--p-surface-900);
   color: #fff;
   box-shadow: var(--card-shadow);
@@ -321,7 +325,7 @@ onMounted(() => {
     color: var(--p-menu-item-focus-color);
   }
 
-  .menu-link.router-link-active:hover {
+  .menu-link.active:hover {
     background-color: var(--p-surface-0);
   }
 
@@ -340,7 +344,7 @@ onMounted(() => {
     color: var(--p-surface-400);
   }
 
-  [data-theme='dark'] .menu-link.router-link-active {
+  [data-theme='dark'] .menu-link.active {
     background-color: var(--p-surface-900);
   }
 }

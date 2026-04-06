@@ -42,9 +42,7 @@ export const useAuthStore = defineStore('auth', () => {
     if (isLoggingOut.value) {
       return
     }
-
     isLoggingOut.value = true
-
     try {
       await api.logout()
     } catch (e) {
@@ -53,7 +51,6 @@ export const useAuthStore = defineStore('auth', () => {
       usersStore.resetUser()
       isAuth.value = false
       isLoggingOut.value = false
-
       if (route.meta.requireAuth) {
         setTimeout(() => {
           router.push({ name: 'home' }).catch(() => {})

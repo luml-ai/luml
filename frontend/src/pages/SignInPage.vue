@@ -116,8 +116,8 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 
   try {
     await authStore.signIn(data)
-
-    router.push({ name: 'home' })
+    const redirect = router.currentRoute.value.query.redirect as string
+    router.push(redirect || { name: 'home' })
   } catch (e: any) {
     const errorDetails = e.response?.data.detail
 
