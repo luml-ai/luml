@@ -51,7 +51,7 @@ class DeployTask(Task):
             if not deployment:
                 raise ValueError("deployment not found")
             presigned_url = await self.platform.get_model_artifact_download_url(
-                UUID(deployment.model_id)
+                UUID(deployment.artifact_id)
             )
             return deployment, presigned_url
         except Exception as e:
@@ -86,7 +86,7 @@ class DeployTask(Task):
         env: dict[str, str] = {
             "MODEL_ARTIFACT_URL": str(presigned_url),
             "DEPLOYMENT_ID": str(deployment.id),
-            "MODEL_NAME": deployment.model_artifact_name,
+            "MODEL_NAME": deployment.artifact_name,
         }
         for key, value in secrets_env.items():
             env[key] = value

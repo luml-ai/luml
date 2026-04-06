@@ -108,7 +108,7 @@ class PlatformClient:
     async def get_model_artifact_download_url(self, model_artifact_id: UUID) -> str:
         assert self._session is not None
         r = await self._session.get(
-            self._url(f"/satellites/v1/model_artifacts/{model_artifact_id}/download-url")
+            self._url(f"/satellites/v1/artifacts/{model_artifact_id}/download-url")
         )
         r.raise_for_status()
         data = r.json()
@@ -117,7 +117,7 @@ class PlatformClient:
     async def get_model_artifact(self, model_artifact_id: UUID) -> tuple[dict, str]:
         assert self._session is not None
         r = await self._session.get(
-            self._url(f"/satellites/v1/model_artifacts/{model_artifact_id}")
+            self._url(f"/satellites/v1/artifacts/{model_artifact_id}")
         )
         r.raise_for_status()
         data = r.json()
