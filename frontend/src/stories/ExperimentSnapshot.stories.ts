@@ -287,6 +287,8 @@ const createMockProvider = (
           { name: 'model_version', type: 'number' },
           { name: 'duration_ms', type: 'number' },
         ],
+        annotations_feedback: [],
+        annotations_expectations: [],
       }
     },
     getTracesColumns: async (artifactId: string) => {
@@ -297,6 +299,8 @@ const createMockProvider = (
           { name: 'status_code', type: 'number' },
           { name: 'duration_ms', type: 'number' },
         ],
+        annotations_feedback: [],
+        annotations_expectations: [],
       }
     },
     validateEvalsFilter: async (filters: string[]) => {
