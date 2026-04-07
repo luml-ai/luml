@@ -76,10 +76,10 @@ export function useFilePreview(options: UseFilePreviewOptions) {
     }
   }
 
-  const downloadFile = (fileName: string) => {
-    if (!contentBlob.value) return
-
-    const url = URL.createObjectURL(contentBlob.value)
+  const downloadFile = async (fileName: string) => {
+    const blob = await getFileBlob()
+    if (!blob) return
+    const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = fileName
@@ -87,6 +87,14 @@ export function useFilePreview(options: UseFilePreviewOptions) {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const getFileBlob = async () => {
+    if (contentBlob.value) return contentBlob.value
+    if (!file.value?.path) return null
+    if (!provider.value) return null
+    const content = await provider.value.getAttachmentContent(file.value?.path)
+    return content.blob
   }
 
   watch(file, loadContent, { immediate: true })

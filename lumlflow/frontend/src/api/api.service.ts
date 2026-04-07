@@ -34,8 +34,11 @@ import type {
   OrganizationInfo,
   UploadArtifactPayload,
 } from '@/components/upload/upload.interface'
+import { attachmentsApi } from './slices/attachments/attachments.api'
 
 export const apiService = {
+  ...attachmentsApi,
+
   getGroups: async (params: GetGroupsParams) => {
     const { data } = await api.get<PaginatedResponse<Group>>('/groups', { params })
     return data

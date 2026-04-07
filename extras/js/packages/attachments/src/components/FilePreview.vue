@@ -4,6 +4,7 @@
       :file-name="fileName"
       :file-size="fileSize"
       :file-path="filePath"
+      :is-downloading="isDownloading"
       @copy-path="$emit('copyPath')"
       @download="$emit('download')"
     />
@@ -67,6 +68,7 @@ interface Props {
   contentUrl?: string | null
   textContent?: string | null
   contentBlob?: Blob | null
+  isDownloading: boolean
 }
 
 interface Emits {
