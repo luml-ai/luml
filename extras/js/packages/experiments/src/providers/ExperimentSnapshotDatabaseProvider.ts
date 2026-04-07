@@ -493,8 +493,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     })
     return {
       attributes: columns,
-      annotations_feedback: this.getSpanAnnotationFields(database),
-      annotations_expectations: this.getSpanAnnotationFields(database),
+      annotations_feedback: this.getSpanAnnotationFields(database, AnnotationKind.FEEDBACK),
+      annotations_expectations: this.getSpanAnnotationFields(database, AnnotationKind.EXPECTATION),
     }
   }
 
@@ -998,7 +998,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const hasAnnotations = this.isDatabaseHasAnnotations(database)
     if (!hasAnnotations) return []
     const queryResult = database.exec(
-      `SELECT name, value_type FROM eval_annotations WHERE annotation_kind = '${kind}' AND dataset_id = '${datasetId}'`,
+      `SELECT DISTINCT name, value_type FROM eval_annotations WHERE annotation_kind = '${kind}' AND dataset_id = '${datasetId}'`,
     )
     const rows = queryResult[0]?.values || []
     return rows.map((row) => {
@@ -1013,10 +1013,10 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     })
   }
 
-  private getSpanAnnotationFields(database: Database) {
+  private getSpanAnnotationFields(database: Database, kind: AnnotationKind) {
     const hasAnnotations = this.isDatabaseHasAnnotations(database)
     if (!hasAnnotations) return []
-    const queryResult = database.exec(`SELECT name, value_type FROM span_annotations`)
+    const queryResult = database.exec(`SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`)
     const rows = queryResult[0]?.values || []
     return rows.map((row) => {
       const [name, value_type] = row

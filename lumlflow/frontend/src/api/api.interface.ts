@@ -124,6 +124,8 @@ export interface TypedColumnInfo {
 
 export interface TypedTracesColumns {
   attributes: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
 }
 
 export interface TypedEvalsColumns {
