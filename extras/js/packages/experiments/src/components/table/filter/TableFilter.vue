@@ -41,6 +41,10 @@
         </div>
       </div>
       <div class="footer">
+        <Button severity="secondary" variant="outlined" @click="clear">
+          <FilterX :size="14" />
+          Clear all
+        </Button>
         <Button severity="secondary" @click="apply">Apply</Button>
       </div>
     </Popover>
@@ -57,7 +61,7 @@ import {
 import type { ValidateResponseItem } from '@/interfaces/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Button, Popover, useToast } from 'primevue'
-import { Filter, ChevronDown, ChevronUp, Plus } from 'lucide-vue-next'
+import { Filter, ChevronDown, ChevronUp, Plus, FilterX } from 'lucide-vue-next'
 import { v4 as uuidv4 } from 'uuid'
 import { formSchema } from './filter.const'
 import { mapZodErrors } from '@/helpers/forms'
@@ -158,6 +162,12 @@ async function asyncValidate() {
   }
 }
 
+function clear(event: any) {
+  items.value = []
+  emit('apply', [])
+  popover.value.toggle(event)
+}
+
 onBeforeMount(() => {
   addFilterItem()
 })
@@ -199,5 +209,6 @@ onBeforeMount(() => {
 .footer {
   display: flex;
   justify-content: flex-end;
+  gap: 7px;
 }
 </style>

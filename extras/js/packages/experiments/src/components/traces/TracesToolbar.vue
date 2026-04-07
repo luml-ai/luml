@@ -39,6 +39,7 @@
 <script setup lang="ts">
 import type { ToolbarEmits, ToolbarProps } from './traces.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
+import type { TypedColumnInfo } from '@/interfaces/interfaces'
 import { computed } from 'vue'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
@@ -55,8 +56,15 @@ const emit = defineEmits<ToolbarEmits>()
 
 const searchModel = defineModel<string>('search', { default: '' })
 
-const visibleTypedColumns = computed(() => {
-  return traceStore.typedColumnsList
+const visibleTypedColumns = computed<TypedColumnInfo[]>(() => {
+  return [
+    { name: 'state', type: 'string' },
+    { name: 'evals', type: 'string' },
+    { name: 'execution_time', type: 'number' },
+    { name: 'span_count', type: 'number' },
+    { name: 'created_at', type: 'string' },
+    ...traceStore.typedColumnsList,
+  ]
 })
 
 async function asyncValidateCallback(filters: FilterItem[]) {

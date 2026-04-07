@@ -43,6 +43,12 @@ const SQLLITE_TYPE_MAP = {
   unknown: 'unknown',
 } as const
 
+const ANNOTATION_VALUE_TYPE_MAP = {
+  int: 'number',
+  bool: 'boolean',
+  string: 'string',
+} as const
+
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
   private _modelsSnapshots: ModelSnapshot[] | null = null
   private evalsDatasetsRequestParams: Record<string, number> = {}
@@ -227,6 +233,18 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
             name: 'metadata',
             list: this.extractEvalColumns(snapshot.database, 'metadata', datasetId),
           },
+          {
+            name: 'annotations_feedback',
+            list: this.getAnnotationFields(snapshot.database, datasetId, AnnotationKind.FEEDBACK),
+          },
+          {
+            name: 'annotations_expectations',
+            list: this.getAnnotationFields(
+              snapshot.database,
+              datasetId,
+              AnnotationKind.EXPECTATION,
+            ),
+          },
         ]
         array.forEach((item) => {
           item.list.forEach((column) => {
@@ -246,6 +264,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
         refs: new Array<TypedColumnInfo>(),
         scores: new Array<TypedColumnInfo>(),
         metadata: new Array<TypedColumnInfo>(),
+        annotations_feedback: new Array<TypedColumnInfo>(),
+        annotations_expectations: new Array<TypedColumnInfo>(),
       },
     )
     return result
@@ -473,6 +493,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     })
     return {
       attributes: columns,
+      annotations_feedback: this.getSpanAnnotationFields(database),
+      annotations_expectations: this.getSpanAnnotationFields(database),
     }
   }
 
@@ -970,5 +992,41 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
     stmt.free()
     return rows
+  }
+
+  private getAnnotationFields(database: Database, datasetId: string, kind: AnnotationKind) {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return []
+    const queryResult = database.exec(
+      `SELECT name, value_type FROM eval_annotations WHERE annotation_kind = '${kind}' AND dataset_id = '${datasetId}'`,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [name, value_type] = row
+      const stringType = this.parseValue(value_type, 'string')
+      return {
+        name: this.parseValue(name, 'string'),
+        type:
+          ANNOTATION_VALUE_TYPE_MAP[stringType as keyof typeof ANNOTATION_VALUE_TYPE_MAP] ||
+          'unknown',
+      }
+    })
+  }
+
+  private getSpanAnnotationFields(database: Database) {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return []
+    const queryResult = database.exec(`SELECT name, value_type FROM span_annotations`)
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [name, value_type] = row
+      const stringType = this.parseValue(value_type, 'string')
+      return {
+        name: this.parseValue(name, 'string'),
+        type:
+          ANNOTATION_VALUE_TYPE_MAP[stringType as keyof typeof ANNOTATION_VALUE_TYPE_MAP] ||
+          'unknown',
+      }
+    })
   }
 }

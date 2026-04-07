@@ -80,7 +80,10 @@ const columnsTree = computed(() => {
       title: 'modelId',
     })
   }
-  for (const column of Object.keys(props.columns)) {
+  const columns = Object.keys(props.columns).filter(
+    (column) => column !== 'annotations_feedback' && column !== 'annotations_expectations',
+  )
+  for (const column of columns) {
     tree.push({
       title: column,
       children: props.columns[column as keyof TypedEvalsColumns].map((item) => item.name) || [],

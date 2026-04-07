@@ -118,6 +118,8 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
           'refs',
           'scores',
           'metadata',
+          'annotations_feedback',
+          'annotations_expectations',
         ]
         keys.forEach((key) => {
           columns[key].forEach((item) => {
@@ -135,6 +137,8 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
         refs: [],
         scores: [],
         metadata: [],
+        annotations_feedback: [],
+        annotations_expectations: [],
       },
     )
     return result

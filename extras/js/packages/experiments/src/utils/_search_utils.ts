@@ -28,7 +28,7 @@ function tokenize(input: string): Token[] {
   while (i < input.length) {
     const ch = input[i]
 
-    if (ch && /\s/.test(ch)) {
+    if (/\s/.test(ch || '')) {
       i++
       continue
     }
@@ -50,12 +50,12 @@ function tokenize(input: string): Token[] {
     }
 
     // Numbers
-    if (ch && /[0-9]/.test(ch)) {
+    if (/[0-9]/.test(ch || '')) {
       let j = i
-      while (j < input.length && input[j] && /[0-9]/.test(input[j]!)) j++
+      while (j < input.length && /[0-9]/.test(input[j] || '')) j++
       if (j < input.length && input[j] === '.') {
         j++
-        while (j < input.length && input[j] && /[0-9]/.test(input[j]!)) j++
+        while (j < input.length && /[0-9]/.test(input[j] || '')) j++
       }
       tokens.push({ kind: TK.NUMBER, value: input.slice(i, j) })
       i = j
@@ -103,10 +103,23 @@ function tokenize(input: string): Token[] {
       continue
     }
 
-    // Word: identifier or keyword (may contain dots, e.g. "param.lr", "attributes.http.method")
-    if (ch && /[a-zA-Z_]/.test(ch)) {
+    // Word: identifier or keyword (may contain dots, e.g. "param.lr", "attributes.http.method").
+    // Backtick-quoted segments within a dotted path are also consumed as part of the same
+    // token so that annotations.feedback.`First annotation` becomes one IDENTIFIER token.
+    if (/[a-zA-Z_]/.test(ch || '')) {
       let j = i
-      while (j < input.length && input[j] && /[a-zA-Z0-9_.`-]/.test(input[j]!)) j++
+      while (j < input.length) {
+        if (/[a-zA-Z0-9_.-]/.test(input[j] || '')) {
+          j++
+        } else if (input[j] === '`') {
+          // Backtick-quoted segment — read until closing backtick (spaces inside are ok)
+          j++ // skip opening `
+          while (j < input.length && input[j] !== '`') j++
+          if (j < input.length) j++ // skip closing `
+        } else {
+          break
+        }
+      }
       const word = input.slice(i, j)
       const upper = word.toUpperCase()
       if (KEYWORDS.has(upper)) {
@@ -143,6 +156,7 @@ export interface ComparisonDict {
   comparator: string
   value: unknown
   column?: string
+  kind?: string | null
 }
 
 interface RawComparison {
@@ -392,10 +406,30 @@ export class SearchUtils {
     // bare true/false → 1/0 (skip quoted)
     filterString = filterString.replace(/(?<!['"])\btrue\b(?!['"])/gi, '1')
     filterString = filterString.replace(/(?<!['"])\bfalse\b(?!['"])/gi, '0')
+
+    // Wrap annotation keys containing spaces in backticks before tokenisation.
+    // The tokenizer handles backtick-quoted segments within dotted identifiers,
+    // and trimBackticks in _getIdentifier strips them back out.
+    // Only fires when the key is not already quoted (quotes are excluded from the
+    // key character class).
+    filterString = filterString.replace(
+      // group 1: annotation prefix including trailing dot
+      // group 2: key (possibly multi-word, no quotes/backticks)
+      /((?:annotations(?:\.(?:feedback|expectations?))?|annotations_(?:feedback|expectations?))\.)((?:[^=!<>'"` \t\n\r][^=!<>'"` \n\r]*)(?:[ \t]+(?:[^=!<>'"` \n\r]+))*)(?=[ \t]*(?:!=|>=?|<=?|=|\bLIKE\b|\bILIKE\b|\bNOT[ \t]+IN\b|\bIN\b|\bCONTAINS\b))/gi,
+      (_match, prefix: string, key: string) => {
+        const trimmedKey = key.trimEnd()
+        if (trimmedKey.includes(' ') || trimmedKey.includes('\t')) {
+          return `${prefix}\`${trimmedKey}\``
+        }
+        return _match
+      },
+    )
+
     return filterString
   }
 
   // Subclasses override these:
+
   protected static _getIdentifier(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _identifierStr: string,
@@ -405,6 +439,7 @@ export class SearchUtils {
     throw new Error('_getIdentifier not implemented')
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected static _getValue(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _identifierType: string,
@@ -700,9 +735,9 @@ export class SearchExperimentsUtils extends SearchUtils {
     let identifierStr: string
     let isAscending: boolean
 
-    if (parts.length === 2 && parts[1] && ['ASC', 'DESC'].includes(parts[1].toUpperCase())) {
+    if (parts.length === 2 && ['ASC', 'DESC'].includes(parts[1]!.toUpperCase())) {
       identifierStr = parts[0]!
-      isAscending = parts[1].toUpperCase() === 'ASC'
+      isAscending = parts[1]!.toUpperCase() === 'ASC'
     } else if (parts.length === 1) {
       identifierStr = parts[0]!
       isAscending = true
@@ -837,9 +872,12 @@ export class SearchEvalsUtils extends SearchUtils {
   static readonly DATE_ATTRIBUTES = new Set(['created_at', 'updated_at'])
   static readonly STRING_ATTRIBUTES = new Set(['id', 'dataset_id'])
   static readonly JSON_COLUMNS = new Set(['inputs', 'outputs', 'refs', 'scores', 'metadata'])
+  static readonly ANNOTATION_PREFIX = 'annotations'
+  static readonly ANNOTATION_KINDS = new Set(['feedback', 'expectation', 'expectations'])
 
   private static readonly _JSON_IDENTIFIER = 'json'
   private static readonly _ATTRIBUTE_IDENTIFIER = 'attribute'
+  private static readonly _ANNOTATION_IDENTIFIER = 'annotation'
 
   static readonly VALID_STRING_ATTRIBUTE_COMPARATORS = new Set([
     '=',
@@ -862,6 +900,7 @@ export class SearchEvalsUtils extends SearchUtils {
     'IN',
     'NOT IN',
   ])
+  static readonly VALID_ANNOTATION_COMPARATORS = SearchEvalsUtils.VALID_JSON_COMPARATORS
 
   protected static override _getIdentifier(
     identifierStr: string,
@@ -886,16 +925,93 @@ export class SearchEvalsUtils extends SearchUtils {
 
     const prefix = identifierStr.slice(0, dotIdx)
     const rawKey = identifierStr.slice(dotIdx + 1)
-    const key = SearchEvalsUtils.trimBackticks(SearchEvalsUtils.stripQuotes(rawKey))
+    const prefixLower = prefix.toLowerCase()
 
-    if (!SearchEvalsUtils.JSON_COLUMNS.has(prefix.toLowerCase())) {
+    // annotations.<name>  OR  annotations.<kind>.<name>
+    if (prefixLower === SearchEvalsUtils.ANNOTATION_PREFIX) {
+      const kindDot = rawKey.indexOf('.')
+      if (kindDot !== -1) {
+        const kindStr = rawKey.slice(0, kindDot).toLowerCase()
+        if (SearchEvalsUtils.ANNOTATION_KINDS.has(kindStr)) {
+          const kind = kindStr === 'expectations' ? 'expectation' : kindStr
+          const annName = SearchEvalsUtils.trimBackticks(
+            SearchEvalsUtils.stripQuotes(rawKey.slice(kindDot + 1)),
+          )
+          return {
+            type: SearchEvalsUtils._ANNOTATION_IDENTIFIER,
+            kind,
+            key: annName,
+          }
+        }
+      }
+      const annName = SearchEvalsUtils.trimBackticks(SearchEvalsUtils.stripQuotes(rawKey))
+      return { type: SearchEvalsUtils._ANNOTATION_IDENTIFIER, kind: null, key: annName }
+    }
+
+    // annotations_feedback.<name>
+    if (prefixLower === 'annotations_feedback') {
+      const annName = SearchEvalsUtils.trimBackticks(SearchEvalsUtils.stripQuotes(rawKey))
+      return { type: SearchEvalsUtils._ANNOTATION_IDENTIFIER, kind: 'feedback', key: annName }
+    }
+
+    // annotations_expectation.<name>  /  annotations_expectations.<name>
+    if (prefixLower === 'annotations_expectation' || prefixLower === 'annotations_expectations') {
+      const annName = SearchEvalsUtils.trimBackticks(SearchEvalsUtils.stripQuotes(rawKey))
+      return {
+        type: SearchEvalsUtils._ANNOTATION_IDENTIFIER,
+        kind: 'expectation',
+        key: annName,
+      }
+    }
+
+    const key = SearchEvalsUtils.trimBackticks(SearchEvalsUtils.stripQuotes(rawKey))
+    if (!SearchEvalsUtils.JSON_COLUMNS.has(prefixLower)) {
       throw new LumlFilterError(
         `Invalid field prefix '${prefix}'. ` +
           `Valid JSON columns: ${[...SearchEvalsUtils.JSON_COLUMNS].sort()}. ` +
-          `Valid bare attributes: ${[...SearchEvalsUtils.VALID_SEARCH_ATTRIBUTE_KEYS].sort()}.`,
+          `Valid bare attributes: ${[...SearchEvalsUtils.VALID_SEARCH_ATTRIBUTE_KEYS].sort()}. ` +
+          `Use '${SearchEvalsUtils.ANNOTATION_PREFIX}.<name>' to filter by annotation.`,
       )
     }
-    return { type: SearchEvalsUtils._JSON_IDENTIFIER, column: prefix.toLowerCase(), key }
+    return { type: SearchEvalsUtils._JSON_IDENTIFIER, column: prefixLower, key }
+  }
+
+  /** Build SQL expression for comparing annotation `value` column. */
+  private static _buildAnnotationValueExpr(
+    comparator: string,
+    value: unknown,
+  ): [string, unknown[]] {
+    const numericComparators = new Set(['>', '>=', '<', '<='])
+    if (numericComparators.has(comparator)) {
+      return [`CAST(value AS REAL) ${comparator} ?`, [value]]
+    }
+    if (comparator === 'ILIKE') {
+      return ['UPPER(value) LIKE UPPER(?)', [value]]
+    }
+    if (comparator === 'IN') {
+      const vals = value as unknown[]
+      return [`value IN (${vals.map(() => '?').join(',')})`, vals]
+    }
+    if (comparator === 'NOT IN') {
+      const vals = value as unknown[]
+      return [`value NOT IN (${vals.map(() => '?').join(',')})`, vals]
+    }
+    // = / != : numeric → text, with bool aliases for 1/0
+    if (typeof value === 'number') {
+      const strVal = Number.isInteger(value) ? String(value) : String(value)
+      if (value === 1) {
+        return comparator === '='
+          ? ["(value = ? OR value = 'true')", [strVal]]
+          : ["(value != ? AND value != 'true')", [strVal]]
+      }
+      if (value === 0) {
+        return comparator === '='
+          ? ["(value = ? OR value = 'false')", [strVal]]
+          : ["(value != ? AND value != 'false')", [strVal]]
+      }
+      return [`value ${comparator} ?`, [strVal]]
+    }
+    return [`value ${comparator} ?`, [value]]
   }
 
   protected static override _getValue(
@@ -903,7 +1019,10 @@ export class SearchEvalsUtils extends SearchUtils {
     key: string,
     parsedValue: ParsedValue,
   ): unknown {
-    if (identifierType === SearchEvalsUtils._JSON_IDENTIFIER) {
+    if (
+      identifierType === SearchEvalsUtils._ANNOTATION_IDENTIFIER ||
+      identifierType === SearchEvalsUtils._JSON_IDENTIFIER
+    ) {
       if (parsedValue.kind === 'number') return parseFloat(parsedValue.raw)
       if (parsedValue.kind === 'string') {
         return SearchEvalsUtils.stripQuotes(parsedValue.raw, true)
@@ -911,7 +1030,8 @@ export class SearchEvalsUtils extends SearchUtils {
       if (parsedValue.kind === 'list') return parsedValue.items
       if (parsedValue.kind === 'bool') return parsedValue.raw === 'TRUE'
       throw new LumlFilterError(
-        `Expected string or numeric value for JSON field '${key}'. Got ${JSON.stringify(parsedValue)}`,
+        `Expected string or numeric value for JSON field '${key}'. ` +
+          `Got ${JSON.stringify(parsedValue)}`,
       )
     }
 
@@ -944,7 +1064,9 @@ export class SearchEvalsUtils extends SearchUtils {
     const comparator = raw.comparator.toUpperCase()
 
     let validComparators: Set<string>
-    if (comp.type === SearchEvalsUtils._JSON_IDENTIFIER) {
+    if (comp.type === SearchEvalsUtils._ANNOTATION_IDENTIFIER) {
+      validComparators = SearchEvalsUtils.VALID_ANNOTATION_COMPARATORS
+    } else if (comp.type === SearchEvalsUtils._JSON_IDENTIFIER) {
       validComparators = SearchEvalsUtils.VALID_JSON_COMPARATORS
     } else if (SearchEvalsUtils.DATE_ATTRIBUTES.has(comp.key)) {
       validComparators = SearchEvalsUtils.VALID_DATE_COMPARATORS
@@ -953,10 +1075,14 @@ export class SearchEvalsUtils extends SearchUtils {
     }
 
     if (!validComparators.has(comparator)) {
-      const field =
-        comp.type === SearchEvalsUtils._JSON_IDENTIFIER
-          ? `${comp.column ?? ''}.${comp.key}`
-          : comp.key
+      let field: string
+      if (comp.type === SearchEvalsUtils._ANNOTATION_IDENTIFIER) {
+        field = comp.kind ? `annotations.${comp.kind}.${comp.key}` : `annotations.${comp.key}`
+      } else if (comp.type === SearchEvalsUtils._JSON_IDENTIFIER) {
+        field = `${comp.column ?? ''}.${comp.key}`
+      } else {
+        field = comp.key
+      }
       throw new LumlFilterError(
         `Invalid comparator '${comparator}' for '${field}'. ` +
           `Valid comparators: ${[...validComparators].sort()}`,
@@ -986,7 +1112,20 @@ export class SearchEvalsUtils extends SearchUtils {
 
       const { type: keyType, key, value, comparator } = item
 
-      if (keyType === SearchEvalsUtils._JSON_IDENTIFIER) {
+      if (keyType === SearchEvalsUtils._ANNOTATION_IDENTIFIER) {
+        const kind = (item as ComparisonDict).kind
+        const kindClause = kind ? ` AND annotation_kind = '${kind}'` : ''
+        const [valueExpr, valueParams] = SearchEvalsUtils._buildAnnotationValueExpr(
+          comparator,
+          value,
+        )
+        sqlParts.push(
+          `EXISTS (SELECT 1 FROM eval_annotations` +
+            ` WHERE eval_id = evals.id AND name = ?${kindClause} AND ${valueExpr})`,
+        )
+        params.push(key)
+        params.push(...valueParams)
+      } else if (keyType === SearchEvalsUtils._JSON_IDENTIFIER) {
         const col = (item as ComparisonDict).column!
         const expr = `json_extract(${col}, '$.${key}')`
         if (comparator === 'ILIKE') {
@@ -1048,7 +1187,34 @@ export class SearchEvalsUtils extends SearchUtils {
 export class SearchTracesUtils extends SearchUtils {
   static readonly VALID_SEARCH_ATTRIBUTE_KEYS: Set<string> = new Set()
   static readonly ATTRIBUTES_PREFIX = 'attributes'
+  static readonly ANNOTATION_PREFIX = 'annotations'
+  static readonly ANNOTATION_KINDS = new Set(['feedback', 'expectation', 'expectations'])
+  static readonly EVALS_COLUMN = 'evals'
+  static readonly STATE_COLUMN = 'state'
+
+  static readonly TRACE_COLUMNS = new Set([
+    'trace_id',
+    'id',
+    'execution_time',
+    'span_count',
+    'created_at',
+    'state',
+  ])
+  static readonly NUMERIC_TRACE_COLUMNS = new Set(['execution_time', 'span_count'])
+  static readonly DATE_TRACE_COLUMNS = new Set(['created_at'])
+
+  static readonly STATE_NAME_MAP: Record<string, number> = {
+    ok: 1,
+    error: 2,
+    in_progress: 3,
+    state_unspecified: 0,
+    unspecified: 0,
+  }
+
   private static readonly _SPAN_ATTR_IDENTIFIER = 'span_attribute'
+  private static readonly _ANNOTATION_IDENTIFIER = 'annotation'
+  private static readonly _TRACE_COLUMN_IDENTIFIER = 'trace_column'
+  private static readonly _EVALS_IDENTIFIER = 'evals'
 
   static readonly VALID_COMPARATORS = new Set([
     '=',
@@ -1062,6 +1228,24 @@ export class SearchTracesUtils extends SearchUtils {
     'IN',
     'NOT IN',
   ])
+  static readonly VALID_NUMERIC_COMPARATORS = new Set(['=', '!=', '>', '>=', '<', '<='])
+  static readonly VALID_STRING_COMPARATORS = new Set(['=', '!=', 'LIKE', 'ILIKE', 'IN', 'NOT IN'])
+  static readonly VALID_DATE_COMPARATORS = new Set(['=', '!=', '>', '>=', '<', '<='])
+  static readonly VALID_STATE_COMPARATORS = new Set(['=', '!=', 'IN', 'NOT IN'])
+
+  private static _resolveStateValue(raw: unknown): number {
+    if (typeof raw === 'string') {
+      const mapped = SearchTracesUtils.STATE_NAME_MAP[raw.toLowerCase()]
+      if (mapped === undefined) {
+        throw new LumlFilterError(
+          `Invalid state value '${raw}'. ` +
+            `Valid values: ${Object.keys(SearchTracesUtils.STATE_NAME_MAP).sort()} or integer 0-3.`,
+        )
+      }
+      return mapped
+    }
+    return Number(raw)
+  }
 
   protected static override _getIdentifier(
     identifierStr: string,
@@ -1071,28 +1255,118 @@ export class SearchTracesUtils extends SearchUtils {
     identifierStr = SearchTracesUtils.trimBackticks(identifierStr.trim())
     const dotIdx = identifierStr.indexOf('.')
 
-    if (
-      dotIdx === -1 ||
-      identifierStr.slice(0, dotIdx).toLowerCase() !== SearchTracesUtils.ATTRIBUTES_PREFIX
-    ) {
+    // Bare attribute — trace columns or evals
+    if (dotIdx === -1) {
+      const key = SearchTracesUtils.trimBackticks(
+        SearchTracesUtils.stripQuotes(identifierStr),
+      ).toLowerCase()
+      if (SearchTracesUtils.TRACE_COLUMNS.has(key)) {
+        return { type: SearchTracesUtils._TRACE_COLUMN_IDENTIFIER, key }
+      }
+      if (key === SearchTracesUtils.EVALS_COLUMN) {
+        return { type: SearchTracesUtils._EVALS_IDENTIFIER, key }
+      }
       throw new LumlFilterError(
         `Invalid field '${identifierStr}'. ` +
-          `Trace filters must use the format: attributes.<key>  ` +
-          `(e.g. attributes.http.method, attributes.http.status_code)`,
+          `Bare fields: ${[...SearchTracesUtils.TRACE_COLUMNS, SearchTracesUtils.EVALS_COLUMN].sort()}. ` +
+          `For span attributes use: attributes.<key>. ` +
+          `For annotations use: annotations.<name>.`,
       )
     }
 
-    const key = SearchTracesUtils.trimBackticks(
-      SearchTracesUtils.stripQuotes(identifierStr.slice(dotIdx + 1)),
+    const prefix = identifierStr.slice(0, dotIdx)
+    const rawKey = identifierStr.slice(dotIdx + 1)
+    const prefixLower = prefix.toLowerCase()
+
+    // annotations.<name>  OR  annotations.<kind>.<name>
+    if (prefixLower === SearchTracesUtils.ANNOTATION_PREFIX) {
+      const kindDot = rawKey.indexOf('.')
+      if (kindDot !== -1) {
+        const kindStr = rawKey.slice(0, kindDot).toLowerCase()
+        if (SearchTracesUtils.ANNOTATION_KINDS.has(kindStr)) {
+          const kind = kindStr === 'expectations' ? 'expectation' : kindStr
+          const annName = SearchTracesUtils.trimBackticks(
+            SearchTracesUtils.stripQuotes(rawKey.slice(kindDot + 1)),
+          )
+          return { type: SearchTracesUtils._ANNOTATION_IDENTIFIER, kind, key: annName }
+        }
+      }
+      const annName = SearchTracesUtils.trimBackticks(SearchTracesUtils.stripQuotes(rawKey))
+      return { type: SearchTracesUtils._ANNOTATION_IDENTIFIER, kind: null, key: annName }
+    }
+
+    // annotations_feedback.<name>
+    if (prefixLower === 'annotations_feedback') {
+      const annName = SearchTracesUtils.trimBackticks(SearchTracesUtils.stripQuotes(rawKey))
+      return {
+        type: SearchTracesUtils._ANNOTATION_IDENTIFIER,
+        kind: 'feedback',
+        key: annName,
+      }
+    }
+
+    // annotations_expectation.<name>  /  annotations_expectations.<name>
+    if (prefixLower === 'annotations_expectation' || prefixLower === 'annotations_expectations') {
+      const annName = SearchTracesUtils.trimBackticks(SearchTracesUtils.stripQuotes(rawKey))
+      return {
+        type: SearchTracesUtils._ANNOTATION_IDENTIFIER,
+        kind: 'expectation',
+        key: annName,
+      }
+    }
+
+    // attributes.<key>
+    if (prefixLower === SearchTracesUtils.ATTRIBUTES_PREFIX) {
+      const key = SearchTracesUtils.trimBackticks(SearchTracesUtils.stripQuotes(rawKey))
+      return { type: SearchTracesUtils._SPAN_ATTR_IDENTIFIER, key }
+    }
+
+    throw new LumlFilterError(
+      `Invalid field prefix '${prefix}'. ` +
+        `Bare fields: ${[...SearchTracesUtils.TRACE_COLUMNS, SearchTracesUtils.EVALS_COLUMN].sort()}. ` +
+        `For span attributes use: attributes.<key>. ` +
+        `For annotations use: annotations.<name>.`,
     )
-    return { type: SearchTracesUtils._SPAN_ATTR_IDENTIFIER, key }
   }
 
   protected static override _getValue(
-    _identifierType: string,
+    identifierType: string,
     key: string,
     parsedValue: ParsedValue,
   ): unknown {
+    if (
+      identifierType === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER &&
+      key === SearchTracesUtils.STATE_COLUMN
+    ) {
+      if (parsedValue.kind === 'number') return Math.round(parseFloat(parsedValue.raw))
+      if (parsedValue.kind === 'string') {
+        return SearchTracesUtils._resolveStateValue(
+          SearchTracesUtils.stripQuotes(parsedValue.raw, true),
+        )
+      }
+      if (parsedValue.kind === 'list') {
+        return parsedValue.items.map((v) => SearchTracesUtils._resolveStateValue(v))
+      }
+      throw new LumlFilterError(
+        `Expected state name or integer for 'state'. Got ${JSON.stringify(parsedValue)}`,
+      )
+    }
+
+    if (
+      identifierType === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER &&
+      SearchTracesUtils.DATE_TRACE_COLUMNS.has(key)
+    ) {
+      if (parsedValue.kind === 'string') {
+        const dateStr = SearchTracesUtils.stripQuotes(parsedValue.raw, true)
+        SearchTracesUtils.validateDateString(dateStr, key)
+        return dateStr
+      }
+      if (parsedValue.kind === 'number') return parsedValue.raw
+      throw new LumlFilterError(
+        `Expected ISO date string for '${key}'. Got ${JSON.stringify(parsedValue)}`,
+      )
+    }
+
     if (parsedValue.kind === 'number') return parseFloat(parsedValue.raw)
     if (parsedValue.kind === 'string') {
       return SearchTracesUtils.stripQuotes(parsedValue.raw, true)
@@ -1100,7 +1374,7 @@ export class SearchTracesUtils extends SearchUtils {
     if (parsedValue.kind === 'list') return parsedValue.items
     if (parsedValue.kind === 'bool') return parsedValue.raw === 'TRUE'
     throw new LumlFilterError(
-      `Expected string or numeric value for attributes.${key}. Got ${JSON.stringify(parsedValue)}`,
+      `Expected string or numeric value for '${key}'. Got ${JSON.stringify(parsedValue)}`,
     )
   }
 
@@ -1111,10 +1385,28 @@ export class SearchTracesUtils extends SearchUtils {
     ) as unknown as ComparisonDict
     const comparator = raw.comparator.toUpperCase()
 
-    if (!SearchTracesUtils.VALID_COMPARATORS.has(comparator)) {
+    let validComparators: Set<string>
+    if (comp.type === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER) {
+      const key = comp.key
+      if (SearchTracesUtils.NUMERIC_TRACE_COLUMNS.has(key)) {
+        validComparators = SearchTracesUtils.VALID_NUMERIC_COMPARATORS
+      } else if (SearchTracesUtils.DATE_TRACE_COLUMNS.has(key)) {
+        validComparators = SearchTracesUtils.VALID_DATE_COMPARATORS
+      } else if (key === SearchTracesUtils.STATE_COLUMN) {
+        validComparators = SearchTracesUtils.VALID_STATE_COMPARATORS
+      } else {
+        validComparators = SearchTracesUtils.VALID_STRING_COMPARATORS
+      }
+    } else if (comp.type === SearchTracesUtils._EVALS_IDENTIFIER) {
+      validComparators = SearchTracesUtils.VALID_STRING_COMPARATORS
+    } else {
+      validComparators = SearchTracesUtils.VALID_COMPARATORS
+    }
+
+    if (!validComparators.has(comparator)) {
       throw new LumlFilterError(
-        `Invalid comparator '${comparator}' for 'attributes.${comp.key}'. ` +
-          `Valid comparators: ${[...SearchTracesUtils.VALID_COMPARATORS].sort()}`,
+        `Invalid comparator '${comparator}' for '${comp.key}'. ` +
+          `Valid comparators: ${[...validComparators].sort()}`,
       )
     }
 
@@ -1123,7 +1415,44 @@ export class SearchTracesUtils extends SearchUtils {
     return comp
   }
 
-  private static _buildInnerSql(parsedFilters: FilterNode[]): [string, unknown[]] {
+  /** Build SQL expression for comparing annotation `value` column. */
+  private static _buildAnnotationValueExpr(
+    comparator: string,
+    value: unknown,
+  ): [string, unknown[]] {
+    const numericComparators = new Set(['>', '>=', '<', '<='])
+    if (numericComparators.has(comparator)) {
+      return [`CAST(value AS REAL) ${comparator} ?`, [value]]
+    }
+    if (comparator === 'ILIKE') {
+      return ['UPPER(value) LIKE UPPER(?)', [value]]
+    }
+    if (comparator === 'IN') {
+      const vals = value as unknown[]
+      return [`value IN (${vals.map(() => '?').join(',')})`, vals]
+    }
+    if (comparator === 'NOT IN') {
+      const vals = value as unknown[]
+      return [`value NOT IN (${vals.map(() => '?').join(',')})`, vals]
+    }
+    if (typeof value === 'number') {
+      const strVal = String(Number.isInteger(value) ? value : value)
+      if (value === 1) {
+        return comparator === '='
+          ? ["(value = ? OR value = 'true')", [strVal]]
+          : ["(value != ? AND value != 'true')", [strVal]]
+      }
+      if (value === 0) {
+        return comparator === '='
+          ? ["(value = ? OR value = 'false')", [strVal]]
+          : ["(value != ? AND value != 'false')", [strVal]]
+      }
+      return [`value ${comparator} ?`, [strVal]]
+    }
+    return [`value ${comparator} ?`, [value]]
+  }
+
+  private static _buildSql(parsedFilters: FilterNode[]): [string, unknown[]] {
     const sqlParts: string[] = []
     const params: unknown[] = []
 
@@ -1133,27 +1462,126 @@ export class SearchTracesUtils extends SearchUtils {
         continue
       }
       if ('group' in item) {
-        const [subSql, subParams] = SearchTracesUtils._buildInnerSql(item.group)
+        const [subSql, subParams] = SearchTracesUtils._buildSql(item.group)
         sqlParts.push(`(${subSql})`)
         params.push(...subParams)
         continue
       }
 
-      const { key, value, comparator } = item
-      const expr = `json_extract(attributes, '$."${key}"')`
+      const { type: itemType, key, value, comparator } = item
 
-      if (comparator === 'ILIKE') {
-        sqlParts.push(`UPPER(${expr}) LIKE UPPER(?)`)
-        params.push(value)
-      } else if (comparator === 'IN') {
-        sqlParts.push(`${expr} IN (${(value as unknown[]).map(() => '?').join(',')})`)
-        params.push(...(value as unknown[]))
-      } else if (comparator === 'NOT IN') {
-        sqlParts.push(`${expr} NOT IN (${(value as unknown[]).map(() => '?').join(',')})`)
-        params.push(...(value as unknown[]))
+      if (itemType === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER) {
+        const col = key === 'id' ? 'trace_id' : key
+        if (key === 'execution_time') {
+          sqlParts.push(`${col} ${comparator} ?`)
+          params.push(Math.round(Number(value)))
+        } else if (key === SearchTracesUtils.STATE_COLUMN) {
+          if (comparator === 'IN') {
+            sqlParts.push(`${col} IN (${(value as unknown[]).map(() => '?').join(',')})`)
+            params.push(...(value as unknown[]))
+          } else if (comparator === 'NOT IN') {
+            sqlParts.push(`${col} NOT IN (${(value as unknown[]).map(() => '?').join(',')})`)
+            params.push(...(value as unknown[]))
+          } else {
+            sqlParts.push(`${col} ${comparator} ?`)
+            params.push(value)
+          }
+        } else if (key === 'trace_id' || key === 'id') {
+          if (comparator === 'ILIKE') {
+            sqlParts.push('UPPER(trace_id) LIKE UPPER(?)')
+            params.push(value)
+          } else if (comparator === 'IN') {
+            sqlParts.push(`trace_id IN (${(value as unknown[]).map(() => '?').join(',')})`)
+            params.push(...(value as unknown[]))
+          } else if (comparator === 'NOT IN') {
+            sqlParts.push(`trace_id NOT IN (${(value as unknown[]).map(() => '?').join(',')})`)
+            params.push(...(value as unknown[]))
+          } else {
+            sqlParts.push(`trace_id ${comparator} ?`)
+            params.push(value)
+          }
+        } else {
+          sqlParts.push(`${col} ${comparator} ?`)
+          params.push(value)
+        }
+      } else if (itemType === SearchTracesUtils._EVALS_IDENTIFIER) {
+        if (comparator === '!=') {
+          sqlParts.push(
+            'trace_id NOT IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id = ?)',
+          )
+          params.push(value)
+        } else if (comparator === 'ILIKE') {
+          sqlParts.push(
+            'trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge' +
+              ' WHERE UPPER(eval_id) LIKE UPPER(?))',
+          )
+          params.push(value)
+        } else if (comparator === 'LIKE') {
+          sqlParts.push(
+            'trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id LIKE ?)',
+          )
+          params.push(value)
+        } else if (comparator === 'IN') {
+          const vals = value as unknown[]
+          sqlParts.push(
+            `trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge` +
+              ` WHERE eval_id IN (${vals.map(() => '?').join(',')}))`,
+          )
+          params.push(...vals)
+        } else if (comparator === 'NOT IN') {
+          const vals = value as unknown[]
+          sqlParts.push(
+            `trace_id NOT IN (SELECT DISTINCT trace_id FROM eval_traces_bridge` +
+              ` WHERE eval_id IN (${vals.map(() => '?').join(',')}))`,
+          )
+          params.push(...vals)
+        } else {
+          sqlParts.push(
+            'trace_id IN (SELECT DISTINCT trace_id FROM eval_traces_bridge WHERE eval_id = ?)',
+          )
+          params.push(value)
+        }
+      } else if (itemType === SearchTracesUtils._ANNOTATION_IDENTIFIER) {
+        const kind = (item as ComparisonDict).kind
+        const kindClause = kind ? ` AND annotation_kind = '${kind}'` : ''
+        const [valueExpr, valueParams] = SearchTracesUtils._buildAnnotationValueExpr(
+          comparator,
+          value,
+        )
+        sqlParts.push(
+          `trace_id IN (SELECT DISTINCT trace_id FROM span_annotations` +
+            ` WHERE name = ?${kindClause} AND ${valueExpr})`,
+        )
+        params.push(key)
+        params.push(...valueParams)
       } else {
-        sqlParts.push(`${expr} ${comparator} ?`)
-        params.push(value)
+        // _SPAN_ATTR_IDENTIFIER
+        const expr = `json_extract(attributes, '$."${key}"')`
+        if (comparator === 'ILIKE') {
+          sqlParts.push(
+            `trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE UPPER(${expr}) LIKE UPPER(?))`,
+          )
+          params.push(value)
+        } else if (comparator === 'IN') {
+          const vals = value as unknown[]
+          sqlParts.push(
+            `trace_id IN (SELECT DISTINCT trace_id FROM spans` +
+              ` WHERE ${expr} IN (${vals.map(() => '?').join(',')}))`,
+          )
+          params.push(...vals)
+        } else if (comparator === 'NOT IN') {
+          const vals = value as unknown[]
+          sqlParts.push(
+            `trace_id IN (SELECT DISTINCT trace_id FROM spans` +
+              ` WHERE ${expr} NOT IN (${vals.map(() => '?').join(',')}))`,
+          )
+          params.push(...vals)
+        } else {
+          sqlParts.push(
+            `trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ${expr} ${comparator} ?)`,
+          )
+          params.push(value)
+        }
       }
     }
 
@@ -1178,7 +1606,6 @@ export class SearchTracesUtils extends SearchUtils {
   static toSql(filterString: string | null | undefined): [string, unknown[]] {
     const parsed = SearchTracesUtils.parseSearchFilter(filterString)
     if (!parsed.length) return ['', []]
-    const [innerSql, params] = SearchTracesUtils._buildInnerSql(parsed)
-    return [`trace_id IN (SELECT DISTINCT trace_id FROM spans WHERE ${innerSql})`, params]
+    return SearchTracesUtils._buildSql(parsed)
   }
 }

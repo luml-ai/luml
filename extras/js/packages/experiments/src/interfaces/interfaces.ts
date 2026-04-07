@@ -226,6 +226,8 @@ export interface TypedColumnInfo {
 
 export interface TypedTracesColumns {
   attributes: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
 }
 
 export interface TypedEvalsColumns {
@@ -234,10 +236,8 @@ export interface TypedEvalsColumns {
   refs: TypedColumnInfo[]
   scores: TypedColumnInfo[]
   metadata: TypedColumnInfo[]
-}
-
-export interface TypedTracesColumns {
-  attributes: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
 }
 
 export interface ValidateResponseItem {
