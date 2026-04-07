@@ -16,6 +16,8 @@
     "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "devDependencies": {
+    "@fnnx-ai/common": "^0.0.1",
+    "@fnnx-ai/web": "^0.0.2",
     "@primevue/forms": "^4.5.4",
     "@tsconfig/node22": "^22.0.5",
     "@tsconfig/node24": "^24.0.3",
@@ -31,9 +33,7 @@
     "prettier": "3.7.4",
     "style-dictionary": "^4.3.0",
     "typescript": "~5.9.3",
-    "vue-tsc": "^3.2.2",
-    "@fnnx-ai/common": "^0.0.1",
-    "@fnnx-ai/web": "^0.0.2"
+    "vue-tsc": "^3.2.2"
   },
   "files": [
     "dist"
@@ -51,7 +51,7 @@
   },
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.3.2",
     "github-markdown-css": "^5.8.1",
     "lucide-vue-next": "^0.460.0",
     "marked": "^16.2.0",
