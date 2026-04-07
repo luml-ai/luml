@@ -36,30 +36,44 @@ lumlflow version                     # Show installed version
 
 ### Experiment Tracking
 
-Track ML experiments with rich metadata:
+Run your ML experiments locally while seamlessly tracking their progress in a clear, real-time UI.
 
-- **Name and description** for human-readable identification
-- **Tags** for flexible categorization and filtering
-- **Status** tracking — active, completed, or failed
-- **Duration** to measure how long experiments run
-- **Source** to record where the experiment originated
-- **Metrics** — arbitrary key-value numeric metrics (accuracy, loss, F1, etc.)
+The platform gives you full visibility into every experiment as it executes. As your code runs, all experiment data is automatically captured and stored, allowing you to monitor progress, inspect intermediate results, and analyze outcomes in a structured way.
 
-### Model Management
+Each experiment can be easily identified by its **name** and **tags**, allowing you to quickly find relevant runs, filter them, and organize your workflow.
 
-Associate models with experiments to keep track of which models were produced by which runs.
+Each experiment serves as a complete record of a run and can include:
+
+- **Metrics** — track performance over time (accuracy, loss, F1, etc.)
+- **Parameters** — log hyperparameters and configuration settings
+- **Models** — store produced models and link them to specific runs
+- **Evaluations (Evals)** — record evaluation results and comparisons
+- **Traces** — capture step-by-step execution details for deeper analysis
+- **Attachments** — save artifacts like datasets, plots, or logs
+
+All of this is accessible through an interactive web UI where you can explore experiments, analyze metrics, inspect traces, and compare results.
+
+[placeholder for screenshot]
+
+### Annotations
+
+Add annotations to evaluation samples and trace spans to capture feedback, expectations, or manual scores.
+
+Use annotations to review experiment quality, document insights, or collaborate with teammates by leaving structured notes with optional rationale.
+
+[placeholder for screenshot]
 
 ### Experiment Groups
 
 Organize related experiments into groups for easier navigation and comparison.
 
-### Web Dashboard
 
-- Browse and search experiments in a sortable, filterable table
-- View experiment details including metrics and associated models
-- Edit experiment metadata (name, description, tags)
-- Create and manage experiment groups
-- Customizable table columns
+### Uploading to LUML
+
+Use your API key to upload experiments and models from your local environment to the LUML platform.
+
+This allows you to move from local experimentation to shared cloud storage, making it easier to collaborate, persist results, and manage models centrally.
+
 
 ## Requirements
 
