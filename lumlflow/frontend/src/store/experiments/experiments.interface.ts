@@ -103,11 +103,3 @@ export interface Eval {
   trace_ids: string[]
   annotations: AnnotationSummary | null
 }
-
-export interface EvalScores {
-  inputs: string[]
-  outputs: string[]
-  refs: string[]
-  scores: string[]
-  metadata: string[]
-}

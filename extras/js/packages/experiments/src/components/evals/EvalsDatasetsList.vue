@@ -62,6 +62,7 @@ function onFilterChange(datasetId: string, filter: FilterInterface) {
   const dataset = evalsStore.datasets?.find((item) => item.params.dataset_id === datasetId)
   if (!dataset) return
   dataset.params.search = filter.search
+  dataset.params.filters = filter.filters
   getNextPage(datasetId, true)
 }
 

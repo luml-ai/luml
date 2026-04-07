@@ -5,4 +5,5 @@ export const INITIAL_REQUEST_PARAMS: GetTracesParams = {
   sort_by: 'created_at',
   order: 'desc',
   search: '',
+  filters: [],
 }

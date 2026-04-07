@@ -206,15 +206,6 @@ const createMockProvider = (
     // getUniqueTraceIds: async (modelId: string) => {
     //   return []
     // },
-    getEvalsColumns: async (datasetId: string) => {
-      return {
-        inputs: ['prompt', 'context', 'temperature'],
-        outputs: ['response', 'tokens_used'],
-        refs: ['expected', 'category'],
-        scores: ['metric_0', 'coherence', 'relevance'],
-        metadata: ['timestamp', 'model_version', 'duration_ms'],
-      }
-    },
     getUniqueDatasetsIds: async () => {
       return ['dataset-1']
     },
@@ -270,6 +261,49 @@ const createMockProvider = (
         feedback: [],
         expectations: [],
       }
+    },
+    getEvalsColumns: async (datasetId: string) => {
+      return {
+        inputs: [
+          { name: 'prompt', type: 'string' },
+          { name: 'context', type: 'string' },
+          { name: 'temperature', type: 'number' },
+        ],
+        outputs: [
+          { name: 'response', type: 'string' },
+          { name: 'tokens_used', type: 'number' },
+        ],
+        refs: [
+          { name: 'expected', type: 'string' },
+          { name: 'category', type: 'string' },
+        ],
+        scores: [
+          { name: 'metric_0', type: 'number' },
+          { name: 'coherence', type: 'number' },
+          { name: 'relevance', type: 'number' },
+        ],
+        metadata: [
+          { name: 'timestamp', type: 'string' },
+          { name: 'model_version', type: 'number' },
+          { name: 'duration_ms', type: 'number' },
+        ],
+      }
+    },
+    getTracesColumns: async (artifactId: string) => {
+      return {
+        attributes: [
+          { name: 'span_id', type: 'string' },
+          { name: 'trace_id', type: 'string' },
+          { name: 'status_code', type: 'number' },
+          { name: 'duration_ms', type: 'number' },
+        ],
+      }
+    },
+    validateEvalsFilter: async (filters: string[]) => {
+      return []
+    },
+    validateTracesFilter: async (filters: string[]) => {
+      return []
     },
   }
 }

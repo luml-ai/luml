@@ -1,26 +1,36 @@
+import type { ValidateResponseItem } from '@/interfaces/interfaces'
+
 export interface FilterItem {
   id: string
-  field: string
-  operator: FilterOperatorEnum
-  value: string
+  field: string | null
+  operator: FilterOperatorEnum | null
+  value: string | number | null
 }
 
 export enum FilterOperatorEnum {
-  equal = 'equal',
-  notEqual = 'notEqual',
-  gt = 'gt',
-  gte = 'gte',
-  lt = 'lt',
-  lte = 'lte',
+  equal = '=',
+  notEqual = '!=',
+  gt = '>',
+  gte = '>=',
+  lt = '<',
+  lte = '<=',
+  like = 'LIKE',
+  ilike = 'ILIKE',
+  in = 'IN',
+  notIn = 'NOT IN',
+  contains = 'CONTAINS',
 }
 
 export interface FilterItemProps {
-  fields: string[]
+  fields: { name: string; type: 'string' | 'number' | 'boolean' | 'unknown' }[]
+  errors?: { [key: string]: string } & { global?: string }
 }
 
 export interface FilterProps {
-  fields: string[]
+  fields: { name: string; type: 'string' | 'number' | 'boolean' | 'unknown' }[]
   disabled?: boolean
+  errors?: FilterItemsErrors
+  asyncValidateCallback?: (filters: FilterItem[]) => Promise<ValidateResponseItem[]>
 }
 
 export interface FilterEmits {
@@ -29,4 +39,7 @@ export interface FilterEmits {
 
 export interface FilterItemEmits {
   (e: 'remove'): void
+  (e: 'clear-errors'): void
 }
+
+export type FilterItemsErrors = { [key: string]: string }[]

@@ -1,7 +1,7 @@
 import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
-import type { GetTracesParams } from '@/interfaces/interfaces'
+import type { GetTracesParams, TypedColumnInfo, TypedTracesColumns } from '@/interfaces/interfaces'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { INITIAL_REQUEST_PARAMS } from './trace.data'
 import { useEvalsStore } from '../evals'
 import { useDebounceFn } from '@vueuse/core'
@@ -19,6 +19,16 @@ export const useTraceStore = defineStore('trace', () => {
   const traces = ref<Trace[]>([])
   const loading = ref(false)
   const artifactId = ref<string | null>(null)
+  const typedColumns = ref<TypedTracesColumns | null>(null)
+
+  const typedColumnsList = computed<TypedColumnInfo[]>(() => {
+    if (!typedColumns.value) return []
+    const entries = Object.entries(typedColumns.value)
+    const formattedEntries = entries.map(([key, list]) => {
+      return list.map((item) => ({ name: key + '.' + item.name, type: item.type }))
+    })
+    return formattedEntries.flat()
+  })
 
   async function getNextPage(reset: boolean = false) {
     const params = JSON.parse(JSON.stringify(requestParams.value))
@@ -84,6 +94,12 @@ export const useTraceStore = defineStore('trace', () => {
     }
   }, 500)
 
+  async function getTypedColumns() {
+    if (!artifactId.value) return
+    const data = await evalsStore.getProvider.getTracesColumns(artifactId.value)
+    typedColumns.value = data
+  }
+
   watch(requestParams, debouncedRequestParamsChange, { deep: true })
 
   return {
@@ -96,5 +112,8 @@ export const useTraceStore = defineStore('trace', () => {
     reset,
     setArtifactId,
     refresh,
+    getTypedColumns,
+    typedColumns,
+    typedColumnsList,
   }
 })

@@ -5,8 +5,10 @@
     :selected-columns="selectedColumns"
     scrollable
     :export-loading="exportLoading"
+    :typed-columns="typedColumns"
     @edit="setSelectedColumns"
     @export="exportCSV"
+    @filters-change="filterChange"
   ></EvalsToolbar>
   <div class="table-wrapper">
     <DataTable
@@ -202,6 +204,7 @@ const {
   searchModel,
   props.datasetId,
   computed(() => visibleColumns.value),
+  computed(() => props.filters),
 )
 
 const tableRef = ref()
@@ -377,6 +380,10 @@ function showTraces(data: Record<string, any>) {
 
 function toggleSubheader() {
   isSubheaderVisible.value = !isSubheaderVisible.value
+}
+
+function filterChange(filters: string[]) {
+  emit('filters-change', filters)
 }
 
 watch(

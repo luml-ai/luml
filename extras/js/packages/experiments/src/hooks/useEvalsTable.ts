@@ -18,6 +18,7 @@ export const useEvalsTable = (
   search: Readonly<Ref<string>>,
   datasetId: string,
   visibleColumns: Ref<string[]>,
+  filters: Ref<string[]>,
 ) => {
   const evalsStore = useEvalsStore()
   const toast = useToast()
@@ -91,6 +92,7 @@ export const useEvalsTable = (
       search: search.value,
       sort_by: sortParams.value.sortField,
       order: sortParams.value.sortOrder,
+      filters: filters.value,
     }
     try {
       exportLoading.value = true

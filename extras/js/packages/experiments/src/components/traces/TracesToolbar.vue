@@ -16,9 +16,9 @@
     </div>
     <div class="right">
       <TableFilter
-        :fields="visibleColumns"
-        disabled
-        @apply="(filters) => $emit('filter-change', filters)"
+        :fields="visibleTypedColumns"
+        :async-validate-callback="asyncValidateCallback"
+        @apply="filterChange"
       />
       <TableEditColumns
         :button-icon="Bolt"
@@ -38,20 +38,49 @@
 
 <script setup lang="ts">
 import type { ToolbarEmits, ToolbarProps } from './traces.interface'
+import type { FilterItem } from '../table/filter/filter.interface'
+import type { TypedColumnInfo } from '@/interfaces/interfaces'
 import { computed } from 'vue'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
+import { useTraceStore } from '@/store/trace'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
+import { useEvalsStore } from '@/store/evals'
 
-const props = defineProps<ToolbarProps>()
-defineEmits<ToolbarEmits>()
+const evalStore = useEvalsStore()
+const traceStore = useTraceStore()
+
+defineProps<ToolbarProps>()
+const emit = defineEmits<ToolbarEmits>()
 
 const searchModel = defineModel<string>('search', { default: '' })
 
-const visibleColumns = computed(() => {
-  return props.selectedColumns.length ? props.selectedColumns : props.columns
+const visibleTypedColumns = computed<TypedColumnInfo[]>(() => {
+  return [
+    { name: 'state', type: 'string' },
+    { name: 'evals', type: 'string' },
+    { name: 'execution_time', type: 'number' },
+    { name: 'span_count', type: 'number' },
+    { name: 'created_at', type: 'string' },
+    ...traceStore.typedColumnsList,
+  ]
 })
+
+async function asyncValidateCallback(filters: FilterItem[]) {
+  const filtersStrings = createFiltersString(filters)
+  const results = await evalStore.getProvider.validateTracesFilter(filtersStrings)
+  return results
+}
+
+function filterChange(filters: FilterItem[]) {
+  const filtersStrings = createFiltersString(filters)
+  emit('filters-change', filtersStrings)
+}
+
+function createFiltersString(filters: FilterItem[]) {
+  return filters.map((filter) => `${filter.field} ${filter.operator} ${filter.value}`)
+}
 </script>
 
 <style scoped>

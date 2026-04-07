@@ -44,6 +44,7 @@ export interface GetExperimentEvalsParams {
   order: 'asc' | 'desc'
   search: string
   dataset_id: string
+  filters: string[]
 }
 
 export interface AverageScore {
@@ -112,6 +113,32 @@ export interface UploadArtifactResponse {
 }
 
 export interface ValidateExperimentSearchResponse {
+  valid: boolean
+  error: string | null
+}
+
+export interface TypedColumnInfo {
+  name: string
+  type: 'string' | 'number' | 'boolean' | 'unknown'
+}
+
+export interface TypedTracesColumns {
+  attributes: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
+}
+
+export interface TypedEvalsColumns {
+  inputs: TypedColumnInfo[]
+  outputs: TypedColumnInfo[]
+  refs: TypedColumnInfo[]
+  scores: TypedColumnInfo[]
+  metadata: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
+}
+
+export interface ValidateResponseItem {
   valid: boolean
   error: string | null
 }

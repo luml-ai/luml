@@ -81,6 +81,7 @@ export const useTracesTable = (
       search: requestParams.value.search,
       sort_by: requestParams.value.sort_by,
       order: requestParams.value.order,
+      filters: requestParams.value.filters,
     }
     try {
       exportLoading.value = true

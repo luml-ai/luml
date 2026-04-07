@@ -1,5 +1,3 @@
-import type { FilterItem } from '../table/filter/filter.interface'
-
 export interface ToolbarProps {
   columns: string[]
   selectedColumns: string[]
@@ -9,7 +7,7 @@ export interface ToolbarProps {
 export interface ToolbarEmits {
   (e: 'edit', list: string[]): void
   (e: 'export'): void
-  (e: 'filter-change', filters: FilterItem[]): void
+  (e: 'filters-change', filters: string[]): void
 }
 
 export interface TableProps {

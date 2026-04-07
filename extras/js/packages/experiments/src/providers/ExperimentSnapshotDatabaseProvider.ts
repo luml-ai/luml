@@ -1,6 +1,5 @@
 import type { Database, SqlJsStatic, SqlValue } from 'sql.js'
 import type {
-  EvalsColumns,
   EvalsInfo,
   ExperimentSnapshotDynamicMetric,
   ExperimentSnapshotProvider,
@@ -13,6 +12,10 @@ import type {
   SpansListType,
   SpansParams,
   TraceSpan,
+  TypedColumnInfo,
+  TypedEvalsColumns,
+  TypedTracesColumns,
+  ValidateResponseItem,
 } from '../interfaces/interfaces'
 import { safeParse } from '../helpers/helpers'
 import { loadAsync as loadZipAsync } from 'jszip'
@@ -24,11 +27,27 @@ import {
   type AnnotationSummary,
   AnnotationValueType,
 } from '@/components/annotations/annotations.interface'
+import { SearchEvalsUtils, SearchTracesUtils } from '@/utils/_search_utils'
 
 interface ModelInfo {
   modelId: string
   buffer: ArrayBuffer
 }
+
+const SQLLITE_TYPE_MAP = {
+  text: 'string',
+  integer: 'number',
+  real: 'number',
+  true: 'boolean',
+  false: 'boolean',
+  unknown: 'unknown',
+} as const
+
+const ANNOTATION_VALUE_TYPE_MAP = {
+  int: 'number',
+  bool: 'boolean',
+  string: 'string',
+} as const
 
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
   private _modelsSnapshots: ModelSnapshot[] | null = null
@@ -190,36 +209,66 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return this.sortSpans(roots)
   }
 
-  async getEvalsColumns(datasetId: string): Promise<EvalsColumns> {
+  async getEvalsColumns(datasetId: string): Promise<TypedEvalsColumns> {
     const result = this.modelsSnapshots.reduce(
       (acc, snapshot) => {
-        const inputs = this.extractColumnsNames(snapshot.database, 'inputs', datasetId)
-        const outputs = this.extractColumnsNames(snapshot.database, 'outputs', datasetId)
-        const refs = this.extractColumnsNames(snapshot.database, 'refs', datasetId)
-        const scores = this.extractColumnsNames(snapshot.database, 'scores', datasetId)
-        const metadata = this.extractColumnsNames(snapshot.database, 'metadata', datasetId)
-        inputs.forEach((input) => acc.inputs.add(input))
-        outputs.forEach((output) => acc.outputs.add(output))
-        refs.forEach((ref) => acc.refs.add(ref))
-        scores.forEach((score) => acc.scores.add(score))
-        metadata.forEach((meta) => acc.metadata.add(meta))
+        const array = [
+          {
+            name: 'inputs',
+            list: this.extractEvalColumns(snapshot.database, 'inputs', datasetId),
+          },
+          {
+            name: 'outputs',
+            list: this.extractEvalColumns(snapshot.database, 'outputs', datasetId),
+          },
+          {
+            name: 'refs',
+            list: this.extractEvalColumns(snapshot.database, 'refs', datasetId),
+          },
+          {
+            name: 'scores',
+            list: this.extractEvalColumns(snapshot.database, 'scores', datasetId),
+          },
+          {
+            name: 'metadata',
+            list: this.extractEvalColumns(snapshot.database, 'metadata', datasetId),
+          },
+          {
+            name: 'annotations_feedback',
+            list: this.getAnnotationFields(snapshot.database, datasetId, AnnotationKind.FEEDBACK),
+          },
+          {
+            name: 'annotations_expectations',
+            list: this.getAnnotationFields(
+              snapshot.database,
+              datasetId,
+              AnnotationKind.EXPECTATION,
+            ),
+          },
+        ]
+        array.forEach((item) => {
+          item.list.forEach((column) => {
+            const columnExists = acc[item.name as keyof typeof acc].find(
+              (existingColumn) => existingColumn.name === column.name,
+            )
+            if (!columnExists) {
+              acc[item.name as keyof typeof acc].push(column)
+            }
+          })
+        })
         return acc
       },
       {
-        inputs: new Set<string>(),
-        outputs: new Set<string>(),
-        refs: new Set<string>(),
-        scores: new Set<string>(),
-        metadata: new Set<string>(),
+        inputs: new Array<TypedColumnInfo>(),
+        outputs: new Array<TypedColumnInfo>(),
+        refs: new Array<TypedColumnInfo>(),
+        scores: new Array<TypedColumnInfo>(),
+        metadata: new Array<TypedColumnInfo>(),
+        annotations_feedback: new Array<TypedColumnInfo>(),
+        annotations_expectations: new Array<TypedColumnInfo>(),
       },
     )
-    return {
-      inputs: Array.from(result.inputs),
-      outputs: Array.from(result.outputs),
-      refs: Array.from(result.refs),
-      scores: Array.from(result.scores),
-      metadata: Array.from(result.metadata),
-    }
+    return result
   }
 
   async getDatasetAverageScores(datasetId: string): Promise<ModelScores[]> {
@@ -419,6 +468,68 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return summary
   }
 
+  async getTracesColumns(artifactId: string): Promise<TypedTracesColumns> {
+    const database = this.modelsSnapshots.find(
+      (snapshot) => snapshot.modelId === artifactId,
+    )?.database
+    if (!database) throw new Error('Database not found')
+    const queryResult = database.exec(`
+        SELECT je.key, je.type
+        FROM spans, json_each(spans.attributes) AS je
+        WHERE spans.attributes IS NOT NULL
+        GROUP BY je.key
+        ORDER BY je.key
+    `)
+    const values = queryResult[0]?.values || []
+    const columns = values.map((value) => {
+      const [key, type] = value
+      const name = this.parseValue(key, 'string')
+      const stringType = this.parseValue(type, 'string')
+      const formattedType = this.getSqliteType(stringType)
+      return {
+        name,
+        type: formattedType,
+      }
+    })
+    return {
+      attributes: columns,
+      annotations_feedback: this.getSpanAnnotationFields(database, AnnotationKind.FEEDBACK),
+      annotations_expectations: this.getSpanAnnotationFields(database, AnnotationKind.EXPECTATION),
+    }
+  }
+
+  async validateEvalsFilter(filters: string[]): Promise<ValidateResponseItem[]> {
+    const results = []
+    for (const filter of filters) {
+      try {
+        SearchEvalsUtils.validateFilterString(filter)
+        results.push({ valid: true, error: null })
+      } catch (error) {
+        results.push({
+          valid: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      }
+    }
+    return results
+  }
+
+  async validateTracesFilter(filters: string[]): Promise<ValidateResponseItem[]> {
+    const results = []
+    for (const filter of filters) {
+      try {
+        SearchTracesUtils.validateFilterString(filter)
+        results.push({ valid: true, error: null })
+      } catch (error) {
+        results.push({
+          valid: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        })
+      }
+    }
+    return results
+  }
+
   private sortSpans(tree: TraceSpan[]): TraceSpan[] {
     return tree
       .sort((a, b) => {
@@ -439,8 +550,24 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const offset = params.page && params.limit ? (params.page - 1) * params.limit : 0
     const limitQuery = params.limit ? `LIMIT ${params.limit}` : ''
     const offsetQuery = offset ? `OFFSET ${offset}` : ''
-    const queryResult = database.exec(
-      `
+
+    const whereParts: string[] = []
+    const whereParams: SqlValue[] = []
+    if (params.search) {
+      whereParts.push(`trace_id LIKE ?`)
+      whereParams.push(`%${params.search}%`)
+    }
+    for (const filter of params.filters || []) {
+      const [where, filterParams] = SearchTracesUtils.toSql(filter)
+      if (where) {
+        whereParts.push(where)
+        whereParams.push(...(filterParams as SqlValue[]))
+      }
+    }
+
+    const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
+
+    const query = `
       SELECT
         trace_id,
         (MAX(end_time_unix_nano) - MIN(start_time_unix_nano)) AS execution_time,
@@ -453,14 +580,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
           ELSE 0
         END AS state
       FROM spans
-      ${params.search ? `WHERE trace_id LIKE '%${params.search}%'` : ''}
+      ${whereCondition}
       GROUP BY trace_id
       ORDER BY ${params.sort_by} ${params.order}
       ${limitQuery}
       ${offsetQuery}
-      `,
-    )
-    const rows = queryResult[0]?.values || []
+    `
+    const rows = this._getRowsByQueryAndParams(database, query, whereParams)
     return rows.map((row) => {
       const [trace_id, execution_time, span_count, created_at, state] = row
       const traceId = this.parseValue(trace_id, 'string')
@@ -523,6 +649,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       order = 'desc',
       dataset_id,
       search = '',
+      filters = [],
       page,
       modelId,
     }: {
@@ -538,19 +665,50 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const limitQuery = limit ? `LIMIT ${limit}` : ''
     const offset = page && limit ? (page - 1) * limit : 0
     const offsetQuery = offset ? `OFFSET ${offset}` : ''
-    const searchCondition = search ? `AND id LIKE '%${search}%'` : ''
-    const queryResult = database.exec(
-      `
+
+    const whereParts: string[] = []
+    const params: SqlValue[] = []
+
+    whereParts.push(`dataset_id = ?`)
+    params.push(dataset_id)
+
+    if (search) {
+      const searchWhere = `(id LIKE ?
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?)
+      )`
+
+      const like = `%${search}%`
+
+      whereParts.push(searchWhere)
+      params.push(like, like, like, like, like, like)
+    }
+
+    for (const filter of filters || []) {
+      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
+
+      if (where) {
+        whereParts.push(where)
+        params.push(...(filterParams as SqlValue[]))
+      }
+    }
+
+    const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
+
+    const query = `
       SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
       FROM evals
-      WHERE dataset_id = '${dataset_id}'
-      ${searchCondition}
+      ${whereCondition}
       ORDER BY ${sortBy} ${safeOrder}
       ${limitQuery}
       ${offsetQuery}
-      `,
-    )
-    const rows = queryResult[0]?.values || []
+    `
+
+    const rows = this._getRowsByQueryAndParams(database, query, params)
+
     const promises = rows.map(async (row) => {
       const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
       const annotationsList = await this.getEvalAnnotations(
@@ -608,16 +766,31 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     }
   }
 
-  private extractColumnsNames(
+  private extractEvalColumns(
     database: Database,
     column: 'inputs' | 'outputs' | 'refs' | 'scores' | 'metadata',
     datasetId: string,
   ) {
     const queryResult = database.exec(
-      `SELECT DISTINCT je.key FROM evals, json_each(evals.${column}) AS je WHERE evals.${column} IS NOT NULL AND evals.dataset_id = '${datasetId}' ORDER BY je.key`,
+      `
+      SELECT je.key, je.type
+      FROM evals, json_each(evals.${column}) AS je
+      WHERE evals.${column} IS NOT NULL AND evals.dataset_id = '${datasetId}'
+      GROUP BY je.key
+      ORDER BY je.key
+      `,
     )
     const rows = queryResult[0]?.values || []
-    return rows.map((row) => this.parseValue(row[0], 'string'))
+    return rows.map((row) => {
+      const [key, type] = row
+      const name = this.parseValue(key, 'string')
+      const stringType = this.parseValue(type, 'string')
+      const formattedType = this.getSqliteType(stringType)
+      return {
+        name,
+        type: formattedType,
+      }
+    })
   }
 
   private getUniqueDatasetsIdsByDatabase(database: Database): string[] {
@@ -804,5 +977,56 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     )
     const count = queryResult[0]?.values[0]?.[0]
     return this.parseValue(count, 'int')
+  }
+
+  private getSqliteType(type: string): (typeof SQLLITE_TYPE_MAP)[keyof typeof SQLLITE_TYPE_MAP] {
+    return SQLLITE_TYPE_MAP[type as keyof typeof SQLLITE_TYPE_MAP] || 'unknown'
+  }
+
+  private _getRowsByQueryAndParams(database: Database, query: string, params: SqlValue[]): any[] {
+    const stmt = database.prepare(query)
+    stmt.bind(params)
+    const rows: any[] = []
+    while (stmt.step()) {
+      rows.push(Object.values(stmt.getAsObject()))
+    }
+    stmt.free()
+    return rows
+  }
+
+  private getAnnotationFields(database: Database, datasetId: string, kind: AnnotationKind) {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return []
+    const queryResult = database.exec(
+      `SELECT DISTINCT name, value_type FROM eval_annotations WHERE annotation_kind = '${kind}' AND dataset_id = '${datasetId}'`,
+    )
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [name, value_type] = row
+      const stringType = this.parseValue(value_type, 'string')
+      return {
+        name: this.parseValue(name, 'string'),
+        type:
+          ANNOTATION_VALUE_TYPE_MAP[stringType as keyof typeof ANNOTATION_VALUE_TYPE_MAP] ||
+          'unknown',
+      }
+    })
+  }
+
+  private getSpanAnnotationFields(database: Database, kind: AnnotationKind) {
+    const hasAnnotations = this.isDatabaseHasAnnotations(database)
+    if (!hasAnnotations) return []
+    const queryResult = database.exec(`SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`)
+    const rows = queryResult[0]?.values || []
+    return rows.map((row) => {
+      const [name, value_type] = row
+      const stringType = this.parseValue(value_type, 'string')
+      return {
+        name: this.parseValue(name, 'string'),
+        type:
+          ANNOTATION_VALUE_TYPE_MAP[stringType as keyof typeof ANNOTATION_VALUE_TYPE_MAP] ||
+          'unknown',
+      }
+    })
   }
 }
