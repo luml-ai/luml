@@ -134,6 +134,8 @@ export interface TypedEvalsColumns {
   refs: TypedColumnInfo[]
   scores: TypedColumnInfo[]
   metadata: TypedColumnInfo[]
+  annotations_feedback: TypedColumnInfo[]
+  annotations_expectations: TypedColumnInfo[]
 }
 
 export interface ValidateResponseItem {
