@@ -366,7 +366,7 @@ class SearchUtils:
                 return f"{prefix}`{key}`"
             return m.group(0)
 
-        filter_string = re.sub(
+        return re.sub(
             r"((?:annotations(?:\.(?:feedback|expectations?))?|annotations_(?:feedback|expectations?))\.)"
             r"([^=!<>'\"` \t\n\r][^=!<>'\"` \n\r]*(?:[ \t]+[^=!<>'\"` \n\r]+)*)"
             r"(?=[ \t]*(?:!=|>=?|<=?|=|\bLIKE\b|\bILIKE\b|\bNOT[ \t]+IN\b|\bIN\b|\bCONTAINS\b))",
@@ -375,7 +375,6 @@ class SearchUtils:
             flags=re.IGNORECASE,
         )
 
-        return filter_string
 
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
