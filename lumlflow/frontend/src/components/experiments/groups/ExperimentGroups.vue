@@ -7,7 +7,7 @@
       </Card>
     </div>
     <div class="flex-1 flex flex-col gap-6 overflow-hidden">
-      <h2 class="text-2xl font-medium">Experiments group</h2>
+      <h2 class="text-2xl font-medium">Experiment groups</h2>
       <Card class="flex-1 overflow-hidden" :pt="tableCardPt">
         <template #content>
           <ExperimentsGroupsToolbar class="flex-0" />

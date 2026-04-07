@@ -1,6 +1,8 @@
 <template>
   <div class="toolbar">
-    <h2 class="title">Dynamic Metrics</h2>
+    <div>
+      <h2 v-if="showTitle" class="title">Dynamic Metrics</h2>
+    </div>
     <div class="toolbar-body">
       <Paginator
         :rows="limit"
@@ -19,6 +21,7 @@ import { Paginator } from 'primevue'
 type Props = {
   limit: number
   total: number
+  showTitle: boolean
 }
 
 type Emits = {

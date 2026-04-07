@@ -10,12 +10,29 @@
       <div class="file-path-row">
         <span class="file-path">{{ filePath }}</span>
         <div class="file-path-actions">
-          <span class="icon-wrapper" v-tooltip.top="'Copy path'" @click="$emit('copy-path')">
-            <Copy class="icon-btn" />
-          </span>
-          <span class="icon-wrapper" v-tooltip.top="'Download'" @click="$emit('download')">
-            <Download class="icon-btn" />
-          </span>
+          <Button
+            class="icon-wrapper"
+            variant="text"
+            severity="secondary"
+            v-tooltip.top="'Copy path'"
+            @click="$emit('copy-path')"
+          >
+            <template #icon>
+              <Copy class="icon-btn" />
+            </template>
+          </Button>
+          <Button
+            class="icon-wrapper"
+            variant="text"
+            severity="secondary"
+            :loading="isDownloading"
+            v-tooltip.top="isDownloading ? 'Downloading...' : 'Download'"
+            @click="$emit('download')"
+          >
+            <template #icon>
+              <Download class="icon-btn" />
+            </template>
+          </Button>
         </div>
       </div>
     </div>
@@ -23,13 +40,13 @@
 </template>
 
 <script setup lang="ts">
+import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../../interfaces/interfaces'
 import { Copy, Download } from 'lucide-vue-next'
 import { formatFileSize } from '../../utils/fileTypes'
+import { Button } from 'primevue'
 
-import type { FilePreviewHeaderProps, FilePreviewHeaderEmits } from '../../interfaces/interfaces'
-
-const props = defineProps<FilePreviewHeaderProps>()
-const emit = defineEmits<FilePreviewHeaderEmits>()
+defineProps<FilePreviewHeaderProps>()
+defineEmits<FilePreviewHeaderEmits>()
 </script>
 
 <style scoped>
@@ -83,6 +100,8 @@ const emit = defineEmits<FilePreviewHeaderEmits>()
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  padding: 2px;
+  width: auto;
 }
 
 .icon-btn {

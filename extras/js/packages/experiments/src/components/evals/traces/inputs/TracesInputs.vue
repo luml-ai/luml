@@ -13,7 +13,7 @@
           option-label="name"
           option-value="id"
           size="small"
-          placeholder="Model name"
+          placeholder="Artifact name"
           class="select"
         ></Select>
       </div>

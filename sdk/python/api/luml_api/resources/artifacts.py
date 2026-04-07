@@ -19,6 +19,7 @@ from luml_api.handlers.s3_file_handler import S3FileHandler
 from luml_api.resources._listed_resource import ListedResource
 from luml_api.resources._validators import validate_collection
 from luml_api.services.upload_service import AsyncUploadService, UploadService
+from luml_api.utils.progress import BaseProgressHandler
 
 if TYPE_CHECKING:
     from luml_api._client import AsyncLumlClient, LumlClient
@@ -72,6 +73,7 @@ class ArtifactResourceBase(ABC):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: BaseProgressHandler | None = None,
     ) -> Artifact | Coroutine[Any, Any, Artifact]:
         raise NotImplementedError()
 
@@ -557,6 +559,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: BaseProgressHandler | None = None,
     ) -> Artifact:
         """Upload artifact file to the collection.
 
@@ -564,6 +567,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         If collection_id is None, uses the default collection from client.
 
         Args:
+            on_progress: handler for upload progress handling.
+                Example: printing in the console or for SSE.
             file_path: Path to the local model file to upload.
             name: Name for the artifact. If not provided, uses the file name.
             description: Optional description of the model.
@@ -663,7 +668,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         artifact_details = ModelFileHandler(file_path).artifact_details()
 
         file_format = artifact_details.file_name.split(".")[1]
-        if file_format not in ["fnnx", "pyfnx", "dfs", "luml"]:
+        if file_format not in ["fnnx", "pyfnx", "dfs", "luml", "tar"]:
             raise FileError("File format error")
 
         if name is None:
@@ -691,6 +696,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
                 file_path=file_path,
                 file_size=artifact.size,
                 file_name=artifact.file_name,
+                on_progress=on_progress,
             )
 
             status = (
@@ -1036,17 +1042,19 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             updated_at=None
         )
         """
-        return self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
-            json=self._client.filter_none(
-                {
-                    "file_name": file_name,
-                    "name": name,
-                    "description": description,
-                    "tags": tags,
-                    "status": status.value if status else None,
-                }
-            ),
+        return Artifact.model_validate(
+            self._client.patch(
+                f"/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+                json=self._client.filter_none(
+                    {
+                        "file_name": file_name,
+                        "name": name,
+                        "description": description,
+                        "tags": tags,
+                        "status": status.value if status else None,
+                    }
+                ),
+            )
         )
 
     @validate_collection
@@ -1694,6 +1702,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         tags: builtins.list[str] | None = None,
         *,
         collection_id: str | None = None,
+        on_progress: BaseProgressHandler | None = None,
     ) -> Artifact:
         """Upload artifact file to the collection.
 
@@ -1702,6 +1711,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             uses the default collection from client.
 
         Args:
+            on_progress: handler for upload progress handling.
+                Example: printing in the console or for SSE.
             file_path: Path to the local model file to upload.
             name: Name for the artifact. If not provided, uses the file name.
             description: Optional description of the model.
@@ -1717,7 +1728,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             FileError: If file size exceeds 5GB or unsupported format.
             FileUploadError: If upload to storage fails.
             ConfigurationError: If collection_id not provided and
-                no default collection set.
+                no default collection is set.
 
         Example:
         ```python
@@ -1841,6 +1852,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 file_path=file_path,
                 file_size=artifact.size,
                 file_name=artifact.file_name,
+                on_progress=on_progress,
             )
 
             status = (

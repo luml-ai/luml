@@ -9,7 +9,7 @@ import type {
   CreateArtifactPayload,
   UpdateArtifactPayload,
 } from '@/lib/api/artifacts/interfaces'
-import type { ModelMetadata, ArtifactsStore } from './artifacts.interface'
+import type { ModelMetadata, RequestInfo } from './artifacts.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/lib/api'
@@ -17,7 +17,7 @@ import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
 import axios from 'axios'
 
-export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => {
+export const useArtifactsStore = defineStore('artifacts', () => {
   const route = useRoute()
 
   const currentArtifact = ref<Artifact | null>(null)
@@ -39,7 +39,7 @@ export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => 
   const currentModelTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
   const currentModelMetadata = ref<ModelMetadata | null>(null)
   const currentModelHtmlBlobUrl = ref<string | null>(null)
-  const experimentSnapshotProvider = ref<ExperimentSnapshotProvider | null>(null)
+  const experimentSnapshotProvider = ref<any>(null)
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -54,18 +54,12 @@ export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => 
     }
   })
 
-  function initiateCreateArtifact(
-    data: CreateArtifactPayload,
-    requestData?: typeof requestInfo.value,
-  ) {
+  function initiateCreateArtifact(data: CreateArtifactPayload, requestData?: RequestInfo) {
     const info = requestData ? requestData : requestInfo.value
     return api.artifacts.create(info.organizationId, info.orbitId, info.collectionId, data)
   }
 
-  async function confirmArtifactUpload(
-    payload: UpdateArtifactPayload,
-    requestData?: typeof requestInfo.value,
-  ) {
+  async function confirmArtifactUpload(payload: UpdateArtifactPayload, requestData?: RequestInfo) {
     const info = requestData ? requestData : requestInfo.value
     const result = await api.artifacts.update(
       info.organizationId,
@@ -77,10 +71,7 @@ export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => 
     setArtifactsList([...artifactsList.value, result])
   }
 
-  async function cancelArtifactUpload(
-    payload: UpdateArtifactPayload,
-    requestData?: typeof requestInfo.value,
-  ) {
+  async function cancelArtifactUpload(payload: UpdateArtifactPayload, requestData?: RequestInfo) {
     const info = requestData ? requestData : requestInfo.value
     await api.artifacts.update(
       info.organizationId,
@@ -194,7 +185,7 @@ export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => 
     return { deleted, failed }
   }
 
-  async function getArtifactsExtraValues(requestData?: typeof requestInfo.value) {
+  async function getArtifactsExtraValues(requestData?: RequestInfo) {
     const info = requestData ? requestData : requestInfo.value
     const collectionDetails = await api.orbitCollections.getCollection(
       info.organizationId,
@@ -204,7 +195,7 @@ export const useArtifactsStore = defineStore('artifacts', (): ArtifactsStore => 
     return collectionDetails.artifacts_extra_values
   }
 
-  function getArtifact(id: string, requestData?: typeof requestInfo.value) {
+  function getArtifact(id: string, requestData?: RequestInfo) {
     const info = requestData ? requestData : requestInfo.value
     const { organizationId, orbitId, collectionId } = info
     return api.artifacts.getById(organizationId, orbitId, collectionId, id)

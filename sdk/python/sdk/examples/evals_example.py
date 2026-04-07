@@ -3,13 +3,13 @@ import random
 
 from openai import OpenAI
 
-from luml import instrument_openai
 from luml.experiments.evaluation import (
     EvalItem,
     supervised_scorer,
     unsupervised_scorer,
 )
 from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.tracing import instrument_openai
 from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker()

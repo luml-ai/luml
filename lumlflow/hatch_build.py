@@ -9,23 +9,26 @@ class FrontendBuildHook(BuildHookInterface):
 
     def initialize(self, version: str, build_data: dict) -> None:
         root = Path(self.root)
+        workspace_dir = (root / "..").resolve()
         frontend_dir = root / "frontend"
         static_dir = root / "lumlflow" / "static"
 
         if not frontend_dir.exists():
             return
 
-        # Install npm dependencies
+        if not (workspace_dir / "package-lock.json").exists():
+            return
+
         subprocess.run(
             ["npm", "ci"],
-            cwd=frontend_dir,
+            cwd=workspace_dir,
             check=True,
         )
 
         # Build frontend
         subprocess.run(
-            ["npm", "run", "build"],
-            cwd=frontend_dir,
+            ["npm", "run", "build", "--workspace=lumlflow-ui"],
+            cwd=workspace_dir,
             check=True,
         )
 

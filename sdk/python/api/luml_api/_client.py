@@ -28,7 +28,7 @@ if TYPE_CHECKING:
         AsyncCollectionResource,
         CollectionResource,
     )
-    from luml_api.resources import AsyncOrbitResource, OrbitResource
+    from luml_api.resources.orbits import AsyncOrbitResource, OrbitResource
     from luml_api.resources.organizations import (
         AsyncOrganizationResource,
         OrganizationResource,
@@ -321,14 +321,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
                 return None
             if len(collections_result.items) == 1 and collections_result.cursor is None:
                 return collections_result.items[0].id
-
-            all_collections = await self.collections.list()
-            raise ConfigurationError(
-                "Collection",
-                "Multiple collections found. Please specify a collection ID or name.",
-                all_values=all_collections.items,
-                has_more=collections_result.cursor is not None,
-            )
+            return None
 
         if is_uuid(collection_value):
             async for collection in self.collections.list_all():
@@ -361,7 +354,7 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient):
     @cached_property
     def orbits(self) -> "AsyncOrbitResource":
         """Orbits interface."""
-        from luml_api.resources import AsyncOrbitResource
+        from luml_api.resources.orbits import AsyncOrbitResource
 
         return AsyncOrbitResource(self)
 
@@ -531,13 +524,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
                 return None
             if len(collections_result.items) == 1 and collections_result.cursor is None:
                 return collections_result.items[0].id
-            all_collections = self.collections.list()
-            raise ConfigurationError(
-                "Collection",
-                "Multiple collections found. Please specify a collection ID or name.",
-                all_values=all_collections.items,
-                has_more=collections_result.cursor is not None,
-            )
+            return None
 
         if is_uuid(collection_value):
             for collection in self.collections.list_all():
@@ -570,7 +557,7 @@ class LumlClient(LumlClientBase, SyncBaseClient):
     @cached_property
     def orbits(self) -> "OrbitResource":
         """Orbits interface."""
-        from luml_api.resources import OrbitResource
+        from luml_api.resources.orbits import OrbitResource
 
         return OrbitResource(self)
 

@@ -6,7 +6,7 @@ import pandas as pd
 import polars as pl
 import pytest
 
-from luml.artifacts.dataset import (
+from luml import (
     DatasetReference,
     TabularDatasetPayload,
     save_tabular_dataset,

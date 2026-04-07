@@ -10,6 +10,11 @@ import type {
 } from '@luml/experiments'
 import { Toast } from 'primevue'
 import StorybookPageWrapper from './StorybookPageWrapper.vue'
+import type {
+  GetEvalsByDatasetParams,
+  GetTracesParams,
+} from '../../../extras/js/packages/experiments/dist/interfaces/interfaces'
+import '@luml/experiments/style.css'
 
 const createMockProvider = (
   options: {
@@ -99,6 +104,7 @@ const createMockProvider = (
             model_version: 1,
             duration_ms: 1250,
           },
+          annotations: null,
           modelId: 'model-1',
         },
         {
@@ -124,6 +130,7 @@ const createMockProvider = (
             completeness: 0.85,
             simplicity: 0.9,
           },
+          annotations: null,
           metadata: {
             timestamp: Date.now() - 7200000,
             model_version: 1,
@@ -153,6 +160,7 @@ const createMockProvider = (
             structure: 1.0,
             imagery: 0.94,
           },
+          annotations: null,
           metadata: {
             timestamp: Date.now() - 10800000,
             model_version: 1,
@@ -181,11 +189,11 @@ const createMockProvider = (
     getDynamicMetricData: async (metricName: string) => {
       return [dynamicMetrics[metricName]]
     },
-    getEvalsList: async () => {
-      if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
-      if (shouldError) throw new Error('Failed to load evals')
-      return evalsList
-    },
+    // getEvalsList: async () => {
+    //   if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+    //   if (shouldError) throw new Error('Failed to load evals')
+    //   return evalsList
+    // },
     getTraceSpans: async (modelId: string, traceId: string) => {
       return []
     },
@@ -195,7 +203,106 @@ const createMockProvider = (
     getTraceId: async (params: SpansParams) => {
       return `trace-${params.evalId}`
     },
-    getUniqueTraceIds: async (modelId: string) => {
+    // getUniqueTraceIds: async (modelId: string) => {
+    //   return []
+    // },
+    getUniqueDatasetsIds: async () => {
+      return ['dataset-1']
+    },
+    getNextEvalsByDatasetId: async (params: GetEvalsByDatasetParams) => {
+      return evalsList?.[params.dataset_id] ?? []
+    },
+    getFreshEvalsByDatasetId: async (params: GetEvalsByDatasetParams) => {
+      return evalsList?.[params.dataset_id] ?? []
+    },
+    getAllDatasetEvals: async (params: Omit<GetEvalsByDatasetParams, 'limit'>) => {
+      return evalsList?.[params.dataset_id] ?? []
+    },
+    resetEvalsDatasetsRequestParams: async () => {
+      return
+    },
+    resetDatasetPage: async (datasetId: string) => {
+      return
+    },
+    getDatasetAverageScores: async (datasetId: string) => {
+      return []
+    },
+    getEvalAnnotations: async (artifactId: string, datasetId: string, evalId: string) => {
+      return []
+    },
+    getTraces: async (params: GetTracesParams) => {
+      return []
+    },
+    getFreshTraces: async (params: GetTracesParams) => {
+      return []
+    },
+    getAllTraces: async (params: Omit<GetTracesParams, 'limit'>) => {
+      return []
+    },
+    resetTracesRequestParams: async (artifactId?: string) => {
+      return
+    },
+    getEvalsDatasetAnnotationsSummary: async (datasetId: string) => {
+      return {
+        feedback: [],
+        expectations: [],
+      }
+    },
+    getEvalById: async (artifactId: string, evalId: string) => {
+      const data = evalsList?.[artifactId]?.find((item) => item.id === evalId)
+      if (!data) throw new Error('Eval not found')
+      return data
+    },
+    getSpanAnnotations: async (artifactId: string, traceId: string, spanId: string) => {
+      return []
+    },
+    getTracesAnnotationSummary: async (artifactId: string) => {
+      return {
+        feedback: [],
+        expectations: [],
+      }
+    },
+    getEvalsColumns: async (datasetId: string) => {
+      return {
+        inputs: [
+          { name: 'prompt', type: 'string' },
+          { name: 'context', type: 'string' },
+          { name: 'temperature', type: 'number' },
+        ],
+        outputs: [
+          { name: 'response', type: 'string' },
+          { name: 'tokens_used', type: 'number' },
+        ],
+        refs: [
+          { name: 'expected', type: 'string' },
+          { name: 'category', type: 'string' },
+        ],
+        scores: [
+          { name: 'metric_0', type: 'number' },
+          { name: 'coherence', type: 'number' },
+          { name: 'relevance', type: 'number' },
+        ],
+        metadata: [
+          { name: 'timestamp', type: 'string' },
+          { name: 'model_version', type: 'number' },
+          { name: 'duration_ms', type: 'number' },
+        ],
+      }
+    },
+    getTracesColumns: async (artifactId: string) => {
+      return {
+        attributes: [
+          { name: 'span_id', type: 'string' },
+          { name: 'trace_id', type: 'string' },
+          { name: 'status_code', type: 'number' },
+          { name: 'duration_ms', type: 'number' },
+        ],
+      }
+    },
+    validateEvalsFilter: async (filters: string[]) => {
+      return []
+    },
+    validateTracesFilter: async (filters: string[]) => {
       return []
     },
   }
@@ -223,97 +330,97 @@ const multipleModelsInfo: ModelsInfo = {
   },
 }
 
-const mockEvalsList: Record<string, EvalsInfo[]> = {
-  'dataset-1': [
-    {
-      id: 'eval-1',
-      dataset_id: 'dataset-1',
-      inputs: {
-        prompt: 'What is the capital of France?',
-        context: 'Geography question',
-        temperature: 0.7,
-      },
-      outputs: {
-        response: 'The capital of France is Paris.',
-        tokens_used: 45,
-      },
-      refs: {
-        expected: 'Paris',
-        category: 'geography',
-      },
-      scores: {
-        metric_0: 1.0,
-        coherence: 0.95,
-        relevance: 0.98,
-      },
-      metadata: {
-        timestamp: Date.now() - 3600000,
-        model_version: 1,
-        duration_ms: 1250,
-      },
-      modelId: 'model-1',
-    },
-    {
-      id: 'eval-2',
-      dataset_id: 'dataset-1',
-      inputs: {
-        prompt: 'Explain quantum computing in simple terms',
-        context: 'Technical question',
-        temperature: 0.5,
-      },
-      outputs: {
-        response:
-          'Quantum computing uses quantum mechanics principles like superposition and entanglement to process information in ways that classical computers cannot. Instead of traditional bits (0 or 1), quantum computers use qubits which can exist in multiple states simultaneously.',
-        tokens_used: 156,
-      },
-      refs: {
-        expected: 'A clear, accessible explanation of quantum computing',
-        category: 'science',
-      },
-      scores: {
-        metric_0: 0.88,
-        coherence: 0.92,
-        completeness: 0.85,
-        simplicity: 0.9,
-      },
-      metadata: {
-        timestamp: Date.now() - 7200000,
-        model_version: 1,
-        duration_ms: 2100,
-      },
-      modelId: 'model-1',
-    },
-    {
-      id: 'eval-3',
-      dataset_id: 'dataset-1',
-      inputs: {
-        prompt: 'Write a haiku about spring',
-        context: 'Creative writing',
-        temperature: 0.9,
-      },
-      outputs: {
-        response: 'Cherry blossoms fall\nGentle breeze carries petals\nSpring awakens life',
-        tokens_used: 28,
-      },
-      refs: {
-        expected: 'A haiku with spring theme, 5-7-5 syllable structure',
-        category: 'creative',
-      },
-      scores: {
-        metric_0: 0.95,
-        creativity: 0.97,
-        structure: 1.0,
-        imagery: 0.94,
-      },
-      metadata: {
-        timestamp: Date.now() - 10800000,
-        model_version: 1,
-        duration_ms: 980,
-      },
-      modelId: 'model-1',
-    },
-  ] as EvalsInfo[],
-}
+// const mockEvalsList: Record<string, EvalsInfo[]> = {
+//   'dataset-1': [
+//     {
+//       id: 'eval-1',
+//       dataset_id: 'dataset-1',
+//       inputs: {
+//         prompt: 'What is the capital of France?',
+//         context: 'Geography question',
+//         temperature: 0.7,
+//       },
+//       outputs: {
+//         response: 'The capital of France is Paris.',
+//         tokens_used: 45,
+//       },
+//       refs: {
+//         expected: 'Paris',
+//         category: 'geography',
+//       },
+//       scores: {
+//         metric_0: 1.0,
+//         coherence: 0.95,
+//         relevance: 0.98,
+//       },
+//       metadata: {
+//         timestamp: Date.now() - 3600000,
+//         model_version: 1,
+//         duration_ms: 1250,
+//       },
+//       modelId: 'model-1',
+//     },
+//     {
+//       id: 'eval-2',
+//       dataset_id: 'dataset-1',
+//       inputs: {
+//         prompt: 'Explain quantum computing in simple terms',
+//         context: 'Technical question',
+//         temperature: 0.5,
+//       },
+//       outputs: {
+//         response:
+//           'Quantum computing uses quantum mechanics principles like superposition and entanglement to process information in ways that classical computers cannot. Instead of traditional bits (0 or 1), quantum computers use qubits which can exist in multiple states simultaneously.',
+//         tokens_used: 156,
+//       },
+//       refs: {
+//         expected: 'A clear, accessible explanation of quantum computing',
+//         category: 'science',
+//       },
+//       scores: {
+//         metric_0: 0.88,
+//         coherence: 0.92,
+//         completeness: 0.85,
+//         simplicity: 0.9,
+//       },
+//       metadata: {
+//         timestamp: Date.now() - 7200000,
+//         model_version: 1,
+//         duration_ms: 2100,
+//       },
+//       modelId: 'model-1',
+//     },
+//     {
+//       id: 'eval-3',
+//       dataset_id: 'dataset-1',
+//       inputs: {
+//         prompt: 'Write a haiku about spring',
+//         context: 'Creative writing',
+//         temperature: 0.9,
+//       },
+//       outputs: {
+//         response: 'Cherry blossoms fall\nGentle breeze carries petals\nSpring awakens life',
+//         tokens_used: 28,
+//       },
+//       refs: {
+//         expected: 'A haiku with spring theme, 5-7-5 syllable structure',
+//         category: 'creative',
+//       },
+//       scores: {
+//         metric_0: 0.95,
+//         creativity: 0.97,
+//         structure: 1.0,
+//         imagery: 0.94,
+//       },
+//       metadata: {
+//         timestamp: Date.now() - 10800000,
+//         model_version: 1,
+//         duration_ms: 980,
+//       },
+//       modelId: 'model-1',
+//     },
+//   ] as EvalsInfo[],
+// }
 
 const meta: Meta<typeof ExperimentSnapshot> = {
   title: 'Modules/ExperimentSnapshot',

@@ -18,6 +18,40 @@ body {
     sans-serif;
 }
 
+html {
+  font-size: 14px;
+}
+
 .link {
   color: var(--p-primary-color);
+}
+
+html {
+  font-size: 16px;
+}
+
+.p-datatable-tbody .p-row-even {
+  background-color: var(--p-card-background);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #64748b80 transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #64748b80;
+  border-radius: 10px;
+}
+
+[data-theme='dark'] * {
+  scrollbar-color: #a1a1aa transparent;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #a1a1aa;
 }

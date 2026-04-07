@@ -8,6 +8,11 @@ dependencies = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
+    "luml-sdk[core]>=0.1.0rc3",
+    "luml-api>=0.1.0",
+    "pydantic-settings>=2.12.0",
+    "httpx>=0.28.0",
+    "keyring>=25.0.0",
 ]
 
 [project.optional-dependencies]
@@ -16,7 +21,6 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.26.0",
     "ruff>=0.11.0",
-    "httpx>=0.28.0",
 ]
 
 [project.scripts]
@@ -56,3 +60,7 @@ indent-style = "space"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+
+[tool.uv.sources]
+luml-sdk = { path = "../sdk/python/sdk", editable = true }
+luml-api = { path = "../sdk/python/api", editable = true }
