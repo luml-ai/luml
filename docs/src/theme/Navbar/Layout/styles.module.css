@@ -1,0 +1,88 @@
+.navbarHideable {
+  transition: transform var(--ifm-transition-fast) ease;
+}
+
+.navbarHidden {
+  transform: translate3d(0, calc(-100% - 2px), 0);
+}
+
+/* Outer nav — transparent, click-through so sidebar is accessible */
+.navbarOuter {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+  pointer-events: none;
+}
+
+/* Aligner: same centering as footerContainer */
+.navbarAligner {
+  max-width: 1030px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  width: 100%;
+  pointer-events: none;
+}
+
+/* Floating bar: fills the aligner */
+.navbarFloating {
+  pointer-events: auto;
+  width: 100%;
+  height: var(--ifm-navbar-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--ifm-spacing-horizontal);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid #d6dde6;
+  border-left: 1px solid #d6dde6;
+  border-right: 1px solid #d6dde6;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* Mobile: full width, no rounding, no padding constraints */
+@media (max-width: 996px) {
+  .navbarOuter {
+    pointer-events: auto;
+    background: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid #d6dde6 !important;
+  }
+
+  :global([data-theme='dark']) .navbarOuter {
+    background: rgba(30, 41, 59, 0.95) !important;
+    border-bottom-color: #334155 !important;
+  }
+
+  .navbarAligner {
+    padding: 0;
+    max-width: none;
+  }
+
+  .navbarFloating {
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* Mobile sidebar open: solid bg, no rounding */
+.navbarFloatingOpen {
+  background: white;
+  border-radius: 0;
+  border-color: transparent;
+}
+
+/* Dark mode */
+:global([data-theme='dark']) .navbarFloating {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: #334155;
+}
+
+:global([data-theme='dark']) .navbarFloatingOpen {
+  background: #0f172a;
+  border-color: transparent;
+}

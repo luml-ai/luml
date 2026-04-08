@@ -1,6 +1,6 @@
 <a id="luml_api.resources.artifacts"></a>
 
-# luml\_api.resources.artifacts
+# luml_api.resources.artifacts
 
 <a id="luml_api.resources.artifacts.ArtifactResource"></a>
 
@@ -132,7 +132,7 @@ Artifact(
 
 <a id="luml_api.resources.artifacts.ArtifactResource.list_all"></a>
 
-#### list\_all
+#### list_all
 
 ```python
 @validate_collection
@@ -340,7 +340,7 @@ ArtifactsList(
 
 <a id="luml_api.resources.artifacts.ArtifactResource.download_url"></a>
 
-#### download\_url
+#### download_url
 
 ```python
 @validate_collection
@@ -388,7 +388,7 @@ download_url = url_info["url"]
 
 <a id="luml_api.resources.artifacts.ArtifactResource.delete_url"></a>
 
-#### delete\_url
+#### delete_url
 
 ```python
 @validate_collection
@@ -627,16 +627,18 @@ luml.artifacts.download(
 
 ```python
 @validate_collection
-def create(collection_id: str | None,
-           file_name: str,
-           extra_values: dict,
-           manifest: dict,
-           file_hash: str,
-           file_index: dict[str, tuple[int, int]],
-           size: int,
-           name: str,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None) -> CreatedArtifact
+def create(
+    collection_id: str | None,
+    file_name: str,
+    extra_values: dict,
+    manifest: dict,
+    file_hash: str,
+    file_index: dict[str, tuple[int, int]],
+    size: int,
+    name: str,
+    description: str | None = None,
+    tags: List[str] | None = None
+) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -1016,8 +1018,8 @@ Artifact(
     name="my_model",
     file_name="model.fnnx",
     description="Trained model",
-    metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-    manifest=\{
+    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+    manifest={
         "variant": "pipeline",
         "name": None,
         "version": None,
@@ -1029,29 +1031,29 @@ Artifact(
             "dataforce.studio::tabular_regression:v1",
         ],
         "inputs": [
-            \{
+            {
                 "name": "age",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": ["falcon.beastbyte.ai::numeric:v1"],
                 "shape": ["batch", 1],
-            \},
+            },
         ],
         "outputs": [
-            \{
+            {
                 "name": "y_pred",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": None,
                 "shape": ["batch", 1],
-            \}
+            }
         ],
         "dynamic_attributes": [],
         "env_vars": [],
-    \},
+    },
     bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
     file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-    file_index = \{
+    file_index = {
         "env.json": (3584, 2),
         "ops.json": (7168, 1869),
         "meta.json": (239616, 3279),
@@ -1059,7 +1061,7 @@ Artifact(
         "manifest.json": (512, 2353),
         "variant_config.json": (4608, 372),
         "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-    \},
+    },
     size=245760,
     unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
     status='pending_upload',
@@ -1072,7 +1074,7 @@ Artifact(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.list_all"></a>
 
-#### list\_all
+#### list_all
 
 ```python
 @validate_collection
@@ -1130,7 +1132,7 @@ async def main():
         order="desc",
         limit=50
     ):
-        print(f"\{artifact.name\}: F1=\{artifact.metrics.get('F1')\}")
+        print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
 
     # Filter by artifact types
     async for artifact in luml.artifacts.list_all(
@@ -1229,8 +1231,8 @@ ArtifactsList(
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1242,29 +1244,29 @@ ArtifactsList(
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    },
                 ],
                 "outputs": [
-                    \{
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1272,7 +1274,7 @@ ArtifactsList(
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1288,7 +1290,7 @@ ArtifactsList(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.download_url"></a>
 
-#### download\_url
+#### download_url
 
 ```python
 @validate_collection
@@ -1343,7 +1345,7 @@ async def main():
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_url"></a>
 
-#### delete\_url
+#### delete_url
 
 ```python
 @validate_collection
@@ -1402,16 +1404,18 @@ async def main():
 
 ```python
 @validate_collection
-async def create(collection_id: str | None,
-                 file_name: str,
-                 extra_values: dict,
-                 manifest: dict,
-                 file_hash: str,
-                 file_index: dict[str, tuple[int, int]],
-                 size: int,
-                 name: str,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None) -> CreatedArtifact
+async def create(
+    collection_id: str | None,
+    file_name: str,
+    extra_values: dict,
+    manifest: dict,
+    file_hash: str,
+    file_index: dict[str, tuple[int, int]],
+    size: int,
+    name: str,
+    description: str | None = None,
+    tags: builtins.list[str] | None = None
+) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -1460,10 +1464,10 @@ async def main():
 
     result = await luml.artifacts.create(
         file_name="model.fnnx",
-        extra_values=\{"accuracy": 0.95\},
-        manifest=\{"version": "1.0"\},
+        extra_values={"accuracy": 0.95},
+        manifest={"version": "1.0"},
         file_hash="abc123",
-        file_index=\{"layer1": (0, 1024)\},
+        file_index={"layer1": (0, 1024)},
         size=1048576,
         name="Test Model"
     )
@@ -1478,8 +1482,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1491,29 +1495,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    },
                 ],
                 "outputs": [
-                    \{
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1521,7 +1525,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1619,8 +1623,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1632,29 +1636,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    },
                 ],
                 "outputs": [
-                    \{
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1662,7 +1666,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',

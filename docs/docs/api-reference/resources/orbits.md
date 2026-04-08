@@ -1,6 +1,6 @@
 <a id="luml_api.resources.orbits"></a>
 
-# luml\_api.resources.orbits
+# luml_api.resources.orbits
 
 <a id="luml_api.resources.orbits.OrbitResource"></a>
 

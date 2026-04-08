@@ -1,6 +1,6 @@
 <a id="luml_api.resources.bucket_secrets"></a>
 
-# luml\_api.resources.bucket\_secrets
+# luml_api.resources.bucket_secrets
 
 <a id="luml_api.resources.bucket_secrets.BucketSecretResource"></a>
 
@@ -308,7 +308,7 @@ luml.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
 
 <a id="luml_api.resources.bucket_secrets.BucketSecretResource.get_multipart_upload_urls"></a>
 
-#### get\_multipart\_upload\_urls
+#### get_multipart_upload_urls
 
 ```python
 def get_multipart_upload_urls(
@@ -350,15 +350,14 @@ async def main():
         collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
 
     bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
-    bucket_location =
-    "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-2
-    1ee-74c6-b747-19a82f1a1e75/my_model_name"
+    bucket_location = "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
 
     multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
-            bucket_secret_id,
-            bucket_location,
-            3874658765,
-            "some_upload_id")
+        bucket_secret_id,
+        bucket_location,
+        3874658765,
+        "some_upload_id"
+    )
 ```
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
@@ -486,7 +485,7 @@ async def main():
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.get_multipart_upload_urls"></a>
 
-#### get\_multipart\_upload\_urls
+#### get_multipart_upload_urls
 
 ```python
 async def get_multipart_upload_urls(
@@ -533,10 +532,11 @@ async def main():
     455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
 
     multipart_data = await luml.bucket_secrets.get_multipart_upload_urls(
-            bucket_secret_id,
-            bucket_location,
-            3874658765,
-            "some_upload_id")
+        bucket_secret_id,
+        bucket_location,
+        3874658765,
+        "some_upload_id"
+    )
 ```
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>

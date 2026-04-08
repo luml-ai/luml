@@ -1,6 +1,6 @@
 <a id="luml_api.resources.organizations"></a>
 
-# luml\_api.resources.organizations
+# luml_api.resources.organizations
 
 <a id="luml_api.resources.organizations.OrganizationResource"></a>
 
