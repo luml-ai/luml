@@ -330,11 +330,9 @@ export const apiService = {
   },
 
   validateExperimentSearch: async (query: string) => {
-    const { data } = await api.get<ValidateExperimentSearchResponse>(
+    const { data } = await api.post<ValidateExperimentSearchResponse>(
       `/groups/experiments/validate-search`,
-      {
-        params: { query },
-      },
+      query,
     )
     return data
   },
