@@ -64,7 +64,7 @@ class AuthHandler:
         try:
             with httpx.Client() as client:
                 response = client.get(
-                    f"{get_config().LUML_BASE_URL}/auth/api-keys/validate",
+                    f"{get_config().LUML_BASE_URL}/api/v1/auth/api-keys/validate",
                     headers={"Authorization": f"Bearer {data.api_key}"},
                     timeout=10,
                 )
