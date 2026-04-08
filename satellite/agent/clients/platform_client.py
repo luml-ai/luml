@@ -105,18 +105,18 @@ class PlatformClient:
         data = r.json()
         return bool(data.get("authorized", False))
 
-    async def get_model_artifact_download_url(self, model_artifact_id: UUID) -> str:
+    async def get_artifact_download_url(self, artifact_id: UUID) -> str:
         assert self._session is not None
         r = await self._session.get(
-            self._url(f"/satellites/v1/artifacts/{model_artifact_id}/download-url")
+            self._url(f"/satellites/v1/artifacts/{artifact_id}/download-url")
         )
         r.raise_for_status()
         data = r.json()
         return str(data.get("url", ""))
 
-    async def get_model_artifact(self, model_artifact_id: UUID) -> tuple[dict, str]:
+    async def get_artifact(self, artifact_id: UUID) -> tuple[dict, str]:
         assert self._session is not None
-        r = await self._session.get(self._url(f"/satellites/v1/artifacts/{model_artifact_id}"))
+        r = await self._session.get(self._url(f"/satellites/v1/artifacts/{artifact_id}"))
         r.raise_for_status()
         data = r.json()
         return data.get("model"), str(data.get("url", ""))
