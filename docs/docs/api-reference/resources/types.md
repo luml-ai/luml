@@ -85,7 +85,7 @@
 **Fields**
 
 - **id** (*str*)
-- **type** (*Literal[<AZURE: 'azure'>], optional*) – Defaults to `<BucketType.AZURE: 'azure'>`.
+- **type** (*Literal[&lt;AZURE: 'azure'&gt;], optional*) – Defaults to `<BucketType.AZURE: 'azure'>`.
 - **endpoint** (*str*)
 - **bucket_name** (*str*)
 - **organization_id** (*str*)
@@ -268,7 +268,7 @@
 **Fields**
 
 - **id** (*str*)
-- **type** (*Literal[<S3: 's3'>], optional*) – Defaults to `<BucketType.S3: 's3'>`.
+- **type** (*Literal[&lt;S3: 's3'&gt;], optional*) – Defaults to `<BucketType.S3: 's3'>`.
 - **endpoint** (*str*)
 - **bucket_name** (*str*)
 - **secure** (*bool | None, optional*) – Defaults to `None`.
