@@ -69,7 +69,7 @@ const preview: Preview = {
       { path: '/notebooks', name: 'notebooks' },
       { path: '/data-agent', name: 'data-agent' },
       { path: '/model', name: 'model' },
-      { path: '/model-card', name: 'model-card' },
+      { path: '/artifact-card', name: 'artifact-card' },
       { path: '/model-snapshot', name: 'model-snapshot' },
       { path: '/organization/:id', name: 'organization' },
       { path: '/organizations/:organizationId/orbits', name: 'orbits' },

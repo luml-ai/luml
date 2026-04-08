@@ -155,8 +155,13 @@ const router = createRouter({
               component: () => import('../pages/collection/artifact/DashboardView.vue'),
             },
             {
+              path: 'data',
+              name: 'dataset',
+              component: () => import('../pages/collection/artifact/DatasetView.vue'),
+            },
+            {
               path: 'card',
-              name: 'model-card',
+              name: 'artifact-card',
               component: () => import('../pages/collection/artifact/CardView.vue'),
             },
             {

@@ -82,3 +82,34 @@ export interface GetArtifactsListParams {
 }
 
 export type ModelArtifact = Artifact
+
+export interface DatasetManifest {
+  artifact_type: 'dataset'
+  variant: string
+  name: string
+  description: string | null
+  version: string | null
+  producer_name: string
+  producer_version: string
+  producer_tags: string[]
+  payload: DatasetPayload
+}
+
+export interface DatasetPayload {
+  subsets: Record<string, Subset>
+  data_dir: string
+  library_version: string
+  total_rows: number
+  file_format: string
+}
+
+export interface Subset {
+  splits: Record<string, Split>
+}
+
+export interface Split {
+  num_rows: number
+  num_chunks: number
+  chunk_files: string[]
+  file_format: 'parquet' | 'csv'
+}
