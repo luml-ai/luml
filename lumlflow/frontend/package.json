@@ -23,7 +23,7 @@
     "lucide-vue-next": "^0.460.0",
     "pinia": "^2.2.6",
     "primevue": "^4.4.1",
-    "qs": "^6.15.0",
+    "qs": "^6.15.1",
     "tailwindcss": "^4.1.18",
     "tailwindcss-primeui": "^0.6.1",
     "vue": "^3.5.12",
