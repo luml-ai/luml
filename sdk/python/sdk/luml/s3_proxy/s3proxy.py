@@ -48,7 +48,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
     CORS_ORIGINS: str = "*"
     CORS_METHODS: str = "GET, PUT, POST, DELETE, HEAD, OPTIONS"
-    CORS_HEADERS: str = "Authorization, Content-Type, Content-MD5, x-amz-*, Range"
+    CORS_HEADERS: str = "*"
     CORS_MAX_AGE: str = "3600"
 
     def __init__(self, request, client_address, server: S3ProxyServer) -> None:
@@ -323,6 +323,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("ETag", f'"{etag}"')
+        self.send_header("Content-Length", "0")
         self.add_cors_headers()
         self.end_headers()
 
@@ -428,6 +429,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         self.send_response(200)
         self.send_header("ETag", f'"{etag}"')
+        self.send_header("Content-Length", "0")
         self.add_cors_headers()
         self.end_headers()
 
@@ -516,7 +518,12 @@ def run_server(
         debug=debug,
     )
 
+    print(f"S3 Proxy listening on http://{host}:{port}")
+    print(f"Storage root: {storage_root}")
+    print("Press Ctrl+C to stop.")
+
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        print("\nShutting down S3 Proxy...")
         httpd.shutdown()
