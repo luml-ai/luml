@@ -20,7 +20,6 @@ export class OrbitCollectionsApi {
     orbitId: string,
     params: GetCollectionsListParams,
   ) {
-    console.log('params', params)
     const { data: responseData } = await this.api.get<GetCollectionsListResponse>(
       `/organizations/${organizationId}/orbits/${orbitId}/collections`,
       { params, paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }) },
