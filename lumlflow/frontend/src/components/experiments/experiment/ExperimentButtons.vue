@@ -15,17 +15,12 @@
         <Repeat :size="14" />
       </template>
     </Button>
-    <Button severity="secondary" variant="text" disabled @click="onFilter">
-      <template #icon>
-        <Filter :size="14" />
-      </template>
-    </Button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Button, useConfirm, useToast } from 'primevue'
-import { Trash2, Bolt, Repeat, Filter } from 'lucide-vue-next'
+import { Trash2, Bolt, Repeat } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { deleteExperimentConfirmOptions } from '@/confirm/confirm'
 import { useExperimentsStore } from '@/store/experiments'
@@ -77,10 +72,6 @@ function onSettings() {
 function onCompare() {
   const experimentsIds = experimentsStore.selectedExperiments.map((experiment) => experiment.id)
   router.push({ name: ROUTE_NAMES.EXPERIMENTS_COMPARISON, query: { ids: experimentsIds } })
-}
-
-function onFilter() {
-  console.log('filter')
 }
 </script>
 
