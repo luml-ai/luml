@@ -9,7 +9,10 @@ from luml.handlers.orbit_secrets import OrbitSecretHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
-from luml.schemas.artifacts import SatelliteArtifactResponse, SatelliteModelArtifactResponse
+from luml.schemas.artifacts import (
+    SatelliteArtifactResponse,
+    SatelliteModelArtifactResponse,
+)
 from luml.schemas.deployment import (
     Deployment,
     DeploymentStatusUpdateIn,
