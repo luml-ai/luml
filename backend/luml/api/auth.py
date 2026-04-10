@@ -1,7 +1,6 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
-from pydantic import EmailStr
 from starlette.responses import RedirectResponse
 
 from luml.clients.oauth_providers import (
@@ -10,7 +9,7 @@ from luml.clients.oauth_providers import (
 )
 from luml.handlers.auth import AuthHandler
 from luml.infra.dependencies import UserAuthentication
-from luml.schemas.auth import Token
+from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
     CreateUserIn,
     DetailResponse,
@@ -109,8 +108,8 @@ async def refresh(request: Request, response: Response) -> dict[str, str]:
 
 
 @auth_router.post("/forgot-password", response_model=DetailResponse)
-async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
-    await auth_handler.send_password_reset_email(email)
+async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
+    await auth_handler.send_password_reset_email(data.email)
     return {"detail": "Password reset email has been sent"}
 
 
