@@ -39,7 +39,7 @@ def test_organization_validation_single_org(mock_initialization_requests: dict) 
 def test_organization_validation_multiple_orgs_no_default(
     respx_mock: MockRouter,
 ) -> None:
-    respx_mock.get("/api/v1/users/me/organizations").mock(
+    respx_mock.get("/v1/users/me/organizations").mock(
         return_value=httpx.Response(
             200,
             json=[
@@ -85,7 +85,7 @@ def test_error_handling(client_with_mocks: LumlClient, respx_mock: MockRouter) -
     bucket_id = "b8b26bca-09f6-45bc-8b9f-c5ba3e47d89d"
 
     respx_mock.get(
-        f"/api/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}"
+        f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}"
     ).mock(return_value=httpx.Response(404, json={"error": "Not found"}))
 
     with pytest.raises(NotFoundError):

@@ -109,7 +109,7 @@ class OrganizationResource(OrganizationResourceBase):
         ]
         ```
         """
-        response = self._client.get("/api/v1/users/me/organizations")
+        response = self._client.get("/v1/users/me/organizations")
         if response is None:
             return []
         return [Organization.model_validate(org) for org in response]
@@ -205,7 +205,7 @@ class AsyncOrganizationResource(OrganizationResourceBase):
         ]
         ```
         """
-        response = await self._client.get("/api/v1/users/me/organizations")
+        response = await self._client.get("/v1/users/me/organizations")
         if response is None:
             return []
         return [Organization.model_validate(org) for org in response]
