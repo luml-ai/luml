@@ -67,7 +67,7 @@ class S3Client(BaseStorageClient):
 
         except Exception as error:
             raise BucketConnectionError(
-                "Failed to initiate multipart upload."
+                f"Failed to initiate multipart upload: {error}"
             ) from error
 
     async def _get_multipart_upload_urls(
@@ -89,7 +89,7 @@ class S3Client(BaseStorageClient):
                 urls.append(url)
             return urls
         except Exception as error:
-            raise BucketConnectionError("Failed to generate upload URL.") from error
+            raise BucketConnectionError(f"Failed to generate URL: {error}") from error
 
     async def get_upload_url(self, object_name: str) -> str:
         try:
@@ -99,7 +99,9 @@ class S3Client(BaseStorageClient):
                 expires=timedelta(hours=self._url_expire),
             )
         except Exception as error:
-            raise BucketConnectionError("Failed to generate upload URL.") from error
+            raise BucketConnectionError(
+                f"Failed to generate upload URL: {error}"
+            ) from error
 
     async def get_complete_url(self, object_name: str, upload_id: str) -> str:
         try:
@@ -111,7 +113,9 @@ class S3Client(BaseStorageClient):
                 extra_query_params={"uploadId": upload_id},
             )
         except Exception as error:
-            raise BucketConnectionError("Failed to generate complete URL.") from error
+            raise BucketConnectionError(
+                f"Failed to generate complete URL: {error}"
+            ) from error
 
     async def get_download_url(self, object_name: str) -> str:
         try:
@@ -121,7 +125,9 @@ class S3Client(BaseStorageClient):
                 expires=timedelta(hours=self._url_expire),
             )
         except Exception as error:
-            raise BucketConnectionError("Failed to generate download URL.") from error
+            raise BucketConnectionError(
+                f"Failed to generate download URL: {error}"
+            ) from error
 
     async def get_delete_url(self, object_name: str) -> str:
         try:
@@ -132,7 +138,9 @@ class S3Client(BaseStorageClient):
                 expires=timedelta(hours=self._url_expire),
             )
         except Exception as error:
-            raise BucketConnectionError("Failed to generate delete URL.") from error
+            raise BucketConnectionError(
+                f"Failed to generate delete URL: {error}"
+            ) from error
 
     async def create_multipart_upload(
         self, bucket_location: str, size: int, upload_id: str | None = None
