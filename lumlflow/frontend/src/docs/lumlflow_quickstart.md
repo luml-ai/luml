@@ -205,5 +205,3 @@ tracker.end_experiment(exp_id)
 
 print("Experiment logged. Run 'lumlflow ui --path sqlite://./my_experiments' to view.")
 ```
-
-For more details — including traces, evaluations, model cards, and advanced experiment management — check the full [LUMLFlow documentation](../documentation/lumlflow).

@@ -1,6 +1,6 @@
 # LLM-as-Judge Evaluation with LangGraph
 
-This guide walks through a more involved LUMLFlow experiment than the [Quickstart](lumlflow_quickstart.md). It builds a small LangGraph QA agent with an LLM-as-judge node, packages the agent as a `.luml` file, runs an evaluation with custom scorers over a dataset, and records parameters, scores, and execution traces to LUMLFlow.
+This guide walks through a more involved LUMLFlow experiment than the Quickstart. It builds a small LangGraph QA agent with an LLM-as-judge node, packages the agent as a `.luml` file, runs an evaluation with custom scorers over a dataset, and records parameters, scores, and execution traces to LUMLFlow.
 
 After running the script, the experiment can be inspected in LUMLFlow: parameters, aggregated eval scores, per-sample results, and full OpenTelemetry traces for every inference call.
 
