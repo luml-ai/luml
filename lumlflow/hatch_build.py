@@ -28,6 +28,12 @@ class FrontendBuildHook(BuildHookInterface):
                 cwd=repo_root,
                 check=True,
             )
+            for dep in ("@luml/experiments", "@luml/attachments"):
+                subprocess.run(
+                    ["npm", "run", "build", f"--workspace={dep}"],
+                    cwd=repo_root,
+                    check=True,
+                )
             subprocess.run(
                 ["npm", "run", "build", "--workspace=lumlflow-ui"],
                 cwd=repo_root,
