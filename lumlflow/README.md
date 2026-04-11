@@ -13,6 +13,41 @@ lumlflow ui
 
 This starts the web UI at [http://127.0.0.1:5000](http://127.0.0.1:5000) and opens it in your browser automatically.
 
+## Usage
+
+Lumlflow bundles the LUML SDK (`luml`), so you can start tracking experiments right away:
+
+```python
+from luml.experiments.tracker import ExperimentTracker
+
+tracker = ExperimentTracker()
+
+# Start an experiment
+tracker.start_experiment(
+    name="gbm_baseline",
+    group="iris_classification",
+    tags=["baseline", "gbm"],
+)
+
+# Log hyperparameters
+tracker.log_static("n_estimators", 100)
+tracker.log_static("learning_rate", 0.1)
+tracker.log_static("max_depth", 3)
+
+# Log metrics over training steps
+for step, (loss, acc) in enumerate(train()):
+    tracker.log_dynamic("loss", loss, step=step)
+    tracker.log_dynamic("accuracy", acc, step=step)
+
+# Log the trained model
+tracker.log_model(model, name="gbm_final", inputs=X_train)
+
+# End the experiment
+tracker.end_experiment()
+```
+
+All logged data is stored locally and visible in the web UI launched by `lumlflow ui`.
+
 ## Overview
 
 Lumlflow consists of two parts:
