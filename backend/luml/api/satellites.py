@@ -9,7 +9,10 @@ from luml.handlers.orbit_secrets import OrbitSecretHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
-from luml.schemas.artifacts import SatelliteArtifactResponse
+from luml.schemas.artifacts import (
+    SatelliteArtifactResponse,
+    SatelliteModelArtifactResponse,
+)
 from luml.schemas.deployment import (
     Deployment,
     DeploymentStatusUpdateIn,
@@ -206,3 +209,33 @@ async def get_artifact(
     return await artifacts_handler.get_satellite_artifact(
         request.user.orbit_id, artifact_id
     )
+
+
+@satellite_worker_router.get(
+    "/model_artifacts/{model_artifact_id}/download-url",
+    responses=endpoint_responses,
+    deprecated=True,
+)
+async def get_model_artifact_download_url(
+    request: Request, model_artifact_id: UUID
+) -> dict[str, Any]:
+    await satellite_handler.touch_last_seen(request.user.id)
+    url = await artifacts_handler.request_satellite_download_url(
+        request.user.orbit_id, model_artifact_id
+    )
+    return {"url": url}
+
+
+@satellite_worker_router.get(
+    "/model_artifacts/{model_artifact_id}",
+    responses=endpoint_responses,
+    deprecated=True,
+)
+async def get_model_artifact(
+    request: Request, model_artifact_id: UUID
+) -> SatelliteModelArtifactResponse:
+    await satellite_handler.touch_last_seen(request.user.id)
+    result = await artifacts_handler.get_satellite_artifact(
+        request.user.orbit_id, model_artifact_id
+    )
+    return SatelliteModelArtifactResponse(artifact=result.artifact, url=result.url)
