@@ -17,7 +17,7 @@ def test_organization_list(
     resource = OrganizationResource(mock_sync_client)
     orgs = resource.list()
 
-    mock_sync_client.get.assert_called_once_with("/users/me/organizations")
+    mock_sync_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert len(orgs) == 1
     assert orgs[0].name == sample_organization.name
 
@@ -28,7 +28,7 @@ def test_organization_list_no_orgs(mock_sync_client: Mock) -> None:
     resource = OrganizationResource(mock_sync_client)
     orgs = resource.list()
 
-    mock_sync_client.get.assert_called_once_with("/users/me/organizations")
+    mock_sync_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert len(orgs) == 0
 
 
@@ -43,7 +43,7 @@ def test_organization_get(
     resource = OrganizationResource(mock_sync_client)
     org = resource.get(organization_name)
 
-    mock_sync_client.get.assert_called_once_with("/users/me/organizations")
+    mock_sync_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert org.id == organization_id
     assert org.name == organization_name
 
@@ -70,7 +70,7 @@ async def test_async_organization_list(
     resource = AsyncOrganizationResource(mock_async_client)
     orgs = await resource.list()
 
-    mock_async_client.get.assert_called_once_with("/users/me/organizations")
+    mock_async_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert len(orgs) == 1
     assert orgs[0].name == organization_name
 
@@ -87,7 +87,7 @@ async def test_async_organization_get(
     resource = AsyncOrganizationResource(mock_async_client)
     org = await resource.get(organization_name)
 
-    mock_async_client.get.assert_called_once_with("/users/me/organizations")
+    mock_async_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert isinstance(org, Organization)
     assert org.id == organization_id
     assert org.name == organization_name
@@ -114,5 +114,5 @@ async def test_async_organization_list_no_orgs(mock_async_client: AsyncMock) -> 
     resource = AsyncOrganizationResource(mock_async_client)
     orgs = await resource.list()
 
-    mock_async_client.get.assert_called_once_with("/users/me/organizations")
+    mock_async_client.get.assert_called_once_with("/v1/users/me/organizations")
     assert len(orgs) == 0

@@ -135,7 +135,7 @@ class BucketSecretResource(BucketSecretResourceBase):
 
     def _get_by_id(self, secret_id: str) -> BucketSecret:
         response = self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return model_validate_bucket_secret(response)
 
@@ -178,7 +178,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets"
         )
         if response is None:
             return []
@@ -249,7 +249,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.post(
-            f"/organizations/{self._client.organization}/bucket-secrets",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -331,7 +331,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.patch(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -378,7 +378,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             on this bucket secret before deletion.
         """
         return self._client.delete(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
 
     def get_multipart_upload_urls(
@@ -505,7 +505,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
 
     async def _get_by_id(self, secret_id: str) -> BucketSecret:
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return model_validate_bucket_secret(response)
 
@@ -552,7 +552,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets"
         )
         if response is None:
             return []
@@ -684,7 +684,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.post(
-            f"/organizations/{self._client.organization}/bucket-secrets",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -770,7 +770,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.patch(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -823,5 +823,5 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             on this bucket secret before deletion.
         """
         return await self._client.delete(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )

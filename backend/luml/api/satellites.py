@@ -32,7 +32,7 @@ from luml.schemas.satellite import (
 satellite_worker_router = APIRouter(
     prefix="/satellites/v1",
     dependencies=[Depends(UserAuthentication(["satellite"]))],
-    tags=["satellites"],
+    tags=["satellites-worker"],
 )
 
 satellite_handler = SatelliteHandler()
