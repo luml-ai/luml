@@ -43,7 +43,7 @@ import { AnnotationKind, AnnotationValueType, type Annotation } from './annotati
 import { computed, ref } from 'vue'
 import { ChevronDown, Target, ThumbsDown, ThumbsUp } from 'lucide-vue-next'
 import AnnotationOptions from './AnnotationOptions.vue'
-import { getLastUpdateText } from '@/helpers/helpers'
+import { getLastUpdateText } from '@experiments/helpers/helpers'
 
 interface Props {
   isEditable: boolean

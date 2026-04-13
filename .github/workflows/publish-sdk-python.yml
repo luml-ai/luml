@@ -64,6 +64,12 @@ jobs:
           sed -i "s/^version = .*/version = \"${{ steps.release.outputs.version }}\"/" pyproject.toml
           sed -i "s/^__version__ = .*/__version__ = \"${{ steps.release.outputs.version }}\"/" "${{ steps.release.outputs.package_init }}"
 
+      - name: Build frontend
+        if: steps.release.outputs.requires_node == 'true'
+        run: |
+          npm ci
+          npm run build:lumlflow
+
       - name: Build & publish
         working-directory: ${{ steps.release.outputs.package_dir }}
         env:

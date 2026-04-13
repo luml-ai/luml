@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import UiFeedbackResult from '../ui/UiFeedbackResult.vue'
-import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
+import type { AnnotationSummary } from '@experiments/components/annotations/annotations.interface'
 
 interface Props {
   feedback: AnnotationSummary['feedback']

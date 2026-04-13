@@ -1,10 +1,10 @@
-import type { ExperimentSnapshotDynamicMetric } from '@/interfaces/interfaces'
+import type { ExperimentSnapshotDynamicMetric } from '@experiments/interfaces/interfaces'
 import axios from 'axios'
 import { useEvalsStore } from '../evals'
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
 import { METRICS_LIMIT } from './dynamic-metrics.data'
 
 export const useDynamicMetricsStore = defineStore('dynamicMetrics', () => {

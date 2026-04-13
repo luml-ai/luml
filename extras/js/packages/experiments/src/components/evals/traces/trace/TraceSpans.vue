@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
+import type { TraceSpan as TraceSpanType } from '@experiments/interfaces/interfaces'
 import { ref } from 'vue'
 import TraceItemsHeader from './TraceItemsHeader.vue'
 import TraceSpan from './TraceSpan.vue'

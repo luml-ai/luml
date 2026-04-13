@@ -1,4 +1,4 @@
-import { TraceStateEnum } from '@/providers/ExperimentSnapshotApiProvider.interface'
+import { TraceStateEnum } from '@experiments/providers/ExperimentSnapshotApiProvider.interface'
 
 export const TRACE_STATE_MAP = {
   [TraceStateEnum.UNSPECIFIED]: 'Unspecified',

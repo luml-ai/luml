@@ -1,6 +1,9 @@
 {
 	"name": "@luml/workspace",
 	"private": true,
+	"scripts": {
+		"build:lumlflow": "npm run build --workspace=lumlflow-ui && rm -rf lumlflow/lumlflow/static && cp -r lumlflow/frontend/dist lumlflow/lumlflow/static"
+	},
 	"workspaces": [
 		"frontend",
 		"lumlflow/frontend",

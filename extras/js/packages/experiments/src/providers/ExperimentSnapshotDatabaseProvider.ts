@@ -26,8 +26,8 @@ import {
   AnnotationKind,
   type AnnotationSummary,
   AnnotationValueType,
-} from '@/components/annotations/annotations.interface'
-import { SearchEvalsUtils, SearchTracesUtils } from '@/utils/_search_utils'
+} from '@experiments/components/annotations/annotations.interface'
+import { SearchEvalsUtils, SearchTracesUtils } from '@experiments/utils/_search_utils'
 
 interface ModelInfo {
   modelId: string

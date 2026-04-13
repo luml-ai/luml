@@ -69,13 +69,13 @@
 </template>
 
 <script setup lang="ts">
-import type { TraceSpan } from '@/interfaces/interfaces'
+import type { TraceSpan } from '@experiments/interfaces/interfaces'
 import { computed, ref, watch } from 'vue'
 import { History } from 'lucide-vue-next'
 import { Tabs, TabList, Tab, TabPanels, TabPanel, useToast } from 'primevue'
-import { getErrorMessage, getFormattedTime, getSpanTypeData, safeParse } from '@/helpers/helpers'
-import { useAnnotationsStore } from '@/store/annotations'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage, getFormattedTime, getSpanTypeData, safeParse } from '@experiments/helpers/helpers'
+import { useAnnotationsStore } from '@experiments/store/annotations'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
 import UiMultiTypeText from '../../../../ui/UiMultiTypeText.vue'
 import AnnotationsButton from '../../../../annotations/AnnotationsButton.vue'
 import AnnotationsView from '../../../../annotations/view/AnnotationsView.vue'

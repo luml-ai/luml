@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import App from './App.vue'
-import { initPrimeVue } from '@/demo/lib/primevue'
+import { initPrimeVue } from '@experiments/demo/lib/primevue'
 import { createPinia } from 'pinia'
 import './assets/index.css'
 

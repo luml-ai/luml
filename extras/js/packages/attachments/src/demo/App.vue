@@ -10,12 +10,12 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelAttachmentsProvider } from '@/interfaces/interfaces'
+import type { ModelAttachmentsProvider } from '@attachments/interfaces/interfaces'
 import { ref } from 'vue'
 import { FnnxService } from './lib/fnnx/FnnxService'
 import { FileProvider } from './models/FileProvider'
 import { Button } from 'primevue'
-import ModelAttachments from '@/ModelAttachments.vue'
+import ModelAttachments from '@attachments/ModelAttachments.vue'
 
 const provider = ref<ModelAttachmentsProvider | null>(null)
 

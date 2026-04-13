@@ -1,4 +1,4 @@
-import type { GetTracesParams } from '@/interfaces/interfaces'
+import type { GetTracesParams } from '@experiments/interfaces/interfaces'
 
 export const INITIAL_REQUEST_PARAMS: GetTracesParams = {
   limit: 20,

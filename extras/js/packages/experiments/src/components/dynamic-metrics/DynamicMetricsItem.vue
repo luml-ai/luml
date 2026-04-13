@@ -14,13 +14,13 @@
 </template>
 
 <script setup lang="ts">
-import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '@/interfaces/interfaces'
+import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '@experiments/interfaces/interfaces'
 import { computed, nextTick, ref, watch } from 'vue'
-import { useVariableValue } from '@/hooks/useVariableValue'
-import { plotlyLineChartLayout } from '@/lib/plotly/layouts'
-import { cutStringOnMiddle } from '@/helpers/helpers'
-import { plotlyService } from '@/services/PlotlyService'
-import { useTheme } from '@/lib/theme/ThemeProvider'
+import { useVariableValue } from '@experiments/hooks/useVariableValue'
+import { plotlyLineChartLayout } from '@experiments/lib/plotly/layouts'
+import { cutStringOnMiddle } from '@experiments/helpers/helpers'
+import { plotlyService } from '@experiments/services/PlotlyService'
+import { useTheme } from '@experiments/lib/theme/ThemeProvider'
 import DynamicMetricsItemContent from './DynamicMetricsItemContent.vue'
 
 const { getVariablesValues } = useVariableValue()

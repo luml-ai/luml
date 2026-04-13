@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
-import type { ModelsInfo } from '@/interfaces/interfaces'
+import type { ModelsInfo } from '@experiments/interfaces/interfaces'
 import { Dialog } from 'primevue'
 import TracesInputs from './inputs/TracesInputs.vue'
 import TracesModels from './models/TracesModels.vue'

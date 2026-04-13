@@ -22,7 +22,7 @@ import type { PageState } from 'primevue'
 import type { DynamicMetricsProps } from './dynamic-metrics.interface'
 import { onBeforeUnmount, watch } from 'vue'
 import { useDynamicMetricsStore } from '../../store/dynamic-metrics'
-import { METRICS_LIMIT } from '@/store/dynamic-metrics/dynamic-metrics.data'
+import { METRICS_LIMIT } from '@experiments/store/dynamic-metrics/dynamic-metrics.data'
 import DynamicMetricsItem from './DynamicMetricsItem.vue'
 import DynamicMetricsToolbar from './DynamicMetricsToolbar.vue'
 

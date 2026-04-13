@@ -5,13 +5,13 @@ import type {
   ExperimentSnapshotProvider,
   TraceSpan,
   BaseTraceInfo,
-} from '@/interfaces/interfaces'
-import type { DatasetData } from '@/components/evals/evals.interface'
+} from '@experiments/interfaces/interfaces'
+import type { DatasetData } from '@experiments/components/evals/evals.interface'
 import { INITIAL_PARAMS } from './evals.data'
 import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 
 export const useEvalsStore = defineStore('evals', () => {
   const annotationsStore = useAnnotationsStore()

@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { valueToString } from '@/helpers/texts'
+import { valueToString } from '@experiments/helpers/texts'
 import { computed } from 'vue'
 
 interface Props {

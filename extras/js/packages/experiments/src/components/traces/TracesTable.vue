@@ -289,16 +289,16 @@ import {
 } from 'primevue'
 import type { TableEmits, TableProps } from './traces.interface'
 import { computed, ref } from 'vue'
-import { getErrorMessage, getFormattedExecutionTime } from '@/helpers/helpers'
+import { getErrorMessage, getFormattedExecutionTime } from '@experiments/helpers/helpers'
 import { SORTED_FIELDS, TRACE_STATE_MAP } from './traces.const'
-import { useEvalsStore } from '@/store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useEvalsStore } from '@experiments/store/evals'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
 import { watch } from 'vue'
 import { nextTick } from 'vue'
 import FeedbackSubheader from '../evals/FeedbackSubheader.vue'
 import FeedbackColumn from '../table/feedback-column/FeedbackColumn.vue'
 import ExpectationColumn from '../table/ecpectation-column/ExpectationColumn.vue'
-import { useAnnotationsStore } from '@/store/annotations'
+import { useAnnotationsStore } from '@experiments/store/annotations'
 
 const props = defineProps<TableProps>()
 const emit = defineEmits<TableEmits>()

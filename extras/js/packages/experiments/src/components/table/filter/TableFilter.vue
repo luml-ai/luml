@@ -58,15 +58,15 @@ import {
   type FilterItemsErrors,
   type FilterProps,
 } from './filter.interface'
-import type { ValidateResponseItem } from '@/interfaces/interfaces'
+import type { ValidateResponseItem } from '@experiments/interfaces/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Button, Popover, useToast } from 'primevue'
 import { Filter, ChevronDown, ChevronUp, Plus, FilterX } from 'lucide-vue-next'
 import { v4 as uuidv4 } from 'uuid'
 import { formSchema } from './filter.const'
-import { mapZodErrors } from '@/helpers/forms'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { mapZodErrors } from '@experiments/helpers/forms'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 import TableFilterItem from './TableFilterItem.vue'
 
 const toast = useToast()

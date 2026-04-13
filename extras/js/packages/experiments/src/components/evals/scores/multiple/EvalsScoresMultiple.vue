@@ -9,7 +9,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelScores, ModelsInfo } from '@/interfaces/interfaces'
+import type { ModelScores, ModelsInfo } from '@experiments/interfaces/interfaces'
 import { computed } from 'vue'
 import EvalsScoresMultipleItem from './EvalsScoresMultipleItem.vue'
 

@@ -3,7 +3,7 @@ import type {
   Annotation,
   AnnotationSummary,
   UpdateAnnotationPayload,
-} from '@/components/annotations/annotations.interface'
+} from '@experiments/components/annotations/annotations.interface'
 import type { AddEvalAnnotationParams, AddSpanAnnotationParams } from './annotations.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'

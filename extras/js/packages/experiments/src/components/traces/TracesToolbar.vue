@@ -39,14 +39,14 @@
 <script setup lang="ts">
 import type { ToolbarEmits, ToolbarProps } from './traces.interface'
 import type { FilterItem } from '../table/filter/filter.interface'
-import type { TypedColumnInfo } from '@/interfaces/interfaces'
+import type { TypedColumnInfo } from '@experiments/interfaces/interfaces'
 import { computed } from 'vue'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
-import { useTraceStore } from '@/store/trace'
+import { useTraceStore } from '@experiments/store/trace'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
-import { useEvalsStore } from '@/store/evals'
+import { useEvalsStore } from '@experiments/store/evals'
 
 const evalStore = useEvalsStore()
 const traceStore = useTraceStore()

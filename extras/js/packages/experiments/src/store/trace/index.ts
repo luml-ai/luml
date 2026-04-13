@@ -1,5 +1,5 @@
-import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
-import type { GetTracesParams, TypedColumnInfo, TypedTracesColumns } from '@/interfaces/interfaces'
+import type { Trace } from '@experiments/providers/ExperimentSnapshotApiProvider.interface'
+import type { GetTracesParams, TypedColumnInfo, TypedTracesColumns } from '@experiments/interfaces/interfaces'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { INITIAL_REQUEST_PARAMS } from './trace.data'
@@ -7,8 +7,8 @@ import { useEvalsStore } from '../evals'
 import { useDebounceFn } from '@vueuse/core'
 import { useAnnotationsStore } from '../annotations'
 import { useToast } from 'primevue'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 
 export const useTraceStore = defineStore('trace', () => {
   const evalsStore = useEvalsStore()

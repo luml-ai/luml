@@ -20,7 +20,7 @@
 import type { DatasetListProps, FilterInterface, SortParams } from './evals.interface'
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useEvalsStore } from '../../store/evals'
-import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { simpleErrorToast } from '@experiments/lib/primevue/data/toasts'
 import { useToast, Skeleton } from 'primevue'
 import EvalsDataset from './EvalsDataset.vue'
 

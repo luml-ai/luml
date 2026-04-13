@@ -25,10 +25,10 @@
 import type { Annotation, UpdateAnnotationPayload } from './annotations.interface'
 import { PencilIcon } from 'lucide-vue-next'
 import { Button, useToast } from 'primevue'
-import { useAnnotationsStore } from '@/store/annotations'
+import { useAnnotationsStore } from '@experiments/store/annotations'
 import { computed, ref } from 'vue'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast, simpleSuccessToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 import UiRightDialog from '../ui/UiRightDialog.vue'
 import AnnotationForm from './form/AnnotationForm.vue'
 

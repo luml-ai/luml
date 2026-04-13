@@ -4,8 +4,8 @@ import type {
   ModelsInfo,
   TypedColumnInfo,
   TypedEvalsColumns,
-} from '@/interfaces/interfaces'
-import type { AnnotationSummary } from '@/components/annotations/annotations.interface'
+} from '@experiments/interfaces/interfaces'
+import type { AnnotationSummary } from '@experiments/components/annotations/annotations.interface'
 
 export interface DatasetProps {
   data: EvalsInfo[]

@@ -63,11 +63,11 @@
 </template>
 
 <script setup lang="ts">
-import type { TraceSpan as TraceSpanType } from '@/interfaces/interfaces'
+import type { TraceSpan as TraceSpanType } from '@experiments/interfaces/interfaces'
 import { ProgressBar } from 'primevue'
 import { ChevronDown, ChevronRight, History } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-import { getFormattedTime, getSpanTypeData } from '@/helpers/helpers'
+import { getFormattedTime, getSpanTypeData } from '@experiments/helpers/helpers'
 import AnnotationsTag from '../../../annotations/AnnotationsTag.vue'
 
 type Props = {

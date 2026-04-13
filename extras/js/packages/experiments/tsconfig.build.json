@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@experiments/*": ["src/*"]
     }
   },
   "include": ["src", "src/types"]

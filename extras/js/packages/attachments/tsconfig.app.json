@@ -8,7 +8,7 @@
 
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@attachments/*": ["./src/*"]
     }
   }
 }

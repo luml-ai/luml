@@ -30,11 +30,11 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelsInfo } from '@/interfaces/interfaces'
+import type { ModelsInfo } from '@experiments/interfaces/interfaces'
 import { CircleArrowDown } from 'lucide-vue-next'
 import { Select } from 'primevue'
 import { computed, ref, watch } from 'vue'
-import { useEvalsStore } from '@/store/evals'
+import { useEvalsStore } from '@experiments/store/evals'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 
 type Props = {

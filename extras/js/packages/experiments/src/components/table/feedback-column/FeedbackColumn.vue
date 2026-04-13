@@ -16,7 +16,7 @@
 
 <script setup lang="ts">
 import type { FeedbackColumnProps } from './interface'
-import UiFeedbackResult from '@/components/ui/UiFeedbackResult.vue'
+import UiFeedbackResult from '@experiments/components/ui/UiFeedbackResult.vue'
 
 defineProps<FeedbackColumnProps>()
 </script>

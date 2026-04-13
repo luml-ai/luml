@@ -48,7 +48,7 @@ import type { FilterItem } from '../table/filter/filter.interface'
 import { Button, IconField, InputIcon, InputText } from 'primevue'
 import { Bolt, Download, Search } from 'lucide-vue-next'
 import { computed } from 'vue'
-import { useEvalsStore } from '@/store/evals'
+import { useEvalsStore } from '@experiments/store/evals'
 import TableEditColumns from '../table/TableEditColumns.vue'
 import TableFilter from '../table/filter/TableFilter.vue'
 

@@ -32,10 +32,10 @@
 <script setup lang="ts">
 import type { AddAnnotationPayload } from '../annotations.interface'
 import { computed, ref } from 'vue'
-import { useAnnotationsStore } from '@/store/annotations'
+import { useAnnotationsStore } from '@experiments/store/annotations'
 import { useToast } from 'primevue'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { simpleErrorToast, simpleSuccessToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 import AnnotationsViewHeader from './AnnotationsViewHeader.vue'
 import AnnotationsViewList from './AnnotationsViewList.vue'
 import AnnotationAddCard from './AnnotationAddCard.vue'

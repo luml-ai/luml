@@ -10,7 +10,7 @@ import type {
   TypedEvalsColumns,
   TypedTracesColumns,
   ValidateResponseItem,
-} from '@/interfaces/interfaces'
+} from '@experiments/interfaces/interfaces'
 import type {
   ArtifactInfo,
   TraceInfo,
@@ -21,7 +21,7 @@ import type {
 import type {
   AddAnnotationPayload,
   UpdateAnnotationPayload,
-} from '@/components/annotations/annotations.interface'
+} from '@experiments/components/annotations/annotations.interface'
 
 export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider {
   private traces: TraceInfo[] = []

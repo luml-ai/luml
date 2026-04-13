@@ -1,4 +1,4 @@
-import type { AttachmentContent, FileNode, ModelAttachmentsProvider } from '@/interfaces/interfaces'
+import type { AttachmentContent, FileNode, ModelAttachmentsProvider } from '@attachments/interfaces/interfaces'
 
 export class FileProvider implements ModelAttachmentsProvider {
   private tree: FileNode[] = []

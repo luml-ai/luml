@@ -3,7 +3,7 @@ import type {
   Annotation,
   AnnotationSummary,
   UpdateAnnotationPayload,
-} from '@/components/annotations/annotations.interface'
+} from '@experiments/components/annotations/annotations.interface'
 import type {
   EvalsInfo,
   GetEvalsByDatasetParams,
@@ -12,7 +12,7 @@ import type {
   TypedEvalsColumns,
   TypedTracesColumns,
   ValidateResponseItem,
-} from '@/interfaces/interfaces'
+} from '@experiments/interfaces/interfaces'
 
 export interface ArtifactInfo {
   id: string

@@ -9,11 +9,11 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useVariableValue } from '@/hooks/useVariableValue'
-import { plotlyBarChartLayout } from '@/lib/plotly/layouts'
-import { cutStringOnMiddle } from '@/helpers/helpers'
-import { plotlyService } from '@/services/PlotlyService'
-import { useTheme } from '@/lib/theme/ThemeProvider'
+import { useVariableValue } from '@experiments/hooks/useVariableValue'
+import { plotlyBarChartLayout } from '@experiments/lib/plotly/layouts'
+import { cutStringOnMiddle } from '@experiments/helpers/helpers'
+import { plotlyService } from '@experiments/services/PlotlyService'
+import { useTheme } from '@experiments/lib/theme/ThemeProvider'
 import EvalsScoresMultipleItemContent from './EvalsScoresMultipleItemContent.vue'
 
 type Props = {

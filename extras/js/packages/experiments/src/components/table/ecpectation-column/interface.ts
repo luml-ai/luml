@@ -1,4 +1,4 @@
-import type { AnnotationSummaryExpectationItem } from '@/components/annotations/annotations.interface'
+import type { AnnotationSummaryExpectationItem } from '@experiments/components/annotations/annotations.interface'
 
 export type ExpectationColumnData = Omit<AnnotationSummaryExpectationItem, 'name'>
 

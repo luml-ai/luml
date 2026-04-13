@@ -1,4 +1,4 @@
-import type { ValidateResponseItem } from '@/interfaces/interfaces'
+import type { ValidateResponseItem } from '@experiments/interfaces/interfaces'
 
 export interface FilterItem {
   id: string

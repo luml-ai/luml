@@ -24,11 +24,11 @@
 <script setup lang="ts">
 import type { Annotation } from '../annotations.interface'
 import { useConfirm, useToast } from 'primevue'
-import { deleteAnnotationConfirmOptions } from '@/lib/primevue/data/confirm'
+import { deleteAnnotationConfirmOptions } from '@experiments/lib/primevue/data/confirm'
 import { ref } from 'vue'
-import { useAnnotationsStore } from '@/store/annotations'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { useAnnotationsStore } from '@experiments/store/annotations'
+import { simpleErrorToast, simpleSuccessToast } from '@experiments/lib/primevue/data/toasts'
+import { getErrorMessage } from '@experiments/helpers/helpers'
 import AnnotationItem from '../AnnotationItem.vue'
 import AnnotationEditDialog from '../AnnotationEditDialog.vue'
 

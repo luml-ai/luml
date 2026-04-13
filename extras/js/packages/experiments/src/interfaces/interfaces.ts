@@ -3,8 +3,8 @@ import type {
   Annotation,
   AnnotationSummary,
   UpdateAnnotationPayload,
-} from '@/components/annotations/annotations.interface'
-import type { Trace } from '@/providers/ExperimentSnapshotApiProvider.interface'
+} from '@experiments/components/annotations/annotations.interface'
+import type { Trace } from '@experiments/providers/ExperimentSnapshotApiProvider.interface'
 import type { Database } from 'sql.js'
 
 export interface ExperimentSnapshotProvider {

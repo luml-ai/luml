@@ -14,7 +14,7 @@
 
 <script setup lang="ts">
 import type { DialogPassThroughOptions } from 'primevue'
-import type { TraceSpan } from '@/interfaces/interfaces'
+import type { TraceSpan } from '@experiments/interfaces/interfaces'
 import { ref } from 'vue'
 import { Dialog } from 'primevue'
 import TraceSpans from './TraceSpans.vue'

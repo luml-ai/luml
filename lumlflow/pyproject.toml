@@ -8,8 +8,8 @@ dependencies = [
     "fastapi>=0.115.0,<1.0.0",
     "uvicorn>=0.32.0,<1.0.0",
     "typer>=0.15.0,<1.0.0",
-    "luml-sdk[core]>=0.1.0rc3",
-    "luml-api>=0.1.0rc0",
+    "luml-sdk>=0.1.0,<0.2.0",
+    "luml-api>=0.1.0,<0.2.0",
     "pydantic-settings>=2.12.0",
     "httpx>=0.28.0",
     "keyring>=25.0.0",
@@ -30,11 +30,12 @@ lumlflow = "lumlflow.cli:app"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.sdist]
+artifacts = ["/lumlflow/static"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["lumlflow"]
-
-[tool.hatch.build.hooks.custom]
-path = "hatch_build.py"
+artifacts = ["/lumlflow/static"]
 
 [tool.ruff]
 target-version = "py312"

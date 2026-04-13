@@ -10,8 +10,8 @@
 </template>
 
 <script setup lang="ts">
-import type { ModelsInfo } from '@/interfaces/interfaces'
-import { useEvalsStore } from '@/store/evals'
+import type { ModelsInfo } from '@experiments/interfaces/interfaces'
+import { useEvalsStore } from '@experiments/store/evals'
 import { computed } from 'vue'
 import TracesModel from './TracesModel.vue'
 

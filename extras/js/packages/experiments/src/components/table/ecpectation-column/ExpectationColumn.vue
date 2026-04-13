@@ -20,7 +20,7 @@
 import type { ExpectationColumnProps } from './interface'
 import { computed } from 'vue'
 import { Tag } from 'primevue'
-import UiFeedbackResult from '@/components/ui/UiFeedbackResult.vue'
+import UiFeedbackResult from '@experiments/components/ui/UiFeedbackResult.vue'
 
 const props = defineProps<ExpectationColumnProps>()
 

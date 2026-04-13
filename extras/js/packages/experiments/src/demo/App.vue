@@ -18,15 +18,15 @@
 </template>
 
 <script setup lang="ts">
-import type { ExperimentSnapshotProvider, ModelInfo } from '@/interfaces/interfaces'
+import type { ExperimentSnapshotProvider, ModelInfo } from '@experiments/interfaces/interfaces'
 import type { Model } from '@fnnx-ai/web'
 import { onBeforeMount, ref } from 'vue'
 import { Button, Toast, ConfirmDialog } from 'primevue'
 import { FnnxService } from './lib/fnnx/FnnxService'
-import { ExperimentSnapshotDatabaseProvider } from '@/providers/ExperimentSnapshotDatabaseProvider'
-import { getModelColorByIndex } from '@/helpers/helpers'
-import { useAnnotationsStore } from '@/store/annotations'
-import ExperimentSnapshot from '@/ExperimentSnapshot.vue'
+import { ExperimentSnapshotDatabaseProvider } from '@experiments/providers/ExperimentSnapshotDatabaseProvider'
+import { getModelColorByIndex } from '@experiments/helpers/helpers'
+import { useAnnotationsStore } from '@experiments/store/annotations'
+import ExperimentSnapshot from '@experiments/ExperimentSnapshot.vue'
 
 const annotationsStore = useAnnotationsStore()
 
@@ -58,7 +58,7 @@ async function handleFileChange(event: Event) {
       fileNames,
     )
     const currentProvider = new ExperimentSnapshotDatabaseProvider()
-    await currentProvider.init({ modelsInfo: experiments, wasmUrl: '/sql-wasm.wasm' })
+    await currentProvider.init({ modelsInfo: experiments, wasmUrl: '@experiments/sql-wasm.wasm' })
     provider.value = currentProvider
   } catch (e) {
     console.error(e)

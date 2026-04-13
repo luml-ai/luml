@@ -1,4 +1,4 @@
-import type { Annotation, AnnotationSummary } from '@/components/annotations/annotations.interface'
+import type { Annotation, AnnotationSummary } from '@experiments/components/annotations/annotations.interface'
 import type {
   EvalsInfo,
   ExperimentSnapshotDynamicMetric,
