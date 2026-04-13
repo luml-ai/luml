@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ArrowDownUp, Trash2, Plus } from 'lucide-vue-next'
 
 type Props = {
@@ -93,6 +93,7 @@ type SortItem = {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const isPopoverOpen = ref(false)
 
 const sortPopover = ref()
 function getInitialSortData(): SortItem[] {
@@ -103,6 +104,7 @@ function getInitialSortData(): SortItem[] {
       sortOrder: String(meta.order) as '1' | '-1',
     }))
   }
+  if (!props.columns.length) return [] 
   return [{ id: 1, selectedColumn: props.columns[0] ?? '', sortOrder: null }]
 }
 
@@ -133,6 +135,7 @@ const columnsForSelect = computed(() => {
 
 function toggleSort(event: any) {
   sortPopover.value.toggle(event)
+  isPopoverOpen.value = !isPopoverOpen.value
 }
 function deleteSort(id: number) {
   sortData.value = sortData.value.filter((item) => item.id !== id)
@@ -171,7 +174,17 @@ function isOptionDisabled(option: string, id: number) {
 }
 function onPopoverHide() {
   sortData.value = getInitialSortData()
+  isPopoverOpen.value = false
 }
+watch(
+  [() => props.multiSortMeta, () => props.columns],
+  () => {
+    if (!isPopoverOpen.value) {
+      sortData.value = getInitialSortData()
+    }
+  },
+  { deep: true }
+)
 </script>
 
 <style scoped>
