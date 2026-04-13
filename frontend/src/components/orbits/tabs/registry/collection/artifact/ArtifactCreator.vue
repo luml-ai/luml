@@ -157,9 +157,7 @@ const availableArtifactTypes = computed(() => {
   } else if (collectionType === OrbitCollectionTypeEnum.experiment) {
     return ARTIFACT_TYPE_OPTIONS.filter((type) => type.value === ArtifactTypeEnum.experiment)
   } else if (collectionType === OrbitCollectionTypeEnum.mixed) {
-    return ARTIFACT_TYPE_OPTIONS.filter(
-      (type) => type.value === ArtifactTypeEnum.model || type.value === ArtifactTypeEnum.experiment,
-    )
+    return ARTIFACT_TYPE_OPTIONS
   }
   return ARTIFACT_TYPE_OPTIONS
 })
