@@ -104,7 +104,7 @@ function getInitialSortData(): SortItem[] {
       sortOrder: String(meta.order) as '1' | '-1',
     }))
   }
-  if (!props.columns.length) return [] 
+  if (!props.columns.length) return []
   return [{ id: 1, selectedColumn: props.columns[0] ?? '', sortOrder: null }]
 }
 
@@ -183,7 +183,7 @@ watch(
       sortData.value = getInitialSortData()
     }
   },
-  { deep: true }
+  { deep: true },
 )
 </script>
 
