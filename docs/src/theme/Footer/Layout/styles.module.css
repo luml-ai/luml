@@ -1,10 +1,11 @@
 .footer {
   background: transparent !important;
   padding: 0 !important;
+  position: relative;
+  z-index: 100;
 }
 
 .footerContainer {
-  max-width: 1030px;
   margin: 0 auto;
   padding: 0 1.5rem;
 }

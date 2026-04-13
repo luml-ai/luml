@@ -293,6 +293,10 @@ body {
   .theme-doc-sidebar-container {
     clip-path: none !important;
     z-index: var(--ifm-z-index-fixed);
+    align-self: flex-start;
+    position: sticky;
+    top: 56px;
+    padding-bottom: 16px;
   }
 
   /* Remove the navbar-height padding that pushes sidebar content down */
