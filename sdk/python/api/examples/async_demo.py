@@ -2,7 +2,7 @@
 import asyncio
 
 from luml_api import AsyncLumlClient
-from luml_api._types import CollectionType, ArtifactStatus
+from luml_api._types import ArtifactStatus, CollectionType
 
 # Will use Luml API Production url "https://api.luml.ai"
 # And search for LUML_API_KEY in .env

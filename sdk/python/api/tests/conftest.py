@@ -135,16 +135,16 @@ def mock_initialization_requests(
 ) -> dict:
     organization_id = sample_organization.id
 
-    respx_mock.get("/users/me/organizations").mock(
+    respx_mock.get("/v1/users/me/organizations").mock(
         return_value=httpx.Response(200, json=[sample_organization.model_dump()])
     )
 
-    respx_mock.get(f"/organizations/{organization_id}/orbits").mock(
+    respx_mock.get(f"/v1/organizations/{organization_id}/orbits").mock(
         return_value=httpx.Response(200, json=[sample_orbit.model_dump()])
     )
 
     respx_mock.get(
-        f"/organizations/{organization_id}/orbits/{sample_orbit.id}/collections"
+        f"/v1/organizations/{organization_id}/orbits/{sample_orbit.id}/collections"
     ).mock(
         return_value=httpx.Response(
             200,

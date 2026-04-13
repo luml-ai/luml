@@ -22,7 +22,7 @@ def test_artifact_list(mock_sync_client: Mock, sample_artifact: Artifact) -> Non
     artifacts = resource.list()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
         params={"limit": 100, "order": "desc"},
     )
     assert len(artifacts.items) == 1
@@ -56,7 +56,7 @@ def test_artifact_download_url(mock_sync_client: Mock) -> None:
     result = resource.download_url(artifact_id=artifact_id)
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
     )
     assert result == expected
 
@@ -82,7 +82,7 @@ def test_artifact_delete_url(mock_sync_client: Mock) -> None:
     result = resource.delete_url(artifact_id=artifact_id)
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
     )
     assert result == expected
 
@@ -126,7 +126,7 @@ def test_artifact_create(mock_sync_client: Mock, sample_artifact: Artifact) -> N
     }
 
     mock_sync_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
         json=expected_json,
     )
 
@@ -150,7 +150,7 @@ def test_artifact_update(mock_sync_client: Mock, sample_artifact: Artifact) -> N
     artifact = resource.update(artifact_id=artifact_id, name=name)
 
     mock_sync_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}",
         json=update_data,
     )
     assert artifact.name == name
@@ -167,7 +167,7 @@ def test_artifact_delete(mock_sync_client: Mock) -> None:
     result = resource.delete(artifact_id=artifact_id)
 
     mock_sync_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
     )
     assert result is None
 
@@ -188,7 +188,7 @@ async def test_async_artifact_list(
     artifacts = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
         params={"limit": 100, "order": "desc"},
     )
     assert len(artifacts.items) == 1
@@ -266,7 +266,7 @@ async def test_async_artifact_download_url(mock_async_client: AsyncMock) -> None
     result = await resource.download_url(artifact_id=artifact_id)
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/download-url"
     )
     assert result == expected
 
@@ -284,7 +284,7 @@ async def test_async_artifact_delete_url(mock_async_client: AsyncMock) -> None:
     result = await resource.delete_url(artifact_id=artifact_id)
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}/delete-url"
     )
     assert result == expected
 
@@ -331,7 +331,7 @@ async def test_async_artifact_create(
     }
 
     mock_async_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
         json=expected_json,
     )
     assert result.upload_details.url == "https://example.com/upload"
@@ -357,7 +357,7 @@ async def test_async_artifact_update(
     artifact = await resource.update(artifact_id=artifact_id, name=name)
 
     mock_async_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}",
         json=update_data,
     )
     assert artifact.name == name
@@ -462,6 +462,6 @@ async def test_async_artifact_delete(mock_async_client: AsyncMock) -> None:
     result = await resource.delete(artifact_id=artifact_id)
 
     mock_async_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
     )
     assert result is None
