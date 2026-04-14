@@ -72,5 +72,5 @@ jobs:
         run: |
           echo "Publishing ${{ steps.release.outputs.package_name }}@${{ steps.release.outputs.version }}"
           python -m pip install --upgrade uv
-          uv build
+          uv build --wheel
           uv publish
