@@ -33,8 +33,8 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["lumlflow"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"lumlflow/static" = "lumlflow/static"
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.ruff]
 target-version = "py312"
