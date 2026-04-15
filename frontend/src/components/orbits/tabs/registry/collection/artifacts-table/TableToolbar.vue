@@ -38,6 +38,7 @@
         </template>
       </Button>
       <Button
+        v-if="showDeployButton"
         variant="text"
         severity="secondary"
         v-tooltip="'Deploy'"
@@ -49,6 +50,7 @@
         </template>
       </Button>
       <Button
+        v-if="showCompareButton"
         variant="text"
         severity="secondary"
         v-tooltip="'Compare'"
@@ -99,6 +101,7 @@ import { useRouter } from 'vue-router'
 import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
+import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
 import ArtifactEditor from '../artifact/ArtifactEditor.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
@@ -162,6 +165,17 @@ const deployButtonDisabled = computed(() => {
   const isModel = artifact.type === ArtifactTypeEnum.model
   if (isModel) return false
   return true
+})
+
+const showDeployButton = computed(() => {
+  return (
+    collectionsStore.currentCollection?.type === OrbitCollectionTypeEnum.model ||
+    collectionsStore.currentCollection?.type === OrbitCollectionTypeEnum.mixed
+  )
+})
+
+const showCompareButton = computed(() => {
+  return collectionsStore.currentCollection?.type !== OrbitCollectionTypeEnum.dataset
 })
 
 async function onDeleteClick() {
