@@ -375,7 +375,6 @@ class SearchUtils:
             flags=re.IGNORECASE,
         )
 
-
     @classmethod
     def parse_search_filter(cls, filter_string: str | None) -> list[dict]:
         if not filter_string:

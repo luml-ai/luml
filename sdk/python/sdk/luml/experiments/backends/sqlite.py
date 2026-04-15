@@ -1668,7 +1668,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 name=d["name"],
                 description=d["description"],
                 created_at=d["created_at"],
-                tags=json.loads(d["tags"]) if d["tags"] else [],
+                tags=d["tags"] or [],
                 last_modified=d["last_modified"],
             )
             for d in self._items_to_dict(columns, rows)
@@ -1870,11 +1870,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
         conn = self._get_meta_connection()
 
-        cursor_value = (
-            str(use_cursor.value)
-            if use_cursor and use_cursor.value is not None
-            else None
-        )
+        cursor_value = None
+        if use_cursor and use_cursor.value is not None:
+            val = use_cursor.value
+            if isinstance(val, datetime):
+                cursor_value = val.astimezone(UTC).isoformat()
+            else:
+                cursor_value = str(val)
 
         rows = self._execute_paginated_query(
             conn=conn,
