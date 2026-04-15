@@ -8,7 +8,6 @@
     <Popover
       ref="popover"
       appendTo="self"
-      :dismissable="false"
       class="popover-without-arrow"
       style="width: 330px"
     >
@@ -86,7 +85,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, inject, type Ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Orbit, ChevronDown, Plus, Bolt } from 'lucide-vue-next'
 import { Popover } from 'primevue'
 import { useOrbitsStore } from '@/stores/orbits'
@@ -100,7 +99,6 @@ import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
 
 const router = useRouter()
 const route = useRoute()
-const activePopover = inject<Ref<string | null>>('activePopover')
 
 const orbitsStore = useOrbitsStore()
 const organizationStore = useOrganizationStore()
@@ -121,20 +119,7 @@ const createAvailable = computed(
 )
 
 function toggle(event: any) {
-  const isMobile = window.innerWidth <= 768
-  if (isMobile && !popover.value?.visible && activePopover) {
-    activePopover.value = 'orbit'
-  }
   popover.value.toggle(event)
-}
-
-if (activePopover) {
-  watch(activePopover, (val) => {
-    const isMobile = window.innerWidth <= 768
-    if (isMobile && val !== 'orbit' && popover.value?.visible) {
-      popover.value.hide()
-    }
-  })
 }
 
 async function onOrbitClick(orbitId: string) {
