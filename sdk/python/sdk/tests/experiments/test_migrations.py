@@ -1,11 +1,8 @@
 # flake8: noqa: E501
+import importlib
 import sqlite3
 import uuid
 from pathlib import Path
-
-import pytest
-
-import importlib
 
 migration_001 = importlib.import_module(
     "luml.experiments.backends.exp_migrations.001_initial_schema"
@@ -15,10 +12,10 @@ migration_002 = importlib.import_module(
 )
 from luml.experiments.backends.sqlite import SQLiteBackend
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_v1_db(path: Path) -> sqlite3.Connection:
     """Create a DB at version 1 (initial schema, no size column)."""
@@ -37,6 +34,7 @@ def _column_names(conn: sqlite3.Connection, table: str) -> set[str]:
 # ---------------------------------------------------------------------------
 # Migration 002 – uuid4 backfill for NULL ids
 # ---------------------------------------------------------------------------
+
 
 class TestMigration002UuidBackfill:
     def test_null_id_is_assigned_uuid(self, tmp_path: Path) -> None:
@@ -127,6 +125,7 @@ class TestMigration002UuidBackfill:
 # Migration 002 – size backfill using rowid
 # ---------------------------------------------------------------------------
 
+
 class TestMigration002SizeBackfill:
     def test_size_backfilled_for_existing_file(self, tmp_path: Path) -> None:
         db_path = tmp_path / "exp.db"
@@ -196,6 +195,7 @@ class TestMigration002SizeBackfill:
 # Migration 002 – down() removes size column
 # ---------------------------------------------------------------------------
 
+
 class TestMigration002Down:
     def test_down_removes_size_column(self, tmp_path: Path) -> None:
         db_path = tmp_path / "exp.db"
@@ -228,6 +228,7 @@ class TestMigration002Down:
 # ---------------------------------------------------------------------------
 # get_experiment_data triggers migration on old (v1-only) database
 # ---------------------------------------------------------------------------
+
 
 def _register_experiment_in_meta(backend: SQLiteBackend, exp_id: str) -> None:
     """Insert a minimal experiment row into the meta DB without touching exp.db."""

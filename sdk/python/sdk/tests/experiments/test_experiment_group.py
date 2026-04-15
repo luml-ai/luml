@@ -422,16 +422,14 @@ class TestDeleteGroup:
     ) -> None:
         tracker.delete_group("nonexistent-id")
 
-    def test_raises_when_experiments_still_linked(
-        self, tracker: ExperimentTracker
-    ) -> None:
-        import sqlite3
-
-        tracker.start_experiment(name="linked_exp", group="my_group")
+    def test_also_deletes_linked_experiments(self, tracker: ExperimentTracker) -> None:
+        exp_id = tracker.start_experiment(name="linked_exp", group="my_group")
         group_id = next(g.id for g in tracker.list_groups() if g.name == "my_group")
 
-        with pytest.raises(sqlite3.IntegrityError):
-            tracker.delete_group(group_id)
+        tracker.delete_group(group_id)
+
+        assert all(g.id != group_id for g in tracker.list_groups())
+        assert tracker.get_experiment(exp_id) is None
 
 
 class TestUpdateGroup:

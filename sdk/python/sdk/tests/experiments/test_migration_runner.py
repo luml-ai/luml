@@ -10,7 +10,6 @@ from luml.experiments.backends.migration_runner import (
     MetaDBMigrationRunner,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -324,7 +323,9 @@ class TestMetaDBMigrationRunnerBaseline:
         assert runner.get_current_version() == 1
         assert runner.get_applied_migrations() == [1]
 
-    def test_baseline_skipped_when_migrations_already_exist(self, tmp_path: Path) -> None:
+    def test_baseline_skipped_when_migrations_already_exist(
+        self, tmp_path: Path
+    ) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate(target_version=1)
@@ -366,7 +367,9 @@ class TestMetaDBOldSdkUpgrade:
         MetaDBMigrationRunner(conn).migrate()
         assert "size" in _column_names(conn, "models")
 
-    def test_old_sdk_meta_db_existing_experiments_preserved(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_existing_experiments_preserved(
+        self, tmp_path: Path
+    ) -> None:
         # Note: experiment_groups cannot have rows before migration — SQLite forbids
         # ALTER TABLE ADD COLUMN with DEFAULT CURRENT_TIMESTAMP on non-empty tables.
         # We only seed experiments (which get constant-default columns) and verify them.
@@ -383,7 +386,9 @@ class TestMetaDBOldSdkUpgrade:
         assert row is not None
         assert row[0] == "my-exp"
 
-    def test_old_sdk_meta_db_unique_group_name_index_created(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_unique_group_name_index_created(
+        self, tmp_path: Path
+    ) -> None:
         # Migration 002 creates a unique index on experiment_groups(name).
         # Verify it exists after migration on an empty old SDK DB.
         conn = _make_old_sdk_meta_db(tmp_path)
@@ -395,10 +400,17 @@ class TestMetaDBOldSdkUpgrade:
         assert idx is not None
 
         import uuid as _uuid
-        conn.execute("INSERT INTO experiment_groups (id, name) VALUES (?, ?)", (str(_uuid.uuid4()), "grp"))
+
+        conn.execute(
+            "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
+            (str(_uuid.uuid4()), "grp"),
+        )
         conn.commit()
         with pytest.raises(Exception):
-            conn.execute("INSERT INTO experiment_groups (id, name) VALUES (?, ?)", (str(_uuid.uuid4()), "grp"))
+            conn.execute(
+                "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
+                (str(_uuid.uuid4()), "grp"),
+            )
             conn.commit()
 
 
@@ -434,7 +446,9 @@ class TestExperimentMigrationRunnerBaseline:
         assert runner.get_current_version() == 1
         assert runner.get_applied_migrations() == [1]
 
-    def test_baseline_v1_and_v2_when_attachments_with_size(self, tmp_path: Path) -> None:
+    def test_baseline_v1_and_v2_when_attachments_with_size(
+        self, tmp_path: Path
+    ) -> None:
         conn = _make_exp_conn(tmp_path)
         conn.execute("""
             CREATE TABLE attachments (
@@ -448,7 +462,9 @@ class TestExperimentMigrationRunnerBaseline:
         assert runner.get_applied_migrations() == [1, 2]
         assert runner.get_current_version() == 2
 
-    def test_baseline_skipped_when_exp_schema_migrations_nonempty(self, tmp_path: Path) -> None:
+    def test_baseline_skipped_when_exp_schema_migrations_nonempty(
+        self, tmp_path: Path
+    ) -> None:
         # Run migrations normally first (creates exp_schema_migrations with entries)
         conn = _make_exp_conn(tmp_path)
         runner = ExperimentMigrationRunner(conn)
@@ -486,6 +502,7 @@ class TestOldSdkExpDbUpgrade:
 
     def test_old_exp_db_existing_attachments_preserved(self, tmp_path: Path) -> None:
         import uuid as _uuid
+
         conn = _make_old_sdk_exp_db(tmp_path)
         att_id = str(_uuid.uuid4())
         conn.execute(
@@ -496,11 +513,15 @@ class TestOldSdkExpDbUpgrade:
 
         ExperimentMigrationRunner(conn).migrate()
 
-        row = conn.execute("SELECT id, name FROM attachments WHERE id = ?", (att_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id, name FROM attachments WHERE id = ?", (att_id,)
+        ).fetchone()
         assert row is not None
         assert row[1] == "report.pdf"
 
-    def test_old_exp_db_with_size_already_skips_migration_002(self, tmp_path: Path) -> None:
+    def test_old_exp_db_with_size_already_skips_migration_002(
+        self, tmp_path: Path
+    ) -> None:
         # Old SDK that already has the size column — should baseline v1+v2, migrate() applies nothing
         conn = _make_exp_conn(tmp_path)
         conn.execute("""
