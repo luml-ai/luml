@@ -19,6 +19,7 @@ from luml.schemas.bucket_secrets import (
     BucketType,
     S3BucketSecret,
     S3BucketSecretCreateIn,
+    S3BucketSecretDetails,
     S3BucketSecretOut,
     S3BucketSecretUpdate,
 )
@@ -212,7 +213,7 @@ async def test_get_organization_bucket_secrets(
 
 
 @patch(
-    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -222,13 +223,13 @@ async def test_get_organization_bucket_secrets(
 @pytest.mark.asyncio
 async def test_get_bucket_secret(
     mock_check_permissions: AsyncMock,
-    mock_get_bucket_secret: AsyncMock,
+    mock_get_bucket_secret_details: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    expected = S3BucketSecretOut(
+    expected = S3BucketSecretDetails(
         id=secret_id,
         organization_id=organization_id,
         endpoint="s3.amazonaws.com",
@@ -239,7 +240,7 @@ async def test_get_bucket_secret(
         updated_at=None,
     )
 
-    mock_get_bucket_secret.return_value = expected
+    mock_get_bucket_secret_details.return_value = expected
 
     secret = await handler.get_bucket_secret(user_id, organization_id, secret_id)
 
@@ -247,11 +248,11 @@ async def test_get_bucket_secret(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
     )
-    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_get_bucket_secret_details.assert_awaited_once_with(secret_id)
 
 
 @patch(
-    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret_details",
     new_callable=AsyncMock,
 )
 @patch(
@@ -261,19 +262,19 @@ async def test_get_bucket_secret(
 @pytest.mark.asyncio
 async def test_get_bucket_secret_not_found(
     mock_check_permissions: AsyncMock,
-    mock_get_bucket_secret: AsyncMock,
+    mock_get_bucket_secret_details: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    mock_get_bucket_secret.return_value = None
+    mock_get_bucket_secret_details.return_value = None
 
     with pytest.raises(NotFoundError, match="Secret not found") as error:
         await handler.get_bucket_secret(user_id, organization_id, secret_id)
 
     assert error.value.status_code == 404
-    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_get_bucket_secret_details.assert_awaited_once_with(secret_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
     )
