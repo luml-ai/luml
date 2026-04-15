@@ -5,12 +5,7 @@
       <span class="label">{{ organizationStore.currentOrganization?.name }}</span>
       <ChevronDown :size="20" class="icon" />
     </d-button>
-    <Popover
-      ref="popover"
-      appendTo="self"
-      class="popover-without-arrow"
-      style="width: 330px"
-    >
+    <Popover ref="popover" appendTo="self" class="popover-without-arrow" style="width: 330px">
       <div class="popover-content">
         <header class="header">
           <Avatar size="large" :label="currentOrganizationAvatarLabel" />

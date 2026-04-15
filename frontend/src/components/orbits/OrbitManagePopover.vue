@@ -5,12 +5,7 @@
       <span class="label">{{ orbitsStore.currentOrbit?.name ?? 'Orbit' }}</span>
       <ChevronDown :size="20" class="icon" />
     </d-button>
-    <Popover
-      ref="popover"
-      appendTo="self"
-      class="popover-without-arrow"
-      style="width: 330px"
-    >
+    <Popover ref="popover" appendTo="self" class="popover-without-arrow" style="width: 330px">
       <div class="popover-content">
         <header v-if="orbitsStore.currentOrbit" class="header">
           <div class="header-content">
