@@ -91,7 +91,7 @@ def test_ensure_luml_dependency_injects(tmp_path: Path) -> None:
     with patch("luml_agent.services.orchestrator.utils.subprocess.run") as mock_run:
         ensure_luml_dependency(str(tmp_path))
     mock_run.assert_called_once_with(
-        ["uv", "add", "luml-sdk"],
+        ["uv", "add", "luml-sdk==0.1.0"],
         cwd=str(tmp_path),
         check=True,
         capture_output=True,
