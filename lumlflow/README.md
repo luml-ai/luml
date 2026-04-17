@@ -15,10 +15,24 @@ This starts the web UI at [http://127.0.0.1:5000](http://127.0.0.1:5000) and ope
 
 ## Usage
 
-Lumlflow bundles the LUML SDK (`luml`), so you can start tracking experiments right away:
+Lumlflow bundles the LUML SDK (`luml`), so you can start tracking experiments right away.
+
+### Classical ML example
+
+The example below trains a gradient-boosted classifier on the Iris dataset (install `scikit-learn` to run it):
 
 ```python
+from sklearn.datasets import load_iris
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, log_loss
+from sklearn.model_selection import train_test_split
+
 from luml.experiments.tracker import ExperimentTracker
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
 
 tracker = ExperimentTracker()
 
@@ -34,8 +48,14 @@ tracker.log_static("n_estimators", 100)
 tracker.log_static("learning_rate", 0.1)
 tracker.log_static("max_depth", 3)
 
+# Train the model
+model = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, max_depth=3)
+model.fit(X_train, y_train)
+
 # Log metrics over training steps
-for step, (loss, acc) in enumerate(train()):
+for step, probs in enumerate(model.staged_predict_proba(X_test)):
+    loss = log_loss(y_test, probs, labels=[0, 1, 2])
+    acc = accuracy_score(y_test, probs.argmax(axis=1))
     tracker.log_dynamic("loss", loss, step=step)
     tracker.log_dynamic("accuracy", acc, step=step)
 
@@ -43,6 +63,57 @@ for step, (loss, acc) in enumerate(train()):
 tracker.log_model(model, name="gbm_final", inputs=X_train)
 
 # End the experiment
+tracker.end_experiment()
+```
+
+### LLM example
+
+The example below evaluates an OpenAI model on a small Q&A dataset. Every LLM call is automatically captured as a trace, and each question is logged as an eval sample with a score (install `luml-sdk[tracing]`, `opentelemetry-instrumentation-openai`, and `openai`, then set `OPENAI_API_KEY` to run it):
+
+```python
+from openai import OpenAI
+
+from luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracing import instrument_openai
+
+client = OpenAI()
+
+tracker = ExperimentTracker()
+tracker.enable_tracing()
+instrument_openai()  # auto-trace every OpenAI call as a span
+
+tracker.start_experiment(
+    name="qa_gpt4_baseline",
+    group="qa_evaluation",
+    tags=["baseline", "gpt-4o-mini"],
+)
+
+tracker.log_static("model", "gpt-4o-mini")
+tracker.log_static("temperature", 0.0)
+
+dataset = [
+    {"question": "What is 2 + 2?", "expected": "4"},
+    {"question": "What is the capital of France?", "expected": "Paris"},
+]
+
+for i, sample in enumerate(dataset):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        messages=[{"role": "user", "content": sample["question"]}],
+    )
+    answer = response.choices[0].message.content.strip()
+    correct = sample["expected"].lower() in answer.lower()
+
+    tracker.log_eval_sample(
+        eval_id=f"q{i}",
+        dataset_id="qa_v1",
+        inputs={"question": sample["question"]},
+        outputs={"answer": answer},
+        references={"expected": sample["expected"]},
+        scores={"correct": float(correct)},
+    )
+
 tracker.end_experiment()
 ```
 
@@ -83,16 +154,18 @@ Each experiment serves as a complete record of a run and can include:
 - **Parameters** — log hyperparameters and configuration settings
 - **Models** — store produced models and link them to specific runs
 
-[placeholder for screenshots - exp_track.webp, exp_track1.webp]
+![Experiment tracking overview](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/exp_track.webp)
+
+![Experiment metrics view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/exp_track1.webp)
 
 - **Evaluations (Evals)** — record evaluation results and comparisons
 - **Traces** — capture step-by-step execution details for deeper analysis
 
-[placeholder for screenshot - evals.webp]
+![Evaluations view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/evals.webp)
 
 - **Attachments** — save artifacts like datasets, plots, or logs
 
-[placeholder for screenshot - attachments.webp]
+![Attachments view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/attachments.webp)
 
 All of this is accessible through an interactive web UI where you can explore experiments, analyze metrics, inspect traces, and compare results.
 
@@ -103,16 +176,20 @@ Add annotations to evaluation samples and trace spans to capture feedback, expec
 Use annotations to review experiment quality, document insights, or collaborate with teammates by leaving structured notes with optional rationale.
 
 Annotations in trace span:
-[placeholder for screenshot - trace_ann.webp]
+
+![Annotations in trace span](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/trace_ann.webp)
 
 Annotations in eval sample:
-[placeholder for screenshot - eval_ann.webp]
+
+![Annotations in eval sample](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/eval_ann.webp)
 
 ### Experiment Groups
 
 Organize related experiments into groups for easier navigation and comparison.
 
-[placeholder for screenshot - groups.webp, groups1.webp]
+![Experiment groups list](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/groups.webp)
+
+![Experiment groups detail](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/groups1.webp)
 
 ### Uploading to LUML
 
