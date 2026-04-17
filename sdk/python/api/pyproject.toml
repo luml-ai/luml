@@ -1,5 +1,5 @@
 [project]
-name = "luml-api"
+name = "luml_api"
 version = "0.1.0"
 description = "LUML Python API Client"
 readme = "README.md"

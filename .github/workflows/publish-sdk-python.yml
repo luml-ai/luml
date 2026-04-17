@@ -56,7 +56,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: lumlflow/frontend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Set package version
         working-directory: ${{ steps.release.outputs.package_dir }}
@@ -69,8 +69,9 @@ jobs:
         env:
           UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
           UV_PUBLISH_URL: ${{ vars.PYPI_URL }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
         run: |
           echo "Publishing ${{ steps.release.outputs.package_name }}@${{ steps.release.outputs.version }}"
           python -m pip install --upgrade uv
-          uv build
+          uv build --wheel
           uv publish

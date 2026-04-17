@@ -25,6 +25,18 @@ class FrontendBuildHook(BuildHookInterface):
             check=True,
         )
 
+        # Build dependency packages first (lumlflow-ui needs their type declarations)
+        subprocess.run(
+            ["npm", "run", "build", "--workspace=@luml/experiments"],
+            cwd=workspace_dir,
+            check=True,
+        )
+        subprocess.run(
+            ["npm", "run", "build", "--workspace=@luml/attachments"],
+            cwd=workspace_dir,
+            check=True,
+        )
+
         # Build frontend
         subprocess.run(
             ["npm", "run", "build", "--workspace=lumlflow-ui"],
