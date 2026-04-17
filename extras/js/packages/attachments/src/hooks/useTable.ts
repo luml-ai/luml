@@ -1,8 +1,9 @@
 import { ref, watch, type Ref } from 'vue'
+import { fromCSV } from 'arquero'
 
 export interface TableData {
   headers: string[]
-  rows: string[][]
+  rows: Record<string, any>[]
   columnsCount: number
   rowsCount: number
 }
@@ -20,59 +21,13 @@ export function useTablePreview(options: UseTablePreviewOptions) {
   const error = ref<string | null>(null)
 
   const parseCSV = (text: string): TableData => {
-    const lines = text.trim().split('\n')
-    if (lines.length === 0) {
-      return { headers: [], rows: [], columnsCount: 0, rowsCount: 0 }
-    }
-
-    const parseRow = (line: string, lineNumber: number): string[] => {
-      const result: string[] = []
-      let current = ''
-      let inQuotes = false
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i]
-
-        if (char === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            current += '"'
-            i++
-          } else {
-            inQuotes = !inQuotes
-          }
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim())
-          current = ''
-        } else {
-          current += char
-        }
-      }
-      if (inQuotes) {
-        throw new Error(`Malformed CSV: unclosed quote on line ${lineNumber}`)
-      }
-
-      result.push(current.trim())
-
-      return result
-    }
-
     try {
-      const row = lines[0]
-      const headers = row ? parseRow(row, 1) : []
-      const rows: string[][] = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i]
-        if (line?.trim()) {
-          rows.push(parseRow(line, i + 1))
-        }
-      }
-
+      const table = fromCSV(text)
       return {
-        headers,
-        rows,
-        columnsCount: headers.length,
-        rowsCount: rows.length,
+        headers: table.columnNames(),
+        rows: table.objects(),
+        columnsCount: table.columnNames().length,
+        rowsCount: table.totalRows(),
       }
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Failed to parse CSV content'
@@ -91,7 +46,10 @@ export function useTablePreview(options: UseTablePreviewOptions) {
       const firstRow = rows[0]
       const headers = Array.from(firstRow?.children || []).map((el) => el.tagName)
       const dataRows = Array.from(rows).map((row) =>
-        Array.from(row.children).map((el) => el.textContent || ''),
+        Array.from(row.children).reduce<Record<string, any>>((acc, el, index) => {
+          acc[headers[index] as string] = el.textContent || ''
+          return acc
+        }, {}),
       )
 
       return {
