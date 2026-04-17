@@ -191,18 +191,18 @@ Each experiment serves as a complete record of a run and can include:
 - **Parameters** — log hyperparameters and configuration settings
 - **Models** — store produced models and link them to specific runs
 
-![Experiment tracking overview](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/exp_track.webp)
+![Experiment tracking overview](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/exp_track.webp)
 
-![Experiment metrics view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/exp_track1.webp)
+![Experiment metrics view](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/exp_track1.webp)
 
 - **Evaluations (Evals)** — record evaluation results and comparisons
 - **Traces** — capture step-by-step execution details for deeper analysis
 
-![Evaluations view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/evals.webp)
+![Evaluations view](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/evals.webp)
 
 - **Attachments** — save artifacts like datasets, plots, or logs
 
-![Attachments view](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/attachments.webp)
+![Attachments view](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/attachments.webp)
 
 All of this is accessible through an interactive web UI where you can explore experiments, analyze metrics, inspect traces, and compare results.
 
@@ -214,19 +214,19 @@ Use annotations to review experiment quality, document insights, or collaborate 
 
 Annotations in trace span:
 
-![Annotations in trace span](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/trace_ann.webp)
+![Annotations in trace span](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/trace_ann.webp)
 
 Annotations in eval sample:
 
-![Annotations in eval sample](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/eval_ann.webp)
+![Annotations in eval sample](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/eval_ann.webp)
 
 ### Experiment Groups
 
 Organize related experiments into groups for easier navigation and comparison.
 
-![Experiment groups list](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/groups.webp)
+![Experiment groups list](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/groups.webp)
 
-![Experiment groups detail](https://raw.githubusercontent.com/luml-ai/luml/docs/lumlflow-readme/lumlflow/docs/images/groups1.webp)
+![Experiment groups detail](https://raw.githubusercontent.com/luml-ai/luml/main/lumlflow/docs/images/groups1.webp)
 
 ### Uploading to LUML
 
