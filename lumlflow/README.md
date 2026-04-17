@@ -71,16 +71,65 @@ tracker.end_experiment()
 The example below evaluates an OpenAI model on a small Q&A dataset. Every LLM call is automatically captured as a trace, and each question is logged as an eval sample with a score (install `luml-sdk[tracing]`, `opentelemetry-instrumentation-openai`, and `openai`, then set `OPENAI_API_KEY` to run it):
 
 ```python
+from dotenv import load_dotenv
 from openai import OpenAI
 
 from luml.experiments.tracker import ExperimentTracker
 from luml.experiments.tracing import instrument_openai
+from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.evaluation.scorers.base import (
+    supervised_scorer,
+    unsupervised_scorer,
+)
+from luml.experiments.evaluation.types import EvalItem
+
+load_dotenv()
 
 client = OpenAI()
 
-tracker = ExperimentTracker()
+tracker = ExperimentTracker("sqlite://./brandnew_experiments")
 tracker.enable_tracing()
-instrument_openai()  # auto-trace every OpenAI call as a span
+instrument_openai()
+
+eval_dataset = [
+    EvalItem(
+        id="q0",
+        inputs={"question": "What is 2 + 2?"},
+        expected_output="4",
+        metadata={"category": "math"},
+    ),
+    EvalItem(
+        id="q1",
+        inputs={"question": "What is the capital of France?"},
+        expected_output="Paris",
+        metadata={"category": "geography"},
+    ),
+]
+
+
+def run_inference(inputs: dict) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.0,
+        messages=[{"role": "user", "content": inputs["question"]}],
+    )
+    return response.choices[0].message.content.strip()
+
+
+@supervised_scorer
+def exact_match(inputs, expected, output):
+    return expected.lower().strip() in output.lower()
+
+
+@unsupervised_scorer
+def answer_length(inputs, output):
+    length = len(output.split())
+    if length < 1:
+        return 0.0
+    if length > 50:
+        return 0.5
+    return 1.0
+
 
 tracker.start_experiment(
     name="qa_gpt4_baseline",
@@ -91,28 +140,16 @@ tracker.start_experiment(
 tracker.log_static("model", "gpt-4o-mini")
 tracker.log_static("temperature", 0.0)
 
-dataset = [
-    {"question": "What is 2 + 2?", "expected": "4"},
-    {"question": "What is the capital of France?", "expected": "Paris"},
-]
+eval_results = evaluate(
+    eval_dataset=eval_dataset,
+    inference_fn=run_inference,
+    scorers=[exact_match, answer_length],
+    dataset_id="qa_v1",
+    experiment_tracker=tracker,
+)
 
-for i, sample in enumerate(dataset):
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        temperature=0.0,
-        messages=[{"role": "user", "content": sample["question"]}],
-    )
-    answer = response.choices[0].message.content.strip()
-    correct = sample["expected"].lower() in answer.lower()
-
-    tracker.log_eval_sample(
-        eval_id=f"q{i}",
-        dataset_id="qa_v1",
-        inputs={"question": sample["question"]},
-        outputs={"answer": answer},
-        references={"expected": sample["expected"]},
-        scores={"correct": float(correct)},
-    )
+for key, value in eval_results.aggregated_scores.items():
+    tracker.log_static(f"eval_{key}", value)
 
 tracker.end_experiment()
 ```
