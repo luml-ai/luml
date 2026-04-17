@@ -6,10 +6,11 @@ After running the script, the experiment can be inspected in LUMLFlow: parameter
 
 ## Setup
 
-Install the SDK with the extras needed for evaluation, the API client, and tracing, plus LangGraph and the OpenAI LangChain integration.
+Install all necessary modules:
 
 ```bash
-pip install "luml-sdk[core,api,tracing]" langgraph langchain-openai opentelemetry-instrumentation-langchain
+pip install luml-sdk lumlflow python-dotenv langgraph langchain-openai opentelemetry-instrumentation-langchain opentelemetry-instrumentation-openai 'wrapt==1.17.0'
+
 export OPENAI_API_KEY=<your key>
 ```
 
@@ -27,15 +28,15 @@ from langchain_openai import ChatOpenAI
 load_dotenv()
 
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from sdk.luml.integrations.langgraph import save_langgraph
-from sdk.luml.experiments.tracker import ExperimentTracker
-from sdk.luml.experiments.tracing import instrument_openai
-from sdk.luml.experiments.evaluation.evaluate import evaluate
-from sdk.luml.experiments.evaluation.scorers.base import (
+from luml.integrations.langgraph import save_langgraph
+from luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracing import instrument_openai
+from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.evaluation.scorers.base import (
     supervised_scorer,
     unsupervised_scorer,
 )
-from sdk.luml.experiments.evaluation.types import EvalItem
+from luml.experiments.evaluation.types import EvalItem
 
 LangchainInstrumentor().instrument()
 instrument_openai()
@@ -223,8 +224,6 @@ eval_dataset = [
 
 The tracker is created against a local SQLite database. Calling `enable_tracing()` routes all OpenTelemetry spans produced by the instrumented LangChain and OpenAI calls into the experiment store, so each evaluation sample is linked to its full execution trace.
 
-The experiment is opened as a context manager. The block automatically closes the experiment on exit, including when an exception is raised inside it.
-
 ```python
 def run_agent(inputs: dict) -> str:
     result = graph.invoke({
@@ -237,11 +236,12 @@ def run_agent(inputs: dict) -> str:
 tracker = ExperimentTracker("sqlite://./llm_judge_eval_experiments")
 tracker.enable_tracing()
 
-with tracker.experiment(
+exp_id = tracker.start_experiment(
     name="llm_judge_eval",
     group="demo",
     tags=["llm-judge", "evals", "traces", "langgraph"],
-) as exp_id:
+)
+try:
     tracker.log_static("answerer_model",   ANSWERER_MODEL)
     tracker.log_static("judge_model",      JUDGE_MODEL)
     tracker.log_static("graph_nodes",      ["classify", "answer", "judge", "refine"])
@@ -265,6 +265,8 @@ with tracker.experiment(
         experiment_id=exp_id,
         tags=["langgraph", "model"],
     )
+finally:
+    tracker.end_experiment(exp_id)
 ```
 
 Once the block exits, the experiment is finalized. Launch LUMLFlow against the same database to inspect the results.
@@ -285,15 +287,15 @@ from langchain_openai import ChatOpenAI
 load_dotenv()
 
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from sdk.luml.integrations.langgraph import save_langgraph
-from sdk.luml.experiments.tracker import ExperimentTracker
-from sdk.luml.experiments.tracing import instrument_openai
-from sdk.luml.experiments.evaluation.evaluate import evaluate
-from sdk.luml.experiments.evaluation.scorers.base import (
+from luml.integrations.langgraph import save_langgraph
+from luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracing import instrument_openai
+from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.evaluation.scorers.base import (
     supervised_scorer,
     unsupervised_scorer,
 )
-from sdk.luml.experiments.evaluation.types import EvalItem
+from luml.experiments.evaluation.types import EvalItem
 
 LangchainInstrumentor().instrument()
 instrument_openai()
@@ -456,11 +458,12 @@ def run_agent(inputs: dict) -> str:
 tracker = ExperimentTracker("sqlite://./llm_judge_eval_experiments")
 tracker.enable_tracing()
 
-with tracker.experiment(
+exp_id = tracker.start_experiment(
     name="llm_judge_eval",
     group="demo",
     tags=["llm-judge", "evals", "traces", "langgraph"],
-) as exp_id:
+)
+try:
     tracker.log_static("answerer_model",   ANSWERER_MODEL)
     tracker.log_static("judge_model",      JUDGE_MODEL)
     tracker.log_static("graph_nodes",      ["classify", "answer", "judge", "refine"])
@@ -484,4 +487,6 @@ with tracker.experiment(
         experiment_id=exp_id,
         tags=["langgraph", "model"],
     )
+finally:
+    tracker.end_experiment(exp_id)
 ```
