@@ -19,7 +19,6 @@ from luml.schemas.bucket_secrets import (
     BucketType,
     S3BucketSecret,
     S3BucketSecretCreateIn,
-    S3BucketSecretDetails,
     S3BucketSecretOut,
     S3BucketSecretUpdate,
 )
@@ -229,7 +228,7 @@ async def test_get_bucket_secret(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    expected = S3BucketSecretDetails(
+    expected = S3BucketSecretOut(
         id=secret_id,
         organization_id=organization_id,
         endpoint="s3.amazonaws.com",

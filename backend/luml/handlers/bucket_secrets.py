@@ -14,13 +14,11 @@ from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
     BucketSecret,
     BucketSecretCreateIn,
-    BucketSecretDetails,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
     S3BucketSecretCreate,
     S3BucketSecretCreateIn,
-    validate_bucket_secret_details,
     validate_bucket_secret_out,
 )
 from luml.schemas.permissions import Action, Resource
@@ -69,14 +67,13 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
         )
-        secrets = await self.__secret_repository.get_organization_bucket_secrets(
+        return await self.__secret_repository.get_organization_bucket_secrets(
             organization_id
         )
-        return [validate_bucket_secret_out(s) for s in secrets]
 
     async def get_bucket_secret(
         self, user_id: UUID, organization_id: UUID, secret_id: UUID
-    ) -> BucketSecretDetails:
+    ) -> BucketSecretOut:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
         )
@@ -85,7 +82,7 @@ class BucketSecretHandler:
         if not secret:
             raise NotFoundError("Secret not found")
 
-        return validate_bucket_secret_details(secret)
+        return validate_bucket_secret_out(secret)
 
     async def update_bucket_secret(
         self,

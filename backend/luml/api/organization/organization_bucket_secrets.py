@@ -7,7 +7,6 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.bucket_secrets import (
     BucketSecretCreateIn,
-    BucketSecretDetails,
     BucketSecretOut,
     BucketSecretUpdate,
     BucketSecretUrls,
@@ -45,11 +44,11 @@ async def create_bucket_secret(
 
 
 @bucket_secrets_router.get(
-    "/{secret_id}", responses=endpoint_responses, response_model=BucketSecretDetails
+    "/{secret_id}", responses=endpoint_responses, response_model=BucketSecretOut
 )
 async def get_bucket_secret(
     request: Request, organization_id: UUID, secret_id: UUID
-) -> BucketSecretDetails:
+) -> BucketSecretOut:
     return await bucket_secret_handler.get_bucket_secret(
         request.user.id, organization_id, secret_id
     )

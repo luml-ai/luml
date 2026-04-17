@@ -10,9 +10,10 @@ from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
-    BucketSecretDetails,
+    BucketSecretOut,
     BucketSecretUpdate,
     S3BucketSecretUpdate,
+    validate_bucket_secret_out,
 )
 
 
@@ -35,21 +36,21 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
 
     async def get_bucket_secret_details(
         self, secret_id: UUID
-    ) -> BucketSecretDetails | None:
+    ) -> BucketSecretOut | None:
         async with self._get_session() as session:
             db_secret = await self.get_model(session, BucketSecretOrm, secret_id)
-            return db_secret.to_bucket_secret_details() if db_secret else None
+            return validate_bucket_secret_out(db_secret) if db_secret else None
 
     async def get_organization_bucket_secrets(
         self, organization_id: UUID
-    ) -> list[BucketSecret]:
+    ) -> list[BucketSecretOut]:
         async with self._get_session() as session:
             db_secrets = await self.get_models_where(
                 session,
                 BucketSecretOrm,
                 BucketSecretOrm.organization_id == organization_id,
             )
-            return [secret.to_bucket_secret() for secret in db_secrets]
+            return [validate_bucket_secret_out(secret) for secret in db_secrets]
 
     async def update_bucket_secret(
         self, secret: BucketSecretUpdate

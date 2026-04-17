@@ -159,7 +159,7 @@ class AzureBucketSecret(BaseModel, BaseOrmConfig):
     organization_id: str
     created_at: str
     updated_at: str | None = None
-    orbits: list[Orbit] = []
+    orbits: list[OrbitBase] = []
 
 
 BucketSecret = S3BucketSecret | AzureBucketSecret

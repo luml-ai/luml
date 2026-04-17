@@ -46,7 +46,7 @@ class BucketSecretResourceBase(ABC):
         endpoint: str,
         bucket_name: str,
         region: str,
-        type: BucketType = BucketType.S3,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
@@ -189,7 +189,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         endpoint: str,
         bucket_name: str,
         region: str,
-        type: BucketType = BucketType.S3,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
@@ -621,7 +621,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         endpoint: str,
         bucket_name: str,
         region: str,
-        type: BucketType = BucketType.S3,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,

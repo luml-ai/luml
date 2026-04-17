@@ -61,6 +61,7 @@ class S3BucketSecretOut(BaseModel, BaseOrmConfig):
     secure: bool | None = None
     region: str
     cert_check: bool | None = None
+    orbits: list[OrbitBase] = []
     organization_id: UUID
     created_at: datetime
     updated_at: datetime | None = None
@@ -117,13 +118,6 @@ class AzureBucketSecretOut(BaseModel, BaseOrmConfig):
     organization_id: UUID
     created_at: datetime
     updated_at: datetime | None = None
-
-
-class S3BucketSecretDetails(S3BucketSecret):
-    orbits: list[OrbitBase] = []
-
-
-class AzureBucketSecretDetails(AzureBucketSecret):
     orbits: list[OrbitBase] = []
 
 
@@ -155,10 +149,6 @@ BucketSecretUpdate = Annotated[
 BucketSecretOut = Annotated[
     S3BucketSecretOut | AzureBucketSecretOut, Field(discriminator="type")
 ]
-BucketSecretDetails = Annotated[
-    S3BucketSecretDetails | AzureBucketSecretDetails, Field(discriminator="type")
-]
-
 
 _BucketSecretAdapter: TypeAdapter[S3BucketSecret | AzureBucketSecret] = TypeAdapter(
     BucketSecret
@@ -166,9 +156,6 @@ _BucketSecretAdapter: TypeAdapter[S3BucketSecret | AzureBucketSecret] = TypeAdap
 _BucketSecretOutAdapter: TypeAdapter[S3BucketSecretOut | AzureBucketSecretOut] = (
     TypeAdapter(BucketSecretOut)
 )
-_BucketSecretDetailsAdapter: TypeAdapter[
-    S3BucketSecretDetails | AzureBucketSecretDetails
-] = TypeAdapter(BucketSecretDetails)
 _BucketSecretCreateAdapter: TypeAdapter[
     S3BucketSecretCreate | AzureBucketSecretCreate
 ] = TypeAdapter(BucketSecretCreate)
@@ -180,12 +167,6 @@ def validate_bucket_secret(obj: Any) -> S3BucketSecret | AzureBucketSecret:  # n
 
 def validate_bucket_secret_out(obj: Any) -> S3BucketSecretOut | AzureBucketSecretOut:  # noqa: ANN401
     return _BucketSecretOutAdapter.validate_python(obj, from_attributes=True)
-
-
-def validate_bucket_secret_details(
-    obj: Any,  # noqa: ANN401
-) -> S3BucketSecretDetails | AzureBucketSecretDetails:
-    return _BucketSecretDetailsAdapter.validate_python(obj, from_attributes=True)
 
 
 def validate_bucket_secret_create(

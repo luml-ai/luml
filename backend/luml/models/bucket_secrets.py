@@ -8,11 +8,9 @@ from luml.models.base import Base, TimestampMixin
 from luml.schemas.bucket_secrets import (
     BucketSecret,
     BucketSecretCreate,
-    BucketSecretDetails,
     S3BucketSecret,
     S3BucketSecretCreate,
     validate_bucket_secret,
-    validate_bucket_secret_details,
 )
 
 
@@ -59,17 +57,6 @@ class BucketSecretOrm(TimestampMixin, Base):
 
     def to_bucket_secret(self) -> BucketSecret:
         secret = validate_bucket_secret(self)
-        if isinstance(secret, S3BucketSecret):
-            if secret.access_key:
-                secret.access_key = decrypt(secret.access_key)
-            if secret.secret_key:
-                secret.secret_key = decrypt(secret.secret_key)
-            if secret.session_token:
-                secret.session_token = decrypt(secret.session_token)
-        return secret
-
-    def to_bucket_secret_details(self) -> BucketSecretDetails:
-        secret = validate_bucket_secret_details(self)
         if isinstance(secret, S3BucketSecret):
             if secret.access_key:
                 secret.access_key = decrypt(secret.access_key)
