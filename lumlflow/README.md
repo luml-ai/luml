@@ -62,7 +62,7 @@ The server exposes a REST API that the UI consumes, so you can also integrate pr
 ```bash
 lumlflow ui                          # Start UI at localhost:5000
 lumlflow ui --port 8080              # Custom port
-lumlflow ui --host 0.0.0.0          # Bind to all interfaces
+lumlflow ui --host 0.0.0.0           # Bind to all interfaces
 lumlflow ui --no-browser             # Don't open browser automatically
 lumlflow version                     # Show installed version
 ```
@@ -82,13 +82,19 @@ Each experiment serves as a complete record of a run and can include:
 - **Metrics** — track performance over time (accuracy, loss, F1, etc.)
 - **Parameters** — log hyperparameters and configuration settings
 - **Models** — store produced models and link them to specific runs
+
+[placeholder for screenshots - exp_track.webp, exp_track1.webp]
+
 - **Evaluations (Evals)** — record evaluation results and comparisons
 - **Traces** — capture step-by-step execution details for deeper analysis
+
+[placeholder for screenshot - evals.webp]
+
 - **Attachments** — save artifacts like datasets, plots, or logs
 
-All of this is accessible through an interactive web UI where you can explore experiments, analyze metrics, inspect traces, and compare results.
+[placeholder for screenshot - attachments.webp]
 
-[placeholder for screenshot]
+All of this is accessible through an interactive web UI where you can explore experiments, analyze metrics, inspect traces, and compare results.
 
 ### Annotations
 
@@ -96,12 +102,17 @@ Add annotations to evaluation samples and trace spans to capture feedback, expec
 
 Use annotations to review experiment quality, document insights, or collaborate with teammates by leaving structured notes with optional rationale.
 
-[placeholder for screenshot]
+Annotations in trace span:
+[placeholder for screenshot - trace_ann.webp]
+
+Annotations in eval sample:
+[placeholder for screenshot - eval_ann.webp]
 
 ### Experiment Groups
 
 Organize related experiments into groups for easier navigation and comparison.
 
+[placeholder for screenshot - groups.webp, groups1.webp]
 
 ### Uploading to LUML
 
