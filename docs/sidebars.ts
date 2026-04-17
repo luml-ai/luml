@@ -72,31 +72,15 @@ const sidebars: SidebarsConfig = {
             id: 'documentation/Modules/Registry/registry',
           },
           items: [
-            {
-              type: 'category',
-              label: 'Model Registry',
-              collapsible: true,
-              link: {
-                type: 'doc',
-                id: 'documentation/Modules/Registry/Model-Registry/index',
-              },
-              items: [
-                'documentation/Modules/Registry/Model-Registry/attachments',
-                'documentation/Modules/Registry/Model-Registry/model_card',
-                'documentation/Modules/Registry/Model-Registry/experiment_tracking',
-              ],
-            },
+            'documentation/Modules/Registry/model_card',
+            'documentation/Modules/Registry/experiment_tracking',
+            'documentation/Modules/Registry/attachments',
           ],
         },
         {
           type: 'doc',
           id: 'documentation/Modules/express_tasks',
           customProps: { icon: 'Zap' }
-        },
-        {
-          type: 'doc',
-          id: 'documentation/Modules/notebooks',
-          customProps: { icon: 'Notebook' }
         },
       ],
     },

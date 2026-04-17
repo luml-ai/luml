@@ -30,6 +30,11 @@ The flowchart is built using three types of elements. **Input/Output** nodes def
 
 The optimization is based on the Teacher-Student concept, where a more powerful model (Teacher) is used to configure and train a lighter model (Student) for a specific task.
 
+### Notebooks
+Notebooks are available as an Express Task type for users who need a code-based environment alongside the no-code workflows. The task provides an in-browser **JupyterLite** environment that runs entirely client-side, with no backend compute or installation required. Users can create `.ipynb` notebooks, install Python packages, and generate models directly in the browser. When a model is saved in the `.luml` format, the platform detects it automatically and makes it available for promotion to the Registry.
+
+*Note: notebook instances are stored in the browser's local storage and do not sync across devices or accounts. Clearing browser data or switching machines will result in data loss unless the instance has been backed up.*
+
 **Data Preparation**
 Express Tasks support data uploads in .csv format. The module provides an interface for basic dataset manipulation. For example, the user can filter rows by specific conditions, sort data, or exclude unnecessary columns that should not be used for training.
 

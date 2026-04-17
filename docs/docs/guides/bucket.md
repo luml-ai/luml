@@ -53,7 +53,7 @@ Amazon S3 is the standard. If you are a beginner, we recommend starting here.
 1. Go to the AWS Console and find the S3 service.
 
 <img 
-  src={require('./pics_bucket/image1.png').default} 
+  src={require('./pics_bucket/image1.webp').default} 
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 2. Click Create bucket.
@@ -66,13 +66,13 @@ Amazon S3 is the standard. If you are a beginner, we recommend starting here.
 2. Go to the Permissions tab.
 
 <img 
-  src={require('./pics_bucket/image4.png').default} 
+  src={require('./pics_bucket/image4.webp').default} 
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 3. Scroll down to the Cross-origin resource sharing (CORS) section.
 
 <img 
-  src={require('./pics_bucket/image5.png').default} 
+  src={require('./pics_bucket/image5.webp').default} 
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 4. Click Edit and paste the JSON code (see "Key Concepts" above).
@@ -103,14 +103,14 @@ Google Cloud has specific requirements. It is not natively S3-compatible, so it 
 1. Activate Cloud Shell (terminal icon in the top right corner).
 
 <img 
-  src={require('./pics_bucket/image3.png').default} 
+  src={require('./pics_bucket/image3.webp').default} 
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 
 And here is the terminal:     
 
 <img 
-  src={require('./pics_bucket/image6.png').default} 
+  src={require('./pics_bucket/image6.webp').default} 
   style={{ width: '650px', borderRadius: '10px' }} 
 />
 2. Create a configuration file using the command: nano cors.json

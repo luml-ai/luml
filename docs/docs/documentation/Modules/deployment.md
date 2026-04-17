@@ -11,6 +11,8 @@ Deployments do not run inside the platform itself. Execution happens entirely on
 Inference requests are sent **directly to the Satellite**, not to the LUML platform. The Satellite exposes the runtime endpoint and executes the model locally in its own environment. This ensures that inference traffic and data never pass through the platform itself.
 For each request, the Satellite performs a lightweight callback to the LUML backend to validate the supplied API key and check whether the invocation is authorized. Authorization checks are cached locally on the Satellite for a short period, reducing round trips to the platform and limiting backend load. As a result, permission changes are not applied instantaneously but propagate quickly in practice.
 
+![](/img/Deploy.webp)
+
 ## Secret Injection
 Deployments support secret injection to allow models to access external systems securely. Secrets are managed centrally in the platform and delivered to Satellites in one of two ways.
 Some secrets are injected as environment variables at Deployment creation time. These values are resolved once and remain static for the lifetime of the Deployment.

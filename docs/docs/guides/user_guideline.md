@@ -2,362 +2,167 @@
 sidebar_position: 2
 ---
 
-# Step-by-step User Guide
+# From Sign-Up to Deployment
 
-This step-by-step guide is designed to provide a detailed overview of the LUML platform's functionality. 
-Here you will find instructions for every stage of work: from registration to deploying your own ML services.
+This guide walks through a single end-to-end scenario: creating an account, setting up an organization, training a model with Express Tasks, and deploying it. Each section builds on the previous one, so following the steps in order is recommended.
 
-## Onboarding
-1. Sign up / Log in
-The first step is creating an account. 
-You can create a new profile via email or use existing Google/Microsoft accounts.
+*Note: for model packaging with the Python SDK, experiment tracking, and programmatic uploads, see the [SDK Tutorial](sdk_tutorial.md).*
 
-### Sign up via Email
+## Creating an Account
 
-1. Click Sign up.
-2. Enter a username and email address.
-3. Create a secure password.
-4. Check your email and click the verification link to activate your account.
-5. Return to the login screen, enter your email and password.
+Luml supports email registration and third-party sign-in through Google and Microsoft.
 
-### Sign in with Google (Fastest Way)
+To register with email, open the sign-up page, enter a username, email address, and password, then confirm the verification link sent to your inbox. After verification, sign in with the credentials you created.
 
-1. On the login screen, select "Sign in with Google".
-2. Choose the desired account in the pop-up window.
-3. The system will automatically create a profile, and you will be logged in.
+Alternatively, select "Sign in with Google" on the login page and choose the account you want to use. The platform will create a profile automatically and log you in.
 
+![](/img/sign-in.webp)
 
-## Workspace Setup
-Work in LUML follows a hierarchy: Organization → Orbit → Collection.
+## Setting Up an Organization
 
-### Organization
-The Organization is your global office. The first organization is created automatically after registration.
+An Organization is the top-level container in Luml. One is created automatically when you register, but you can create additional ones at any time from the organization selector in the top header by clicking "+ Create new" and entering a name.
 
-Creating a New Organization:
-1. Find the organization list in the left menu.
+{/* TODO: screenshot — top header with organization + orbit selectors (annotated) */}
+![](/img/org-creation.webp)
 
-<img 
-  src={require('./pics_user-guide/organization_create.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+### Connecting a Bucket
+
+Before you can store datasets, experiments and model artifacts, the organization needs a connected cloud storage bucket. Go to the organization settings, open the **Buckets** tab, and click "+ Add new bucket". Fill in the provider-specific parameters: bucket name, region, access key, and any additional fields your provider requires.
+
+<img
+  src={require('./pics_user-guide/organization_bucket_add1.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
-2. Click "+ Create new".
-3. Enter a name and confirm creation.
-
-Settings & Members: Navigate to Settings in the left menu. Available options include:
-
-<img 
-  src={require('./pics_user-guide/organization_manage_members.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+<img
+  src={require('./pics_user-guide/organization_bucket_setup.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
-- Members - Team management. 
-To add a colleague, click "Invite member", enter their email, and select a role (Member/Admin).
+*Note: Luml does not store your data on its servers. All transfers happen directly between your browser and the cloud provider. For step-by-step instructions on creating a bucket in AWS S3, Google Cloud Storage, or another S3-compatible provider, see the [Bucket Creation Guide](bucket.md).*
 
-<img 
-  src={require('./pics_user-guide/organization_member_invite.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+## Creating an Orbit and a Collection
+
+Work in Luml follows a hierarchy: Organization → Orbit → Collection.
+
+An **Orbit** is a project workspace within an organization. Orbits are managed from the same panel in the top header as organizations. To create one, open the orbit selector, click the create button, give it a name, select which members should have access, and attach the bucket you connected in the previous step.
+
+![](/img/orbit-creation.webp)
+![](/img/orbit-creation2.webp)
+
+A **Collection** groups related assets inside an Orbit. To create one, open **Registry** in the sidebar and click "Create". The assets you train or upload will live here.
+
+Collections come in four types, depending on what they contain:
+
+**Model Collections.** Hold trained models.
+
+**Experiment Collections.** Hold experiments produced during model training and evaluation.
+
+**Dataset Collections.** Hold datasets used as inputs for training, fine-tuning, or evaluation.
+
+**Mixed Collections.** Hold any combination of models, experiments, and datasets in the same container.
+
+For details on each type, see the [Registry documentation](../documentation/Modules/Registry/registry.md#collections).
+
+<img
+  src={require('./pics_user-guide/collection_create.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
-- Limits: Overview of your plan's quota usage (number of members, orbits, etc.).
+## Training a Model with Express Tasks
 
-- Delete Organization
-Remove the organization (Pencil icon next to name -> Delete). Warning: this action is irreversible.
+Express Tasks let you train a model directly in the browser without writing code.
 
-<img 
-  src={require('./pics_user-guide/organization_delete.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+On the Orbit's main screen, choose a task type (for example, Tabular Classification or Tabular Regression).
+
+![](/img/exp-tasks.webp)
+
+Each Express Task type comes with a **sample dataset** — a classic, well-known dataset for that problem (e.g., Iris for classification, Boston Housing for regression). If you just want to see how the workflow works, select the sample dataset and proceed — no data preparation needed. If you want to train a model for a real use case, upload your own `.csv` file with data relevant to the problem you are solving.
+
+<img
+  src={require('./pics_user-guide/exp_task_upload_data.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
-### Orbits
-An Orbit is a workspace for specific projects within an organization.
+On the data settings screen, select the **Target** column — the column the model should learn to predict. You can also filter rows, sort the dataset, or remove columns that are not relevant.
 
-Creating an Orbit:
-1. Go to the Orbits tab within the organization.
-2. Click the button to create a new orbit.
-3. Enter a name, select members who will have access, and connect a Bucket.
-
-### Buckets
-To store data, you must connect cloud storage.
-1. In the organization settings, select the Buckets tab.
-2. Click "+ Add new bucket".
-
-<img 
-  src={require('./pics_user-guide/organization_bucket_add1.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+<img
+  src={require('./pics_user-guide/exp_task_data_target_column.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
-3. Enter your provider's parameters (Bucket name, Region, Access Key, etc.).
+Click **Train**. When training finishes, a results dashboard appears with the model's metrics. From here you can test the model on a single sample or a `.csv` file using the **Predict** tab, or export it to the Registry.
 
-<img 
-  src={require('./pics_user-guide/organization_bucket_setup.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-For details on configuring cloud providers, see the [relevant instruction](bucket.md).
-
-
-## Model Creation
-### Express Tasks (AutoML)
-The fastest way to build a model without writing code.
-
-<img 
-  src={require('./pics_user-guide/exp_tasks_screen.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-#### Tabular Classification / Regression
-1. Select the task type on the main screen.
-2. Data: Upload your .csv file or select the Sample dataset for testing.
-
-<img 
-  src={require('./pics_user-guide/exp_task_upload_data.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-3. Data Settings: Check the Target column (what the model needs to predict). 
-
-<img 
-  src={require('./pics_user-guide/exp_task_data_target_column.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Filter data
-
-<img 
-  src={require('./pics_user-guide/exp_tasks_data_filter.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Sort it
-
-<img 
-  src={require('./pics_user-guide/exp_task_data_sort.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Or remove unnecessary columns if needed.
-
-<img 
-  src={require('./pics_user-guide/exp_tasks_data_edit_cols.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-4. Click Train.
-
-Upon completion, you will see a results dashboard. The model can be saved (Export) or added to the Registry.
-
-<img 
-  src={require('./pics_user-guide/exp_tasks_result_dashboard.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Also you can use it immediately for prediction (with one data sample or with test set (.csv file))
-
-<img 
-  src={require('./pics_user-guide/exp_tasks_predict.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-#### Prompt Optimization (LLM) 
-A tool for building prompt chains.
-
-1. Select Free-form (create from scratch) or Data-driven (based on a dataset).
-
-<img 
-  src={require('./pics_user-guide/prompt_opt_choose_type.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-2. Connect an LLM provider.
-Choose one
-
-<img 
-  src={require('./pics_user-guide/prompt_opt_choose_provider.png').default} 
-  style={{ width: '450px', borderRadius: '10px' }} 
-/>
-
-Add your API key
-
-<img 
-  src={require('./pics_user-guide/prompt_opt_enter_key.png').default} 
-  style={{ width: '450px', borderRadius: '10px' }} 
-/>
-
-3. Build the schema: Input → Processor → Gate → Output.
-4. In Optimization settings provide task description, choose teacher and student models.
-
-<img 
-  src={require('./pics_user-guide/prompt_opt_settings.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-5. For data-driven optimization choose evaluation metrics.
-6. Click Run Optimization.
-You can also use your model immediately for prediction.
-
-### Notebooks (Custom ML)
-For manual code development.
-
-1. Go to the Notebooks section
-2. Click "Create instance" and give it a name.
-
-<img 
-  src={require('./pics_user-guide/notebooks_create.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-3. Open the link to JupyterLab.
-
-<img 
-  src={require('./pics_user-guide/notebooks_jupyter_link.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
+<img
+  src={require('./pics_user-guide/exp_tasks_result_dashboard.webp').default}
+  style={{ width: '650px', borderRadius: '10px' }}
 />
 
 
-<img 
-  src={require('./pics_user-guide/notebook_jupyter.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+## Uploading the Model to the Registry
 
-Any model saved in the notebook as a .luml file will automatically appear in the LUML info menu and be available for export to the Registry.
+The Registry is the central store for all model artifacts in an Orbit. From the Express Tasks results dashboard, click **Export** to save the model as a `.luml` file, then use the upload action to push it to the Registry.
 
-<img 
-  src={require('./pics_user-guide/notebooks_result.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+![](/img/upl-to-reg.webp)
+![](/img/upl-to-reg2.webp)
 
-## Model Management
-### Collections & Analysis
-All models are stored in Collections within an Orbit.
+Once the model appears in the Registry, you can open it to view its overview, model card, and experiment snapshots. For details on what the Registry stores and how versioning works, see the [Registry documentation](../documentation/Modules/Registry/registry.md).
 
-To create a collection click on "Create" button on your orbit screen
-
-<img 
-  src={require('./pics_user-guide/collection_create.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Inside the collection you can:
-- View
-Click on a model to open it's [overview], [model card], [experiment snapshots] and [attachments].
-
-- Compare
-Select multiple models using checkboxes to open the Comparison Dashboard (Side-by-side metric comparison).
-
-<img 
-  src={require('./pics_user-guide/collection_compare_models.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+![](/img/registry.webp)
+![](/img/registry2.webp)
 
 
-- Tracing
-For LLM models, view intermediate steps (Trace) in the Experiment Snapshots tab.
+## Connecting a Satellite
+
+A Satellite is a compute node you host yourself that executes models and serves inference requests. Before you can deploy, at least one Satellite must be connected to the Orbit.
+
+Open the **Satellites** module in the sidebar and click **Create Satellite**. Give it a name, fill in the required fields, and copy the **Token** the platform generates — you will need it to pair the Satellite with Luml.
+
+![](/img/satellite-connect.webp)
+![](/img/satellite-connect2.webp)
 
 
-### Runtime (Testing)
-To quickly verify a model:
-1. Go to the Runtime section.
-2. Upload the .luml file.
-3. Enter data manually or upload a test .csv.
-4. Click Predict to view the result.
+{/* TODO: add a link to the dedicated Satellite setup guide once it is available. */}
+
+*Note: for the full installation walkthrough (cloning the repo, configuring `.env`, launching Docker) and a deeper look at Satellite architecture, see the [Satellite reference](../documentation/Core-Concepts/satellites.md).*
+
+## Deploying the Model
+
+Deployment binds a model from the Registry to a running Satellite, turning it into a live API endpoint.
+
+If the model relies on external API keys (for example, an OpenAI key for an LLM-based model), add them first. Open the **Deployments** module in the sidebar, switch to the **Secrets** tab, click "Create secret", and enter a name and value.
+
+![](/img/secret-creation.webp)
+
+To create the deployment, open the **Deployments** module in the sidebar and click "Create" on the **Deployments** tab, or open the model in a Collection and click the rocket icon.
+
+![](/img/deployment-creat.webp)
+
+In the configuration window, enter a deployment name, select the Satellite as the execution node, and attach any secrets the model needs.
+
+![](/img/deployment-creat2.webp)
 
 
-## Deployment
-This is the process of moving a model to production. You will need three components: Model, Secrets, and Satellite.
+Click **Deploy**. The model is now running as an API service on your Satellite.
 
-### Step 1 - Configuring Secrets
-If the model uses API keys (e.g., OpenAI), add them to the Orbit.
-1. In the Orbit, go to the Secrets section.
-2. Click "Create secret".
+*Note: inference requests go directly to the Satellite, not through the Luml platform. For details on the execution model, secret injection, and authorization flow, see the [Deployments reference](../documentation/Modules/deployment.md).*
 
-<img 
-  src={require('./pics_user-guide/secret_create.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+## Verifying the Deployment
 
-3. Enter a Name (e.g., OPENAI_API_KEY) and Value.
-4. Click Save. Deployments can now securely use this key.
+Once a deployment is running, you can verify it by sending a test request from Postman directly to the Satellite endpoint.
 
-<img 
-  src={require('./pics_user-guide/secret_setup.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+Open the **Deployments** module in the sidebar and select the deployment you just created from the **Deployments** tab. Each deployment displays a **model schema** — a JSON object describing the exact structure the model expects as input. Copy this schema. It will serve as the body of your test request.
 
-### Step 2 - Launching a Satellite
-A Satellite is your server that processes requests.
-1. In the Orbit, go to Satellites → Create Satellite.
+{/* TODO: screenshot — deployment detail page showing the model schema and Satellite endpoint URL */}
+![](/img/deployment.webp)
+![](/img/deployment2.webp)
+![](/img/deployment3.webp)
+![](/img/deployment4.webp)
 
-<img 
-  src={require('./pics_user-guide/satellite_create.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+In Postman, create a new `POST` request. Set the URL to the Satellite's inference endpoint, which is also shown on the deployment detail page. In the **Headers** tab, add a `Content-Type: application/json` header and an authorization header with your LUML API key. In the **Body** tab, select `raw` and `JSON`, then paste the copied schema. Fill in the field values with representative inputs for your model.
 
+Send the request. A successful response confirms the Satellite received the request, loaded the model, and returned a prediction. If the request fails, check that the Satellite is reachable from your network, that the API key is correct, and that all required secrets are attached to the deployment.
 
-<img 
-  src={require('./pics_user-guide/satellite_enter_values.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
+## What's Next
 
-2. Copy the received Token.
-
-<img 
-  src={require('./pics_user-guide/satellite_token_from_luml.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-3. Run the setup on your server (or local machine):
-
-For Windows (PowerShell):
-```python
-git clone --depth 1 --filter=blob:none --sparse https://github.com/Dataforce-Solutions/dataforce.studio.git
-Set-Location dataforce.studio
-git sparse-checkout set satellite
-Copy-Item -Recurse .\satellite\ "C:\Users\<your_path>\my_project\satellite"
-```
-
-For macOS/Linux:
-```python
-git clone --depth 1 --filter=blob:none --sparse https://github.com/Dataforce-Solutions/dataforce.studio.git
-cd dataforce.studio
-git sparse-checkout set satellite
-cp -r satellite /your-path
-```
-4. Open the .env.example file, rename it to .env, and paste your token: 
-SATELLITE_TOKEN=your_token_from_platform
-
-<img 
-  src={require('./pics_user-guide/satellite_env_setup.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-5. Launch the Docker container. The Satellite will appear in the LUML interface as "Active".
-
-### Step 3: Deploy
-1. In the Orbit, go to Deployments and click on "Create" button
-
-<img 
-  src={require('./pics_user-guide/deployment_create_in_orbit.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-Or select a model in a Collection and click the "rocket" icon.
-
-<img 
-  src={require('./pics_user-guide/deployment_create_from_model.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-2. In the configuration window:
-- Enter a deployment name.
-- Select the Satellite (Execution Node).
-- Add necessary Secrets.
-
-<img 
-  src={require('./pics_user-guide/deployment_setup.png').default} 
-  style={{ width: '650px', borderRadius: '10px' }} 
-/>
-
-3. Click Deploy.
-
-Done! Your model is now running as an API service.
+This guide covered the core workflow from account creation to a live deployment. From here, you can explore the [SDK Tutorial](sdk_tutorial.md) to package and upload models programmatically, use the Registry to manage multiple model versions, or add more Satellites to distribute workloads across environments. The [documentation](../documentation/Modules/Registry/registry.md) covers each of these areas in depth.
