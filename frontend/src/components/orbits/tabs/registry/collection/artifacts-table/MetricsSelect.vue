@@ -1,6 +1,5 @@
 <template>
   <div class="wrapper">
-    <label class="label" for="metrics">Metrics</label>
     <MultiSelect
       id="metrics"
       v-model="state"
