@@ -6,10 +6,10 @@ LUMLFlow is a local experiment tracking UI for viewing metrics, parameters, mode
 
 ## Setup
 
-Install the LUML SDK with the `core` extra and scikit-learn.
+Install the LUML SDK and scikit-learn:
 
 ```bash
-pip install "luml-sdk[core]" scikit-learn
+pip install luml-sdk scikit-learn numpy 
 ```
 
 *Note: the SDK requires Python 3.12 or later.*
@@ -45,7 +45,7 @@ recall = recall_score(y_test, y_pred)
 Create an `ExperimentTracker` pointing at a local SQLite database. This is the same database that LUMLFlow will read from later.
 
 ```python
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker("sqlite://./my_experiments")
 
@@ -156,7 +156,7 @@ import numpy as np
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 # Data
 X = np.random.rand(500, 5)
