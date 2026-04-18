@@ -36,6 +36,7 @@
           @submit="onFormSubmit"
         />
       </div>
+      <ConnectedOrbitsList v-if="props.bucket.orbits?.length" :orbits="props.bucket.orbits" />
     </div>
     <template #footer>
       <Button severity="warn" variant="outlined" :disabled="loading" @click="onDelete">
@@ -61,6 +62,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import { deleteBucketConfirmOptions } from '@/lib/primevue/data/confirm'
 import S3BucketForm from './S3BucketForm.vue'
 import AzureBucketForm from './AzureBucketForm.vue'
+import ConnectedOrbitsList from './connected-orbits/ConnectedOrbitsList.vue'
 
 const dialogPT = {
   footer: {

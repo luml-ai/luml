@@ -1,3 +1,5 @@
+import type { Orbit } from '../api.interfaces'
+
 export interface BucketSecret {
   type: BucketTypeEnum
   id: string
@@ -9,6 +11,7 @@ export interface BucketSecret {
   organization_id: string
   created_at: Date
   updated_at: Date
+  orbits: Pick<Orbit, 'id' | 'name' | 'created_at' | 'updated_at'>[]
 }
 
 export interface S3BucketFormData {
