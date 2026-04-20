@@ -1,7 +1,7 @@
 <template>
   <div class="column-header">
     <div class="column-header-title">
-      <span>{{ column }}</span>
+      <span :title="column">{{ cutStringOnMiddle(column) }}</span>
       <div class="column-header-icons">
         <component
           :is="currentColumnTypeIcon"
@@ -72,6 +72,7 @@ import { Blocks, CalendarFold, CaseUpper, Hash, Target, EllipsisVertical } from 
 import { Menu } from 'primevue'
 import { computed, ref } from 'vue'
 import type { ColumnType, PromptFusionColumn } from '@/hooks/useDataTable'
+import { cutStringOnMiddle } from '@/helpers/helpers'
 
 type Props = {
   values: object[]

@@ -61,7 +61,7 @@
           <template #header>
             <table-column-header
               :values="value"
-              :column="cutStringOnMiddle(column)"
+              :column="column"
               :group="group"
               :target="target"
               :column-type="columnTypes[column]"
