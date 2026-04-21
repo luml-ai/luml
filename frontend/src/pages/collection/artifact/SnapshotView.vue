@@ -13,7 +13,7 @@
     v-if="artifactsStore.experimentSnapshotProvider && artifactsStore.currentArtifact"
     :provider="artifactsStore.experimentSnapshotProvider"
     :models-ids="[String(artifactsStore.currentArtifact.id)]"
-    :models-info="modelsInfo"
+    :models-info="artifactsInfo"
     :theme="themeStore.getCurrentTheme"
   ></ExperimentSnapshot>
 </template>
@@ -21,35 +21,38 @@
 <script setup lang="ts">
 import type { ModelInfo } from '@luml/experiments'
 import { ExperimentSnapshot } from '@luml/experiments'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeMount, ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { Skeleton } from 'primevue'
 import { useExperimentSnapshotsDatabaseProvider } from '@/hooks/useExperimentSnapshotsDatabaseProvider'
-import { getModelColorByIndex } from '@/helpers/helpers'
+import { getArtifactColorByIndex } from '@/helpers/helpers'
 import { useThemeStore } from '@/stores/theme'
 
 const artifactsStore = useArtifactsStore()
 const { init } = useExperimentSnapshotsDatabaseProvider()
 const themeStore = useThemeStore()
 
-const loading = ref(false)
+const loading = ref(true)
 
-const modelsInfo = computed(() => {
+const artifactsInfo = computed(() => {
   const data: Record<string, ModelInfo> = {}
   if (artifactsStore.currentArtifact) {
     data[artifactsStore.currentArtifact.id] = {
       name: artifactsStore.currentArtifact.name,
-      color: getModelColorByIndex(0),
+      color: getArtifactColorByIndex(0),
     }
   }
   return data
 })
 
-onMounted(async () => {
-  if (artifactsStore.experimentSnapshotProvider) return
+onBeforeMount(async () => {
+  if (artifactsStore.experimentSnapshotProvider) {
+    loading.value = false
+    return
+  }
   try {
     loading.value = true
-    if (!artifactsStore.currentArtifact) throw new Error('Current model does not exist')
+    if (!artifactsStore.currentArtifact) throw new Error('Current artifact does not exist')
     await init([artifactsStore.currentArtifact])
   } catch (e) {
     console.error(e)

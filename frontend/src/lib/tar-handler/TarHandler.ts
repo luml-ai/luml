@@ -1,5 +1,6 @@
 export class TarHandler {
   private view: DataView
+  private fileIndex: Map<string, [number, number]> | null = null
 
   constructor(private buffer: ArrayBuffer) {
     this.view = new DataView(buffer)
@@ -21,6 +22,10 @@ export class TarHandler {
     const raw = new TextDecoder('ascii').decode(new Uint8Array(this.buffer, offset, len))
     const trimmed = raw.replace(/\0/g, '').trim()
     return trimmed ? parseInt(trimmed, 8) : 0
+  }
+
+  private readFile(offset: number, size: number): Uint8Array {
+    return new Uint8Array(this.buffer, offset, size)
   }
 
   scan(): Map<string, [number, number]> {
@@ -111,6 +116,22 @@ export class TarHandler {
       off = dataStart + dataSpan
     }
 
-    return results
+    this.fileIndex = results
+
+    return this.fileIndex
+  }
+
+  getManifest() {
+    if (!this.fileIndex) throw new Error('File index not scanned. Call scan() first.')
+    const decoder = new TextDecoder()
+
+    for (const [path, [offset, size]] of this.fileIndex) {
+      if (path.includes('manifest.json')) {
+        const data = this.readFile(offset, size)
+        const manifest = JSON.parse(decoder.decode(data))
+        return manifest
+      }
+    }
+    throw new Error('Manifest not found')
   }
 }

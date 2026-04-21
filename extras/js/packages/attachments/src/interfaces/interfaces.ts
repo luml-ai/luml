@@ -48,6 +48,7 @@ export interface FilePreviewHeaderProps {
   fileName: string
   fileSize: number
   filePath: string
+  isDownloading: boolean
 }
 
 export interface FilePreviewHeaderEmits {

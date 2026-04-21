@@ -1,0 +1,88 @@
+[project]
+name = "luml_api"
+version = "0.1.0"
+description = "LUML Python API Client"
+readme = "README.md"
+
+requires-python = ">=3.12"
+dependencies = [
+    "pyfnx-utils>=0.0.1,<1.0.0",
+    "cloudpickle>=3.1.2,<4.0.0",
+    "fnnx>=0.0.8,<0.1.0",
+    "httpx>=0.28.1,<1.0.0",
+    "pydantic>=2.11.7,<3.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["luml_api"]
+
+
+
+[dependency-groups]
+dev = [
+    "mypy==1.15.0",
+    "pydoc-markdown>=4.8.2",
+    "pytest==8.3.5",
+    "pytest-asyncio==0.26.0",
+    "pytest-cov==6.0.0",
+    "respx==0.22.0",
+    "ruff==0.11.5",
+    "types-passlib==1.7.7.20250408",
+    "fnnx>=0.0.11",
+    "cloudpickle>=3.1.2",
+]
+
+[tool.ruff]
+# Target Python 3.12
+target-version = "py312"
+
+# Black-compatible settings
+line-length = 88
+indent-width = 4
+
+src = ["luml_api"]
+
+[tool.ruff.lint]
+# Enable all rules for maximum coverage
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "C90", # mccabe complexity
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "T20", # flake8-print
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
+    "ANN", # flake8-annotations
+]
+
+ignore = [
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/**/*.py" = ["T201"]
+
+[tool.ruff.format]
+# Black-compatible formatting settings
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["luml_api"]
+split-on-trailing-comma = true

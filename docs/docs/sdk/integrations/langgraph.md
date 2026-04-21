@@ -4,21 +4,20 @@
 
 <a id="luml.integrations.langgraph.packaging.save_langgraph"></a>
 
-#### save_langgraph
+#### save\_langgraph
 
 ```python
 def save_langgraph(
-        graph: Pregel | Callable[[], Pregel] | str,
-        path: str | None = None,
-        dependencies: Literal["default"] | Literal["all"]
-    | list[str] = "default",
-        extra_dependencies: list[str] | None = None,
-        extra_code_modules: list[str] | Literal["auto"] | None = "auto",
-        env_vars: list[str] | None = None,
-        manifest_model_name: str | None = None,
-        manifest_model_version: str | None = None,
-        manifest_model_description: str | None = None,
-        manifest_extra_producer_tags: list[str] | None = None
+    graph: Pregel | Callable[[], Pregel] | str,
+    path: str | None = None,
+    dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
+    extra_dependencies: list[str] | None = None,
+    extra_code_modules: list[str] | Literal["auto"] | None = "auto",
+    env_vars: list[str] | None = None,
+    manifest_model_name: str | None = None,
+    manifest_model_version: str | None = None,
+    manifest_model_description: str | None = None,
+    manifest_extra_producer_tags: list[str] | None = None
 ) -> ModelReference
 ```
 
@@ -57,7 +56,6 @@ and metadata for production deployment or model registry.
 ```python
 from langgraph.graph import StateGraph
 from luml.integrations.langgraph.packaging import save_langgraph
-
 # Define your LangGraph
 def create_graph():
     workflow = StateGraph(...)

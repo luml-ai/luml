@@ -1,0 +1,77 @@
+name: Publish Python Package
+
+on:
+  push:
+    tags:
+      - "sdk-python/api/v*"
+      - "sdk-python/sdk/v*"
+      - "lumlflow/v*"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve package from tag
+        id: release
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+
+          case "$TAG" in
+            sdk-python/api/v*)
+              echo "package_name=luml-api" >> "$GITHUB_OUTPUT"
+              echo "package_dir=sdk/python/api" >> "$GITHUB_OUTPUT"
+              echo "package_init=luml_api/__init__.py" >> "$GITHUB_OUTPUT"
+              echo "requires_node=false" >> "$GITHUB_OUTPUT"
+              echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
+              ;;
+            sdk-python/sdk/v*)
+              echo "package_name=luml_sdk" >> "$GITHUB_OUTPUT"
+              echo "package_dir=sdk/python/sdk" >> "$GITHUB_OUTPUT"
+              echo "package_init=luml/__init__.py" >> "$GITHUB_OUTPUT"
+              echo "requires_node=false" >> "$GITHUB_OUTPUT"
+              echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
+              ;;
+            lumlflow/v*)
+              echo "package_name=lumlflow" >> "$GITHUB_OUTPUT"
+              echo "package_dir=lumlflow" >> "$GITHUB_OUTPUT"
+              echo "package_init=lumlflow/__init__.py" >> "$GITHUB_OUTPUT"
+              echo "requires_node=true" >> "$GITHUB_OUTPUT"
+              echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported tag: $TAG" >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/setup-node@v4
+        if: steps.release.outputs.requires_node == 'true'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Set package version
+        working-directory: ${{ steps.release.outputs.package_dir }}
+        run: |
+          sed -i "s/^version = .*/version = \"${{ steps.release.outputs.version }}\"/" pyproject.toml
+          sed -i "s/^__version__ = .*/__version__ = \"${{ steps.release.outputs.version }}\"/" "${{ steps.release.outputs.package_init }}"
+
+      - name: Build & publish
+        working-directory: ${{ steps.release.outputs.package_dir }}
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_TOKEN }}
+          UV_PUBLISH_URL: ${{ vars.PYPI_URL }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          echo "Publishing ${{ steps.release.outputs.package_name }}@${{ steps.release.outputs.version }}"
+          python -m pip install --upgrade uv
+          uv build --wheel
+          uv publish

@@ -1,7 +1,7 @@
 const FILE_TYPES = {
   model: ['dfs', 'fnnx', 'pyfnx', 'luml'],
-  experiment: ['dfs', 'fnnx', 'pyfnx', 'luml'],
-  dataset: ['dfs', 'fnnx', 'pyfnx', 'luml'],
+  experiment: ['luml'],
+  dataset: ['tar'],
 } as const
 
 export const isCorrectFileName = (fileName: string) => {

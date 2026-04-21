@@ -27,6 +27,8 @@ vi.mock('@/lib/api', () => ({
 }))
 
 const mockApi = vi.mocked(api)
+const ORG_ID = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
+
 const baseOrbit: Orbit = {
   id: '11111111-1111-1111-1111-111111111111',
   name: 'Default Orbit',
@@ -96,10 +98,14 @@ describe('OrbitsStore', () => {
     vi.clearAllMocks()
   })
 
-  describe(' 1 - initial state', () => {
+  describe('1 - initial state', () => {
     it('has empty list and null details', () => {
       expect(store.orbitsList).toEqual([])
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.currentOrbit).toBeNull()
       expect(store.currentOrbitDetails).toBeNull()
+      expect(store.isLoadingOrbitDetails).toBe(false)
+      expect(store.hasCurrentOrbit).toBe(false)
       expect(store.getCurrentOrbitPermissions).toBeUndefined()
     })
   })
@@ -111,18 +117,14 @@ describe('OrbitsStore', () => {
         createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
       ]
       mockApi.getOrganizationOrbits.mockResolvedValueOnce(mockOrbits)
-      await store.loadOrbitsList('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')
-      expect(mockApi.getOrganizationOrbits).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-      )
+      await store.loadOrbitsList(ORG_ID)
+      expect(mockApi.getOrganizationOrbits).toHaveBeenCalledWith(ORG_ID)
       expect(store.orbitsList).toEqual(mockOrbits)
     })
 
     it('handles API error (rejects)', async () => {
       mockApi.getOrganizationOrbits.mockRejectedValueOnce(new Error('API error'))
-      await expect(store.loadOrbitsList('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb')).rejects.toThrow(
-        'API error',
-      )
+      await expect(store.loadOrbitsList(ORG_ID)).rejects.toThrow('API error')
       expect(store.orbitsList).toEqual([])
     })
   })
@@ -142,11 +144,8 @@ describe('OrbitsStore', () => {
         notify: false,
       }
 
-      await store.createOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload)
-      expect(mockApi.createOrbit).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        payload,
-      )
+      await store.createOrbit(ORG_ID, payload)
+      expect(mockApi.createOrbit).toHaveBeenCalledWith(ORG_ID, payload)
       expect(store.orbitsList).toContainEqual(newOrbit)
     })
 
@@ -161,9 +160,7 @@ describe('OrbitsStore', () => {
         notify: false,
       }
 
-      await expect(
-        store.createOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload),
-      ).rejects.toThrow('Creation failed')
+      await expect(store.createOrbit(ORG_ID, payload)).rejects.toThrow('Creation failed')
       expect(store.orbitsList).toEqual(initialOrbits)
       expect(store.orbitsList).toHaveLength(1)
     })
@@ -188,11 +185,8 @@ describe('OrbitsStore', () => {
         bucket_secret_id: '99',
       }
 
-      await store.updateOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload)
-      expect(mockApi.updateOrbit).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        payload,
-      )
+      await store.updateOrbit(ORG_ID, payload)
+      expect(mockApi.updateOrbit).toHaveBeenCalledWith(ORG_ID, payload)
       expect(store.orbitsList[0]).toEqual(updated)
       expect(store.orbitsList[1]).toEqual(createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'))
     })
@@ -208,7 +202,7 @@ describe('OrbitsStore', () => {
         name: 'Nope',
         bucket_secret_id: '0 ',
       }
-      await store.updateOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload)
+      await store.updateOrbit(ORG_ID, payload)
       expect(store.orbitsList).toEqual(original)
     })
 
@@ -226,9 +220,7 @@ describe('OrbitsStore', () => {
         bucket_secret_id: '99',
       }
 
-      await expect(
-        store.updateOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload),
-      ).rejects.toThrow('Update failed')
+      await expect(store.updateOrbit(ORG_ID, payload)).rejects.toThrow('Update failed')
       expect(store.orbitsList).toEqual(initialOrbits)
       expect(store.orbitsList[0].name).toBe('Original Name')
     })
@@ -242,12 +234,9 @@ describe('OrbitsStore', () => {
         createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0003'),
       ]
       mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
-      await store.deleteOrbit(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
-      )
+      await store.deleteOrbit(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')
       expect(mockApi.deleteOrbit).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
       )
       expect(store.orbitsList).toHaveLength(2)
@@ -256,14 +245,46 @@ describe('OrbitsStore', () => {
       ).toBeUndefined()
     })
 
+    it('resets current orbit when deleting the active one', async () => {
+      store.orbitsList = [
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'),
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
+      ]
+      mockApi.getOrbitDetails.mockResolvedValueOnce(
+        createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
+      )
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002', ORG_ID)
+
+      mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
+      await store.deleteOrbit(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')
+
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(store.orbitsList).toHaveLength(1)
+    })
+
+    it('does not reset current orbit when deleting a different one', async () => {
+      store.orbitsList = [
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'),
+        createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
+      ]
+      mockApi.getOrbitDetails.mockResolvedValueOnce(
+        createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'),
+      )
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001', ORG_ID)
+
+      mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
+      await store.deleteOrbit(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')
+
+      expect(store.currentOrbitId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      expect(store.orbitsList).toHaveLength(1)
+    })
+
     it('does nothing if id not found', async () => {
       const original = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
       store.orbitsList = [...original]
       mockApi.deleteOrbit.mockResolvedValueOnce({ detail: 'success' })
-      await store.deleteOrbit(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        'ffffffff-ffff-ffff-ffff-ffffffffffff',
-      )
+      await store.deleteOrbit(ORG_ID, 'ffffffff-ffff-ffff-ffff-ffffffffffff')
       expect(store.orbitsList).toEqual(original)
     })
 
@@ -276,10 +297,7 @@ describe('OrbitsStore', () => {
       store.orbitsList = [...initialOrbits]
       mockApi.deleteOrbit.mockRejectedValueOnce(new Error('Deletion failed'))
       await expect(
-        store.deleteOrbit(
-          'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-          'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002',
-        ),
+        store.deleteOrbit(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'),
       ).rejects.toThrow('Deletion failed')
       expect(store.orbitsList).toEqual(initialOrbits)
       expect(store.orbitsList).toHaveLength(3)
@@ -301,23 +319,17 @@ describe('OrbitsStore', () => {
         OrbitRoleEnum.member,
       )
       mockApi.addMemberToOrbit.mockResolvedValueOnce(addedMember)
-      const result = await store.addMemberToOrbit('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', payload)
-      expect(mockApi.addMemberToOrbit).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        payload,
-      )
+      const result = await store.addMemberToOrbit(ORG_ID, payload)
+      expect(mockApi.addMemberToOrbit).toHaveBeenCalledWith(ORG_ID, payload)
       expect(result).toEqual(addedMember)
     })
 
     it('getOrbitDetails returns details', async () => {
       const details = createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       mockApi.getOrbitDetails.mockResolvedValueOnce(details)
-      const result = await store.getOrbitDetails(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
-      )
+      const result = await store.getOrbitDetails(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       expect(mockApi.getOrbitDetails).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
       )
       expect(result).toEqual(details)
@@ -326,12 +338,12 @@ describe('OrbitsStore', () => {
     it('deleteMember calls API', async () => {
       mockApi.deleteOrbitMember.mockResolvedValueOnce({ detail: 'success' })
       await store.deleteMember(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
         '33333333-3333-3333-3333-333333333333',
       )
       expect(mockApi.deleteOrbitMember).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
         '33333333-3333-3333-3333-333333333333',
       )
@@ -346,13 +358,9 @@ describe('OrbitsStore', () => {
         OrbitRoleEnum.admin,
       )
       mockApi.updateOrbitMember.mockResolvedValueOnce(updatedMember)
-      const result = await store.updateMember(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
-        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
-        data,
-      )
+      const result = await store.updateMember(ORG_ID, 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001', data)
       expect(mockApi.updateOrbitMember).toHaveBeenCalledWith(
-        'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        ORG_ID,
         'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001',
         data,
       )
@@ -360,7 +368,99 @@ describe('OrbitsStore', () => {
     })
   })
 
-  describe('7 - local state helpers', () => {
+  describe('7 - setCurrentOrbitId', () => {
+    it('sets currentOrbitId and triggers loadOrbitDetails when orgId provided', async () => {
+      const orbitId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'
+      const details = createMockOrbitDetails(orbitId)
+      mockApi.getOrbitDetails.mockResolvedValueOnce(details)
+
+      store.orbitsList = [createMockOrbit(orbitId)]
+      store.setCurrentOrbitId(orbitId, ORG_ID)
+
+      expect(store.currentOrbitId).toBe(orbitId)
+      expect(store.isLoadingOrbitDetails).toBe(true)
+      expect(store.hasCurrentOrbit).toBe(true)
+      await vi.waitFor(() => {
+        expect(store.isLoadingOrbitDetails).toBe(false)
+      })
+
+      expect(mockApi.getOrbitDetails).toHaveBeenCalledWith(ORG_ID, orbitId)
+      expect(store.currentOrbitDetails).toEqual(details)
+    })
+
+    it('sets currentOrbitId without loading when no orgId', () => {
+      store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      expect(store.currentOrbitId).toBe('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(mockApi.getOrbitDetails).not.toHaveBeenCalled()
+    })
+
+    it('sets null and clears state', () => {
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      store.setCurrentOrbitId(null)
+
+      expect(store.currentOrbitId).toBeNull()
+      expect(store.currentOrbitDetails).toBeNull()
+      expect(store.hasCurrentOrbit).toBe(false)
+      expect(mockApi.getOrbitDetails).not.toHaveBeenCalled()
+    })
+
+    it('handles loadOrbitDetails failure gracefully', async () => {
+      const orbitId = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'
+      mockApi.getOrbitDetails.mockRejectedValueOnce(new Error('Load failed'))
+
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      store.setCurrentOrbitId(orbitId, ORG_ID)
+
+      await vi.waitFor(() => {
+        expect(store.isLoadingOrbitDetails).toBe(false)
+      })
+
+      expect(store.currentOrbitDetails).toBeNull()
+      consoleSpy.mockRestore()
+    })
+
+    it('ignores stale response when orbit changed during load', async () => {
+      const orbitId1 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'
+      const orbitId2 = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002'
+      const details1 = createMockOrbitDetails(orbitId1)
+      const details2 = createMockOrbitDetails(orbitId2)
+
+      mockApi.getOrbitDetails
+        .mockImplementationOnce(
+          () => new Promise((resolve) => setTimeout(() => resolve(details1), 100)),
+        )
+        .mockResolvedValueOnce(details2)
+      store.setCurrentOrbitId(orbitId1, ORG_ID)
+      store.setCurrentOrbitId(orbitId2, ORG_ID)
+
+      await vi.waitFor(() => {
+        expect(store.isLoadingOrbitDetails).toBe(false)
+      })
+
+      expect(store.currentOrbitId).toBe(orbitId2)
+      expect(store.currentOrbitDetails).toEqual(details2)
+    })
+
+    it('currentOrbit computed returns matching orbit', () => {
+      const orbit = createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+      store.orbitsList = [orbit, createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0002')]
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
+
+      expect(store.currentOrbit).toEqual(orbit)
+    })
+
+    it('currentOrbit returns null when no match', () => {
+      store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
+      store.setCurrentOrbitId('ffffffff-ffff-ffff-ffff-ffffffffffff')
+
+      expect(store.currentOrbit).toBeNull()
+    })
+  })
+
+  describe('8 - local state helpers', () => {
     it('setCurrentOrbitDetails works', () => {
       const perm = {
         orbit: PermissionEnum.read,
@@ -377,13 +477,16 @@ describe('OrbitsStore', () => {
       expect(store.getCurrentOrbitPermissions).toEqual(details.permissions)
     })
 
-    it('reset clears state', () => {
+    it('reset clears all state', () => {
       store.orbitsList = [createMockOrbit('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')]
-
+      store.setCurrentOrbitId('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001')
       store.setCurrentOrbitDetails(createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001'))
       store.reset()
       expect(store.orbitsList).toEqual([])
+      expect(store.currentOrbitId).toBeNull()
       expect(store.currentOrbitDetails).toBeNull()
+      expect(store.isLoadingOrbitDetails).toBe(false)
+      expect(store.hasCurrentOrbit).toBe(false)
       expect(store.getCurrentOrbitPermissions).toBeUndefined()
     })
   })

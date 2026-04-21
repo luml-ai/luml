@@ -1,7 +1,7 @@
 <template>
   <div class="user-notification">
     <div v-if="invitationsStore.invitations.length" class="user-notification__circle"></div>
-    <d-button rounded severity="help" @click="visible = true">
+    <d-button rounded severity="help" class="bell-button" @click="visible = true">
       <template #icon>
         <Bell :size="12" />
       </template>
@@ -162,5 +162,9 @@ async function reject(inviteId: string) {
 .cell {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.bell-button :deep(svg) {
+  color: var(--p-button-text-contrast-color);
 }
 </style>

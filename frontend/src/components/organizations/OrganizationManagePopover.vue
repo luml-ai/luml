@@ -1,11 +1,17 @@
 <template>
-  <div>
+  <div class="org-popover-wrapper">
     <d-button variant="text" class="menu-link" @click="toggle">
       <Users :size="14" class="icon"></Users>
       <span class="label">{{ organizationStore.currentOrganization?.name }}</span>
       <ChevronDown :size="20" class="icon" />
     </d-button>
-    <Popover ref="popover" class="popover-without-arrow" style="width: 330px">
+    <Popover
+      ref="popover"
+      appendTo="self"
+      :dismissable="false"
+      class="popover-without-arrow"
+      style="width: 330px"
+    >
       <div class="popover-content">
         <header class="header">
           <Avatar size="large" :label="currentOrganizationAvatarLabel" />
@@ -22,21 +28,20 @@
           </div>
         </header>
         <div class="popover-label">Switch to Organization</div>
-        <div
-          v-for="organization in organizationStore.availableOrganizations"
-          class="organization"
-          :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
-        >
-          <button class="menu-item" @click="onOrganizationClick(organization.id)">
-            {{ organization.name }}
-          </button>
-          <OrganizationLeavePopover
-            v-if="
-              organization.id !== organizationStore.currentOrganization?.id &&
-              organization.permissions.organization.includes(PermissionEnum.leave)
-            "
-            :organizationId="organization.id"
-          ></OrganizationLeavePopover>
+        <div class="list-scroll">
+          <div
+            v-for="organization in organizationStore.availableOrganizations"
+            class="organization"
+            :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
+          >
+            <button class="menu-item" @click="onOrganizationClick(organization.id)">
+              {{ organization.name }}
+            </button>
+            <OrganizationLeavePopover
+              v-if="organization.permissions?.organization?.includes(PermissionEnum.leave)"
+              :organizationId="organization.id"
+            />
+          </div>
         </div>
         <footer class="footer">
           <d-button severity="secondary" @click="onCreateClick">
@@ -86,64 +91,110 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, inject, watch, type Ref } from 'vue'
 import { Users, ChevronDown, Plus, Bolt } from 'lucide-vue-next'
 import { Popover, Avatar, Dialog } from 'primevue'
 import { useOrganizationStore } from '@/stores/organization'
+import { useOrbitsStore } from '@/stores/orbits'
 import OrganizationCreator from './OrganizationCreator.vue'
 import OrganizationLeavePopover from './OrganizationLeavePopover.vue'
 import UiId from '../ui/UiId.vue'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { useRouter, useRoute } from 'vue-router'
+import { ROUTE_TO_TAB, TAB_TO_ROUTE } from '@/constants/orbit-navigation'
+
+const router = useRouter()
+const route = useRoute()
+const activePopover = inject<Ref<string | null>>('activePopover')
 
 const organizationStore = useOrganizationStore()
+const orbitsStore = useOrbitsStore()
 
 const popover = ref()
 const isCreateMode = ref(false)
-
 const isSettingsDisabled = computed(
   () =>
-    !organizationStore.currentOrganization?.permissions.organization.includes(PermissionEnum.read),
+    !organizationStore.currentOrganization?.permissions?.organization?.includes(
+      PermissionEnum.read,
+    ),
 )
 const currentOrganizationAvatarLabel = computed(() =>
   organizationStore.currentOrganization?.name.charAt(0).toUpperCase(),
 )
 
 function toggle(event: any) {
+  const isMobile = window.innerWidth <= 768
+  if (isMobile && !popover.value?.visible && activePopover) {
+    activePopover.value = 'organization'
+  }
   popover.value.toggle(event)
 }
 
+if (activePopover) {
+  watch(activePopover, (val) => {
+    const isMobile = window.innerWidth <= 768
+    if (isMobile && val !== 'organization' && popover.value?.visible) {
+      popover.value.hide()
+    }
+  })
+}
+
 function onCreateClick() {
-  popover.value.toggle(false)
+  popover.value.hide()
   isCreateMode.value = true
 }
 
 async function onOrganizationClick(organizationId: string) {
-  await organizationStore.setCurrentOrganizationId(organizationId)
+  await organizationStore.switchOrganization(organizationId)
+
+  const currentName = route.name as string
+  const isOnOrgPage = route.matched.some((r) => r.name === 'organization')
+  const hasOrgInUrl = !!route.params.organizationId
+
+  if (isOnOrgPage) {
+    await router.push({
+      name: currentName,
+      params: { id: organizationId },
+    })
+  } else if (hasOrgInUrl) {
+    const firstOrbit = orbitsStore.orbitsList[0]
+    const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
+    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+
+    if (firstOrbit) {
+      await router.push({
+        name: targetRoute,
+        params: { organizationId, id: firstOrbit.id },
+      })
+    } else {
+      await router.push({ name: 'setup', query: { tab } })
+    }
+  }
+
   popover.value.hide()
 }
 </script>
 
 <style scoped>
+.org-popover-wrapper {
+  position: relative;
+}
+
 .menu-link {
-  width: 100%;
-  padding: 8px;
-  border-radius: 4px;
   display: flex;
+  width: 180px;
+  padding: 8px 12px;
   align-items: center;
-  gap: 8px;
+  gap: var(--menubar-item-gap, 7px);
   color: var(--p-menu-item-color);
-  text-decoration: none;
   font-weight: 500;
   height: 32px;
   white-space: nowrap;
-  overflow: hidden;
-  width: 100%;
   font-size: 14px;
   justify-content: flex-start;
   transition:
     color 0.3s,
-    background-color 0.3s,
-    width 0.3s;
+    background-color 0.3s;
 }
 
 .label {
@@ -251,5 +302,24 @@ async function onOrganizationClick(organizationId: string) {
 .creator-text {
   color: var(--p-text-muted-color);
   margin-bottom: 28px;
+}
+
+:deep(.p-popover) {
+  top: calc(100% + 4px) !important;
+  left: auto !important;
+  right: 0 !important;
+  transform: none !important;
+}
+.list-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+@media (max-width: 768px) {
+  :deep(.p-popover) {
+    left: 0 !important;
+    right: auto !important;
+    max-width: calc(100vw - 32px);
+  }
 }
 </style>

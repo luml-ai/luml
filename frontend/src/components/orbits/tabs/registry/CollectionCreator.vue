@@ -65,7 +65,7 @@
 import type { AutoCompleteCompleteEvent } from 'primevue'
 import { Dialog, Button, InputText, Select, AutoComplete, Textarea, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   OrbitCollectionTypeEnum,
   type OrbitCollectionCreator,
@@ -134,6 +134,17 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     loading.value = false
   }
 }
+
+watch(visible, (value) => {
+  if (value) {
+    formData.value = {
+      description: '',
+      name: '',
+      type: OrbitCollectionTypeEnum.model,
+      tags: [],
+    }
+  }
+})
 </script>
 
 <style scoped>

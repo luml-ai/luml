@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
@@ -91,7 +91,9 @@ class Manifest(BaseModel):
 
 
 class LumlArtifactManifest(BaseModel):
-    type: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    type: str = Field(..., alias="artifact_type")
 
     variant: str
     name: str | None = None
@@ -214,6 +216,13 @@ class CreateArtifactResponse(BaseModel):
 class SatelliteArtifactResponse(BaseModel):
     artifact: Artifact
     url: str
+
+
+class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
+    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @property
+    def model(self) -> Artifact:
+        return self.artifact
 
 
 class ArtifactsList(BaseModel):

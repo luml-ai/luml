@@ -2,11 +2,11 @@
   <div v-if="artifactsStore.currentArtifact" class="details">
     <div class="details__part">
       <div class="details__item">
-        <div class="details__label">Model ID</div>
+        <div class="details__label">Artifact ID</div>
         <div class="details__value">{{ artifactsStore.currentArtifact.id }}</div>
       </div>
       <div class="details__item">
-        <div class="details__label">Model name</div>
+        <div class="details__label">Artifact name</div>
         <div class="details__value">{{ artifactsStore.currentArtifact.name }}</div>
       </div>
       <div class="details__item">

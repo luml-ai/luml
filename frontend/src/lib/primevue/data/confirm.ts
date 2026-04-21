@@ -190,14 +190,14 @@ export const deleteRepositoryConfirmOptions = (
 })
 
 export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions => ({
-  message: 'Are you sure you want to leave this page?',
+  message: 'Are you sure you want to exit this page?',
   header: 'Are you sure?',
   rejectProps: {
     label: 'cancel',
     outlined: true,
   },
   acceptProps: {
-    label: 'leave',
+    label: 'exit',
   },
   accept,
 })

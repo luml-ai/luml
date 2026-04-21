@@ -1,0 +1,225 @@
+from datetime import datetime
+from enum import IntEnum, StrEnum
+from typing import Any
+
+from pydantic import BaseModel
+
+from lumlflow.schemas.annotations import AnnotationSummary
+from lumlflow.schemas.base import BaseOrmConfig
+from lumlflow.schemas.models import Model
+
+
+class ExperimentStatus(StrEnum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    ERROR = "error"
+
+
+class _ExperimentBase(BaseModel, BaseOrmConfig):
+    id: str
+    name: str
+    status: ExperimentStatus
+    duration: float | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+    static_params: dict[str, Any] | None = None
+    dynamic_params: dict[str, Any] | None = None
+    created_at: datetime
+    group_name: str | None = None
+    group_id: str | None = None
+
+
+class Experiment(_ExperimentBase): ...
+
+
+class ExperimentMetaData(BaseModel, BaseOrmConfig):
+    name: str
+    status: ExperimentStatus
+    group_id: str
+    tags: list[str] | None = None
+    duration: float | None = None
+    description: str | None = None
+    created_at: datetime
+
+
+class ExperimentData(BaseModel, BaseOrmConfig):
+    experiment_id: str
+    metadata: ExperimentMetaData
+    static_params: dict[str, Any] | None = None
+    dynamic_metrics: dict[str, Any] | None = None
+    attachments: dict[str, Any] | None = None
+
+
+class ExperimentDetails(Experiment):
+    models: list[Model] | None = None
+
+
+class UpdateExperiment(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+
+
+class ExperimentsSortBy(StrEnum):
+    NAME = "name"
+    CREATED_AT = "created_at"
+    DURATION = "duration"
+    MODELS = "models"
+
+
+class PaginatedExperiments(BaseModel):
+    items: list[ExperimentDetails]
+    cursor: str | None = None
+
+
+class MetricPoint(BaseModel):
+    value: float
+    step: int
+    logged_at: datetime | None = None
+
+
+class ExperimentMetricHistory(BaseModel):
+    experiment_id: str
+    key: str
+    subsampled: bool = False
+    history: list[MetricPoint]
+
+
+class Span(BaseModel, BaseOrmConfig):
+    span_id: str
+    parent_span_id: str | None = None
+    name: str
+    kind: int
+    dfs_span_type: int
+    start_time_unix_nano: int
+    end_time_unix_nano: int
+    status_code: int | None = None
+    status_message: str | None = None
+    attributes: dict[str, Any] | None = None
+    events: list[dict[str, Any]] | None = None
+    links: list[dict[str, Any]] | None = None
+    trace_flags: int | None = None
+    annotation_count: int = 0
+
+
+class TraceDetails(BaseModel):
+    trace_id: str
+    spans: list[Span]
+    annotations: AnnotationSummary | None = None
+
+
+class TracesSortBy(StrEnum):
+    EXECUTION_TIME = "execution_time"
+    SPAN_COUNT = "span_count"
+    CREATED_AT = "created_at"
+
+
+class TraceState(IntEnum):
+    STATE_UNSPECIFIED = 0
+    OK = 1
+    ERROR = 2
+    IN_PROGRESS = 3
+
+
+class Trace(BaseModel, BaseOrmConfig):
+    trace_id: str
+    execution_time: float  # nanoseconds
+    span_count: int
+    created_at: datetime
+    state: TraceState = TraceState.STATE_UNSPECIFIED
+    evals: list[str] = []
+    annotations: AnnotationSummary | None = None
+
+
+class PaginatedTraces(BaseModel):
+    items: list[Trace]
+    cursor: str | None = None
+
+
+class EvalsSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    UPDATED_AT = "updated_at"
+    DATASET_ID = "dataset_id"
+
+
+class Eval(BaseModel, BaseOrmConfig):
+    id: str
+    dataset_id: str
+    inputs: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    outputs: dict[str, Any] | None = None
+    refs: dict[str, Any] | None = None
+    scores: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
+    trace_ids: list[str] = []
+    annotations: AnnotationSummary | None = None
+
+
+class PaginatedEvals(BaseModel):
+    items: list[Eval]
+    cursor: str | None = None
+
+
+class ColumnType(StrEnum):
+    STRING = "string"
+    NUMBER = "number"
+    BOOLEAN = "boolean"
+    UNKNOWN = "unknown"
+
+
+class AttachmentRecord(BaseModel, BaseOrmConfig):
+    id: str | None
+    name: str
+    file_path: str
+    created_at: datetime
+
+
+class FileNodeType(StrEnum):
+    FILE = "file"
+    FOLDER = "folder"
+
+
+class FileNode(BaseModel, BaseOrmConfig):
+    name: str
+    type: FileNodeType
+    path: str | None = None
+    size: int | None = None
+
+
+class ColumnField(BaseModel, BaseOrmConfig):
+    name: str
+    type: ColumnType
+
+
+class EvalColumns(BaseModel, BaseOrmConfig):
+    inputs: list[str]
+    outputs: list[str]
+    refs: list[str]
+    scores: list[str]
+    metadata: list[str]
+
+
+class EvalTypedColumns(BaseModel, BaseOrmConfig):
+    inputs: list[ColumnField]
+    outputs: list[ColumnField]
+    refs: list[ColumnField]
+    scores: list[ColumnField]
+    metadata: list[ColumnField]
+    annotations_feedback: list[ColumnField] = []
+    annotations_expectations: list[ColumnField] = []
+
+
+class TraceColumns(BaseModel, BaseOrmConfig):
+    attributes: list[str]
+
+
+class TraceTypedColumns(BaseModel, BaseOrmConfig):
+    attributes: list[ColumnField]
+    annotations_feedback: list[ColumnField] = []
+    annotations_expectations: list[ColumnField] = []
+
+
+class SearchValidationResult(BaseModel):
+    valid: bool = True
+    error: str | None = None

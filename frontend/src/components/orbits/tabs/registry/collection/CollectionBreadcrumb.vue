@@ -41,11 +41,11 @@ const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/artifacts/${route.params.artifactId}`,
     })
   }
-  const modelsToCompare = typeof route.query.models === 'object' ? route.query.models : null
+  const modelsToCompare = typeof route.query.artifacts === 'object' ? route.query.artifacts : null
   if (modelsToCompare?.length) {
-    const queryString = modelsToCompare.map((id) => `models=${id}`).join('&')
+    const queryString = modelsToCompare.map((id) => `artifacts=${id}`).join('&')
     list.push({
-      label: `Multi-model comparison (${modelsToCompare.length})`,
+      label: `Experiments comparison (${modelsToCompare.length})`,
       route: `/organization/${route.params.organizationId}/orbit/${route.params.id}/collection/${route.params.collectionId}/compare?${queryString}`,
     })
   }

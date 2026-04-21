@@ -17,7 +17,22 @@
       </div>
     </div>
     <div class="footer" v-if="task.btnText">
-      <d-button :label="task.btnText" severity="secondary" class="w-full" @click="onButtonClick" />
+      <SplitButton
+        v-if="task.dropdownOptions?.length"
+        :label="task.btnText"
+        :model="dropdownItems"
+        severity="secondary"
+        class="w-full"
+        @click="onButtonClick"
+      />
+      <d-button
+        v-else
+        :label="task.btnText"
+        severity="secondary"
+        class="w-full"
+        :disabled="task.isDisabled"
+        @click="onButtonClick"
+      />
     </div>
     <task-modal v-if="isPromptFusionTask" v-model="isPopupVisible" />
   </div>
@@ -28,6 +43,7 @@ import type { TaskData } from './interfaces'
 import { CircleHelp } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import SplitButton from 'primevue/splitbutton'
 import TaskModal from '@/components/express-tasks/prompt-fusion/TaskModal.vue'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 
@@ -49,6 +65,20 @@ function onButtonClick() {
     isPopupVisible.value = true
   }
 }
+
+const dropdownItems = computed(() =>
+  (props.task.dropdownOptions || []).map((opt) => ({
+    label: opt.label,
+    command: () => {
+      AnalyticsService.track(AnalyticsTrackKeysEnum.select_task, {
+        task: props.task.analyticsTaskName,
+      })
+      const target = opt.route || props.task.linkName
+      if (target) router.push({ name: target })
+      else if (isPromptFusionTask.value) isPopupVisible.value = true
+    },
+  })),
+)
 </script>
 
 <style scoped>
@@ -90,6 +120,19 @@ function onButtonClick() {
   color: var(--p-text-muted-color);
   font-size: 14px;
   line-height: 1.42;
+}
+:deep(.p-splitbutton) {
+  width: 100%;
+}
+:deep(.p-splitbutton .p-splitbutton-button) {
+  flex: 1;
+}
+:deep(.p-splitbutton .p-splitbutton-dropdown) {
+  border-left: 1.5px solid var(--p-card-background);
+}
+:deep(.p-splitbutton .p-splitbutton-dropdown .p-icon) {
+  width: 10px;
+  height: 10px;
 }
 @media (max-width: 768px) {
   .tooltip-icon {

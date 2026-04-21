@@ -1,0 +1,87 @@
+name: Publish Satellite Agent Image
+
+on:
+  push:
+    branches: [main, staging, production]
+    tags:
+      - "satellite/agent/v*"
+    paths:
+      - satellite/Dockerfile
+      - satellite/pyproject.toml
+      - satellite/uv.lock
+      - satellite/agent/**
+  workflow_dispatch:
+
+concurrency:
+  group: publish-satellite-agent-image-${{ github.ref_name }}
+  cancel-in-progress: true
+
+env:
+  GHCR_REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/luml-satellite-agent
+
+jobs:
+  # -------------------------------------------------------------------
+  # Resolve image tag from branch or release tag
+  # -------------------------------------------------------------------
+
+  resolve-image-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.set.outputs.image_tag }}
+    steps:
+      - id: set
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            TAG="${{ github.ref_name }}"
+
+            if [[ ! "$TAG" =~ ^satellite/agent/v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "Unsupported release tag: $TAG" >&2
+              exit 1
+            fi
+
+            echo "image_tag=${TAG##*/}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "${{ github.ref_name }}" in
+            main)
+              echo "image_tag=dev" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo "image_tag=staging" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "image_tag=latest" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported publish branch: ${{ github.ref_name }}" >&2
+              exit 1
+              ;;
+          esac
+
+  # -------------------------------------------------------------------
+  # Publish image
+  # -------------------------------------------------------------------
+
+  push-image:
+    needs: [resolve-image-tag]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.GHCR_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: satellite
+          file: satellite/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ env.IMAGE_NAME }}:${{ needs.resolve-image-tag.outputs.image_tag }}

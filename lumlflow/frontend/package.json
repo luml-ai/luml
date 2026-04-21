@@ -7,19 +7,30 @@
     "dev": "vite",
     "build": "vue-tsc --build && vite build",
     "preview": "vite preview",
-    "type-check": "vue-tsc --build --force"
+    "type-check": "vue-tsc --build --force",
+    "lint": "eslint . --fix --cache",
+    "format": "prettier --write --experimental-cli src/",
+    "style": "npx style-dictionary build --config style-dictionary.config.mjs"
   },
   "dependencies": {
-    "axios": "^1.7.7",
-    "vue": "^3.5.12"
-  },
-  "devDependencies": {
-    "@tsconfig/node22": "^22.0.0",
-    "@types/node": "^22.9.0",
-    "@vitejs/plugin-vue": "^5.2.4",
-    "@vue/tsconfig": "^0.5.1",
-    "typescript": "^5.9.2",
-    "vite": "^6.4.1",
-    "vue-tsc": "^2.1.10"
+    "@luml/attachments": "*",
+    "@luml/experiments": "*",
+    "@primeuix/themes": "^2.0.3",
+    "@primevue/forms": "^4.3.9",
+    "@tailwindcss/vite": "^4.1.18",
+    "@vueuse/core": "^14.1.0",
+    "axios": "^1.13.5",
+    "dompurify": "^3.3.3",
+    "github-markdown-css": "^5.9.0",
+    "lucide-vue-next": "^0.460.0",
+    "marked": "^18.0.0",
+    "pinia": "^3.0.4",
+    "primevue": "^4.4.1",
+    "qs": "^6.15.0",
+    "tailwindcss": "^4.1.18",
+    "tailwindcss-primeui": "^0.6.1",
+    "vue": "^3.5.12",
+    "vue-router": "^4.4.5",
+    "zod": "^4.3.6"
   }
 }

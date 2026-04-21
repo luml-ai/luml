@@ -63,13 +63,14 @@ const services: IAuthorizationService[] = [
     id: 'google',
     label: 'Sign in with Google',
     icon: GoogleIcon,
-    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/auth/google/login`),
+    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/v1/auth/google/login`),
   },
   {
     id: 'microsoft',
     label: 'Sign in with Microsoft',
     icon: MicrosoftIcon,
-    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/auth/microsoft/login`),
+    action: () =>
+      (window.location.href = `${import.meta.env.VITE_API_URL}/v1/auth/microsoft/login`),
   },
   // {
   //   id: 'github',

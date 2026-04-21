@@ -22,6 +22,7 @@
         label="Predict"
         type="submit"
         fluid
+        rounded
         :disabled="isManualPredictButtonDisabled"
         @click="onManualSubmit"
       />

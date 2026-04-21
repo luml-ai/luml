@@ -1,0 +1,50 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main, staging, production]
+    paths:
+      - "frontend/**"
+      - "lumlflow/frontend/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  resolve-env:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set.outputs.environment }}
+    steps:
+      - id: set
+        run: |
+          case "${{ github.ref_name }}" in
+            main)
+              echo "environment=dev" >> "$GITHUB_OUTPUT"
+              ;;
+            staging)
+              echo "environment=staging" >> "$GITHUB_OUTPUT"
+              ;;
+            production)
+              echo "environment=production" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Unsupported deploy branch: ${{ github.ref_name }}" >&2
+              exit 1
+              ;;
+          esac
+
+  deploy:
+    needs: [resolve-env]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.resolve-env.outputs.environment }}
+      url: ${{ vars.FRONTEND_URL }}
+    steps:
+      - uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+      - name: Trigger deployment
+        run: doctl apps create-deployment ${{ vars.DIGITALOCEAN_FRONTEND_APP_ID }} --wait

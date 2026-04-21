@@ -122,4 +122,8 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 7px;
 }
+.model-title::after {
+  content: ' *';
+  color: var(--p-badge-warn-background);
+}
 </style>

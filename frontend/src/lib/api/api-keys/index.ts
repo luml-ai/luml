@@ -9,11 +9,12 @@ export class ApiKeysApi {
   }
 
   async createApiKey() {
-    const { data: responseData } = await this.api.post<CreateApiKeyResponse>(`/users/me/api-keys`)
+    const { data: responseData } =
+      await this.api.post<CreateApiKeyResponse>(`/v1/users/me/api-keys`)
     return responseData
   }
 
   async deleteApiKey() {
-    await this.api.delete(`/users/me/api-keys`)
+    await this.api.delete(`/v1/users/me/api-keys`)
   }
 }

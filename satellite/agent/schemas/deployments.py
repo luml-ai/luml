@@ -31,8 +31,8 @@ class Deployment(BaseModel):
     satellite_id: str
     satellite_name: str
     name: str
-    model_id: str
-    model_artifact_name: str
+    artifact_id: str
+    artifact_name: str
     collection_id: str
     inference_url: str | None = None
     status: str

@@ -109,14 +109,13 @@ const orbitsStore = useOrbitsStore()
 const initialValues = ref({
   name: props.data.name,
   description: props.data.description,
-  tags: [...props.data.tags],
+  tags: Array.isArray(props.data.tags) ? [...props.data.tags] : [],
 })
 const loading = ref(false)
 const existingTags = computed(() => {
   const tagsSet = collectionsStore.collectionsList.reduce((acc: Set<string>, item) => {
-    item.tags.map((tag) => {
-      acc.add(tag)
-    })
+    if (!Array.isArray(item.tags)) return acc
+    item.tags.forEach((tag) => acc.add(tag))
     return acc
   }, new Set<string>())
   return Array.from(tagsSet)

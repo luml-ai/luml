@@ -23,7 +23,7 @@ export class ArtifactsApi {
     data: CreateArtifactPayload,
   ) {
     const { data: responseData } = await this.api.post<CreateArtifactResponse>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
       data,
     )
     return responseData
@@ -37,7 +37,7 @@ export class ArtifactsApi {
     signal: AbortSignal,
   ) {
     const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
       {
         params,
         signal,
@@ -55,7 +55,7 @@ export class ArtifactsApi {
     data: UpdateArtifactPayload,
   ) {
     const { data: responseData } = await this.api.patch<Artifact>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
       data,
     )
     return responseData
@@ -68,7 +68,7 @@ export class ArtifactsApi {
     artifactId: string,
   ) {
     const { data: responseData } = await this.api.get<{ url: string }>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/download-url`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/download-url`,
     )
     return responseData
   }
@@ -80,7 +80,7 @@ export class ArtifactsApi {
     artifactId: string,
   ) {
     const { data: responseData } = await this.api.get<{ url: string }>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/delete-url`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/delete-url`,
     )
     return responseData
   }
@@ -92,7 +92,7 @@ export class ArtifactsApi {
     artifactId: string,
   ) {
     const { data: responseData } = await this.api.delete(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
     )
     return responseData
   }
@@ -104,13 +104,13 @@ export class ArtifactsApi {
     artifactId: string,
   ) {
     return this.api.delete(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/force`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/force`,
     )
   }
 
   async getById(organizationId: string, orbitId: string, collectionId: string, artifactId: string) {
     const { data: responseData } = await this.api.get<Artifact>(
-      `/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
     )
     return responseData
   }

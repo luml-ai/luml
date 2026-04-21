@@ -8,7 +8,7 @@
       :min-span-time="minSpanTime"
       @select="setSelectedSpan"
     ></TraceSpans>
-    <TraceBody class="body" :data="selectedSpan"></TraceBody>
+    <TraceBody :data="selectedSpan" :artifact-id="artifactId" :trace-id="traceId"></TraceBody>
   </Dialog>
 </template>
 
@@ -25,6 +25,8 @@ type Props = {
   count: number
   maxSpanTime: number
   minSpanTime: number
+  artifactId: string
+  traceId: string
 }
 
 const props = defineProps<Props>()
@@ -58,9 +60,5 @@ function setSelectedSpan(span: TraceSpan) {
 .models {
   flex: 1 1 auto;
   overflow-x: auto;
-}
-.body {
-  flex: 1 1 auto;
-  overflow: hidden;
 }
 </style>

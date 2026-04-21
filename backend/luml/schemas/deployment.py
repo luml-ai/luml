@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
 
 from luml.schemas.base import BaseOrmConfig
 
@@ -39,6 +39,16 @@ class Deployment(BaseModel, BaseOrmConfig):
     tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @property
+    def model_id(self) -> UUID:
+        return self.artifact_id
+
+    @computed_field(deprecated=True)  # type: ignore[prop-decorator]
+    @property
+    def model_artifact_name(self) -> str:
+        return self.artifact_name
 
 
 class DeploymentCreate(BaseModel, BaseOrmConfig):

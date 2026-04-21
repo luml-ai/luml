@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     SATELLITE_TOKEN: str
     PLATFORM_URL: AnyHttpUrl = "https://api.luml.ai"
     BASE_URL: str = "http://localhost"
-    MODEL_IMAGE: str = "df-random-svc:latest"
+    MODEL_IMAGE: str = "luml-random-svc:latest"
     POLL_INTERVAL_SEC: float = 2.0
     MODEL_SERVER_PORT: int = 8080
 

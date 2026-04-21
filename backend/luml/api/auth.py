@@ -1,7 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response
-from pydantic import EmailStr
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from starlette.responses import RedirectResponse
 
 from luml.clients.oauth_providers import (
@@ -10,7 +9,7 @@ from luml.clients.oauth_providers import (
 )
 from luml.handlers.auth import AuthHandler
 from luml.infra.dependencies import UserAuthentication
-from luml.schemas.auth import Token
+from luml.schemas.auth import ForgotPasswordIn, Token
 from luml.schemas.user import (
     CreateUserIn,
     DetailResponse,
@@ -24,6 +23,18 @@ from luml.settings import config
 is_user_authenticated = UserAuthentication(["jwt"])
 
 auth_router = APIRouter(prefix="/auth", tags=["auth"])
+
+api_key_validate_router = APIRouter(
+    prefix="/auth/api-keys",
+    tags=["api-keys"],
+    dependencies=[Depends(UserAuthentication(["api_key"]))],
+)
+
+
+@api_key_validate_router.get("/validate", status_code=status.HTTP_204_NO_CONTENT)
+async def validate_api_key() -> None:
+    return
+
 
 auth_handler = AuthHandler(secret_key=config.AUTH_SECRET_KEY)
 google_auth_handler = AuthHandler(
@@ -97,8 +108,8 @@ async def refresh(request: Request, response: Response) -> dict[str, str]:
 
 
 @auth_router.post("/forgot-password", response_model=DetailResponse)
-async def forgot_password(email: Annotated[EmailStr, Body()]) -> dict[str, str]:
-    await auth_handler.send_password_reset_email(email)
+async def forgot_password(data: ForgotPasswordIn) -> dict[str, str]:
+    await auth_handler.send_password_reset_email(data.email)
     return {"detail": "Password reset email has been sent"}
 
 
