@@ -32,14 +32,4 @@ defineProps<Props>()
   flex-direction: column;
   gap: 8px;
 }
-.orbit {
-  display: grid;
-  grid-template-columns: 30px 1fr 90px 20px;
-  align-items: center;
-  border-radius: 8px;
-  padding: 16px;
-  border: 1px solid var(--p-content-border-color);
-  white-space: nowrap;
-  overflow: hidden;
-}
 </style>

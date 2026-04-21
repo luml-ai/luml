@@ -6,43 +6,34 @@
       <span class="orbit-id-label">Id: </span>
       <span class="orbit-id-value">{{ cutStringOnMiddle(orbit.id, 8) }}</span>
     </div>
-    <Button
-      variant="text"
-      severity="secondary"
-      size="small"
-      class="orbit-copy-btn"
-      @click="onCopyClick"
-    >
-      <component :is="isCopied ? CopyCheck : Copy" :size="14" class="orbit-copy-icon" />
-    </Button>
+    <UiCopyButton :text="orbit.id"></UiCopyButton>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { Orbit } from '@/lib/api/api.interfaces'
 import { cutStringOnMiddle } from '@/helpers/helpers'
-import { Orbit as OrbitIcon, Copy, CopyCheck } from 'lucide-vue-next'
-import { Button } from 'primevue'
-import { ref } from 'vue'
+import { Orbit as OrbitIcon } from 'lucide-vue-next'
+import UiCopyButton from '@/components/ui/UiCopyButton.vue'
 
 type Props = {
   orbit: Pick<Orbit, 'id' | 'name'>
 }
 
 const props = defineProps<Props>()
-
-const isCopied = ref(false)
-
-function onCopyClick() {
-  navigator.clipboard.writeText(props.orbit.id)
-  isCopied.value = true
-  setTimeout(() => {
-    isCopied.value = false
-  }, 2000)
-}
 </script>
 
 <style scoped>
+.orbit {
+  display: grid;
+  grid-template-columns: 30px 1fr 90px 20px;
+  align-items: center;
+  border-radius: 8px;
+  padding: 16px;
+  border: 1px solid var(--p-content-border-color);
+  white-space: nowrap;
+  overflow: hidden;
+}
 .orbit-icon {
   flex: 0 0 auto;
   padding-right: 6px;
