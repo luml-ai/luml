@@ -126,12 +126,12 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   updateTeacherModel(model: ProviderModelsEnum | null) {
     this.teacherModel = model
-    this.emit('CHANGE_TEACHER_MODEL')
+    this.emit('CHANGE_TEACHER_MODEL', model)
   }
 
   updateStudentModel(model: ProviderModelsEnum | null) {
     this.studentModel = model
-    this.emit('CHANGE_STUDENT_MODEL')
+    this.emit('CHANGE_STUDENT_MODEL', model)
   }
 
   checkIsOptimizationAvailable() {
@@ -142,6 +142,12 @@ class PromptFusionServiceClass extends Observable<Events> {
       throw new Error(
         'Optimization cannot proceed with identical field names in cards. Please review and rename duplicate fields.',
       )
+    if (!this.nodesData?.nodes?.length) {
+      throw new Error('Pipeline has no nodes. Please build your pipeline first.')
+    }
+    if (!this.nodesData?.edges?.length) {
+      throw new Error('Pipeline nodes are not connected. Please connect your nodes.')
+    }
   }
 
   getProviderSettings(providerId: ProvidersEnum) {
@@ -322,6 +328,12 @@ class PromptFusionServiceClass extends Observable<Events> {
     const teacherProviderId = allModels.find((item) =>
       item.items.find((model) => model.id === this.teacherModel),
     )?.providerId
+    const teacherProvider = this.providers.find((p) => p.id === teacherProviderId)
+    if (teacherProvider?.status === ProviderStatus.disconnected) {
+      throw new Error(
+        `Provider "${teacherProvider.name}" is not connected. Please check your API key.`,
+      )
+    }
     const teacherProviderSettings = teacherProviderId
       ? this.getProviderSettings(teacherProviderId)
       : null
@@ -338,6 +350,12 @@ class PromptFusionServiceClass extends Observable<Events> {
     const studentProviderId = allModels.find((item) =>
       item.items.find((model) => model.id === this.studentModel),
     )?.providerId
+    const studentProvider = this.providers.find((p) => p.id === studentProviderId)
+    if (studentProvider?.status === ProviderStatus.disconnected) {
+      throw new Error(
+        `Provider "${studentProvider.name}" is not connected. Please check your API key.`,
+      )
+    }
     const studentProviderSettings = studentProviderId
       ? this.getProviderSettings(studentProviderId)
       : null
