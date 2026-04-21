@@ -6,7 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.4",
     "fastapi>=0.115.0",
-    "luml-sdk==0.1.0",
+    "luml-sdk",
     "sqlalchemy>=2.0.47",
     "typer>=0.15.0",
     "uvicorn[standard]>=0.34.0",

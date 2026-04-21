@@ -55,7 +55,7 @@ def ensure_luml_dependency(worktree_path: str) -> None:
 
     try:
         subprocess.run(
-            ["uv", "add", "luml-sdk==0.1.0"],
+            ["uv", "add", "luml-sdk"],
             cwd=worktree_path,
             check=True,
             capture_output=True,
