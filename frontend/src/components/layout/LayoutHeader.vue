@@ -45,33 +45,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide, onMounted, onUnmounted } from 'vue'
 import UserToolbar from '../user/UserToolbar.vue'
 import { useAuthStore } from '@/stores/auth'
 import { X, Menu } from 'lucide-vue-next'
 import OrganizationManagePopover from '../organizations/OrganizationManagePopover.vue'
 import OrbitManagePopover from '../orbits/OrbitManagePopover.vue'
-
-const activePopover = ref<string | null>(null)
-provide('activePopover', activePopover)
-
-function onDocumentClick(event: MouseEvent) {
-  const target = event.target as HTMLElement
-  if (target.closest('.p-popover') || target.closest('.logo-group')) return
-  activePopover.value = null
-}
-
-onMounted(() => {
-  document.addEventListener('click', onDocumentClick)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', onDocumentClick)
-})
-
-type Emits = {
-  (e: 'burgerClick'): void
-}
 
 defineProps({
   isActivesVisible: {
@@ -83,6 +61,9 @@ defineProps({
   },
 })
 
+type Emits = {
+  (e: 'burgerClick'): void
+}
 defineEmits<Emits>()
 
 const authStore = useAuthStore()
