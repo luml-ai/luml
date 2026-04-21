@@ -1,7 +1,13 @@
 <template>
   <div class="column-header">
     <div class="column-header-title">
-      <span :title="column">{{ cutStringOnMiddle(column) }}</span>
+      <span
+        v-tooltip.top="
+          column !== cutStringOnMiddle(column) ? { value: column, showDelay: 400 } : undefined
+        "
+      >
+        {{ cutStringOnMiddle(column) }}
+      </span>
       <div class="column-header-icons">
         <component
           :is="currentColumnTypeIcon"

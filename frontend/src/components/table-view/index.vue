@@ -91,8 +91,6 @@ import { CloudDownload } from 'lucide-vue-next'
 import { DataTable, Column } from 'primevue'
 import { computed, onBeforeMount, onBeforeUnmount, ref } from 'vue'
 
-import { cutStringOnMiddle } from '@/helpers/helpers'
-
 type Props = {
   columnsCount: number
   rowsCount: number
@@ -104,7 +102,7 @@ type Props = {
   exportCallback: Function
   filters?: FilterItem[]
   columnTypes: Record<string, ColumnType>
-  showColumnHeaderMenu: boolean
+  showColumnHeaderMenu?: boolean
   inputsOutputsColumns?: PromptFusionColumn[]
 }
 

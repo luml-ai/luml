@@ -31,12 +31,7 @@
         :export-callback="downloadCSV"
         :columnTypes="columnTypes"
         :inputs-outputs-columns="inputsOutputsColumns"
-        show-column-header-menu
         @edit="setSelectedColumns"
-        :target="getTarget"
-        :group="getGroup"
-        @set-target="setTarget"
-        @change-group="changeGroup"
       />
     </step-edit>
     <step-main v-else-if="step === 3" :initial-nodes="initialNodes" @go-back="backFromMain" />
@@ -84,10 +79,6 @@ const {
   inputsOutputsColumns,
   getInputsColumns,
   getOutputsColumns,
-  getTarget,
-  getGroup,
-  setTarget,
-  changeGroup,
   onSelectFile,
   onRemoveFile,
   setSelectedColumns,
