@@ -38,6 +38,7 @@ class Backend(ABC):
         name: str | None = None,
         tags: list[str] | None = None,
         description: str | None = None,
+        source: str | None = None,
     ) -> None:
         pass
 
@@ -250,6 +251,8 @@ class Backend(ABC):
         model_path: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        source: str | None = None,
+        description: str | None = None,
     ) -> tuple[Model, str]:
         pass
 
@@ -267,6 +270,7 @@ class Backend(ABC):
         model_id: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> Model | None:
         pass
 

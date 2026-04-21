@@ -188,6 +188,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "description",
         "static_params",
         "dynamic_params",
+        "source",
     ]
 
     _SQLITE_TYPE_MAP: dict[str, ColumnType] = {
@@ -282,11 +283,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             path=row[4],
             size=row[5],
             experiment_id=row[6],
+            source=row[7],
+            description=row[8],
         )
 
     def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
         cursor.execute(
-            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE id = ?",
+            "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE id = ?",
             (model_id,),
         )
         row = cursor.fetchone()
@@ -299,6 +302,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         name: str | None = None,
         tags: list[str] | None = None,
         description: str | None = None,
+        source: str | None = None,
     ) -> None:
         """
         Initializes an experiment by associating it with a group and storing its metadata in the database.
@@ -311,6 +315,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 be used as the name.
             tags: Optional list of tags associated with the experiment.
             description: Optional description of the experiment.
+            source: Path of the script or file that created the experiment.
         """
         conn = self._get_meta_connection()
         cursor = conn.cursor()
@@ -326,10 +331,17 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         tags_str = json.dumps(tags) if tags else None
         cursor.execute(
             """
-            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description, source)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (experiment_id, name or experiment_id, group_id, tags_str, description),
+            (
+                experiment_id,
+                name or experiment_id,
+                group_id,
+                tags_str,
+                description,
+                source,
+            ),
         )
 
         conn.commit()
@@ -887,7 +899,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description
+            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description, source
             FROM experiments
             """
         )
@@ -905,6 +917,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     dynamic_params=json.loads(row[7]) if row[7] else {},
                     duration=row[8],
                     description=row[9],
+                    source=row[10],
                 )
             )
         return experiments
@@ -1010,7 +1023,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT e.id, e.name, e.created_at, e.status, e.tags, e.duration, e.description, "
-            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name "
+            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name, e.source "
             "FROM experiments e "
             "LEFT JOIN experiment_groups eg ON e.group_id = eg.id "
             "WHERE e.id = ?",
@@ -1031,6 +1044,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             static_params=json.loads(row[8]) if row[8] else None,
             dynamic_params=json.loads(row[9]) if row[9] else None,
             group_name=row[10],
+            source=row[11],
         )
 
     def delete_experiment(self, experiment_id: str) -> None:
@@ -1100,7 +1114,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         if not fields:
             cursor.execute(
-                "SELECT id, name, created_at, status, tags, duration, description, group_id "
+                "SELECT id, name, created_at, status, tags, duration, description, group_id, source "
                 "FROM experiments WHERE id = ?",
                 (experiment_id,),
             )
@@ -1116,6 +1130,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 duration=row[5],
                 description=row[6],
                 group_id=row[7],
+                source=row[8],
             )
 
         values.append(experiment_id)
@@ -1126,7 +1141,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn.commit()
 
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id "
+            "SELECT id, name, created_at, status, tags, duration, description, group_id, source "
             "FROM experiments WHERE id = ?",
             (experiment_id,),
         )
@@ -1142,6 +1157,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             duration=row[5],
             description=row[6],
             group_id=row[7],
+            source=row[8],
         )
 
     def create_group(
@@ -1332,6 +1348,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         model_path: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        source: str | None = None,
+        description: str | None = None,
     ) -> tuple[Model, str]:
         """
         Logs a machine learning model to the specified experiment by storing its metadata and
@@ -1345,6 +1363,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 the model file name is used.
             tags (list[str] | None, optional): A list of tags associated with the model to
                 provide metadata for organizational or informational purposes.
+            source (str | None, optional): Path of the script or file that logged the model.
+            description (str | None, optional): Human-readable description of the model.
 
         Returns:
             tuple[Model, str]: A tuple containing the `Model` object representing the logged
@@ -1378,9 +1398,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         models_dir = exp_dir / "models"
         models_dir.mkdir(exist_ok=True)
 
-        source = Path(model_path)
-        dest = models_dir / source.name
-        shutil.copy2(source, dest)
+        model_src = Path(model_path)
+        dest = models_dir / model_src.name
+        shutil.copy2(model_src, dest)
 
         model_id = str(uuid.uuid4())
         tags_json = json.dumps(tags) if tags else None
@@ -1392,20 +1412,31 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         size = dest.stat().st_size
 
         cursor.execute(
-            "INSERT INTO models (id, name, tags, path, size, experiment_id) VALUES (?, ?, ?, ?, ?, ?)",
-            (model_id, name or source.stem, tags_json, rel_path, size, experiment_id),
+            "INSERT INTO models (id, name, tags, path, size, experiment_id, source, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                model_id,
+                name or model_src.stem,
+                tags_json,
+                rel_path,
+                size,
+                experiment_id,
+                source,
+                description,
+            ),
         )
         conn.commit()
 
         now = datetime.now(UTC)
         model = Model(
             id=model_id,
-            name=name or source.stem,
+            name=name or model_src.stem,
             created_at=now,
             tags=tags or [],
             path=rel_path,
             size=size,
             experiment_id=experiment_id,
+            source=source,
+            description=description,
         )
         return model, str(dest)
 
@@ -1450,7 +1481,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id = ?",
+            "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
             (experiment_id,),
         )
         return [self._row_to_model(row) for row in cursor.fetchall()]
@@ -1497,6 +1528,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         model_id: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> Model | None:
         """
         Updates the attributes of a model in the database given its model ID.
@@ -1542,6 +1574,9 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if tags is not None:
             fields.append("tags = ?")
             values.append(json.dumps(tags))
+        if description is not None:
+            fields.append("description = ?")
+            values.append(description)
 
         if not fields:
             return self._fetch_model(cursor, model_id)
@@ -1776,7 +1811,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             placeholders = ", ".join("?" for _ in experiment_ids)
 
             cursor.execute(
-                f"SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id IN ({placeholders})",
+                f"SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id IN ({placeholders})",
                 experiment_ids,
             )
             for row in cursor.fetchall():
@@ -1829,7 +1864,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
 
         cursor.execute(
-            "SELECT id, name, created_at, tags, path, size, experiment_id FROM models WHERE experiment_id = ?",
+            "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE experiment_id = ?",
             (experiment_id,),
         )
 
@@ -1922,6 +1957,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 description=e["description"],
                 static_params=e["static_params"] or None,
                 dynamic_params=e["dynamic_params"] or None,
+                source=e.get("source"),
             )
             for e in experiments_dicts
         ]

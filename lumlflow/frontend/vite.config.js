@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => ({
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url)),
         },
+        dedupe: ['vue', 'pinia'],
     },
     server: {
         port: 5173,

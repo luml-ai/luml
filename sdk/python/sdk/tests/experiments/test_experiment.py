@@ -260,8 +260,7 @@ class TestGetExperiment:
         assert data.attachments == {}
 
     def test_get_experiment_not_found(self, tracker: ExperimentTracker) -> None:
-        with pytest.raises(ValueError):
-            tracker.get_experiment("nonexistent-id")
+        assert tracker.get_experiment("nonexistent-id") is None
 
 
 class TestListExperiments:
@@ -358,8 +357,7 @@ class TestDeleteExperiment:
 
         tracker.delete_experiment(exp_id)
 
-        with pytest.raises(ValueError):
-            tracker.get_experiment(exp_id)
+        assert tracker.get_experiment(exp_id) is None
 
     def test_delete_removes_from_listing(
         self, tracker_with_experiment: tuple[ExperimentTracker, str]

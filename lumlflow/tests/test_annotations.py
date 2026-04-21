@@ -603,9 +603,9 @@ class TestTraceSummaryInTraceResponse:
 
         exp_handler = ExperimentsHandler(tracker=handler.tracker)
         result = exp_handler.get_trace(exp_id, trace_id)
-        assert result.annotation_summary is not None
-        assert len(result.annotation_summary.feedback) == 1
-        assert result.annotation_summary.feedback[0].name == "quality"
+        assert result.annotations is not None
+        assert len(result.annotations.feedback) == 1
+        assert result.annotations.feedback[0].name == "quality"
 
     def test_get_traces_includes_summary(
         self, handler_with_experiment: tuple[AnnotationsHandler, str]
@@ -629,5 +629,5 @@ class TestTraceSummaryInTraceResponse:
         exp_handler = ExperimentsHandler(tracker=handler.tracker)
         result = exp_handler.get_experiment_traces(exp_id)
         assert len(result.items) == 1
-        assert result.items[0].annotation_summary is not None
-        assert len(result.items[0].annotation_summary.feedback) == 1
+        assert result.items[0].annotations is not None
+        assert len(result.items[0].annotations.feedback) == 1

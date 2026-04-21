@@ -59,6 +59,7 @@ class ExperimentsHandler:
             static_params=experiment.static_params,
             dynamic_params=experiment.dynamic_params,
             group_name=experiment.group_name,
+            source=experiment.source,
             models=[Model.model_validate(m) for m in models],
         )
 
