@@ -15,6 +15,13 @@ class OrbitRole(StrEnum):
     # VIEWER = "viewer"
 
 
+class OrbitBase(BaseModel, BaseOrmConfig):
+    id: UUID
+    name: str
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
 class Orbit(BaseModel, BaseOrmConfig):
     id: UUID
     name: str

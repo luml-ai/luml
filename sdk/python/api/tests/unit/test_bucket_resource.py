@@ -50,8 +50,10 @@ def test_bucket_secret_create(
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
+        "region": "us-east-1",
         "access_key": "access_key",
         "secret_key": "secret_key",
+        "type": "s3",
     }
     mock_sync_client.filter_none.return_value = expected_json
 
@@ -59,6 +61,7 @@ def test_bucket_secret_create(
     resource.create(
         endpoint="s3.amazonaws.com",
         bucket_name="my-bucket",
+        region="us-east-1",
         access_key="access_key",
         secret_key="secret_key",
     )
@@ -191,8 +194,10 @@ async def test_async_bucket_secret_create(
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
+        "region": "us-east-1",
         "access_key": "access_key",
         "secret_key": "secret_key",
+        "type": "s3",
     }
     mock_async_client.filter_none.return_value = expected_json
 
@@ -200,6 +205,7 @@ async def test_async_bucket_secret_create(
     await resource.create(
         endpoint="s3.amazonaws.com",
         bucket_name="my-bucket",
+        region="us-east-1",
         access_key="access_key",
         secret_key="secret_key",
     )
