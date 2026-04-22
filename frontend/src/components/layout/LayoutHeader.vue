@@ -4,7 +4,7 @@
       <img src="@/assets/img/Logo_Full_light_mode.svg" alt="LUML" class="logo-img logo-light" />
       <img src="@/assets/img/Logo_Full_dark_mode.svg" alt="LUML" class="logo-img logo-dark" />
     </router-link>
-    <div v-if="authStore.isAuth" class="logo-group">
+    <div v-if="authStore.isAuth" class="logo-group" :class="{ 'logo-group-mobile': isBurgerOpen }">
       <OrganizationManagePopover />
       <span class="separator">/</span>
       <OrbitManagePopover />
@@ -147,6 +147,22 @@ const authStore = useAuthStore()
 
   .sign-up-button {
     display: none;
+  }
+
+  .header {
+    row-gap: 0;
+  }
+
+  .logo-group {
+    display: none;
+  }
+
+  .logo-group-mobile {
+    margin: 8px -16px 0;
+    padding: 16px 16px 0;
+    width: calc(100% + 32px);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
   }
 }
 

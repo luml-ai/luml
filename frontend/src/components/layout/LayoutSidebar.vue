@@ -69,6 +69,8 @@
           </li>
         </ul>
       </nav>
+      <UiThemeToggle v-model="theme" :icon-only="!isSidebarOpened" />
+      <div class="divider"></div>
       <d-button
         severity="contrast"
         variant="text"
@@ -86,6 +88,7 @@
 </template>
 
 <script setup lang="ts">
+import type { Theme } from '@/stores/theme'
 import { ArrowLeftToLine, Github, Star } from 'lucide-vue-next'
 import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
@@ -97,15 +100,25 @@ import { GitHubService } from '@/lib/github/GitHubService'
 import { useLayout } from '@/hooks/useLayout'
 import { useOrbitsStore } from '@/stores/orbits'
 import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
+import { useThemeStore } from '@/stores/theme'
+import UiThemeToggle from '../ui/UiThemeToggle.vue'
+
+interface Props {
+  mobileSidebarOpened?: boolean
+}
+
+const props = defineProps<Props>()
 
 const route = useRoute()
 const orbitsStore = useOrbitsStore()
 const { headerSizes } = useLayout()
 const { width } = useWindowSize()
 const organizationsStore = useOrganizationStore()
+const themeStore = useThemeStore()
 
 const isSidebarOpened = ref(true)
 const githubStarsCount = ref(null)
+const theme = ref<Theme>(themeStore.getCurrentTheme)
 
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
 const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
@@ -185,6 +198,20 @@ watch(width, () => {
   windowResizeHandler()
 })
 
+watch(theme, () => {
+  themeStore.changeTheme()
+})
+
+watch(
+  () => props.mobileSidebarOpened,
+  (newVal) => {
+    isSidebarOpened.value = newVal
+  },
+  {
+    immediate: true,
+  },
+)
+
 onBeforeMount(() => {
   getGithubStarsCount()
 })
@@ -205,6 +232,7 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  overflow: hidden;
 }
 
 .sidebar.closed {
@@ -221,9 +249,7 @@ onMounted(() => {
 }
 
 .nav-bottom {
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--p-divider-border-color);
-  margin-bottom: 4px;
+  padding-bottom: 20px;
 }
 
 .list {
@@ -319,6 +345,10 @@ onMounted(() => {
   transform: rotate(180deg);
 }
 
+.divider {
+  margin: 8px 0 4px;
+}
+
 @media (any-hover: hover) {
   .menu-link:hover {
     background-color: var(--p-menu-item-focus-background);
@@ -352,9 +382,8 @@ onMounted(() => {
 @media (max-width: 768px) {
   .sidebar {
     width: 100% !important;
-  }
-  .list {
-    align-items: center;
+    align-items: flex-start;
+    padding: 0 32px 32px;
   }
   .menu-link {
     width: auto !important;
@@ -365,6 +394,9 @@ onMounted(() => {
   .organization-button-wrapper {
     max-width: 200px;
     margin: 0 auto 8px;
+  }
+  .divider {
+    display: none;
   }
 }
 </style>
