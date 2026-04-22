@@ -1,5 +1,9 @@
 <template>
-  <Button @click="visible = true">
+  <Button
+    :disabled="isMemberLimitExceeded"
+    v-tooltip.top="inviteButtonTooltip"
+    @click="visible = true"
+  >
     <span>Invite member</span>
     <Plus :size="14" />
   </Button>
@@ -57,7 +61,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Button, Dialog, InputText, Select, useToast } from 'primevue'
 import { Plus } from 'lucide-vue-next'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -96,9 +100,22 @@ const toast = useToast()
 
 const initialValues = ref({ ...INITIAL_DATA })
 
+const isMemberLimitExceeded = computed(() => {
+  if (!organizationStore.organizationDetails) return false
+  return (
+    organizationStore.organizationDetails.members_limit <=
+    organizationStore.organizationDetails.total_members
+  )
+})
+
+const inviteButtonTooltip = computed(() => {
+  if (!isMemberLimitExceeded.value) return null
+  return `The organization's member limit has been exceeded. Please contact support to upgrade to a higher plan.`
+})
+
 const resolver = zodResolver(
   z.object({
-    email: z.string().email(),
+    email: z.email(),
     role: z.string().min(1),
   }),
 )
