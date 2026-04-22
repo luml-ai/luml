@@ -78,8 +78,10 @@
     <Column v-if="showColumn('Source')" field="source" header="Source" class="w-[180px]">
       <template #body="slotProps">
         <div v-if="slotProps.data.source" class="flex items-center gap-2">
-          <FileChartLine :size="14" color="var(--p-primary-color)" />
-          <span>{{ slotProps.data.source }}</span>
+          <FileChartLine :size="14" color="var(--p-primary-color)" class="shrink-0" />
+          <span class="line-clamp-1 overflow-hidden text-ellipsis">
+            {{ slotProps.data.source }}
+          </span>
         </div>
         <span v-else>-</span>
       </template>
