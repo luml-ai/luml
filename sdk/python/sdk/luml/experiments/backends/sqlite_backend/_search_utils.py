@@ -6,6 +6,7 @@ from datetime import date
 from typing import Any
 
 import sqlparse
+from sdk.luml.experiments.backends._exceptions import LumlFilterError
 from sqlparse.sql import (
     Comparison,
     Identifier,
@@ -15,8 +16,6 @@ from sqlparse.sql import (
     TokenList,
 )
 from sqlparse.tokens import Token as TokenType
-
-from luml.experiments.backends._exceptions import LumlFilterError
 
 
 def _convert_like_pattern_to_regex(pattern: str, flags: int = 0) -> re.Pattern:
