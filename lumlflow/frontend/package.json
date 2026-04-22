@@ -20,7 +20,7 @@
     "@tailwindcss/vite": "^4.1.18",
     "@vueuse/core": "^14.1.0",
     "axios": "^1.13.5",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.1",
     "github-markdown-css": "^5.9.0",
     "lucide-vue-next": "^0.460.0",
     "marked": "^18.0.0",
