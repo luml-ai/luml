@@ -1,13 +1,30 @@
 from luml.experiments.tracker import ExperimentTracker
 
 from lumlflow.infra.exceptions import ApplicationError, NotFound
-from lumlflow.schemas.models import Model, UpdateModel
+from lumlflow.schemas.models import Model, ModelExperiment, UpdateModel
 from lumlflow.settings import get_tracker
+from schemas.models import ModelDetails
 
 
 class ModelsHandler:
     def __init__(self, tracker: ExperimentTracker | None = None) -> None:
         self.tracker = tracker or get_tracker()
+
+    def get_model_details(self, model_id: str) -> ModelDetails:
+        model = self.tracker.get_model(model_id)
+        experiment = self.tracker.get_experiment(model.experiment_id)
+
+        return ModelDetails(
+            id=model.id,
+            name=model.name,
+            created_at=model.created_at,
+            tags=model.tags,
+            path=model.path,
+            size=model.size,
+            static_params=experiment.static_params,
+            dynamic_params=experiment.dynamic_params,
+            experiments=[ModelExperiment.model_validate(experiment)],
+        )
 
     def list_experiment_models(self, experiment_id: str) -> list[Model]:
         try:
