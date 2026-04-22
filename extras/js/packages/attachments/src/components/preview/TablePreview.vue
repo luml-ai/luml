@@ -5,7 +5,7 @@
     <Skeleton v-else-if="loading" height="calc(100vh - 500px)"></Skeleton>
 
     <DataTable
-      v-else-if="tableData"
+      v-else-if="tableData && tableData.rows.length > 0"
       :value="tableData.rows"
       :paginator="true"
       :rows="10"
