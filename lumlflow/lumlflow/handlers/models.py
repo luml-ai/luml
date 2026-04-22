@@ -22,7 +22,9 @@ class ModelsHandler:
         except ValueError as e:
             raise NotFound("Model not found") from e
         try:
-            model = self.tracker.update_model(model_id, name=body.name, tags=body.tags)
+            model = self.tracker.update_model(
+                model_id, name=body.name, tags=body.tags, description=body.description
+            )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e
         if not model:

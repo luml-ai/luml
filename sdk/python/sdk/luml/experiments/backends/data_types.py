@@ -49,6 +49,8 @@ class Model:
     path: str | None = None
     size: int | None = None
     experiment_id: str | None = None
+    source: str | None = None
+    description: str | None = None
 
 
 @dataclass
@@ -65,6 +67,7 @@ class Experiment:
     group_name: str | None = None
     static_params: dict[str, Any] = field(default_factory=dict)
     dynamic_params: dict[str, Any] = field(default_factory=dict)
+    source: str | None = None
 
 
 @dataclass

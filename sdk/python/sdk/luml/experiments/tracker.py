@@ -2,6 +2,8 @@
 import atexit
 import contextlib
 import importlib
+import os
+import sys
 import uuid
 import zipfile
 from pathlib import Path
@@ -110,6 +112,13 @@ class ExperimentTracker:
 
         return BackendRegistry.get_backend(backend_type)(config)
 
+    @staticmethod
+    def _detect_source() -> str | None:
+        main_module = sys.modules.get("__main__")
+        if main_module and hasattr(main_module, "__file__") and main_module.__file__:
+            return os.path.abspath(main_module.__file__)
+        return None
+
     def start_experiment(
         self,
         name: str | None = None,
@@ -150,7 +159,9 @@ class ExperimentTracker:
         if name is None:
             name = generate_random_name()
 
-        self.backend.initialize_experiment(experiment_id, group, name, tags)
+        self.backend.initialize_experiment(
+            experiment_id, group, name, tags, source=self._detect_source()
+        )
         self.current_experiment_id = experiment_id
         return experiment_id
 
@@ -500,7 +511,7 @@ class ExperimentTracker:
             raise ValueError("No active experiment. Call start_experiment() first.")
         self.backend.log_attachment(exp_id, name, data, binary)
 
-    def get_experiment(self, experiment_id: str) -> ExperimentData:
+    def get_experiment(self, experiment_id: str) -> ExperimentData | None:
         """
         Retrieve full experiment data by ID.
 
@@ -511,9 +522,9 @@ class ExperimentTracker:
             experiment_id (str): Unique identifier of the experiment to retrieve.
 
         Returns:
-            ExperimentData: Complete experiment data containing ``experiment_id``,
+            ExperimentData | None: Complete experiment data containing ``experiment_id``,
                 ``metadata``, ``static_params``, ``dynamic_metrics``, and
-                ``attachments``.
+                ``attachments``, or ``None`` if not found.
 
         Example:
         ```python
@@ -524,7 +535,10 @@ class ExperimentTracker:
         print(data.dynamic_metrics)
         ```
         """
-        return self.backend.get_experiment_data(experiment_id)
+        try:
+            return self.backend.get_experiment_data(experiment_id)
+        except ValueError:
+            return None
 
     def get_attachment(self, name: str, experiment_id: str | None = None) -> bytes:
         """
@@ -711,6 +725,7 @@ class ExperimentTracker:
         *,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
         flavor: str | None = None,
         inputs: Any = None,  # noqa: ANN401
         experiment_id: str | None = None,
@@ -812,7 +827,14 @@ class ExperimentTracker:
             )
             temp_ref = model_ref
 
-        _, stored_path = self.backend.log_model(exp_id, str(model_ref.path), name, tags)
+        _, stored_path = self.backend.log_model(
+            exp_id,
+            str(model_ref.path),
+            name,
+            tags,
+            source=self._detect_source(),
+            description=description,
+        )
 
         if temp_ref is not None:
             Path(temp_ref.path).unlink(missing_ok=True)
@@ -1895,6 +1917,7 @@ class ExperimentTracker:
         model_id: str,
         name: str | None = None,
         tags: list[str] | None = None,
+        description: str | None = None,
     ) -> Model | None:
         """
         Update model metadata.
@@ -1915,7 +1938,9 @@ class ExperimentTracker:
         tracker.update_model("model-uuid", name="v2-finetuned", tags=["prod"])
         ```
         """
-        return self.backend.update_model(model_id, name=name, tags=tags)
+        return self.backend.update_model(
+            model_id, name=name, tags=tags, description=description
+        )
 
     def delete_model(self, model_id: str) -> None:
         """

@@ -10,6 +10,8 @@ from luml.experiments.backends.migration_runner import (
     MetaDBMigrationRunner,
 )
 
+META_DB_LAST_VERSION = 4
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -189,7 +191,7 @@ class TestBaseMigrationRunnerViaMetaDB:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         applied = runner.migrate()
-        assert applied == [1, 2, 3]
+        assert applied == list(range(1, META_DB_LAST_VERSION + 1))
 
     def test_migrate_idempotent(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
@@ -197,7 +199,7 @@ class TestBaseMigrationRunnerViaMetaDB:
         runner.migrate()
         second = runner.migrate()
         assert second == []
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
 
     def test_migrate_target_version(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
@@ -206,14 +208,14 @@ class TestBaseMigrationRunnerViaMetaDB:
         assert applied == [1]
         assert runner.get_current_version() == 1
         pending = runner.get_pending_migrations()
-        assert [m["version"] for m in pending] == [2, 3]
+        assert [m["version"] for m in pending] == list(range(2, META_DB_LAST_VERSION + 1))
 
     def test_get_pending_migrations_after_partial_apply(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate(target_version=2)
         pending = runner.get_pending_migrations()
-        assert len(pending) == 1
+        assert len(pending) == META_DB_LAST_VERSION - 2
         assert pending[0]["version"] == 3
 
     def test_get_status(self, tmp_path: Path) -> None:
@@ -223,18 +225,19 @@ class TestBaseMigrationRunnerViaMetaDB:
         status = runner.get_status()
         assert status["current_version"] == 1
         assert status["applied_count"] == 1
-        assert status["pending_count"] == 2
+        assert status["pending_count"] == META_DB_LAST_VERSION - 1
         assert status["applied_versions"] == [1]
         assert 2 in status["pending_versions"]
         assert 3 in status["pending_versions"]
+        assert META_DB_LAST_VERSION in status["pending_versions"]
 
     def test_rollback_single_migration(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
         rolled = runner.rollback(target_version=2)
-        assert rolled == [3]
+        assert rolled == list(range(META_DB_LAST_VERSION, 2, -1))
         assert runner.get_current_version() == 2
 
     def test_rollback_removes_version_from_table(self, tmp_path: Path) -> None:
@@ -346,11 +349,11 @@ class TestMetaDBOldSdkUpgrade:
         runner = MetaDBMigrationRunner(conn)
         assert runner.get_current_version() == 1
 
-    def test_old_sdk_meta_db_migrates_to_v3(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_migrates_to_v4(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_meta_db(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
 
     def test_old_sdk_meta_db_gets_group_id_column(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_meta_db(tmp_path)
