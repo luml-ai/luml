@@ -3,9 +3,9 @@ import {
   Zap,
   File,
   Orbit,
-  BotMessageSquare,
   MessageCircleCode,
   Folders,
+  Pyramid,
   Rocket,
   Satellite,
 } from 'lucide-vue-next'
@@ -28,12 +28,12 @@ export const SIDEBAR_MENU = [
   },
   {
     id: 5,
-    label: 'Data Agent',
-    icon: BotMessageSquare,
-    route: 'data-agent-board',
+    label: 'Prisma',
+    icon: Pyramid,
+    route: 'prisma-board',
     disabled: false,
     tooltipMessage: null,
-    analyticsOption: 'data-agent',
+    analyticsOption: 'prisma',
     authRequired: false,
   },
   {

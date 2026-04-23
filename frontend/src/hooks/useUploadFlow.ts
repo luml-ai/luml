@@ -3,7 +3,7 @@ import { api } from '@/lib/api'
 import type {
   UploadReadyEvent,
   PendingUpload,
-} from '@/lib/api/data-agent/data-agent.interfaces'
+} from '@/lib/api/prisma/prisma.interfaces'
 import type { CreateArtifactResponse } from '@/lib/api/artifacts/interfaces'
 import { ArtifactTypeEnum, ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 

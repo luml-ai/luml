@@ -21,7 +21,7 @@ export function useBackendStatus() {
     try {
       const resp = await api.dataAgent.health()
 
-      if (resp.service !== 'luml-agent') {
+      if (resp.service !== 'luml-prisma') {
         isOffline.value = true
         return false
       }

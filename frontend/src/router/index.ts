@@ -198,8 +198,8 @@ const router = createRouter({
       component: () => import('../pages/NotebooksPage.vue'),
     },
     {
-      path: '/data-agent',
-      component: () => import('../pages/DataAgentPage.vue'),
+      path: '/prisma',
+      component: () => import('../pages/PrismaPage.vue'),
       meta: {
         mobileAvailable: false,
         showInvalidMessage: 992,
@@ -207,21 +207,21 @@ const router = createRouter({
       children: [
         {
           path: '',
-          name: 'data-agent-board',
+          name: 'prisma-board',
         },
         {
           path: 'repos',
-          name: 'data-agent-repos',
+          name: 'prisma-repos',
         },
         {
           path: 'tasks/:taskId',
-          name: 'data-agent-task',
-          component: () => import('../pages/data-agent/TaskDetailView.vue'),
+          name: 'prisma-task',
+          component: () => import('../pages/prisma/TaskDetailView.vue'),
         },
         {
           path: 'runs/:runId',
-          name: 'data-agent-run',
-          component: () => import('../pages/data-agent/RunDetailView.vue'),
+          name: 'prisma-run',
+          component: () => import('../pages/prisma/RunDetailView.vue'),
         },
       ],
     },

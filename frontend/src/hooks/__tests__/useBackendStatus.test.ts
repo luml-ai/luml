@@ -27,7 +27,7 @@ describe('useBackendStatus', () => {
   })
 
   it('clears isOffline on successful response', async () => {
-    healthMock.mockResolvedValue({ service: 'luml-agent', version: '0.2.0' })
+    healthMock.mockResolvedValue({ service: 'luml-prisma', version: '0.2.0' })
     const { isOffline, isLoading, check } = useBackendStatus()
 
     const ok = await check()
@@ -38,7 +38,7 @@ describe('useBackendStatus', () => {
   })
 
   it('sets versionMismatch on wrong major version', async () => {
-    healthMock.mockResolvedValue({ service: 'luml-agent', version: '1.0.0' })
+    healthMock.mockResolvedValue({ service: 'luml-prisma', version: '1.0.0' })
     const { versionMismatch, isOffline, check } = useBackendStatus()
 
     const ok = await check()
@@ -66,7 +66,7 @@ describe('useBackendStatus', () => {
     await check()
     expect(isOffline.value).toBe(true)
 
-    healthMock.mockResolvedValueOnce({ service: 'luml-agent', version: '0.2.0' })
+    healthMock.mockResolvedValueOnce({ service: 'luml-prisma', version: '0.2.0' })
     await check()
     expect(isOffline.value).toBe(false)
   })

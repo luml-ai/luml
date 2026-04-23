@@ -67,7 +67,7 @@ const preview: Preview = {
       { path: '/sign-up', name: 'sign-up' },
       { path: '/runtime', name: 'runtime' },
       { path: '/notebooks', name: 'notebooks' },
-      { path: '/data-agent', name: 'data-agent' },
+      { path: '/prisma', name: 'prisma' },
       { path: '/model', name: 'model' },
       { path: '/artifact-card', name: 'artifact-card' },
       { path: '/model-snapshot', name: 'model-snapshot' },

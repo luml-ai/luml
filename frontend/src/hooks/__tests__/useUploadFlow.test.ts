@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useUploadFlow } from '@/hooks/useUploadFlow'
-import type { UploadReadyEvent } from '@/lib/api/data-agent/data-agent.interfaces'
+import type { UploadReadyEvent } from '@/lib/api/prisma/prisma.interfaces'
 
 vi.mock('@/lib/api', () => ({
   api: {

@@ -1,5 +1,5 @@
 import { watch, onUnmounted, ref } from 'vue'
-import { useDataAgentStore } from '@/stores/data-agent'
+import { usePrismaStore } from '@/stores/prisma'
 import { api } from '@/lib/api'
 import type { useUploadFlow } from '@/hooks/useUploadFlow'
 
@@ -15,7 +15,7 @@ const UPLOAD_EVENT_TYPES = new Set([
 ])
 
 export function useAgentWebSocket(uploadFlow?: ReturnType<typeof useUploadFlow>) {
-  const store = useDataAgentStore()
+  const store = usePrismaStore()
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
   let reconnectAttempts = 0
