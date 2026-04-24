@@ -6,6 +6,7 @@ on:
       - "sdk-python/api/v*"
       - "sdk-python/sdk/v*"
       - "lumlflow/v*"
+      - "luml-prisma/v*"
 
 jobs:
   publish:
@@ -43,6 +44,13 @@ jobs:
               echo "package_dir=lumlflow" >> "$GITHUB_OUTPUT"
               echo "package_init=lumlflow/__init__.py" >> "$GITHUB_OUTPUT"
               echo "requires_node=true" >> "$GITHUB_OUTPUT"
+              echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
+              ;;
+            luml-prisma/v*)
+              echo "package_name=luml-prisma" >> "$GITHUB_OUTPUT"
+              echo "package_dir=prisma" >> "$GITHUB_OUTPUT"
+              echo "package_init=src/luml_prisma/version.py" >> "$GITHUB_OUTPUT"
+              echo "requires_node=false" >> "$GITHUB_OUTPUT"
               echo "version=${TAG##*/v}" >> "$GITHUB_OUTPUT"
               ;;
             *)
