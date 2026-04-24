@@ -49,7 +49,7 @@ const branchOptions = ref<string[]>([])
 const branchesLoading = ref(false)
 const showAgentBranches = ref(false)
 
-const AGENT_PREFIXES = ['agent/', 'luml-agent/']
+const AGENT_PREFIXES = ['prisma/']
 
 function isAgentBranch(branch: string): boolean {
   return AGENT_PREFIXES.some((p) => branch.startsWith(p))
@@ -64,16 +64,16 @@ function hasAgentBranches(): boolean {
   return branchOptions.value.some((b) => isAgentBranch(b))
 }
 const runCommand = ref('uv run main.py')
-const maxDepth = ref(3)
-const maxChildrenPerFork = ref(4)
+const maxDepth = ref(2)
+const maxChildrenPerFork = ref(2)
 const maxDebugRetries = ref(2)
-const maxConcurrency = ref(3)
+const maxConcurrency = ref(1)
 const autoMode = ref(false)
 const autoTerminateTimeout = ref(30)
-const implementTimeout = ref(1800)
+const implementTimeout = ref(3600)
 const runTimeout = ref(0)
 const debugTimeout = ref(1800)
-const forkTimeout = ref(900)
+const forkTimeout = ref(1200)
 
 const agents = ref<Agent[]>([])
 const showAdvanced = ref(false)
@@ -252,6 +252,14 @@ defineExpose({ submit })
         class="w-full"
       />
     </div>
+    <div class="field field--checkbox">
+      <Checkbox v-model="autoMode" :binary="true" inputId="autoMode" />
+      <label for="autoMode">Auto mode (bypass permission)</label>
+    </div>
+    <div v-if="autoMode" class="field field--small">
+      <label class="label">Auto-terminate timeout (seconds)</label>
+      <InputNumber v-model="autoTerminateTimeout" :min="5" :max="300" />
+    </div>
     <div class="option-group">
       <div class="field field--checkbox">
         <Checkbox v-model="uploadEnabled" :binary="true" inputId="uploadEnabled" :disabled="!showCollectionSelector" />
@@ -313,14 +321,6 @@ defineExpose({ submit })
           <label class="label">Concurrency</label>
           <InputNumber v-model="maxConcurrency" :min="1" :max="10" />
         </div>
-      </div>
-      <div class="field field--checkbox">
-        <Checkbox v-model="autoMode" :binary="true" inputId="autoMode" />
-        <label for="autoMode">Auto mode (terminate idle agents)</label>
-      </div>
-      <div v-if="autoMode" class="field field--small">
-        <label class="label">Auto-terminate timeout (seconds)</label>
-        <InputNumber v-model="autoTerminateTimeout" :min="5" :max="300" />
       </div>
       <div class="config-row">
         <div class="field field--small">

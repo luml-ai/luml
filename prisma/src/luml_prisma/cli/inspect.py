@@ -1,27 +1,17 @@
 from __future__ import annotations
 
-import json
-import sqlite3
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import typer
+from luml.experiments.backends.data_types import EvalRecord, Experiment
+from luml.experiments.tracker import ExperimentTracker
 
 app = typer.Typer(add_completion=False)
 
 DEFAULT_DB = str(Path.home() / ".prisma" / "experiments")
-
-
-@dataclass
-class ExperimentRow:
-    id: str
-    name: str
-    status: str
-    group_id: str
-    created_at: str
-    tags: list[str] = field(default_factory=list)
-    dynamic_params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -40,92 +30,77 @@ class MetricSummary:
     mean_val: float
 
 
-def _meta_db_path(db: str) -> Path:
-    return Path(db) / "meta.db"
-
-
-def _exp_db_path(db: str, experiment_id: str) -> Path:
-    return Path(db) / experiment_id / "exp.db"
-
-
-def _connect_meta(db: str) -> sqlite3.Connection:
-    path = _meta_db_path(db)
-    if not path.exists():
-        typer.echo(f"Error: experiment DB not found at {path}", err=True)
+def _get_tracker(db: str) -> ExperimentTracker:
+    meta_path = Path(db) / "meta.db"
+    if not meta_path.exists():
+        typer.echo(f"Error: experiment DB not found at {meta_path}", err=True)
         raise typer.Exit(1)
-    return sqlite3.connect(str(path), check_same_thread=False)
+    return ExperimentTracker(f"sqlite://{db}")
 
 
-def _connect_exp(db: str, experiment_id: str) -> sqlite3.Connection:
-    path = _exp_db_path(db, experiment_id)
-    if not path.exists():
-        typer.echo(
-            f"Error: experiment data not found for {experiment_id}", err=True
-        )
-        raise typer.Exit(1)
-    return sqlite3.connect(str(path), check_same_thread=False)
-
-
-def _load_experiments(db: str) -> list[ExperimentRow]:
-    conn = _connect_meta(db)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name, created_at, status, group_id, tags, dynamic_params "
-        "FROM experiments ORDER BY created_at DESC"
-    )
-    rows = []
-    for row in cursor.fetchall():
-        rows.append(
-            ExperimentRow(
-                id=row[0],
-                name=row[1] or "",
-                status=row[3] or "",
-                group_id=row[4] or "",
-                created_at=row[2] or "",
-                tags=json.loads(row[5]) if row[5] else [],
-                dynamic_params=json.loads(row[6]) if row[6] else {},
-            )
-        )
-    conn.close()
-    return rows
-
-
-def _load_static_params(db: str, experiment_id: str) -> dict[str, Any]:
-    conn = _connect_exp(db, experiment_id)
-    cursor = conn.cursor()
-    cursor.execute("SELECT key, value, value_type FROM static_params")
-    params: dict[str, Any] = {}
-    for key, value, value_type in cursor.fetchall():
-        params[key] = _convert_param(value, value_type)
-    conn.close()
-    return params
-
-
-def _convert_param(value: str, value_type: str) -> Any:  # noqa: ANN401
-    if value_type == "int":
-        return int(value)
-    if value_type == "float":
-        return float(value)
-    if value_type == "bool":
-        return value.lower() in ("true", "1")
-    if value_type == "json":
-        return json.loads(value)
+def _fmt_created_at(value: datetime | str | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.isoformat()
     return value
 
 
-def _load_metrics(db: str, experiment_id: str) -> dict[str, list[MetricPoint]]:
-    conn = _connect_exp(db, experiment_id)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT key, value, step FROM dynamic_metrics ORDER BY key, step"
+def _load_experiments(db: str) -> list[Experiment]:
+    tracker = _get_tracker(db)
+    experiments: list[Experiment] = tracker.list_experiments()
+    experiments.sort(
+        key=lambda e: _fmt_created_at(e.created_at) or "",
+        reverse=True,
     )
-    metrics: dict[str, list[MetricPoint]] = {}
-    for key, value, step in cursor.fetchall():
-        if key not in metrics:
-            metrics[key] = []
-        metrics[key].append(MetricPoint(step=step, value=value))
-    conn.close()
-    return metrics
+    return experiments
+
+
+def _load_static_params(db: str, experiment_id: str) -> dict[str, Any]:
+    tracker = _get_tracker(db)
+    try:
+        return cast(dict[str, Any], tracker.get_experiment(experiment_id).static_params)
+    except ValueError:
+        return {}
+
+
+def _load_metrics(db: str, experiment_id: str) -> dict[str, list[MetricPoint]]:
+    tracker = _get_tracker(db)
+    try:
+        raw = tracker.get_experiment(experiment_id).dynamic_metrics
+    except ValueError:
+        return {}
+    return {
+        key: [MetricPoint(step=p["step"], value=p["value"]) for p in points]
+        for key, points in raw.items()
+    }
+
+
+def _load_metric_key(
+    db: str, experiment_id: str, key: str
+) -> list[MetricPoint]:
+    tracker = _get_tracker(db)
+    try:
+        history = tracker.get_experiment_metric_history(experiment_id, key)
+    except ValueError:
+        return []
+    return [MetricPoint(step=p["step"], value=p["value"]) for p in history]
+
+
+def _load_evals(
+    db: str, experiment_id: str, dataset: str = "",
+) -> list[EvalRecord]:
+    tracker = _get_tracker(db)
+    try:
+        result: list[EvalRecord] = tracker.get_experiment_evals_all(
+            experiment_id,
+            sort_by="dataset_id",
+            order="asc",
+            dataset_id=dataset or None,
+        )
+    except ValueError:
+        return []
+    return result
 
 
 def _compute_metric_summary(points: list[MetricPoint]) -> MetricSummary:
@@ -146,10 +121,11 @@ def _format_val(v: float) -> str:
     return f"{v:.4g}"
 
 
-def _format_date(dt_str: str) -> str:
-    if not dt_str:
+def _format_date(value: datetime | str | None) -> str:
+    s = _fmt_created_at(value)
+    if not s:
         return ""
-    return dt_str[:10]
+    return s[:10]
 
 
 def _format_tags(tags: list[str]) -> str:
@@ -194,8 +170,8 @@ def list_cmd(
     shown = experiments[:cap]
 
     col_id = max((len(e.id) for e in shown), default=2)
-    col_name = max((len(e.name) for e in shown), default=4)
-    col_status = max((len(e.status) for e in shown), default=6)
+    col_name = max((len(e.name or "") for e in shown), default=4)
+    col_status = max((len(e.status or "") for e in shown), default=6)
     col_date = 10
     col_tags = max((len(_format_tags(e.tags)) for e in shown), default=4)
 
@@ -213,8 +189,8 @@ def list_cmd(
 
     for e in shown:
         eid = e.id.ljust(col_id)
-        ename = e.name.ljust(col_name)
-        estatus = e.status.ljust(col_status)
+        ename = (e.name or "").ljust(col_name)
+        estatus = (e.status or "").ljust(col_status)
         edate = _format_date(e.created_at).ljust(col_date)
         etags = _format_tags(e.tags).ljust(col_tags)
         emetrics = _format_metrics_inline(e.dynamic_params)
@@ -235,24 +211,17 @@ def show(
     experiment_id: str = typer.Argument(..., help="Experiment ID"),
     db: str = typer.Option(DEFAULT_DB, "--db", help="Experiment DB path"),
 ) -> None:
-    conn = _connect_meta(db)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, name, created_at, status, group_id, tags "
-        "FROM experiments WHERE id = ?",
-        (experiment_id,),
-    )
-    row = cursor.fetchone()
-    conn.close()
-    if not row:
+    tracker = _get_tracker(db)
+    exp = tracker.get_experiment_record(experiment_id)
+    if exp is None:
         typer.echo(f"Error: experiment {experiment_id} not found", err=True)
         raise typer.Exit(1)
 
-    name = row[1] or ""
-    created_at = _format_date(row[2] or "")
-    status = row[3] or ""
-    group_id = row[4] or ""
-    tags = json.loads(row[5]) if row[5] else []
+    name = exp.name or ""
+    created_at = _format_date(exp.created_at)
+    status = exp.status or ""
+    group_id = exp.group_id or ""
+    tags = exp.tags
 
     typer.echo(f'EXPERIMENT {experiment_id} "{name}" ({status})')
     tags_str = ", ".join(tags) if tags else ""
@@ -320,20 +289,6 @@ def _bucket_points(
             )
         )
     return buckets
-
-
-def _load_metric_key(
-    db: str, experiment_id: str, key: str
-) -> list[MetricPoint]:
-    conn = _connect_exp(db, experiment_id)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT step, value FROM dynamic_metrics WHERE key = ? ORDER BY step",
-        (key,),
-    )
-    points = [MetricPoint(step=row[0], value=row[1]) for row in cursor.fetchall()]
-    conn.close()
-    return points
 
 
 @app.command()
@@ -640,45 +595,11 @@ def compare(
             )
 
 
-@dataclass
-class EvalSample:
-    eval_id: str
-    dataset_id: str
-    inputs: str
-    outputs: str | None
-    scores: dict[str, Any]
-
-
-def _load_evals(
-    db: str, experiment_id: str, dataset: str = "",
-) -> list[EvalSample]:
-    conn = _connect_exp(db, experiment_id)
-    cursor = conn.cursor()
-    if dataset:
-        cursor.execute(
-            "SELECT id, dataset_id, inputs, outputs, scores "
-            "FROM evals WHERE dataset_id = ? ORDER BY dataset_id, id",
-            (dataset,),
-        )
-    else:
-        cursor.execute(
-            "SELECT id, dataset_id, inputs, outputs, scores "
-            "FROM evals ORDER BY dataset_id, id"
-        )
-    samples: list[EvalSample] = []
-    for row in cursor.fetchall():
-        scores = json.loads(row[4]) if row[4] else {}
-        samples.append(
-            EvalSample(
-                eval_id=row[0],
-                dataset_id=row[1],
-                inputs=row[2] or "",
-                outputs=row[3],
-                scores=scores,
-            )
-        )
-    conn.close()
-    return samples
+def _format_inputs(inputs: dict[str, Any] | None) -> str:
+    if not inputs:
+        return ""
+    parts = [f"{k}={v}" for k, v in inputs.items()]
+    return " ".join(parts)
 
 
 def _truncate(s: str, max_len: int = 40) -> str:
@@ -687,7 +608,7 @@ def _truncate(s: str, max_len: int = 40) -> str:
     return s[: max_len - 3] + "..."
 
 
-def _format_scores(scores: dict[str, Any]) -> str:
+def _format_scores(scores: dict[str, Any] | None) -> str:
     if not scores:
         return ""
     parts = []
@@ -723,7 +644,7 @@ def evals(
 
     col_ds = max(len(s.dataset_id) for s in shown)
     col_ds = max(col_ds, 7)
-    col_id = max(len(s.eval_id) for s in shown)
+    col_id = max(len(s.id) for s in shown)
     col_id = max(col_id, 7)
 
     header = (
@@ -734,9 +655,9 @@ def evals(
 
     for s in shown:
         ds = s.dataset_id.ljust(col_ds)
-        eid = s.eval_id.ljust(col_id)
+        eid = s.id.ljust(col_id)
         scores_str = _format_scores(s.scores).ljust(24)
-        inputs_str = _truncate(s.inputs)
+        inputs_str = _truncate(_format_inputs(s.inputs))
         typer.echo(f"{ds}  {eid}  {scores_str}  {inputs_str}")
 
     if cap < total:

@@ -73,10 +73,10 @@ def _make_git_repo(tmp_path: Path) -> Path:
 class TestRunConfigTimeouts:
     def test_default_timeout_values(self) -> None:
         config = RunConfig()
-        assert config.implement_timeout == 1800
+        assert config.implement_timeout == 3600
         assert config.run_timeout == 0
         assert config.debug_timeout == 1800
-        assert config.fork_timeout == 900
+        assert config.fork_timeout == 1200
 
     def test_custom_timeout_values(self) -> None:
         config = RunConfig(
@@ -478,10 +478,10 @@ class TestRunCreateInTimeouts:
             name="test",
             objective="obj",
         )
-        assert data.implement_timeout == 1800
+        assert data.implement_timeout == 3600
         assert data.run_timeout == 0
         assert data.debug_timeout == 1800
-        assert data.fork_timeout == 900
+        assert data.fork_timeout == 1200
 
 
 def _count_open_fds() -> int:

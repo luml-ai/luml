@@ -23,7 +23,7 @@ const branchOptions = ref<string[]>([])
 const branchesLoading = ref(false)
 const showAgentBranches = ref(false)
 
-const AGENT_PREFIXES = ['agent/', 'luml-agent/']
+const AGENT_PREFIXES = ['prisma/']
 
 function isAgentBranch(branch: string): boolean {
   return AGENT_PREFIXES.some((p) => branch.startsWith(p))

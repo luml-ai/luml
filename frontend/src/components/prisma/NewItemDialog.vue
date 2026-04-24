@@ -33,8 +33,8 @@ watch(() => props.visible, (v) => {
 })
 
 const typeOptions = [
-  { label: 'Task', value: 'task' as const, icon: ListTodo },
   { label: 'Workflow', value: 'workflow' as const, icon: Waypoints },
+  { label: 'Task', value: 'task' as const, icon: ListTodo },
 ]
 
 const formComponent = computed(() =>

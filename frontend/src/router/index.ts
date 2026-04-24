@@ -198,6 +198,11 @@ const router = createRouter({
       component: () => import('../pages/NotebooksPage.vue'),
     },
     {
+      path: '/flow',
+      name: 'flow',
+      component: () => import('../pages/FlowPage.vue'),
+    },
+    {
       path: '/prisma',
       component: () => import('../pages/PrismaPage.vue'),
       meta: {

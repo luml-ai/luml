@@ -2,7 +2,7 @@
 import { ref, computed, provide, watch, onMounted } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import { Tabs, TabList, Tab, TabPanels, TabPanel, Button, Dialog, Tag } from 'primevue'
-import { KanbanSquare, FolderGit, Plus, Monitor, Terminal, FlaskConical } from 'lucide-vue-next'
+import { KanbanSquare, FolderGit, Plus, Monitor, Terminal } from 'lucide-vue-next'
 import type { AgentRepository } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
 import { usePrismaStore } from '@/stores/prisma'
@@ -122,7 +122,7 @@ onMounted(async () => {
         <h2 class="title">
           Prisma
           <span v-tooltip.bottom="'This feature is in preview and may change as we refine it.'" class="preview-badge">
-            <FlaskConical :size="12" />
+            PREVIEW
           </span>
         </h2>
         <BackendIndicator @changed="onBackendChanged" />
@@ -175,7 +175,7 @@ onMounted(async () => {
     />
     <NewItemDialog
       :visible="newItemType !== null"
-      :initial-type="newItemType ?? 'task'"
+      :initial-type="newItemType ?? 'workflow'"
       :repositories="repositories"
       @close="newItemType = null"
       @created="onItemCreated"
@@ -266,14 +266,16 @@ onMounted(async () => {
 }
 
 .preview-badge {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  padding: 2px 6px;
   border-radius: 6px;
   background: transparent;
   color: var(--p-primary-color);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   cursor: help;
 }
 

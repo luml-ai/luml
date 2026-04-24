@@ -20,11 +20,17 @@ def _create_meta_db(db_path: Path) -> None:
         """
         CREATE TABLE experiment_groups (
             id TEXT PRIMARY KEY,
-            name TEXT UNIQUE,
+            name TEXT,
             description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            last_modified TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX idx_experiment_groups_name "
+        "ON experiment_groups(name)"
     )
     conn.execute(
         """
@@ -33,12 +39,39 @@ def _create_meta_db(db_path: Path) -> None:
             name TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             status TEXT DEFAULT 'active',
-            group_id TEXT,
             tags TEXT,
+            group_id TEXT REFERENCES experiment_groups(id),
             static_params TEXT,
-            dynamic_params TEXT
+            dynamic_params TEXT,
+            duration REAL,
+            description TEXT
         )
         """
+    )
+    conn.execute(
+        """
+        CREATE TABLE models (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            tags TEXT,
+            path TEXT,
+            size INTEGER,
+            experiment_id TEXT REFERENCES experiments(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE schema_migrations (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.executemany(
+        "INSERT INTO schema_migrations (version) VALUES (?)",
+        [(1,), (2,), (3,)],
     )
     conn.execute(
         "INSERT INTO experiment_groups (id, name) VALUES ('g1', 'default')"
@@ -78,7 +111,30 @@ def _create_exp_db(db_path: Path, experiment_id: str) -> None:
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
             file_path TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            size INTEGER
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE spans (
+            trace_id TEXT NOT NULL,
+            span_id TEXT NOT NULL,
+            parent_span_id TEXT,
+            name TEXT NOT NULL,
+            kind INTEGER,
+            dfs_span_type INTEGER NOT NULL DEFAULT 0,
+            start_time_unix_nano BIGINT NOT NULL,
+            end_time_unix_nano BIGINT NOT NULL,
+            status_code INTEGER,
+            status_message TEXT,
+            attributes TEXT,
+            events TEXT,
+            links TEXT,
+            trace_flags INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (trace_id, span_id)
         )
         """
     )
@@ -98,6 +154,56 @@ def _create_exp_db(db_path: Path, experiment_id: str) -> None:
         )
         """
     )
+    conn.execute(
+        """
+        CREATE TABLE eval_traces_bridge (
+            id TEXT PRIMARY KEY,
+            eval_dataset_id TEXT NOT NULL,
+            eval_id TEXT NOT NULL,
+            trace_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE eval_annotations (
+            id TEXT PRIMARY KEY,
+            dataset_id TEXT NOT NULL,
+            eval_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            annotation_kind TEXT NOT NULL
+                CHECK(annotation_kind IN ('feedback', 'expectation')),
+            value_type TEXT NOT NULL
+                CHECK(value_type IN ('int', 'bool', 'string')),
+            value TEXT NOT NULL,
+            user TEXT NOT NULL,
+            rationale TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (dataset_id, eval_id) REFERENCES evals(dataset_id, id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE span_annotations (
+            id TEXT PRIMARY KEY,
+            trace_id TEXT NOT NULL,
+            span_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            annotation_kind TEXT NOT NULL
+                CHECK(annotation_kind IN ('feedback', 'expectation')),
+            value_type TEXT NOT NULL
+                CHECK(value_type IN ('int', 'bool', 'string')),
+            value TEXT NOT NULL,
+            user TEXT NOT NULL,
+            rationale TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (trace_id, span_id) REFERENCES spans(trace_id, span_id)
+        )
+        """
+    )
+    conn.execute("PRAGMA user_version = 2")
     conn.commit()
     conn.close()
 

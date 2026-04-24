@@ -10,6 +10,15 @@ _GUIDE_REF = (
     "for tooling, CLI usage, and output conventions."
 )
 
+_UNATTENDED_NOTICE = """\
+
+## Unattended Session
+
+This session is running unattended in auto mode. No human is available to \
+respond, so do not ask any follow-up or clarifying questions and do not \
+wait for confirmation. Make reasonable assumptions, proceed autonomously, \
+and complete the task end-to-end based on the information provided."""
+
 _ENVIRONMENT_BLOCK = """\
 ## Environment
 - Package manager: `uv`
@@ -225,6 +234,10 @@ def _is_fork_child(payload: dict[str, Any]) -> bool:
     return "proposal" in payload and isinstance(payload["proposal"], dict)
 
 
+def _maybe_unattended(run_config: dict[str, Any]) -> str:
+    return _UNATTENDED_NOTICE if run_config.get("auto_mode") else ""
+
+
 def build_implement_prompt(
     payload: dict[str, Any],
     run_config: dict[str, Any],
@@ -256,7 +269,7 @@ def build_implement_prompt(
             guide_ref=_GUIDE_REF,
             metric_keys=_esc(metric_keys_str),
             experiment_ids=_esc(exp_ids_str),
-        )
+        ) + _maybe_unattended(run_config)
 
     objective = payload.get("prompt", "")
     return _IMPLEMENT_ROOT.format(
@@ -264,7 +277,7 @@ def build_implement_prompt(
         environment=environment,
         run_command=_esc(run_command or "(not configured)"),
         guide_ref=_GUIDE_REF,
-    )
+    ) + _maybe_unattended(run_config)
 
 
 def build_debug_prompt(
@@ -290,7 +303,7 @@ def build_debug_prompt(
         log_tail=_esc(log_tail),
         max_log_tail=max_log_tail,
         guide_ref=_GUIDE_REF,
-    )
+    ) + _maybe_unattended(run_config)
 
 
 def build_fork_prompt(
@@ -314,4 +327,4 @@ def build_fork_prompt(
         objective=_esc(objective),
         experiment_ids=_esc(exp_ids_str),
         metric_keys=_esc(metric_keys_str),
-    )
+    ) + _maybe_unattended(run_config)

@@ -1,10 +1,23 @@
+import pytest
+
 from luml_prisma.services.agents import (
     AgentDef,
     build_agent_command,
     get_agent,
+    is_agent_available,
     list_agents,
     list_available_agents,
 )
+
+
+@pytest.fixture
+def mock_agent_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("LUML_PRISMA_ENABLE_MOCK_AGENT", "1")
+
+
+@pytest.fixture(autouse=True)
+def _mock_agent_disabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("LUML_PRISMA_ENABLE_MOCK_AGENT", raising=False)
 
 
 def test_get_agent_exists() -> None:
@@ -21,7 +34,20 @@ def test_get_agent_missing() -> None:
 
 def test_list_agents_not_empty() -> None:
     agents = list_agents()
-    assert len(agents) >= 3
+    assert len(agents) >= 2
+
+
+def test_mock_agent_hidden_by_default() -> None:
+    ids = {a.id for a in list_agents()}
+    assert "mock" not in ids
+    available_ids = {a.id for a in list_available_agents()}
+    assert "mock" not in available_ids
+    assert is_agent_available("mock") is False
+
+
+def test_mock_agent_visible_when_enabled(mock_agent_enabled: None) -> None:
+    ids = {a.id for a in list_agents()}
+    assert "mock" in ids
 
 
 def test_all_agents_have_required_fields() -> None:
@@ -43,7 +69,7 @@ def test_unique_cli_names() -> None:
     assert len(clis) == len(set(clis))
 
 
-def test_known_agents_present() -> None:
+def test_known_agents_present(mock_agent_enabled: None) -> None:
     expected_ids = {"claude", "codex", "mock"}
     actual_ids = {a.id for a in list_agents()}
     assert expected_ids.issubset(actual_ids)

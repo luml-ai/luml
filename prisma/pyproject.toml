@@ -84,3 +84,7 @@ quote-style = "double"
 [tool.mypy]
 strict = true
 python_version = "3.12"
+
+[[tool.mypy.overrides]]
+module = ["luml.*"]
+ignore_missing_imports = true

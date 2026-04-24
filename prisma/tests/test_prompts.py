@@ -283,3 +283,57 @@ class TestGuideRefInAllPrompts:
             "", "", {},
         )
         assert _GUIDE_REF in result
+
+
+class TestAutoModeUnattendedNotice:
+    def test_root_implement_adds_notice_when_auto_mode(self) -> None:
+        result = build_implement_prompt(
+            {"prompt": "x"}, {"auto_mode": True},
+            worktree_path="", base_branch="",
+        )
+        assert "Unattended Session" in result
+        assert "do not ask any follow-up" in result
+
+    def test_root_implement_no_notice_when_not_auto_mode(self) -> None:
+        result = build_implement_prompt(
+            {"prompt": "x"}, {"auto_mode": False},
+            worktree_path="", base_branch="",
+        )
+        assert "Unattended Session" not in result
+
+    def test_root_implement_no_notice_when_absent(self) -> None:
+        result = build_implement_prompt(
+            {"prompt": "x"}, {},
+            worktree_path="", base_branch="",
+        )
+        assert "Unattended Session" not in result
+
+    def test_fork_child_adds_notice_when_auto_mode(self) -> None:
+        result = build_implement_prompt(
+            {"proposal": {"prompt": "x", "title": "t"}, "objective": "o"},
+            {"auto_mode": True},
+            worktree_path="", base_branch="",
+        )
+        assert "Unattended Session" in result
+
+    def test_debug_adds_notice_when_auto_mode(self) -> None:
+        result = build_debug_prompt(
+            {"failure_context": {"exit_code": 1}, "objective": ""},
+            "", "", {"auto_mode": True},
+        )
+        assert "Unattended Session" in result
+
+    def test_debug_no_notice_when_not_auto_mode(self) -> None:
+        result = build_debug_prompt(
+            {"failure_context": {"exit_code": 1}, "objective": ""},
+            "", "", {},
+        )
+        assert "Unattended Session" not in result
+
+    def test_fork_adds_notice_when_auto_mode(self) -> None:
+        result = build_fork_prompt({"objective": "o"}, {"auto_mode": True})
+        assert "Unattended Session" in result
+
+    def test_fork_no_notice_when_not_auto_mode(self) -> None:
+        result = build_fork_prompt({"objective": "o"}, {})
+        assert "Unattended Session" not in result

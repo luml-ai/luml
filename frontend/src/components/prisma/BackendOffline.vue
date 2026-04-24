@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Button, InputText } from 'primevue'
-import { WifiOff } from 'lucide-vue-next'
+import { Pyramid } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import { getStoredBackendUrl } from '@/lib/api/prisma'
 
@@ -27,30 +27,34 @@ async function onRetry() {
 <template>
   <div class="offline-container">
     <div class="offline-card">
-      <WifiOff :size="48" class="offline-icon" />
+      <Pyramid :size="48" class="offline-icon" />
 
       <template v-if="props.versionMismatch">
         <h3 class="offline-title">Prisma engine version mismatch</h3>
-        <p class="offline-hint">
-          The Prisma engine version is incompatible. Please update and restart.
-        </p>
-      </template>
-      <template v-else>
-        <h3 class="offline-title">Prisma engine is not running</h3>
-        <p class="offline-hint">
-          Prisma orchestrates coding agents to perform long-horizon ML tasks autonomously.
-        </p>
-        <div class="offline-commands">
-          <div class="offline-command">
-            <span class="offline-command-label">Install</span>
-            <code class="offline-command-code">pip install luml-prisma</code>
-          </div>
-          <div class="offline-command">
-            <span class="offline-command-label">Run</span>
-            <code class="offline-command-code">luml-prisma</code>
-          </div>
+        <div class="offline-hint">
+          <p>The Prisma engine version is incompatible.</p>
+          <p>Update the package and restart it.</p>
         </div>
       </template>
+      <template v-else>
+        <h3 class="offline-title">Run Prisma locally</h3>
+        <div class="offline-hint">
+          <p>Prisma orchestrates coding agents for long-horizon ML tasks.</p>
+          <p>Agents work autonomously in isolated Git worktrees.</p>
+          <p>Track runs and merge winners from a browser UI.</p>
+        </div>
+      </template>
+
+      <div class="offline-commands">
+        <div class="offline-command">
+          <span class="offline-command-label">Install</span>
+          <code class="offline-command-code">pip install luml-prisma</code>
+        </div>
+        <div class="offline-command">
+          <span class="offline-command-label">Run</span>
+          <code class="offline-command-code">luml-prisma</code>
+        </div>
+      </div>
 
       <div class="url-input-group">
         <label class="url-label">Engine URL</label>
@@ -63,7 +67,7 @@ async function onRetry() {
         <span class="url-hint">Default: http://localhost:8420</span>
       </div>
 
-      <Button :loading="retrying" @click="onRetry">Retry</Button>
+      <Button :loading="retrying" @click="onRetry">Connect</Button>
     </div>
   </div>
 </template>
@@ -82,7 +86,7 @@ async function onRetry() {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  max-width: 360px;
+  max-width: 480px;
   text-align: center;
 }
 
@@ -98,10 +102,16 @@ async function onRetry() {
 }
 
 .offline-hint {
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   color: var(--p-text-muted-color);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.offline-hint p {
+  margin: 0;
 }
 
 .offline-commands {

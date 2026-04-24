@@ -97,7 +97,8 @@ def _load_state(cwd: Path) -> dict[str, int]:
     if not path.exists():
         return {}
     try:
-        return json.loads(path.read_text())
+        data: dict[str, int] = json.loads(path.read_text())
+        return data
     except (json.JSONDecodeError, OSError):
         return {}
 
@@ -152,9 +153,12 @@ def run(args: list[str] | None = None) -> int:
 _DEBUG_ENABLED_VALUES = {"1", "true", "yes", "on"}
 
 
+def is_mock_agent_enabled() -> bool:
+    return os.environ.get(_DEBUG_ENV_VAR, "").strip().lower() in _DEBUG_ENABLED_VALUES
+
+
 def main() -> None:
-    enabled = os.environ.get(_DEBUG_ENV_VAR, "").strip().lower()
-    if enabled not in _DEBUG_ENABLED_VALUES:
+    if not is_mock_agent_enabled():
         sys.stderr.write(
             f"mock-agent is a debug-only entry point; "
             f"set {_DEBUG_ENV_VAR}=1 to enable.\n"

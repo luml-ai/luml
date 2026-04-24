@@ -36,18 +36,18 @@ class EdgeReason(StrEnum):
 
 @dataclass
 class RunConfig:
-    max_depth: int = 5
-    max_children_per_fork: int = 3
+    max_depth: int = 2
+    max_children_per_fork: int = 2
     max_debug_retries: int = 2
-    max_concurrency: int = 2
+    max_concurrency: int = 1
     run_command_template: str = "uv run main.py"
     agent_id: str = "claude"
     auto_mode: bool = False
     auto_terminate_timeout: int = 30
-    implement_timeout: int = 1800
+    implement_timeout: int = 3600
     run_timeout: int = 0
     debug_timeout: int = 1800
-    fork_timeout: int = 900
+    fork_timeout: int = 1200
     max_log_tail: int = 10000
     primary_metric: str = "metric"
     luml_collection_id: str | None = None

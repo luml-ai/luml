@@ -36,7 +36,7 @@ const boardRefreshTrigger = inject<Ref<number>>('boardRefreshTrigger')!
 watch(boardRefreshTrigger, () => refresh())
 
 function openCreate() {
-  newItemType.value = 'task'
+  newItemType.value = 'workflow'
 }
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null
