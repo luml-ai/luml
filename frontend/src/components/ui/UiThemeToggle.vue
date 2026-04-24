@@ -1,7 +1,8 @@
 <template>
   <div class="custom-toggle" :class="{ dark: modelValue === 'dark' }">
-    <div
+    <button
       v-if="iconOnly"
+      type="button"
       class="custom-toggle-wrapper custom-toggle-wrapper--icon-only"
       @click="click"
     >
@@ -11,9 +12,9 @@
       <div class="custom-toggle-item" :class="{ active: modelValue === 'dark' }">
         <moon :size="14" />
       </div>
-    </div>
+    </button>
 
-    <div v-else class="custom-toggle-wrapper" @click="click">
+    <button v-else type="button" class="custom-toggle-wrapper" @click="click">
       <div class="custom-toggle-item" :class="{ active: modelValue === 'light' }">
         <sun :size="14" />
         <span class="custom-toggle-item-text">Light</span>
@@ -22,7 +23,7 @@
         <span class="custom-toggle-item-text">Dark</span>
         <moon :size="14" />
       </div>
-    </div>
+    </button>
   </div>
 </template>
 

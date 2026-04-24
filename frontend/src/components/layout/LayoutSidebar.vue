@@ -118,7 +118,14 @@ const themeStore = useThemeStore()
 
 const isSidebarOpened = ref(true)
 const githubStarsCount = ref(null)
-const theme = ref<Theme>(themeStore.getCurrentTheme)
+const theme = computed<Theme>({
+  get: () => themeStore.getCurrentTheme,
+  set: (value) => {
+    if (value !== themeStore.getCurrentTheme) {
+      themeStore.changeTheme()
+    }
+  },
+})
 
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
 const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
@@ -196,10 +203,6 @@ async function getGithubStarsCount() {
 
 watch(width, () => {
   windowResizeHandler()
-})
-
-watch(theme, () => {
-  themeStore.changeTheme()
 })
 
 watch(
