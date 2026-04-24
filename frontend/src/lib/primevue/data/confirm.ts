@@ -172,6 +172,23 @@ export const deleteSecretConfirmation: ConfirmationOptions = {
   },
 }
 
+export const deleteRepositoryConfirmOptions = (
+  accept: () => void,
+  name: string,
+): ConfirmationOptions => ({
+  message: `This will permanently delete "${name}" and all its tasks and workflows.`,
+  header: 'Delete repository?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
 export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message: 'Are you sure you want to exit this page?',
   header: 'Are you sure?',

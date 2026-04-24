@@ -83,6 +83,15 @@
   border-color: var(--p-primary-color);
 }
 
+[data-theme='dark'] .vue-flow__node {
+  border-color: var(--p-surface-700);
+  box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.4);
+}
+
+[data-theme='dark'] .vue-flow__edge-path {
+  stroke: var(--p-surface-600);
+}
+
 a.p-button {
   text-decoration: none;
 }
