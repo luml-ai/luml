@@ -18,7 +18,10 @@
     "test:ci": "vitest run --environment jsdom",
     "test:ui": "vitest --ui",
     "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "test:integration": "playwright test",
+    "test:integration:ui": "playwright test --ui",
+    "test:integration:report": "playwright show-report"
   },
   "dependencies": {
     "@fnnx-ai/common": "^0.0.1",
@@ -62,11 +65,12 @@
     "vuedraggable": "^4.1.0",
     "zod": "^3.23.8"
   },
-  "devDependencies": {
-    "@types/dagre": "^0.7.52",
-    "@types/file-saver": "^2.0.7",
-    "@types/qs": "^6.14.0",
-    "@types/sql.js": "^1.4.9",
-    "patch-package": "^8.0.1"
-  }
+"devDependencies": {
+  "@playwright/test": "^1.59.1",
+  "@types/dagre": "^0.7.52",
+  "@types/file-saver": "^2.0.7",
+  "@types/qs": "^6.14.0",
+  "@types/sql.js": "^1.4.9",
+  "patch-package": "^8.0.1"
+}
 }
