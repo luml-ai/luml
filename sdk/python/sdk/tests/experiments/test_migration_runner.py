@@ -208,7 +208,9 @@ class TestBaseMigrationRunnerViaMetaDB:
         assert applied == [1]
         assert runner.get_current_version() == 1
         pending = runner.get_pending_migrations()
-        assert [m["version"] for m in pending] == list(range(2, META_DB_LAST_VERSION + 1))
+        assert [m["version"] for m in pending] == list(
+            range(2, META_DB_LAST_VERSION + 1)
+        )
 
     def test_get_pending_migrations_after_partial_apply(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)

@@ -182,7 +182,7 @@ class AwsSignatureValidator:
             canonical_request.encode("utf-8")
         ).hexdigest()
 
-        return f"{self.algorithm}\n{x_amz_date}\n{credential_scope}\n{canonical_request_hash}"
+        return f"{self.algorithm}\n{x_amz_date}\n{credential_scope}\n{canonical_request_hash}"  # noqa: E501
 
     def _compute_signature(self, auth: AwsAuthInfo, string_to_sign: str) -> str:
         signing_key = self._get_signature_key(auth.secret_key, auth)
