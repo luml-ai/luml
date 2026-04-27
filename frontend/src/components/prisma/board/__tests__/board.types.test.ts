@@ -59,7 +59,7 @@ describe('STATUS_TO_COLUMN', () => {
       canceled: 'completed',
       merged: 'merged',
       archived: 'completed',
-      waiting_input: 'running'
+      waiting_input: 'running',
     }
     expect(STATUS_TO_COLUMN).toEqual(expected)
   })
