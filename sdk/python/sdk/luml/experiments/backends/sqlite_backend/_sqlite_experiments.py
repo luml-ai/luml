@@ -6,24 +6,23 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    pass
+    from luml.experiments.backends.sqlite import SQLiteBackend  # noqa: F401
 
 
-from sdk.luml.artifacts._base import DiskFile, _BaseFile
-from sdk.luml.experiments.backends._cursor import Cursor
-from sdk.luml.experiments.backends.data_types import (
+from luml.artifacts._base import DiskFile, _BaseFile
+from luml.experiments.backends._cursor import Cursor
+from luml.experiments.backends._search_utils import (
+    SearchExperimentsUtils,
+)
+from luml.experiments.backends.data_types import (
     Experiment,
     ExperimentData,
     ExperimentMetaData,
     Group,
     PaginatedResponse,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
-from sdk.luml.utils.tar import create_and_index_tar
-
-from luml.experiments.backends._search_utils import (
-    SearchExperimentsUtils,
-)
+from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
+from luml.utils.tar import create_and_index_tar
 
 
 class SQLiteGroupMixin(_SQLiteBase):
@@ -677,7 +676,14 @@ class SQLiteExperimentMixin(SQLiteGroupMixin):
             INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description, source)
             VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (experiment_id, name or experiment_id, group_id, tags_str, description, source),
+            (
+                experiment_id,
+                name or experiment_id,
+                group_id,
+                tags_str,
+                description,
+                source,
+            ),
         )
 
         conn.commit()

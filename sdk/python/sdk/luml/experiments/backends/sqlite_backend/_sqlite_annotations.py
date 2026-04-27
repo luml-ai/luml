@@ -4,7 +4,7 @@ import uuid
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    pass
+    from luml.experiments.backends.sqlite import SQLiteBackend  # noqa: F401
 
 from luml.experiments.backends.data_types import (
     AnnotationKind,

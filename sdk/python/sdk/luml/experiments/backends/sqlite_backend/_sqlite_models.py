@@ -7,11 +7,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    pass
+    from luml.experiments.backends.sqlite import SQLiteBackend  # noqa: F401
 
-from luml.experiments.backends.data_types import (
-    Model,
-)
+from luml.experiments.backends.data_types import Model
 from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
 
 
@@ -109,7 +107,16 @@ class SQLiteModelMixin(_SQLiteBase):
 
         cursor.execute(
             "INSERT INTO models (id, name, tags, path, size, experiment_id, source, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (model_id, name or model_src.stem, tags_json, rel_path, size, experiment_id, source, description),
+            (
+                model_id,
+                name or model_src.stem,
+                tags_json,
+                rel_path,
+                size,
+                experiment_id,
+                source,
+                description,
+            ),
         )
         conn.commit()
 
