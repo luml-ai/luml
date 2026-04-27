@@ -28,9 +28,7 @@ const meta: Meta<typeof BoardColumn> = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-const pendingItems = [
-  toBoardItem('task', mockTasks.find((t) => t.status === 'pending')!),
-]
+const pendingItems = [toBoardItem('task', mockTasks.find((t) => t.status === 'pending')!)]
 
 const runningItems = [
   toBoardItem('task', mockTasks.find((t) => t.status === 'running')!),

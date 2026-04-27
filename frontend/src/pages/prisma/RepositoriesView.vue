@@ -21,10 +21,12 @@ function openNewRepository() {
 }
 
 function onDeleteRepository(repositoryId: string, repositoryName: string) {
-  confirm.require(deleteRepositoryConfirmOptions(async () => {
-    await api.dataAgent.deleteRepository(repositoryId)
-    await refresh()
-  }, repositoryName))
+  confirm.require(
+    deleteRepositoryConfirmOptions(async () => {
+      await api.dataAgent.deleteRepository(repositoryId)
+      await refresh()
+    }, repositoryName),
+  )
 }
 
 onMounted(() => {

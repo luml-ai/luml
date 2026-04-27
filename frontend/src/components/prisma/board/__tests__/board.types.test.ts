@@ -59,6 +59,7 @@ describe('STATUS_TO_COLUMN', () => {
       canceled: 'completed',
       merged: 'merged',
       archived: 'completed',
+      waiting_input: 'running'
     }
     expect(STATUS_TO_COLUMN).toEqual(expected)
   })
@@ -123,7 +124,7 @@ describe('statusSeverity', () => {
     expect(statusSeverity('succeeded')).toBe('success')
     expect(statusSeverity('failed')).toBe('danger')
     expect(statusSeverity('canceled')).toBe('secondary')
-    expect(statusSeverity('merged')).toBe('success')
+    expect(statusSeverity('merged')).toBe('info')
     expect(statusSeverity('archived')).toBe('secondary')
   })
 

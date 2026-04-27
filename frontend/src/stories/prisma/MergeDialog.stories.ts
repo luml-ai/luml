@@ -12,7 +12,7 @@ const meta: Meta<typeof MergeDialog> = {
     docs: {
       description: {
         component:
-          'Merge preview modal — shown when the user clicks Merge on a task or on a workflow\'s best branch. Fetches a preview from the backend and lets the user confirm.',
+          "Merge preview modal — shown when the user clicks Merge on a task or on a workflow's best branch. Fetches a preview from the backend and lets the user confirm.",
       },
     },
   },

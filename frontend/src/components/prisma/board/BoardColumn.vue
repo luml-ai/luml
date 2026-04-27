@@ -7,14 +7,17 @@ import type { AgentRepository } from '@/lib/api/prisma/prisma.interfaces'
 import type { BoardItem } from './board.types'
 import BoardCard from './BoardCard.vue'
 
-const props = withDefaults(defineProps<{
-  title: string
-  severity: 'warn' | 'info' | 'success' | 'danger'
-  items: BoardItem[]
-  repositories: AgentRepository[]
-  showCreate?: boolean
-  failCount?: number
-}>(), { failCount: 0 })
+const props = withDefaults(
+  defineProps<{
+    title: string
+    severity: 'warn' | 'info' | 'success' | 'danger'
+    items: BoardItem[]
+    repositories: AgentRepository[]
+    showCreate?: boolean
+    failCount?: number
+  }>(),
+  { failCount: 0 },
+)
 
 const emit = defineEmits<{
   select: [item: BoardItem]
@@ -28,7 +31,9 @@ const localItems = ref<BoardItem[]>([])
 
 watch(
   () => props.items,
-  (val) => { localItems.value = [...val] },
+  (val) => {
+    localItems.value = [...val]
+  },
   { immediate: true },
 )
 
@@ -57,8 +62,19 @@ function itemKey(item: BoardItem): string {
   <div class="board-column">
     <div class="column-header">
       <span class="column-title">{{ title }}</span>
-      <Tag :value="String(items.length - failCount)" :severity="severity" rounded class="count-badge" />
-      <Tag v-if="failCount > 0" :value="String(failCount)" severity="danger" rounded class="count-badge" />
+      <Tag
+        :value="String(items.length - failCount)"
+        :severity="severity"
+        rounded
+        class="count-badge"
+      />
+      <Tag
+        v-if="failCount > 0"
+        :value="String(failCount)"
+        severity="danger"
+        rounded
+        class="count-badge"
+      />
     </div>
     <div class="column-scroll">
       <div v-if="showCreate" class="create-card" @click="emit('create')">
@@ -140,7 +156,9 @@ function itemKey(item: BoardItem): string {
   gap: 6px;
   font-size: 12px;
   color: var(--p-text-muted-color);
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .create-card:hover {

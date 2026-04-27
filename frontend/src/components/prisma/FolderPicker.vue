@@ -68,11 +68,7 @@ async function navigateTo(path: string) {
     <div v-if="open" class="browse-panel">
       <div class="browse-header">
         <span class="browse-path">{{ current || 'Loading...' }}</span>
-        <Button
-          v-if="isGit"
-          size="small"
-          @click="selectDir(current)"
-        >
+        <Button v-if="isGit" size="small" @click="selectDir(current)">
           <Check :size="14" />
           <span>Select this</span>
         </Button>
@@ -80,11 +76,20 @@ async function navigateTo(path: string) {
       <div class="browse-list">
         <div v-if="loading" class="browse-empty">Loading...</div>
         <template v-else>
-          <div v-if="parent != null" class="browse-item browse-item--parent" @click="navigateTo(parent)">
+          <div
+            v-if="parent != null"
+            class="browse-item browse-item--parent"
+            @click="navigateTo(parent)"
+          >
             <ArrowUp :size="14" />
             <span>..</span>
           </div>
-          <div v-for="dir in dirs" :key="dir.path" class="browse-item" @click="navigateTo(dir.path)">
+          <div
+            v-for="dir in dirs"
+            :key="dir.path"
+            class="browse-item"
+            @click="navigateTo(dir.path)"
+          >
             <component :is="dir.is_git ? Github : Folder" :size="14" />
             <span class="dir-name">{{ dir.name }}</span>
             <Button

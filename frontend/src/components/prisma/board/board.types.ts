@@ -50,7 +50,9 @@ export function displayStatus(status: string): string {
   return map[status] ?? status
 }
 
-export function statusSeverity(status: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
+export function statusSeverity(
+  status: string,
+): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
   const map: Record<string, 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
     pending: 'warn',
     running: 'info',

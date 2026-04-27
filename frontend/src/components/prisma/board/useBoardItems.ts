@@ -22,12 +22,10 @@ export function useBoardItems(
 ) {
   const allItems = computed<BoardItem[]>(() => {
     const repoId = repositoryFilter?.value ?? null
-    const filteredTasks = repoId != null
-      ? tasks.value.filter((t) => t.repository_id === repoId)
-      : tasks.value
-    const filteredRuns = repoId != null
-      ? runs.value.filter((r) => r.repository_id === repoId)
-      : runs.value
+    const filteredTasks =
+      repoId != null ? tasks.value.filter((t) => t.repository_id === repoId) : tasks.value
+    const filteredRuns =
+      repoId != null ? runs.value.filter((r) => r.repository_id === repoId) : runs.value
 
     const items: BoardItem[] = [
       ...filteredTasks.map((t) => toBoardItem('task', t)),

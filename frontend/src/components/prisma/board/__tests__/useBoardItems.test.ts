@@ -64,9 +64,7 @@ describe('useBoardItems', () => {
       makeTask({ id: 't1', updated_at: '2025-01-01T00:00:00Z' }),
       makeTask({ id: 't2', updated_at: '2025-01-03T00:00:00Z' }),
     ])
-    const runs = ref([
-      makeRun({ id: 'r10', updated_at: '2025-01-02T00:00:00Z' }),
-    ])
+    const runs = ref([makeRun({ id: 'r10', updated_at: '2025-01-02T00:00:00Z' })])
 
     const { allItems } = useBoardItems(tasks, runs)
 

@@ -90,9 +90,7 @@ describe('useUploadFlow', () => {
       })
 
       expect(flow.failedUploads.value).toHaveLength(1)
-      expect(flow.failedUploads.value[0].error).toBe(
-        'Failed to create artifact on LUML backend',
-      )
+      expect(flow.failedUploads.value[0].error).toBe('Failed to create artifact on LUML backend')
     })
 
     it('handles 409 conflict (another tab claimed upload)', async () => {

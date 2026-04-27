@@ -166,7 +166,10 @@ function openArtifact() {
     </div>
 
     <!-- Actions -->
-    <div v-if="node.session_id || node.status === 'running' || node.status === 'waiting_input'" class="actions">
+    <div
+      v-if="node.session_id || node.status === 'running' || node.status === 'waiting_input'"
+      class="actions"
+    >
       <Button
         v-if="node.session_id"
         :severity="isSessionLive ? 'info' : 'secondary'"

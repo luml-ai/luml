@@ -30,16 +30,17 @@ const terminalSessionId = ref<string | null>(null)
 const terminalLabel = ref('Terminal')
 const showTerminal = ref(false)
 
-const isDetailRoute = computed(() =>
-  route.name === 'prisma-task' || route.name === 'prisma-run',
-)
+const isDetailRoute = computed(() => route.name === 'prisma-task' || route.name === 'prisma-run')
 
 const activeTab = ref(route.name === 'prisma-repos' ? 'repositories' : 'board')
 
-watch(() => route.name, (name) => {
-  if (name === 'prisma-board') activeTab.value = 'board'
-  else if (name === 'prisma-repos') activeTab.value = 'repositories'
-})
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'prisma-board') activeTab.value = 'board'
+    else if (name === 'prisma-repos') activeTab.value = 'repositories'
+  },
+)
 
 watch(activeTab, (tab) => {
   const target = tab === 'repositories' ? 'prisma-repos' : 'prisma-board'
@@ -117,54 +118,56 @@ onMounted(async () => {
       <BackendOffline :version-mismatch="versionMismatch" @retry="onRetry" />
     </template>
     <template v-else>
-    <header v-if="!isDetailRoute" class="page-header">
-      <div class="title-row">
-        <h2 class="title">
-          Prisma
-          <span v-tooltip.bottom="'This feature is in preview and may change as we refine it.'" class="preview-badge">
-            PREVIEW
-          </span>
-        </h2>
-        <BackendIndicator @changed="onBackendChanged" />
-      </div>
-      <div class="header-actions">
-        <Button severity="secondary" outlined @click="openDebugSessions">
-          <Monitor :size="14" />
-          <span>Sessions</span>
-        </Button>
-        <Button @click="showNewRepository = true">
-          <Plus :size="14" />
-          <span>New Repository</span>
-        </Button>
-      </div>
-    </header>
+      <header v-if="!isDetailRoute" class="page-header">
+        <div class="title-row">
+          <h2 class="title">
+            Prisma
+            <span
+              v-tooltip.bottom="'This feature is in preview and may change as we refine it.'"
+              class="preview-badge"
+            >
+              PREVIEW
+            </span>
+          </h2>
+          <BackendIndicator @changed="onBackendChanged" />
+        </div>
+        <div class="header-actions">
+          <Button severity="secondary" outlined @click="openDebugSessions">
+            <Monitor :size="14" />
+            <span>Sessions</span>
+          </Button>
+          <Button @click="showNewRepository = true">
+            <Plus :size="14" />
+            <span>New Repository</span>
+          </Button>
+        </div>
+      </header>
 
-    <template v-if="isDetailRoute">
-      <RouterView />
-    </template>
-    <template v-else>
-      <Tabs v-model:value="activeTab" class="main-tabs">
-        <TabList :pt="tabsListPT">
-          <Tab value="board" class="tab">
-            <KanbanSquare :size="14" />
-            <span>Board</span>
-          </Tab>
-          <Tab value="repositories" class="tab">
-            <FolderGit :size="14" />
-            <span>Repositories</span>
-          </Tab>
-        </TabList>
-        <TabPanels class="panels">
-          <TabPanel value="board" class="panel">
-            <BoardView />
-          </TabPanel>
-          <TabPanel value="repositories" class="panel">
-            <RepositoriesView />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-    </template>
-
+      <template v-if="isDetailRoute">
+        <RouterView />
+      </template>
+      <template v-else>
+        <Tabs v-model:value="activeTab" class="main-tabs">
+          <TabList :pt="tabsListPT">
+            <Tab value="board" class="tab">
+              <KanbanSquare :size="14" />
+              <span>Board</span>
+            </Tab>
+            <Tab value="repositories" class="tab">
+              <FolderGit :size="14" />
+              <span>Repositories</span>
+            </Tab>
+          </TabList>
+          <TabPanels class="panels">
+            <TabPanel value="board" class="panel">
+              <BoardView />
+            </TabPanel>
+            <TabPanel value="repositories" class="panel">
+              <RepositoriesView />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
+      </template>
     </template>
 
     <!-- Shared dialogs -->

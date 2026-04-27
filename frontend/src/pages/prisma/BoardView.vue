@@ -5,7 +5,12 @@ import { useConfirm } from 'primevue'
 import { api } from '@/lib/api'
 import { usePrismaStore } from '@/stores/prisma'
 import { useBoardItems } from '@/components/prisma/board/useBoardItems'
-import { COLUMN_DEFS, FAIL_STATUSES, type BoardColumn as BoardCol, type BoardItem } from '@/components/prisma/board/board.types'
+import {
+  COLUMN_DEFS,
+  FAIL_STATUSES,
+  type BoardColumn as BoardCol,
+  type BoardItem,
+} from '@/components/prisma/board/board.types'
 import type { AgentTask, Run } from '@/lib/api/prisma/prisma.interfaces'
 import BoardToolbar from '@/components/prisma/board/BoardToolbar.vue'
 import BoardColumn from '@/components/prisma/board/BoardColumn.vue'
@@ -23,8 +28,8 @@ const { columns } = useBoardItems(tasks, runs, repositoryFilter)
 const failCounts = computed(() => {
   const counts = {} as Record<BoardCol, number>
   for (const col of COLUMN_DEFS) {
-    counts[col.key] = (columns.value[col.key] ?? []).filter(
-      (item) => FAIL_STATUSES.has(item.data.status),
+    counts[col.key] = (columns.value[col.key] ?? []).filter((item) =>
+      FAIL_STATUSES.has(item.data.status),
     ).length
   }
   return counts
@@ -71,7 +76,6 @@ async function onStart(item: BoardItem) {
   }
   await refresh()
 }
-
 
 function onDelete(item: BoardItem) {
   const label = item.kind === 'task' ? 'task' : 'workflow'

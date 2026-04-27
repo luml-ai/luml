@@ -204,7 +204,11 @@ export class PrismaApi {
     return data
   }
 
-  async sendNodeAction(nodeId: string, action: string, payload: Record<string, any> = {}): Promise<void> {
+  async sendNodeAction(
+    nodeId: string,
+    action: string,
+    payload: Record<string, any> = {},
+  ): Promise<void> {
     await this.api.post(`/nodes/${nodeId}/action`, { action, payload })
   }
 
@@ -243,7 +247,12 @@ export class PrismaApi {
   async postArtifactLink(
     runId: string,
     uploadId: string,
-    artifactLink: { artifact_id: string; organization_id: string; orbit_id: string; collection_id: string },
+    artifactLink: {
+      artifact_id: string
+      organization_id: string
+      orbit_id: string
+      collection_id: string
+    },
   ): Promise<void> {
     await this.api.post(`/runs/${runId}/uploads/${uploadId}/artifact-link`, artifactLink)
   }

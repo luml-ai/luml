@@ -1,9 +1,6 @@
 import { ref, computed } from 'vue'
 import { api } from '@/lib/api'
-import type {
-  UploadReadyEvent,
-  PendingUpload,
-} from '@/lib/api/prisma/prisma.interfaces'
+import type { UploadReadyEvent, PendingUpload } from '@/lib/api/prisma/prisma.interfaces'
 import type { CreateArtifactResponse } from '@/lib/api/artifacts/interfaces'
 import { ArtifactTypeEnum, ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 
@@ -134,7 +131,10 @@ export function useUploadFlow() {
     if (ctx) {
       try {
         await api.artifacts.update(
-          ctx.organizationId, ctx.orbitId, ctx.collectionId, ctx.artifactId,
+          ctx.organizationId,
+          ctx.orbitId,
+          ctx.collectionId,
+          ctx.artifactId,
           { status: ArtifactStatusEnum.uploaded },
         )
       } catch {
@@ -184,10 +184,7 @@ export function useUploadFlow() {
       data.message ?? 'Worktrees will be cleaned up after uploads complete'
   }
 
-  async function retryUpload(
-    uploadId: string,
-    event: UploadReadyEvent,
-  ): Promise<void> {
+  async function retryUpload(uploadId: string, event: UploadReadyEvent): Promise<void> {
     await _requestPresignedAndPost(event)
   }
 

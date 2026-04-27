@@ -17,7 +17,6 @@ const emit = defineEmits<{
 
 const showMerge = ref(false)
 
-
 async function handleStart() {
   await api.dataAgent.openTerminal(props.task.id)
   emit('refresh')
@@ -30,19 +29,11 @@ async function handleStart() {
       <h3 class="task-title">{{ task.name }}</h3>
       <Tag :value="task.status" :severity="statusSeverity(task.status)" />
       <div class="actions">
-        <Button
-          v-if="task.status === 'pending'"
-          severity="success"
-          @click="handleStart"
-        >
+        <Button v-if="task.status === 'pending'" severity="success" @click="handleStart">
           <Play :size="14" />
           <span>Start</span>
         </Button>
-        <Button
-          v-if="task.status === 'succeeded'"
-          severity="success"
-          @click="showMerge = true"
-        >
+        <Button v-if="task.status === 'succeeded'" severity="success" @click="showMerge = true">
           <GitMerge :size="14" />
           <span>Merge</span>
         </Button>
@@ -60,7 +51,10 @@ async function handleStart() {
       kind="task"
       :item-id="task.id"
       @close="showMerge = false"
-      @merged="showMerge = false; emit('refresh')"
+      @merged="
+        showMerge = false
+        emit('refresh')
+      "
     />
   </div>
 </template>

@@ -25,21 +25,22 @@ const loading = ref(false)
 const error = ref('')
 const formRef = ref<InstanceType<typeof TaskForm> | InstanceType<typeof WorkflowForm> | null>(null)
 
-watch(() => props.visible, (v) => {
-  if (v) {
-    selectedType.value = props.initialType
-    error.value = ''
-  }
-})
+watch(
+  () => props.visible,
+  (v) => {
+    if (v) {
+      selectedType.value = props.initialType
+      error.value = ''
+    }
+  },
+)
 
 const typeOptions = [
   { label: 'Workflow', value: 'workflow' as const, icon: Waypoints },
   { label: 'Task', value: 'task' as const, icon: ListTodo },
 ]
 
-const formComponent = computed(() =>
-  selectedType.value === 'task' ? TaskForm : WorkflowForm,
-)
+const formComponent = computed(() => (selectedType.value === 'task' ? TaskForm : WorkflowForm))
 
 async function onFormSubmit(data: Record<string, unknown>) {
   error.value = ''

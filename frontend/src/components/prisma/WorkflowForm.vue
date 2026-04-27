@@ -240,7 +240,12 @@ defineExpose({ submit })
     </div>
     <div class="field">
       <label class="label">Objective</label>
-      <Textarea v-model="objective" rows="3" placeholder="Describe what this workflow should accomplish..." class="w-full" />
+      <Textarea
+        v-model="objective"
+        rows="3"
+        placeholder="Describe what this workflow should accomplish..."
+        class="w-full"
+      />
     </div>
     <div class="field">
       <label class="label">Agent</label>
@@ -262,10 +267,19 @@ defineExpose({ submit })
     </div>
     <div class="option-group">
       <div class="field field--checkbox">
-        <Checkbox v-model="uploadEnabled" :binary="true" inputId="uploadEnabled" :disabled="!showCollectionSelector" />
-        <label for="uploadEnabled" :class="{ 'label--disabled': !showCollectionSelector }">Upload artifacts to collection</label>
+        <Checkbox
+          v-model="uploadEnabled"
+          :binary="true"
+          inputId="uploadEnabled"
+          :disabled="!showCollectionSelector"
+        />
+        <label for="uploadEnabled" :class="{ 'label--disabled': !showCollectionSelector }"
+          >Upload artifacts to collection</label
+        >
       </div>
-      <p v-if="!showCollectionSelector" class="hint">Sign in to upload artifacts to a collection.</p>
+      <p v-if="!showCollectionSelector" class="hint">
+        Sign in to upload artifacts to a collection.
+      </p>
       <template v-if="uploadEnabled && showCollectionSelector">
         <div class="field">
           <label class="label">Orbit</label>

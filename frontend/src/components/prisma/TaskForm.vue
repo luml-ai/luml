@@ -10,7 +10,15 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  submit: [data: { repository_id: string; name: string; agent_id: string; prompt: string; base_branch: string }]
+  submit: [
+    data: {
+      repository_id: string
+      name: string
+      agent_id: string
+      prompt: string
+      base_branch: string
+    },
+  ]
 }>()
 
 const name = ref('')
@@ -129,7 +137,12 @@ defineExpose({ submit })
     </div>
     <div class="field">
       <label class="label">Prompt</label>
-      <Textarea v-model="prompt" rows="4" placeholder="Describe what the agent should do..." class="w-full" />
+      <Textarea
+        v-model="prompt"
+        rows="4"
+        placeholder="Describe what the agent should do..."
+        class="w-full"
+      />
     </div>
   </div>
 </template>

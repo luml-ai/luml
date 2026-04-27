@@ -28,9 +28,10 @@ watch(
       loading.value = true
       error.value = ''
       try {
-        preview.value = props.kind === 'task'
-          ? await api.dataAgent.getMergePreview(props.itemId)
-          : await api.dataAgent.getRunMergePreview(props.itemId)
+        preview.value =
+          props.kind === 'task'
+            ? await api.dataAgent.getMergePreview(props.itemId)
+            : await api.dataAgent.getRunMergePreview(props.itemId)
       } catch (e: any) {
         error.value = e?.response?.data?.detail ?? 'Failed to load preview'
       } finally {
@@ -121,10 +122,7 @@ async function confirmMerge() {
       <Button severity="secondary" @click="emit('close')">
         <span>Cancel</span>
       </Button>
-      <Button
-        :disabled="!preview"
-        @click="confirmMerge"
-      >
+      <Button :disabled="!preview" @click="confirmMerge">
         <Check :size="14" />
         <span>Merge</span>
       </Button>

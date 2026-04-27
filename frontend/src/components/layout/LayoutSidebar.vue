@@ -7,11 +7,7 @@
   >
     <div>
       <nav class="nav">
-        <div
-          v-for="section in SIDEBAR_SECTIONS"
-          :key="section.id"
-          class="section"
-        >
+        <div v-for="section in SIDEBAR_SECTIONS" :key="section.id" class="section">
           <div class="section-label">{{ section.label }}</div>
           <div class="section-divider" aria-hidden="true" />
           <ul class="list">

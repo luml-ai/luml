@@ -112,7 +112,6 @@ async function onCancelRun() {
   store.updateRun(run)
 }
 
-
 async function onMerged() {
   showMergeDialog.value = false
   const run = await api.dataAgent.getRun(store.selectedRunId!)
@@ -169,10 +168,15 @@ onUnmounted(() => {
           <div class="header-info">
             <div class="header-info-top">
               <span class="content-title">{{ store.selectedRun.name }}</span>
-              <Tag :value="store.selectedRun.status" :severity="statusSeverity(store.selectedRun.status)" />
+              <Tag
+                :value="store.selectedRun.status"
+                :severity="statusSeverity(store.selectedRun.status)"
+              />
               <span v-if="bestScore" class="best-score-label">Best: {{ bestScore }}</span>
             </div>
-            <span v-if="store.selectedRun.objective" class="run-objective">{{ store.selectedRun.objective }}</span>
+            <span v-if="store.selectedRun.objective" class="run-objective">{{
+              store.selectedRun.objective
+            }}</span>
           </div>
           <Button
             v-if="store.selectedRun.status === 'pending'"
@@ -190,11 +194,7 @@ onUnmounted(() => {
             <X :size="14" />
             <span>Cancel</span>
           </Button>
-<Button
-            v-if="canMerge"
-            severity="success"
-            @click="showMergeDialog = true"
-          >
+          <Button v-if="canMerge" severity="success" @click="showMergeDialog = true">
             <GitMerge :size="14" />
             <span>Merge</span>
           </Button>
@@ -206,7 +206,11 @@ onUnmounted(() => {
           {{ uploadFlow.worktreesPendingMessage.value }}
         </Message>
       </div>
-      <div v-for="entry in uploadFlow.failedUploads.value" :key="entry.uploadId" class="upload-banner">
+      <div
+        v-for="entry in uploadFlow.failedUploads.value"
+        :key="entry.uploadId"
+        class="upload-banner"
+      >
         <Message severity="error" :closable="false">
           <span>Upload failed for node {{ entry.nodeId }}: {{ entry.error }}</span>
           <Button size="small" severity="secondary" text @click="onRetryUpload(entry.uploadId)">
@@ -224,11 +228,7 @@ onUnmounted(() => {
 
     <Transition name="slide-right">
       <Teleport to="body">
-        <div
-          v-if="store.selectedNodeId"
-          class="sidebar-wrapper"
-          @click.self="closeNodeDetail"
-        >
+        <div v-if="store.selectedNodeId" class="sidebar-wrapper" @click.self="closeNodeDetail">
           <div class="node-sidebar">
             <NodeDetail
               :artifact="nodeArtifact"

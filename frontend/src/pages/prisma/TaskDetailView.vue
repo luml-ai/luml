@@ -54,10 +54,7 @@ onUnmounted(() => {
     </div>
     <div v-if="task" class="detail-content">
       <TaskDetail :task="task" @refresh="refresh" />
-      <TerminalTabs
-        :tasks="activeTasks"
-        @update:idle-sessions="idleSessions = $event"
-      />
+      <TerminalTabs :tasks="activeTasks" @update:idle-sessions="idleSessions = $event" />
     </div>
     <div v-else class="empty">Loading...</div>
   </div>

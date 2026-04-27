@@ -16,8 +16,8 @@ export const usePrismaStore = defineStore('prisma', () => {
 
   const selectedTaskId = ref<string | null>(null)
 
-  const selectedTask = computed(() =>
-    tasks.value.find((t) => t.id === selectedTaskId.value) ?? null,
+  const selectedTask = computed(
+    () => tasks.value.find((t) => t.id === selectedTaskId.value) ?? null,
   )
 
   const runs = ref<Run[]>([])
@@ -27,12 +27,10 @@ export const usePrismaStore = defineStore('prisma', () => {
   const selectedNodeId = ref<string | null>(null)
   const lastSeq = ref(0)
 
-  const selectedRun = computed(() =>
-    runs.value.find((r) => r.id === selectedRunId.value) ?? null,
-  )
+  const selectedRun = computed(() => runs.value.find((r) => r.id === selectedRunId.value) ?? null)
 
-  const selectedNode = computed(() =>
-    nodes.value.find((n) => n.id === selectedNodeId.value) ?? null,
+  const selectedNode = computed(
+    () => nodes.value.find((n) => n.id === selectedNodeId.value) ?? null,
   )
 
   function setRuns(newRuns: Run[]) {

@@ -121,11 +121,13 @@ function connect() {
 
 function sendResize() {
   if (ws?.readyState === WebSocket.OPEN && terminal) {
-    ws.send(JSON.stringify({
-      type: 'resize',
-      cols: terminal.cols,
-      rows: terminal.rows,
-    }))
+    ws.send(
+      JSON.stringify({
+        type: 'resize',
+        cols: terminal.cols,
+        rows: terminal.rows,
+      }),
+    )
   }
 }
 
@@ -168,14 +170,17 @@ onMounted(() => {
   }
 })
 
-watch(() => props.active, (isActive) => {
-  if (isActive) {
-    setTimeout(() => {
-      fitAddon?.fit()
-      sendResize()
-    }, 50)
-  }
-})
+watch(
+  () => props.active,
+  (isActive) => {
+    if (isActive) {
+      setTimeout(() => {
+        fitAddon?.fit()
+        sendResize()
+      }, 50)
+    }
+  },
+)
 
 onUnmounted(() => {
   resizeObserver?.disconnect()
