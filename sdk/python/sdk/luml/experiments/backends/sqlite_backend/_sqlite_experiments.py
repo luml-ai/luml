@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from sdk.luml.experiments.backends.sqlite import SQLiteBackend
+    pass
 
 
 from sdk.luml.artifacts._base import DiskFile, _BaseFile
@@ -18,11 +18,12 @@ from sdk.luml.experiments.backends.data_types import (
     Group,
     PaginatedResponse,
 )
-from sdk.luml.experiments.backends.sqlite_backend._search_utils import (
-    SearchExperimentsUtils,
-)
 from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
 from sdk.luml.utils.tar import create_and_index_tar
+
+from luml.experiments.backends._search_utils import (
+    SearchExperimentsUtils,
+)
 
 
 class SQLiteGroupMixin(_SQLiteBase):
@@ -1074,8 +1075,7 @@ class SQLiteExperimentMixin(SQLiteGroupMixin):
         conn.commit()
 
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id"
-            "FROM experiments WHERE id = ?",
+            "SELECT id, name, created_at, status, tags, duration, description, group_id FROM experiments WHERE id = ?",
             (experiment_id,),
         )
         row = cursor.fetchone()

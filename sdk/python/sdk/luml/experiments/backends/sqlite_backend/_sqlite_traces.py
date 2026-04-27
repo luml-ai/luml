@@ -4,10 +4,10 @@ import sqlite3
 from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
-    from sdk.luml.experiments.backends.sqlite import SQLiteBackend
+    pass
 
-from sdk.luml.experiments.backends._cursor import Cursor
-from sdk.luml.experiments.backends.data_types import (
+from luml.experiments.backends._cursor import Cursor
+from luml.experiments.backends.data_types import (
     ColumnField,
     ColumnType,
     PaginatedResponse,
@@ -18,11 +18,11 @@ from sdk.luml.experiments.backends.data_types import (
     TraceState,
     TraceTypedColumns,
 )
-from sdk.luml.experiments.backends.sqlite_backend._search_utils import (
+from luml.experiments.backends.sqlite_backend._search_utils import (
     SearchTracesUtils,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
-from sdk.luml.experiments.utils import guess_span_type
+from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
+from luml.experiments.utils import guess_span_type
 
 
 class SQLiteTraceMixin(_SQLiteBase):

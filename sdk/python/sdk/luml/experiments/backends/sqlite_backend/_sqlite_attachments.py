@@ -1,16 +1,24 @@
 # flake8: noqa: E501
 import uuid
+from pathlib import Path
 
-from sdk.luml.artifacts._base import _BaseFile
-from sdk.luml.experiments.backends.data_types import (
+from luml.artifacts._base import _BaseFile
+from luml.experiments.backends.data_types import (
     AttachmentRecord,
     FileNode,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
-from sdk.luml.utils.tar import create_and_index_tar
+from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
+from luml.utils.tar import create_and_index_tar
 
 
 class SQLiteAttachmentMixin(_SQLiteBase):
+    @staticmethod
+    def _safe_attachment_path(attachments_dir: Path, name: str) -> Path:
+        resolved = (attachments_dir / name).resolve()
+        if not resolved.is_relative_to(attachments_dir.resolve()):
+            raise ValueError(f"Invalid attachment name: {name!r}")
+        return resolved
+
     def log_attachment(
         self, experiment_id: str, name: str, data: bytes | str, binary: bool = False
     ) -> None:
@@ -36,11 +44,15 @@ class SQLiteAttachmentMixin(_SQLiteBase):
 
         if not isinstance(data, bytes | str):
             raise ValueError("Attachment data must be bytes or str")
+        if isinstance(data, bytes) and not binary:
+            raise ValueError("Attachment data is bytes but binary=False")
+        if isinstance(data, str) and binary:
+            raise ValueError("Attachment data is str but binary=True")
 
-        file_path = attachments_dir / name
+        file_path = self._safe_attachment_path(attachments_dir, name)
         file_path.parent.mkdir(parents=True, exist_ok=True)
 
-        with file_path.open("wb+" if binary else "w+") as f:
+        with file_path.open("wb+" if isinstance(data, bytes) else "w+") as f:
             f.write(data)
         size = file_path.stat().st_size
 
@@ -94,7 +106,7 @@ class SQLiteAttachmentMixin(_SQLiteBase):
         self._ensure_experiment_initialized(experiment_id)
 
         attachments_dir = self._get_attachments_dir(experiment_id)
-        file_path = attachments_dir / name
+        file_path = self._safe_attachment_path(attachments_dir, name)
 
         if not file_path.exists():
             raise ValueError(

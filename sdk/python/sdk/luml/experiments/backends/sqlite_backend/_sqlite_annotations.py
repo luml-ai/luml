@@ -4,9 +4,9 @@ import uuid
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from sdk.luml.experiments.backends.sqlite import SQLiteBackend
+    pass
 
-from sdk.luml.experiments.backends.data_types import (
+from luml.experiments.backends.data_types import (
     AnnotationKind,
     AnnotationRecord,
     AnnotationSummary,
@@ -14,7 +14,7 @@ from sdk.luml.experiments.backends.data_types import (
     ExpectationSummaryItem,
     FeedbackSummaryItem,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
+from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
 
 
 class SQLiteAnnotationMixin(_SQLiteBase):

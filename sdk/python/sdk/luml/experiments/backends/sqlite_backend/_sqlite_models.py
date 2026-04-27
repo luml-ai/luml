@@ -7,12 +7,12 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from sdk.luml.experiments.backends.sqlite import SQLiteBackend
+    pass
 
-from sdk.luml.experiments.backends.data_types import (
+from luml.experiments.backends.data_types import (
     Model,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
+from luml.experiments.backends.sqlite_backend._sqlite_base import _SQLiteBase
 
 
 class SQLiteModelMixin(_SQLiteBase):

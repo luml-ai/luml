@@ -8,14 +8,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sdk.luml.experiments.backends.data_types import (
+from luml.experiments.backends.data_types import (
     ColumnType,
 )
-from sdk.luml.experiments.backends.migration_runner import (
+from luml.experiments.backends.migration_runner import (
     ExperimentMigrationRunner,
     MetaDBMigrationRunner,
 )
-from sdk.luml.experiments.backends.sqlite_backend._sqlite_pagination_mixin import (
+from luml.experiments.backends.sqlite_backend._sqlite_pagination_mixin import (
     SQLitePaginationMixin,
 )
 
