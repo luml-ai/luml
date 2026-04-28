@@ -2,6 +2,6 @@
 sidebar_position: 3
 ---
 
-# Data Agent
+# Prisma
 
 #### 🚧 This section is under construction. We're working on adding detailed documentation here. Please check back soon.

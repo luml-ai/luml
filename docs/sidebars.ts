@@ -59,8 +59,8 @@ const sidebars: SidebarsConfig = {
         },
         {
           type: 'doc',
-          id: 'documentation/Modules/data_agent',
-          customProps: { icon: 'BotMessageSquare' }
+          id: 'documentation/Modules/prisma',
+          customProps: { icon: 'Pyramid' }
         },
         {
           type: 'category',
