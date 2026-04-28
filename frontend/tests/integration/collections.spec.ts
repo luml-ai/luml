@@ -78,49 +78,56 @@ test.describe('Collections', () => {
   })
 
   test.describe('Create collection', () => {
-    test('creates a new collection with valid data', async ({ page, apiMocks }) => {
-      let createPayload: unknown = null
-      await apiMocks.post(
-        `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`,
-        (req) => {
-          createPayload = req.postDataJSON()
-          return makeCollection({
-            id: COLLECTION_ID_2,
-            name: 'New Dataset Collection',
-            type: CollectionType.dataset,
-            description: 'Brand new',
-            tags: [],
-          })
-        },
-      )
+    const TYPE_CASES = [
+      { type: CollectionType.dataset, optionLabel: 'Dataset', name: 'New Dataset Collection' },
+      { type: CollectionType.model, optionLabel: 'Model', name: 'New Model Collection' },
+      { type: CollectionType.mixed, optionLabel: 'Mixed', name: 'New Mixed Collection' },
+    ] as const
 
-      await page.goto(orbitRegistryUrl)
-      await page.getByRole('button', { name: /Create collection/i }).click()
+    for (const { type, optionLabel, name } of TYPE_CASES) {
+      test(`creates a new ${type} collection with valid data`, async ({ page, apiMocks }) => {
+        let createPayload: unknown = null
+        await apiMocks.post(
+          `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`,
+          (req: { postDataJSON: () => unknown }) => {
+            createPayload = req.postDataJSON()
+            return makeCollection({
+              id: COLLECTION_ID_2,
+              name,
+              type,
+              description: 'Brand new',
+              tags: [],
+            })
+          },
+        )
 
-      const dialog = page
-        .getByRole('dialog')
-        .filter({ has: page.getByText('Create a new collection', { exact: true }) })
-      await expect(dialog).toBeVisible()
+        await page.goto(orbitRegistryUrl)
+        await page.getByRole('button', { name: /Create collection/i }).click()
 
-      await dialog.getByLabel('Name').fill('New Dataset Collection')
+        const dialog = page
+          .getByRole('dialog')
+          .filter({ has: page.getByText('Create a new collection', { exact: true }) })
+        await expect(dialog).toBeVisible()
 
-      await dialog.locator('#type').click()
-      await page
-        .locator('.p-select-overlay, .p-select-panel, [role="listbox"]')
-        .getByText('Dataset', { exact: true })
-        .first()
-        .click()
+        await dialog.getByLabel('Name').fill(name)
+        await dialog.locator('#type').click()
+        await page
+          .locator('.p-select-overlay, .p-select-panel, [role="listbox"]')
+          .getByText(optionLabel, { exact: true })
+          .first()
+          .click()
 
-      await dialog.getByLabel('Description').fill('Brand new')
-      await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+        await dialog.getByLabel('Description').fill('Brand new')
+        await dialog.getByRole('button', { name: 'Create', exact: true }).click()
 
-      await expect.poll(() => createPayload).toMatchObject({
-        name: 'New Dataset Collection',
-        type: CollectionType.dataset,
-        description: 'Brand new',
+        await expect.poll(() => createPayload).toMatchObject({
+          name,
+          type,
+          description: 'Brand new',
+        })
+        await expect(page.getByText('Collection created')).toBeVisible()
       })
-      await expect(page.getByText('Collection created')).toBeVisible()
-    })
+    }
 
     test('blocks create with empty name', async ({ page, apiMocks }) => {
       let createCalled = false
@@ -150,7 +157,7 @@ test.describe('Collections', () => {
       let patchPayload: unknown = null
       await apiMocks.patch(
         `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}`,
-        (req) => {
+        (req: { postDataJSON: () => unknown }) => {
           patchPayload = req.postDataJSON()
           return makeCollection({ name: 'Renamed Collection' })
         },
@@ -211,7 +218,7 @@ test.describe('Collections', () => {
       const calls: Array<{ search?: string; types?: string }> = []
       await apiMocks.get(
         new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`),
-        (req) => {
+        (req: { url: () => string | URL }) => {
           const url = new URL(req.url())
           calls.push({
             search: url.searchParams.get('search') ?? undefined,
@@ -241,7 +248,7 @@ test.describe('Collections', () => {
       const calls: Array<{ rawQuery: string }> = []
       await apiMocks.get(
         new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections`),
-        (req) => {
+        (req: { url: () => string | URL }) => {
           const url = new URL(req.url())
           calls.push({ rawQuery: url.search })
           return makeCollectionsListResponse([makeCollection()])

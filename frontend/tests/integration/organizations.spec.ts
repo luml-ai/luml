@@ -154,7 +154,7 @@ test.describe('Organizations', () => {
   test.describe('Create organization', () => {
     test('creates a new organization with a valid name', async ({ page, apiMocks }) => {
       let createPayload: unknown = null
-      await apiMocks.post('**/v1/organizations', (req) => {
+      await apiMocks.post('**/v1/organizations', (req: { postDataJSON: () => unknown }) => {
         createPayload = req.postDataJSON()
         return {
           id: ORG_ID_2,
@@ -206,7 +206,7 @@ test.describe('Organizations', () => {
   test.describe('Edit organization', () => {
     test('updates organization name', async ({ page, apiMocks }) => {
       let patchPayload: unknown = null
-      await apiMocks.patch(`**/v1/organizations/${ORG_ID}`, (req) => {
+      await apiMocks.patch(`**/v1/organizations/${ORG_ID}`, (req: { postDataJSON: () => unknown }) => {
         patchPayload = req.postDataJSON()
         return makeOrganizationDetails({ name: 'Renamed Org' })
       })
@@ -294,7 +294,7 @@ test.describe('Organizations', () => {
   test.describe('Invites', () => {
     test('creates an invite with valid email and role', async ({ page, apiMocks }) => {
       let createPayload: unknown = null
-      await apiMocks.post(`**/v1/organizations/${ORG_ID}/invitations`, (req) => {
+      await apiMocks.post(`**/v1/organizations/${ORG_ID}/invitations`, (req: { postDataJSON: () => unknown }) => {
         createPayload = req.postDataJSON()
         return makeInvitation({ email: 'new@example.com' })
       })

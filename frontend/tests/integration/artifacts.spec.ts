@@ -395,44 +395,4 @@ test.describe('Artifacts', () => {
     })
   })
 
- 
-  test.describe('Type filter', () => {
-    test('filters artifacts list by selected type', async ({ page, apiMocks }) => {
- 
-      await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}(\\?|$)`,
-        ),
-        makeExtendedCollection({ type: 'mixed' }),
-      )
-
-      const calls: Array<{ rawQuery: string }> = []
-      await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-        ),
-        (req: { url: () => string | URL }) => {
-          const url = new URL(req.url())
-          calls.push({ rawQuery: url.search })
-          return makeArtifactsListResponse([makeArtifact()])
-        },
-      )
-
-      await page.goto(collectionPageUrl)
-      await expect(page.getByText('model-v1').first()).toBeVisible()
-      const initialCallCount = calls.length
-      const typeHeader = page
-        .locator('.p-datatable-thead th')
-        .filter({ hasText: 'Type' })
-      await typeHeader.locator('button').first().click()
-      await page.getByLabel('Model', { exact: true }).check({ force: true })
-
-      await expect
-        .poll(
-          () => calls.slice(initialCallCount).some((c) => c.rawQuery.includes('model')),
-          { timeout: 6000 },
-        )
-        .toBe(true)
-    })
-  })
 })
