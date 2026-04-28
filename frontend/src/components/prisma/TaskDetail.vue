@@ -21,6 +21,11 @@ async function handleStart() {
   await api.dataAgent.openTerminal(props.task.id)
   emit('refresh')
 }
+
+function handleMerged() {
+  showMerge.value = false
+  emit('refresh')
+}
 </script>
 
 <template>
@@ -51,10 +56,7 @@ async function handleStart() {
       kind="task"
       :item-id="task.id"
       @close="showMerge = false"
-      @merged="
-        showMerge = false
-        emit('refresh')
-      "
+      @merged="handleMerged"
     />
   </div>
 </template>
