@@ -39,7 +39,7 @@ async function mockBucketsBaseline(apiMocks: ApiMocks) {
 
   await apiMocks.put(BUCKET_PRESIGNED_URL, { status: 200, body: '' })
 
-  await apiMocks.get(BUCKET_DOWNLOAD_URL, (req) => {
+  await apiMocks.get(BUCKET_DOWNLOAD_URL, (req: { headers: () => { (): any; new(): any;[x: string]: any } }) => {
     const hasRange = req.headers()['range']
     return {
       status: hasRange ? 206 : 200,
@@ -88,7 +88,7 @@ test.describe('Bucket Secrets', () => {
   test.describe('Create S3 bucket', () => {
     test('creates a new S3 bucket with a valid form', async ({ page, apiMocks }) => {
       let createPayload: unknown = null
-      await apiMocks.post(`**/v1/organizations/${ORG_ID}/bucket-secrets`, (req) => {
+      await apiMocks.post(`**/v1/organizations/${ORG_ID}/bucket-secrets`, (req: { postDataJSON: () => unknown }) => {
         createPayload = req.postDataJSON()
         return makeBucketSecret({ id: 'new-bucket', bucket_name: 'new-s3-bucket' })
       })
@@ -144,7 +144,7 @@ test.describe('Bucket Secrets', () => {
     })
 
     test('shows error toast when connection check fails', async ({ page, apiMocks }) => {
-      await apiMocks.get(BUCKET_DOWNLOAD_URL, (req) => {
+      await apiMocks.get(BUCKET_DOWNLOAD_URL, (req: { headers: () => { (): any; new(): any;[x: string]: any } }) => {
         const hasRange = req.headers()['range']
         return { status: hasRange ? 500 : 200, body: 'fail' }
       })
@@ -178,7 +178,7 @@ test.describe('Bucket Secrets', () => {
       apiMocks,
     }) => {
       let createPayload: unknown = null
-      await apiMocks.post(`**/v1/organizations/${ORG_ID}/bucket-secrets`, (req) => {
+      await apiMocks.post(`**/v1/organizations/${ORG_ID}/bucket-secrets`, (req: { postDataJSON: () => unknown }) => {
         createPayload = req.postDataJSON()
         return makeAzureBucketSecret({ id: 'new-azure', bucket_name: 'new-container' })
       })
@@ -236,7 +236,7 @@ test.describe('Bucket Secrets', () => {
       let patchPayload: unknown = null
       await apiMocks.patch(
         `**/v1/organizations/${ORG_ID}/bucket-secrets/${BUCKET_ID}`,
-        (req) => {
+        (req: { postDataJSON: () => unknown }) => {
           patchPayload = req.postDataJSON()
           return makeBucketSecret({ bucket_name: 'renamed-bucket' })
         },

@@ -37,7 +37,7 @@ async function mockDeploymentsBaseline(apiMocks: ApiMocks) {
   )
   await apiMocks.get(
     new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}(\\?|$)`),
-    makeOrbitDetails(),
+    makeOrbitDetails({ total_collections: 1, total_artifacts: 1 }),
   )
   await apiMocks.get(
     `**/v1/organizations/${ORG_ID}/bucket-secrets`,
@@ -115,7 +115,6 @@ test.describe('Deployments', () => {
 
       await page.goto(deploymentsUrl)
 
-
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
       await expect(page.getByText('staging-deployment')).toBeVisible()
 
@@ -161,13 +160,12 @@ test.describe('Deployments', () => {
   })
 
 
-
   test.describe('Edit deployment', () => {
     test('renames an active deployment via Editor', async ({ page, apiMocks }) => {
       let patchPayload: unknown = null
       await apiMocks.patch(
         `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/deployments/${DEPLOYMENT_ID}`,
-        (req) => {
+        (req: { postDataJSON: () => unknown }) => {
           patchPayload = req.postDataJSON()
           return makeDeployment({ name: 'renamed-deployment' })
         },
@@ -179,7 +177,6 @@ test.describe('Deployments', () => {
       const row = page
         .locator('.p-datatable-tbody tr')
         .filter({ hasText: 'prod-deployment' })
-
       await row.getByRole('button').last().click()
 
       const dialog = page
@@ -312,8 +309,13 @@ test.describe('Deployments', () => {
       )
 
       await apiMocks.get(
-        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID_2}(\\?|$)`),
-        makeOrbitDetails({ id: ORBIT_ID_2, name: 'Secondary Orbit' }),
+        `**/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID_2}`,
+        makeOrbitDetails({
+          id: ORBIT_ID_2,
+          name: 'Secondary Orbit',
+          total_collections: 1,
+          total_artifacts: 1,
+        }),
       )
 
       await apiMocks.get(
@@ -336,6 +338,11 @@ test.describe('Deployments', () => {
         [],
       )
 
+      await apiMocks.get(
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID_2}/collections(\\?|$)`),
+        { cursor: null, items: [] },
+      )
+
       await page.goto(deploymentsUrl)
 
       await expect(page.getByText('prod-deployment')).toBeVisible({ timeout: 15000 })
@@ -352,6 +359,11 @@ test.describe('Deployments', () => {
       )
       await expect(page.getByText('orbit-b-deployment')).toBeVisible({ timeout: 10000 })
       await expect(page.getByText('prod-deployment')).not.toBeVisible()
+
+      await page.locator('.orbit-popover-wrapper .menu-link').click()
+      await expect(
+        page.locator('.orbit-popover-wrapper').getByText('1 collections'),
+      ).toBeVisible({ timeout: 5000 })
     })
   })
 
@@ -374,8 +386,13 @@ test.describe('Deployments', () => {
         makeOrganizationDetails({ id: ORG_ID_2, name: 'Other Corp', members: [makeMember()] }),
       )
       await apiMocks.get(
-        new RegExp(`/v1/organizations/${ORG_ID_2}/orbits/${ORBIT_ID_2}(\\?|$)`),
-        makeOrbitDetails({ id: ORBIT_ID_2, name: 'Org B Orbit' }),
+        `**/v1/organizations/${ORG_ID_2}/orbits/${ORBIT_ID_2}`,
+        makeOrbitDetails({
+          id: ORBIT_ID_2,
+          name: 'Org B Orbit',
+          total_collections: 1,
+          total_artifacts: 1,
+        }),
       )
       await apiMocks.get(
         `**/v1/organizations/${ORG_ID_2}/bucket-secrets`,
@@ -395,6 +412,11 @@ test.describe('Deployments', () => {
       await apiMocks.get(
         new RegExp(`/v1/organizations/${ORG_ID_2}/orbits/${ORBIT_ID_2}/secrets(\\?|$)`),
         [],
+      )
+
+      await apiMocks.get(
+        new RegExp(`/v1/organizations/${ORG_ID_2}/orbits/${ORBIT_ID_2}/collections(\\?|$)`),
+        { cursor: null, items: [] },
       )
 
       await page.goto(deploymentsUrl)
