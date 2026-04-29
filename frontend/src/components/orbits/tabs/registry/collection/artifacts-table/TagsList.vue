@@ -1,10 +1,11 @@
 <template>
-  <div class="tags">
+  <div v-if="tags.length" class="tags">
     <Tag v-for="(tag, index) in visibleTags" :key="index" class="tag">{{ tag }}</Tag>
     <span v-if="visibleTags.length < tags.length" class="more-tags">
       +{{ tags.length - visibleTags.length }}
     </span>
   </div>
+  <span v-else>-</span>
 </template>
 
 <script setup lang="ts">
