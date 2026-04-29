@@ -77,12 +77,14 @@ export const useTracesTable = (
   }
 
   async function exportCSV() {
-    const params = {
-      search: requestParams.value.search,
-      sort_by: requestParams.value.sort_by,
-      order: requestParams.value.order,
-      filters: requestParams.value.filters,
-    }
+    const params = JSON.parse(
+      JSON.stringify({
+        search: requestParams.value.search,
+        sort_by: requestParams.value.sort_by,
+        order: requestParams.value.order,
+        filters: requestParams.value.filters,
+      }),
+    )
     try {
       exportLoading.value = true
       const data = await evalsStore.getProvider.getAllTraces(params)

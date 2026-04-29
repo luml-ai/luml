@@ -1,9 +1,9 @@
 <template>
   <div>
-    <div v-if="value" v-tooltip.top="valueText" class="cell">
+    <div v-if="isEmpty">-</div>
+    <div v-else v-tooltip.top="valueText" class="cell">
       {{ valueText }}
     </div>
-    <div v-else>-</div>
   </div>
 </template>
 
@@ -18,6 +18,10 @@ interface Props {
 const props = defineProps<Props>()
 
 const valueText = computed(() => valueToString(props.value))
+
+const isEmpty = computed(
+  () => props.value === null || props.value === undefined || props.value === '',
+)
 </script>
 
 <style scoped>

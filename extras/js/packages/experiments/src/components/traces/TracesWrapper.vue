@@ -1,6 +1,6 @@
 <template>
   <Skeleton v-if="firstLoading" style="height: 550px; width: 100%" />
-  <UiCard v-else>
+  <UiCard v-else-if="showTable">
     <template #header-left>
       <div class="title">
         <ListTree :size="20" color="var(--p-primary-color)" />
@@ -54,7 +54,9 @@ const {
   computed(() => traceStore.requestParams),
 )
 
-const props = defineProps<TracesWrapperProps>()
+const props = withDefaults(defineProps<TracesWrapperProps>(), {
+  showEmptyTable: true,
+})
 
 const selectedColumns = ref<string[]>([])
 const firstLoading = ref(true)
@@ -68,6 +70,10 @@ const feedbackColumns = computed(() => {
 const expectationColumns = computed(() => {
   return annotationsSummary.value?.expectations.map((item) => item.name + ' (expectation)') || []
 })
+
+const isEmpty = computed(() => tableData.value.length === 0)
+
+const showTable = computed(() => props.showEmptyTable || !isEmpty.value)
 
 const columns = computed(() => {
   return [
