@@ -143,8 +143,8 @@ async function onRetry() {
   font-size: 0.85rem;
   padding: 6px 10px;
   border-radius: 6px;
-  background: var(--p-surface-100, rgba(127, 127, 127, 0.12));
-  border: 1px solid var(--p-surface-200, rgba(127, 127, 127, 0.2));
+  background: var(--p-content-hover-background);
+  border: 1px solid var(--p-divider-border-color);
   color: var(--p-text-color);
   overflow-x: auto;
   white-space: nowrap;
