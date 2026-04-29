@@ -53,7 +53,7 @@ export class BucketSecretsApi {
 
   async getBucketSecretConnectionUrls(data: BucketFormData) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
-      `bucket-secrets/urls`,
+      `/v1/bucket-secrets/urls`,
       data,
     )
     return responseData
