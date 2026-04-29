@@ -14,13 +14,15 @@ export default defineConfig({
     },
   },
 
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './tests/setup.ts',
-    coverage: {
-      provider: 'v8',
-      reportsDirectory: 'coverage',
-    },
+test: {
+  globals: true,
+  environment: 'jsdom',
+  setupFiles: './tests/setup.ts',
+  include: ['src/**/*.{test,spec}.{ts,tsx}'],
+  exclude: ['**/node_modules/**', 'tests/integration/**'],
+  coverage: {
+    provider: 'v8',
+    reportsDirectory: 'coverage',
   },
+},
 })
