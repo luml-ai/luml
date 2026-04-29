@@ -94,6 +94,11 @@ jobs:
         working-directory: frontend
         run: npx playwright install-deps chromium
 
+      - name: Build workspace packages
+        run: |
+          npm run build-only --workspace=@luml/attachments
+          npm run build-only --workspace=@luml/experiments
+
       - name: Build frontend
         working-directory: frontend
         run: npm run build-only
