@@ -115,7 +115,7 @@ const inviteButtonTooltip = computed(() => {
 
 const resolver = zodResolver(
   z.object({
-    email: z.email(),
+    email: z.string().email(),
     role: z.string().min(1),
   }),
 )
