@@ -115,7 +115,7 @@ headTags: [],
             },
             {
               label: 'API Reference',
-              to: '/api-reference/client/client',
+              to: '/api-reference/client',
             },
             {
               label: 'SDK',
