@@ -14,7 +14,7 @@ The set of tabs depends on the experiment type. LUMLFlow distinguishes between C
 
 The Overview tab is shared by both experiment types and consolidates the run's structured summary.
 
-PLACEHOLDER
+![](/img/lumlflow_exp_overview.webp)
 
 Three tables list the run's recorded values. **Parameters** holds the static values defined before the run, such as hyperparameters and configuration settings. **Metrics** holds the dynamic values recorded during the run, captured at one or more steps. **Logged Models** lists models that were trained during the experiment and registered against it; the table is empty when no model was logged.
 
@@ -26,7 +26,7 @@ Classical ML runs expose two additional tabs alongside the Overview. The **Trace
 
 The Metrics tab renders each logged metric as an individual interactive plot. Plots support inspection of values at specific steps and zooming into ranges of interest, which makes it practical to follow how a metric evolved over the course of training.
 
-PLACEHOLDER
+![](/img/lumlflow_metrics.webp)
 
 The Attachments tab exposes files of any format that were logged to the experiment by the user. Common formats — `.docs`, `.pdf`, `.png`, `.csv`, `.img`, and `.svg` — are previewed inline. Other formats remain attached to the experiment and can be downloaded for local inspection.
 
@@ -38,8 +38,8 @@ The Traces tab captures the execution flow of the generative system. Each operat
 
 *Note: traces are captured using [OpenTelemetry](https://opentelemetry.io/), an open standard for distributed tracing. Any instrumentation compatible with OpenTelemetry can be ingested by LUMLFlow.*
 
-PLACEHOLDER
+![](/img/lumlflow_trace.webp)
 
 The Evals tab provides a structured way to assess the quality of a model or agent against a fixed set of inputs. Each evaluation is driven by an `eval_set` in which every sample represents a question or prompt for the model. Scoring can be configured by supplying a user-defined scoring system directly, or by building scorers with the LUML SDK and applying them to the run. Aggregated scores and per-sample results are surfaced inside the tab.
 
-PLACEHOLDER
+![](/img/lumlflow_evals.webp)

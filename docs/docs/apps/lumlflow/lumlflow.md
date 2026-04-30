@@ -12,6 +12,7 @@ LUMLFlow is a local application for inspecting and managing machine learning exp
 LUMLFlow is launched from the directory of the project that produced the experiments. The command starts a local server and opens the interface in the browser.
 
 ```bash
+pip install lumlflow
 lumlflow ui
 ```
 
@@ -21,19 +22,17 @@ For experiments to surface correctly in LUMLFlow, the producing code must use th
 
 The home screen is the entry point of the application and consists of two regions: a row of informational cards at the top, and a list of experiment groups below.
 
-PLACEHOLDER
+![](/img/lumlflow_groups.webp)
 
 The cards provide immediate context for new and returning users. The first is a quickstart that condenses the steps required to log a first experiment. The second is a ready-to-copy code snippet that can be used as a template for new runs. The third explains how to connect LUMLFlow to a user's LUML Registry through an API key, including how to obtain the key and where to configure it. The fourth lists recent updates to LUMLFlow itself.
 
 Below the cards, the home screen lists every experiment group defined in the project. Each experiment recorded by the SDK belongs to exactly one group, which lets users organize runs by project, task type, or research direction. Selecting a group opens its experiments list.
 
-PLACEHOLDER
-
 ## Experiments List
 
 The experiments list displays every run within the selected group as a structured table. Each row corresponds to a single experiment and exposes both the metadata captured automatically by the SDK and the fields supplied by the user at logging time. The default columns include the experiment ID, name, description, creation time, tags, status (`pending`, `completed`, or `canceled`), the source `.py` file from which the run was launched, any logged models, and the run's static parameters and dynamic metrics.
 
-PLACEHOLDER
+![](/img/lumlflow_experiments.webp)
 
 The list supports sorting on any column, in either direction. Sorting on metric or parameter columns is the typical way to surface the best-performing configurations within a group.
 
