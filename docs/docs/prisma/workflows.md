@@ -24,6 +24,8 @@ A workflow is structured as a tree of nodes. Four node types make up that tree, 
 
 **Fork.** Inspects the experiment data of a successful Run node and proposes alternative directions to explore. Each proposal becomes a child Implement node on its own branch. The Fork node is where the tree splits; without forks, a workflow is a single linear chain.
 
+![](/img/agent_in_progress.webp)
+
 The tree is rendered as a graph in the workflow detail view. Each node is inspectable, and active nodes can be attached to via their terminal. When a node runs in non-auto mode, attaching to its terminal allows interactive use of the coding CLI, including responses to prompts the agent might raise.
 
 ## Creating a Workflow
@@ -41,6 +43,8 @@ The workflow creation form collects the configuration for the entire run.
 **Agent.** A coding CLI from the list of agents detected on the system at startup.
 
 **Auto mode.** Runs the agent in its bypass-permissions mode. When enabled, an additional **Auto-terminate timeout** field controls how long Prisma waits without observed terminal activity before treating the agent as done.
+
+![](/img/aget_workflow_creating.webp)
 
 **Upload artifacts to collection.** Available only when the user is signed into a LUML account. Selecting an Orbit and a Collection enables artifact uploads: each Run node that produces a `.prisma/artifact.luml` file in its worktree has that file uploaded to the chosen collection, with the experiment metadata attached. The active organization is taken from the current LUML session. When upload is disabled, artifacts remain only on the local machine and can be inspected through the [`luml-inspect`](#agent-contract) CLI.
 
@@ -60,4 +64,8 @@ The training code is expected to integrate with the [`luml-sdk`](https://pypi.or
 
 ## Merging
 
+![](/img/agent_finished.webp)
+
 A finished workflow has a **best node**: the leaf whose recorded metric is highest. Merging a workflow merges the best leaf's branch into the base branch. Branches associated with other leaves and intermediate nodes are not merged automatically, but they remain available in the repository under the `prisma/` prefix and can be inspected, compared, or merged manually if needed. The Merge action is enabled only once the workflow's status is *succeeded* and a best node has been identified.
+
+![](/img/agent_merges_branch.webp)

@@ -6,7 +6,14 @@ sidebar_position: 6
 
 ## Sessions
 
-Prisma keeps a registry of every active terminal session across all tasks and workflows. The **Sessions** button in the page header opens a dialog that lists each live session along with its session ID, type, process ID, and exit code (if it has finished but not yet been cleaned up). An attach action opens the session in the same in-browser terminal panel used elsewhere in the UI, with full read-write input.
+Prisma keeps a registry of every active terminal session across all tasks and workflows. The **Sessions** button in the page header opens a dialog that lists each live session along with its session ID, type, process ID, and exit code (if it has finished but not yet been cleaned up). 
+
+![](/img/agent_session.webp)
+
+An attach action opens the session in the same in-browser terminal panel used elsewhere in the UI, with full read-write input.
+
+![](/img/agent_session_terminal.webp)
+
 
 Sessions are owned by the engine, not by the browser. Closing the browser tab does not stop a running agent. As long as the engine process is alive, sessions persist and continue to consume CPU and tokens. To stop a workflow or task, use the **Cancel** action on the corresponding card or node; closing the browser is not equivalent.
 
