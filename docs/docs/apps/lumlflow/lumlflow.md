@@ -24,9 +24,7 @@ The home screen is the entry point of the application and consists of two region
 
 ![](/img/lumlflow_groups.webp)
 
-The cards provide immediate context for new and returning users. The first is a quickstart that condenses the steps required to log a first experiment. The second is a ready-to-copy code snippet that can be used as a template for new runs. The third explains how to connect LUMLFlow to a user's LUML Registry through an API key, including how to obtain the key and where to configure it. The fourth lists recent updates to LUMLFlow itself.
-
-Below the cards, the home screen lists every experiment group defined in the project. Each experiment recorded by the SDK belongs to exactly one group, which lets users organize runs by project, task type, or research direction. Selecting a group opens its experiments list.
+Below the cards, the home screen lists every experiment group defined in the project. Each experiment belongs to a certain group, which lets users organize runs by project, task type, or research direction. Selecting a group opens its experiments list.
 
 ## Experiments List
 
