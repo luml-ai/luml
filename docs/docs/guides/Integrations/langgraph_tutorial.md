@@ -1,7 +1,7 @@
 ---
 title: Packaging a LangGraph Agent
-sidebar_label: LangGraph Tutorial
-sidebar_position: 4
+sidebar_label: Langgraph
+sidebar_position: 2
 ---
 
 # Packaging a LangGraph Agent
@@ -12,10 +12,10 @@ The LUML SDK can package LangGraph workflows as `.luml` files, preserving the gr
 
 ## Setup
 
-Install the SDK with the `core` and `api` extras, along with `langgraph` and the LLM provider library your agent will use.
+Install the SDK along with `langgraph` and the LLM provider library your agent will use.
 
 ```bash
-pip install "luml-sdk[core,api]" langgraph langchain-openai
+pip install "luml-sdk" langgraph langchain-openai
 ```
 
 *Note: the SDK requires Python 3.12 or later.*
@@ -58,7 +58,7 @@ The compiled `graph` object is what gets passed to the packaging function.
 The `save_langgraph` function serializes the graph, detects its input and output schemas, bundles dependencies, and writes a `.luml` file. It returns a `ModelReference` that can be used to attach experiment data and model cards.
 
 ```python
-from sdk.luml.integrations.langgraph import save_langgraph
+from luml.integrations.langgraph import save_langgraph
 
 model_ref = save_langgraph(
     graph,
@@ -123,7 +123,7 @@ For the API reference and the full parameter list, see the [`save_langgraph` ref
 Experiment tracking for LangGraph models works the same way as for any other framework. Create an `ExperimentTracker`, log parameters and metrics, then link the experiment to the model reference.
 
 ```python
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker("sqlite://./experiments")
 exp_id = tracker.start_experiment(
@@ -150,7 +150,7 @@ tracker.end_experiment(exp_id)
 The SDK uses OpenTelemetry to capture execution spans automatically. Two instrumentors are needed for LangGraph agents: `instrument_openai()` for OpenAI API calls, and `LangchainInstrumentor` for LangChain and LangGraph internals (node executions, chain invocations). Both must be called before constructing any LangChain models or compiling the graph.
 
 ```python
-from sdk.luml.experiments.tracing import instrument_openai
+from luml.experiments.tracing import instrument_openai
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
 
 instrument_openai()
@@ -212,7 +212,7 @@ The manual approach shown above gives full control over trace and eval logging. 
 Evaluation datasets are defined as lists of `EvalItem` objects. Each item has an `id`, a dictionary of `inputs`, an optional `expected_output` for supervised scoring, and optional `metadata`.
 
 ```python
-from sdk.luml.experiments.evaluation.types import EvalItem
+from luml.experiments.evaluation.types import EvalItem
 
 eval_dataset = [
     EvalItem(
@@ -240,7 +240,7 @@ Scorers compute quality metrics for each eval item. The SDK provides two decorat
 A `supervised_scorer` receives the inputs, expected output, and model output. It is used when reference answers are available.
 
 ```python
-from sdk.luml.experiments.evaluation.scorers.base import supervised_scorer
+from luml.experiments.evaluation.scorers.base import supervised_scorer
 
 @supervised_scorer
 def keyword_overlap(inputs, expected, output):
@@ -255,7 +255,7 @@ def keyword_overlap(inputs, expected, output):
 An `unsupervised_scorer` receives only the inputs and model output. It is used for metrics that do not need a reference answer.
 
 ```python
-from sdk.luml.experiments.evaluation.scorers.base import unsupervised_scorer
+from luml.experiments.evaluation.scorers.base import unsupervised_scorer
 
 @unsupervised_scorer
 def answer_length(inputs, output):
@@ -275,7 +275,7 @@ Scorers can return a `bool`, `float`, `int`, or a `dict[str, Any]` for multi-met
 The `evaluate` function takes the dataset, an inference function, and a list of scorers. It runs inference on each item, applies all scorers, logs eval samples and traces to the experiment tracker, and returns aggregated results.
 
 ```python
-from sdk.luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.evaluation.evaluate import evaluate
 
 def run_agent(inputs: dict) -> str:
     result = graph.invoke({
@@ -324,7 +324,7 @@ When combined with `instrument_openai()`, this captures both the high-level agen
 Upload the packaged `.luml` file using `LumlClient`. This step is identical to uploading any other model type.
 
 ```python
-from sdk.luml.api import LumlClient
+from luml_api import LumlClient
 
 luml = LumlClient(
     api_key="luml_your_api_key",
@@ -333,14 +333,12 @@ luml = LumlClient(
     collection="Agents",
 )
 
-artifact = luml.model_artifacts.upload(
+artifact = luml.artifacts.upload(
     file_path="qa_agent.luml",
-    model_name="QA Agent",
+    name="QA Agent",
     description="Question-answering agent built with LangGraph and GPT-4o-mini",
     tags=["langgraph", "qa", "v1"],
 )
-
-print(artifact.id)
 ```
 
 *Note: the API key can also be set via the `LUML_API_KEY` environment variable. See the [SDK Tutorial](sdk_tutorial.md) for details on `LumlClient` configuration.*
@@ -357,13 +355,13 @@ from langchain_openai import ChatOpenAI
 load_dotenv()
 
 from opentelemetry.instrumentation.langchain import LangchainInstrumentor
-from sdk.luml.experiments.tracker import ExperimentTracker
-from sdk.luml.experiments.tracing import instrument_openai
-from sdk.luml.experiments.evaluation.evaluate import evaluate
-from sdk.luml.experiments.evaluation.scorers.base import supervised_scorer, unsupervised_scorer
-from sdk.luml.experiments.evaluation.types import EvalItem
-from sdk.luml.integrations.langgraph import save_langgraph
-from sdk.luml.api import LumlClient
+from luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracing import instrument_openai
+from luml.experiments.evaluation.evaluate import evaluate
+from luml.experiments.evaluation.scorers.base import supervised_scorer, unsupervised_scorer
+from luml.experiments.evaluation.types import EvalItem
+from luml.integrations.langgraph import save_langgraph
+from luml_api import LumlClient
 
 instrument_openai()
 LangchainInstrumentor().instrument()
@@ -587,3 +585,16 @@ luml.artifacts.upload(
     tags=["langgraph", "qa", "llm-judge"],
 )
 ```
+
+After running this code - you can go to **LUML** and see your model:
+
+***Model overview***
+![](/img/langgraph_overview.webp)
+
+***Experiment snapshot - Traces***
+![](/img/langgraph_traces.webp)
+
+***Experiment snapshot - Evaluations***
+![](/img/langgraph_evals.webp)
+![](/img/langgraph_eval.webp)
+

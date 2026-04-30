@@ -12,7 +12,7 @@ It serves as the single source of truth for all assets created in Notebooks, tra
 
 ## Storage Formats
 
-Models and experiments are stored in the native [.luml](../../Core-Concepts/luml_model.md) format. A `.luml` file is a container that bundles the artifact itself together with metadata, preprocessing scripts, and supplementary files ([Attachments](./attachments.md)). Use of this format is required for access to [Cards](./model_card.md) and [Snapshots](./experiment_tracking.md).
+Models and experiments are stored in the native [.luml](../../Core-Concepts/luml_model.md) format. A `.luml` file is a container that bundles the artifact itself together with metadata, preprocessing scripts, and supplementary files ([Attachments](./attachments.md)). Use of this format is required for access to [Cards](./model_card.md) and [Experiment Tracking](./experiment_tracking.md).
 
 Datasets are stored as `.tar` archives. A dataset archive can contain multiple subsets and splits, which remain individually selectable in the Registry interface.
 

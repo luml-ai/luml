@@ -73,21 +73,21 @@ This portability extends to export and import workflows. You can download a `.lu
 ## Relationship to Platform Modules
 
 
-The `.luml` format integrates with every major module in LUML.
+The `.luml` format integrates with every major module in LUML:
 
 
-**Express Tasks** produces `.luml` files as the output of automated training. When training completes, the resulting model is immediately available as a downloadable `.luml` package or can be saved directly to a Registry.
+- **Express Tasks** produce `.luml` files as the output of automated training. When training completes, the resulting model is immediately available as a downloadable `.luml` package or can be saved directly to a Registry.
 
 
-**Notebooks** allow manual construction and export of `.luml` packages using the LUML SDK. This gives full control over what goes into the package, including custom preprocessing steps and dynamic attributes.
+- **Notebooks** allow manual construction and export of `.luml` packages using the LUML SDK. This gives full control over what goes into the package, including custom preprocessing steps and dynamic attributes.
 
 
-**Registry** stores `.luml` files and exposes their metadata through the Model Registry interface. The Overview, Model Card, and Experiment Snapshots tabs all read information embedded in the `.luml` package.
+- **Registry** stores `.luml` files and exposes their metadata through the Model Registry interface. The Overview, Model Card, and Experiment Snapshots tabs all read information embedded in the `.luml` package.
 
 
-**Runtime** accepts `.luml` files for immediate inference. The module parses the manifest to display the model's performance metrics and provides an interface matching the declared input schema.
+- **Runtime** accepts `.luml` files for immediate inference. The module parses the manifest to display the model's performance metrics and provides an interface matching the declared input schema.
 
 
-**Deployments** bind `.luml` packages to Satellites for production serving. The deployment process extracts the environment specification from the package and provisions the Satellite accordingly.
+- **Deployments** bind `.luml` packages to Satellites for production serving. The deployment process extracts the environment specification from the package and provisions the Satellite accordingly.
 
 

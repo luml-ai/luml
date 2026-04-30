@@ -1,7 +1,7 @@
 ---
-title: Experiment Tracking, Model Packaging, and Uploading
-sidebar_label: SDK Tutorial
-sidebar_position: 3
+title: Packaging a Scikit-learn model
+sidebar_label: Sklearn
+sidebar_position: 1
 ---
 
 # Experiment Tracking, Model Packaging, and Uploading
@@ -12,10 +12,10 @@ The LUML SDK provides a Python interface for packaging trained ML models, record
 
 ## Setup
 
-The SDK is distributed as the `luml-sdk` package on PyPI. Install it with the `core` and `api` extras. The `core` group includes libraries for experiment tracking, model packaging, and schema inference (`pydantic`, `cloudpickle`, `fnnx`). The `api` group adds the HTTP client used to upload models to the platform (`httpx`).
+The SDK is distributed as the `luml-sdk` package on PyPI.
 
 ```bash
-pip install "luml-sdk[core,api]"
+pip install "luml-sdk"
 ```
 
 The final step in this guide — uploading a packaged model — requires authentication with the LUML platform. API keys are generated from the LUML web interface under account settings. The key can be passed directly to the `LumlClient` constructor or set via the `LUML_API_KEY` environment variable. The earlier steps (experiment tracking, model packaging, model cards) all run locally and do not require an API key.
@@ -25,7 +25,7 @@ The final step in this guide — uploading a packaged model — requires authent
 The `ExperimentTracker` class records parameters, metrics, and files during model training. It stores data locally in a SQLite database by default.
 
 ```python
-from sdk.luml.experiments.tracker import ExperimentTracker
+from luml.experiments.tracker import ExperimentTracker
 
 tracker = ExperimentTracker("sqlite://./my_experiments")
 ```
@@ -83,7 +83,7 @@ For a scikit-learn model:
 
 ```python
 from sklearn.ensemble import RandomForestClassifier
-from sdk.luml.integrations.sklearn import save_sklearn
+from luml.integrations.sklearn import save_sklearn
 import numpy as np
 
 model = RandomForestClassifier(n_estimators=100, max_depth=10)
@@ -141,7 +141,7 @@ When `tracker.link_to_model(model_ref)` is called, all attachments from that exp
 A model card is an HTML document embedded in the `.luml` file. It provides context about the model: what it does, how it performs, and any relevant visualizations. The `ModelCardBuilder` class constructs these cards from text, tables, and plots.
 
 ```python
-from sdk.luml.model_card import ModelCardBuilder
+from luml.model_card import ModelCardBuilder
 
 card = ModelCardBuilder(title="Churn Predictor")
 card.write("# Churn Prediction Model")
@@ -182,7 +182,7 @@ The card is stored inside the `.luml` file and rendered in the LUML web interfac
 The `LumlClient` handles authentication and communication with the LUML platform. Initialize it with your API key and the target organization, orbit, and collection.
 
 ```python
-from sdk.luml.api import LumlClient
+from luml_api import LumlClient
 
 luml = LumlClient(
     api_key="luml_your_api_key",
@@ -192,14 +192,14 @@ luml = LumlClient(
 )
 ```
 
-*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically.*
+*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically. Also make sure the collection's type is appropriate for your artifact (for model uploading use collections with "Model" or "Mixed" type. More about collections type in [Registry module](/docs/docs/documentation/Modules/Registry/))*
 
 Upload a `.luml` file:
 
 ```python
-artifact = luml.model_artifacts.upload(
+artifact = luml.artifacts.upload(
     file_path="churn_model.luml",
-    model_name="Churn Predictor",
+    name="Churn Predictor",
     description="Random forest model for customer churn prediction",
     tags=["random_forest", "churn", "production"],
 )
@@ -213,13 +213,13 @@ Uploaded models can be retrieved, listed, and downloaded through the same client
 
 ```python
 # Retrieve by name or ID
-model = luml.model_artifacts.get("Churn Predictor")
+model = luml.artifacts.get("Churn Predictor")
 
 # List all models in the collection
-models = luml.model_artifacts.list()
+models = luml.artifacts.list()
 
 # Download a model
-luml.model_artifacts.download(model.id, "downloaded_model.luml")
+luml.artifacts.download(model.id, "downloaded_model.luml")
 ```
 
 ## Complete Example
@@ -233,10 +233,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-from sdk.luml.experiments.tracker import ExperimentTracker
-from sdk.luml.integrations.sklearn import save_sklearn
-from sdk.luml.model_card import ModelCardBuilder
-from sdk.luml.api import LumlClient
+from luml.experiments.tracker import ExperimentTracker
+from luml.integrations.sklearn import save_sklearn
+from luml.model_card import ModelCardBuilder
+from luml_api import LumlClient
 
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -301,7 +301,8 @@ tracker.log_attachment("training_config.json", json.dumps({
 
 # Link experiment to model and end experiment
 tracker.link_to_model(model_ref, experiment_id=exp_id)
-tracker.end_experiment(exp_id)# Model card
+tracker.end_experiment(exp_id)
+# Model card
 card = ModelCardBuilder(title="Churn Predictor v3")
 card.write("# Churn Prediction Model")
 card.write(f"Test accuracy: {accuracy:.3f}")
@@ -329,12 +330,23 @@ luml = LumlClient(
     collection="Production Models",
 )
 
-artifact = luml.model_artifacts.upload(
+artifact = luml.artifacts.upload(
     file_path="churn_model.luml",
-    model_name="Churn Predictor v1",
+    name="Churn Predictor v1",
     description="Random forest baseline for customer churn",
     tags=["random_forest", "churn", "v1"],
 )
 
-print(f"Your model has been successfully uploaded!")
+print("Your model has been successfully uploaded!")
 ```
+
+After running this code - you can go to **LUML** and see your model:
+
+***Model overview***
+![](/img/sklearn_overview.webp)
+
+***Model card***
+![](/img/sklearn_card.webp)
+
+***Logged metrics***
+![](/img/sklearn_metrics.webp)

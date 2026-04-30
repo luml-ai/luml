@@ -1,0 +1,11 @@
+{
+  "label": "LUMLFlow",
+  "position": 1,
+  "collapsible": true,
+  "collapsed": false,
+  "customProps": { "icon": "LineChart" },
+  "link": {
+    "type": "doc",
+    "id": "apps/lumlflow/lumlflow"
+  }
+}
