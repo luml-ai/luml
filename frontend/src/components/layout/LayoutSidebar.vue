@@ -7,41 +7,45 @@
   >
     <div>
       <nav class="nav">
-        <ul class="list">
-          <li v-for="item in SIDEBAR_MENU" :key="item.id" class="item">
-            <div
-              v-if="item.disabled"
-              v-tooltip.bottom="isSidebarOpened ? item.tooltipMessage : null"
-              v-tooltip.right="!isSidebarOpened ? item.tooltipMessage : null"
-              class="menu-link disabled"
-            >
-              <component :is="item.icon" :size="14" class="icon" />
-              <span>{{ item.label }}</span>
-            </div>
+        <div v-for="section in SIDEBAR_SECTIONS" :key="section.id" class="section">
+          <div class="section-label">{{ section.label }}</div>
+          <div class="section-divider" aria-hidden="true" />
+          <ul class="list">
+            <li v-for="item in section.items" :key="item.id" class="item">
+              <div
+                v-if="item.disabled"
+                v-tooltip.bottom="isSidebarOpened ? item.tooltipMessage : null"
+                v-tooltip.right="!isSidebarOpened ? item.tooltipMessage : null"
+                class="menu-link disabled"
+              >
+                <component :is="item.icon" :size="14" class="icon" />
+                <span>{{ item.label }}</span>
+              </div>
 
-            <router-link
-              v-else-if="getRouteParams(item.route)"
-              :to="getRouteParams(item.route)!"
-              class="menu-link"
-              :class="{ active: isActive(item.route) }"
-              @click="sendAnalytics(item.analyticsOption)"
-            >
-              <component :is="item.icon" :size="14" class="icon" />
-              <span>{{ item.label }}</span>
-            </router-link>
+              <router-link
+                v-else-if="getRouteParams(item.route)"
+                :to="getRouteParams(item.route)!"
+                class="menu-link"
+                :class="{ active: isActive(item.route) }"
+                @click="sendAnalytics(item.analyticsOption)"
+              >
+                <component :is="item.icon" :size="14" class="icon" />
+                <span>{{ item.label }}</span>
+              </router-link>
 
-            <router-link
-              v-else
-              :to="{ name: item.route }"
-              class="menu-link"
-              :class="{ active: isActive(item.route) }"
-              @click="sendAnalytics(item.analyticsOption)"
-            >
-              <component :is="item.icon" :size="14" class="icon" />
-              <span>{{ item.label }}</span>
-            </router-link>
-          </li>
-        </ul>
+              <router-link
+                v-else
+                :to="{ name: item.route }"
+                class="menu-link"
+                :class="{ active: isActive(item.route) }"
+                @click="sendAnalytics(item.analyticsOption)"
+              >
+                <component :is="item.icon" :size="14" class="icon" />
+                <span>{{ item.label }}</span>
+              </router-link>
+            </li>
+          </ul>
+        </div>
       </nav>
     </div>
     <div class="sidebar-bottom">
@@ -89,7 +93,7 @@
 import { ArrowLeftToLine, Github, Star } from 'lucide-vue-next'
 import { computed, onBeforeMount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { SIDEBAR_MENU, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
+import { SIDEBAR_SECTIONS, SIDEBAR_MENU_BOTTOM } from '@/constants/constants'
 import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
 import { useWindowSize } from '@/hooks/useWindowSize'
 import { useOrganizationStore } from '@/stores/organization'
@@ -224,6 +228,33 @@ onMounted(() => {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--p-divider-border-color);
   margin-bottom: 4px;
+}
+
+.section + .section {
+  margin-top: 20px;
+}
+
+.section-label {
+  padding: 0 8px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  opacity: 0.7;
+}
+
+.section-divider {
+  display: none;
+  height: 1px;
+  background: var(--p-divider-border-color);
+  margin: 0 8px 12px;
+}
+
+.closed .section-label {
+  display: none;
+}
+
+.closed .section + .section .section-divider {
+  display: block;
 }
 
 .list {

@@ -14,7 +14,7 @@ def test_orbit_list(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
     orbits = resource.list()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits"
+        f"/v1/organizations/{organization_id}/orbits"
     )
     assert len(orbits) == 1
     assert orbits[0].name == sample_orbit.name
@@ -29,7 +29,7 @@ def test_orbit_get(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
     orbit = resource.get()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert orbit.id == orbit_id
 
@@ -54,7 +54,7 @@ def test_orbit_create(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
     orbit = resource.create(name_orbit_name, bucket_id)
 
     mock_sync_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits",
+        f"/v1/organizations/{organization_id}/orbits",
         json={"name": name_orbit_name, "bucket_secret_id": bucket_id},
     )
     assert isinstance(orbit, Orbit)
@@ -72,7 +72,7 @@ def test_orbit_update(mock_sync_client: Mock, sample_orbit: Orbit) -> None:
     orbit = resource.update(name=orbit_name)
 
     mock_sync_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}",
         json={"name": orbit_name},
     )
     assert isinstance(orbit, Orbit)
@@ -97,7 +97,7 @@ def test_orbit_delete(mock_sync_client: Mock) -> None:
     result = resource.delete(orbit_id)
 
     mock_sync_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert result is None
 
@@ -114,7 +114,7 @@ async def test_async_orbit_list(
     orbits = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits"
+        f"/v1/organizations/{organization_id}/orbits"
     )
     assert len(orbits) == 1
     assert orbits[0].name == sample_orbit.name
@@ -132,7 +132,7 @@ async def test_async_orbit_get(
     orbit = await resource.get()
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert orbit.id == orbit_id
 
@@ -149,7 +149,7 @@ async def test_async_orbit_get_by_id(
     orbit = await resource.get(orbit_id)  # Specific ID
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert orbit.id == orbit_id
 
@@ -190,7 +190,7 @@ async def test_async_orbit_create(
     orbit = await resource.create(orbit_name, bucket_id)
 
     mock_async_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits",
+        f"/v1/organizations/{organization_id}/orbits",
         json={"name": orbit_name, "bucket_secret_id": bucket_id},
     )
     assert isinstance(orbit, Orbit)
@@ -211,7 +211,7 @@ async def test_async_orbit_update(
     orbit = await resource.update(name=orbit_name)
 
     mock_async_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}",
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}",
         json={"name": orbit_name},
     )
     assert isinstance(orbit, Orbit)
@@ -228,6 +228,6 @@ async def test_async_orbit_delete(mock_async_client: AsyncMock) -> None:
     result = await resource.delete(orbit_id)
 
     mock_async_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/orbits/{orbit_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}"
     )
     assert result is None

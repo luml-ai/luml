@@ -10,26 +10,28 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 1.5rem 1.5rem;
+  padding: 1.5rem;
   min-height: 250px;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 8px;
+  border: 1px solid #f1f5f9;
+  border-radius: 0.5rem;
   text-decoration: none;
   color: inherit;
-  transition: all 0.3s ease;
-  background: var(--ifm-card-background-color);
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
 }
 
 .card:hover {
-  border-color: var(--ifm-color-primary);
+  border-color: #2673fd;
   transform: translateY(-4px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(38, 115, 253, 0.1);
   text-decoration: none;
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .icon {
   font-size: 2rem;
-  color: var(--ifm-color-primary);
+  color: #2673fd;
   margin-bottom: 1rem;
 }
 
@@ -37,18 +39,19 @@
   font-size: 1rem;
   font-weight: 600;
   margin-bottom: 1rem;
-  color: var(--ifm-font-color-base);
+  color: #334155;
 }
 
 .description {
-  color: var(--ifm-color-emphasis-700);
+  color: #64748b;
   margin-bottom: 1.5rem;
   flex-grow: 1;
-  font-size: 0.9rem;
+  font-size: 0.875rem;
   line-height: 1.5;
 }
 
 .linkText {
-  color: var(--ifm-color-primary);
+  color: #2673fd;
   font-weight: 500;
+  font-size: 0.875rem;
 }

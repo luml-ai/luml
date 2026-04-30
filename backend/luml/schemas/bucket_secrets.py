@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field, TypeAdapter, field_validator
 
 from luml.schemas.base import BaseOrmConfig
+from luml.schemas.orbit import OrbitBase
 
 
 class BucketType(StrEnum):
@@ -60,6 +61,7 @@ class S3BucketSecretOut(BaseModel, BaseOrmConfig):
     secure: bool | None = None
     region: str
     cert_check: bool | None = None
+    orbits: list[OrbitBase] = []
     organization_id: UUID
     created_at: datetime
     updated_at: datetime | None = None
@@ -116,6 +118,7 @@ class AzureBucketSecretOut(BaseModel, BaseOrmConfig):
     organization_id: UUID
     created_at: datetime
     updated_at: datetime | None = None
+    orbits: list[OrbitBase] = []
 
 
 class AzureBucketSecretUpdateIn(BaseModel):
@@ -146,7 +149,6 @@ BucketSecretUpdate = Annotated[
 BucketSecretOut = Annotated[
     S3BucketSecretOut | AzureBucketSecretOut, Field(discriminator="type")
 ]
-
 
 _BucketSecretAdapter: TypeAdapter[S3BucketSecret | AzureBucketSecret] = TypeAdapter(
     BucketSecret

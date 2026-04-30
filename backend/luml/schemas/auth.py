@@ -18,3 +18,7 @@ class UserInfo(BaseModel):
 class OAuthLogin(BaseModel):
     token: Token
     user_id: uuid.UUID
+
+
+class ForgotPasswordIn(BaseModel):
+    email: EmailStr

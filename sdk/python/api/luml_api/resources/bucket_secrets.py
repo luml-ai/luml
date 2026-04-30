@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, Any
 
 from luml_api._types import (
     BucketSecret,
+    BucketType,
     MultiPartUploadDetails,
     is_uuid,
     model_validate_bucket_secret,
@@ -44,11 +45,12 @@ class BucketSecretResourceBase(ABC):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret | Coroutine[Any, Any, BucketSecret]:
         raise NotImplementedError()
@@ -133,7 +135,7 @@ class BucketSecretResource(BucketSecretResourceBase):
 
     def _get_by_id(self, secret_id: str) -> BucketSecret:
         response = self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return model_validate_bucket_secret(response)
 
@@ -176,7 +178,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets"
         )
         if response is None:
             return []
@@ -186,17 +188,19 @@ class BucketSecretResource(BucketSecretResourceBase):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret:
         """
         Create new bucket secret in the default organization.
 
         Args:
+            type: "s3" or "azure"
             endpoint: S3-compatible storage endpoint URL (e.g., 's3.amazonaws.com').
             bucket_name: Name of the storage bucket.
             access_key: Access key for bucket authentication.
@@ -245,7 +249,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.post(
-            f"/organizations/{self._client.organization}/bucket-secrets",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -256,6 +260,7 @@ class BucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
+                    "type": type,
                 }
             ),
         )
@@ -326,7 +331,7 @@ class BucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = self._client.patch(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -373,7 +378,7 @@ class BucketSecretResource(BucketSecretResourceBase):
             on this bucket secret before deletion.
         """
         return self._client.delete(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
 
     def get_multipart_upload_urls(
@@ -500,7 +505,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
 
     async def _get_by_id(self, secret_id: str) -> BucketSecret:
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )
         return model_validate_bucket_secret(response)
 
@@ -547,7 +552,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/bucket-secrets"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets"
         )
         if response is None:
             return []
@@ -615,11 +620,12 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         self,
         endpoint: str,
         bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
         access_key: str | None = None,
         secret_key: str | None = None,
         session_token: str | None = None,
         secure: bool | None = None,
-        region: str | None = None,
         cert_check: bool | None = None,
     ) -> BucketSecret:
         """
@@ -678,7 +684,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.post(
-            f"/organizations/{self._client.organization}/bucket-secrets",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -689,6 +695,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                     "secure": secure,
                     "region": region,
                     "cert_check": cert_check,
+                    "type": type,
                 }
             ),
         )
@@ -763,7 +770,7 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         ```
         """
         response = await self._client.patch(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
                     "endpoint": endpoint,
@@ -816,5 +823,5 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             on this bucket secret before deletion.
         """
         return await self._client.delete(
-            f"/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
+            f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}"
         )

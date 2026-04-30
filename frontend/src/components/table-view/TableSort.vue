@@ -9,7 +9,7 @@
     <span class="button-label">Sort</span>
     <ArrowDownUp width="14" height="14" />
   </d-button>
-  <d-popover ref="sortPopover">
+  <d-popover ref="sortPopover" @hide="onPopoverHide">
     <div class="popover-wrapper">
       <div class="sort-list">
         <div v-for="sortItem in sortData" :key="sortItem.id" class="sort-item">
@@ -50,7 +50,12 @@
       </div>
       <d-divider />
       <div class="popover-footer">
-        <d-button label="Add sort" variant="text" @click="addSort">
+        <d-button
+          :style="{ visibility: canAddSort ? 'visible' : 'hidden' }"
+          label="Add sort"
+          variant="text"
+          @click="addSort"
+        >
           <template #icon>
             <Plus width="14" height="14" />
           </template>
@@ -70,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { ArrowDownUp, Trash2, Plus } from 'lucide-vue-next'
 
 type Props = {
@@ -83,20 +88,32 @@ type Emits = {
 type SortItem = {
   id: number
   selectedColumn: string
-  sortOrder: 1 | -1 | null
+  sortOrder: '1' | '-1' | null
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const isPopoverOpen = ref(false)
 
 const sortPopover = ref()
-const sortData = ref<SortItem[]>([
-  {
-    id: 1,
-    selectedColumn: props.columns[0],
-    sortOrder: null,
-  },
-])
+function getInitialSortData(): SortItem[] {
+  if (props.multiSortMeta.length) {
+    return props.multiSortMeta.map((meta, i) => ({
+      id: i + 1,
+      selectedColumn: meta.field,
+      sortOrder: String(meta.order) as '1' | '-1',
+    }))
+  }
+  if (!props.columns.length) return []
+  return [{ id: 1, selectedColumn: props.columns[0] ?? '', sortOrder: null }]
+}
+
+const sortData = ref<SortItem[]>(getInitialSortData())
+
+const canAddSort = computed(() => {
+  const usedColumns = new Set(sortData.value.map((item) => item.selectedColumn))
+  return props.columns.some((col) => !usedColumns.has(col))
+})
 
 const isSortAvailable = computed(() => {
   return sortData.value.reduce((acc, item) => {
@@ -118,6 +135,7 @@ const columnsForSelect = computed(() => {
 
 function toggleSort(event: any) {
   sortPopover.value.toggle(event)
+  isPopoverOpen.value = !isPopoverOpen.value
 }
 function deleteSort(id: number) {
   sortData.value = sortData.value.filter((item) => item.id !== id)
@@ -135,26 +153,38 @@ function clear() {
   sortData.value = [
     {
       id: 1,
-      selectedColumn: props.columns[0],
+      selectedColumn: props.columns[0] ?? '',
       sortOrder: null,
     },
   ]
   emit('update:multiSortMeta', [])
-  sortPopover.value.toggle()
+  sortPopover.value.hide()
 }
 function apply() {
   if (!isSortAvailable.value) return
-
   const newMultiSortMeta = sortData.value.map((item) => ({
     field: item.selectedColumn,
-    order: item.sortOrder,
+    order: Number(item.sortOrder) as 1 | -1,
   }))
   emit('update:multiSortMeta', JSON.parse(JSON.stringify(newMultiSortMeta)))
-  sortPopover.value.toggle()
+  sortPopover.value.hide()
 }
 function isOptionDisabled(option: string, id: number) {
-  return sortData.value.find((item) => item.selectedColumn === option && item.id !== id)
+  return !!sortData.value.find((item) => item.selectedColumn === option && item.id !== id)
 }
+function onPopoverHide() {
+  sortData.value = getInitialSortData()
+  isPopoverOpen.value = false
+}
+watch(
+  [() => props.multiSortMeta, () => props.columns],
+  () => {
+    if (!isPopoverOpen.value) {
+      sortData.value = getInitialSortData()
+    }
+  },
+  { deep: true },
+)
 </script>
 
 <style scoped>

@@ -40,6 +40,10 @@ class SQLitePaginationMixin:
             sort_by = "created_at"
         return sort_by
 
+    _DATETIME_SORT_COLUMNS: frozenset[str] = frozenset(
+        {"created_at", "updated_at", "last_modified"}
+    )
+
     @classmethod
     def _build_cursor_clause(
         cls,
@@ -60,7 +64,16 @@ class SQLitePaginationMixin:
         )
 
         if cursor_value is not None:
-            clause = f"WHERE (({sort_expr} {op} ?) OR ({sort_expr} = ? AND {id_column} {op} ?))"
+            # Wrap datetime columns with datetime() to normalize storage format
+            # differences (e.g. SQLite CURRENT_TIMESTAMP "YYYY-MM-DD HH:MM:SS"
+            # vs Python isoformat "YYYY-MM-DDTHH:MM:SS+00:00").
+            if not json_sort_column and sort_by in cls._DATETIME_SORT_COLUMNS:
+                cmp_col = f"datetime({sort_expr})"
+                cmp_val = "datetime(?)"
+            else:
+                cmp_col = sort_expr
+                cmp_val = "?"
+            clause = f"WHERE (({cmp_col} {op} {cmp_val}) OR ({cmp_col} = {cmp_val} AND {id_column} {op} ?))"
             return clause, [cursor_value, cursor_value, cursor_id]
 
         return f"WHERE ({id_column} {op} ?)", [cursor_id]

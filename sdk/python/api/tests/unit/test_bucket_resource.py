@@ -19,7 +19,7 @@ def test_bucket_secret_list(
     secrets = resource.list()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets"
+        f"/v1/organizations/{organization_id}/bucket-secrets"
     )
     assert len(secrets) == 1
     assert secrets[0].endpoint == sample_bucket_secret.endpoint
@@ -36,7 +36,7 @@ def test_bucket_secret_get_by_id(
     secret = resource.get(bucket_id)
 
     mock_sync_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{bucket_id}"
+        f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}"
     )
     assert secret.id == bucket_id
 
@@ -50,8 +50,10 @@ def test_bucket_secret_create(
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
+        "region": "us-east-1",
         "access_key": "access_key",
         "secret_key": "secret_key",
+        "type": "s3",
     }
     mock_sync_client.filter_none.return_value = expected_json
 
@@ -59,12 +61,13 @@ def test_bucket_secret_create(
     resource.create(
         endpoint="s3.amazonaws.com",
         bucket_name="my-bucket",
+        region="us-east-1",
         access_key="access_key",
         secret_key="secret_key",
     )
 
     mock_sync_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets",
+        f"/v1/organizations/{organization_id}/bucket-secrets",
         json=expected_json,
     )
 
@@ -83,7 +86,8 @@ def test_bucket_secret_update(
     resource.update(bucket_id, endpoint=update_data["endpoint"])
 
     mock_sync_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{bucket_id}", json=update_data
+        f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}",
+        json=update_data,
     )
 
 
@@ -116,7 +120,7 @@ def test_bucket_secret_delete(mock_sync_client: Mock) -> None:
     result = resource.delete(secret_id)
 
     mock_sync_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+        f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}"
     )
     assert result is None
 
@@ -133,7 +137,7 @@ async def test_async_bucket_secret_list(
     secrets = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets"
+        f"/v1/organizations/{organization_id}/bucket-secrets"
     )
     assert len(secrets) == 1
     assert secrets[0].endpoint == sample_bucket_secret.endpoint
@@ -151,7 +155,7 @@ async def test_async_bucket_secret_get_by_id(
     secret = await resource.get(secret_id)
 
     mock_async_client.get.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+        f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}"
     )
     assert secret.id == secret_id
 
@@ -190,8 +194,10 @@ async def test_async_bucket_secret_create(
     expected_json = {
         "endpoint": "s3.amazonaws.com",
         "bucket_name": "my-bucket",
+        "region": "us-east-1",
         "access_key": "access_key",
         "secret_key": "secret_key",
+        "type": "s3",
     }
     mock_async_client.filter_none.return_value = expected_json
 
@@ -199,12 +205,13 @@ async def test_async_bucket_secret_create(
     await resource.create(
         endpoint="s3.amazonaws.com",
         bucket_name="my-bucket",
+        region="us-east-1",
         access_key="access_key",
         secret_key="secret_key",
     )
 
     mock_async_client.post.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets",
+        f"/v1/organizations/{organization_id}/bucket-secrets",
         json=expected_json,
     )
 
@@ -224,7 +231,8 @@ async def test_async_bucket_secret_update(
     await resource.update(secret_id, endpoint=update_data["endpoint"])
 
     mock_async_client.patch.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{secret_id}", json=update_data
+        f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}",
+        json=update_data,
     )
 
 
@@ -238,6 +246,6 @@ async def test_async_bucket_secret_delete(mock_async_client: AsyncMock) -> None:
     result = await resource.delete(secret_id)
 
     mock_async_client.delete.assert_called_once_with(
-        f"/organizations/{organization_id}/bucket-secrets/{secret_id}"
+        f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}"
     )
     assert result is None

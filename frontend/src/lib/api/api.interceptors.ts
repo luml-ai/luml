@@ -50,7 +50,7 @@ export const installInterceptors = (api: AxiosInstance) => {
 
         try {
           await api.post(
-            '/auth/refresh',
+            '/v1/auth/refresh',
             {},
             {
               skipInterceptors: true,

@@ -1,8 +1,9 @@
+import os
 from datetime import datetime
 from enum import IntEnum, StrEnum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import BaseOrmConfig
@@ -27,6 +28,14 @@ class _ExperimentBase(BaseModel, BaseOrmConfig):
     created_at: datetime
     group_name: str | None = None
     group_id: str | None = None
+    source: str | None = None
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _extract_filename(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return os.path.basename(v) or v
 
 
 class Experiment(_ExperimentBase): ...

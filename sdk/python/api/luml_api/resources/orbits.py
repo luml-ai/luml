@@ -112,7 +112,7 @@ class OrbitResource(OrbitResourceBase):
 
     def _get_by_id(self, orbit_id: str) -> Orbit:
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
 
@@ -154,7 +154,7 @@ class OrbitResource(OrbitResourceBase):
         ```
         """
         response = self._client.get(
-            f"/organizations/{self._client.organization}/orbits"
+            f"/v1/organizations/{self._client.organization}/orbits"
         )
         if response is None:
             return []
@@ -200,7 +200,7 @@ class OrbitResource(OrbitResourceBase):
         ```
         """
         response = self._client.post(
-            f"/organizations/{self._client.organization}/orbits",
+            f"/v1/organizations/{self._client.organization}/orbits",
             json={"name": name, "bucket_secret_id": bucket_secret_id},
         )
 
@@ -257,7 +257,7 @@ class OrbitResource(OrbitResourceBase):
             This method updates the orbit set as default in the client.
         """
         response = self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}",
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}",
             json=self._client.filter_none(
                 {
                     "name": name,
@@ -301,7 +301,7 @@ class OrbitResource(OrbitResourceBase):
             raise LumlAPIError("Default orbit cant be deleted.")
 
         return self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit_id}"
         )
 
 
@@ -371,7 +371,7 @@ class AsyncOrbitResource(OrbitResourceBase):
 
     async def _get_by_id(self, orbit_id: str) -> Orbit:
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit_id}"
         )
         return Orbit.model_validate(response)
 
@@ -416,7 +416,7 @@ class AsyncOrbitResource(OrbitResourceBase):
         ```
         """
         response = await self._client.get(
-            f"/organizations/{self._client.organization}/orbits"
+            f"/v1/organizations/{self._client.organization}/orbits"
         )
         if response is None:
             return []
@@ -465,7 +465,7 @@ class AsyncOrbitResource(OrbitResourceBase):
         ```
         """
         response = await self._client.post(
-            f"/organizations/{self._client.organization}/orbits",
+            f"/v1/organizations/{self._client.organization}/orbits",
             json={"name": name, "bucket_secret_id": bucket_secret_id},
         )
 
@@ -525,7 +525,7 @@ class AsyncOrbitResource(OrbitResourceBase):
             This method updates the orbit set as default in the client.
         """
         response = await self._client.patch(
-            f"/organizations/{self._client.organization}/orbits/{self._client.orbit}",
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}",
             json=self._client.filter_none(
                 {
                     "name": name,
@@ -572,5 +572,5 @@ class AsyncOrbitResource(OrbitResourceBase):
             raise LumlAPIError("Default orbit cant be deleted.")
 
         return await self._client.delete(
-            f"/organizations/{self._client.organization}/orbits/{orbit_id}"
+            f"/v1/organizations/{self._client.organization}/orbits/{orbit_id}"
         )

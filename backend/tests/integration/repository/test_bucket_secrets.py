@@ -7,6 +7,7 @@ from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import (
     S3BucketSecret,
     S3BucketSecretCreate,
+    S3BucketSecretOut,
     S3BucketSecretUpdate,
 )
 from luml.schemas.orbit import OrbitCreateIn
@@ -124,7 +125,7 @@ async def test_get_organization_bucket_secrets(
     assert secrets
     assert isinstance(secrets, list)
     assert len(secrets) == 6  # The fixture creates one bucket-secret
-    assert all(isinstance(s, S3BucketSecret) for s in secrets)
+    assert all(isinstance(s, S3BucketSecretOut) for s in secrets)
     assert all(s.organization_id == data.organization.id for s in secrets)
 
 

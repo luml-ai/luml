@@ -119,6 +119,24 @@ class Organization(BaseModel):
     updated_at: str | None = None
 
 
+class Orbit(BaseModel):
+    id: str
+    name: str
+    organization_id: str
+    bucket_secret_id: str
+    total_members: int | None = None
+    total_collections: int | None = None
+    created_at: str
+    updated_at: str | None = None
+
+
+class OrbitBase(BaseModel, BaseOrmConfig):
+    id: UUID
+    name: str
+    created_at: str
+    updated_at: str | None = None
+
+
 class S3BucketSecret(BaseModel, BaseOrmConfig):
     id: str
     type: Literal[BucketType.S3] = BucketType.S3
@@ -130,6 +148,7 @@ class S3BucketSecret(BaseModel, BaseOrmConfig):
     organization_id: str
     created_at: str
     updated_at: str | None = None
+    orbits: list[OrbitBase] = []
 
 
 class AzureBucketSecret(BaseModel, BaseOrmConfig):
@@ -140,6 +159,7 @@ class AzureBucketSecret(BaseModel, BaseOrmConfig):
     organization_id: str
     created_at: str
     updated_at: str | None = None
+    orbits: list[OrbitBase] = []
 
 
 BucketSecret = S3BucketSecret | AzureBucketSecret
@@ -149,17 +169,6 @@ def model_validate_bucket_secret(bucket: dict) -> S3BucketSecret | AzureBucketSe
     if bucket.get("type") == BucketType.S3:
         return S3BucketSecret.model_validate(bucket)
     return AzureBucketSecret.model_validate(bucket)
-
-
-class Orbit(BaseModel):
-    id: str
-    name: str
-    organization_id: str
-    bucket_secret_id: str
-    total_members: int | None = None
-    total_collections: int | None = None
-    created_at: str
-    updated_at: str | None = None
 
 
 class Collection(BaseModel):

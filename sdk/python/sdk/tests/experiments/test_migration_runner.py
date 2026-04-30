@@ -10,6 +10,7 @@ from luml.experiments.backends.migration_runner import (
     MetaDBMigrationRunner,
 )
 
+META_DB_LAST_VERSION = 4
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -190,7 +191,7 @@ class TestBaseMigrationRunnerViaMetaDB:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         applied = runner.migrate()
-        assert applied == [1, 2, 3]
+        assert applied == list(range(1, META_DB_LAST_VERSION + 1))
 
     def test_migrate_idempotent(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
@@ -198,7 +199,7 @@ class TestBaseMigrationRunnerViaMetaDB:
         runner.migrate()
         second = runner.migrate()
         assert second == []
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
 
     def test_migrate_target_version(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
@@ -207,14 +208,14 @@ class TestBaseMigrationRunnerViaMetaDB:
         assert applied == [1]
         assert runner.get_current_version() == 1
         pending = runner.get_pending_migrations()
-        assert [m["version"] for m in pending] == [2, 3]
+        assert [m["version"] for m in pending] == list(range(2, META_DB_LAST_VERSION + 1))
 
     def test_get_pending_migrations_after_partial_apply(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate(target_version=2)
         pending = runner.get_pending_migrations()
-        assert len(pending) == 1
+        assert len(pending) == META_DB_LAST_VERSION - 2
         assert pending[0]["version"] == 3
 
     def test_get_status(self, tmp_path: Path) -> None:
@@ -224,18 +225,19 @@ class TestBaseMigrationRunnerViaMetaDB:
         status = runner.get_status()
         assert status["current_version"] == 1
         assert status["applied_count"] == 1
-        assert status["pending_count"] == 2
+        assert status["pending_count"] == META_DB_LAST_VERSION - 1
         assert status["applied_versions"] == [1]
         assert 2 in status["pending_versions"]
         assert 3 in status["pending_versions"]
+        assert META_DB_LAST_VERSION in status["pending_versions"]
 
     def test_rollback_single_migration(self, tmp_path: Path) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
         rolled = runner.rollback(target_version=2)
-        assert rolled == [3]
+        assert rolled == list(range(META_DB_LAST_VERSION, 2, -1))
         assert runner.get_current_version() == 2
 
     def test_rollback_removes_version_from_table(self, tmp_path: Path) -> None:
@@ -324,7 +326,9 @@ class TestMetaDBMigrationRunnerBaseline:
         assert runner.get_current_version() == 1
         assert runner.get_applied_migrations() == [1]
 
-    def test_baseline_skipped_when_migrations_already_exist(self, tmp_path: Path) -> None:
+    def test_baseline_skipped_when_migrations_already_exist(
+        self, tmp_path: Path
+    ) -> None:
         conn = _make_meta_conn(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate(target_version=1)
@@ -345,11 +349,11 @@ class TestMetaDBOldSdkUpgrade:
         runner = MetaDBMigrationRunner(conn)
         assert runner.get_current_version() == 1
 
-    def test_old_sdk_meta_db_migrates_to_v3(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_migrates_to_v4(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_meta_db(tmp_path)
         runner = MetaDBMigrationRunner(conn)
         runner.migrate()
-        assert runner.get_current_version() == 3
+        assert runner.get_current_version() == META_DB_LAST_VERSION
 
     def test_old_sdk_meta_db_gets_group_id_column(self, tmp_path: Path) -> None:
         conn = _make_old_sdk_meta_db(tmp_path)
@@ -366,7 +370,9 @@ class TestMetaDBOldSdkUpgrade:
         MetaDBMigrationRunner(conn).migrate()
         assert "size" in _column_names(conn, "models")
 
-    def test_old_sdk_meta_db_existing_experiments_preserved(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_existing_experiments_preserved(
+        self, tmp_path: Path
+    ) -> None:
         # Note: experiment_groups cannot have rows before migration — SQLite forbids
         # ALTER TABLE ADD COLUMN with DEFAULT CURRENT_TIMESTAMP on non-empty tables.
         # We only seed experiments (which get constant-default columns) and verify them.
@@ -383,7 +389,9 @@ class TestMetaDBOldSdkUpgrade:
         assert row is not None
         assert row[0] == "my-exp"
 
-    def test_old_sdk_meta_db_unique_group_name_index_created(self, tmp_path: Path) -> None:
+    def test_old_sdk_meta_db_unique_group_name_index_created(
+        self, tmp_path: Path
+    ) -> None:
         # Migration 002 creates a unique index on experiment_groups(name).
         # Verify it exists after migration on an empty old SDK DB.
         conn = _make_old_sdk_meta_db(tmp_path)
@@ -395,10 +403,17 @@ class TestMetaDBOldSdkUpgrade:
         assert idx is not None
 
         import uuid as _uuid
-        conn.execute("INSERT INTO experiment_groups (id, name) VALUES (?, ?)", (str(_uuid.uuid4()), "grp"))
+
+        conn.execute(
+            "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
+            (str(_uuid.uuid4()), "grp"),
+        )
         conn.commit()
         with pytest.raises(Exception):
-            conn.execute("INSERT INTO experiment_groups (id, name) VALUES (?, ?)", (str(_uuid.uuid4()), "grp"))
+            conn.execute(
+                "INSERT INTO experiment_groups (id, name) VALUES (?, ?)",
+                (str(_uuid.uuid4()), "grp"),
+            )
             conn.commit()
 
 
@@ -434,7 +449,9 @@ class TestExperimentMigrationRunnerBaseline:
         assert runner.get_current_version() == 1
         assert runner.get_applied_migrations() == [1]
 
-    def test_baseline_v1_and_v2_when_attachments_with_size(self, tmp_path: Path) -> None:
+    def test_baseline_v1_and_v2_when_attachments_with_size(
+        self, tmp_path: Path
+    ) -> None:
         conn = _make_exp_conn(tmp_path)
         conn.execute("""
             CREATE TABLE attachments (
@@ -448,7 +465,9 @@ class TestExperimentMigrationRunnerBaseline:
         assert runner.get_applied_migrations() == [1, 2]
         assert runner.get_current_version() == 2
 
-    def test_baseline_skipped_when_exp_schema_migrations_nonempty(self, tmp_path: Path) -> None:
+    def test_baseline_skipped_when_exp_schema_migrations_nonempty(
+        self, tmp_path: Path
+    ) -> None:
         # Run migrations normally first (creates exp_schema_migrations with entries)
         conn = _make_exp_conn(tmp_path)
         runner = ExperimentMigrationRunner(conn)
@@ -486,6 +505,7 @@ class TestOldSdkExpDbUpgrade:
 
     def test_old_exp_db_existing_attachments_preserved(self, tmp_path: Path) -> None:
         import uuid as _uuid
+
         conn = _make_old_sdk_exp_db(tmp_path)
         att_id = str(_uuid.uuid4())
         conn.execute(
@@ -496,11 +516,15 @@ class TestOldSdkExpDbUpgrade:
 
         ExperimentMigrationRunner(conn).migrate()
 
-        row = conn.execute("SELECT id, name FROM attachments WHERE id = ?", (att_id,)).fetchone()
+        row = conn.execute(
+            "SELECT id, name FROM attachments WHERE id = ?", (att_id,)
+        ).fetchone()
         assert row is not None
         assert row[1] == "report.pdf"
 
-    def test_old_exp_db_with_size_already_skips_migration_002(self, tmp_path: Path) -> None:
+    def test_old_exp_db_with_size_already_skips_migration_002(
+        self, tmp_path: Path
+    ) -> None:
         # Old SDK that already has the size column — should baseline v1+v2, migrate() applies nothing
         conn = _make_exp_conn(tmp_path)
         conn.execute("""

@@ -16,21 +16,21 @@ export class BucketSecretsApi {
 
   async getBucketSecretsList(organizationId: string) {
     const { data: responseData } = await this.api.get<BucketSecret[]>(
-      `/organizations/${organizationId}/bucket-secrets`,
+      `/v1/organizations/${organizationId}/bucket-secrets`,
     )
     return responseData
   }
 
   async getBucketSecret(organizationId: string, secretId: string) {
     const { data: responseData } = await this.api.get<BucketSecret>(
-      `/organizations/${organizationId}/bucket-secrets/${secretId}`,
+      `/v1/organizations/${organizationId}/bucket-secrets/${secretId}`,
     )
     return responseData
   }
 
   async createBucketSecret(organizationId: string, data: BucketFormData) {
     const { data: responseData } = await this.api.post<BucketSecret>(
-      `/organizations/${organizationId}/bucket-secrets`,
+      `/v1/organizations/${organizationId}/bucket-secrets`,
       data,
     )
     return responseData
@@ -38,7 +38,7 @@ export class BucketSecretsApi {
 
   async updateBucketSecret(organizationId: string, secretId: string, data: BucketFormDataWithId) {
     const { data: responseData } = await this.api.patch<BucketSecret>(
-      `/organizations/${organizationId}/bucket-secrets/${secretId}`,
+      `/v1/organizations/${organizationId}/bucket-secrets/${secretId}`,
       data,
     )
     return responseData
@@ -46,14 +46,14 @@ export class BucketSecretsApi {
 
   async deleteBucketSecret(organizationId: string, secretId: string) {
     const { data: responseData } = await this.api.delete<BaseDetailResponse>(
-      `/organizations/${organizationId}/bucket-secrets/${secretId}`,
+      `/v1/organizations/${organizationId}/bucket-secrets/${secretId}`,
     )
     return responseData
   }
 
   async getBucketSecretConnectionUrls(data: BucketFormData) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
-      `bucket-secrets/urls`,
+      `/v1/bucket-secrets/urls`,
       data,
     )
     return responseData
@@ -65,7 +65,7 @@ export class BucketSecretsApi {
     data: BucketFormDataWithId,
   ) {
     const { data: responseData } = await this.api.post<BucketConnectionUrls>(
-      `/organizations/${organizationId}/bucket-secrets/${secretId}/urls`,
+      `/v1/organizations/${organizationId}/bucket-secrets/${secretId}/urls`,
       data,
     )
     return responseData

@@ -67,10 +67,9 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.LIST
         )
-        secrets = await self.__secret_repository.get_organization_bucket_secrets(
+        return await self.__secret_repository.get_organization_bucket_secrets(
             organization_id
         )
-        return [validate_bucket_secret_out(s) for s in secrets]
 
     async def get_bucket_secret(
         self, user_id: UUID, organization_id: UUID, secret_id: UUID
@@ -78,7 +77,7 @@ class BucketSecretHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.READ
         )
-        secret = await self.__secret_repository.get_bucket_secret(secret_id)
+        secret = await self.__secret_repository.get_bucket_secret_details(secret_id)
 
         if not secret:
             raise NotFoundError("Secret not found")

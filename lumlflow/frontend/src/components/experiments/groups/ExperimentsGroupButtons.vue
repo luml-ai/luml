@@ -15,17 +15,12 @@
         <Repeat :size="14" />
       </template>
     </Button>
-    <Button severity="secondary" variant="text" disabled @click="onFilter">
-      <template #icon>
-        <Filter :size="14" />
-      </template>
-    </Button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Button, useConfirm } from 'primevue'
-import { Trash2, Bolt, Repeat, Filter } from 'lucide-vue-next'
+import { Trash2, Bolt, Repeat } from 'lucide-vue-next'
 import { useGroupsStore } from '@/store/groups'
 import { computed } from 'vue'
 import { deleteGroupConfirmOptions } from '@/confirm/confirm'
@@ -65,10 +60,6 @@ function onSettings() {
 function onCompare() {
   const groupsIds = groupsStore.selectedGroups.map((group) => group.id)
   router.push({ name: ROUTE_NAMES.GROUPS_COMPARISON, query: { groupsIds } })
-}
-
-function onFilter() {
-  console.log('filter')
 }
 </script>
 

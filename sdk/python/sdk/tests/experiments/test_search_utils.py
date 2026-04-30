@@ -929,17 +929,30 @@ class TestSearchTracesAllOperators:
 class TestSearchEvalsAnnotationUnderscoreSyntax:
     def test_annotations_feedback_eq_string(self) -> None:
         w, p = SearchEvalsUtils.to_sql('annotations_feedback.quality = "true"')
-        assert w == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'feedback' AND value = ?)"
+        assert (
+            w
+            == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'feedback' AND value = ?)"
+        )
         assert p == ["quality", "true"]
 
     def test_annotations_expectations_eq_string(self) -> None:
-        w, p = SearchEvalsUtils.to_sql('annotations_expectations.expected_answer = "bird"')
-        assert w == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        w, p = SearchEvalsUtils.to_sql(
+            'annotations_expectations.expected_answer = "bird"'
+        )
+        assert (
+            w
+            == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        )
         assert p == ["expected_answer", "bird"]
 
     def test_annotations_expectation_singular_eq_string(self) -> None:
-        w, p = SearchEvalsUtils.to_sql('annotations_expectation.expected_answer = "bird"')
-        assert w == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        w, p = SearchEvalsUtils.to_sql(
+            'annotations_expectation.expected_answer = "bird"'
+        )
+        assert (
+            w
+            == "EXISTS (SELECT 1 FROM eval_annotations WHERE eval_id = evals.id AND name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        )
         assert p == ["expected_answer", "bird"]
 
     def test_annotations_feedback_name_with_underscores(self) -> None:
@@ -948,7 +961,9 @@ class TestSearchEvalsAnnotationUnderscoreSyntax:
         assert p == ["my_score", "good"]
 
     def test_annotations_expectations_name_with_underscores(self) -> None:
-        w, p = SearchEvalsUtils.to_sql('annotations_expectations.expected_output = "yes"')
+        w, p = SearchEvalsUtils.to_sql(
+            'annotations_expectations.expected_output = "yes"'
+        )
         assert "annotation_kind = 'expectation'" in w
         assert p == ["expected_output", "yes"]
 
@@ -973,17 +988,30 @@ class TestSearchEvalsAnnotationUnderscoreSyntax:
 class TestSearchTracesAnnotationUnderscoreSyntax:
     def test_annotations_feedback_eq_string(self) -> None:
         w, p = SearchTracesUtils.to_sql('annotations_feedback.quality = "true"')
-        assert w == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'feedback' AND value = ?)"
+        assert (
+            w
+            == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'feedback' AND value = ?)"
+        )
         assert p == ["quality", "true"]
 
     def test_annotations_expectations_eq_string(self) -> None:
-        w, p = SearchTracesUtils.to_sql('annotations_expectations.expected_answer = "bird"')
-        assert w == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        w, p = SearchTracesUtils.to_sql(
+            'annotations_expectations.expected_answer = "bird"'
+        )
+        assert (
+            w
+            == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        )
         assert p == ["expected_answer", "bird"]
 
     def test_annotations_expectation_singular_eq_string(self) -> None:
-        w, p = SearchTracesUtils.to_sql('annotations_expectation.expected_answer = "bird"')
-        assert w == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        w, p = SearchTracesUtils.to_sql(
+            'annotations_expectation.expected_answer = "bird"'
+        )
+        assert (
+            w
+            == "trace_id IN (SELECT DISTINCT trace_id FROM span_annotations WHERE name = ? AND annotation_kind = 'expectation' AND value = ?)"
+        )
         assert p == ["expected_answer", "bird"]
 
     def test_annotations_feedback_name_with_underscores(self) -> None:
@@ -992,7 +1020,9 @@ class TestSearchTracesAnnotationUnderscoreSyntax:
         assert p == ["my_score", "ok"]
 
     def test_annotations_expectations_name_with_underscores(self) -> None:
-        w, p = SearchTracesUtils.to_sql('annotations_expectations.expected_output = "yes"')
+        w, p = SearchTracesUtils.to_sql(
+            'annotations_expectations.expected_output = "yes"'
+        )
         assert "annotation_kind = 'expectation'" in w
         assert p == ["expected_output", "yes"]
 
