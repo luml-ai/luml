@@ -16,7 +16,7 @@ pip install lumlflow
 lumlflow ui
 ```
 
-For experiments to surface correctly in LUMLFlow, the producing code must use the LUML SDK to record runs. See the [SDK documentation](../../sdk/index.md) for the logging API.
+For experiments to surface correctly in LUMLFlow, the producing code must use the LUML SDK to record runs. See the [SDK documentation](../../sdk/experiments/tracker.md) for the logging API.
 
 ## Home Screen
 
