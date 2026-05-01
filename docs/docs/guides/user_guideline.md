@@ -121,10 +121,49 @@ Open the **Satellites** module in the sidebar and click **Create Satellite**. Gi
 ![](/img/satellite-connect.webp)
 ![](/img/satellite-connect2.webp)
 
+Once you have the token, install and launch the Satellite agent on the machine you want to use as a compute node. The agent ships as a public Docker image on GitHub Container Registry — see the [package page](https://github.com/luml-ai/luml/pkgs/container/luml-satellite-agent) — and is configured through a `docker-compose.yml` and an `.env` file kept in the [`luml-ai/luml`](https://github.com/luml-ai/luml/tree/main/satellite) repository.
 
-{/* TODO: add a link to the dedicated Satellite setup guide once it is available. */}
+**1. Create a working directory** on the host machine and download both files into it:
 
-*Note: for the full installation walkthrough (cloning the repo, configuring `.env`, launching Docker) and a deeper look at Satellite architecture, see the [Satellite reference](../documentation/Core-Concepts/satellites.md).*
+```bash
+mkdir luml-satellite && cd luml-satellite
+curl -O https://raw.githubusercontent.com/luml-ai/luml/main/satellite/docker-compose.yml
+curl -o .env https://raw.githubusercontent.com/luml-ai/luml/main/satellite/.env.example
+```
+
+**2. Open `.env`** and paste the token from the previous step into `SATELLITE_TOKEN`. The full set of variables looks like this:
+
+```env
+# Required: token issued by the platform
+SATELLITE_TOKEN=replace-with-your-token
+
+# Optional overrides
+PLATFORM_URL=https://dev-api.luml.ai
+# Public base URL of this machine (used to report inference endpoints)
+BASE_URL=http://localhost
+# Image the agent will launch for deployments
+MODEL_IMAGE=luml-random-svc:latest
+# Polling interval in seconds
+POLL_INTERVAL_SEC=2
+```
+
+Only `SATELLITE_TOKEN` is required. Set `BASE_URL` to the address other services should use to reach this machine, and adjust `POLL_INTERVAL_SEC` to control how often the Satellite checks the platform for new tasks.
+
+**3. Launch the agent:**
+
+```bash
+docker compose up -d
+```
+
+Compose will pull `ghcr.io/luml-ai/luml-satellite-agent` and start the container in the background. The agent connects to the platform using the token, registers its capabilities, and begins polling for tasks. To confirm it is online, return to the **Satellites** module in Luml — the Satellite's status should switch to *Connected*.
+
+To check the agent's logs or stop it later:
+
+```bash
+docker compose logs -f   # follow logs
+docker compose down      # stop and remove the container
+```
+
 
 ## Deploying the Model
 
