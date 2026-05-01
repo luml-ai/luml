@@ -48,7 +48,7 @@ docker exec -it df-studio-postgres psql -U user -d df_studio
 
 10. Run the app
 ```bash
-uvicorn dataforce_studio.server:app --reload
+uvicorn luml.server:app --reload
 ```
 
 # 
