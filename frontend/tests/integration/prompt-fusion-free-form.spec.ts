@@ -70,11 +70,11 @@ test.describe('Prompt Fusion — Free-form (UI & validation)', () => {
 
     
     await expect(
-      page.locator('.teacher-model').getByRole('combobox'),
-    ).toHaveAccessibleName('gpt-4o')
+      page.locator('.teacher-model .p-select-label'),
+    ).toHaveText('gpt-4o')
     await expect(
-      page.locator('.student-model').getByRole('combobox'),
-    ).toHaveAccessibleName('gpt-4o-mini')
+      page.locator('.student-model .p-select-label'),
+    ).toHaveText('gpt-4o-mini')
   })
 
   test('shows error when running optimization with empty pipeline', async ({ page }) => {
