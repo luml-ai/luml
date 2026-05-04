@@ -89,6 +89,12 @@ headTags: [],
           label: 'SDK',
         },
         {
+          type: 'docSidebar',
+          sidebarId: 'prismaSidebar',
+          position: 'left',
+          label: 'Prisma',
+        },
+        {
           href: 'https://github.com/luml-ai/luml',
           label: 'GitHub',
           position: 'right',

@@ -114,6 +114,40 @@ const sidebars: SidebarsConfig = {
       dirName: 'sdk'
     }
   ],
+
+  // 5. Prisma Tab (looks in docs/prisma)
+  prismaSidebar: [
+    {
+      type: 'doc',
+      id: 'prisma/overview',
+      customProps: { icon: 'Pyramid' }
+    },
+    {
+      type: 'doc',
+      id: 'prisma/repositories',
+      customProps: { icon: 'FolderGit' }
+    },
+    {
+      type: 'doc',
+      id: 'prisma/board',
+      customProps: { icon: 'KanbanSquare' }
+    },
+    {
+      type: 'doc',
+      id: 'prisma/workflows',
+      customProps: { icon: 'GitBranch' }
+    },
+    {
+      type: 'doc',
+      id: 'prisma/tasks',
+      customProps: { icon: 'CheckSquare' }
+    },
+    {
+      type: 'doc',
+      id: 'prisma/sessions',
+      customProps: { icon: 'Terminal' }
+    },
+  ],
 };
 
 export default sidebars;
