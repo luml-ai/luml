@@ -3,7 +3,7 @@ sidebar_position: 6
 ---
 
 # Secrets
-Secrets is a configuration management module within an Orbit designed for the secure storage, administration, and rotation of sensitive information, such as API keys, database access tokens, or access tokens.
+Secrets is a configuration management module within an Orbit designed for the secure storage, administration, and rotation of sensitive information, such as API keys, database access tokens, or other credentials.
 Technically, a Secret represents a Key-Value pair that is injected into a deployment’s execution environment as an environment variable, allowing applications to consume sensitive data securely without hardcoding it into source code or configuration files.
 
 ## Operating Principles
