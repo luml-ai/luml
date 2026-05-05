@@ -87,13 +87,15 @@ export const useEvalsTable = (
   }
 
   async function exportCSV() {
-    const params = {
-      dataset_id: datasetId,
-      search: search.value,
-      sort_by: sortParams.value.sortField,
-      order: sortParams.value.sortOrder,
-      filters: filters.value,
-    }
+    const params = JSON.parse(
+      JSON.stringify({
+        dataset_id: datasetId,
+        search: search.value,
+        sort_by: sortParams.value.sortField,
+        order: sortParams.value.sortOrder,
+        filters: filters.value,
+      }),
+    )
     try {
       exportLoading.value = true
       const data = await evalsStore.getProvider.getAllDatasetEvals(params)
@@ -110,6 +112,7 @@ export const useEvalsTable = (
       const blob = new Blob([csv], { type: 'text/csv' })
       downloadFileFromBlob(blob, `${datasetId}.csv`)
     } catch (error) {
+      console.error(error)
       toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to export CSV')))
     } finally {
       exportLoading.value = false

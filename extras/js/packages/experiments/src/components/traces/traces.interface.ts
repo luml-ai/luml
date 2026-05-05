@@ -28,4 +28,5 @@ export interface SortParams {
 
 export interface TracesWrapperProps {
   artifactId: string
+  showEmptyTable?: boolean
 }
