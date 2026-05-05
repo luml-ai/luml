@@ -288,20 +288,38 @@ body {
    Sidebar — transparent bg so #f4f7fb shows through
    ======================================================================= */
 
-/* Sidebar starts at the very top */
+/* Sidebar — keep Docusaurus's default sticky/clip layout (sidebarViewport is
+   sticky top:0, inner sidebar has padding-top:56px to clear the navbar) and
+   only add what's missing: a real internal scroll, a vertical-only constraint,
+   and bottom breathing room. */
 @media (min-width: 997px) {
   .theme-doc-sidebar-container {
-    clip-path: none !important;
     z-index: var(--ifm-z-index-fixed);
-    align-self: flex-start;
-    position: sticky;
-    top: 56px;
-    padding-bottom: 16px;
   }
 
-  /* Remove the navbar-height padding that pushes sidebar content down */
+  /* sidebarViewport is the natural sticky scroll container in Docusaurus.
+     Adding overflow here turns it into a real scroll viewport so the inner
+     sidebar can grow taller than the screen. */
+  .theme-doc-sidebar-container > div:first-child {
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+  }
+
+  /* Allow the inner sidebar to grow past the viewport's height so the
+     viewport's overflow:auto actually engages. Keep Docusaurus's default
+     padding-top (= --ifm-navbar-height) so content sits below the navbar. */
   .theme-doc-sidebar-container [class*='sidebar_'] {
-    padding-top: 0.5rem !important;
+    height: auto !important;
+    min-height: 100%;
+    padding-bottom: 2rem !important;
+  }
+
+  /* Min-height for the doc page row so the sticky sidebar has space on
+     short content pages and its top doesn't get pulled behind the navbar. */
+  .main-wrapper > .docs-wrapper,
+  [class*='docRoot_'] {
+    min-height: calc(100vh - 56px);
   }
 }
 

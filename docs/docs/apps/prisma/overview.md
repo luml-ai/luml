@@ -8,7 +8,7 @@ Prisma orchestrates coding agents to work on long-horizon tasks against a local 
 
 The intended use case is automating multi-step machine learning experiments. An agent edits the code, runs the training script, captures metrics, and either retries on failure or forks the experiment with alternative ideas. The same engine also drives single-step tasks for ad-hoc code changes.
 
-*Note: a LUML account is not required to use Prisma. An account is only relevant for uploading produced artifacts (trained models and experiment data) to a [Collection](../documentation/Modules/Registry/registry.md#collections). Without an account, Prisma operates entirely against the local repository.*
+*Note: a LUML account is not required to use Prisma. An account is only relevant for uploading produced artifacts (trained models and experiment data) to a [Collection](../../documentation/Modules/Registry/registry.md#collections). Without an account, Prisma operates entirely against the local repository.*
 
 ## Installation
 

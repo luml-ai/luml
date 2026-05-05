@@ -36,9 +36,9 @@ Traces are most informative for Generative AI runs, where the execution path thr
 
 Individual spans within a trace can be annotated. An annotation is a structured record attached to a span and comes in two types. A **feedback** annotation captures an assessment of the span's behavior and carries a name, the author's user name, a boolean value, and an optional rationale. An **expectation** annotation declares the expected outcome of the span and carries the same fields, except that the value can be a string, integer, or boolean.
 
-Annotations can be added through the LUMLFlow interface or written locally through the LUML SDK. They can be added, edited, and removed inside LUMLFlow. Once the experiment is uploaded to LUML, the annotations are carried with the run and remain visible in the Registry, where they become read-only.
+Annotations can be added through the Flow interface or written locally through the LUML SDK. They can be added, edited, and removed inside Flow. Once the experiment is uploaded to LUML, the annotations are carried with the run and remain visible in the Registry, where they become read-only.
 
-*Note: traces are captured using [OpenTelemetry](https://opentelemetry.io/), an open standard for distributed tracing. Any instrumentation compatible with OpenTelemetry can be ingested by LUMLFlow.*
+*Note: traces are captured using [OpenTelemetry](https://opentelemetry.io/), an open standard for distributed tracing. Any instrumentation compatible with OpenTelemetry can be ingested by Flow.*
 
 ![](/img/lumlflow_trace.webp)
 
@@ -48,7 +48,7 @@ The Evals tab provides a structured way to assess the quality of a model or agen
 
 Evals are aimed at Generative AI runs, where output quality cannot be judged by a single training metric. They are not typically used for Classical ML, which relies on the Metrics tab.
 
-Per-sample evaluation results can be annotated in the same way as trace spans, using the same feedback and expectation types. Annotations can be added through the LUMLFlow interface or written locally through the LUML SDK, and persist with the experiment. After the run is uploaded to LUML, the annotations remain visible alongside the eval results in the Registry, where they become read-only.
+Per-sample evaluation results can be annotated in the same way as trace spans, using the same feedback and expectation types. Annotations can be added through the Flow interface or written locally through the LUML SDK, and persist with the experiment. After the run is uploaded to LUML, the annotations remain visible alongside the eval results in the Registry, where they become read-only.
 
 ![](/img/lumlflow_evals.webp)
 
