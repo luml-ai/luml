@@ -33,7 +33,16 @@ export const useEvalsTable = (
   const data = computed(() => getViewData(evals.value))
 
   function getViewData(evals: EvalsInfo[]) {
-    return evals.map(getEvalInfo)
+    const groups = new Map<string, EvalsInfo[]>()
+    for (const item of evals) {
+      const bucket = groups.get(item.id)
+      if (bucket) {
+        bucket.push(item)
+      } else {
+        groups.set(item.id, [item])
+      }
+    }
+    return Array.from(groups.values()).flat().map(getEvalInfo)
   }
 
   function getEvalInfo(item: EvalsInfo) {
