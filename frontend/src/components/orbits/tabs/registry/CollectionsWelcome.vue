@@ -3,9 +3,7 @@
     <Folders :size="35" color="var(--p-primary-color)" />
     <h3 class="label">Welcome to the Registry</h3>
     <div class="text">
-      <p>
-        Organize your models into collections for easy access, versioning, and collaboration.
-      </p>
+      <p>Organize your models into collections for easy access, versioning, and collaboration.</p>
       <p>Start by creating your first collection.</p>
     </div>
   </div>
