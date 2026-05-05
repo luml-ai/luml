@@ -4,8 +4,7 @@
     <h3 class="label">Welcome to the Registry</h3>
     <div class="text">
       <p>
-        Organize your best model checkpoints into collections for easy access, versioning, and
-        collaboration.
+        Organize your models into collections for easy access, versioning, and collaboration.
       </p>
       <p>Start by creating your first collection.</p>
     </div>
