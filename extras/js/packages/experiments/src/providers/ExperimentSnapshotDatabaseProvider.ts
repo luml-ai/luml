@@ -100,8 +100,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
-      const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
-      this.evalsDatasetsRequestParams[params.dataset_id] = page + 1
+      const key = this.getEvalsPageKey(snapshot.modelId, params.dataset_id)
+      const page = this.evalsDatasetsRequestParams[key] || 1
+      this.evalsDatasetsRequestParams[key] = page + 1
       const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
         ...params,
         page,
@@ -114,7 +115,8 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
-      const page = this.evalsDatasetsRequestParams[params.dataset_id] || 1
+      const key = this.getEvalsPageKey(snapshot.modelId, params.dataset_id)
+      const page = this.evalsDatasetsRequestParams[key] || 1
       const pagesList = Array.from({ length: Math.max(page - 1, 1) }, (_, i) => i + 1)
       const promises = pagesList.map(async (page) => {
         return this.getDatabaseEvalsByDatasetId(snapshot.database, {
@@ -144,7 +146,13 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async resetDatasetPage(datasetId: string) {
-    delete this.evalsDatasetsRequestParams[datasetId]
+    for (const snapshot of this.modelsSnapshots) {
+      delete this.evalsDatasetsRequestParams[this.getEvalsPageKey(snapshot.modelId, datasetId)]
+    }
+  }
+
+  private getEvalsPageKey(modelId: string, datasetId: string) {
+    return `${modelId}:${datasetId}`
   }
 
   async getTraceSpans(modelId: string, traceId: string) {
