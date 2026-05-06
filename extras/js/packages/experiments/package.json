@@ -52,17 +52,17 @@
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",
     "@vueuse/core": "^14.2.1",
-    "dompurify": "^3.2.7",
+    "arquero": "^7.2.1",
+    "dompurify": "^3.4.2",
     "github-markdown-css": "^5.8.1",
     "jszip": "^3.10.1",
     "lucide-vue-next": "^0.460.0",
-    "marked": "^16.2.0",
+    "marked": "^17.0.0",
     "pinia": ">=2.2.6",
     "plotly.js-dist": "^3.0.3",
     "primevue": "^4.4.1",
     "sql.js": "^1.13.0",
-    "uuid": "^11.1.0",
-    "vue": "^3.5.12",
-    "arquero": "^7.2.1"
+    "uuid": "^14.0.0",
+    "vue": "^3.5.12"
   }
 }
