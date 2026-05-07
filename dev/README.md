@@ -5,9 +5,12 @@ with hot-reload, a local S3 (MinIO), and an idempotent seed.
 
 ## Run
 
-From the repo root:
+From the repo root, first write `dev/.env` so the node container runs as
+your host user (otherwise files written into the bind mount — `node_modules`,
+`extras/js/packages/*/dist` — end up root-owned):
 
 ```bash
+printf 'UID=%s\nGID=%s\n' "$(id -u)" "$(id -g)" > dev/.env
 docker compose -f dev/docker-compose.yml up
 ```
 

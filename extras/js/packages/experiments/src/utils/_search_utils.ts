@@ -439,7 +439,7 @@ export class SearchUtils {
     throw new Error('_getIdentifier not implemented')
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+   
   protected static _getValue(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _identifierType: string,
@@ -452,7 +452,7 @@ export class SearchUtils {
   }
 
   protected static _getComparison(raw: RawComparison): ComparisonDict {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cls = this as any
     const comp = cls._getIdentifier(
       raw.identifierStr,
@@ -466,7 +466,7 @@ export class SearchUtils {
   protected static _parseFilter(filterString: string): FilterNode[] {
     const tokens = tokenize(filterString)
     const parser = new FilterParser(tokens)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cls = this as any
     const nodes = parser.parseExpression()
 
@@ -485,7 +485,7 @@ export class SearchUtils {
   }
 
   protected static _resolveNodes(nodes: Array<unknown>): FilterNode[] {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cls = this as any
     const result: FilterNode[] = []
     for (const node of nodes) {
@@ -504,7 +504,7 @@ export class SearchUtils {
 
   static parseSearchFilter(filterString: string | null | undefined): FilterNode[] {
     if (!filterString) return []
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const cls = this as any
     const preprocessed = cls.preprocessFilter(filterString) as string
     try {

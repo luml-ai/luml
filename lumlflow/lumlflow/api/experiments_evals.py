@@ -91,7 +91,7 @@ def get_experiment_evals_all(
 @experiments_evals_router.get("", response_model=PaginatedEvals)
 def get_experiment_evals(
     experiment_id: str,
-    limit: int = Query(default=20, ge=1, le=100),  # noqa: B008
+    limit: int = Query(default=20, ge=1),  # noqa: B008
     cursor: str | None = None,
     sort_by: str = "created_at",
     order: SortOrder = SortOrder.DESC,

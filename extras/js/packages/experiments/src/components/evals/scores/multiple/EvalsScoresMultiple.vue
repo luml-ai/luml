@@ -1,9 +1,9 @@
 <template>
   <div class="charts">
     <EvalsScoresMultipleItem
-      v-for="data in chartsData"
-      :key="data[0]?.scoreName"
-      :data="data"
+      v-for="entry in chartsData"
+      :key="entry.scoreName"
+      :data="entry.data"
     ></EvalsScoresMultipleItem>
   </div>
 </template>
@@ -29,7 +29,10 @@ const uniqueScores = computed(() => {
 })
 
 const chartsData = computed(() => {
-  return uniqueScores.value.map((scoreName) => getScoreChartInfo(scoreName))
+  return uniqueScores.value.map((scoreName) => ({
+    scoreName,
+    data: getScoreChartInfo(scoreName),
+  }))
 })
 
 function getScoreChartInfo(scoreName: string) {
@@ -40,7 +43,7 @@ function getScoreChartInfo(scoreName: string) {
       const modelName = modelInfo?.name || 'Unknown model'
       const color = modelInfo?.color || 'var(--p-text-muted-color)'
       const value = item.scores.find((score) => score.name === scoreName)?.value
-      return { modelName, color, value, scoreName }
+      return { modelId, modelName, color, value, scoreName }
     })
     .filter((item) => item.value !== undefined)
 }

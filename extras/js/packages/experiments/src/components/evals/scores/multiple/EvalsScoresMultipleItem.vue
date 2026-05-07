@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useVariableValue } from '@/hooks/useVariableValue'
 import { plotlyBarChartLayout } from '@/lib/plotly/layouts'
 import { cutStringOnMiddle } from '@/helpers/helpers'
@@ -17,33 +17,42 @@ import { useTheme } from '@/lib/theme/ThemeProvider'
 import EvalsScoresMultipleItemContent from './EvalsScoresMultipleItemContent.vue'
 
 type Props = {
-  data: { modelName: string; color: string; value: number | undefined; scoreName: string }[]
+  data: {
+    modelId: string
+    modelName: string
+    color: string
+    value: number | undefined
+    scoreName: string
+  }[]
 }
 
 const props = defineProps<Props>()
 const { getVariablesValues } = useVariableValue()
 const theme = useTheme()
 
-const chartRef = ref<HTMLDivElement[]>([])
-const chartScaledRef = ref<HTMLDivElement[]>([])
+const chartRef = ref<HTMLDivElement | null>(null)
+const chartScaledRef = ref<HTMLDivElement | null>(null)
 
 const plotlyData = computed(() => {
   const x: string[] = []
   const y: number[] = []
   const color: string[] = []
+  const customdata: string[] = []
   props.data.map((item) => {
     if (item.value === undefined) return
-    x.push(getFormattedName(item.modelName))
+    x.push(item.modelId)
     y.push(item.value)
     color.push(item.color)
+    customdata.push(getFormattedName(item.modelName))
   })
   return [
     {
       x,
       y,
+      customdata,
       type: 'bar',
       marker: { color: getVariablesValues(color) },
-      hovertemplate: '<b>Model:</b> %{x}<br>' + '<b>Value:</b> %{y}<extra></extra>',
+      hovertemplate: '<b>Model:</b> %{customdata}<br>' + '<b>Value:</b> %{y}<extra></extra>',
     },
   ]
 })
@@ -63,8 +72,19 @@ function getPlotlyLayout() {
   })
 }
 
+async function renderChart() {
+  if (!chartRef.value) return
+  const Plotly = await plotlyService.getPlotly()
+  const layout = getPlotlyLayout()
+  Plotly.react(chartRef.value, plotlyData.value, layout, {
+    displayModeBar: false,
+    responsive: true,
+  })
+}
+
 function setScaledChart() {
   nextTick(async () => {
+    if (!chartScaledRef.value) return
     const layout = getPlotlyLayout()
     const Plotly = await plotlyService.getPlotly()
     Plotly.newPlot(chartScaledRef.value, plotlyData.value, layout, {
@@ -83,18 +103,24 @@ function getFormattedName(name: string | undefined) {
 }
 
 watch(theme, async () => {
+  if (!chartRef.value) return
   const layout = getPlotlyLayout()
   const Plotly = await plotlyService.getPlotly()
   Plotly.relayout(chartRef.value, layout)
 })
 
-onMounted(async () => {
+watch(
+  () => props.data,
+  () => {
+    nextTick(() => renderChart())
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(async () => {
   const Plotly = await plotlyService.getPlotly()
-  const layout = getPlotlyLayout()
-  Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
-    displayModeBar: false,
-    responsive: true,
-  })
+  if (chartRef.value) Plotly.purge(chartRef.value)
+  if (chartScaledRef.value) Plotly.purge(chartScaledRef.value)
 })
 </script>
 

@@ -95,17 +95,20 @@ export const useEvalsStore = defineStore('evals', () => {
     }
   }
 
-  async function initDatasets() {
+  async function initDatasets(limit?: number) {
     const datasetsIds = await getProvider.value.getUniqueDatasetsIds()
-    const promises = datasetsIds.map((datasetId) => initDataset(datasetId))
+    const promises = datasetsIds.map((datasetId) => initDataset(datasetId, limit))
     await Promise.all(promises)
   }
 
-  async function initDataset(datasetId: string) {
+  async function initDataset(datasetId: string, limit?: number) {
     const columns = await getProvider.value.getEvalsColumns(datasetId)
+    const existing = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+    const effectiveLimit = limit ?? existing?.params.limit ?? INITIAL_PARAMS.limit
     const params = {
       ...INITIAL_PARAMS,
       dataset_id: datasetId,
+      limit: effectiveLimit,
     }
     await getProvider.value.resetDatasetPage(datasetId)
     const data = await getProvider.value.getNextEvalsByDatasetId(params)

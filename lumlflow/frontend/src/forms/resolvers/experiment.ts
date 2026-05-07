@@ -9,5 +9,5 @@ export const experimentResolver: Resolver = zodResolver(
     name: z.string().min(3).max(255),
     description: emptyToUndefined(z.string().min(3).max(255).optional()),
     tags: emptyToUndefined(z.array(z.string().min(3).max(255))).optional(),
-  }),
+  }) as never,
 )

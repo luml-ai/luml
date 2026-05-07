@@ -8,14 +8,22 @@
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-2">
         <Button
-          class="p-2! text-color! hover:text-muted-color! hover:bg-transparent! active:bg-transparent!"
+          as="a"
+          href="https://github.com/luml-ai/luml"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="p-2! text-color! hover:text-muted-color! hover:bg-transparent! active:bg-transparent! no-underline!"
           variant="text"
         >
           <Github :size="14" />
           GitHub
         </Button>
         <Button
-          class="p-2! text-color! hover:text-muted-color! hover:bg-transparent! active:bg-transparent!"
+          as="a"
+          href="https://docs.luml.ai"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="p-2! text-color! hover:text-muted-color! hover:bg-transparent! active:bg-transparent! no-underline!"
           variant="text"
         >
           <File :size="14" />
