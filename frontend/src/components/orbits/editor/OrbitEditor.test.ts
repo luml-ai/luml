@@ -5,39 +5,37 @@ import OrbitSettingsDialog from './OrbitEditor.vue'
 import { OrbitRoleEnum } from '../orbits.interfaces'
 import { PermissionEnum, type Orbit } from '@/lib/api/api.interfaces'
 
+const updateOrbitMock = vi.fn().mockResolvedValue({})
+const deleteOrbitMock = vi.fn().mockResolvedValue({})
+const toastAddMock = vi.fn()
+const confirmRequireMock = vi.fn()
+
 vi.mock('@/stores/buckets', () => ({
   useBucketsStore: () => ({
     buckets: [{ id: 'bucket-1111-aaaa-bbbb-cccc-000000000001', bucket_name: 'Bucket One' }],
+    getBuckets: vi.fn(),
   }),
 }))
 
 vi.mock('@/stores/orbits', () => ({
   useOrbitsStore: () => ({
-    updateOrbit: vi.fn().mockResolvedValue({}),
-    deleteOrbit: vi.fn().mockResolvedValue({}),
+    updateOrbit: updateOrbitMock,
+    deleteOrbit: deleteOrbitMock,
   }),
 }))
 
 vi.mock('primevue', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
-
   return {
     ...actual,
-
-    useToast: () => ({
-      add: vi.fn(),
-    }),
-
-    useConfirm: () => ({
-      require: vi.fn(),
-    }),
+    useToast: () => ({ add: toastAddMock }),
+    useConfirm: () => ({ require: confirmRequireMock }),
   }
 })
 
 vi.mock('@/lib/primevue/data/toasts', () => ({
-  simpleErrorToast: vi.fn(),
-
-  simpleSuccessToast: vi.fn(),
+  simpleErrorToast: vi.fn((msg: string) => ({ severity: 'error', summary: msg })),
+  simpleSuccessToast: vi.fn((msg: string) => ({ severity: 'success', summary: msg })),
 }))
 
 vi.mock('@/lib/primevue/data/confirm', () => ({
@@ -96,37 +94,75 @@ describe('OrbitSettingsDialog', () => {
           },
 
           Form: {
-            template:
-              '<form id="orbit-edit-form" @submit="$emit(\'submit\', { valid: true })"><slot></slot></form>',
+            template: 
+            '<form id="orbit-edit-form" @submit.prevent="onSubmit"><slot></slot></form>',
             props: ['id', 'initialValues', 'resolver'],
+            emits: ['submit'],
+            data() {
+              return {
+                values: { ...(this.initialValues || {}) },
+              }
+            },
+            provide() {
+              return {
+                formValues: this.values,
+                setFormValue: (name: string, value: any) => {
+                  this.values[name] = value
+                },
+              }
+            },
+            methods: {
+              onSubmit() {
+                this.$emit('submit', { valid: true, values: { ...this.values } })
+              },
+            },
           },
-
           InputText: {
-            template:
-              '<input :id="id" :name="name" v-model="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
-            props: ['id', 'name', 'modelValue'],
-            emits: ['update:modelValue'],
+            template: '<input :id="id" :name="name" :value="localValue" @input="onInput" />',
+            props: ['id', 'name'],
+            inject: {
+              formValues: { default: () => ({}) },
+              setFormValue: { default: () => () => {} },
+            },
+            computed: {
+              localValue(): string {
+                return this.formValues?.[this.name] ?? ''
+              },
+            },
+            methods: {
+              onInput(e: Event) {
+                this.setFormValue(this.name, (e.target as HTMLInputElement).value)
+              },
+            },
           },
-
           Select: {
             template:
-              '<select :id="id" :name="name" :disabled="disabled"><option v-for="opt in options" :key="opt[optionValue]" :value="opt[optionValue]">{{ opt[optionLabel] }}</option></select>',
+              '<select :id="id" :name="name" :disabled="disabled" :value="localValue">' +
+              '<option v-for="opt in options" :key="opt[optionValue]" :value="opt[optionValue]">{{ opt[optionLabel] }}</option>' +
+              '</select>',
             props: [
               'options',
               'optionLabel',
               'optionValue',
-              'modelValue',
               'id',
               'name',
               'disabled',
+              'defaultValue',
             ],
-            emits: ['update:modelValue'],
+            inject: {
+              formValues: { default: () => ({}) },
+            },
+            computed: {
+              localValue(): string {
+                return this.formValues?.[this.name] ?? this.defaultValue ?? ''
+              },
+            },
           },
-
           Button: {
             template:
-              '<button :type="type" :form="form" :disabled="disabled || loading" :variant="variant" :severity="severity"><slot></slot></button>',
+              '<button :type="type" :form="form" :disabled="disabled || loading" :variant="variant" :severity="severity" @click="$emit(\'click\', $event)"><slot></slot></button>',
             props: ['type', 'form', 'loading', 'disabled', 'variant', 'severity'],
+            emits: ['click'],
           },
         },
       },
@@ -139,50 +175,37 @@ describe('OrbitSettingsDialog', () => {
   })
 
   afterEach(() => {
-    if (wrapper) {
-      wrapper.unmount()
-    }
+    wrapper?.unmount()
   })
 
   it('renders dialog with initial values', async () => {
     await flushPromises()
     expect(wrapper.find('input#name').exists()).toBe(true)
-    expect(wrapper.find('input#name').element.value).toBe('Test Orbit')
+    expect((wrapper.find('input#name').element as HTMLInputElement).value).toBe('Test Orbit')
     expect(wrapper.find('select#bucket').exists()).toBe(true)
+    expect((wrapper.find('select#bucket').element as HTMLSelectElement).value).toBe(
+      'bucket-1111-aaaa-bbbb-cccc-000000000001',
+    )
   })
 
-  it('submits form and calls updateOrbit', async () => {
-    const mockUpdateOrbit = vi.fn().mockResolvedValue({})
-    const mockToastAdd = vi.fn()
-    vi.doMock('@/stores/orbits', () => ({
-      useOrbitsStore: () => ({
-        updateOrbit: mockUpdateOrbit,
-
-        deleteOrbit: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('primevue', async (importOriginal) => {
-      const actual = (await importOriginal()) as Record<string, unknown>
-      return {
-        ...actual,
-        useToast: () => ({
-          add: mockToastAdd,
-        }),
-
-        useConfirm: () => ({
-          require: vi.fn(),
-        }),
-      }
-    })
-
+  it('submits form and calls updateOrbit with edited values', async () => {
     await flushPromises()
     const nameInput = wrapper.find('input#name')
     await nameInput.setValue('New Orbit Name')
     const form = wrapper.find('form#orbit-edit-form')
     await form.trigger('submit')
     await flushPromises()
-    expect(form.exists()).toBe(true)
+
+    expect(updateOrbitMock).toHaveBeenCalledTimes(1)
+    expect(updateOrbitMock).toHaveBeenCalledWith(
+      orbit.organization_id,
+      expect.objectContaining({
+        id: orbit.id,
+        name: 'New Orbit Name',
+        bucket_secret_id: orbit.bucket_secret_id,
+      }),
+    )
+    expect(toastAddMock).toHaveBeenCalled()
   })
 
   it('shows delete button when user has delete permission', async () => {
@@ -194,43 +217,21 @@ describe('OrbitSettingsDialog', () => {
   })
 
   it('handles delete orbit action', async () => {
-    const mockDeleteOrbit = vi.fn().mockResolvedValue({})
-    const mockToastAdd = vi.fn()
-    const mockConfirmRequire = vi.fn()
-
-    vi.doMock('@/stores/orbits', () => ({
-      useOrbitsStore: () => ({
-        updateOrbit: vi.fn(),
-
-        deleteOrbit: mockDeleteOrbit,
-      }),
-    }))
-
-    vi.doMock('primevue', async (importOriginal) => {
-      const actual = (await importOriginal()) as Record<string, unknown>
-      return {
-        ...actual,
-
-        useToast: () => ({
-          add: mockToastAdd,
-        }),
-
-        useConfirm: () => ({
-          require: mockConfirmRequire,
-        }),
-      }
-    })
-
     await flushPromises()
     const deleteButton = wrapper.find('button[severity="warn"]')
     await deleteButton.trigger('click')
     await flushPromises()
-    expect(deleteButton.exists()).toBe(true)
+    expect(confirmRequireMock).toHaveBeenCalledTimes(1)
+    const confirmOptions = confirmRequireMock.mock.calls[0][0]
+    await confirmOptions.accept()
+    await flushPromises()
+
+    expect(deleteOrbitMock).toHaveBeenCalledWith(orbit.organization_id, orbit.id)
   })
 
   it('disables bucket select field', async () => {
     await flushPromises()
-
+    
     const bucketSelect = wrapper.find('select#bucket')
     expect(bucketSelect.exists()).toBe(true)
     expect(bucketSelect.attributes('disabled')).toBeDefined()
@@ -238,45 +239,21 @@ describe('OrbitSettingsDialog', () => {
 
   it('shows support message for bucket changes', async () => {
     await flushPromises()
-
-    const supportMessage = wrapper.text()
-    expect(supportMessage).toContain('Please contact')
-    expect(supportMessage).toContain('Support')
-    expect(supportMessage).toContain('to change the bucket')
+    const text = wrapper.text()
+    expect(text).toContain('Please contact')
+    expect(text).toContain('Support')
+    expect(text).toContain('to change the bucket')
   })
 
   it('handles form submission error', async () => {
-    const mockUpdateOrbit = vi.fn().mockRejectedValue(new Error('API Error'))
-    const mockToastAdd = vi.fn()
-
-    vi.doMock('@/stores/orbits', () => ({
-      useOrbitsStore: () => ({
-        updateOrbit: mockUpdateOrbit,
-
-        deleteOrbit: vi.fn(),
-      }),
-    }))
-
-    vi.doMock('primevue', async (importOriginal) => {
-      const actual = (await importOriginal()) as Record<string, unknown>
-      return {
-        ...actual,
-        useToast: () => ({
-          add: mockToastAdd,
-        }),
-
-        useConfirm: () => ({
-          require: vi.fn(),
-        }),
-      }
-    })
+    updateOrbitMock.mockRejectedValueOnce(new Error('API Error'))
 
     await flushPromises()
-    const nameInput = wrapper.find('input#name')
-    await nameInput.setValue('Test Orbit')
     const form = wrapper.find('form#orbit-edit-form')
     await form.trigger('submit')
     await flushPromises()
-    expect(form.exists()).toBe(true)
+
+    expect(updateOrbitMock).toHaveBeenCalled()
+    expect(toastAddMock).toHaveBeenCalled()
   })
 })
