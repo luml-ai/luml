@@ -1,0 +1,191 @@
+name: dataforce-dev
+
+x-backend-base: &backend-base
+  build:
+    context: ..
+    dockerfile: dev/backend.Dockerfile
+  image: dataforce-dev-backend:latest
+  env_file:
+    - backend.env
+  environment:
+    PYTHONPATH: /app
+  working_dir: /app
+  volumes:
+    - ../backend:/app
+
+x-node-base: &node-base
+  build:
+    context: ..
+    dockerfile: dev/node.Dockerfile
+  image: dataforce-dev-node:latest
+  working_dir: /workspace
+  volumes:
+    - ../:/workspace
+  environment:
+    NPM_CONFIG_FUND: "false"
+    NPM_CONFIG_AUDIT: "false"
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: df_studio
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d df_studio"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        set -e
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc mb --ignore-existing local/dev-bucket
+        mc anonymous set download local/dev-bucket || true
+        echo "MinIO bucket 'dev-bucket' ready"
+    restart: "no"
+
+  backend-migrate:
+    <<: *backend-base
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - /opt/venv/bin/alembic
+      - upgrade
+      - head
+    restart: "no"
+
+  backend:
+    <<: *backend-base
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend-migrate:
+        condition: service_completed_successfully
+    command:
+      - /opt/venv/bin/uvicorn
+      - luml.server:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/luml
+    ports:
+      - "8000:8000"
+
+  seed:
+    <<: *backend-base
+    depends_on:
+      backend-migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    volumes:
+      - ../backend:/app
+      - ./seed.py:/seed/seed.py:ro
+    command:
+      - /opt/venv/bin/python
+      - /seed/seed.py
+    restart: "no"
+
+  npm-install:
+    <<: *node-base
+    command:
+      - sh
+      - -c
+      - |
+        if [ ! -d node_modules ] || [ ! -d frontend/node_modules ]; then
+          echo "Installing workspace dependencies..."
+          npm install --include=dev
+        else
+          echo "node_modules present; skipping install (delete to force reinstall)"
+        fi
+    restart: "no"
+
+  extras-attachments:
+    <<: *node-base
+    working_dir: /workspace/extras/js/packages/attachments
+    command:
+      - npx
+      - vite
+      - build
+      - --watch
+    depends_on:
+      npm-install:
+        condition: service_completed_successfully
+
+  extras-experiments:
+    <<: *node-base
+    working_dir: /workspace/extras/js/packages/experiments
+    command:
+      - npx
+      - vite
+      - build
+      - --watch
+    depends_on:
+      npm-install:
+        condition: service_completed_successfully
+
+  frontend:
+    <<: *node-base
+    working_dir: /workspace/frontend
+    environment:
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
+      VITE_API_URL: http://localhost:8000
+      VITE_DOCS_URL: http://localhost:5173
+    command:
+      - sh
+      - -c
+      - |
+        cat > .env.development.local <<EOF
+        VITE_API_URL=$${VITE_API_URL}
+        VITE_DOCS_URL=$${VITE_DOCS_URL}
+        EOF
+        exec npx vite --host 0.0.0.0 --port 5173
+    ports:
+      - "5173:5173"
+    depends_on:
+      npm-install:
+        condition: service_completed_successfully
+      extras-attachments:
+        condition: service_started
+      extras-experiments:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  minio_data:

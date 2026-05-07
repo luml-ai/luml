@@ -1,6 +1,7 @@
 wasm/packages/dfs_webworker/dfs_webworker/prompt_optimization/serialization/__fnnx_autogen_content.py
 wasm/test_*.py
 /backend/.env
+/frontend/.env.development.local
 /.idea/.gitignore
 /backend/.coverage
 /backend/luml/factories/
