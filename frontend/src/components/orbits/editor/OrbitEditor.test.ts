@@ -94,8 +94,7 @@ describe('OrbitSettingsDialog', () => {
           },
 
           Form: {
-            template: 
-            '<form id="orbit-edit-form" @submit.prevent="onSubmit"><slot></slot></form>',
+            template: '<form id="orbit-edit-form" @submit.prevent="onSubmit"><slot></slot></form>',
             props: ['id', 'initialValues', 'resolver'],
             emits: ['submit'],
             data() {
@@ -231,7 +230,7 @@ describe('OrbitSettingsDialog', () => {
 
   it('disables bucket select field', async () => {
     await flushPromises()
-    
+
     const bucketSelect = wrapper.find('select#bucket')
     expect(bucketSelect.exists()).toBe(true)
     expect(bucketSelect.attributes('disabled')).toBeDefined()
