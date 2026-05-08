@@ -32,27 +32,44 @@ export const useEvalsTable = (
 
   const data = computed(() => getViewData(evals.value))
 
+  function hasRealId(item: EvalsInfo) {
+    return item.id != null && item.id !== ''
+  }
+
   function getViewData(evals: EvalsInfo[]) {
     const groups = new Map<string, EvalsInfo[]>()
     for (const item of evals) {
-      const bucket = groups.get(item.id)
+      const key = hasRealId(item) ? String(item.id) : ''
+      const bucket = groups.get(key)
       if (bucket) {
         bucket.push(item)
       } else {
-        groups.set(item.id, [item])
+        groups.set(key, [item])
       }
     }
-    return Array.from(groups.values()).flat().map(getEvalInfo)
+    const flat = Array.from(groups.values()).flat()
+    return flat.map((item, idx) => {
+      const prev = flat[idx - 1]
+      const next = flat[idx + 1]
+      const isFirstInGroup = !hasRealId(item) || !prev || prev.id !== item.id
+      const hasNextInGroup = hasRealId(item) && !!next && next.id === item.id
+      return getEvalInfo(item, idx, isFirstInGroup, hasNextInGroup)
+    })
   }
 
-  function getEvalInfo(item: EvalsInfo) {
+  function getEvalInfo(
+    item: EvalsInfo,
+    idx: number,
+    isFirstInGroup: boolean,
+    hasNextInGroup: boolean,
+  ) {
     const feedbackObject = getFeedbackObject(item.annotations)
     const expectationObject = getExpectationObject(item.annotations)
 
+    const id = hasRealId(item) ? item.id : `__no_id_${idx}`
+    const rowKey = `${String(id)}::${item.modelId || ''}::${idx}`
+
     return {
-      id: item.id,
-      modelId: item.modelId,
-      dataset_id: item.dataset_id,
       ...item.inputs,
       ...item.outputs,
       ...item.refs,
@@ -60,6 +77,12 @@ export const useEvalsTable = (
       ...item.metadata,
       ...feedbackObject,
       ...expectationObject,
+      id,
+      modelId: item.modelId,
+      dataset_id: item.dataset_id,
+      __rowKey: rowKey,
+      __isFirstInGroup: isFirstInGroup,
+      __hasNextInGroup: hasNextInGroup,
     }
   }
 

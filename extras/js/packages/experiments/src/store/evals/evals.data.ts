@@ -7,3 +7,5 @@ export const INITIAL_PARAMS: InitialDatasetParamsType = {
   search: '',
   filters: [],
 }
+
+export const COMPARISON_LIMIT = 100_000

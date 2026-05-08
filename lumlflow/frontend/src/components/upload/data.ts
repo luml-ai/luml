@@ -15,7 +15,7 @@ export const DIALOG_PT: DialogPassThroughOptions = {
 }
 
 export const resolver: Resolver = zodResolver(
-  z
+  (z
     .object({
       type: z.enum([UploadTypeEnum.AUTO, UploadTypeEnum.MODEL, UploadTypeEnum.EXPERIMENT]),
       organization: z.string().nullable(),
@@ -55,7 +55,7 @@ export const resolver: Resolver = zodResolver(
           message: 'Collection is required',
         })
       }
-    }),
+    }) as never),
 )
 
 export const selectTypeOptions = [

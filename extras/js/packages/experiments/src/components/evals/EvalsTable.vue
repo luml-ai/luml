@@ -15,18 +15,17 @@
       ref="tableRef"
       :value="tableData"
       show-gridlines
-      row-group-mode="rowspan"
-      :group-rows-by="isMultipleModels ? 'id' : undefined"
       sort-mode="single"
       export-filename="experiment_snapshot"
       :scrollable="useScroll"
       :scroll-height="useScroll ? '410px' : undefined"
       :virtual-scroller-options="useScroll ? virtualScrollerOptions : undefined"
       striped-rows
-      lazy
+      :lazy="!isMultipleModels"
+      :row-class="rowClass"
       class="evals-table"
       tableStyle="table-layout: fixed;"
-      data-key="id"
+      data-key="__rowKey"
       @sort="onSort"
     >
       <template #empty>No evals found...</template>
@@ -147,11 +146,16 @@
           ></ModelIdColumn>
           <button
             v-else-if="column === 'id'"
-            class="cell link"
-            v-tooltip.top="slotProps.data[column]"
+            class="id-cell"
+            :class="{
+              'id-cell--label': !isMultipleModels || slotProps.data.__isFirstInGroup,
+            }"
+            v-tooltip.top="displayId(slotProps.data[column])"
             @click="showTraces(slotProps.data)"
           >
-            {{ slotProps.data[column] }}
+            <span v-if="!isMultipleModels || slotProps.data.__isFirstInGroup">
+              {{ displayId(slotProps.data[column]) }}
+            </span>
           </button>
           <FeedbackColumn
             v-else-if="slotProps.data[column]?.isFeedbackColumn"
@@ -219,6 +223,7 @@ const scoresColumns = computed(() => {
 })
 
 const isSortableColumn = computed(() => (columnName: string) => {
+  if (isMultipleModels.value) return false
   return scoresColumns.value.includes(columnName)
 })
 
@@ -240,11 +245,11 @@ const getParentColumnWidth = computed(() => (columnName: string, childrenLength:
 
 const useScroll = computed(() => tableData.value.length > 8)
 
-const virtualScrollerOptions = {
+const virtualScrollerOptions = computed(() => ({
   itemSize: 44,
-  lazy: true,
-  onLazyLoad: onLazyLoad,
-}
+  lazy: !isMultipleModels.value,
+  onLazyLoad: isMultipleModels.value ? undefined : onLazyLoad,
+}))
 
 function onLazyLoad(event: VirtualScrollerLazyEvent) {
   const { last } = event
@@ -370,8 +375,22 @@ const isLastFeedbackColumn = computed(() => (columnName: string) => {
   )
 })
 
+function displayId(value: unknown) {
+  const str = value == null ? '' : String(value)
+  return str.startsWith('__no_id_') ? '' : str
+}
+
+function rowClass(data: Record<string, unknown>) {
+  if (!isMultipleModels.value) return ''
+  const classes: string[] = []
+  classes.push(data.__isFirstInGroup ? 'group-first' : 'group-continuation')
+  if (data.__hasNextInGroup) classes.push('group-has-next')
+  return classes.join(' ')
+}
+
 function showTraces(data: Record<string, any>) {
   const { dataset_id, id } = data
+  if (typeof id === 'string' && id.startsWith('__no_id_')) return
   const allModelsData = props.data.filter(
     (item) => item.dataset_id === dataset_id && item.id === id,
   )
@@ -513,5 +532,54 @@ button.header-cell-content {
 
 :deep(td) {
   height: 44px;
+}
+
+.evals-table :deep(tbody > tr > td:first-child) {
+  background: var(--p-datatable-header-cell-background) !important;
+  border-right: 2px solid var(--p-datatable-body-cell-border-color) !important;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.evals-table :deep(thead > tr:first-child > th:first-child) {
+  background: var(--p-datatable-header-cell-background) !important;
+  border-right: 2px solid var(--p-datatable-body-cell-border-color) !important;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.evals-table :deep(tr.group-continuation td:first-child) {
+  border-top: 1px solid transparent;
+}
+
+.evals-table :deep(tr.group-has-next td:first-child) {
+  border-bottom: 1px solid transparent;
+}
+
+.id-cell {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  overflow: hidden;
+}
+
+.id-cell > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.id-cell--label > span {
+  text-decoration: underline;
 }
 </style>

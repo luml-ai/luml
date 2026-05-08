@@ -1,4 +1,4 @@
-import { Bell, ChartColumnBig, Link, Rocket } from 'lucide-vue-next'
+import { Bell, ChartColumnBig, Link, Zap } from 'lucide-vue-next'
 import lumlflowQuickstart from '@/docs/lumlflow_quickstart.md?raw'
 import lumlflowLlmEvaluation from '@/docs/llm_evaluation_lumlflow.md?raw'
 import lumlflowTeamCollaboration from '@/docs/registry_module_draft.md?raw'
@@ -6,10 +6,10 @@ import lumlflowReleaseNotes from '@/docs/lumlflow_release_notes.md?raw'
 
 export const TOP_CARDS = [
   {
-    title: 'LUMLFlow Quickstart ',
+    title: 'Quickstart',
     description:
       'Train a model, log metrics, and inspect your first experiment in LUMLFlow in under five minutes.',
-    icon: Rocket,
+    icon: Zap,
     mdRaw: lumlflowQuickstart,
   },
   {
@@ -27,7 +27,7 @@ export const TOP_CARDS = [
     mdRaw: lumlflowTeamCollaboration,
   },
   {
-    title: 'LUMLFlow Release Notes',
+    title: 'Release Notes',
     description: 'Catch up on the latest LUMLFlow features, fixes, and breaking changes.',
     icon: Bell,
     mdRaw: lumlflowReleaseNotes,
