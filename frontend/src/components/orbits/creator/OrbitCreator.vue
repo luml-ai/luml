@@ -50,7 +50,7 @@
         </div>
 
         <div class="field">
-          <label for="bucket" class="label">Bucket</label>
+          <label for="bucket" class="label required">Bucket</label>
           <Select
             v-model="initialValues.bucket_secret_id"
             name="bucket_secret_id"
