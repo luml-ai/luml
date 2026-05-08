@@ -31,6 +31,7 @@ def _task_out(
         status=task.status,
         prompt=task.prompt,
         base_branch=task.base_branch,
+        auto_mode=task.auto_mode,
         position=task.position,
         created_at=task.created_at,
         updated_at=task.updated_at,
@@ -63,6 +64,7 @@ async def create_task(
         body.agent_id,
         body.prompt,
         body.base_branch,
+        body.auto_mode,
     )
     return _task_out(request, task)
 

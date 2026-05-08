@@ -14,6 +14,7 @@ class TaskRepository(RepositoryBase):
         tmux_session: str = "",
         status: str = "running",
         base_branch: str = "main",
+        auto_mode: bool = False,
     ) -> TaskOrm:
         now = self._now()
         with self._session_factory() as session:
@@ -27,6 +28,7 @@ class TaskRepository(RepositoryBase):
                 prompt=prompt,
                 tmux_session=tmux_session,
                 base_branch=base_branch,
+                auto_mode=auto_mode,
                 created_at=now,
                 updated_at=now,
             )

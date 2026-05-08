@@ -40,6 +40,7 @@ class TaskHandler:
         agent_id: str,
         prompt: str,
         base_branch: str = "main",
+        auto_mode: bool = False,
     ) -> TaskOrm:
         repo = self._repositories.get(repository_id)
         if not repo:
@@ -68,6 +69,7 @@ class TaskHandler:
             prompt=prompt,
             status=TaskStatus.PENDING,
             base_branch=base_branch,
+            auto_mode=auto_mode,
         )
 
     async def delete(self, task_id: str) -> None:
@@ -140,7 +142,9 @@ class TaskHandler:
                 raise InvalidOperationError(
                     f"Unknown agent: {task.agent_id}"
                 )
-            cmd_str = build_agent_command(agent, task.prompt)
+            cmd_str = build_agent_command(
+                agent, task.prompt, auto_approve=task.auto_mode,
+            )
             command = ["bash", "-c", cmd_str]
             session_type = "agent"
             self._tasks.update_status(

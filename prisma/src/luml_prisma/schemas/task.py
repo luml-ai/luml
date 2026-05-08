@@ -19,6 +19,7 @@ class TaskCreateIn(BaseModel):
     agent_id: str
     prompt: str = ""
     base_branch: str = "main"
+    auto_mode: bool = False
 
 
 class TaskStatusUpdateIn(BaseModel):
@@ -35,6 +36,7 @@ class TaskOut(BaseModel):
     status: str
     prompt: str
     base_branch: str
+    auto_mode: bool = False
     position: int | None = None
     created_at: str
     updated_at: str
