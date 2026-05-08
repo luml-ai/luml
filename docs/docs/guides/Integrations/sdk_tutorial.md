@@ -192,7 +192,7 @@ luml = LumlClient(
 )
 ```
 
-*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically. Also make sure the collection's type is appropriate for your artifact (for model uploading use collections with "Model" or "Mixed" type. More about collections type in [Registry module](/docs/docs/documentation/Modules/Registry/))*
+*Note: the API key can also be set via the `LUML_API_KEY` environment variable. The `organization`, `orbit`, and `collection` parameters accept both names and IDs. If only one of each exists on your account, it is selected automatically. Also make sure the collection's type is appropriate for your artifact (for model uploading use collections with "Model" or "Mixed" type. More about collection types in [Registry module](/docs/docs/documentation/Modules/Registry/))*
 
 Upload a `.luml` file:
 

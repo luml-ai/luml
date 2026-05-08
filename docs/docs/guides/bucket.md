@@ -98,7 +98,9 @@ Google Cloud has specific requirements. It is not natively S3-compatible, so it 
 3. Set a name, select a Region, and choose the Standard class.
 4. Click Create.
 
-### Configure CORS (via Terminal) Google Cloud lacks a simple visual CORS editor, so we will use the built-in console.
+### Configure CORS (via Terminal)
+
+Google Cloud lacks a simple visual CORS editor, so we will use the built-in console.
 
 1. Activate Cloud Shell (terminal icon in the top right corner).
 

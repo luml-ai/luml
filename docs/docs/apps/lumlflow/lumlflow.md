@@ -1,22 +1,22 @@
 ---
 sidebar_label: 'Overview'
 sidebar_position: 1
-title: LUMLFlow
+title: Flow
 sidebar_custom_props: { icon: 'LineChart' }
 ---
 
-# LUMLFlow
+# Flow
 
-LUMLFlow is a local application for inspecting and managing machine learning experiment runs produced by the LUML SDK. It reads experiments from a local store populated by the SDK's `ExperimentTracker` and provides a structured interface for parameters, metrics, logged models, traces, and evaluation results. Once a run has been validated locally, it can be promoted to the central [Registry](../../documentation/Modules/Registry/registry.md) for long-term storage and reuse.
+Flow is a local application for inspecting and managing machine learning experiment runs produced by the LUML SDK. It reads experiments from a local store populated by the SDK's `ExperimentTracker` and provides a structured interface for parameters, metrics, logged models, traces, and evaluation results. Once a run has been validated locally, it can be promoted to the central [Registry](../../documentation/Modules/Registry/registry.md) for long-term storage and reuse.
 
-LUMLFlow is launched from the directory of the project that produced the experiments. The command starts a local server and opens the interface in the browser.
+Flow is launched from the directory of the project that produced the experiments. The command starts a local server and opens the interface in the browser.
 
 ```bash
 pip install lumlflow
 lumlflow ui
 ```
 
-For experiments to surface correctly in LUMLFlow, the producing code must use the LUML SDK to record runs. See the [SDK documentation](../../sdk/experiments/tracker.md) for the logging API.
+For experiments to surface correctly in Flow, the producing code must use the LUML SDK to record runs. See the [SDK documentation](../../sdk/experiments/tracker.md) for the logging API.
 
 ## Home Screen
 
