@@ -246,7 +246,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     toast.add({
       severity: 'success',
       summary: 'Success',
-      detail: `${formData.value.name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Collection</a>`,
+      detail: `${formData.value.name} has been added to the collection successfully.<br><a href="#" class="toast-action-link" data-route="orbit-registry" data-params="{}">Go to Registry</a>`,
       life: 5000,
     })
     reset()
