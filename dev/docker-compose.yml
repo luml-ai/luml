@@ -140,6 +140,11 @@ services:
   extras-attachments:
     <<: *node-base
     working_dir: /workspace/extras/js/packages/attachments
+    environment:
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
+      HOME: /tmp
+      LUML_BUILD_SOURCEMAP: "1"
     command:
       - npx
       - vite
@@ -152,6 +157,11 @@ services:
   extras-experiments:
     <<: *node-base
     working_dir: /workspace/extras/js/packages/experiments
+    environment:
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
+      HOME: /tmp
+      LUML_BUILD_SOURCEMAP: "1"
     command:
       - npx
       - vite

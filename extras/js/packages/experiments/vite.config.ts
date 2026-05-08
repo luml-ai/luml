@@ -21,6 +21,7 @@ export default defineConfig({
     },
   },
   build: {
+    sourcemap: !!process.env.LUML_BUILD_SOURCEMAP,
     lib: {
       entry: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
       name: 'luml-experiments',
