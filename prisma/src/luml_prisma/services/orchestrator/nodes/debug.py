@@ -62,7 +62,10 @@ class DebugNodeHandler:
         if agent is None:
             return NodeResult(success=False, error_message=f"Unknown agent: {agent_id}")
 
-        cmd_str = build_agent_command(agent, debug_prompt)
+        cmd_str = build_agent_command(
+            agent, debug_prompt,
+            auto_approve=bool(ctx.run_config.get("auto_mode", False)),
+        )
         command = ["bash", "-c", cmd_str]
 
         session = ctx.services.pty.spawn(

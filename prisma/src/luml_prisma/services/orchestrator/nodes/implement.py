@@ -55,7 +55,10 @@ class ImplementNodeHandler:
             worktree_path=worktree_path,
             base_branch=ctx.base_branch,
         )
-        cmd_str = build_agent_command(agent, prompt)
+        cmd_str = build_agent_command(
+            agent, prompt,
+            auto_approve=bool(ctx.run_config.get("auto_mode", False)),
+        )
         command = ["bash", "-c", cmd_str]
 
         session = ctx.services.pty.spawn(

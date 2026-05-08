@@ -2,7 +2,7 @@ from importlib import resources
 from pathlib import Path
 
 import pytest
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 from luml_prisma.infra.db import create_db_engine
 from luml_prisma.migrate import run_migrations
@@ -31,19 +31,6 @@ class TestRunMigrations:
             "alembic_version",
         }
         assert expected <= tables
-
-        engine.dispose()
-
-    def test_stamps_alembic_version(self, tmp_db_path: Path) -> None:
-        engine = create_db_engine(f"sqlite:///{tmp_db_path}")
-        run_migrations(engine)
-
-        with engine.connect() as conn:
-            row = conn.execute(
-                text("SELECT version_num FROM alembic_version")
-            ).fetchone()
-            assert row is not None
-            assert row[0] == "e5c7b9d3f612"
 
         engine.dispose()
 

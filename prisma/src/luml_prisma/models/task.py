@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from luml_prisma.models.base import Base, _now_utc, _uuid_pk
@@ -20,5 +20,6 @@ class TaskOrm(Base):
     tmux_session: Mapped[str] = mapped_column(Text, nullable=False, default="")
     position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     base_branch: Mapped[str] = mapped_column(Text, nullable=False, default="main")
+    auto_mode: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_utc)
     updated_at: Mapped[str] = mapped_column(Text, nullable=False, default=_now_utc)
