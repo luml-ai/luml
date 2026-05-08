@@ -42,13 +42,10 @@
       <Skeleton v-for="i in 1" :key="i" style="height: 100px" />
     </div>
     <div v-else>
-      <template v-if="deploymentsStore.deployments.length">
-        <div class="message">
-          <BellRing :size="14" /> In order to use the inference URL, please authorize with your API
-          key
-        </div>
-        <DeploymentsTable :data="deploymentsStore.deployments" />
-      </template>
+      <DeploymentsTable
+        v-if="deploymentsStore.deployments.length"
+        :data="deploymentsStore.deployments"
+      />
       <div v-else class="list">
         <UiCardAdd
           title="Add new Deployment"
@@ -96,7 +93,7 @@ import { useAuthStore } from '@/stores/auth'
 import { Skeleton, useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
-import { BellRing, Rocket, Lock, Plus } from 'lucide-vue-next'
+import { Rocket, Lock, Plus } from 'lucide-vue-next'
 import UiCardAdd from '@/components/ui/UiCardAdd.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import DeploymentsTable from '@/components/deployments/table/DeploymentsTable.vue'
@@ -234,19 +231,6 @@ onUnmounted(() => {
   grid-template-columns: repeat(3, 1fr);
 }
 
-.message {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-  border-radius: 8px;
-  padding: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--p-tag-primary-color);
-  background-color: var(--p-tag-primary-background);
-  margin-bottom: 20px;
-}
 .loading-container {
   display: flex;
   flex-direction: column;
