@@ -6,7 +6,7 @@ sidebar_position: 2
 
 This guide walks through a single end-to-end scenario: creating an account, setting up an organization, training a model with Express Tasks, and deploying it. Each section builds on the previous one, so following the steps in order is recommended.
 
-*Note: for model packaging with the Python SDK, experiment tracking, and programmatic uploads, see the [SDK Tutorial](sdk_tutorial.md).*
+*Note: for model packaging with the Python SDK, experiment tracking, and programmatic uploads, see the [Sklearn Tutorial](Integrations/sdk_tutorial.md).*
 
 ## Creating an Account
 
@@ -116,53 +116,7 @@ Once the model appears in the Registry, you can open it to view its overview, mo
 
 A Satellite is a compute node you host yourself that executes models and serves inference requests. Before you can deploy, at least one Satellite must be connected to the Orbit.
 
-Open the **Satellites** module in the sidebar and click **Create Satellite**. Give it a name, fill in the required fields, and copy the **Token** the platform generates — you will need it to pair the Satellite with Luml.
-
-![](/img/satellite-connect.webp)
-![](/img/satellite-connect2.webp)
-
-Once you have the token, install and launch the Satellite agent on the machine you want to use as a compute node. The agent ships as a public Docker image on GitHub Container Registry — see the [package page](https://github.com/luml-ai/luml/pkgs/container/luml-satellite-agent) — and is configured through a `docker-compose.yml` and an `.env` file kept in the [`luml-ai/luml`](https://github.com/luml-ai/luml/tree/main/satellite) repository.
-
-**1. Create a working directory** on the host machine and download both files into it:
-
-```bash
-mkdir luml-satellite && cd luml-satellite
-curl -O https://raw.githubusercontent.com/luml-ai/luml/main/satellite/docker-compose.yml
-curl -o .env https://raw.githubusercontent.com/luml-ai/luml/main/satellite/.env.example
-```
-
-**2. Open `.env`** and paste the token from the previous step into `SATELLITE_TOKEN`. The full set of variables looks like this:
-
-```env
-# Required: token issued by the platform
-SATELLITE_TOKEN=replace-with-your-token
-
-# Optional overrides
-PLATFORM_URL=https://dev-api.luml.ai
-# Public base URL of this machine (used to report inference endpoints)
-BASE_URL=http://localhost
-# Image the agent will launch for deployments
-MODEL_IMAGE=luml-random-svc:latest
-# Polling interval in seconds
-POLL_INTERVAL_SEC=2
-```
-
-Only `SATELLITE_TOKEN` is required. Set `BASE_URL` to the address other services should use to reach this machine, and adjust `POLL_INTERVAL_SEC` to control how often the Satellite checks the platform for new tasks.
-
-**3. Launch the agent:**
-
-```bash
-docker compose up -d
-```
-
-Compose will pull `ghcr.io/luml-ai/luml-satellite-agent` and start the container in the background. The agent connects to the platform using the token, registers its capabilities, and begins polling for tasks. To confirm it is online, return to the **Satellites** module in Luml — the Satellite's status should switch to *Connected*.
-
-To check the agent's logs or stop it later:
-
-```bash
-docker compose logs -f   # follow logs
-docker compose down      # stop and remove the container
-```
+For the full setup — registering the Satellite in Luml, launching the agent on a host machine with Docker Compose, and verifying the connection — see the [Satellite Connection Guide](satellite.md).
 
 
 ## Deploying the Model
@@ -204,4 +158,4 @@ Send the request. A successful response confirms the Satellite received the requ
 
 ## What's Next
 
-This guide covered the core workflow from account creation to a live deployment. From here, you can explore the [SDK Tutorial](sdk_tutorial.md) to package and upload models programmatically, use the Registry to manage multiple model versions, or add more Satellites to distribute workloads across environments. The [documentation](../documentation/Modules/Registry/registry.md) covers each of these areas in depth.
+This guide covered the core workflow from account creation to a live deployment. From here, you can explore the [Sklearn Tutorial](Integrations/sdk_tutorial.md) to package and upload models programmatically, use the Registry to manage multiple model versions, or add more Satellites to distribute workloads across environments. The [documentation](../documentation/Modules/Registry/registry.md) covers each of these areas in depth.

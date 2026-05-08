@@ -15,5 +15,5 @@ All file operations (e.g. uploading a model) occur exclusively between your comp
 
 By connecting your own Bucket, you gain full autonomy over resource management and security: your data remains under your complete control and never leaves the perimeter of your trusted network.
 
-<!-- [***Bucket creation guide***](../../guides/bucket.md) -->
+For step-by-step instructions on creating and connecting a bucket, see the [Bucket Creation Guide](../../guides/bucket.md).
 

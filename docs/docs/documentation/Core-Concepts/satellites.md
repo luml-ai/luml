@@ -13,3 +13,5 @@ Execution itself happens through a task queue. The platform places work items in
 
 In practice, a Satellite turns stored models and configuration into running services, without requiring the platform to host or directly access your compute environment.
 
+For step-by-step instructions on connecting a Satellite, see the [Satellite Connection Guide](../../guides/satellite.md).
+
