@@ -7,7 +7,7 @@
     >
       <div class="parameter__label">{{ key }}</div>
       <div class="parameter__value">
-        {{ typeof value === 'object' && value.length ? value.join(', ') : value }}
+        {{ Array.isArray(value) ? value.join(', ') : value }}
       </div>
     </li>
   </ul>
