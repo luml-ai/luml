@@ -79,9 +79,15 @@
             :pt="{ columnHeaderContent: { style: 'width: 203px' } }"
           >
             <template #body="{ data }: { data: Artifact }">
-              <div v-tooltip="data.description" class="description" style="width: 203px">
+              <div
+                v-if="data.description"
+                v-tooltip="data.description"
+                class="description"
+                style="width: 203px"
+              >
                 {{ data.description }}
               </div>
+              <div v-else>-</div>
             </template></Column
           >
           <Column
