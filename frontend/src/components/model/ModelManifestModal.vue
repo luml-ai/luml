@@ -9,7 +9,7 @@
     <template #header>
       <h2 class="dialog-title">
         <FileJson2 :size="20" color="var(--p-primary-color)" />
-        <span>Model manifest</span>
+        <span>Artifact manifest</span>
       </h2>
     </template>
     <UiMultiTypeText
