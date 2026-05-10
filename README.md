@@ -8,8 +8,6 @@
 
 </div> 
 
-
-<br>
 <div align="center">
     <a href="https://luml.ai">Home Page</a> |
     <a href="https://discord.com/invite/qVPPstSv9R">Discord</a> |
