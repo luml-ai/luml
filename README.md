@@ -12,14 +12,14 @@
 <a href="https://luml.ai/prisma">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/prisma.svg">
-    <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/prisma.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/prisma-darkl.svg">
     <img src="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/prisma.svg" alt="Prisma — autonomous ML research agents" width="270"/>
   </picture>
 </a>
 <a href="https://luml.ai/flow">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/flow.svg">
-    <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/prisma-darkl.svg">
+    <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/flow-dark.svg">
     <img src="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/flow.svg" alt="Flow — experiment tracking and tracing" width="270"/>
   </picture>
 </a>
