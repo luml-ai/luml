@@ -1,13 +1,12 @@
+<h1 align="center">LUML: One platform for the entire AI lifecycle</h1>
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-hero-light.png?raw=true" >
-  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-hero-dark.png?raw=true">
-  <img alt="Image" src="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-hero-light.png?raw=true">
-</picture>
+<a href="https://luml.ai"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/core.svg"><source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/core-dark.svg"><img src="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/core.svg" alt="Core — registry, deployments, monitoring" width="270"/></picture></a>
+<a href="https://luml.ai/prisma"><picture><source media="(prefers-color-scheme: light)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/prisma.svg"><source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/prisma-darkl.svg"><img src="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/prisma.svg" alt="Prisma — autonomous ML research agents" width="270"/></picture></a>
+<a href="https://luml.ai/flow"><picture><source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/flow.svg"><source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/e2f73a24d9b77decd84d045ec28955fd3b82dbeb/flow-dark.svg"><img src="https://raw.githubusercontent.com/gist/OKUA1/bae081e15b6efae41cc42c7f88c8c2a2/raw/8e82db4bbba01f768176560ce6f039113ebd3d30/flow.svg" alt="Flow — experiment tracking and tracing" width="270"/></picture></a>
 
-</div>
-<br>
+</div> 
+
 <div align="center">
     <a href="https://luml.ai">Home Page</a> |
     <a href="https://discord.com/invite/qVPPstSv9R">Discord</a> |
@@ -31,7 +30,7 @@ The platform operates on a principle of resource isolation. Storage and compute 
 </div>
 
 <br>
-<h3 align="center">──────── ✨ Key Features ────────</h3>
+<h3 align="center">─── ✨ Key Features ───</h3>
 
 <div align="center">
 <table>
@@ -78,7 +77,7 @@ The platform operates on a principle of resource isolation. Storage and compute 
 </div>
 
 <br>
-<h3 align="center">──────── 🏗️ Core Concepts ────────</h3>
+<h3 align="center">─── 🏗️ Core Concepts ───</h3>
 
 The platform structures work around four foundational concepts that determine how resources are organized, how projects are isolated, and how models progress from development to production.
 
@@ -139,7 +138,7 @@ A Bucket is an integrated cloud storage solution that retains user assets, inclu
 LUML uses a client-side data transfer model where file operations occur exclusively between the user's computer and the cloud storage provider. The platform's servers do not act as intermediaries during upload or download operations, and do not cache or read file contents. Users interact with storage directly, using the platform's interface as a control panel while maintaining full autonomy over resource management and security.
 
 <br>
-<h3 align="center">──────── 🧩 Modules ────────</h3>
+<h3 align="center">─── 🧩 Modules ───</h3>
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="https://github.com/Dataforce-Solutions/static_assets/blob/main/luml-registry-light.png?raw=true" >
