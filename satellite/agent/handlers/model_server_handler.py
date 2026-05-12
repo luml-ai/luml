@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
-from agent.clients import ModelServerClient, PlatformClient
+from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
 from agent.schemas import (
     Deployment,
@@ -29,10 +29,14 @@ class ModelServerHandler:
     ) -> None:
         manifest = None
         openapi_schema = None
-        with suppress(Exception):
+        try:
             async with ModelServerClient() as client:
                 manifest = await client.get_manifest(deployment_id)
                 openapi_schema = await client.get_openapi_schema(deployment_id)
+        except Exception as e:
+            logger.warning(
+                f"[add_single_deployment] Could not fetch manifest/schema for {deployment_id}: {e}"
+            )
 
         self.deployments[deployment_id] = LocalDeployment(
             deployment_id=deployment_id,
@@ -112,17 +116,22 @@ class ModelServerHandler:
                 if health_ok:
                     await self.add_single_deployment(dep_id, dep.get("dynamic_attributes_secrets"))
                 else:
-                    error_message = "Health check failed"
+                    logs = ""
+                    with suppress(Exception):
+                        container = await docker.client.containers.get(f"sat-{dep_id}")
+                        logs_list = await container.log(
+                            stdout=True, stderr=True, follow=False, tail=100
+                        )
+                        logs = "".join(logs_list) if isinstance(logs_list, list) else str(logs_list)
                     await platform_client.update_deployment(
                         dep_id,
                         DeploymentUpdate(
                             status=DeploymentStatus.NOT_RESPONDING,
                             error_message={
-                                "reason": error_message,
+                                "reason": "Health check failed",
                                 "error": (
-                                    f"Health check failed for deployment '{dep_id}'. "
-                                    "Please inspect the model server or container logs "
-                                    "for this deployment."
+                                    f"Health check failed for deployment '{dep_id}'."
+                                    + (f"\n\nContainer logs:\n{str(logs)[-3000:]}" if logs else "")
                                 ),
                             },
                         ),
@@ -155,7 +164,10 @@ class ModelServerHandler:
                 for attr_name, secret_id in secrets_to_fetch:
                     try:
                         secret_data = await platform_client.get_orbit_secret(secret_id)
-                    except Exception:
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to fetch secret '{attr_name}' (id={secret_id}): {e}"
+                        )
                         secret_data = None
 
                     if secret_data:
@@ -178,6 +190,8 @@ class ModelServerHandler:
         try:
             async with ModelServerClient() as client:
                 return await client.compute(deployment_id, body)
+        except ModelServerError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Model server request failed: {str(e)}") from e
 
