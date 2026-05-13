@@ -1220,7 +1220,7 @@ class SearchTracesUtils(SearchUtils):
         return int(raw)
 
     @classmethod
-    def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
+    def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401, C901
         if identifier_type == cls._TRACE_COLUMN_IDENTIFIER and key == cls.STATE_COLUMN:
             if token.ttype in cls.NUMERIC_VALUE_TYPES:
                 return int(float(token.value))

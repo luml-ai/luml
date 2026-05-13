@@ -1,0 +1,43 @@
+name: SDK Tests and Linters
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'sdk/python/sdk/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'sdk/python/sdk/**'
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk/python/sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies with uv
+        run: |
+          python -m pip install --upgrade uv
+          uv sync --group dev
+
+      - name: Check formatting
+        run: uv run ruff format --check luml tests
+
+      - name: Linting
+        run: uv run ruff check luml
+
+      - name: Type checking
+        run: uv run mypy luml
+
+      - name: Running tests
+        run: uv run pytest
