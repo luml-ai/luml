@@ -67,8 +67,8 @@ class S3BucketSecretOut(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
 
 
-class S3BucketSecretUpdateIn(BaseModel):
-    type: Literal[BucketType.S3] = Field(default=BucketType.S3, frozen=True)
+class BucketSecretUpdateIn(BaseModel):
+    type: BucketType | None = None
     endpoint: str | None = None
     bucket_name: str | None = None
     access_key: str | None = None
@@ -86,7 +86,7 @@ class S3BucketSecretUpdateIn(BaseModel):
         return v
 
 
-class S3BucketSecretUpdate(S3BucketSecretUpdateIn):
+class BucketSecretUpdate(BucketSecretUpdateIn):
     id: UUID
 
 
@@ -121,16 +121,6 @@ class AzureBucketSecretOut(BaseModel, BaseOrmConfig):
     orbits: list[OrbitBase] = []
 
 
-class AzureBucketSecretUpdateIn(BaseModel):
-    type: Literal[BucketType.AZURE] = Field(default=BucketType.AZURE, frozen=True)
-    endpoint: str | None = None
-    bucket_name: str | None = None
-
-
-class AzureBucketSecretUpdate(AzureBucketSecretUpdateIn):
-    id: UUID
-
-
 BucketSecretCreateIn = Annotated[
     S3BucketSecretCreateIn | AzureBucketSecretCreateIn, Field(discriminator="type")
 ]
@@ -139,12 +129,6 @@ BucketSecretCreate = Annotated[
 ]
 BucketSecret = Annotated[
     S3BucketSecret | AzureBucketSecret, Field(discriminator="type")
-]
-BucketSecretUpdateIn = Annotated[
-    S3BucketSecretUpdateIn | AzureBucketSecretUpdateIn, Field(discriminator="type")
-]
-BucketSecretUpdate = Annotated[
-    S3BucketSecretUpdate | AzureBucketSecretUpdate, Field(discriminator="type")
 ]
 BucketSecretOut = Annotated[
     S3BucketSecretOut | AzureBucketSecretOut, Field(discriminator="type")

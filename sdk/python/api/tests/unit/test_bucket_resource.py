@@ -78,18 +78,15 @@ def test_bucket_secret_update(
     organization_id = mock_sync_client.organization
     bucket_id = sample_bucket_secret.id
 
-    mock_sync_client.get.return_value = sample_bucket_secret.model_dump()
     mock_sync_client.patch.return_value = sample_bucket_secret.model_dump()
 
     resource = BucketSecretResource(mock_sync_client)
     resource.update(bucket_id, endpoint="new.endpoint.com")
 
-    mock_sync_client.get.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}"
-    )
+    mock_sync_client.get.assert_not_called()
     mock_sync_client.patch.assert_called_once_with(
         f"/v1/organizations/{organization_id}/bucket-secrets/{bucket_id}",
-        json={"type": "s3", "endpoint": "new.endpoint.com"},
+        json={"endpoint": "new.endpoint.com"},
     )
 
 
@@ -225,18 +222,15 @@ async def test_async_bucket_secret_update(
     organization_id = mock_async_client.organization
     secret_id = sample_bucket_secret.id
 
-    mock_async_client.get.return_value = sample_bucket_secret.model_dump()
     mock_async_client.patch.return_value = sample_bucket_secret.model_dump()
 
     resource = AsyncBucketSecretResource(mock_async_client)
     await resource.update(secret_id, endpoint="new.endpoint.com")
 
-    mock_async_client.get.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}"
-    )
+    mock_async_client.get.assert_not_called()
     mock_async_client.patch.assert_called_once_with(
         f"/v1/organizations/{organization_id}/bucket-secrets/{secret_id}",
-        json={"type": "s3", "endpoint": "new.endpoint.com"},
+        json={"endpoint": "new.endpoint.com"},
     )
 
 

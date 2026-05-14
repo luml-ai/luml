@@ -330,12 +330,10 @@ class BucketSecretResource(BucketSecretResourceBase):
         )
         ```
         """
-        existing = self._get_by_id(secret_id)
         response = self._client.patch(
             f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
-                    "type": existing.type,
                     "endpoint": endpoint,
                     "bucket_name": bucket_name,
                     "access_key": access_key,
@@ -771,12 +769,10 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         )
         ```
         """
-        existing = await self._get_by_id(secret_id)
         response = await self._client.patch(
             f"/v1/organizations/{self._client.organization}/bucket-secrets/{secret_id}",
             json=self._client.filter_none(
                 {
-                    "type": existing.type,
                     "endpoint": endpoint,
                     "bucket_name": bucket_name,
                     "access_key": access_key,
