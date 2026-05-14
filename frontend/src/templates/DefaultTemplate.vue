@@ -21,7 +21,11 @@
       @burger-click="() => (isBurgerOpen = !isBurgerOpen)"
     />
     <transition>
-      <layout-sidebar v-show="isBurgerAvailable ? isBurgerOpen : true" class="sidebar" />
+      <layout-sidebar
+        v-show="isBurgerAvailable ? isBurgerOpen : true"
+        class="sidebar"
+        :mobile-sidebar-opened="isBurgerOpen"
+      />
     </transition>
     <layout-footer class="footer" :style="`left:${sidebarWidth}px`" />
     <main class="page">

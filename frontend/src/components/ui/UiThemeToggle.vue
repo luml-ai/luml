@@ -1,13 +1,29 @@
 <template>
   <div class="custom-toggle" :class="{ dark: modelValue === 'dark' }">
-    <div class="custom-toggle-wrapper" @click="click">
-      <div class="custom-toggle-item">
+    <button
+      v-if="iconOnly"
+      type="button"
+      class="custom-toggle-wrapper custom-toggle-wrapper--icon-only"
+      @click="click"
+    >
+      <div class="custom-toggle-item" :class="{ active: modelValue === 'light' }">
         <sun :size="14" />
       </div>
-      <div class="custom-toggle-item">
+      <div class="custom-toggle-item" :class="{ active: modelValue === 'dark' }">
         <moon :size="14" />
       </div>
-    </div>
+    </button>
+
+    <button v-else type="button" class="custom-toggle-wrapper" @click="click">
+      <div class="custom-toggle-item" :class="{ active: modelValue === 'light' }">
+        <sun :size="14" />
+        <span class="custom-toggle-item-text">Light</span>
+      </div>
+      <div class="custom-toggle-item" :class="{ active: modelValue === 'dark' }">
+        <span class="custom-toggle-item-text">Dark</span>
+        <moon :size="14" />
+      </div>
+    </button>
   </div>
 </template>
 
@@ -17,7 +33,9 @@ import { Sun, Moon } from 'lucide-vue-next'
 
 type Props = {
   modelValue: Theme
+  iconOnly: boolean
 }
+
 type Emits = {
   'update:modelValue': [Theme]
 }
@@ -40,30 +58,79 @@ function click() {
   background-color: var(--p-toggleswitch-background);
   cursor: pointer;
   position: relative;
+  overflow: hidden;
+  width: 148px;
 }
+
+.custom-toggle-wrapper--icon-only {
+  padding: 4px;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
 .custom-toggle-wrapper::before {
   content: '';
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
+  border-radius: 14px;
   position: absolute;
   top: 4px;
-  right: 4px;
-  background-color: var(--p-toggleswitch-background);
-  z-index: 2;
-  transition: right 0.5s;
+  bottom: 4px;
+  background-color: var(--p-toggleswitch-handle-checked-background);
+  width: 66px;
+  right: 77px;
+  transition:
+    right 0.5s,
+    width 0.5s;
 }
+
 .dark .custom-toggle-wrapper::before {
-  right: 28px;
+  right: 4px;
+  width: 75px;
 }
+
+.custom-toggle-wrapper--icon-only::before {
+  display: none;
+}
+
 .custom-toggle-item {
-  width: 18px;
-  height: 18px;
+  padding: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 14px;
+  background-color: transparent;
+  color: var(--p-toggleswitch-handle-color);
+  position: relative;
+  z-index: 2;
+}
+
+.custom-toggle-wrapper--icon-only .custom-toggle-item {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
   align-items: center;
   border-radius: 50%;
-  background-color: transparent;
-  color: var(--p-toggleswitch-handle-color);
+  background-color: var(--p-toggleswitch-handle-checked-background);
+  transition: transform 0.5s;
+}
+
+.dark .custom-toggle-wrapper--icon-only .custom-toggle-item {
+  transform: translateY(-30px);
+}
+
+.custom-toggle-item.active {
+  color: var(--p-menu-item-color);
+}
+
+.custom-toggle-item-text {
+  font-weight: 500;
+  font-size: 14px;
 }
 </style>
