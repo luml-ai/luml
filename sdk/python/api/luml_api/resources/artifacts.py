@@ -2016,16 +2016,18 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
                 DeprecationWarning,
                 stacklevel=2,
             )
-        return await self._client.patch(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
-            json=self._client.filter_none(
-                {
-                    "name": name,
-                    "description": description,
-                    "tags": tags,
-                    "status": status.value if status else None,
-                }
-            ),
+        return Artifact.model_validate(
+            await self._client.patch(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+                json=self._client.filter_none(
+                    {
+                        "name": name,
+                        "description": description,
+                        "tags": tags,
+                        "status": status.value if status else None,
+                    }
+                ),
+            )
         )
 
     @validate_collection
