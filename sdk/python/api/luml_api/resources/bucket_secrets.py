@@ -1,9 +1,14 @@
+import contextlib
 from abc import ABC, abstractmethod
 from collections.abc import Coroutine
 from typing import TYPE_CHECKING, Any
 
+import httpx
+
+from luml_api._exceptions import LumlAPIError
 from luml_api._types import (
     BucketSecret,
+    BucketSecretUrls,
     BucketType,
     MultiPartUploadDetails,
     is_uuid,
@@ -184,6 +189,97 @@ class BucketSecretResource(BucketSecretResourceBase):
             return []
         return [model_validate_bucket_secret(secret) for secret in response]
 
+    @staticmethod
+    def _validate_range_support(download_url: str) -> None:
+        response = httpx.get(download_url)
+        response.raise_for_status()
+
+        range_response = httpx.get(
+            download_url,
+            headers={"Range": "bytes=0-10"},
+        )
+        range_response.raise_for_status()
+
+    def _get_connection_urls(
+        self,
+        endpoint: str,
+        bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        cert_check: bool | None = None,
+    ) -> BucketSecretUrls:
+        response = self._client.post(
+            "/v1/bucket-secrets/urls",
+            json={
+                "endpoint": endpoint,
+                "bucket_name": bucket_name,
+                "access_key": access_key,
+                "secret_key": secret_key,
+                "session_token": session_token,
+                "secure": secure,
+                "region": region,
+                "cert_check": cert_check,
+                "type": type,
+            },
+        )
+        return BucketSecretUrls.model_validate(response)
+
+    def _check_bucket(
+        self,
+        endpoint: str,
+        bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        cert_check: bool | None = None,
+    ) -> None:
+        try:
+            connection_urls = self._get_connection_urls(
+                endpoint=endpoint,
+                bucket_name=bucket_name,
+                region=region,
+                type=type,
+                access_key=access_key,
+                secret_key=secret_key,
+                session_token=session_token,
+                secure=secure,
+                cert_check=cert_check,
+            )
+        except Exception as e:
+            raise LumlAPIError(
+                f"Failed to get connection string to check bucket secret. {str(e)}"
+            ) from e
+
+        try:
+            upload_response = httpx.put(
+                connection_urls.presigned_url,
+                content=b"Connection test.",
+                headers={
+                    "Content-Type": "application/octet-stream",
+                    "x-ms-blob-type": "BlockBlob",
+                },
+            )
+            upload_response.raise_for_status()
+        except Exception as e:
+            raise LumlAPIError(f"Failed to upload test file to bucket: {str(e)}") from e
+
+        try:
+            self._validate_range_support(connection_urls.download_url)
+        except Exception as e:
+            with contextlib.suppress(Exception):
+                httpx.delete(connection_urls.delete_url)
+
+            raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
+
+        httpx.delete(connection_urls.delete_url)
+
     def create(
         self,
         endpoint: str,
@@ -248,6 +344,17 @@ class BucketSecretResource(BucketSecretResourceBase):
         )
         ```
         """
+        self._check_bucket(
+            endpoint=endpoint,
+            bucket_name=bucket_name,
+            region=region,
+            type=type,
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token=session_token,
+            secure=secure,
+            cert_check=cert_check,
+        )
         response = self._client.post(
             f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
@@ -558,6 +665,102 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
             return []
         return [model_validate_bucket_secret(secret) for secret in response]
 
+    @staticmethod
+    async def _validate_range_support(download_url: str) -> None:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(download_url)
+            response.raise_for_status()
+
+            range_response = await client.get(
+                download_url,
+                headers={"Range": "bytes=0-10"},
+            )
+            range_response.raise_for_status()
+
+    async def _get_connection_urls(
+        self,
+        endpoint: str,
+        bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        cert_check: bool | None = None,
+    ) -> BucketSecretUrls:
+        response = await self._client.post(
+            "/v1/bucket-secrets/urls",
+            json={
+                "endpoint": endpoint,
+                "bucket_name": bucket_name,
+                "access_key": access_key,
+                "secret_key": secret_key,
+                "session_token": session_token,
+                "secure": secure,
+                "region": region,
+                "cert_check": cert_check,
+                "type": type,
+            },
+        )
+        return BucketSecretUrls.model_validate(response)
+
+    async def _check_bucket(
+        self,
+        endpoint: str,
+        bucket_name: str,
+        region: str,
+        type: BucketType = BucketType.S3,  # noqa: A002
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        secure: bool | None = None,
+        cert_check: bool | None = None,
+    ) -> None:
+        try:
+            connection_urls = await self._get_connection_urls(
+                endpoint=endpoint,
+                bucket_name=bucket_name,
+                region=region,
+                type=type,
+                access_key=access_key,
+                secret_key=secret_key,
+                session_token=session_token,
+                secure=secure,
+                cert_check=cert_check,
+            )
+        except Exception as e:
+            raise LumlAPIError(
+                f"Failed to get connection string to check bucket secret. {str(e)}"
+            ) from e
+
+        async with httpx.AsyncClient() as client:
+            try:
+                upload_response = await client.put(
+                    connection_urls.presigned_url,
+                    content=b"Connection test.",
+                    headers={
+                        "Content-Type": "application/octet-stream",
+                        "x-ms-blob-type": "BlockBlob",
+                    },
+                )
+                upload_response.raise_for_status()
+            except Exception as e:
+                raise LumlAPIError(
+                    f"Failed to upload test file to bucket: {str(e)}"
+                ) from e
+
+        try:
+            await self._validate_range_support(connection_urls.download_url)
+        except Exception as e:
+            with contextlib.suppress(Exception):
+                async with httpx.AsyncClient() as client:
+                    await client.delete(connection_urls.delete_url)
+            raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
+
+        async with httpx.AsyncClient() as client:
+            await client.delete(connection_urls.delete_url)
+
     async def get_multipart_upload_urls(
         self,
         bucket_id: str,
@@ -683,6 +886,17 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
         )
         ```
         """
+        await self._check_bucket(
+            endpoint=endpoint,
+            bucket_name=bucket_name,
+            region=region,
+            type=type,
+            access_key=access_key,
+            secret_key=secret_key,
+            session_token=session_token,
+            secure=secure,
+            cert_check=cert_check,
+        )
         response = await self._client.post(
             f"/v1/organizations/{self._client.organization}/bucket-secrets",
             json=self._client.filter_none(
