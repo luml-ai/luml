@@ -891,6 +891,28 @@ class ExperimentTracker:
         """
         return self.backend.get_model(model_id)
 
+    def get_model_card(self, model_id: str) -> bytes:
+        """
+        Retrieve the model card zip archive for a model.
+
+        Args:
+            model_id (str): Unique identifier of the model.
+
+        Returns:
+            bytes: Raw bytes of ``model_card.zip``, which contains an
+                ``index.html`` with the rendered model card.
+
+        Raises:
+            ValueError: If the model is not found or has no model card.
+
+        Example:
+        ```python
+        tracker = ExperimentTracker()
+        zip_bytes = tracker.get_model_card("model-uuid-123")
+        ```
+        """
+        return self.backend.get_model_card(model_id)
+
     def link_to_model(
         self, model_reference: ModelReference, experiment_id: str | None = None
     ) -> None:

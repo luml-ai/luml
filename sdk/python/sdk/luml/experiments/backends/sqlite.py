@@ -3,6 +3,7 @@ import atexit
 import contextlib
 import json
 import sqlite3
+import tarfile
 import threading
 import uuid
 import weakref
@@ -287,7 +288,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description=row[8],
         )
 
-    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
+    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model:
         cursor.execute(
             "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE id = ?",
             (model_id,),
@@ -1522,6 +1523,50 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if not model:
             raise ValueError(f"Model {model_id} not found")
         return model
+
+    def get_model_card(self, model_id: str) -> bytes:
+        """
+        Retrieves the model card zip archive for the given model.
+
+        Opens the model's ``.luml`` tar archive and extracts the
+        ``model_card.zip`` file stored under ``meta_artifacts/``.
+
+        Args:
+            model_id (str): The unique identifier of the model.
+
+        Returns:
+            bytes: Raw bytes of the ``model_card.zip`` archive, which contains
+                an ``index.html`` with the rendered model card.
+
+        Raises:
+            ValueError: If the model is not found, the ``.luml`` file is
+                missing, or no model card is embedded in the archive.
+
+        Example:
+            >>> backend = SQLiteBackend("/backend/path")
+            >>> zip_bytes = backend.get_model_card("model-abc")
+            >>> import zipfile, io
+            >>> with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+            ...     html = zf.read("index.html")
+        """
+        conn = self._get_meta_connection()
+        model = self._fetch_model(conn.cursor(), model_id)
+
+        if not model:
+            raise ValueError(f"Model {model_id} not found")
+
+        luml_path = self.base_path / model.path
+        if not luml_path.exists():
+            raise ValueError(f"Model file not found: {luml_path}")
+
+        with tarfile.open(luml_path, "r") as tar:
+            card_member = next(
+                (m for m in tar.getmembers() if m.name.endswith("/model_card.zip")),
+                None,
+            )
+            if card_member is None:
+                raise ValueError(f"Model card not found in model {model_id}")
+            return tar.extractfile(card_member).read()
 
     def update_model(
         self,
