@@ -54,7 +54,6 @@ export const useArtifactUpload = () => {
 
     const confirmPayload: UpdateArtifactPayload = {
       id: response.artifact.id,
-      file_name: file.name,
       name,
       description,
       tags,
@@ -83,7 +82,6 @@ export const useArtifactUpload = () => {
       await artifactsStore.cancelArtifactUpload(
         {
           id: data.artifact.id,
-          file_name: fileName,
           name: modelName,
           description,
           tags,
