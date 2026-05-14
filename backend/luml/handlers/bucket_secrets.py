@@ -145,7 +145,7 @@ class BucketSecretHandler:
         if not original_secret:
             raise NotFoundError("Secret not found")
 
-        if original_secret.type != secret.type:
+        if secret.type is not None and original_secret.type != secret.type:
             raise ApplicationError("Bucket type cannot be changed", 400)
 
         updated_secret = original_secret.model_copy(

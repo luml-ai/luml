@@ -5,10 +5,10 @@ from luml.infra.exceptions import DatabaseConstraintError
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import (
+    BucketSecretUpdate,
     S3BucketSecret,
     S3BucketSecretCreate,
     S3BucketSecretOut,
-    S3BucketSecretUpdate,
 )
 from luml.schemas.orbit import OrbitCreateIn
 
@@ -148,7 +148,7 @@ async def test_update_bucket_secret(
 
     new_bucket_name = "updated-bucket-name"
     new_region = "eu-west-1"
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=created_secret.id,
         bucket_name=new_bucket_name,
         region=new_region,
@@ -180,7 +180,7 @@ async def test_update_bucket_secret_strips_http_protocol(
 
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=created_secret.id,
         endpoint="https://s3.new-endpoint.com",
     )
@@ -199,7 +199,7 @@ async def test_update_bucket_secret_not_found(
     repo = BucketSecretRepository(data.engine)
 
     non_existent_id = uuid4()
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=non_existent_id,
         bucket_name="new-name",
     )
@@ -226,7 +226,7 @@ async def test_update_bucket_secret_duplicate_raises_error(
     )
     secret2 = await repo.create_bucket_secret(secret2_data)
 
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=secret2.id,
         endpoint=secret1.endpoint,
         bucket_name=secret1.bucket_name,

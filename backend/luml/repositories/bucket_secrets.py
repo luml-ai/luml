@@ -12,7 +12,7 @@ from luml.schemas.bucket_secrets import (
     BucketSecretCreate,
     BucketSecretOut,
     BucketSecretUpdate,
-    S3BucketSecretUpdate,
+    BucketType,
     validate_bucket_secret_out,
 )
 
@@ -62,8 +62,8 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
             db_secret = result.scalar_one_or_none()
             if not db_secret:
                 return None
-            update_data = secret.model_dump(exclude_unset=True)
-            if isinstance(secret, S3BucketSecretUpdate):
+            update_data = secret.model_dump(exclude_unset=True, exclude={"type"})
+            if db_secret.type == BucketType.S3:
                 if secret.access_key is not None:
                     update_data["access_key"] = encrypt(secret.access_key)
                 if secret.secret_key is not None:

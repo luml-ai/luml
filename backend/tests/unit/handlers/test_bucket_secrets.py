@@ -14,13 +14,12 @@ from luml.schemas.bucket_secrets import (
     AzureBucketSecretCreate,
     AzureBucketSecretCreateIn,
     AzureBucketSecretOut,
-    AzureBucketSecretUpdate,
+    BucketSecretUpdate,
     BucketSecretUrls,
     BucketType,
     S3BucketSecret,
     S3BucketSecretCreateIn,
     S3BucketSecretOut,
-    S3BucketSecretUpdate,
 )
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.storage import (
@@ -296,7 +295,7 @@ async def test_update_bucket_secret(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret_update = S3BucketSecretUpdate(
+    secret_update = BucketSecretUpdate(
         id=secret_id,
         endpoint="s3.amazonaws.com",
         bucket_name="updated-bucket",
@@ -343,7 +342,7 @@ async def test_update_bucket_secret_s3_not_unique(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret_update = AzureBucketSecretUpdate(
+    secret_update = BucketSecretUpdate(
         id=secret_id,
         type=BucketType.AZURE,
         endpoint="DefaultEndpointsProtocol=https;AccountName=testbucket;AccountKey=+l0j8/86NqqQbn8oZReRUDCEkmGLBJS+AStrrQv9Q==;EndpointSuffix=core.windows.net",
@@ -384,7 +383,7 @@ async def test_update_bucket_secret_not_found(
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret_update = S3BucketSecretUpdate(
+    secret_update = BucketSecretUpdate(
         id=secret_id,
         endpoint="s3.amazonaws.com",
         bucket_name="updated-bucket",
@@ -528,7 +527,7 @@ async def test_get_existing_bucket_urls(
         region="us-east-1",
         cert_check=None,
     )
-    secret = S3BucketSecretUpdate(
+    secret = BucketSecretUpdate(
         id=secret_id,
         bucket_name="new-bucket-name",
         access_key="new-access_key",
@@ -579,7 +578,7 @@ async def test_get_existing_bucket_urls_type_cant_be_changed(
 
     original_secret = Mock(id=secret_id, type=BucketType.S3)
 
-    secret = AzureBucketSecretUpdate(
+    secret = BucketSecretUpdate(
         id=secret_id,
         bucket_name="new-bucket-name",
         type=BucketType.AZURE,
@@ -605,7 +604,7 @@ async def test_get_existing_bucket_urls_secret_not_found(
 ) -> None:
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret = S3BucketSecretUpdate(
+    secret = BucketSecretUpdate(
         id=secret_id,
         bucket_name="new-bucket-name",
         access_key="new-access_key",
@@ -760,7 +759,7 @@ async def test_get_bucket_multipart_urls_not_found(
 ) -> None:
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret = S3BucketSecretUpdate(
+    secret = BucketSecretUpdate(
         id=secret_id,
         bucket_name="new-bucket-name",
         access_key="new-access_key",
