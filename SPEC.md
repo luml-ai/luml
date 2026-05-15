@@ -228,17 +228,17 @@ Mirrors the structure of `sdk/python/sdk/tests/test_model_card.py:180-253` (the 
   - [x] Verify existing `test_model_card.py` still passes without modification (it imports `ModelCardBuilder` via the alias)
   - [x] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
 
-- [ ] **Task 2: Move `_append_metadata` to `DiskReference` and add `DatasetReference.add_dataset_card()`**
-  - [ ] Move `_append_metadata` from `ModelReference` (`sdk/python/sdk/luml/artifacts/model.py`) to `DiskReference` (`sdk/python/sdk/luml/artifacts/_base.py`), keeping the method body identical; add the necessary imports (`io`, `tarfile`, `uuid`, `zipfile`) to `_base.py`
-  - [ ] Remove `_append_metadata` from `ModelReference` (it now inherits from `DiskReference`)
-  - [ ] Add `add_dataset_card(html_content: str | CardBuilder) -> None` to `DatasetReference` in `sdk/python/sdk/luml/artifacts/dataset/_reference.py`
-  - [ ] Add required imports to `_reference.py`: `io`, `zipfile`, `FileMap`, `MemoryFile` from `luml.artifacts._base`, and `CardBuilder` from `luml.card.builder`
-  - [ ] Write tests in `sdk/python/sdk/tests/artifacts/test_dataset_card.py` covering:
+- [x] **Task 2: Move `_append_metadata` to `DiskReference` and add `DatasetReference.add_dataset_card()`**
+  - [x] Move `_append_metadata` from `ModelReference` (`sdk/python/sdk/luml/artifacts/model.py`) to `DiskReference` (`sdk/python/sdk/luml/artifacts/_base.py`), keeping the method body identical; add the necessary imports (`io`, `tarfile`, `uuid`, `zipfile`) to `_base.py`
+  - [x] Remove `_append_metadata` from `ModelReference` (it now inherits from `DiskReference`)
+  - [x] Add `add_dataset_card(html_content: str | CardBuilder) -> None` to `DatasetReference` in `sdk/python/sdk/luml/artifacts/dataset/_reference.py`
+  - [x] Add required imports to `_reference.py`: `io`, `zipfile`, `FileMap`, `MemoryFile` from `luml.artifacts._base`, and `CardBuilder` from `luml.card.builder`
+  - [x] Write tests in `sdk/python/sdk/tests/artifacts/test_dataset_card.py` covering:
     - `add_dataset_card` with a `CardBuilder` instance — verify zip at expected tar path, `index.html` has correct HTML
     - `add_dataset_card` with a raw HTML string — same verification
     - `add_dataset_card` with an invalid type raises `TypeError` with message containing `"must be a string or CardBuilder instance"`
     - Verify `DatasetReference` still validates correctly after adding a card (`ref.validate()` returns `True`)
-  - [ ] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
+  - [x] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
 
 - [ ] **Task 3: Update frontend regex to detect dataset cards**
   - [ ] In `frontend/src/lib/fnnx/FnnxService.ts:162`, update the regex in `findHtmlCard()` from  
