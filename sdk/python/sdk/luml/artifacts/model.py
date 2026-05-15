@@ -16,7 +16,7 @@ from luml.artifacts._base import (
     MemoryFile,
     PathSeparators,
 )
-from luml.model_card.builder import ModelCardBuilder
+from luml.card.builder import CardBuilder
 
 
 class ModelReference(DiskReference):
@@ -63,9 +63,9 @@ class ModelReference(DiskReference):
                 file_info.size = len(file_content)
                 tar.addfile(file_info, fileobj=io.BytesIO(file_content))
 
-    def add_model_card(self, html_content: str | ModelCardBuilder) -> None:
+    def add_model_card(self, html_content: str | CardBuilder) -> None:
         if not isinstance(html_content, str):
-            if isinstance(html_content, ModelCardBuilder):
+            if isinstance(html_content, CardBuilder):
                 html_content = html_content.build()
             else:
                 msg = "html_content must be a string or ModelCardBuilder instance"
