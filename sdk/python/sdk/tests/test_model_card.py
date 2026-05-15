@@ -246,7 +246,7 @@ def test_model_reference_type_error() -> None:
 
         model_ref = ModelReference(str(tar_path))
 
-        with pytest.raises(TypeError, match="must be a string or ModelCardBuilder"):
+        with pytest.raises(TypeError, match="must be a string or CardBuilder"):
             model_ref.add_model_card(12345)  # Invalid type # type: ignore
 
     finally:
