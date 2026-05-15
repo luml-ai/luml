@@ -215,18 +215,18 @@ Mirrors the structure of `sdk/python/sdk/tests/test_model_card.py:180-253` (the 
 
 # Tasks
 
-- [ ] **Task 1: Create `card/` package, move `CardBuilder` and templates, wire `model_card/` as shim**
-  - [ ] Create `sdk/python/sdk/luml/card/` with `__init__.py`, `builder.py`, `templates.py`
-  - [ ] Move the builder class body from `model_card/builder.py` into `card/builder.py`, renaming the class to `CardBuilder`; update its import of templates to `from luml.card.templates import ...`
-  - [ ] Move all template functions from `model_card/templates.py` into `card/templates.py`
-  - [ ] Rewrite `model_card/builder.py` as a shim: `from luml.card.builder import CardBuilder; ModelCardBuilder = CardBuilder`
-  - [ ] Rewrite `model_card/templates.py` as a shim: `from luml.card.templates import *  # noqa: F401, F403`
-  - [ ] Rewrite `model_card/__init__.py` as a shim: `from luml.model_card.builder import ModelCardBuilder; __all__ = ["ModelCardBuilder"]`
-  - [ ] Update `card/__init__.py`: `from luml.card.builder import CardBuilder; __all__ = ["CardBuilder"]`
-  - [ ] Update `luml/__init__.py` to import `CardBuilder` from `luml.card` and `ModelCardBuilder` from `luml.model_card`; add `CardBuilder` to `__all__`
-  - [ ] Update `model.py` (`ModelReference.add_model_card`) to import `CardBuilder` from `luml.card.builder` instead of `luml.model_card.builder`; update type annotation in `add_model_card` to `str | CardBuilder`
-  - [ ] Verify existing `test_model_card.py` still passes without modification (it imports `ModelCardBuilder` via the alias)
-  - [ ] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
+- [x] **Task 1: Create `card/` package, move `CardBuilder` and templates, wire `model_card/` as shim**
+  - [x] Create `sdk/python/sdk/luml/card/` with `__init__.py`, `builder.py`, `templates.py`
+  - [x] Move the builder class body from `model_card/builder.py` into `card/builder.py`, renaming the class to `CardBuilder`; update its import of templates to `from luml.card.templates import ...`
+  - [x] Move all template functions from `model_card/templates.py` into `card/templates.py`
+  - [x] Rewrite `model_card/builder.py` as a shim: `from luml.card.builder import CardBuilder; ModelCardBuilder = CardBuilder`
+  - [x] Rewrite `model_card/templates.py` as a shim: `from luml.card.templates import *  # noqa: F401, F403`
+  - [x] Rewrite `model_card/__init__.py` as a shim: `from luml.model_card.builder import ModelCardBuilder; __all__ = ["ModelCardBuilder"]`
+  - [x] Update `card/__init__.py`: `from luml.card.builder import CardBuilder; __all__ = ["CardBuilder"]`
+  - [x] Update `luml/__init__.py` to import `CardBuilder` from `luml.card` and `ModelCardBuilder` from `luml.model_card`; add `CardBuilder` to `__all__`
+  - [x] Update `model.py` (`ModelReference.add_model_card`) to import `CardBuilder` from `luml.card.builder` instead of `luml.model_card.builder`; update type annotation in `add_model_card` to `str | CardBuilder`
+  - [x] Verify existing `test_model_card.py` still passes without modification (it imports `ModelCardBuilder` via the alias)
+  - [x] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
 
 - [ ] **Task 2: Move `_append_metadata` to `DiskReference` and add `DatasetReference.add_dataset_card()`**
   - [ ] Move `_append_metadata` from `ModelReference` (`sdk/python/sdk/luml/artifacts/model.py`) to `DiskReference` (`sdk/python/sdk/luml/artifacts/_base.py`), keeping the method body identical; add the necessary imports (`io`, `tarfile`, `uuid`, `zipfile`) to `_base.py`
