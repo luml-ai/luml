@@ -240,11 +240,11 @@ Mirrors the structure of `sdk/python/sdk/tests/test_model_card.py:180-253` (the 
     - Verify `DatasetReference` still validates correctly after adding a card (`ref.validate()` returns `True`)
   - [x] Run `pytest sdk/python/sdk/tests/` and confirm all tests pass
 
-- [ ] **Task 3: Update frontend regex to detect dataset cards**
-  - [ ] In `frontend/src/lib/fnnx/FnnxService.ts:162`, update the regex in `findHtmlCard()` from  
+- [x] **Task 3: Update frontend regex to detect dataset cards**
+  - [x] In `frontend/src/lib/fnnx/FnnxService.ts:162`, update the regex in `findHtmlCard()` from
     `model_card\.zip` to `(?:model_card|dataset_card)\.zip`
-  - [ ] Write unit tests (new file or add cases to an existing test file) verifying:
+  - [x] Write unit tests (new file or add cases to an existing test file) verifying:
     - `findHtmlCard` returns the key when `file_index` contains a `dataset_card.zip` path
     - `findHtmlCard` still returns the key for existing `model_card.zip` paths (no regression)
     - `findHtmlCard` returns `undefined` when `file_index` has no matching entry
-  - [ ] Run the frontend test suite and confirm all tests pass
+  - [x] Run the frontend test suite and confirm all tests pass
