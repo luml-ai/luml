@@ -12,10 +12,12 @@ from luml.artifacts.dataset import (
     save_tabular_dataset,
 )
 from luml.artifacts.experiment import ExperimentReference, save_experiment
+from luml.card import CardBuilder
 from luml.model_card import ModelCardBuilder
 
 __all__ = [
     "PRODUCER_NAME",
+    "CardBuilder",
     "DatasetArtifactManifest",
     "DatasetReference",
     "ExperimentReference",
