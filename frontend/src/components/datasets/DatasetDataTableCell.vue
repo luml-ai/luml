@@ -19,13 +19,10 @@ const valueText = computed(() => {
 
 <style scoped>
 .cell {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-
   overflow: hidden;
+  white-space: nowrap;
   text-overflow: ellipsis;
-
   min-width: 248px;
+  height: 20px;
 }
 </style>
