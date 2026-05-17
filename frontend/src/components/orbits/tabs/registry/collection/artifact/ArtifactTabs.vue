@@ -10,8 +10,10 @@
           class="tab"
           @click="$router.push({ name: tab.routeName })"
         >
-          <component :is="tab.icon" :size="14" />
-          <span>{{ tab.label }}</span>
+          <RouterLink v-if="tab.routeName" :to="{ name: tab.routeName }" class="tab-link">
+            <component :is="tab.icon" :size="14" />
+            <span>{{ tab.label }}</span>
+          </RouterLink>
         </Tab>
       </template>
     </TabList>
@@ -82,6 +84,11 @@ const items = computed(() => [
 <style scoped>
 .tab {
   border: none;
+}
+
+.tab-link {
+  color: inherit;
+  text-decoration: none;
   display: flex;
   align-items: center;
   gap: 7px;
