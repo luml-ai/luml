@@ -109,7 +109,7 @@ class DiskReference:
             info = tarfile.TarInfo(name=f"meta-{uid}.json")
             info.size = len(body_str)
             tar.addfile(info, fileobj=io.BytesIO(body_str))
-            for _, item in enumerate(data):
+            for item in data:
                 file_content = item.file.get_content()
                 file_info = tarfile.TarInfo(
                     name=f"{artifact_path_prefix}{item.remote_path}"

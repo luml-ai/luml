@@ -16,7 +16,7 @@ from luml.card.templates import (
 
 class CardBuilder:
     def __init__(
-        self, title: str = "Model Card", custom_css: str | None = None
+        self, title: str = "Card", custom_css: str | None = None
     ) -> None:
         self.title = title
         self.custom_css = custom_css
@@ -245,7 +245,7 @@ class CardBuilder:
                 if in_list:
                     html_lines.append("</ul>")
                     in_list = False
-                html_lines.append(f"<h{level}>{text}</h{level}>")
+                html_lines.append(f"<h{level}>{CardBuilder._escape_html(text)}</h{level}>")
                 continue
 
             if line.strip().startswith(("- ", "* ", "+ ")):
@@ -273,7 +273,16 @@ class CardBuilder:
 
     @staticmethod
     def _process_inline_markdown(text: str) -> str:
-        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+        text = CardBuilder._escape_html(text)
+
+        def safe_link(m: re.Match) -> str:
+            link_text = m.group(1)
+            url = m.group(2)
+            if not re.match(r"^(https?://|mailto:|/|\.\.?/)", url):
+                url = "#"
+            return f'<a href="{CardBuilder._escape_html(url)}">{link_text}</a>'
+
+        text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", safe_link, text)
         text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
         text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
         return re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
