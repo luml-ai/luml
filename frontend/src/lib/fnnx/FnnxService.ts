@@ -159,7 +159,7 @@ class FnnxServiceClass {
 
   findHtmlCard(fileIndex: FileIndex) {
     const regex =
-      /meta_artifacts\/dataforce\.studio~c~~c~[^/]+~c~v1~~et~~.+?\/model_card\.zip$|^card\.zip$/
+      /meta_artifacts\/dataforce\.studio~c~~c~[^/]+~c~v1~~et~~.+?\/(?:model_card|dataset_card)\.zip$|^card\.zip$/
     return Object.keys(fileIndex).find((file) => regex.test(file))
   }
 
