@@ -301,5 +301,9 @@ async function onOrganizationClick(organizationId: string) {
     right: auto !important;
     max-width: calc(100vw - 32px);
   }
+
+  .menu-link {
+    width: 100%;
+  }
 }
 </style>

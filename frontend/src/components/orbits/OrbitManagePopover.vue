@@ -318,5 +318,9 @@ function onCreateClick() {
     right: 0 !important;
     max-width: calc(100vw - 32px);
   }
+
+  .menu-link {
+    width: 100%;
+  }
 }
 </style>

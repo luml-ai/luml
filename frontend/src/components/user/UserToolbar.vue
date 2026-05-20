@@ -41,19 +41,10 @@
         :style="{ backgroundColor: 'transparent', border: 'none', padding: '0', minWidth: '228px' }"
       >
         <template #item="{ item, props }">
-          <div v-if="item.themeToggle" class="appearance">
-            <span>{{ item.label }}</span>
-            <UiThemeToggle v-model="theme" />
-          </div>
-          <a
-            v-else-if="item.link"
-            :href="item.link.href"
-            :target="item.link.target"
-            class="menu-item"
-          >
+          <a v-if="item.link" :href="item.link.href" :target="item.link.target" class="menu-item">
             <span>{{ item.label }}</span>
           </a>
-          <button type="button" v-else class="menu-item" v-bind="props.action" @click="item.action">
+          <button v-else type="button" class="menu-item" v-bind="props.action" @click="item.action">
             <span>{{ item.label }}</span>
           </button>
         </template>
@@ -86,13 +77,11 @@
 <script setup lang="ts">
 import { useUserStore } from '@/stores/user'
 import { storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import UserSettings from './UserSettings.vue'
 import UserChangePassword from './UserChangePassword.vue'
-import UiThemeToggle from '../ui/UiThemeToggle.vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore, type Theme } from '@/stores/theme'
 import { useToast } from 'primevue/usetoast'
 import { passwordChangedSuccessToast } from '@/lib/primevue/data/toasts'
 import UserInvitations from './UserInvitations.vue'
@@ -100,10 +89,7 @@ import ApiKeyModal from './ApiKeyModal.vue'
 
 const userStore = useUserStore()
 const authStore = useAuthStore()
-const themeStore = useThemeStore()
 const toast = useToast()
-
-const theme = ref<Theme>(themeStore.getCurrentTheme)
 
 const showChangePasswordSuccess = () => {
   toast.add(passwordChangedSuccessToast)
@@ -142,10 +128,6 @@ const menuItems = ref([
       isApiKeyVisible.value = true
     },
   },
-  {
-    label: 'Appearance',
-    themeToggle: true,
-  },
 ])
 
 const isSettingsPopupVisible = ref(false)
@@ -172,10 +154,6 @@ const onChangePasswordSuccess = () => {
     showChangePasswordSuccess()
   }, 100)
 }
-
-watch(theme, () => {
-  themeStore.changeTheme()
-})
 </script>
 
 <style scoped>
