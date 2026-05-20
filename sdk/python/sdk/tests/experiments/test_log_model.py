@@ -1,11 +1,14 @@
+import io
 import sqlite3
 import tarfile
+import zipfile
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock
 
 import pytest
 
+from luml import ModelCardBuilder
 from luml.artifacts.model import ModelReference
 from luml.experiments.backends.data_types import Model
 from luml.experiments.tracker import ExperimentTracker
@@ -189,6 +192,53 @@ def test_get_model_by_id(
 def test_get_model_not_found(tracker: ExperimentTracker) -> None:
     with pytest.raises(ValueError, match="not found"):
         tracker.get_model("nonexistent-id")
+
+
+def test_get_model_card_returns_valid_zip(
+    tracker_with_experiment: tuple[ExperimentTracker, str],
+    tmp_path: Path,
+) -> None:
+    tracker, exp_id = tracker_with_experiment
+
+    model_path = tmp_path / "model_with_card.luml"
+    with tarfile.open(model_path, "w") as tar:
+        data = b"model weights"
+        info = tarfile.TarInfo(name="model.bin")
+        info.size = len(data)
+        tar.addfile(info, fileobj=io.BytesIO(data))
+
+    model_ref = ModelReference(str(model_path))
+    builder = ModelCardBuilder(title="Test Card")
+    builder.write_paragraph("Performance metrics here")
+    model_ref.add_model_card(builder)
+
+    tracker.log_model(model_ref, name="card_model", experiment_id=exp_id)
+    model_id = tracker.get_models(experiment_id=exp_id)[0].id
+
+    card_bytes = tracker.get_model_card(model_id)
+
+    with zipfile.ZipFile(io.BytesIO(card_bytes)) as zf:
+        assert "index.html" in zf.namelist()
+        html = zf.read("index.html").decode()
+        assert "Test Card" in html
+
+
+def test_get_model_card_not_found_raises(tracker: ExperimentTracker) -> None:
+    with pytest.raises(ValueError, match="not found"):
+        tracker.get_model_card("nonexistent-id")
+
+
+def test_get_model_card_missing_card_raises(
+    tracker_with_experiment: tuple[ExperimentTracker, str],
+    dummy_model_file: Path,
+) -> None:
+    tracker, exp_id = tracker_with_experiment
+    model_ref = ModelReference(str(dummy_model_file))
+    tracker.log_model(model_ref, experiment_id=exp_id)
+    model_id = tracker.get_models(experiment_id=exp_id)[0].id
+
+    with pytest.raises(ValueError, match="Model card not found"):
+        tracker.get_model_card(model_id)
 
 
 def _make_fake_instance(module: str) -> object:

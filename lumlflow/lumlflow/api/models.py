@@ -8,7 +8,6 @@ models_router = APIRouter(prefix="/api/models", tags=["models"])
 models_handler = ModelsHandler()
 
 
-
 @models_router.get("/{model_id}", response_model=Model)
 def get_model(model_id: str) -> Model:
     return models_handler.get_model(model_id)
