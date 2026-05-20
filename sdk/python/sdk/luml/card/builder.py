@@ -15,9 +15,7 @@ from luml.card.templates import (
 
 
 class CardBuilder:
-    def __init__(
-        self, title: str = "Card", custom_css: str | None = None
-    ) -> None:
+    def __init__(self, title: str = "Card", custom_css: str | None = None) -> None:
         self.title = title
         self.custom_css = custom_css
         self._sections: list[str] = []
@@ -108,7 +106,9 @@ class CardBuilder:
         self._has_plotly = True
         if not hasattr(self, "_plotly_cdn_url"):
             try:
-                from plotly.offline import get_plotlyjs_version
+                from plotly.offline import (  # type: ignore[import-untyped]
+                    get_plotlyjs_version,
+                )
 
                 self._plotly_cdn_url = (
                     f"https://cdn.plot.ly/plotly-{get_plotlyjs_version()}.min.js"
@@ -245,7 +245,9 @@ class CardBuilder:
                 if in_list:
                     html_lines.append("</ul>")
                     in_list = False
-                html_lines.append(f"<h{level}>{CardBuilder._escape_html(text)}</h{level}>")
+                html_lines.append(
+                    f"<h{level}>{CardBuilder._escape_html(text)}</h{level}>"
+                )
                 continue
 
             if line.strip().startswith(("- ", "* ", "+ ")):
