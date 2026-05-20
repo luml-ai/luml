@@ -2,6 +2,7 @@
 import json
 import re
 import sqlite3
+from collections.abc import Set as AbstractSet
 from typing import Any
 
 
@@ -28,7 +29,7 @@ class SQLitePaginationMixin:
     def _build_sort_expr(
         sort_by: str,
         json_sort_column: str | None,
-        allowed_sort_columns: set[str] | None = None,
+        allowed_sort_columns: AbstractSet[str] | None = None,
     ) -> str:
         if json_sort_column:
             if not sort_by or not re.fullmatch(r"[A-Za-z0-9_]+", sort_by):
@@ -52,7 +53,7 @@ class SQLitePaginationMixin:
         cursor_id: str | None,
         cursor_value: str | None,
         json_sort_column: str | None = None,
-        allowed_sort_columns: set[str] | None = None,
+        allowed_sort_columns: AbstractSet[str] | None = None,
         id_column: str = "id",
     ) -> tuple[str, list[Any]]:
         if cursor_id is None:
@@ -90,7 +91,7 @@ class SQLitePaginationMixin:
         cursor_value: str | None = None,
         where: list[tuple[str, list[Any]]] | None = None,
         json_sort_column: str | None = None,
-        allowed_sort_columns: set[str] | None = None,
+        allowed_sort_columns: AbstractSet[str] | None = None,
         id_column: str = "id",
     ) -> list[sqlite3.Row]:
         where_clause, params = self._build_cursor_clause(

@@ -308,7 +308,7 @@ class SearchUtils:
             raise LumlFilterError(
                 f"Invalid clause(s) in filter string: {invalid_clauses}"
             )
-        result = []
+        result: list[dict[str, Any]] = []
         for token in tokens:
             if token.is_whitespace:
                 continue

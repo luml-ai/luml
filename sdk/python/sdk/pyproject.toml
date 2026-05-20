@@ -71,6 +71,8 @@ dev = [
     "lightgbm>=4.6.0",
     "scipy>=1.17.0",
     "xgboost>=3.2.0",
+    "pandas-stubs>=3.0.0.260204",
+    "scipy-stubs>=1.17.1.4",
 ]
 
 [tool.ruff]

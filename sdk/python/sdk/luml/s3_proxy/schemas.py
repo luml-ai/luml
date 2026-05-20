@@ -16,7 +16,7 @@ class MultipartUpload:
     bucket: str
     key: str
     parts: dict[int, PartInfo] = field(default_factory=dict)
-    created: datetime = field(default_factory=datetime.now(UTC))
+    created: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 @dataclass

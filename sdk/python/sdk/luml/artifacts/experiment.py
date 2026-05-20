@@ -27,7 +27,7 @@ class ExperimentArtifactManifest(ArtifactManifest):
 
 
 class ExperimentReference(DiskReference):
-    def get_manifest(self) -> ExperimentArtifactManifest:
+    def get_manifest(self) -> ExperimentArtifactManifest:  # type: ignore[override]
         raw = super().get_manifest()
         return ExperimentArtifactManifest.model_validate(raw)
 
@@ -48,6 +48,9 @@ def save_experiment(
     from luml._constants import PRODUCER_NAME
 
     exp_data = tracker.get_experiment(experiment_id)
+    if exp_data is None:
+        msg = f"Experiment {experiment_id} not found"
+        raise ValueError(msg)
     metadata = exp_data.metadata
 
     manifest = ExperimentArtifactManifest(

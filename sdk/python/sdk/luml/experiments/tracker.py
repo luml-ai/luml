@@ -94,14 +94,13 @@ class ExperimentTracker:
 
     def __exit__(
         self, exc_type: type | None, exc_val: BaseException | None, exc_tb: object
-    ) -> bool:
+    ) -> None:
         if self.current_experiment_id:
             if exc_type is not None:
                 with contextlib.suppress(Exception):
                     self.fail_experiment()
             else:
                 self.end_experiment()
-        return False
 
     @staticmethod
     def _parse_connection_string(connection_string: str) -> Backend:
@@ -1145,8 +1144,10 @@ class ExperimentTracker:
         experiment_id: str,
         limit: int = 20,
         cursor_str: str | None = None,
-        sort_by: str = "execution_time",
-        order: str = "desc",
+        sort_by: Literal[
+            "execution_time", "span_count", "created_at"
+        ] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
         filters: list[str] | None = None,
         states: list[TraceState] | None = None,
@@ -1189,7 +1190,7 @@ class ExperimentTracker:
         self,
         experiment_id: str,
         sort_by: str = "execution_time",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
         filters: list[str] | None = None,
         states: list[TraceState] | None = None,
@@ -1233,7 +1234,7 @@ class ExperimentTracker:
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
@@ -1280,7 +1281,7 @@ class ExperimentTracker:
         self,
         experiment_id: str,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
@@ -1738,7 +1739,7 @@ class ExperimentTracker:
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
     ) -> PaginatedResponse[Group]:
         """
@@ -1785,9 +1786,9 @@ class ExperimentTracker:
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
-        json_sort_column: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
     ) -> PaginatedResponse[Experiment]:
         """
         Retrieve a paginated list of experiments within a group.
@@ -1829,9 +1830,9 @@ class ExperimentTracker:
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
-        json_sort_column: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
     ) -> PaginatedResponse[Experiment]:
         return self.backend.list_groups_experiments_pagination(
             group_ids,

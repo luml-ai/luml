@@ -749,9 +749,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
         meta_row = meta_cursor.fetchone()
 
-        metadata = {}
-        if meta_row:
-            metadata = ExperimentMetaData(
+        if not meta_row:
+            msg = f"Experiment {experiment_id} not found"
+            raise ValueError(msg)
+
+        return ExperimentData(
+            experiment_id=experiment_id,
+            metadata=ExperimentMetaData(
                 name=meta_row[0],
                 created_at=meta_row[1],
                 status=meta_row[2],
@@ -759,11 +763,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 tags=json.loads(meta_row[4]) if meta_row[4] else [],
                 duration=meta_row[5],
                 description=meta_row[6],
-            )
-
-        return ExperimentData(
-            experiment_id=experiment_id,
-            metadata=metadata,
+            ),
             static_params=static_params,
             dynamic_metrics=dynamic_metrics,
             attachments=attachments,
@@ -1041,8 +1041,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             duration=row[5],
             description=row[6],
             group_id=row[7],
-            static_params=json.loads(row[8]) if row[8] else None,
-            dynamic_params=json.loads(row[9]) if row[9] else None,
+            static_params=json.loads(row[8]) if row[8] else {},
+            dynamic_params=json.loads(row[9]) if row[9] else {},
             group_name=row[10],
             source=row[11],
         )
@@ -1955,8 +1955,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 models=models_by_experiment.get(e["id"], []),
                 duration=e["duration"],
                 description=e["description"],
-                static_params=e["static_params"] or None,
-                dynamic_params=e["dynamic_params"] or None,
+                static_params=e["static_params"] or {},
+                dynamic_params=e["dynamic_params"] or {},
                 source=e.get("source"),
             )
             for e in experiments_dicts

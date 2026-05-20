@@ -22,7 +22,7 @@ FullInput = dict[str, SubsetDict]
 
 def _is_pandas_dataframe(obj: object) -> bool:
     try:
-        import pandas as pd
+        import pandas as pd  # type: ignore[import-untyped]
 
         return isinstance(obj, pd.DataFrame)
     except ImportError:
@@ -73,7 +73,7 @@ def _get_row_count(obj: object) -> int:
     if _is_pandas_dataframe(obj):
         return len(obj)  # type: ignore[arg-type]
     if _is_polars_dataframe(obj):
-        return obj.height  # type: ignore[union-attr]
+        return obj.height  # type: ignore[attr-defined]
     msg = f"Cannot get row count from {type(obj).__name__}"
     raise TypeError(msg)
 
@@ -85,14 +85,14 @@ def _write_chunk(
 ) -> None:
     if _is_pandas_dataframe(obj):
         if file_format == "csv":
-            obj.to_csv(path, index=False)  # type: ignore[union-attr]
+            obj.to_csv(path, index=False)  # type: ignore[attr-defined]
         else:
-            obj.to_parquet(path, index=False)  # type: ignore[union-attr]
+            obj.to_parquet(path, index=False)  # type: ignore[attr-defined]
     elif _is_polars_dataframe(obj):
         if file_format == "csv":
-            obj.write_csv(path)  # type: ignore[union-attr]
+            obj.write_csv(path)  # type: ignore[attr-defined]
         else:
-            obj.write_parquet(path)  # type: ignore[union-attr]
+            obj.write_parquet(path)  # type: ignore[attr-defined]
     else:
         msg = f"Cannot write {type(obj).__name__} as {file_format}"
         raise TypeError(msg)
@@ -104,13 +104,13 @@ def _chunk_dataframe(
 ) -> list[object]:
     if _is_pandas_dataframe(obj):
         return [
-            obj.iloc[i : i + chunk_size]  # type: ignore[union-attr]
+            obj.iloc[i : i + chunk_size]  # type: ignore[attr-defined]
             for i in range(0, len(obj), chunk_size)  # type: ignore[arg-type]
         ]
     if _is_polars_dataframe(obj):
         return [
-            obj.slice(i, chunk_size)  # type: ignore[union-attr]
-            for i in range(0, obj.height, chunk_size)  # type: ignore[union-attr]
+            obj.slice(i, chunk_size)  # type: ignore[attr-defined]
+            for i in range(0, obj.height, chunk_size)  # type: ignore[attr-defined]
         ]
     msg = f"Cannot chunk {type(obj).__name__}"
     raise TypeError(msg)

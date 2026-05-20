@@ -451,7 +451,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        params = {
+        params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
         }
@@ -1444,7 +1444,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
 
-        params = {"limit": limit, "order": order.value}
+        params: dict[str, Any] = {"limit": limit, "order": order.value}
         if start_after:
             params["cursor"] = start_after
         if sort_by:

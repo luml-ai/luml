@@ -4,8 +4,11 @@ from collections.abc import Callable, Sequence
 from typing import Any, Literal, cast
 from warnings import warn
 
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import JSON, Var
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.pydantic_models.manifest import (  # type: ignore[import-untyped]
+    JSON,
+    Var,
+)
 from langgraph.pregel import Pregel
 from pydantic import BaseModel, create_model
 
@@ -199,7 +202,7 @@ def save_langgraph(  # noqa: C901
             raise TypeError("Callable did not return a Pregel instance")
 
     if graph_creator_callable:
-        import cloudpickle
+        import cloudpickle  # type: ignore[import-untyped]
 
         with tempfile.NamedTemporaryFile(
             "wb",

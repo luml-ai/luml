@@ -200,6 +200,8 @@ def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
 
     for dist in distributions():
         dist_name = dist.metadata["Name"]
+        if dist_name is None:
+            continue
 
         try:
             top_level = dist.read_text("top_level.txt")
@@ -260,7 +262,7 @@ def find_dependencies() -> tuple[list[str], list[str]]:  # noqa: C901
         if is_site_package:
             top_level = mod_name.split(".")[0]
 
-            dist_name = module_to_dist.get(top_level)
+            dist_name = module_to_dist.get(top_level)  # type: ignore[assignment]
 
             pkg_version = None
             for name in [dist_name, top_level]:
