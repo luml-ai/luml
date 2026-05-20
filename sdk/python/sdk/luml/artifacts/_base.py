@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import tarfile
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
@@ -79,6 +81,41 @@ class DiskReference:
     def list_files(self) -> list[str]:
         with tarfile.open(self.path, "r") as tar:
             return [m.name for m in tar.getmembers() if m.isfile()]
+
+    def _append_metadata(
+        self,
+        idx: str | None,
+        tags: list[str],
+        payload: dict[str, Any],
+        data: list[FileMap],
+        prefix: str | None = None,
+    ) -> None:
+        idx = idx or uuid.uuid4().hex
+        if prefix is not None:
+            prefix = prefix.replace(":", PathSeparators.COLON.value).replace(
+                "/", PathSeparators.SLASH.value
+            )
+        idx = idx if prefix is None else f"{prefix}{PathSeparators.ENDTAG.value}{idx}"
+
+        body = {
+            "id": idx,
+            "tags": tags,
+            "payload": payload,
+        }
+        body_str = json.dumps([body]).encode("utf-8")
+        uid = uuid.uuid4().hex
+        artifact_path_prefix = f"meta_artifacts/{idx}/"
+        with tarfile.open(self.path, "a") as tar:
+            info = tarfile.TarInfo(name=f"meta-{uid}.json")
+            info.size = len(body_str)
+            tar.addfile(info, fileobj=io.BytesIO(body_str))
+            for _, item in enumerate(data):
+                file_content = item.file.get_content()
+                file_info = tarfile.TarInfo(
+                    name=f"{artifact_path_prefix}{item.remote_path}"
+                )
+                file_info.size = len(file_content)
+                tar.addfile(file_info, fileobj=io.BytesIO(file_content))
 
     def extract_file(self, name: str) -> bytes:
         with tarfile.open(self.path, "r") as tar:
