@@ -191,14 +191,16 @@ class BucketSecretResource(BucketSecretResourceBase):
 
     @staticmethod
     def _validate_range_support(download_url: str) -> None:
-        response = httpx.get(download_url)
-        response.raise_for_status()
-
         range_response = httpx.get(
             download_url,
             headers={"Range": "bytes=0-10"},
         )
         range_response.raise_for_status()
+        if range_response.status_code != 206:  # noqa: PLR2004
+            raise ValueError(
+                "Bucket does not support range requests "
+                f"(expected 206, got {range_response.status_code})"
+            )
 
     def _get_connection_urls(
         self,
@@ -214,17 +216,19 @@ class BucketSecretResource(BucketSecretResourceBase):
     ) -> BucketSecretUrls:
         response = self._client.post(
             "/v1/bucket-secrets/urls",
-            json={
-                "endpoint": endpoint,
-                "bucket_name": bucket_name,
-                "access_key": access_key,
-                "secret_key": secret_key,
-                "session_token": session_token,
-                "secure": secure,
-                "region": region,
-                "cert_check": cert_check,
-                "type": type,
-            },
+            json=self._client.filter_none(
+                {
+                    "endpoint": endpoint,
+                    "bucket_name": bucket_name,
+                    "access_key": access_key,
+                    "secret_key": secret_key,
+                    "session_token": session_token,
+                    "secure": secure,
+                    "region": region,
+                    "cert_check": cert_check,
+                    "type": type,
+                }
+            ),
         )
         return BucketSecretUrls.model_validate(response)
 
@@ -257,14 +261,15 @@ class BucketSecretResource(BucketSecretResourceBase):
                 f"Failed to get connection string to check bucket secret. {str(e)}"
             ) from e
 
+        upload_headers: dict[str, str] = {"Content-Type": "application/octet-stream"}
+        if type == BucketType.AZURE:
+            upload_headers["x-ms-blob-type"] = "BlockBlob"
+
         try:
             upload_response = httpx.put(
                 connection_urls.presigned_url,
                 content=b"Connection test.",
-                headers={
-                    "Content-Type": "application/octet-stream",
-                    "x-ms-blob-type": "BlockBlob",
-                },
+                headers=upload_headers,
             )
             upload_response.raise_for_status()
         except Exception as e:
@@ -278,7 +283,8 @@ class BucketSecretResource(BucketSecretResourceBase):
 
             raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
 
-        httpx.delete(connection_urls.delete_url)
+        with contextlib.suppress(Exception):
+            httpx.delete(connection_urls.delete_url)
 
     def create(
         self,
@@ -668,14 +674,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
     @staticmethod
     async def _validate_range_support(download_url: str) -> None:
         async with httpx.AsyncClient() as client:
-            response = await client.get(download_url)
-            response.raise_for_status()
-
             range_response = await client.get(
                 download_url,
                 headers={"Range": "bytes=0-10"},
             )
             range_response.raise_for_status()
+            if range_response.status_code != 206:  # noqa: PLR2004
+                raise ValueError(
+                    "Bucket does not support range requests "
+                    f"(expected 206, got {range_response.status_code})"
+                )
 
     async def _get_connection_urls(
         self,
@@ -691,17 +699,19 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
     ) -> BucketSecretUrls:
         response = await self._client.post(
             "/v1/bucket-secrets/urls",
-            json={
-                "endpoint": endpoint,
-                "bucket_name": bucket_name,
-                "access_key": access_key,
-                "secret_key": secret_key,
-                "session_token": session_token,
-                "secure": secure,
-                "region": region,
-                "cert_check": cert_check,
-                "type": type,
-            },
+            json=self._client.filter_none(
+                {
+                    "endpoint": endpoint,
+                    "bucket_name": bucket_name,
+                    "access_key": access_key,
+                    "secret_key": secret_key,
+                    "session_token": session_token,
+                    "secure": secure,
+                    "region": region,
+                    "cert_check": cert_check,
+                    "type": type,
+                }
+            ),
         )
         return BucketSecretUrls.model_validate(response)
 
@@ -734,15 +744,16 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                 f"Failed to get connection string to check bucket secret. {str(e)}"
             ) from e
 
+        upload_headers: dict[str, str] = {"Content-Type": "application/octet-stream"}
+        if type == BucketType.AZURE:
+            upload_headers["x-ms-blob-type"] = "BlockBlob"
+
         async with httpx.AsyncClient() as client:
             try:
                 upload_response = await client.put(
                     connection_urls.presigned_url,
                     content=b"Connection test.",
-                    headers={
-                        "Content-Type": "application/octet-stream",
-                        "x-ms-blob-type": "BlockBlob",
-                    },
+                    headers=upload_headers,
                 )
                 upload_response.raise_for_status()
             except Exception as e:
@@ -758,8 +769,9 @@ class AsyncBucketSecretResource(BucketSecretResourceBase):
                     await client.delete(connection_urls.delete_url)
             raise LumlAPIError(f"Bucket Range Support check failed: {str(e)}") from e
 
-        async with httpx.AsyncClient() as client:
-            await client.delete(connection_urls.delete_url)
+        with contextlib.suppress(Exception):
+            async with httpx.AsyncClient() as client:
+                await client.delete(connection_urls.delete_url)
 
     async def get_multipart_upload_urls(
         self,

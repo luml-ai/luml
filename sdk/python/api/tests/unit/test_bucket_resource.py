@@ -189,42 +189,34 @@ def test_bucket_secret_delete(mock_sync_client: Mock) -> None:
 
 @patch("luml_api.resources.bucket_secrets.httpx.get")
 def test_validate_range_support_success(mock_get: Mock) -> None:
-    full_resp = Mock()
-    full_resp.raise_for_status.return_value = None
     range_resp = Mock()
     range_resp.raise_for_status.return_value = None
-    mock_get.side_effect = [full_resp, range_resp]
+    range_resp.status_code = 206
+    mock_get.return_value = range_resp
 
     BucketSecretResource._validate_range_support(DOWNLOAD_URL)
 
-    assert mock_get.call_count == 2
-    mock_get.assert_any_call(DOWNLOAD_URL)
-    mock_get.assert_any_call(DOWNLOAD_URL, headers={"Range": "bytes=0-10"})
+    mock_get.assert_called_once_with(DOWNLOAD_URL, headers={"Range": "bytes=0-10"})
 
 
 @patch("luml_api.resources.bucket_secrets.httpx.get")
-def test_validate_range_support_full_download_fails(mock_get: Mock) -> None:
-    full_resp = Mock()
-    full_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404", request=Mock(), response=Mock()
-    )
-    mock_get.return_value = full_resp
+def test_validate_range_support_returns_200(mock_get: Mock) -> None:
+    range_resp = Mock()
+    range_resp.raise_for_status.return_value = None
+    range_resp.status_code = 200
+    mock_get.return_value = range_resp
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(ValueError, match="does not support range requests"):
         BucketSecretResource._validate_range_support(DOWNLOAD_URL)
-
-    assert mock_get.call_count == 1
 
 
 @patch("luml_api.resources.bucket_secrets.httpx.get")
 def test_validate_range_support_range_request_fails(mock_get: Mock) -> None:
-    full_resp = Mock()
-    full_resp.raise_for_status.return_value = None
     range_resp = Mock()
     range_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
-    mock_get.side_effect = [full_resp, range_resp]
+    mock_get.return_value = range_resp
 
     with pytest.raises(httpx.HTTPStatusError):
         BucketSecretResource._validate_range_support(DOWNLOAD_URL)
@@ -261,10 +253,7 @@ def test_check_bucket_success(
     mock_put.assert_called_once_with(
         PRESIGNED_URL,
         content=b"Connection test.",
-        headers={
-            "Content-Type": "application/octet-stream",
-            "x-ms-blob-type": "BlockBlob",
-        },
+        headers={"Content-Type": "application/octet-stream"},
     )
     mock_validate.assert_called_once_with(DOWNLOAD_URL)
     mock_delete.assert_called_once_with(DELETE_URL)
@@ -534,38 +523,32 @@ async def test_async_validate_range_support_success(mock_client_class: Mock) -> 
     mock_client_class.return_value.__aenter__.return_value = mock_http
     mock_client_class.return_value.__aexit__.return_value = None
 
-    full_resp = Mock()
-    full_resp.raise_for_status.return_value = None
     range_resp = Mock()
     range_resp.raise_for_status.return_value = None
-    mock_http.get.side_effect = [full_resp, range_resp]
+    range_resp.status_code = 206
+    mock_http.get.return_value = range_resp
 
     await AsyncBucketSecretResource._validate_range_support(DOWNLOAD_URL)
 
-    assert mock_http.get.call_count == 2
-    mock_http.get.assert_any_call(DOWNLOAD_URL)
-    mock_http.get.assert_any_call(DOWNLOAD_URL, headers={"Range": "bytes=0-10"})
+    mock_http.get.assert_called_once_with(DOWNLOAD_URL, headers={"Range": "bytes=0-10"})
 
 
 @pytest.mark.asyncio
 @patch("luml_api.resources.bucket_secrets.httpx.AsyncClient")
-async def test_async_validate_range_support_full_download_fails(
+async def test_async_validate_range_support_returns_200(
     mock_client_class: Mock,
 ) -> None:
     mock_http = AsyncMock()
     mock_client_class.return_value.__aenter__.return_value = mock_http
     mock_client_class.return_value.__aexit__.return_value = None
 
-    full_resp = Mock()
-    full_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-        "404", request=Mock(), response=Mock()
-    )
-    mock_http.get.return_value = full_resp
+    range_resp = Mock()
+    range_resp.raise_for_status.return_value = None
+    range_resp.status_code = 200
+    mock_http.get.return_value = range_resp
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(ValueError, match="does not support range requests"):
         await AsyncBucketSecretResource._validate_range_support(DOWNLOAD_URL)
-
-    assert mock_http.get.call_count == 1
 
 
 @pytest.mark.asyncio
@@ -577,13 +560,11 @@ async def test_async_validate_range_support_range_request_fails(
     mock_client_class.return_value.__aenter__.return_value = mock_http
     mock_client_class.return_value.__aexit__.return_value = None
 
-    full_resp = Mock()
-    full_resp.raise_for_status.return_value = None
     range_resp = Mock()
     range_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
         "403", request=Mock(), response=Mock()
     )
-    mock_http.get.side_effect = [full_resp, range_resp]
+    mock_http.get.return_value = range_resp
 
     with pytest.raises(httpx.HTTPStatusError):
         await AsyncBucketSecretResource._validate_range_support(DOWNLOAD_URL)
@@ -625,10 +606,7 @@ async def test_async_check_bucket_success(
     mock_http.put.assert_called_once_with(
         PRESIGNED_URL,
         content=b"Connection test.",
-        headers={
-            "Content-Type": "application/octet-stream",
-            "x-ms-blob-type": "BlockBlob",
-        },
+        headers={"Content-Type": "application/octet-stream"},
     )
     mock_validate.assert_called_once_with(DOWNLOAD_URL)
     mock_http.delete.assert_called_once_with(DELETE_URL)
