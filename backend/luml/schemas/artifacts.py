@@ -153,7 +153,6 @@ class ArtifactIn(BaseModel):
 
 class ArtifactUpdate(BaseModel):
     id: UUID
-    file_name: str | None = None
     name: str | None = None
     description: str | None = None
     status: ArtifactStatus | None = None
@@ -161,7 +160,6 @@ class ArtifactUpdate(BaseModel):
 
 
 class ArtifactUpdateIn(BaseModel):
-    file_name: ArtifactNamesField | None = None
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None

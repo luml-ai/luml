@@ -133,7 +133,6 @@ async function saveChanges() {
     loading.value = true
     const payload: UpdateArtifactPayload = {
       id: props.data.id,
-      file_name: props.data.file_name,
       name: initialValues.value.name,
       description: initialValues.value.description,
       tags: initialValues.value.tags,

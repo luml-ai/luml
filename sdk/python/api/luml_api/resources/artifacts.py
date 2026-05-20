@@ -1,4 +1,5 @@
 import builtins
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
 from typing import TYPE_CHECKING, Any
@@ -934,7 +935,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
     def update(
         self,
         artifact_id: str,
-        file_name: str | None = None,
+        file_name: str | None = None,  # deprecated, has no effect
         name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
@@ -951,7 +952,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
 
         Args:
             artifact_id: ID of the artifact to update.
-            file_name: New file name.
+            file_name: Deprecated. Has no effect and will be removed in a future version.
             name: New model name.
             description: New description.
             tags: New list of tags.
@@ -1042,12 +1043,18 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             updated_at=None
         )
         """
+        if file_name is not None:
+            warnings.warn(
+                "The 'file_name' parameter in artifacts.update() is deprecated and has no effect. "
+                "It will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return Artifact.model_validate(
             self._client.patch(
                 f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
                 json=self._client.filter_none(
                     {
-                        "file_name": file_name,
                         "name": name,
                         "description": description,
                         "tags": tags,
@@ -1951,7 +1958,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
     async def update(
         self,
         artifact_id: str,
-        file_name: str | None = None,
+        file_name: str | None = None,  # deprecated, has no effect
         name: str | None = None,
         description: str | None = None,
         tags: builtins.list[str] | None = None,
@@ -1968,7 +1975,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
 
         Args:
             artifact_id: ID of the artifact to update.
-            file_name: New file name.
+            file_name: Deprecated. Has no effect and will be removed in a future version.
             name: New model name.
             description: New description.
             tags: New list of tags.
@@ -2002,17 +2009,25 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         ```
         """
-        return await self._client.patch(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
-            json=self._client.filter_none(
-                {
-                    "file_name": file_name,
-                    "name": name,
-                    "description": description,
-                    "tags": tags,
-                    "status": status.value if status else None,
-                }
-            ),
+        if file_name is not None:
+            warnings.warn(
+                "The 'file_name' parameter in artifacts.update() is deprecated and has no effect. "
+                "It will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+        return Artifact.model_validate(
+            await self._client.patch(
+                f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}",
+                json=self._client.filter_none(
+                    {
+                        "name": name,
+                        "description": description,
+                        "tags": tags,
+                        "status": status.value if status else None,
+                    }
+                ),
+            )
         )
 
     @validate_collection

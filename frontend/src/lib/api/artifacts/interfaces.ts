@@ -51,7 +51,6 @@ export interface Artifact {
 
 export interface UpdateArtifactPayload {
   id?: string
-  file_name?: string
   name?: string
   description?: string
   tags?: string[]
