@@ -31,7 +31,6 @@
         :export-callback="downloadCSV"
         :columnTypes="columnTypes"
         :inputs-outputs-columns="inputsOutputsColumns"
-        show-column-header-menu
         @edit="setSelectedColumns"
       />
     </step-edit>
