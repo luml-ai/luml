@@ -761,7 +761,7 @@ class TestGetExperimentEvalsFilter:
     ) -> None:
         tracker, exp_id = tracker_with_experiment
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid comparator '=>'"):
             tracker.get_experiment_evals(exp_id, filters=["scores.accuracy => 0.5"])
 
     def test_filter_evals_all_by_score(
@@ -799,12 +799,12 @@ class TestValidateEvalsFilter:
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:
         tracker, exp_id = tracker_with_experiment
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid comparator '=>'"):
             tracker.validate_evals_filter("scores.accuracy => 0.5")
 
     def test_invalid_column_raises(
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:
         tracker, exp_id = tracker_with_experiment
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid field prefix 'unknown_col'"):
             tracker.validate_evals_filter('unknown_col.key = "x"')

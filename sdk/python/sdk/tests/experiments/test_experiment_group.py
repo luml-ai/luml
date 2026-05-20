@@ -670,7 +670,7 @@ class TestListGroupExperimentsPagination:
     ) -> None:
         group_id = _make_group(tracker)
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="json_sort_column must be one of"):
             tracker.list_group_experiments_pagination(
                 group_id, json_sort_column="invalid_column"
             )

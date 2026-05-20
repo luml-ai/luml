@@ -4,13 +4,14 @@ import sqlite3
 import uuid
 from pathlib import Path
 
+from luml.experiments.backends.sqlite import SQLiteBackend
+
 migration_001 = importlib.import_module(
     "luml.experiments.backends.exp_migrations.001_initial_schema"
 )
 migration_002 = importlib.import_module(
     "luml.experiments.backends.exp_migrations.002_add_attachment_size"
 )
-from luml.experiments.backends.sqlite import SQLiteBackend
 
 # ---------------------------------------------------------------------------
 # Helpers

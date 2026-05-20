@@ -1220,33 +1220,42 @@ class SearchTracesUtils(SearchUtils):
         return int(raw)
 
     @classmethod
+    def _trace_column_identifier_state_column(
+        cls, token: Token
+    ) -> int | tuple[int, ...]:
+        if token.ttype in cls.NUMERIC_VALUE_TYPES:
+            return int(float(token.value))
+        if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+            raw = cls._strip_quotes(token.value, expect_quoted_value=True)
+            return cls._resolve_state_value(raw)
+        if isinstance(token, Parenthesis):
+            items = cls._parse_list_from_sql_token(token)
+            return tuple(cls._resolve_state_value(v) for v in items)
+        raise LumlFilterError(
+            f"Expected state name or integer for 'state'. Got {token.value!r}"
+        )
+
+    @classmethod
+    def _trace_column_identifier_date_columns(cls, token: Token, key: str) -> str:
+        if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
+            date_str = cls._strip_quotes(token.value, expect_quoted_value=True)
+            cls._validate_date_string(date_str, key)
+            return date_str
+        if token.ttype in cls.NUMERIC_VALUE_TYPES:
+            return token.value
+        raise LumlFilterError(
+            f"Expected ISO date string for '{key}'. Got {token.value!r}"
+        )
+
+    @classmethod
     def _get_value(cls, identifier_type: str, key: str, token: Token) -> Any:  # noqa: ANN401
         if identifier_type == cls._TRACE_COLUMN_IDENTIFIER and key == cls.STATE_COLUMN:
-            if token.ttype in cls.NUMERIC_VALUE_TYPES:
-                return int(float(token.value))
-            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
-                raw = cls._strip_quotes(token.value, expect_quoted_value=True)
-                return cls._resolve_state_value(raw)
-            if isinstance(token, Parenthesis):
-                items = cls._parse_list_from_sql_token(token)
-                return tuple(cls._resolve_state_value(v) for v in items)
-            raise LumlFilterError(
-                f"Expected state name or integer for 'state'. Got {token.value!r}"
-            )
-
+            return cls._trace_column_identifier_state_column(token)
         if (
             identifier_type == cls._TRACE_COLUMN_IDENTIFIER
             and key in cls.DATE_TRACE_COLUMNS
         ):
-            if token.ttype in cls.STRING_VALUE_TYPES or isinstance(token, Identifier):
-                date_str = cls._strip_quotes(token.value, expect_quoted_value=True)
-                cls._validate_date_string(date_str, key)
-                return date_str
-            if token.ttype in cls.NUMERIC_VALUE_TYPES:
-                return token.value
-            raise LumlFilterError(
-                f"Expected ISO date string for '{key}'. Got {token.value!r}"
-            )
+            return cls._trace_column_identifier_date_columns(token, key)
 
         if token.ttype in cls.NUMERIC_VALUE_TYPES:
             return float(token.value)

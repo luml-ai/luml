@@ -2,6 +2,7 @@ import io
 import tarfile
 import tempfile
 from pathlib import Path
+from typing import IO
 from unittest.mock import MagicMock
 
 import pytest
@@ -737,7 +738,7 @@ class TestLinkToModel:
 
         original_ntf = tempfile.NamedTemporaryFile
 
-        def capturing_ntf(*args, **kwargs):
+        def capturing_ntf(*args, **kwargs) -> IO[bytes]:
             ntf = original_ntf(*args, **kwargs)
             captured.append(ntf.name)
             return ntf
