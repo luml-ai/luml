@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: sdk/python/sdk
+        working-directory: sdk/python/api
     steps:
       - uses: actions/checkout@v4
 
