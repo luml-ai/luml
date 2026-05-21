@@ -26,7 +26,7 @@ packages = ["luml_api"]
 dev = [
     "mypy==1.15.0",
     "pydoc-markdown>=4.8.2",
-    "pytest==8.3.5",
+    "pytest==9.0.3",
     "pytest-asyncio==0.26.0",
     "pytest-cov==6.0.0",
     "respx==0.22.0",
