@@ -16,7 +16,9 @@ from luml.schemas.bucket_secrets import (
     BucketSecretCreateIn,
     BucketSecretOut,
     BucketSecretUpdate,
+    BucketSecretUpdateIn,
     BucketSecretUrls,
+    BucketType,
     S3BucketSecretCreate,
     S3BucketSecretCreateIn,
     validate_bucket_secret_out,
@@ -32,6 +34,15 @@ from luml.schemas.storage import (
 class BucketSecretHandler:
     __secret_repository = BucketSecretRepository(engine)
     __permissions_handler = PermissionsHandler()
+
+    _AZURE_FORBIDDEN_FIELDS = {
+        "access_key",
+        "secret_key",
+        "session_token",
+        "secure",
+        "region",
+        "cert_check",
+    }
 
     async def create_bucket_secret(
         self,
@@ -89,16 +100,41 @@ class BucketSecretHandler:
         user_id: UUID,
         organization_id: UUID,
         secret_id: UUID,
-        secret: BucketSecretUpdate,
+        secret: BucketSecretUpdateIn,
     ) -> BucketSecretOut:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
         )
 
-        secret.id = secret_id
+        existing = await self.__secret_repository.get_bucket_secret(secret_id)
+        if not existing:
+            raise NotFoundError("Secret not found")
 
+        if existing.type == BucketType.AZURE:
+            set_fields = secret.model_fields_set & self._AZURE_FORBIDDEN_FIELDS
+            if set_fields:
+                raise ApplicationError(
+                    f"Fields {sorted(set_fields)} cannot be set "
+                    f"for Azure bucket secrets",
+                    400,
+                )
+
+        secret_update = BucketSecretUpdate(
+            id=secret_id,
+            type=existing.type,
+            endpoint=secret.endpoint,
+            bucket_name=secret.bucket_name,
+            access_key=secret.access_key,
+            secret_key=secret.secret_key,
+            session_token=secret.session_token,
+            secure=secret.secure,
+            region=secret.region,
+            cert_check=secret.cert_check,
+        )
         try:
-            db_secret = await self.__secret_repository.update_bucket_secret(secret)
+            db_secret = await self.__secret_repository.update_bucket_secret(
+                secret_update
+            )
         except DatabaseConstraintError as error:
             raise ApplicationError(
                 "Bucket secret with the given bucket name and endpoint already exists.",
@@ -145,7 +181,7 @@ class BucketSecretHandler:
         if not original_secret:
             raise NotFoundError("Secret not found")
 
-        if original_secret.type != secret.type:
+        if secret.type is not None and original_secret.type != secret.type:
             raise ApplicationError("Bucket type cannot be changed", 400)
 
         updated_secret = original_secret.model_copy(

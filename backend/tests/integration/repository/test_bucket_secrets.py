@@ -5,10 +5,10 @@ from luml.infra.exceptions import DatabaseConstraintError
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.schemas.bucket_secrets import (
+    BucketSecretUpdate,
     S3BucketSecret,
     S3BucketSecretCreate,
     S3BucketSecretOut,
-    S3BucketSecretUpdate,
 )
 from luml.schemas.orbit import OrbitCreateIn
 
@@ -105,6 +105,41 @@ async def test_get_bucket_secret_not_found(
 
 
 @pytest.mark.asyncio
+async def test_get_bucket_secret_details(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+
+    secret_data = S3BucketSecretCreate(
+        organization_id=data.organization.id,
+        endpoint="s3.details.com",
+        bucket_name="test-bucket-details",
+        region="us-east-1",
+    )
+    created_secret = await repo.create_bucket_secret(secret_data)
+
+    details = await repo.get_bucket_secret_details(created_secret.id)
+
+    assert details is not None
+    assert isinstance(details, S3BucketSecretOut)
+    assert details.id == created_secret.id
+    assert details.endpoint == created_secret.endpoint
+    assert details.bucket_name == created_secret.bucket_name
+
+
+@pytest.mark.asyncio
+async def test_get_bucket_secret_details_not_found(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    repo = BucketSecretRepository(create_organization_with_user.engine)
+
+    details = await repo.get_bucket_secret_details(uuid4())
+
+    assert details is None
+
+
+@pytest.mark.asyncio
 async def test_get_organization_bucket_secrets(
     create_organization_with_user: OrganizationFixtureData,
 ) -> None:
@@ -148,7 +183,7 @@ async def test_update_bucket_secret(
 
     new_bucket_name = "updated-bucket-name"
     new_region = "eu-west-1"
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=created_secret.id,
         bucket_name=new_bucket_name,
         region=new_region,
@@ -162,6 +197,34 @@ async def test_update_bucket_secret(
     assert updated_secret.bucket_name == new_bucket_name
     assert updated_secret.region == new_region
     assert updated_secret.endpoint == endpoint
+
+
+@pytest.mark.asyncio
+async def test_update_bucket_secret_s3_credentials(
+    create_organization_with_user: OrganizationFixtureData,
+) -> None:
+    data = create_organization_with_user
+    repo = BucketSecretRepository(data.engine)
+
+    secret_data = S3BucketSecretCreate(
+        organization_id=data.organization.id,
+        endpoint="s3.credentials.com",
+        bucket_name="test-bucket-credentials",
+        region="us-east-1",
+    )
+    created_secret = await repo.create_bucket_secret(secret_data)
+
+    update_data = BucketSecretUpdate(
+        id=created_secret.id,
+        access_key="new_access_key",
+        secret_key="new_secret_key",
+        session_token="new_session_token",
+    )
+
+    updated_secret = await repo.update_bucket_secret(update_data)
+
+    assert updated_secret is not None
+    assert updated_secret.id == created_secret.id
 
 
 @pytest.mark.asyncio
@@ -180,7 +243,7 @@ async def test_update_bucket_secret_strips_http_protocol(
 
     created_secret = await repo.create_bucket_secret(secret_data)
 
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=created_secret.id,
         endpoint="https://s3.new-endpoint.com",
     )
@@ -199,7 +262,7 @@ async def test_update_bucket_secret_not_found(
     repo = BucketSecretRepository(data.engine)
 
     non_existent_id = uuid4()
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=non_existent_id,
         bucket_name="new-name",
     )
@@ -226,7 +289,7 @@ async def test_update_bucket_secret_duplicate_raises_error(
     )
     secret2 = await repo.create_bucket_secret(secret2_data)
 
-    update_data = S3BucketSecretUpdate(
+    update_data = BucketSecretUpdate(
         id=secret2.id,
         endpoint=secret1.endpoint,
         bucket_name=secret1.bucket_name,
