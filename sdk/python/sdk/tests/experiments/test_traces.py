@@ -1034,7 +1034,7 @@ class TestGetExperimentTracesFilter:
     ) -> None:
         tracker, exp_id = tracker_with_experiment
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid comparator '=>'"):
             tracker.get_experiment_traces(
                 exp_id, filters=["attributes.http.status_code => 400"]
             )
@@ -1057,12 +1057,12 @@ class TestValidateTracesFilter:
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:
         tracker, _ = tracker_with_experiment
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid field prefix 'http'"):
             tracker.validate_traces_filter('http.method = "GET"')
 
     def test_invalid_comparator_raises(
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:
         tracker, _ = tracker_with_experiment
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid comparator '=>'"):
             tracker.validate_traces_filter("attributes.http.status_code => 400")

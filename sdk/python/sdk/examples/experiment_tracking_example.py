@@ -30,7 +30,7 @@ def run_experiment() -> None:
 
     # ── 3. Train with dynamic metric logging ─────────────────────
 
-    X, y = load_iris(return_X_y=True)
+    X, y = load_iris(return_X_y=True)  # noqa: N806
 
     model = GradientBoostingClassifier(
         n_estimators=n_estimators,

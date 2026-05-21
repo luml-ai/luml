@@ -9,7 +9,7 @@ from luml.card.builder import CardBuilder
 
 
 class DatasetReference(DiskReference):
-    def get_manifest(self) -> DatasetArtifactManifest:
+    def get_manifest(self) -> DatasetArtifactManifest:  # type: ignore[override]
         raw = super().get_manifest()
         return DatasetArtifactManifest.model_validate(raw)
 

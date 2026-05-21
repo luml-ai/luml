@@ -195,9 +195,9 @@ class Backend(ABC):
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
-        json_sort_column: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
     ) -> PaginatedResponse[Experiment]:
         pass
 
@@ -208,9 +208,9 @@ class Backend(ABC):
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
-        json_sort_column: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None,
     ) -> PaginatedResponse[Experiment]:
         pass
 
@@ -300,8 +300,10 @@ class Backend(ABC):
         experiment_id: str,
         limit: int = 20,
         cursor_str: str | None = None,
-        sort_by: str = "execution_time",
-        order: str = "desc",
+        sort_by: Literal[
+            "execution_time", "span_count", "created_at"
+        ] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
         filters: list[str] | None = None,
         states: list[TraceState] | None = None,
@@ -313,7 +315,7 @@ class Backend(ABC):
         self,
         experiment_id: str,
         sort_by: str = "execution_time",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         search: str | None = None,
         filters: list[str] | None = None,
         states: list[TraceState] | None = None,
@@ -335,7 +337,7 @@ class Backend(ABC):
         limit: int = 20,
         cursor_str: str | None = None,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,
@@ -348,7 +350,7 @@ class Backend(ABC):
         self,
         experiment_id: str,
         sort_by: str = "created_at",
-        order: str = "desc",
+        order: Literal["asc", "desc"] = "desc",
         dataset_id: str | None = None,
         json_sort_column: str | None = None,
         search: str | None = None,

@@ -67,6 +67,12 @@ dev = [
     "opentelemetry-api>=1.36.0",
     "opentelemetry-instrumentation-openai>=0.44.1",
     "opentelemetry-sdk>=1.36.0",
+    "catboost>=1.2.10",
+    "lightgbm>=4.6.0",
+    "scipy>=1.17.0",
+    "xgboost>=3.2.0",
+    "pandas-stubs>=3.0.0.260204",
+    "scipy-stubs>=1.17.1.4",
 ]
 
 [tool.ruff]
@@ -102,6 +108,7 @@ select = [
 ignore = [
     "ANN002",  # Missing type annotation for *args
     "ANN003",  # Missing type annotation for **kwargs
+    "N999" # Invalid module name
 ]
 
 [tool.ruff.lint.per-file-ignores]

@@ -1,7 +1,7 @@
 import importlib
 from typing import Any, cast
 
-from fnnx.variants.pyfunc import PyFunc
+from fnnx.variants.pyfunc import PyFunc  # type: ignore[import-untyped]
 from langgraph.pregel import Pregel
 from langgraph.types import Command
 
@@ -49,11 +49,11 @@ class LangGraphFunc(PyFunc):
         if graph_path:
             self.graph: Pregel = cast(Pregel, dyn_import(graph_path))
         elif graph_creator_callable_path:
-            import cloudpickle
+            import cloudpickle  # type: ignore[import-untyped]
 
             with open(graph_creator_callable_path, "rb") as f:
                 graph_creator_callable = cloudpickle.load(f)
-            self.graph: Pregel = graph_creator_callable()
+            self.graph = graph_creator_callable()
         else:
             raise ValueError(
                 "graph_path or graph_creator_callable.pkl not found in fnnx_context"

@@ -782,15 +782,15 @@ class TestSearchEvalsJsonFields:
         assert w == "json_extract(metadata, '$.active') != ?"
         assert p == [1.0]
 
-    def test_bool_python_style_True(self) -> None:
+    def test_bool_python_style_true(self) -> None:
         w, p = SearchEvalsUtils.to_sql("scores.passed = True")
         assert p == [1.0]
 
-    def test_bool_python_style_False(self) -> None:
+    def test_bool_python_style_false(self) -> None:
         w, p = SearchEvalsUtils.to_sql("scores.passed = False")
         assert p == [0.0]
 
-    def test_bool_uppercase_TRUE(self) -> None:
+    def test_bool_uppercase_true(self) -> None:
         w, p = SearchEvalsUtils.to_sql("scores.passed = TRUE")
         assert p == [1.0]
 
@@ -900,15 +900,15 @@ class TestSearchTracesAllOperators:
         assert "json_extract(attributes, '$.\"is_root\"') != ?" in w
         assert p == [1.0]
 
-    def test_attr_bool_python_style_True(self) -> None:
+    def test_attr_bool_python_style_true(self) -> None:
         _, p = SearchTracesUtils.to_sql("attributes.error = True")
         assert p == [1.0]
 
-    def test_attr_bool_python_style_False(self) -> None:
+    def test_attr_bool_python_style_false(self) -> None:
         _, p = SearchTracesUtils.to_sql("attributes.error = False")
         assert p == [0.0]
 
-    def test_attr_bool_uppercase_TRUE(self) -> None:
+    def test_attr_bool_uppercase_true(self) -> None:
         _, p = SearchTracesUtils.to_sql("attributes.error = TRUE")
         assert p == [1.0]
 

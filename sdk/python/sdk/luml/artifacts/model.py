@@ -5,7 +5,7 @@ import zipfile
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fnnx.extras.reader import Reader
+    from fnnx.extras.reader import Reader  # type: ignore[import-untyped]
 
 from luml.artifacts._base import (
     DiskReference,

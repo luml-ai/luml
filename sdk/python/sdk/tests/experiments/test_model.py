@@ -594,7 +594,8 @@ class TestDeleteModel:
         model_id = uuid.uuid4().hex
         conn = _meta_db(tmp_path)
         conn.execute(
-            "INSERT INTO models (id, name, tags, path, size, experiment_id) VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO models (id, name, tags, path, size, experiment_id) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
             (model_id, "no-file-model", "[]", None, None, exp_id),
         )
         conn.commit()

@@ -13,7 +13,7 @@ import tempfile
 from luml import ModelCardBuilder
 
 
-def create_metrics_dataframe():  # type: ignore[no-untyped-def]
+def create_metrics_dataframe():  # noqa: ANN201
     """Create a DataFrame with performance metrics."""
     import pandas as pd
 
@@ -27,7 +27,7 @@ def create_metrics_dataframe():  # type: ignore[no-untyped-def]
     )
 
 
-def create_training_history_plot():  # type: ignore[no-untyped-def]
+def create_training_history_plot():  # noqa: ANN201
     """Create a matplotlib plot showing training history."""
     import matplotlib.pyplot as plt
     import numpy as np
@@ -61,7 +61,7 @@ def create_training_history_plot():  # type: ignore[no-untyped-def]
     return fig
 
 
-def create_feature_importance_plot():  # type: ignore[no-untyped-def]
+def create_feature_importance_plot():  # noqa: ANN201
     """Create a matplotlib bar chart showing feature importance."""
     import matplotlib.pyplot as plt
 
@@ -78,7 +78,7 @@ def create_feature_importance_plot():  # type: ignore[no-untyped-def]
     return fig
 
 
-def create_confusion_matrix_plot():  # type: ignore[no-untyped-def]
+def create_confusion_matrix_plot():  # noqa: ANN201
     """Create an interactive plotly confusion matrix heatmap."""
     import plotly.graph_objects as go
 

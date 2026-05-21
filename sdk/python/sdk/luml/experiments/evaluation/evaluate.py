@@ -187,7 +187,7 @@ def _evaluate_single_item(
             with tracer.start_as_current_span(name="inference_fn"):
                 model_response = inference_fn(eval_item.inputs)
 
-            all_scores = {}
+            all_scores: dict[str, Any] = {}
             with tracer.start_as_current_span(name="eval_scoring") as scoring_span:
                 for scorer in scorers:
                     try:
@@ -276,7 +276,7 @@ def _aggregate_scores(results: list[EvalResult]) -> dict[str, float | int]:
     if not results:
         return {}
 
-    score_names = set()
+    score_names: set[str] = set()
     for result in results:
         score_names.update(result.scores.keys())
 

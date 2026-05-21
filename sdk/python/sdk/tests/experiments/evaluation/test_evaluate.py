@@ -29,9 +29,9 @@ class MockUnsupervisedScorer(UnsupervisedScorer):
 
     def score(
         self,
-        inputs: dict[str, Any],
+        inputs: dict[str, Any],  # noqa: ANN401
         output: Any,  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
         return 0.8
 
 
@@ -45,9 +45,9 @@ class MockSupervisedScorer(SupervisedScorer):
     def score(
         self,
         inputs: dict[str, Any],
-        expected_output: Any,
+        expected_output: Any,  # noqa: ANN401
         output: Any,  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
         return expected_output == output
 
 
@@ -60,9 +60,9 @@ class MockDictScorer(UnsupervisedScorer):
 
     def score(
         self,
-        inputs: dict[str, Any],
+        inputs: dict[str, Any],  # noqa: ANN401
         output: Any,  # noqa: ANN401
-    ) -> bool | float | int | dict[str, Any]:
+    ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
         return {"accuracy": 0.9, "precision": 0.85}
 
 
@@ -109,9 +109,9 @@ class TestCallScorer:
 
             def score(
                 self,
-                inputs: dict[str, Any],
+                inputs: dict[str, Any],  # noqa: ANN401
                 output: Any,  # noqa: ANN401
-            ) -> bool | float | int | dict[str, Any]:
+            ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
                 return True
 
         scorer = BoolScorer()
@@ -277,7 +277,7 @@ class TestEvaluateSingleItem:
         eval_item = EvalItem(id="1", inputs={"text": "hello"}, expected_output="world")
         scorer = MockSupervisedScorer()
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "world"
 
         result = _evaluate_single_item(
@@ -313,7 +313,7 @@ class TestEvaluateSingleItem:
         eval_item = EvalItem(id="1", inputs={"text": "hello"})
         scorer = MockUnsupervisedScorer()
 
-        def failing_inference_fn(inputs: dict[str, Any]) -> str:
+        def failing_inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             raise RuntimeError("API error")
 
         result = _evaluate_single_item(
@@ -349,15 +349,15 @@ class TestEvaluateSingleItem:
 
             def score(
                 self,
-                inputs: dict[str, Any],
+                inputs: dict[str, Any],  # noqa: ANN401
                 output: Any,  # noqa: ANN401
-            ) -> bool | float | int | dict[str, Any]:
+            ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
                 raise ValueError("Scoring failed")
 
         mock_tracker = MagicMock()
         eval_item = EvalItem(id="1", inputs={"text": "hello"})
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
         result = _evaluate_single_item(
@@ -392,9 +392,9 @@ class TestEvaluateSingleItem:
 
             def score(
                 self,
-                inputs: dict[str, Any],
+                inputs: dict[str, Any],  # noqa: ANN401
                 output: Any,  # noqa: ANN401
-            ) -> bool | float | int | dict[str, Any]:
+            ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
                 return {"shared_key": 0.5}
 
         class DuplicateKeyScorer2(UnsupervisedScorer):
@@ -403,15 +403,15 @@ class TestEvaluateSingleItem:
 
             def score(
                 self,
-                inputs: dict[str, Any],
+                inputs: dict[str, Any],  # noqa: ANN401
                 output: Any,  # noqa: ANN401
-            ) -> bool | float | int | dict[str, Any]:
+            ) -> bool | float | int | dict[str, Any]:  # noqa: ANN401
                 return {"shared_key": 0.8}
 
         mock_tracker = MagicMock()
         eval_item = EvalItem(id="1", inputs={"text": "hello"})
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
         with warnings.catch_warnings(record=True) as w:
@@ -450,7 +450,7 @@ class TestEvaluate:
         eval_dataset = [EvalItem(id="1", inputs={"text": "hello"})]
         scorer = MockUnsupervisedScorer()
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
         results = evaluate(
@@ -487,7 +487,7 @@ class TestEvaluate:
         ]
         scorer = MockUnsupervisedScorer()
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
         results = evaluate(
@@ -526,7 +526,7 @@ class TestEvaluate:
         call_count = 0
         call_count_lock = threading.Lock()
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             nonlocal call_count
             with call_count_lock:
                 call_count += 1
@@ -564,7 +564,7 @@ class TestEvaluate:
         ]
         scorers = [MockUnsupervisedScorer(), MockSupervisedScorer()]
 
-        def inference_fn(inputs: dict[str, Any]) -> str:
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
         results = evaluate(

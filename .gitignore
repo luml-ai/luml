@@ -1,3 +1,4 @@
+/.mcp.json
 wasm/packages/dfs_webworker/dfs_webworker/prompt_optimization/serialization/__fnnx_autogen_content.py
 wasm/test_*.py
 /backend/.env
@@ -22,3 +23,4 @@ node_modules
 /lumlflow/.idea/
 /lumlflow/.env
 luml-agent/uv.lock
+/codie.bash

@@ -451,7 +451,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         )
         ```
         """
-        params = {
+        params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
         }
@@ -952,7 +952,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
 
         Args:
             artifact_id: ID of the artifact to update.
-            file_name: Deprecated. Has no effect and will be removed in a future version.
+            file_name: Deprecated. Has no effect and will be removed in a future version
             name: New model name.
             description: New description.
             tags: New list of tags.
@@ -1045,8 +1045,8 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         """
         if file_name is not None:
             warnings.warn(
-                "The 'file_name' parameter in artifacts.update() is deprecated and has no effect. "
-                "It will be removed in a future version.",
+                "The 'file_name' parameter in artifacts.update() is deprecated "
+                "and has no effect. It will be removed in a future version.",
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -1444,7 +1444,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
 
-        params = {"limit": limit, "order": order.value}
+        params: dict[str, Any] = {"limit": limit, "order": order.value}
         if start_after:
             params["cursor"] = start_after
         if sort_by:
@@ -1975,7 +1975,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
 
         Args:
             artifact_id: ID of the artifact to update.
-            file_name: Deprecated. Has no effect and will be removed in a future version.
+            file_name: Deprecated. Has no effect and will be removed in a future version
             name: New model name.
             description: New description.
             tags: New list of tags.
@@ -2011,8 +2011,8 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         """
         if file_name is not None:
             warnings.warn(
-                "The 'file_name' parameter in artifacts.update() is deprecated and has no effect. "
-                "It will be removed in a future version.",
+                "The 'file_name' parameter in artifacts.update() is deprecated "
+                "and has no effect. It will be removed in a future version.",
                 DeprecationWarning,
                 stacklevel=2,
             )

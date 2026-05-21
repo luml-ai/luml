@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING, Any, Literal
 from warnings import warn
 
 import numpy as np  # type: ignore[import-not-found]
-from fnnx.extras.builder import PyfuncBuilder
-from fnnx.extras.pydantic_models.manifest import NDJSON
+from fnnx.extras.builder import PyfuncBuilder  # type: ignore[import-untyped]
+from fnnx.extras.pydantic_models.manifest import NDJSON  # type: ignore[import-untyped]
 
 from luml._constants import FNNX_PRODUCER_NAME
 from luml.artifacts.model import ModelReference
@@ -15,7 +15,7 @@ from luml.utils.imports import get_version
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
-    from sklearn.base import BaseEstimator
+    from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
 
 try:
     import pandas as pd  # type: ignore[import-untyped]
@@ -49,6 +49,7 @@ def _add_io(
     estimator: "BaseEstimator",
     inputs: Any,  # noqa: ANN401
 ) -> None:
+    x: Any
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
@@ -203,8 +204,8 @@ def save_sklearn(  # noqa: C901
     )
     ```
     """
-    import cloudpickle
-    from sklearn.base import BaseEstimator
+    import cloudpickle  # type: ignore[import-untyped]
+    from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
 
     if not isinstance(estimator, BaseEstimator):
         raise TypeError(

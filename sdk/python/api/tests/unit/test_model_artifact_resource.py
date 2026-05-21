@@ -426,7 +426,7 @@ async def test_async_upload_forwards_on_progress(
     resource = AsyncArtifactResource(mock_async_client)
 
     with (
-        patch("lum_api.resources.artifacts.ModelFileHandler") as mock_file_handler,
+        patch("luml_api.resources.artifacts.ModelFileHandler") as mock_file_handler,
         patch(
             "luml_api.resources.artifacts.AsyncUploadService"
         ) as mock_upload_service_cls,

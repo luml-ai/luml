@@ -13,7 +13,7 @@ from luml.artifacts.dataset._manifest import (
 from luml.artifacts.dataset._reference import DatasetReference
 
 if TYPE_CHECKING:
-    import datasets
+    import datasets  # type: ignore[import-untyped]
 
 
 def save_hf_dataset(
@@ -27,7 +27,7 @@ def save_hf_dataset(
     output_path: str | None = None,
 ) -> DatasetReference:
     try:
-        import datasets
+        import datasets  # type: ignore[import-untyped]
     except ImportError:
         msg = (
             "The 'datasets' library is required for HuggingFace dataset packaging. "
