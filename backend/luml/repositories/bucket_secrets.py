@@ -60,8 +60,10 @@ class BucketSecretRepository(RepositoryBase, CrudMixin):
                 select(BucketSecretOrm).where(BucketSecretOrm.id == secret.id)
             )
             db_secret = result.scalar_one_or_none()
+
             if not db_secret:
                 return None
+
             update_data = secret.model_dump(exclude_unset=True, exclude={"type"})
             if db_secret.type == BucketType.S3:
                 if secret.access_key is not None:

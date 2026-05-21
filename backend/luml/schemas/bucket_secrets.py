@@ -68,7 +68,7 @@ class S3BucketSecretOut(BaseModel, BaseOrmConfig):
 
 
 class BucketSecretUpdateIn(BaseModel):
-    type: BucketType | None = None
+    type: BucketType | None = Field(default=None, deprecated=True)
     endpoint: str | None = None
     bucket_name: str | None = None
     access_key: str | None = None
@@ -88,6 +88,7 @@ class BucketSecretUpdateIn(BaseModel):
 
 class BucketSecretUpdate(BucketSecretUpdateIn):
     id: UUID
+    type: BucketType = BucketType.S3
 
 
 class _AzureBucketSecretBase(BaseModel):

@@ -11,6 +11,7 @@ from luml.infra.exceptions import (
     NotFoundError,
 )
 from luml.schemas.bucket_secrets import (
+    AzureBucketSecret,
     AzureBucketSecretCreate,
     AzureBucketSecretCreateIn,
     AzureBucketSecretOut,
@@ -283,12 +284,17 @@ async def test_get_bucket_secret_not_found(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_bucket_secret(
     mock_check_permissions: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -299,6 +305,15 @@ async def test_update_bucket_secret(
         id=secret_id,
         endpoint="s3.amazonaws.com",
         bucket_name="updated-bucket",
+    )
+    existing = S3BucketSecret(
+        id=secret_id,
+        organization_id=organization_id,
+        region="us-east-1",
+        endpoint="original-endpoint",
+        bucket_name="original-bucket",
+        created_at=datetime.datetime.now(),
+        updated_at=None,
     )
     expected = S3BucketSecretOut(
         id=secret_id,
@@ -311,6 +326,7 @@ async def test_update_bucket_secret(
         updated_at=datetime.datetime.now(),
     )
 
+    mock_get_bucket_secret.return_value = existing
     mock_update_bucket_secret.return_value = expected
 
     secret = await handler.update_bucket_secret(
@@ -318,8 +334,8 @@ async def test_update_bucket_secret(
     )
 
     assert secret == expected
-    assert secret_update.id == secret_id
-    mock_update_bucket_secret.assert_awaited_once_with(secret_update)
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_update_bucket_secret.assert_awaited_once()
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
     )
@@ -330,12 +346,17 @@ async def test_update_bucket_secret(
     new_callable=AsyncMock,
 )
 @patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
     "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_update_bucket_secret_s3_not_unique(
     mock_check_permissions: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -344,11 +365,19 @@ async def test_update_bucket_secret_s3_not_unique(
 
     secret_update = BucketSecretUpdate(
         id=secret_id,
-        type=BucketType.AZURE,
         endpoint="DefaultEndpointsProtocol=https;AccountName=testbucket;AccountKey=+l0j8/86NqqQbn8oZReRUDCEkmGLBJS+AStrrQv9Q==;EndpointSuffix=core.windows.net",
         bucket_name="test-bucket",
     )
+    existing = AzureBucketSecret(
+        id=secret_id,
+        organization_id=organization_id,
+        endpoint="original-endpoint",
+        bucket_name="original-bucket",
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+    )
 
+    mock_get_bucket_secret.return_value = existing
     mock_update_bucket_secret.side_effect = DatabaseConstraintError(status_code=409)
 
     with pytest.raises(
@@ -360,14 +389,19 @@ async def test_update_bucket_secret_s3_not_unique(
         )
 
     assert error.value.status_code == 409
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
     )
-    mock_update_bucket_secret.assert_awaited_once_with(secret_update)
+    mock_update_bucket_secret.assert_awaited_once()
 
 
 @patch(
     "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
     new_callable=AsyncMock,
 )
 @patch(
@@ -377,6 +411,7 @@ async def test_update_bucket_secret_s3_not_unique(
 @pytest.mark.asyncio
 async def test_update_bucket_secret_not_found(
     mock_check_permissions: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
     mock_update_bucket_secret: AsyncMock,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
@@ -389,6 +424,108 @@ async def test_update_bucket_secret_not_found(
         bucket_name="updated-bucket",
     )
 
+    mock_get_bucket_secret.return_value = None
+
+    with pytest.raises(NotFoundError, match="Secret not found") as error:
+        await handler.update_bucket_secret(
+            user_id, organization_id, secret_id, secret_update
+        )
+
+    assert error.value.status_code == 404
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_update_bucket_secret.assert_not_called()
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
+    )
+
+
+@patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_bucket_secret_azure_forbidden_fields(
+    mock_check_permissions: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_update_bucket_secret: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    secret_update = BucketSecretUpdate(
+        id=secret_id,
+        endpoint="blob.core.windows.net",
+        bucket_name="test-bucket",
+        access_key="should-not-be-here",
+    )
+    existing = AzureBucketSecret(
+        id=secret_id,
+        organization_id=organization_id,
+        endpoint="original-endpoint",
+        bucket_name="original-bucket",
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+    )
+
+    mock_get_bucket_secret.return_value = existing
+
+    with pytest.raises(ApplicationError) as error:
+        await handler.update_bucket_secret(
+            user_id, organization_id, secret_id, secret_update
+        )
+
+    assert error.value.status_code == 400
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_update_bucket_secret.assert_not_called()
+
+
+@patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.update_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.bucket_secrets.BucketSecretRepository.get_bucket_secret",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.bucket_secrets.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_bucket_secret_toctou_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_get_bucket_secret: AsyncMock,
+    mock_update_bucket_secret: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    secret_update = BucketSecretUpdate(
+        id=secret_id,
+        endpoint="s3.amazonaws.com",
+        bucket_name="updated-bucket",
+    )
+    existing = S3BucketSecret(
+        id=secret_id,
+        organization_id=organization_id,
+        region="us-east-1",
+        endpoint="original-endpoint",
+        bucket_name="original-bucket",
+        created_at=datetime.datetime.now(),
+        updated_at=None,
+    )
+
+    mock_get_bucket_secret.return_value = existing
     mock_update_bucket_secret.return_value = None
 
     with pytest.raises(NotFoundError, match="Secret not found") as error:
@@ -397,11 +534,8 @@ async def test_update_bucket_secret_not_found(
         )
 
     assert error.value.status_code == 404
-    assert secret_update.id == secret_id
-    mock_update_bucket_secret.assert_awaited_once_with(secret_update)
-    mock_check_permissions.assert_awaited_once_with(
-        organization_id, user_id, Resource.BUCKET_SECRET, Action.UPDATE
-    )
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
+    mock_update_bucket_secret.assert_awaited_once()
 
 
 @patch(
@@ -757,19 +891,21 @@ async def test_get_bucket_multipart_urls_not_found(
     mock_get_bucket_secret: AsyncMock,
     mock_create_storage_client: Mock,
 ) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     secret_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
 
-    secret = BucketSecretUpdate(
-        id=secret_id,
-        bucket_name="new-bucket-name",
-        access_key="new-access_key",
+    data = BucketMultipartUpload(
+        bucket_id=secret_id,
+        bucket_location="orbit/collection/model.tar.gz",
+        size=10485760,
+        upload_id="upload_id",
     )
 
     mock_get_bucket_secret.return_value = None
 
     with pytest.raises(NotFoundError) as error:
-        await handler.get_existing_bucket_urls(secret)
+        await handler.get_bucket_multipart_urls(user_id, data)
 
     assert error.value.status_code == 404
-    mock_get_bucket_secret.assert_awaited_once_with(secret.id)
+    mock_get_bucket_secret.assert_awaited_once_with(secret_id)
     mock_create_storage_client.assert_not_called()
