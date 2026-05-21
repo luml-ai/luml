@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import hashlib
 import logging
 from urllib.parse import urlparse
@@ -194,13 +193,9 @@ class DeployTask(Task):
                         await self._handle_deploying_error(container, task.id, dep_id, str(e))
                         return
 
-                with contextlib.suppress(Exception):
-                    response = await client._session.get(
-                        f"http://sat-{dep_id}:{config.MODEL_SERVER_PORT}/healthz", timeout=5.0
-                    )
-                    if response.status_code == 200:
-                        health_ok = True
-                        break
+                if await client.check_health_once(dep_id):
+                    health_ok = True
+                    break
 
                 await asyncio.sleep(1)
 

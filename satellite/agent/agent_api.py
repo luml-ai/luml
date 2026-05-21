@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.schemas import (
@@ -97,6 +98,8 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
     ) -> dict:
         try:
             return await ms_handler.model_compute(deployment_id, body)
+        except ModelServerError as error:
+            raise HTTPException(status_code=error.status_code, detail=error.detail) from error
         except Exception as error:
             raise HTTPException(status_code=500, detail=f"Compute failed: {str(error)}") from error
 

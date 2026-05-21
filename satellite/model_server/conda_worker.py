@@ -57,9 +57,8 @@ try:
         try:
             result = await handler.compute_async(inputs, dynamic_attributes)
         except NotImplementedError:
+            logger.info("compute_async not implemented, falling back to sync compute")
             result = handler.compute(inputs, dynamic_attributes)
-        except Exception:
-            raise
         return to_jsonable(result)
 
     openapi_gen = None
@@ -101,6 +100,41 @@ try:
                 status_code=500, detail=f"Failed to get manifest: {str(error)}"
             ) from error
 
+    def _extract_upstream_status(error: BaseException) -> tuple[int, str] | None:
+        response = getattr(error, "response", None)
+        if response is not None:
+            status_code = getattr(response, "status_code", None)
+            if isinstance(status_code, int) and 400 <= status_code < 600:
+                body: str | None = None
+                text = getattr(response, "text", None)
+                if isinstance(text, str) and text:
+                    body = text
+                else:
+                    try:
+                        raw = response.json()  # type: ignore[union-attr]
+                        body = json.dumps(raw)
+                    except Exception:
+                        body = None
+                detail = f"{str(error)}: {body}" if body else str(error)
+                return status_code, detail
+
+        status_code = getattr(error, "status_code", None)
+        if isinstance(status_code, int) and 400 <= status_code < 600:
+            return status_code, str(error)
+
+        http_status = getattr(error, "http_status", None)
+        if isinstance(http_status, int) and 400 <= http_status < 600:
+            return http_status, str(error)
+
+        grpc_code = getattr(error, "code", None)
+        if callable(grpc_code):
+            grpc_code = grpc_code()
+        grpc_to_http = {429: 429, 8: 429, 7: 403, 16: 401, 5: 404, 3: 400, 13: 500, 14: 503}
+        if isinstance(grpc_code, int) and grpc_code in grpc_to_http:
+            return grpc_to_http[grpc_code], str(error)
+
+        return None
+
     @app.post("/compute")
     async def compute(request_data: dict) -> dict[str, Any]:  # noqa: ANN401
         inputs = request_data.get("inputs")
@@ -110,7 +144,13 @@ try:
         try:
             return await compute_model(inputs, request_data.get("dynamic_attributes") or {})
         except Exception as error:
-            raise HTTPException(status_code=500, detail=str(error)) from error
+            upstream = _extract_upstream_status(error)
+            if upstream is not None:
+                status_code, detail = upstream
+                raise HTTPException(status_code=status_code, detail=detail) from error
+            raise HTTPException(
+                status_code=500, detail=f"{type(error).__name__}: {error}"
+            ) from error
 
     if __name__ == "__main__":
         logger.info("Starting server...")
