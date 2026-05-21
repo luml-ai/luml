@@ -52,10 +52,10 @@
   "peerDependencies": {
     "@primevue/themes": "^4.3.9",
     "arquero": "^7.2.0",
-    "dompurify": "^3.2.7",
+    "dompurify": "^3.4.2",
     "github-markdown-css": "^5.8.1",
     "lucide-vue-next": "^0.460.0",
-    "marked": "^16.2.0",
+    "marked": "^17.0.0",
     "pinia": "^2.2.6",
     "primevue": "^4.4.1",
     "vue": "^3.5.12"
