@@ -130,7 +130,7 @@ class Orbit(BaseModel):
     updated_at: str | None = None
 
 
-class OrbitBase(BaseModel, BaseOrmConfig):
+class OrbitBase(BaseModel):
     id: UUID
     name: str
     created_at: str
@@ -169,6 +169,12 @@ def model_validate_bucket_secret(bucket: dict) -> S3BucketSecret | AzureBucketSe
     if bucket.get("type") == BucketType.S3:
         return S3BucketSecret.model_validate(bucket)
     return AzureBucketSecret.model_validate(bucket)
+
+
+class BucketSecretUrls(BaseModel):
+    presigned_url: str
+    download_url: str
+    delete_url: str
 
 
 class Collection(BaseModel):
