@@ -216,7 +216,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             self.send_error_response(e.status_code, e.error_code, e.message)
             return False
 
-    def do_OPTIONS(self) -> None:  # noqa N802
+    def do_OPTIONS(self) -> None:  # noqa: N802
         if self.cors_enabled:
             self.send_response(200)
             self.add_cors_headers()
@@ -225,7 +225,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         else:
             self.send_error_response(405, "MethodNotAllowed", "Method not allowed")
 
-    def do_GET(self) -> None:  # noqa N802
+    def do_GET(self) -> None:  # noqa: N802
         if not self.check_auth():
             return
 
@@ -294,7 +294,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
             while chunk := f.read(8192):
                 self.wfile.write(chunk)
 
-    def do_PUT(self) -> None:  # noqa N802
+    def do_PUT(self) -> None:  # noqa: N802
         if not self.check_auth():
             return
 
@@ -327,7 +327,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
         self.add_cors_headers()
         self.end_headers()
 
-    def do_POST(self) -> None:  # noqa N802
+    def do_POST(self) -> None:  # noqa: N802
         if not self.check_auth():
             return
 
@@ -349,7 +349,7 @@ class S3ProxyHandler(BaseHTTPRequestHandler):
 
         self.send_error_response(400, "InvalidRequest", "Unknown POST operation")
 
-    def do_DELETE(self) -> None:  # noqa N802
+    def do_DELETE(self) -> None:  # noqa: N802
         if not self.check_auth():
             return
 
@@ -518,12 +518,12 @@ def run_server(
         debug=debug,
     )
 
-    print(f"S3 Proxy listening on http://{host}:{port}")  # noqa T201
-    print(f"Storage root: {storage_root}")  # noqa T201
-    print("Press Ctrl+C to stop.")  # noqa T201
+    print(f"S3 Proxy listening on http://{host}:{port}")  # noqa: T201
+    print(f"Storage root: {storage_root}")  # noqa: T201
+    print("Press Ctrl+C to stop.")  # noqa: T201
 
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nShutting down S3 Proxy...")  # noqa T201
+        print("\nShutting down S3 Proxy...")  # noqa: T201
         httpd.shutdown()
