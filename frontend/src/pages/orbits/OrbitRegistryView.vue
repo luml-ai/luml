@@ -32,15 +32,15 @@
   </div>
 
   <CollectionCreator
-    :organization-id="route.params.organizationId as string"
-    :orbit-id="route.params.id as string"
+    :organization-id="organizationId"
+    :orbit-id="orbitId"
     :visible="collectionsStore.creatorVisible"
     @update:visible="updateCreatorVisible"
   />
 </template>
 
 <script setup lang="ts">
-import { onUnmounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Skeleton, useToast } from 'primevue'
 import { useAuthStore } from '@/stores/auth'
@@ -73,6 +73,9 @@ const {
 
 const loading = ref(false)
 
+const organizationId = computed(() => route.params.organizationId as string)
+const orbitId = computed(() => route.params.id as string)
+
 function updateCreatorVisible(visible: boolean | undefined) {
   visible ? collectionsStore.showCreator() : collectionsStore.hideCreator()
 }
@@ -82,14 +85,12 @@ function onSearch(value: string | undefined) {
 }
 
 async function getFirstCollectionsPage() {
-  const organizationId = route.params.organizationId as string
-  const orbitId = route.params.id as string
-  if (!organizationId || !orbitId) return
+  if (!organizationId.value || !orbitId.value) return
 
   try {
     loading.value = true
     reset()
-    setRequestInfo({ organizationId, orbitId })
+    setRequestInfo({ organizationId: organizationId.value, orbitId: orbitId.value })
     await getInitialPage()
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load collections'))

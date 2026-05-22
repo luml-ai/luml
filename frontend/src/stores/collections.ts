@@ -34,7 +34,7 @@ export const useCollectionsStore = defineStore('collections', () => {
       info.orbitId,
       payload,
     )
-    setCollectionsList([...collectionsList.value, collection])
+    setCollectionsList([collection, ...collectionsList.value])
   }
 
   async function updateCollection(collectionId: string, payload: OrbitCollectionCreator) {
