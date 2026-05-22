@@ -51,7 +51,13 @@
       >
         <div class="details__label">Manifest</div>
         <div class="details__value">
-          <Button variant="text" size="small" severity="secondary" class="manifest-button" @click="showManifest">
+          <Button
+            variant="text"
+            size="small"
+            severity="secondary"
+            class="manifest-button"
+            @click="showManifest"
+          >
             Show
           </Button>
         </div>
