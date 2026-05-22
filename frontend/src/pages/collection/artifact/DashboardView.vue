@@ -51,7 +51,7 @@
       >
         <div class="details__label">Manifest</div>
         <div class="details__value">
-          <Button variant="text" size="small" severity="secondary" @click="showManifest">
+          <Button variant="text" size="small" severity="secondary" class="manifest-button" @click="showManifest">
             Show
           </Button>
         </div>
@@ -150,5 +150,8 @@ function showManifest() {
 .tag {
   font-weight: 400;
   padding: 2px 4px;
+}
+.manifest-button {
+  margin-left: -10px;
 }
 </style>
