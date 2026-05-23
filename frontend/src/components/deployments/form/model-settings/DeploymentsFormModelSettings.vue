@@ -323,6 +323,14 @@ watch(() => modelId.value, onModelIdChange, { immediate: true })
 
 watch(selectedModel, onSelectedModelChange, { immediate: true })
 
+watch(
+  collectionId,
+  () => {
+    modelId.value = null
+  },
+  { immediate: true },
+)
+
 onBeforeMount(async () => {
   await getSecrets()
   if (props.initialCollectionId) {
