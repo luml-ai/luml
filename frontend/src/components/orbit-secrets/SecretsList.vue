@@ -3,7 +3,7 @@
     <div class="simple-table">
       <div class="simple-table__header">
         <div class="simple-table__row">
-          <div>Secret name</div>
+          <div>Name</div>
           <div>Key</div>
           <div>Tags</div>
           <div>Updated</div>
