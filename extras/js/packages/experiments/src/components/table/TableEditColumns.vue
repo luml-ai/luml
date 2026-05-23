@@ -1,5 +1,5 @@
 <template>
-  <OverlayBadge v-if="hideColumnsCount" :value="hideColumnsCount">
+  <OverlayBadge v-if="hideColumnsCount" :value="hideColumnsCount" class="badge-wrapper">
     <Button
       severity="secondary"
       :rounded="roundedButton"
@@ -184,6 +184,11 @@ watch(
 
 .divider {
   margin-top: 0;
+}
+
+.badge-wrapper {
+  position: relative;
+  z-index: 10;
 }
 
 @media (max-width: 768px) {
