@@ -33,16 +33,30 @@
       </Button>
     </div>
   </div>
+
+  <TrackSettingsPanel
+    v-model:visible="isSettingsVisible"
+    :data="currentData"
+    :stages="stages"
+    :stages-in-use="stagesInUse"
+    @track-updated="onTrackUpdated"
+    @track-deleted="onTrackDeleted"
+    @stages-changed="loadStages"
+  />
 </template>
 
 <script setup lang="ts">
-import type { ITrack } from '@/lib/api/orbit-tracks/interfaces'
-import { Button } from 'primevue'
+import type { ITrack, ITrackStage } from '@/lib/api/orbit-tracks/interfaces'
+import { Button, useToast } from 'primevue'
 import { History, Database, Settings, CircuitBoard, FileChartColumn, FlaskConical } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { getLastUpdateText } from '@/helpers/helpers'
+import { api } from '@/lib/api'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { useTracksStore } from '@/stores/tracks'
 import UiId from '@/components/ui/UiId.vue'
+import TrackSettingsPanel from './TrackSettingsPanel.vue'
 
 type Props = {
   data: ITrack
@@ -52,8 +66,13 @@ type Props = {
 const props = defineProps<Props>()
 
 const router = useRouter()
+const toast = useToast()
+const tracksStore = useTracksStore()
 
 const isSettingsVisible = ref(false)
+const currentData = ref<ITrack>(props.data)
+const stages = ref<ITrackStage[]>([])
+const stagesInUse = ref<Set<string>>(new Set())
 
 const TRACK_TYPE_CONFIG: Record<string, { label: string; icon: typeof CircuitBoard }> = {
   model: { label: 'Model', icon: CircuitBoard },
@@ -62,8 +81,54 @@ const TRACK_TYPE_CONFIG: Record<string, { label: string; icon: typeof CircuitBoa
 }
 
 const updatedText = computed(() => {
-  return getLastUpdateText(props.data.updated_at || props.data.created_at)
+  return getLastUpdateText(currentData.value.updated_at || currentData.value.created_at)
 })
+
+async function loadStages() {
+  try {
+    const response = await tracksStore.listStages(props.data.id)
+    stages.value = response.items
+
+    const inUseIds = new Set<string>()
+    try {
+      const entries = await api.orbitTracks.listEntries(
+        tracksStore.requestInfo.organizationId,
+        tracksStore.requestInfo.orbitId,
+        props.data.id,
+        { page_size: 100 },
+      )
+      for (const entry of entries.items) {
+        if (entry.stage?.id) {
+          inUseIds.add(entry.stage.id)
+        }
+      }
+    } catch {
+      // If we can't load entries, assume no stages are in use
+    }
+    stagesInUse.value = inUseIds
+  } catch {
+    toast.add(simpleErrorToast('Failed to load stages'))
+  }
+}
+
+watch(isSettingsVisible, (val) => {
+  if (val) {
+    loadStages()
+  }
+})
+
+function onTrackUpdated(track: ITrack) {
+  currentData.value = track
+}
+
+function onTrackDeleted() {
+  router.push({
+    name: 'orbit-tracks',
+    params: {
+      id: props.data.orbit_id,
+    },
+  })
+}
 
 function goToTrack() {
   router.push({

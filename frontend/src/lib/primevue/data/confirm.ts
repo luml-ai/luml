@@ -189,6 +189,34 @@ export const deleteRepositoryConfirmOptions = (
   accept,
 })
 
+export const deleteTrackConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This action is permanent and cannot be undone.',
+  header: 'Delete track?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete track',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'The artifact will be removed from this track.',
+  header: 'Unlink artifact?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'unlink',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
 export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions => ({
   message: 'Are you sure you want to exit this page?',
   header: 'Are you sure?',
