@@ -1,0 +1,12 @@
+import type { Meta, StoryObj } from '@storybook/vue3';
+import { ExperimentSnapshot } from '@luml/experiments';
+import '@luml/experiments/style.css';
+declare const meta: Meta<typeof ExperimentSnapshot>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export declare const SingleModel: Story;
+export declare const MultipleModels: Story;
+export declare const ManyMetrics: Story;
+export declare const NoStaticParams: Story;
+export declare const NoDynamicMetrics: Story;
+export declare const DifferentDatasetVersions: Story;

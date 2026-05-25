@@ -890,14 +890,14 @@ src/components/orbits/tabs/tracks/
   - [x] Update `luml/handlers/artifacts.py` artifact delete handler to call `repo.has_entries_for_artifact` and raise `409` if true
   - [x] Write unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from the Scenarios section
 
-- [ ] **Task 4: Frontend API client + Pinia store + composables**
-  - [ ] Add `track: Omit<PermissionEnum, PermissionEnum.deploy>` to `OrbitPermissions` interface in `frontend/src/lib/api/api.interfaces.ts`
-  - [ ] Create `frontend/src/lib/api/orbit-tracks/interfaces.ts` — TypeScript interfaces for all response/request shapes (including `ITrackStageConflict` for 409 body)
-  - [ ] Create `frontend/src/lib/api/orbit-tracks/index.ts` — `OrbitTracksApi` class with all methods including `listArtifactEntries(orgId, orbitId, artifactId)` and `patchEntry` accepting optional `force` param
-  - [ ] Wire `orbitTracks: new OrbitTracksApi(...)` into `ApiClass` in `frontend/src/lib/api/api.ts`
-  - [ ] Create `frontend/src/stores/tracks.ts` — Pinia store covering tracks/entries/stages CRUD; `artifactEntries` ref for ArtifactTracksWidget
-  - [ ] Create `frontend/src/hooks/useTracksList.ts` — composable for track cards (load, reset)
-  - [ ] Create `frontend/src/hooks/useTrackEntriesList.ts` — composable for entries table with cursor pagination (load, next page)
+- [x] **Task 4: Frontend API client + Pinia store + composables**
+  - [x] Add `track: Omit<PermissionEnum, PermissionEnum.deploy>` to `OrbitPermissions` interface in `frontend/src/lib/api/api.interfaces.ts`
+  - [x] Create `frontend/src/lib/api/orbit-tracks/interfaces.ts` — TypeScript interfaces for all response/request shapes (including `ITrackStageConflict` for 409 body)
+  - [x] Create `frontend/src/lib/api/orbit-tracks/index.ts` — `OrbitTracksApi` class with all methods including `listArtifactEntries(orgId, orbitId, artifactId)` and `patchEntry` accepting optional `force` param
+  - [x] Wire `orbitTracks: new OrbitTracksApi(...)` into `ApiClass` in `frontend/src/lib/api/api.ts`
+  - [x] Create `frontend/src/stores/tracks.ts` — Pinia store covering tracks/entries/stages CRUD; `artifactEntries` ref for ArtifactTracksWidget
+  - [x] Create `frontend/src/hooks/useTracksList.ts` — composable for track cards (load, reset)
+  - [x] Create `frontend/src/hooks/useTrackEntriesList.ts` — composable for entries table with cursor pagination (load, next page)
 
 - [ ] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
   - [ ] Add `orbit-tracks` child route to the orbit block in `frontend/src/router/index.ts`

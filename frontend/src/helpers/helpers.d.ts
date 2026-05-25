@@ -1,0 +1,30 @@
+import type { Validator } from '@/lib/api/satellites/interfaces';
+import { Tasks, type ClassificationMetrics, type RegressionMetrics, type TrainingData } from '@/lib/data-processing/interfaces';
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService';
+import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces';
+import { z } from 'zod';
+export declare const getMetrics: (data: Pick<TrainingData<ClassificationMetrics | RegressionMetrics>, "test_metrics" | "train_metrics">, task: Tasks, metricsType: "test_metrics" | "train_metrics") => string[];
+export declare const getFormattedMetric: (num: number | null | undefined) => string;
+export declare const getMetricsCards: (testValues: string[], trainingValues: string[], tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) => {
+    title: string;
+    items: {
+        value: string;
+    }[];
+}[];
+export declare const toPercent: (float: number) => number;
+export declare const fixNumber: (float: number | null | undefined, decimals: number) => string;
+export declare const convertObjectToCsvBlob: (data: object) => Blob;
+export declare const formatNumberScientific: (num: number, significantDigits?: number) => string;
+export declare const cutStringOnMiddle: (string: string, length?: number) => string;
+export declare const parseProviderSettingsToObject: (settings: ProviderSetting[] | null) => Record<string, string>;
+export declare const getSha256: (buffer: ArrayBuffer) => Promise<string>;
+export declare const getSizeText: (size: number) => string;
+export declare const downloadFileFromBlob: (blob: Blob, fileName: string) => void;
+export declare const getLastUpdateText: (date: string | number | Date) => string;
+export declare const getErrorMessage: (error: any, message?: string) => any;
+export declare const getNumberOrString: (string: string | number) => string | number;
+export declare function isYamlLike(text: string): boolean;
+export declare function jsonToYaml(obj: any, indent?: number): string;
+export declare function getSatelliteValidator(config: Validator): any;
+export declare function combineValidators(validators: z.ZodTypeAny[], required: boolean): z.ZodTypeAny;
+export declare const getArtifactColorByIndex: (index: number) => string;

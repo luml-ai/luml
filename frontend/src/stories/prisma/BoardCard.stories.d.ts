@@ -1,0 +1,13 @@
+import type { Meta, StoryObj } from '@storybook/vue3';
+import BoardCard from '@/components/prisma/board/BoardCard.vue';
+import './_mockApi';
+declare const meta: Meta<typeof BoardCard>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export declare const TaskPending: Story;
+export declare const TaskRunning: Story;
+export declare const TaskWaitingInput: Story;
+export declare const TaskSucceeded: Story;
+export declare const TaskFailed: Story;
+export declare const TaskMerged: Story;
+export declare const Workflow: Story;

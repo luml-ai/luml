@@ -44,6 +44,7 @@ import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
 import { DeploymentsApi } from './deployments'
 import { PrismaApi } from './prisma'
+import { OrbitTracksApi } from './orbit-tracks'
 
 export class ApiClass {
   private api: AxiosInstance
@@ -55,6 +56,7 @@ export class ApiClass {
   public orbitSecrets: OrbitSecretsApi
   public deployments: DeploymentsApi
   public dataAgent: PrismaApi
+  public orbitTracks: OrbitTracksApi
 
   constructor() {
     this.api = axios.create({
@@ -73,6 +75,7 @@ export class ApiClass {
     this.orbitSecrets = new OrbitSecretsApi(this.api)
     this.deployments = new DeploymentsApi(this.api)
     this.dataAgent = new PrismaApi()
+    this.orbitTracks = new OrbitTracksApi(this.api)
   }
 
   public async signUp(data: IPostSignupRequest): Promise<IPostSignupResponse> {

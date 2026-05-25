@@ -1,0 +1,11 @@
+import type { Meta, StoryObj } from '@storybook/vue3';
+import BoardColumn from '@/components/prisma/board/BoardColumn.vue';
+import './_mockApi';
+declare const meta: Meta<typeof BoardColumn>;
+export default meta;
+type Story = StoryObj<typeof meta>;
+export declare const Pending: Story;
+export declare const Running: Story;
+export declare const Completed: Story;
+export declare const Merged: Story;
+export declare const Empty: Story;
