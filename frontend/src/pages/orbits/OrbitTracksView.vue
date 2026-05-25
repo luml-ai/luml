@@ -1,8 +1,8 @@
 <template>
   <div class="page-header">
     <div class="page-header__left">
-      <Library :size="20" class="page-header__icon" />
-      <h1 class="page-header__title">Tracks</h1>
+      <Folders :size="20" class="page-header__icon" />
+      <h1 class="page-header__title">Registry</h1>
     </div>
     <d-button
       v-if="canCreate"
@@ -15,12 +15,14 @@
     </d-button>
   </div>
 
+  <RegistryTabs />
+
   <div v-if="loading" class="loading-container">
     <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
   </div>
 
   <div v-else-if="tracksList.length === 0" class="welcome">
-    <Library :size="35" color="var(--p-primary-color)" />
+    <TrainTrack :size="35" color="var(--p-primary-color)" />
     <h3 class="welcome__label">Get started with Tracks</h3>
     <div class="welcome__text">
       <p>Create named artifact registries with versioned entries and lifecycle stages.</p>
@@ -87,7 +89,7 @@
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { IconField, InputText, InputIcon, Select, Skeleton, useToast, VirtualScroller } from 'primevue'
-import { Library, Plus, Search } from 'lucide-vue-next'
+import { Folders, Plus, Search, TrainTrack } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useOrbitsStore } from '@/stores/orbits'
 import { useTracksStore } from '@/stores/tracks'
@@ -96,6 +98,7 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import TrackCard from '@/components/orbits/tabs/tracks/TrackCard.vue'
 import TrackCreator from '@/components/orbits/tabs/tracks/TrackCreator.vue'
+import RegistryTabs from '@/components/orbits/tabs/RegistryTabs.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()

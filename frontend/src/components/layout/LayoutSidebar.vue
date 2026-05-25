@@ -114,6 +114,7 @@ const githubStarsCount = ref(null)
 const ROUTES_REQUIRING_ORG_ID = ['organization', 'collection']
 const ORBIT_ROUTES = Object.values(TAB_TO_ROUTE)
 const DEPLOYMENTS_GROUP = ['orbit-deployments', 'orbit-secrets']
+const REGISTRY_GROUP = ['orbit-registry', 'orbit-tracks']
 
 const getFormattedGithubStars = computed(() => {
   if (githubStarsCount.value === null) return null
@@ -129,6 +130,9 @@ function isActive(routeName: string): boolean {
   }
   if (routeName === 'orbit-deployments') {
     return DEPLOYMENTS_GROUP.includes(currentRouteName)
+  }
+  if (routeName === 'orbit-registry') {
+    return REGISTRY_GROUP.includes(currentRouteName)
   }
   return currentRouteName === routeName
 }

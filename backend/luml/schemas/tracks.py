@@ -19,11 +19,11 @@ class Track(BaseModel, BaseOrmConfig):
     orbit_id: UUID
     name: str
     artifact_type: ArtifactType
-    description: str | None
-    tags: list[str]
+    description: str | None = None
+    tags: list[str] | None = None
     created_by: UUID
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
     total_entries: int
 
 

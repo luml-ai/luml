@@ -11,10 +11,10 @@ export interface ITrack {
   name: string
   artifact_type: string
   description: string | null
-  tags: string[]
+  tags: string[] | null
   created_by: string
   created_at: string
-  updated_at: string
+  updated_at: string | null
   total_entries: number
 }
 

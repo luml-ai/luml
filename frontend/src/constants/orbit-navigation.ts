@@ -10,4 +10,5 @@ export const ROUTE_TO_TAB: Record<string, string> = {
   'orbit-deployments': 'deployments',
   'orbit-satellites': 'satellites',
   'orbit-secrets': 'deployments',
+  'orbit-tracks': 'registry',
 }

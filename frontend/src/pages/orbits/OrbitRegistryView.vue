@@ -15,6 +15,8 @@
     </d-button>
   </div>
 
+  <RegistryTabs />
+
   <div v-if="loading" class="loading-container">
     <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
   </div>
@@ -52,6 +54,7 @@ import CollectionsList from '@/components/orbits/tabs/registry/CollectionsList.v
 import CollectionCreator from '@/components/orbits/tabs/registry/CollectionCreator.vue'
 import CollectionsToolbar from '@/components/orbits/tabs/registry/CollectionsToolbar.vue'
 import CollectionsWelcome from '@/components/orbits/tabs/registry/CollectionsWelcome.vue'
+import RegistryTabs from '@/components/orbits/tabs/RegistryTabs.vue'
 import { Folders, Plus } from 'lucide-vue-next'
 
 const route = useRoute()
