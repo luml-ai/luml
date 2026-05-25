@@ -877,10 +877,10 @@ src/components/orbits/tabs/tracks/
   - [x] Add `tracks` relationship to `OrbitOrm` in `luml/models/orbit.py`
   - [x] Create `backend/migrations/versions/033_add_tracks_tables.py` — `upgrade()` creates `tracks`, `track_stages`, `track_entries` tables with all columns, FKs, indexes, and unique constraints; `downgrade()` drops in reverse order
 
-- [ ] **Task 2: Backend schemas + repository layer**
-  - [ ] Create `luml/schemas/tracks.py` with all Pydantic v2 schemas defined in the Design section (including `tags` in Track/TrackCreate/TrackUpdate)
-  - [ ] Create `luml/repositories/tracks.py` with all repository methods including `list_entries_for_artifact`, `has_entries_for_artifact`, and `list_entries` with pagination support
-  - [ ] Write integration tests in `tests/integration/repository/test_tracks.py` covering: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination
+- [x] **Task 2: Backend schemas + repository layer**
+  - [x] Create `luml/schemas/tracks.py` with all Pydantic v2 schemas defined in the Design section (including `tags` in Track/TrackCreate/TrackUpdate)
+  - [x] Create `luml/repositories/tracks.py` with all repository methods including `list_entries_for_artifact`, `has_entries_for_artifact`, and `list_entries` with pagination support
+  - [x] Write integration tests in `tests/integration/repository/test_tracks.py` covering: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination
 
 - [ ] **Task 3: Backend handlers + API routers**
   - [ ] Add `TRACK = "track"` to `Resource` enum in `luml/schemas/permissions.py`; add `Resource.TRACK` to all roles in `organization_permissions` and `orbit_permissions` per the Permissions table in the Design section
