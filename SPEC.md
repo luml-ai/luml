@@ -64,8 +64,8 @@ class TrackArtifactOrm(TimestampMixin, Base):
     stage:    Mapped["TrackStageOrm | None"]
 
 # DB constraint: UNIQUE(track_id, artifact_id)
-# Application-level uniqueness: (track_id, stage_id) WHERE stage_id IS NOT NULL
-#   enforced by clearing the previous holder in the PATCH handler rather than a DB constraint
+# DB partial unique index: UNIQUE(track_id, stage_id) WHERE stage_id IS NOT NULL
+#   enforced at DB level to prevent concurrent PATCH requests from assigning the same stage twice
 # Artifact deletion is BLOCKED (ON DELETE RESTRICT) while any track entry references it.
 # The artifact delete handler must check for track entries first and raise 409 if any exist.
 ```
@@ -73,13 +73,12 @@ class TrackArtifactOrm(TimestampMixin, Base):
 ### `TrackStageOrm`
 
 ```python
-class TrackStageOrm(Base):
+class TrackStageOrm(TimestampMixin, Base):
     __tablename__ = "track_stages"
 
-    id:         Mapped[uuid.UUID]      # PK, default uuid7
-    track_id:   Mapped[uuid.UUID]      # FK → tracks.id ON DELETE CASCADE, index=True
-    name:       Mapped[str]            # NOT NULL
-    created_at: Mapped[datetime]       # server_default=func.now()
+    id:       Mapped[uuid.UUID]      # PK, default uuid7
+    track_id: Mapped[uuid.UUID]      # FK → tracks.id ON DELETE CASCADE, index=True
+    name:     Mapped[str]            # NOT NULL
 
     track:   Mapped["TrackOrm"]
     entries: Mapped[list["TrackArtifactOrm"]]
@@ -111,7 +110,7 @@ class Track(BaseOrmConfig):
     id: UUID
     orbit_id: UUID
     name: str
-    artifact_type: str
+    artifact_type: ArtifactType
     description: str | None
     tags: list[str]
     created_by: UUID
@@ -195,7 +194,9 @@ Add `TRACK = "track"` to the `Resource` enum. Then add `Resource.TRACK` to every
 | `OrbitRole.ADMIN` | LIST, READ, CREATE, UPDATE, DELETE |
 | `OrbitRole.MEMBER` | LIST, READ, CREATE, UPDATE |
 
-Handlers use `Resource.TRACK` with the appropriate `Action` via `PermissionsHandler.check_permissions(...)`, identical to how `CollectionsHandler` uses `Resource.COLLECTION`.
+Handlers use `Resource.TRACK` with the appropriate per-endpoint `Action` via `PermissionsHandler.check_permissions(...)`, following the existing `CollectionHandler` pattern for `Resource.COLLECTION` (for example, list endpoints use `Action.LIST`).
+
+Also update `PermissionsHandler.get_orbit_permissions_by_role(...)` to include `Resource.TRACK` in the fixed set of resources it returns for orbit permissions (alongside `orbit`, `orbit_user`, `artifact`, `collection`, `satellite`, `orbit_secret`, and `deployment`), so orbit details sent to the frontend include `permissions.track`.
 
 ## Repository Layer (`luml/repositories/tracks.py`)
 
@@ -242,7 +243,8 @@ Follows `luml/handlers/collections.py` pattern: dependency-injected repositories
 | Method | Action |
 |--------|--------|
 | `create_track`, `add_entry`, `create_stage` | `Action.CREATE` |
-| `list_tracks`, `get_track`, `list_entries`, `list_stages` | `Action.READ` |
+| `list_tracks`, `list_entries`, `list_stages` | `Action.LIST` |
+| `get_track` | `Action.READ` |
 | `update_track`, `patch_entry`, `update_stage` | `Action.UPDATE` |
 | `delete_track`, `delete_entry`, `delete_stage` | `Action.DELETE` |
 
@@ -708,7 +710,7 @@ src/components/orbits/tabs/tracks/
 ## Scenario: Assign stage — free stage
 **Given** entry v2 has no stage; stage "Staging" exists and is unassigned
 **When** `PATCH /entries/{entry_id}` with `{ stage_id: <staging_id> }`
-**Then** `200`; entry has stage "Staging"; `response.warning` is null
+**Then** `200`; entry has stage "Staging"
 
 ## Scenario: Assign stage — stage already taken, no force
 **Given** entry v1 holds stage "Production"; entry v2 has no stage
@@ -723,7 +725,7 @@ src/components/orbits/tabs/tracks/
 ## Scenario: Remove stage from entry
 **Given** entry v3 holds stage "Staging"
 **When** `PATCH` entry v3 with `{ stage_id: null }`
-**Then** `200`; entry v3 stage = null; no warning; stage "Staging" is free
+**Then** `200`; entry v3 stage = null; stage "Staging" is free
 
 ## Scenario: Delete entry with active stage
 **Given** entry v3 holds stage "Production"
@@ -851,7 +853,7 @@ src/components/orbits/tabs/tracks/
 
 - [ ] **Task 2: Backend schemas + repository layer**
   - [ ] Create `luml/schemas/tracks.py` with all Pydantic v2 schemas defined in the Design section (including `tags` in Track/TrackCreate/TrackUpdate)
-  - [ ] Create `luml/repositories/tracks.py` with all repository methods including `list_entries_for_artifact`, `has_entries_for_artifact`, and `list_entries` with pagination support; remove `mark_artifact_deleted`
+  - [ ] Create `luml/repositories/tracks.py` with all repository methods including `list_entries_for_artifact`, `has_entries_for_artifact`, and `list_entries` with pagination support
   - [ ] Write integration tests in `tests/integration/repository/test_tracks.py` covering: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination
 
 - [ ] **Task 3: Backend handlers + API routers**
@@ -881,7 +883,7 @@ src/components/orbits/tabs/tracks/
 - [ ] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
   - [ ] Create `frontend/src/pages/track/TrackPage.vue` — breadcrumb (Registry → Track name), "Link artifact" button, entries table (Artifact name, Description, Stage badge, Version, Creation time) with pagination; empty state "Link an artifact first."; row click → opens `TrackArtifactPanel`; stage badge colors: Production = green (`#DCFCE7`/`#15803D`), Staging+Pre-Production = orange (`#FFEDD5`/`#C2410C`), Archived+others = blue (`#DBEAFE`/`#1D4ED8`)
   - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — PrimeVue Drawer from ⚙ on track card; Name input, Description textarea, Tags chips (same pattern as existing tags), Stages chips (existing shown as removable chips; × blocked with tooltip "This stage was linked to an artifact. To remove it, unlink the stage." if in use; type-to-add for new stages); "delete track" button (PrimeVue ConfirmDialog) + "save changes" (calls `updateTrack`, then batch `createStage`/`deleteStage`)
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — PrimeVue Drawer from row click; artifact name read-only, Stage dropdown (track stages + "None"), "unlink artifact" (PrimeVue ConfirmDialog → `deleteEntry`) + "save changes" (`patchEntry`); shows PrimeVue toast if `response.warning` is set
+  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — PrimeVue Drawer from row click; artifact name read-only, Stage dropdown (track stages + "None"), "unlink artifact" (PrimeVue ConfirmDialog → `deleteEntry`) + "save changes" (`patchEntry`)
 
 - [ ] **Task 7: TrackAddEntryModal + artifact page Tracks section**
   - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackAddEntryModal.vue` — modal "Link a new ARTIFACT"; step 1: Collection* dropdown (placeholder "Select collection"); step 2: artifact cards filtered by `artifact_type` (disabled if already in track); step 3: selected card highlighted, confirm active; on confirm calls `addEntry`
