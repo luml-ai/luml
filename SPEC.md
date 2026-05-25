@@ -90,9 +90,9 @@ class TrackStageOrm(Base):
 **Default stages** created automatically when a new track is created (in the same transaction): Staging, Pre-Production, Production, Archived. After creation they are indistinguishable from user-created stages — no special flag.
 
 Color is **not stored in the DB** — it is derived on the frontend by stage name:
-- `Production` → green (`#DCFCE7` bg / `#15803D` text)
-- `Staging`, `Pre-Production` → orange (`#FFEDD5` bg / `#C2410C` text)
-- all others (including `Archived` and custom stages) → blue (`#DBEAFE` bg / `#1D4ED8` text)
+- `Production` → green ( var(--tag-success-background, #DCFCE7); bg / color: var(--tag-success-color, #15803D); text)
+- `Staging`, `Pre-Production` → orange (var(--tag-warn-background, #FFEDD5); bg / var(--tag-warn-color, #C2410C); text)
+- all others (including `Archived` and custom stages) → blue ( var(--tag-primary-background, #DBEAFE); bg /  var(--tag-primary-color, #1D4ED8); text)
 
 ## Schemas (`luml/schemas/tracks.py`)
 
@@ -330,7 +330,7 @@ Include all columns, FKs, indexes, and UNIQUE constraints defined in the data mo
 
 ## Frontend Architecture
 
-Figma source: `https://www.figma.com/design/tfEWciot1pORivAd7EEX0B` node `4157:29093`
+Figma source: `https://www.figma.com/design/tfEWciot1pORivAd7EEX0B`
 
 ---
 
@@ -343,8 +343,8 @@ All screens, their locations, triggers, and content are derived directly from Fi
 **File**: `src/pages/orbits/OrbitTracksView.vue`
 **Route**: child of orbit (`name: orbit-tracks`, `path: tracks`)
 **Entry point**: "Tracks" tab in `OrbitTabs.vue`, next to "Collections"
-**Figma (empty)**: node `4157:29127` — "Registry / Tracks empty"
-**Figma (filled)**: node `4157:29586` — "Registry / Tracks Filled"
+**Figma (empty)**: link only to section updated!: https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29128&m=dev (full node:  node `4157:29127` )  — "Registry / Tracks empty"  
+**Figma (filled)**:  Registry / Tracks Filled"  https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29586&m=dev
 
 **Empty state** (no tracks yet):
 - Heading: "Get started with Tracks"
@@ -354,7 +354,7 @@ All screens, their locations, triggers, and content are derived directly from Fi
 **Filled state** (tracks exist):
 - Search input (filter by name) + "Filter by type" dropdown
 - "Create track" button (top right)
-- Track **cards** (not a table) — each card shows:
+- Track **cards** (not a table) figma ard url: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29603&m=dev (the same card as collection card) — each card shows:
   - Track name (e.g. "DataTeam Track")
   - Artifact type badge (e.g. "Model")
   - ID chip (truncated UUID)
@@ -368,11 +368,10 @@ All screens, their locations, triggers, and content are derived directly from Fi
 
 **File**: `src/components/orbits/tabs/tracks/TrackCreator.vue`
 **Trigger**: "Create track" button on OrbitTracksView
-**Figma (step 1)**: node `4157:29159` — "Registry / Tracks > create new Track step 1"
-**Figma (step 2)**: node `4157:29662` — "Registry / Tracks > create new Track step 2"
+**Figma**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29186&m=dev — "Registry / Tracks > create new Track step 1"
 
 **Content**:
-- Title: "Create a new TRACK"
+- Title: "CREATE A NEW TRACK"
 - Field: **Name*** — text input, placeholder "Name your track"
 - Field: **Description** — textarea, placeholder "Describe your track"
 - Field: **Type*** — select dropdown (ArtifactType enum values)
@@ -389,12 +388,12 @@ On submit: calls `createTrack` → creates track + 4 default stages → track ca
 **File**: `src/components/orbits/tabs/tracks/TrackSettingsPanel.vue`
 **Trigger**: Settings (⚙) icon on a track card in OrbitTracksView
 **Component type**: PrimeVue Drawer (slides in from the right)
-**Figma**: node `4157:29610` — "Registry / Tracks Filled > Settings"
-**Figma (tooltip/blocked removal)**: node `4157:29636` — "Registry / Tracks Filled > Settings Message"
+**Figma**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29631&m=dev — "Registry / Tracks Filled > Settings"
+**Figma (tooltip/blocked removal)**: node @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29657&m=dev — "Registry / Tracks Filled > Settings Message"
 
 **Content** (two sections):
 - Section "Organization settings" — (read-only org context, existing pattern)
-- Section "TRACK settings":
+- Section "TRACK SETTINGS":
   - **Name** — editable text input (pre-filled with track name)
   - **Description** — textarea (pre-filled)
   - **Tags** — chips multiselect; follows the same pattern as the existing tags implementation in the platform
@@ -416,8 +415,8 @@ On "delete track": PrimeVue ConfirmDialog → `deleteTrack`.
 **File**: `src/pages/track/TrackPage.vue`
 **Route**: `/organization/:organizationId/orbit/:id/track/:trackId`
 **Entry point**: clicking a track card on OrbitTracksView
-**Figma (empty)**: node `4157:29863` — "Registry / Tracks Filled / Track Name"
-**Figma (filled)**: node `4157:29692` — "Registry / Tracks Filled / Track Name filled"
+**Figma (empty)**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29863&m=dev — "Registry / Tracks Filled / Track Name"
+**Figma (filled)**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29692&m=dev — "Registry / Tracks Filled / Track Name filled"
 
 **Layout**:
 - Breadcrumb: Registry → [Track name]
@@ -437,7 +436,10 @@ On "delete track": PrimeVue ConfirmDialog → `deleteTrack`.
 | 19/09-21V5 | Archived | v5 |
 
 - Clicking any row → opens `TrackArtifactPanel` (sidebar)
-- Stage badge colors: Production = green (`#DCFCE7` / `#15803D`), Staging + Pre-Production = orange (`#FFEDD5` / `#C2410C`), Archived + others = blue (`#DBEAFE` / `#1D4ED8`)
+- Stage badge colors:
+  - `Production` → green ( var(--tag-success-background, #DCFCE7); bg / color: var(--tag-success-color, #15803D); text)
+  - `Staging`, `Pre-Production` → orange (var(--tag-warn-background, #FFEDD5); bg / var(--tag-warn-color, #C2410C); text)
+  - all others (including `Archived` and custom stages) → blue ( var(--tag-primary-background, #DBEAFE); bg /  var(--tag-primary-color, #1D4ED8); text)
 
 ---
 
@@ -445,8 +447,13 @@ On "delete track": PrimeVue ConfirmDialog → `deleteTrack`.
 
 **File**: `src/components/orbits/tabs/tracks/TrackArtifactPanel.vue`
 **Trigger**: clicking a row in the TrackPage entries table
-**Component type**: PrimeVue Drawer (slides in from right)
-**Figma**: nodes `4157:30209` → `4157:30381` → `4157:30554` → `4157:30728` → `4157:57444`
+**Component type**: PrimeVue Drawer (slides in from right) 
+
+**Figma**: `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29466&m=dev` 
+→ `https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29582&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29524&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-30931&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-57927&m=dev`
   (step 1: panel open → step 2: stage selected → step 3: stage conflict confirm → step 4: unlink confirm → step 5: toast)
 
 **Content**:
@@ -466,8 +473,10 @@ On "unlink artifact": PrimeVue ConfirmDialog → `deleteEntry`.
 **File**: `src/components/orbits/tabs/tracks/TrackAddEntryModal.vue`
 **Trigger**: "Link artifact" button on TrackPage
 **Component type**: modal/dialog (overlay over TrackPage)
-**Figma**: nodes `4157:29929` → `4157:29999` → `4157:30069` → `4157:30139`
-  (step 1: collection select → step 2: artifact list → step 3: artifact selected → step 4: confirm)
+**Figma**: nodes `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29998&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-30068&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-30208&m=dev`
+  (step 1: collection select → step 2: artifact list → step 3 +step 4: artifact selected and confirm)
 
 **Flow (4 steps in Figma)**:
 
@@ -495,7 +504,7 @@ Note: artifacts already in the track are shown disabled ("Already in Track").
 
 **File**: `src/components/orbits/tabs/tracks/ArtifactTracksWidget.vue`
 **Location**: existing artifact detail page (DashboardView or shared artifact layout), added as a new "Tracks" section in the info panel
-**Figma**: node `4157:29365` — "Collection / Model details"
+**Figma**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29366&m=dev — "Collection / Model details"
 
 **Content**:
 - Section label: "Tracks"
@@ -509,7 +518,8 @@ Note: artifacts already in the track are shown disabled ("Already in Track").
 
 **File**: `src/components/orbits/tabs/tracks/AddToTrackModal.vue`
 **Trigger**: "Link to track" button on artifact detail page
-**Figma**: nodes `4157:29412` → `4157:29528` → `4157:29470`
+**Figma**: nodes `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29466&m=dev` 
+→ `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29582&m=dev`
   (step 1: track select → step 2: confirm → step 3: done)
 
 **Content**:
