@@ -899,12 +899,12 @@ src/components/orbits/tabs/tracks/
   - [x] Create `frontend/src/hooks/useTracksList.ts` — composable for track cards (load, reset)
   - [x] Create `frontend/src/hooks/useTrackEntriesList.ts` — composable for entries table with cursor pagination (load, next page)
 
-- [ ] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
-  - [ ] Add `orbit-tracks` child route to the orbit block in `frontend/src/router/index.ts`
-  - [ ] Add top-level `/organization/:organizationId/orbit/:id/track/:trackId` route in `frontend/src/router/index.ts`
-  - [ ] Add "Tracks" tab entry to `items` array in `frontend/src/components/orbits/tabs/OrbitTabs.vue` (Lucide `GitBranch` or `Library` icon)
-  - [ ] Create `frontend/src/pages/orbits/OrbitTracksView.vue` — track cards grid (Name, Type badge, ID chip, Last updated, ⚙ settings icon); empty state ("Get started with Tracks", subtitle, "Create track" button); search input + "Filter by type" dropdown
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackCreator.vue` — modal title "Create a new TRACK"; Name* input (placeholder "Name your track"), Description textarea (placeholder "Describe your track"), Type* select; submit disabled until Name + Type filled; on submit calls `createTrack`
+- [x] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
+  - [x] Add `orbit-tracks` child route to the orbit block in `frontend/src/router/index.ts`
+  - [x] Add top-level `/organization/:organizationId/orbit/:id/track/:trackId` route in `frontend/src/router/index.ts`
+  - [x] Add "Tracks" tab entry to `items` array in `frontend/src/components/orbits/tabs/OrbitTabs.vue` (Lucide `GitBranch` or `Library` icon)
+  - [x] Create `frontend/src/pages/orbits/OrbitTracksView.vue` — track cards grid (Name, Type badge, ID chip, Last updated, ⚙ settings icon); empty state ("Get started with Tracks", subtitle, "Create track" button); search input + "Filter by type" dropdown
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackCreator.vue` — modal title "Create a new TRACK"; Name* input (placeholder "Name your track"), Description textarea (placeholder "Describe your track"), Type* select; submit disabled until Name + Type filled; on submit calls `createTrack`
 
 - [ ] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
   - [ ] Create `frontend/src/pages/track/TrackPage.vue` — breadcrumb (Registry → Track name), "Link artifact" button, entries table (Artifact name, Description, Stage badge, Version, Creation time) with pagination; empty state "Link an artifact first."; row click → opens `TrackArtifactPanel`; stage badge colors: Production = green (`#DCFCE7`/`#15803D`), Staging+Pre-Production = orange (`#FFEDD5`/`#C2410C`), Archived+others = blue (`#DBEAFE`/`#1D4ED8`)
