@@ -882,13 +882,13 @@ src/components/orbits/tabs/tracks/
   - [x] Create `luml/repositories/tracks.py` with all repository methods including `list_entries_for_artifact`, `has_entries_for_artifact`, and `list_entries` with pagination support
   - [x] Write integration tests in `tests/integration/repository/test_tracks.py` covering: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination
 
-- [ ] **Task 3: Backend handlers + API routers**
-  - [ ] Add `TRACK = "track"` to `Resource` enum in `luml/schemas/permissions.py`; add `Resource.TRACK` to all roles in `organization_permissions` and `orbit_permissions` per the Permissions table in the Design section
-  - [ ] Create `luml/handlers/tracks.py` with `TracksHandler`, `TrackEntriesHandler`, `TrackStagesHandler` following `luml/handlers/collections.py` patterns; use `Resource.TRACK` with appropriate `Action` via `PermissionsHandler.check_permissions`; raise correct HTTP exceptions for all error cases including stage-from-wrong-track 422
-  - [ ] Create `luml/api/orbits/orbit_tracks.py` with all endpoints listed in the Design section (including `GET /tracks/{track_id}`, cursor-paginated entries, and `GET /artifacts/{artifact_id}/track-entries`); include proper FastAPI dependencies (JWT auth / API key)
-  - [ ] Register `tracks_router` in `luml/api/organization_routes.py`
-  - [ ] Update `luml/handlers/artifacts.py` artifact delete handler to call `repo.has_entries_for_artifact` and raise `409` if true
-  - [ ] Write unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from the Scenarios section
+- [x] **Task 3: Backend handlers + API routers**
+  - [x] Add `TRACK = "track"` to `Resource` enum in `luml/schemas/permissions.py`; add `Resource.TRACK` to all roles in `organization_permissions` and `orbit_permissions` per the Permissions table in the Design section
+  - [x] Create `luml/handlers/tracks.py` with `TracksHandler`, `TrackEntriesHandler`, `TrackStagesHandler` following `luml/handlers/collections.py` patterns; use `Resource.TRACK` with appropriate `Action` via `PermissionsHandler.check_permissions`; raise correct HTTP exceptions for all error cases including stage-from-wrong-track 422
+  - [x] Create `luml/api/orbits/orbit_tracks.py` with all endpoints listed in the Design section (including `GET /tracks/{track_id}`, cursor-paginated entries, and `GET /artifacts/{artifact_id}/track-entries`); include proper FastAPI dependencies (JWT auth / API key)
+  - [x] Register `tracks_router` in `luml/api/organization_routes.py`
+  - [x] Update `luml/handlers/artifacts.py` artifact delete handler to call `repo.has_entries_for_artifact` and raise `409` if true
+  - [x] Write unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from the Scenarios section
 
 - [ ] **Task 4: Frontend API client + Pinia store + composables**
   - [ ] Add `track: Omit<PermissionEnum, PermissionEnum.deploy>` to `OrbitPermissions` interface in `frontend/src/lib/api/api.interfaces.ts`

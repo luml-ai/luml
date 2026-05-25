@@ -132,6 +132,7 @@ class PermissionsHandler:
                     Resource.SATELLITE,
                     Resource.ORBIT_SECRET,
                     Resource.DEPLOYMENT,
+                    Resource.TRACK,
                 ],
             )
 
@@ -148,5 +149,6 @@ class PermissionsHandler:
                 Resource.SATELLITE,
                 Resource.ORBIT_SECRET,
                 Resource.DEPLOYMENT,
+                Resource.TRACK,
             ],
         )

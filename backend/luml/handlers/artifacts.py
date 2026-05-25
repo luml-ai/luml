@@ -21,6 +21,7 @@ from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.tracks import TrackRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import (
     Artifact,
@@ -51,6 +52,7 @@ class ArtifactHandler:
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
     __deployment_repository = DeploymentRepository(engine)
+    __track_repository = TrackRepository(engine)
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
@@ -326,6 +328,13 @@ class ArtifactHandler:
         if artifact.deployments:
             raise ApplicationError(
                 "Cannot delete artifact because it is used in deployments.", 409
+            )
+
+        if await self.__track_repository.has_entries_for_artifact(artifact_id):
+            raise ApplicationError(
+                "Artifact is referenced by one or more tracks."
+                " Remove it from all tracks before deleting.",
+                409,
             )
 
         orbit = await self.__orbit_repository.get_orbit_simple(

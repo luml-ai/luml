@@ -20,6 +20,7 @@ class Resource(StrEnum):
     SATELLITE = "satellite"
     ORBIT_SECRET = "orbit_secret"
     DEPLOYMENT = "deployment"
+    TRACK = "track"
 
 
 class Action(StrEnum):
@@ -122,6 +123,13 @@ organization_permissions = {
             Action.DELETE,
             Action.DEPLOY,
         ],
+        Resource.TRACK: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
         Resource.BILLING: [Action.READ, Action.UPDATE],
     },
     OrgRole.ADMIN: {
@@ -193,6 +201,13 @@ organization_permissions = {
             Action.DELETE,
             Action.DEPLOY,
         ],
+        Resource.TRACK: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
     },
     OrgRole.MEMBER: {
         Resource.ORGANIZATION: [Action.LEAVE],
@@ -252,6 +267,13 @@ orbit_permissions = {
             Action.UPDATE,
             Action.DELETE,
         ],
+        Resource.TRACK: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+            Action.DELETE,
+        ],
     },
     OrbitRole.MEMBER: {
         Resource.ORBIT: [Action.LIST, Action.READ],
@@ -275,5 +297,11 @@ orbit_permissions = {
         ],
         Resource.SATELLITE: [Action.CREATE, Action.LIST, Action.READ],
         Resource.ORBIT_SECRET: [Action.LIST, Action.CREATE],
+        Resource.TRACK: [
+            Action.LIST,
+            Action.READ,
+            Action.CREATE,
+            Action.UPDATE,
+        ],
     },
 }

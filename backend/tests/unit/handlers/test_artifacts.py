@@ -566,8 +566,14 @@ async def test_request_download_url(
     "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
 @pytest.mark.asyncio
 async def test_request_delete_url(
+    mock_has_track_entries: AsyncMock,
     mock_get_storage_client: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
     mock_update_status: AsyncMock,
@@ -1335,8 +1341,14 @@ async def test_request_delete_url_artifact_not_found(
     "luml.handlers.artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
 @pytest.mark.asyncio
 async def test_request_delete_url_orbit_not_found(
+    mock_has_track_entries: AsyncMock,
     mock_check_permission: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_artifact: AsyncMock,
