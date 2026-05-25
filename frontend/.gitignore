@@ -29,5 +29,10 @@ coverage
 
 *.tsbuildinfo
 
+# tsc emit artifacts (sources are .ts / .vue; nothing under src/ should ship as .js or .d.ts)
+src/**/*.js
+src/**/*.d.ts
+!src/global.d.ts
+
 *storybook.log
 storybook-static
