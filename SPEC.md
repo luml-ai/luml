@@ -389,7 +389,7 @@ On submit: calls `createTrack` → creates track + 4 default stages → track ca
 
 **File**: `src/components/orbits/tabs/tracks/TrackSettingsPanel.vue`
 **Trigger**: Settings (⚙) icon on a track card in OrbitTracksView
-**Component type**: PrimeVue Drawer (slides in from the right)
+**Component type**: `Dialog` with `position="topright"` (same pattern as `CollectionEditor.vue`)
 **Figma**: @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29631&m=dev — "Registry / Tracks Filled > Settings"
 **Figma (tooltip/blocked removal)**: node @https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29657&m=dev — "Registry / Tracks Filled > Settings Message"
 
@@ -449,7 +449,7 @@ On "delete track": PrimeVue ConfirmDialog → `deleteTrack`.
 
 **File**: `src/components/orbits/tabs/tracks/TrackArtifactPanel.vue`
 **Trigger**: clicking a row in the TrackPage entries table
-**Component type**: PrimeVue Drawer (slides in from right) 
+**Component type**: `Dialog` with `position="topright"` (same pattern as `CollectionEditor.vue`)
 
 **Figma**: `@https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29466&m=dev` 
 → `https://www.figma.com/design/tfEWciot1pORivAd7EEX0B/Luml-%7C-ToDev?node-id=4157-29582&m=dev` 
@@ -557,6 +557,32 @@ Artifact detail page
   → [Link to track btn] → AddToTrackModal
       → [select track + confirm] → artifact linked, Tracks section updated
 ```
+
+---
+
+### Frontend Framework (PrimeVue)
+
+PrimeVue is the UI component library. LLM-optimized API reference:  
+https://primevue.org/llms/llms-full.txt
+
+| Component | Where used | Key props / notes |
+|-----------|-----------|-------------------|
+| `Dialog` | TrackSettingsPanel, TrackArtifactPanel, TrackCreator, TrackAddEntryModal, AddToTrackModal | Side-panel style: `position="topright"` `:draggable="false"` `style="margin-top:80px;height:86%;width:420px"` — follow `CollectionEditor.vue`. Centered modals: default position. **Do not use `Drawer`** — it is not used in this project. |
+| `DataTable` + `Column` | TrackPage entries table | `scrollable` `scrollHeight` `@row-click` `data-key="id"` — follow `ArtifactsTable.vue` |
+| `VirtualScroller` | OrbitTracksView track cards list | `lazy` `@lazy-load` wrapping custom card components — follow `CollectionsList.vue` |
+| `AutoComplete` | Tags field in TrackSettingsPanel | `multiple` `:suggestions` `@complete` — follow `CollectionEditor.vue` |
+| `Select` | Stage dropdown in TrackArtifactPanel; Type select in TrackCreator and OrbitTracksView filter | standard single-select |
+| `Tag` | Artifact type badge on track cards; stage badge in entries table | custom colors via CSS vars per stage name |
+| `Button` | All actions | `variant="outlined" severity="warn"` for destructive; `variant="text"` for icon toolbar buttons |
+| `InputText` | Name fields | standard |
+| `Textarea` | Description fields | `style="height:72px;resize:none"` — follow `CollectionEditor.vue` |
+| `Skeleton` | Loading states | follow existing usage |
+
+**Form pattern**: `@primevue/forms` `Form` with `resolver` + `@submit` — follow `CollectionEditor.vue`.
+
+**Confirm pattern**: add factory functions to `src/lib/primevue/data/confirm.ts`; trigger via `useConfirm` → `confirm.require(options)`.
+
+**Toast pattern**: use `simpleSuccessToast` / `simpleErrorToast` from `src/lib/primevue/data/toasts.ts`; add new helpers there as needed.
 
 ---
 
@@ -882,8 +908,8 @@ src/components/orbits/tabs/tracks/
 
 - [ ] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
   - [ ] Create `frontend/src/pages/track/TrackPage.vue` — breadcrumb (Registry → Track name), "Link artifact" button, entries table (Artifact name, Description, Stage badge, Version, Creation time) with pagination; empty state "Link an artifact first."; row click → opens `TrackArtifactPanel`; stage badge colors: Production = green (`#DCFCE7`/`#15803D`), Staging+Pre-Production = orange (`#FFEDD5`/`#C2410C`), Archived+others = blue (`#DBEAFE`/`#1D4ED8`)
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — PrimeVue Drawer from ⚙ on track card; Name input, Description textarea, Tags chips (same pattern as existing tags), Stages chips (existing shown as removable chips; × blocked with tooltip "This stage was linked to an artifact. To remove it, unlink the stage." if in use; type-to-add for new stages); "delete track" button (PrimeVue ConfirmDialog) + "save changes" (calls `updateTrack`, then batch `createStage`/`deleteStage`)
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — PrimeVue Drawer from row click; artifact name read-only, Stage dropdown (track stages + "None"), "unlink artifact" (PrimeVue ConfirmDialog → `deleteEntry`) + "save changes" (`patchEntry`)
+  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — `Dialog position="topright"` from ⚙ on track card; Name input, Description textarea, Tags (`AutoComplete` multiple), Stages chips (existing shown as removable chips; × blocked with tooltip "This stage was linked to an artifact. To remove it, unlink the stage." if in use; type-to-add for new stages); "delete track" button (`confirm.require`) + "save changes" (calls `updateTrack`, then batch `createStage`/`deleteStage`)
+  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — `Dialog position="topright"` from row click; artifact name read-only, Stage `Select` (track stages + "None"), "unlink artifact" (`confirm.require` → `deleteEntry`) + "save changes" (`patchEntry`)
 
 - [ ] **Task 7: TrackAddEntryModal + artifact page Tracks section**
   - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackAddEntryModal.vue` — modal "Link a new ARTIFACT"; step 1: Collection* dropdown (placeholder "Select collection"); step 2: artifact cards filtered by `artifact_type` (disabled if already in track); step 3: selected card highlighted, confirm active; on confirm calls `addEntry`
