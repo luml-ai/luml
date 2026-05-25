@@ -11,6 +11,7 @@ from luml.models.collection import CollectionOrm
 from luml.models.orbit_secret import OrbitSecretOrm
 from luml.models.organization import OrganizationOrm
 from luml.models.satellite import SatelliteOrm
+from luml.models.tracks import TrackOrm
 from luml.models.user import UserOrm
 from luml.schemas.orbit import Orbit, OrbitDetails, OrbitMember
 
@@ -84,6 +85,10 @@ class OrbitOrm(TimestampMixin, Base):
     )
 
     secrets: Mapped[list[OrbitSecretOrm]] = relationship(
+        back_populates="orbit", cascade="all, delete, delete-orphan"
+    )
+
+    tracks: Mapped[list[TrackOrm]] = relationship(
         back_populates="orbit", cascade="all, delete, delete-orphan"
     )
 

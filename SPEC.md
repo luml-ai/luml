@@ -872,10 +872,10 @@ src/components/orbits/tabs/tracks/
 
 # Tasks
 
-- [ ] **Task 1: Backend models + Alembic migration**
-  - [ ] Create `luml/models/tracks.py` with `TrackOrm` (including `tags` JSON column), `TrackArtifactOrm`, `TrackStageOrm` following `luml/models/collection.py` patterns
-  - [ ] Add `tracks` relationship to `OrbitOrm` in `luml/models/orbit.py`
-  - [ ] Create `backend/migrations/versions/033_add_tracks_tables.py` — `upgrade()` creates `tracks`, `track_stages`, `track_entries` tables with all columns, FKs, indexes, and unique constraints; `downgrade()` drops in reverse order
+- [x] **Task 1: Backend models + Alembic migration**
+  - [x] Create `luml/models/tracks.py` with `TrackOrm` (including `tags` JSON column), `TrackArtifactOrm`, `TrackStageOrm` following `luml/models/collection.py` patterns
+  - [x] Add `tracks` relationship to `OrbitOrm` in `luml/models/orbit.py`
+  - [x] Create `backend/migrations/versions/033_add_tracks_tables.py` — `upgrade()` creates `tracks`, `track_stages`, `track_entries` tables with all columns, FKs, indexes, and unique constraints; `downgrade()` drops in reverse order
 
 - [ ] **Task 2: Backend schemas + repository layer**
   - [ ] Create `luml/schemas/tracks.py` with all Pydantic v2 schemas defined in the Design section (including `tags` in Track/TrackCreate/TrackUpdate)
