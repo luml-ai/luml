@@ -71,6 +71,13 @@
       </div>
     </div>
   </div>
+  <div v-if="artifactsStore.currentArtifact" class="tracks-section">
+    <ArtifactTracksWidget
+      :artifact-id="artifactsStore.currentArtifact.id"
+      :artifact-type="artifactsStore.currentArtifact.type"
+    />
+  </div>
+
   <ModelManifestModal
     v-if="artifactsStore.currentArtifact?.manifest"
     v-model:visible="manifestVisible"
@@ -86,6 +93,7 @@ import { getSizeText } from '@/helpers/helpers'
 import { ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
+import ArtifactTracksWidget from '@/components/orbits/tabs/tracks/ArtifactTracksWidget.vue'
 
 const artifactsStore = useArtifactsStore()
 
@@ -150,5 +158,13 @@ function showManifest() {
 .tag {
   font-weight: 400;
   padding: 2px 4px;
+}
+.tracks-section {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: var(--p-card-background);
+  border-radius: 8px;
+  border: 1px solid var(--p-content-border-color);
+  box-shadow: var(--card-shadow);
 }
 </style>

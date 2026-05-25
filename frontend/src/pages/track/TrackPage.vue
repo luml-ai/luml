@@ -20,7 +20,7 @@
       <d-button
         v-if="canCreate"
         label="Link artifact"
-        @click="emit('linkArtifact')"
+        @click="addEntryModalVisible = true"
       >
         <template #icon>
           <Plus :size="14" />
@@ -92,6 +92,13 @@
       @entry-updated="onEntryUpdated"
       @entry-deleted="onEntryDeleted"
     />
+
+    <TrackAddEntryModal
+      v-model:visible="addEntryModalVisible"
+      :track-artifact-type="tracksStore.currentTrack.artifact_type"
+      :existing-entries="entriesList"
+      @entry-added="onEntryAdded"
+    />
   </div>
 </template>
 
@@ -119,10 +126,9 @@ import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
 import UiId from '@/components/ui/UiId.vue'
 import TrackArtifactPanel from '@/components/orbits/tabs/tracks/TrackArtifactPanel.vue'
+import TrackAddEntryModal from '@/components/orbits/tabs/tracks/TrackAddEntryModal.vue'
 
-const emit = defineEmits<{
-  (e: 'linkArtifact'): void
-}>()
+const addEntryModalVisible = ref(false)
 
 const route = useRoute()
 const toast = useToast()
@@ -213,6 +219,10 @@ function onEntryDeleted(entryId: string) {
   if (index >= 0) {
     entriesList.value.splice(index, 1)
   }
+}
+
+function onEntryAdded(entry: ITrackArtifact) {
+  entriesList.value.push(entry)
 }
 
 async function loadTrackData() {
