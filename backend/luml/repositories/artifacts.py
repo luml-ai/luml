@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -5,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
-from luml.models import ArtifactOrm
+from luml.models import ArtifactOrm, DeploymentOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
     Artifact,
@@ -15,6 +16,7 @@ from luml.schemas.artifacts import (
     ArtifactType,
     ArtifactUpdate,
 )
+from luml.schemas.deployment import ArtifactDeploymentInfo, DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams
 
 
@@ -103,6 +105,21 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             scope_id=pagination.scope_id,
         )
 
+    @staticmethod
+    def _orm_artifacts_list_to_models(
+        db_models: Sequence[ArtifactOrm],
+    ) -> list[Artifact]:
+        artifacts = []
+        for orm_artifact in db_models:
+            artifact = orm_artifact.to_artifact()
+            artifact.deployments = [
+                ArtifactDeploymentInfo.model_validate(d)
+                for d in orm_artifact.deployments
+                if d.status == DeploymentStatus.ACTIVE
+            ]
+            artifacts.append(artifact)
+        return artifacts
+
     async def get_collection_artifacts(
         self,
         collection_id: UUID,
@@ -128,6 +145,15 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 ArtifactOrm,
                 *conditions,
                 pagination=pagination,
+                options=[
+                    selectinload(ArtifactOrm.deployments).load_only(
+                        DeploymentOrm.id,
+                        DeploymentOrm.name,
+                        DeploymentOrm.status,
+                        DeploymentOrm.orbit_id,
+                        DeploymentOrm.artifact_id,
+                    )
+                ],
             )
             db_models = result.items
 
@@ -139,7 +165,9 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
             )
 
-            return [artifact.to_artifact() for artifact in db_models], cursor
+            artifacts = self._orm_artifacts_list_to_models(db_models)
+
+            return artifacts, cursor
 
     async def get_artifact(self, artifact_id: UUID) -> Artifact | None:
         async with self._get_session() as session:

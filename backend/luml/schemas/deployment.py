@@ -17,7 +17,14 @@ class DeploymentStatus(StrEnum):
     NOT_RESPONDING = "not_responding"
 
 
-class Deployment(BaseModel, BaseOrmConfig):
+class ArtifactDeploymentInfo(BaseModel, BaseOrmConfig):
+    id: UUID
+    name: str
+    status: DeploymentStatus
+    orbit_id: UUID
+
+
+class Deployment(ArtifactDeploymentInfo):
     id: UUID
     orbit_id: UUID
     satellite_id: UUID

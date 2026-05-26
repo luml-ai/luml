@@ -9,15 +9,33 @@ from luml.schemas.collections import (
     Collection,
     CollectionCreate,
     CollectionCreateIn,
+    CollectionDetails,
     CollectionsList,
+    CollectionSortBy,
     CollectionType,
     CollectionUpdate,
     CollectionUpdateIn,
 )
-from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
+from pydantic import ValidationError
 
 handler = CollectionHandler()
+
+
+def test_collection_update_in_name_empty_string() -> None:
+    with pytest.raises(ValidationError):
+        CollectionUpdateIn(name="")
+
+
+def test_collection_update_in_name_none_allowed() -> None:
+    data = CollectionUpdateIn(name=None)
+    assert data.name is None
+
+
+def test_collection_update_in_name_valid() -> None:
+    data = CollectionUpdateIn(name="valid name")
+    assert data.name == "valid name"
 
 
 @patch(
@@ -709,3 +727,112 @@ async def test_get_orbit_collections_success(
         Action.LIST,
         orbit_id,
     )
+
+
+def test_validate_cursor_matching() -> None:
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    cursor = Cursor(
+        id=collection_id,
+        value=None,
+        sort_by="created_at",
+        order=SortOrder.DESC,
+        scope_id=orbit_id,
+    )
+
+    result = CollectionHandler._validate_cursor(
+        cursor, CollectionSortBy.CREATED_AT, SortOrder.DESC, orbit_id
+    )
+
+    assert result is cursor
+
+
+@patch(
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_tags",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_extra_values",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_collection_details_success(
+    mock_check_permissions: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_extra_values: AsyncMock,
+    mock_get_tags: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    now = datetime.now()
+
+    collection = Collection(
+        id=collection_id,
+        orbit_id=orbit_id,
+        name="my-collection",
+        description="desc",
+        type=CollectionType.MODEL,
+        tags=["t1"],
+        total_artifacts=3,
+        created_at=now,
+        updated_at=None,
+    )
+    mock_get_collection.return_value = collection
+    mock_get_extra_values.return_value = ["accuracy", "f1"]
+    mock_get_tags.return_value = ["tag1"]
+
+    result = await handler.get_collection_details(
+        user_id, organization_id, orbit_id, collection_id
+    )
+
+    assert isinstance(result, CollectionDetails)
+    assert result.artifacts_extra_values == ["accuracy", "f1"]
+    assert result.artifacts_tags == ["tag1"]
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.COLLECTION, Action.READ, orbit_id
+    )
+    mock_get_collection.assert_awaited_once_with(collection_id)
+    mock_get_extra_values.assert_awaited_once_with(collection_id)
+    mock_get_tags.assert_awaited_once_with(collection_id)
+
+
+@patch(
+    "luml.handlers.collections.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.collections.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_collection_details_not_found(
+    mock_check_permissions: AsyncMock,
+    mock_get_collection: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    mock_get_collection.return_value = None
+
+    with pytest.raises(NotFoundError, match="Collection not found"):
+        await handler.get_collection_details(
+            user_id, organization_id, orbit_id, collection_id
+        )
+
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.COLLECTION, Action.READ, orbit_id
+    )
+    mock_get_collection.assert_awaited_once_with(collection_id)

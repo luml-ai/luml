@@ -67,7 +67,8 @@ class ArtifactOrm(TimestampMixin, Base):
         return f"Artifact(id={self.id!r}, identifier={self.unique_identifier!r})"
 
     def to_artifact(self) -> Artifact:
-        return Artifact.model_validate(self)
+        data = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
+        return Artifact.model_validate(data)
 
     def to_artifact_details(self) -> ArtifactDetails:
         return ArtifactDetails.model_validate(self)

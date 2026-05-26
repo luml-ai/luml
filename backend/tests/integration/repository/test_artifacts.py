@@ -210,3 +210,96 @@ async def test_delete_artifact_with_deployment_constraint(
         await repo.delete_artifact(created_model.id)
 
     assert error.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_extra_values(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    model.extra_values = {"accuracy": 0.95, "f1": 0.88}
+    await repo.create_artifact(model)
+
+    result = await repo.get_collection_artifacts_extra_values(collection.id)
+
+    assert "accuracy" in result
+    assert "f1" in result
+    assert result == sorted(result)
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_extra_values_empty(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    result = await repo.get_collection_artifacts_extra_values(collection.id)
+
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_tags(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    model1 = test_artifact.model_copy()
+    model1.collection_id = collection.id
+    model1.unique_identifier = "uid1"
+    model1.tags = ["v1", "prod"]
+
+    model2 = test_artifact.model_copy()
+    model2.collection_id = collection.id
+    model2.unique_identifier = "uid2"
+    model2.tags = ["v2", "prod"]
+
+    await repo.create_artifact(model1)
+    await repo.create_artifact(model2)
+
+    result = await repo.get_collection_artifacts_tags(collection.id)
+
+    assert set(result) == {"v1", "v2", "prod"}
+
+
+@pytest.mark.asyncio
+async def test_get_artifact_details(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    created = await repo.create_artifact(model)
+
+    details = await repo.get_artifact_details(created.id)
+
+    assert details is not None
+    assert details.id == created.id
+    assert details.collection_id == collection.id
+    assert details.collection is not None
+    assert details.deployments is not None
+
+
+@pytest.mark.asyncio
+async def test_get_artifact_details_not_found(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    engine = data.engine
+    repo = ArtifactRepository(engine)
+
+    result = await repo.get_artifact_details(uuid.uuid4())
+
+    assert result is None

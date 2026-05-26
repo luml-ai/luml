@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from luml.schemas.base import BaseOrmConfig
 
@@ -75,6 +75,13 @@ class CollectionUpdateIn(BaseModel):
     description: str | None = None
     name: str | None = None
     tags: list[str] | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_not_empty(cls, v: str | None) -> str | None:
+        if v is not None and len(v) < 1:
+            raise ValueError("name must not be empty")
+        return v
 
 
 class CollectionsList(BaseModel):
