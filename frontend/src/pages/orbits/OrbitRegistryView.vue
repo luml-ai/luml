@@ -15,11 +15,12 @@
     </d-button>
   </div>
 
-  <div v-if="loading" class="loading-container">
+  <div v-if="initialLoading" class="loading-container">
+    <Skeleton style="height: 27.5px" />
     <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
   </div>
 
-  <CollectionsWelcome v-else-if="collectionsList.length === 0" />
+  <CollectionsWelcome v-else-if="isEmpty" />
 
   <div v-else>
     <CollectionsToolbar
@@ -28,7 +29,15 @@
       @update:search="onSearch"
       @update:types="setTypesQuery"
     />
-    <CollectionsList :list="collectionsList" @lazy-load="onLazyLoad" />
+    <div v-if="isLoading" class="loading-container">
+      <Skeleton v-for="i in 10" :key="i" style="height: 146.5px" />
+    </div>
+    <CollectionsList
+      v-else-if="collectionsList.length"
+      :list="collectionsList"
+      @lazy-load="onLazyLoad"
+    />
+    <div v-else class="empty-message">Collections not found...</div>
   </div>
 
   <CollectionCreator
@@ -69,9 +78,12 @@ const {
   onLazyLoad,
   typesQuery,
   setTypesQuery,
+  isLoading,
 } = useCollectionsList()
 
-const loading = ref(false)
+const initialLoading = ref(true)
+
+const isEmpty = ref(true)
 
 function updateCreatorVisible(visible: boolean | undefined) {
   visible ? collectionsStore.showCreator() : collectionsStore.hideCreator()
@@ -87,14 +99,13 @@ async function getFirstCollectionsPage() {
   if (!organizationId || !orbitId) return
 
   try {
-    loading.value = true
     reset()
     setRequestInfo({ organizationId, orbitId })
     await getInitialPage()
   } catch (e) {
     toast.add(simpleErrorToast('Failed to load collections'))
   } finally {
-    loading.value = false
+    initialLoading.value = false
   }
 }
 
@@ -106,6 +117,12 @@ watch(
   },
   { immediate: true },
 )
+
+watch(collectionsList, (list) => {
+  if (list.length > 0) {
+    isEmpty.value = false
+  }
+})
 
 const debouncedFirstPage = useDebounceFn(getFirstCollectionsPage, 500)
 watch([searchQuery, typesQuery], debouncedFirstPage)
@@ -146,5 +163,12 @@ onUnmounted(() => {
   font-weight: 500;
   line-height: 30px;
   letter-spacing: -0.48px;
+}
+
+.empty-message {
+  text-align: center;
+  padding: 40px;
+  color: var(--p-text-muted-color);
+  font-size: 14px;
 }
 </style>
