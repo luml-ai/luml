@@ -39,7 +39,10 @@ function zoomIn() {
 }
 
 function zoomChange(value: number) {
-  zoom.value = value
+  if (!Number.isFinite(value)) {
+    return
+  }
+  zoom.value = Math.min(Math.max(value, 20), 400)
 }
 </script>
 
@@ -51,7 +54,7 @@ function zoomChange(value: number) {
   background-color: var(--p-card-background);
   border-radius: 8px;
   box-shadow: var(--card-shadow);
-  overflow-y: auto;
+  overflow: auto;
   position: relative;
 }
 .iframe {

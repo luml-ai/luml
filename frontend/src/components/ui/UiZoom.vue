@@ -7,7 +7,7 @@
     </Button>
     <div class="zoom-value">
       <input v-model="modelValue" type="number" class="zoom-input" @input="changeZoom" />
-      <span class="toolbar-zoom-value">%</span>
+      <span>%</span>
     </div>
     <Button variant="text" severity="secondary" size="small" @click="emit('zoom-in')">
       <template #icon>
@@ -53,7 +53,6 @@ function changeZoom(e: Event) {
   font-size: 12px;
 }
 .zoom-input {
-  width: auto;
   min-width: 0;
   border: none;
   outline: none;
