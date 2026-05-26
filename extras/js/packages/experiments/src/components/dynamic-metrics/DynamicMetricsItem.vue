@@ -15,7 +15,7 @@
 
 <script setup lang="ts">
 import type { ExperimentSnapshotDynamicMetric, ModelInfo } from '@/interfaces/interfaces'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useVariableValue } from '@/hooks/useVariableValue'
 import { plotlyLineChartLayout } from '@/lib/plotly/layouts'
 import { cutStringOnMiddle } from '@/helpers/helpers'
@@ -36,6 +36,9 @@ const props = defineProps<Props>()
 
 const chartRef = ref<HTMLDivElement | null>(null)
 const chartScaledRef = ref<HTMLDivElement | null>(null)
+
+let resizeObserver: ResizeObserver | null = null
+let resizeTimeout: ReturnType<typeof setTimeout> | null = null
 
 const isAggregated = computed(() => {
   return !!props.data?.some((item) => item.aggregated)
@@ -104,13 +107,33 @@ function getPlotlyLayout() {
 }
 
 async function renderChart() {
-  if (!props.data) return
+  if (!props.data || !chartRef.value) return
   const layout = getPlotlyLayout()
   const Plotly = await plotlyService.getPlotly()
   Plotly.newPlot(chartRef.value, plotlyData.value, layout, {
     displayModeBar: false,
     responsive: true,
   })
+  observeResize()
+}
+
+async function handleResize() {
+  if (!chartRef.value) return
+  const Plotly = await plotlyService.getPlotly()
+  Plotly.Plots.resize(chartRef.value)
+}
+
+function observeResize() {
+  if (!chartRef.value || resizeObserver) return
+
+  resizeObserver = new ResizeObserver(() => {
+    if (resizeTimeout) clearTimeout(resizeTimeout)
+    resizeTimeout = setTimeout(() => {
+      handleResize()
+    }, 100)
+  })
+
+  resizeObserver.observe(chartRef.value)
 }
 
 watch(theme, async () => {
@@ -128,6 +151,16 @@ watch(
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  if (resizeTimeout) {
+    clearTimeout(resizeTimeout)
+  }
+})
 </script>
 
 <style scoped>
@@ -139,5 +172,6 @@ watch(
 
 .chart-wrapper {
   height: 300px;
+  overflow: hidden;
 }
 </style>
