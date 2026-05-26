@@ -323,13 +323,11 @@ watch(() => modelId.value, onModelIdChange, { immediate: true })
 
 watch(selectedModel, onSelectedModelChange, { immediate: true })
 
-watch(
-  collectionId,
-  () => {
+watch(collectionId, (newCollectionId, oldCollectionId) => {
+  if (oldCollectionId !== undefined && newCollectionId !== oldCollectionId) {
     modelId.value = null
-  },
-  { immediate: true },
-)
+  }
+})
 
 onBeforeMount(async () => {
   await getSecrets()
