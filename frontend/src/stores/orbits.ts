@@ -26,6 +26,7 @@ export const useOrbitsStore = defineStore('orbit', () => {
   const getCurrentOrbitPermissions = computed(() => currentOrbitDetails.value?.permissions)
 
   function setCurrentOrbitId(id: string | null, orgId?: string) {
+    if (id === currentOrbitId.value) return
     currentOrbitId.value = id
     currentOrbitDetails.value = null
     isLoadingOrbitDetails.value = false

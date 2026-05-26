@@ -15,6 +15,7 @@ import { useOrbitsStore } from './orbits'
 
 export const useOrganizationStore = defineStore('organization', () => {
   const availableOrganizations = ref<Organization[]>([])
+  const isLoadingAvailableOrganizations = ref(false)
   const organizationDetails = ref<OrganizationDetails | null>(null)
   const currentOrganizationId = ref<string | null>(null)
   const loading = ref(false)
@@ -32,9 +33,15 @@ export const useOrganizationStore = defineStore('organization', () => {
   }
 
   async function getAvailableOrganizations() {
-    const response = await api.getOrganizations()
-    availableOrganizations.value = response
-    await setInitialOrganization()
+    if (isLoadingAvailableOrganizations.value) return
+    isLoadingAvailableOrganizations.value = true
+    try {
+      const response = await api.getOrganizations()
+      availableOrganizations.value = response
+      await setInitialOrganization()
+    } finally {
+      isLoadingAvailableOrganizations.value = false
+    }
   }
 
   async function createOrganization(payload: CreateOrganizationPayload) {

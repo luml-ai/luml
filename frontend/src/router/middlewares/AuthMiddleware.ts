@@ -6,8 +6,9 @@ export async function authMiddleware(
   from: RouteLocationNormalized,
   next: NavigationGuardNext,
 ) {
+  const authStore = useAuthStore()
+  if (authStore.isAuth) return next()
   try {
-    const authStore = useAuthStore()
     await authStore.checkIsLoggedIn()
     const isLoggedIn = authStore.isAuth
 
