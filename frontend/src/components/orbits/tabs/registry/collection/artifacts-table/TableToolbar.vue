@@ -230,13 +230,25 @@ async function onForceDelete() {
 }
 
 function showSuccessDeleteToast(artifacts: string[]) {
-  toast.add(
-    simpleSuccessToast(`Artifacts: ${artifacts} has been removed from the collection successfully`),
-  )
+  if (artifacts.length > 1) {
+    toast.add(
+      simpleSuccessToast(`Successfully removed ${artifacts.length} artifacts from the collection`),
+    )
+  } else {
+    toast.add(
+      simpleSuccessToast(
+        `Artifact "${artifacts[0]}" has been removed from the collection successfully`,
+      ),
+    )
+  }
 }
 
 function showErrorDeleteToast(artifacts: string[]) {
-  toast.add(simpleErrorToast(`Failed to delete the artifacts: ${artifacts}`))
+  if (artifacts.length > 1) {
+    toast.add(simpleErrorToast(`Failed to delete ${artifacts.length} artifacts`))
+  } else {
+    toast.add(simpleErrorToast(`Failed to delete artifact "${artifacts[0]}"`))
+  }
 }
 
 function openModelEditor() {
