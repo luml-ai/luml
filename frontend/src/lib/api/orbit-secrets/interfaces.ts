@@ -4,7 +4,7 @@ export interface OrbitSecret {
   value: string
   orbit_id: string
   created_at: string
-  updated_at: string
+  updated_at?: string
   tags?: string[]
 }
 
