@@ -79,7 +79,7 @@ import {
   type AutoCompleteCompleteEvent,
 } from 'primevue'
 import { Bolt } from 'lucide-vue-next'
-import { Form } from '@primevue/forms'
+import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteCollectionConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useCollectionsStore } from '@/stores/collections'
@@ -129,7 +129,8 @@ function searchTags(event: AutoCompleteCompleteEvent) {
   ]
 }
 
-async function saveChanges() {
+async function saveChanges({ valid }: FormSubmitEvent) {
+  if (!valid) return
   try {
     loading.value = true
     await collectionsStore.updateCollection(props.data.id, { ...initialValues.value })

@@ -9,7 +9,11 @@
   >
     <template v-slot:item="{ item }">
       <div class="card-wrapper">
-        <CollectionCard :edit-available="editAvailable" :data="item"></CollectionCard>
+        <CollectionCard
+          :key="item.id"
+          :edit-available="editAvailable"
+          :data="item"
+        ></CollectionCard>
       </div>
     </template>
   </VirtualScroller>
