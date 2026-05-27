@@ -70,11 +70,11 @@ export const useEvalsTable = (
     const rowKey = `${String(id)}::${item.modelId || ''}::${idx}`
 
     return {
-      ...item.inputs,
-      ...item.outputs,
-      ...item.refs,
-      ...item.scores,
-      ...item.metadata,
+      ...prefixKeys(item.inputs, 'inputs'),
+      ...prefixKeys(item.outputs, 'outputs'),
+      ...prefixKeys(item.refs, 'refs'),
+      ...prefixKeys(item.scores, 'scores'),
+      ...prefixKeys(item.metadata, 'metadata'),
       ...feedbackObject,
       ...expectationObject,
       id,
@@ -84,6 +84,15 @@ export const useEvalsTable = (
       __isFirstInGroup: isFirstInGroup,
       __hasNextInGroup: hasNextInGroup,
     }
+  }
+
+  function prefixKeys(record: Record<string, unknown> | undefined | null, prefix: string) {
+    if (!record) return {}
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(record)) {
+      result[`${prefix}.${key}`] = value
+    }
+    return result
   }
 
   function getFeedbackObject(summary: AnnotationSummary | null) {

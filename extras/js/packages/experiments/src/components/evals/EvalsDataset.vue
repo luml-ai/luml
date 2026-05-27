@@ -86,7 +86,9 @@ const columnsTree = computed(() => {
   for (const column of columns) {
     tree.push({
       title: column,
-      children: props.columns[column as keyof TypedEvalsColumns].map((item) => item.name) || [],
+      children:
+        props.columns[column as keyof TypedEvalsColumns].map((item) => `${column}.${item.name}`) ||
+        [],
     })
   }
   const feedbackColumns = annotationsSummary.value?.feedback.map((item) => item.name) || []

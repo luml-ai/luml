@@ -334,6 +334,11 @@ const visibleChildren = computed(() => {
         label = label.replace(' (feedback)', '')
       } else if (column.title.startsWith('expectation')) {
         label = label.replace(' (expectation)', '')
+      } else {
+        const prefix = `${column.title}.`
+        if (label.startsWith(prefix)) {
+          label = label.slice(prefix.length)
+        }
       }
       return {
         key: columnName,
