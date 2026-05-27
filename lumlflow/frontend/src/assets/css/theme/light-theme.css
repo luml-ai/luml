@@ -289,7 +289,8 @@ body {
   --p-button-label-font-weight: 500;
   --p-button-focus-ring-width: 1px;
   --p-button-focus-ring-offset: 2px;
-  --p-button-raised-shadow: 0px 3px 1px -2px #00000033, 0px 2px 2px 0px #00000024, 0px 1px 5px 0px #0000001f;
+  --p-button-raised-shadow:
+    0px 3px 1px -2px #00000033, 0px 2px 2px 0px #00000024, 0px 1px 5px 0px #0000001f;
   --p-toggleswitch-background: #f1f5f9;
   --p-toggleswitch-hover-background: #94a3b8;
   --p-toggleswitch-hover-border-color: #00000000;
@@ -724,14 +725,16 @@ body {
   --p-datatable-filter-overlay-select-border-color: #e2e8f0;
   --p-datatable-filter-overlay-select-border-radius: 6px;
   --p-datatable-filter-overlay-select-color: #334155;
-  --p-datatable-filter-overlay-select-shadow: 0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
+  --p-datatable-filter-overlay-select-shadow:
+    0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
   --p-datatable-filter-overlay-popover-background: #ffffff;
   --p-datatable-filter-overlay-popover-border-color: #e2e8f0;
   --p-datatable-filter-overlay-popover-border-radius: 6px;
   --p-datatable-filter-overlay-popover-color: #334155;
   --p-datatable-filter-overlay-popover-padding: 10.5px;
   --p-datatable-filter-overlay-popover-gap: 7px;
-  --p-datatable-filter-overlay-popover-shadow: 0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
+  --p-datatable-filter-overlay-popover-shadow:
+    0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
   --p-datatable-filter-rule-border-color: #e2e8f0;
   --p-datatable-filter-constraint-focus-background: #f1f5f9;
   --p-datatable-filter-constraint-focus-color: #1e293b;
@@ -1447,7 +1450,9 @@ body {
   --p-card-caption-gap: 7px;
   --p-card-title-font-size: 17.5px;
   --p-card-title-font-weight: 500;
-  --p-card-shadow: 0px 32px 9px 0px #1c2b4000, 0px 21px 8px 0px #1c2b4000, 0px 12px 7px 0px #1c2b4003, 0px 5px 5px 0px #1c2b4005, 0px 1px 3px 0px #1c2b4005;
+  --p-card-shadow:
+    0px 32px 9px 0px #1c2b4000, 0px 21px 8px 0px #1c2b4000, 0px 12px 7px 0px #1c2b4003,
+    0px 5px 5px 0px #1c2b4005, 0px 1px 3px 0px #1c2b4005;
   --p-breadcrumb-background: #f8fafc;
   --p-breadcrumb-item-color: #64748b;
   --p-breadcrumb-item-hover-color: #334155;
@@ -2077,7 +2082,8 @@ body {
   --p-timeline-event-marker-content-background: #2673fd;
   --p-timeline-event-marker-content-border-radius: 2.625px;
   --p-timeline-event-marker-content-size: 5.25px;
-  --p-timeline-event-marker-content-inset-shadow: 0px 0.5px 0px 0px #0000000f, 0px 1px 1px 0px #0000001f;
+  --p-timeline-event-marker-content-inset-shadow:
+    0px 0.5px 0px 0px #0000000f, 0px 1px 1px 0px #0000001f;
   --p-timeline-event-marker-size: 15.75px;
   --p-timeline-event-connector-color: #e2e8f0;
   --p-timeline-event-connector-size: 2px;
@@ -2263,7 +2269,8 @@ body {
   --p-speeddial-gap: 7px;
   --p-splitbutton-border-radius: 8px;
   --p-splitbutton-rounded-border-radius: 28px;
-  --p-splitbutton-raised-shadow: 0px 3px 1px -2px #00000033, 0px 2px 2px 0px #00000024, 0px 1px 5px 0px #0000001f;
+  --p-splitbutton-raised-shadow:
+    0px 3px 1px -2px #00000033, 0px 2px 2px 0px #00000024, 0px 1px 5px 0px #0000001f;
   --p-blockui-border-radius: 6px;
   --p-inputotp-input-width: 35px;
   --p-inputotp-input-sm-width: 28px;

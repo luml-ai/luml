@@ -39,7 +39,11 @@ export interface ExperimentSnapshotProvider {
 
   resetDatasetPage: (datasetId: string) => Promise<void>
 
-  getDatasetAverageScores: (datasetId: string) => Promise<ModelScores[]>
+  getDatasetAverageScores: (
+    datasetId: string,
+    search?: string,
+    filters?: string[],
+  ) => Promise<ModelScores[]>
 
   createEvalAnnotation?: (
     artifactId: string,

@@ -118,8 +118,17 @@ function getNextPage() {
   emit('get-next-page')
 }
 
+async function fetchAverageScores() {
+  averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(
+    props.datasetId,
+    filter.search,
+    [...filter.filters],
+  )
+}
+
 function onFilterChange() {
   emit('filter-change', filter)
+  fetchAverageScores()
 }
 
 function filtersChange(filters: string[]) {
@@ -128,9 +137,7 @@ function filtersChange(filters: string[]) {
 
 const debouncedOnFilterChange = useDebounceFn(onFilterChange, 300)
 
-onBeforeMount(async () => {
-  averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(props.datasetId)
-})
+onBeforeMount(fetchAverageScores)
 
 watch(filter, debouncedOnFilterChange)
 </script>

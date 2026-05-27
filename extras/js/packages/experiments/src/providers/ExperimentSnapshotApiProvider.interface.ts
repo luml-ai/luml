@@ -58,7 +58,12 @@ export interface ApiServiceInterface {
 
   getEvalById: (experimentId: string, evalId: string) => Promise<GetExperimentEvalsItem>
 
-  getExperimentDatasetAverageScores: (artifactId: string, datasetId: string) => Promise<ScoreInfo[]>
+  getExperimentDatasetAverageScores: (
+    artifactId: string,
+    datasetId: string,
+    search?: string,
+    filters?: string[],
+  ) => Promise<ScoreInfo[]>
 
   createEvalAnnotation: (
     artifactId: string,

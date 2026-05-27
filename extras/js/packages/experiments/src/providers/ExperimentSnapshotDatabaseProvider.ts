@@ -279,12 +279,42 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return result
   }
 
-  async getDatasetAverageScores(datasetId: string): Promise<ModelScores[]> {
+  async getDatasetAverageScores(
+    datasetId: string,
+    search?: string,
+    filters?: string[],
+  ): Promise<ModelScores[]> {
+    const whereParts: string[] = ['scores IS NOT NULL', 'dataset_id = ?']
+    const params: SqlValue[] = [datasetId]
+
+    if (search) {
+      whereParts.push(`(id LIKE ?
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?)
+      )`)
+      const like = `%${search}%`
+      params.push(like, like, like, like, like, like)
+    }
+
+    for (const filter of filters || []) {
+      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
+      if (where) {
+        whereParts.push(where)
+        params.push(...(filterParams as SqlValue[]))
+      }
+    }
+
+    const whereCondition = `WHERE ${whereParts.join(' AND ')}`
+
     return this.modelsSnapshots.map((snapshot) => {
-      const queryResult = snapshot.database.exec(
-        `SELECT scores FROM evals WHERE scores IS NOT NULL AND dataset_id = '${datasetId}'`,
+      const rows = this._getRowsByQueryAndParams(
+        snapshot.database,
+        `SELECT scores FROM evals ${whereCondition}`,
+        params,
       )
-      const rows = queryResult[0]?.values || []
       const formattedRows = rows.map((row) => safeParse(row[0] as SqlValue))
       const sum: Record<string, { sum: number; count: number }> = formattedRows.reduce(
         (acc, row) => {
@@ -1024,7 +1054,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private getSpanAnnotationFields(database: Database, kind: AnnotationKind) {
     const hasAnnotations = this.isDatabaseHasAnnotations(database)
     if (!hasAnnotations) return []
-    const queryResult = database.exec(`SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`)
+    const queryResult = database.exec(
+      `SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`,
+    )
     const rows = queryResult[0]?.values || []
     return rows.map((row) => {
       const [name, value_type] = row

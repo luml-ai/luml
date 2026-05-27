@@ -113,8 +113,8 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
     return this.call<void>('resetDatasetPage', [datasetId])
   }
 
-  getDatasetAverageScores(datasetId: string) {
-    return this.call<ModelScores[]>('getDatasetAverageScores', [datasetId])
+  getDatasetAverageScores(datasetId: string, search?: string, filters?: string[]) {
+    return this.call<ModelScores[]>('getDatasetAverageScores', [datasetId, search, filters])
   }
 
   getNextEvalsByDatasetId(params: GetEvalsByDatasetParams) {
