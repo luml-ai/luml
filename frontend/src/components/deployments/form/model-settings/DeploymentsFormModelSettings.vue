@@ -11,7 +11,7 @@
       ></CollectionSelect>
       <ModelSelect
         v-model="modelId"
-        :disabled="!!initialModelId"
+        :disabled="isModelSelectDisabled"
         :organization-id="String($route.params.organizationId)"
         :orbit-id="String($route.params.id)"
         :collection-id="collectionId || null"
@@ -177,7 +177,7 @@ import {
   InputText,
   Button,
 } from 'primevue'
-import { onBeforeMount, ref, watch } from 'vue'
+import { computed, onBeforeMount, ref, watch } from 'vue'
 import { HelpCircle, ChevronDown, ChevronUp, Plus, BellRing, Trash2 } from 'lucide-vue-next'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import { FnnxService } from '@/lib/fnnx/FnnxService'
@@ -228,6 +228,12 @@ const customVariables = defineModel<Omit<FieldInfo<string>, 'label'>[]>('customV
 })
 
 const selectedModel = ref<ModelArtifact | null>(null)
+
+const isModelSelectDisabled = computed(() => {
+  if (!!props.initialModelId) return true
+  if (!collectionId.value) return true
+  return false
+})
 
 async function getSecrets() {
   try {
