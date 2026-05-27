@@ -1341,7 +1341,11 @@ class ExperimentTracker:
         return self.backend.get_experiment_trace_typed_columns(experiment_id)
 
     def get_experiment_evals_average_scores(
-        self, experiment_id: str, dataset_id: str | None = None
+        self,
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
     ) -> dict[str, float]:
         """
         Calculates the average scores for evaluations from a specified experiment and optionally
@@ -1352,12 +1356,21 @@ class ExperimentTracker:
                 evaluation data.
             dataset_id (str | None, optional): The unique identifier of the dataset to filter
                 evaluations. If not provided, all datasets within the experiment will be considered.
+            search (str | None, optional): Free-text search applied across eval fields.
+            filters (list[str] | None, optional): SQL-like filter expressions.
 
         Returns:
             dict[str, float]: A dictionary where the keys are evaluation metric names and the values
                 are their corresponding average scores.
         """
-        return self.backend.get_evals_average_scores(experiment_id, dataset_id)
+        kwargs: dict = {}
+        if search is not None:
+            kwargs["search"] = search
+        if filters is not None:
+            kwargs["filters"] = filters
+        return self.backend.get_evals_average_scores(
+            experiment_id, dataset_id, **kwargs
+        )
 
     def get_experiment_eval_dataset_ids(self, experiment_id: str) -> list[str]:
         """

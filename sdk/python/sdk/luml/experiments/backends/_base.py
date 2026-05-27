@@ -474,6 +474,8 @@ class Backend(ABC):
         self,
         experiment_id: str,
         dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
     ) -> dict[str, float]:
         pass
 
