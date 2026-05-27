@@ -1,6 +1,7 @@
 <template>
   <EvalsToolbar
     v-model:search="searchModel"
+    :dataset-id="datasetId"
     :columns="allColumns"
     :selected-columns="selectedColumns"
     scrollable

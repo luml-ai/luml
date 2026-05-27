@@ -173,6 +173,11 @@ export const useEvalsStore = defineStore('evals', () => {
     }
   }
 
+  function getDatasetFilters(datasetId: string) {
+    const info = datasets.value?.find((item) => item.params.dataset_id === datasetId)
+    return info?.params?.filters ?? []
+  }
+
   return {
     currentEvalData,
     setProvider,
@@ -195,5 +200,6 @@ export const useEvalsStore = defineStore('evals', () => {
     loading,
     setLoading,
     refresh,
+    getDatasetFilters,
   }
 })

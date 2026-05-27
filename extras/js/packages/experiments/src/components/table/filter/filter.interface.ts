@@ -24,6 +24,7 @@ export enum FilterOperatorEnum {
 export interface FilterItemProps {
   fields: { name: string; type: 'string' | 'number' | 'boolean' | 'unknown' }[]
   errors?: { [key: string]: string } & { global?: string }
+  removeAvailable?: boolean
 }
 
 export interface FilterProps {
@@ -31,6 +32,7 @@ export interface FilterProps {
   disabled?: boolean
   errors?: FilterItemsErrors
   asyncValidateCallback?: (filters: FilterItem[]) => Promise<ValidateResponseItem[]>
+  count?: number
 }
 
 export interface FilterEmits {

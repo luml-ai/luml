@@ -561,19 +561,29 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
     const whereParts: string[] = []
     const whereParams: SqlValue[] = []
+    const havingParts: string[] = []
+    const havingParams: SqlValue[] = []
+
     if (params.search) {
       whereParts.push(`trace_id LIKE ?`)
       whereParams.push(`%${params.search}%`)
     }
+
     for (const filter of params.filters || []) {
-      const [where, filterParams] = SearchTracesUtils.toSql(filter)
-      if (where) {
-        whereParts.push(where)
+      const [sql, filterParams] = SearchTracesUtils.toSql(filter)
+      if (!sql) continue
+
+      if (SearchTracesUtils.isAggregateFilter(filter)) {
+        havingParts.push(sql)
+        havingParams.push(...(filterParams as SqlValue[]))
+      } else {
+        whereParts.push(sql)
         whereParams.push(...(filterParams as SqlValue[]))
       }
     }
 
     const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
+    const havingCondition = havingParts.length ? `HAVING ${havingParts.join(' AND ')}` : ''
 
     const query = `
       SELECT
@@ -590,11 +600,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       FROM spans
       ${whereCondition}
       GROUP BY trace_id
+      ${havingCondition}
       ORDER BY ${params.sort_by} ${params.order}
       ${limitQuery}
       ${offsetQuery}
     `
-    const rows = this._getRowsByQueryAndParams(database, query, whereParams)
+
+    const rows = this._getRowsByQueryAndParams(database, query, [...whereParams, ...havingParams])
+
     return rows.map((row) => {
       const [trace_id, execution_time, span_count, created_at, state] = row
       const traceId = this.parseValue(trace_id, 'string')
@@ -1024,7 +1037,9 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   private getSpanAnnotationFields(database: Database, kind: AnnotationKind) {
     const hasAnnotations = this.isDatabaseHasAnnotations(database)
     if (!hasAnnotations) return []
-    const queryResult = database.exec(`SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`)
+    const queryResult = database.exec(
+      `SELECT DISTINCT name, value_type FROM span_annotations WHERE annotation_kind = '${kind}'`,
+    )
     const rows = queryResult[0]?.values || []
     return rows.map((row) => {
       const [name, value_type] = row

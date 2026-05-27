@@ -63,6 +63,7 @@ export interface ToolbarProps {
   typedColumns: TypedColumnInfo[]
   selectedColumns: string[]
   exportLoading: boolean
+  datasetId: string
 }
 
 export interface ToolbarEmits {

@@ -1,6 +1,20 @@
 <template>
-  <div>
+  <div class="table-filter">
+    <OverlayBadge v-if="count" :value="count">
+      <Button
+        severity="secondary"
+        variant="outlined"
+        size="small"
+        :disabled="!!disabled"
+        @click.stop="togglePopover"
+      >
+        <Filter :size="14" />
+        <span>Filters</span>
+        <component :is="buttonIcon" :size="14" />
+      </Button>
+    </OverlayBadge>
     <Button
+      v-else
       severity="secondary"
       variant="outlined"
       size="small"
@@ -9,7 +23,7 @@
     >
       <Filter :size="14" />
       <span>Filters</span>
-      <component :is="isOpen ? ChevronUp : ChevronDown" :size="14" />
+      <component :is="buttonIcon" :size="14" />
     </Button>
     <Popover
       ref="popover"
@@ -27,6 +41,7 @@
               v-model="items[i]!"
               :fields="filteredFields"
               :errors="itemsErrors[i]"
+              :remove-available="items.length > 1"
               @remove="removeFilter(item.id)"
               @clear-errors="clearItemErrors(i)"
             />
@@ -60,7 +75,7 @@ import {
 } from './filter.interface'
 import type { ValidateResponseItem } from '@/interfaces/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
-import { Button, Popover, useToast } from 'primevue'
+import { Button, OverlayBadge, Popover, useToast } from 'primevue'
 import { Filter, ChevronDown, ChevronUp, Plus, FilterX } from 'lucide-vue-next'
 import { v4 as uuidv4 } from 'uuid'
 import { formSchema } from './filter.const'
@@ -85,6 +100,10 @@ const itemsErrors = ref<FilterItemsErrors>([])
 
 const filteredFields = computed(() => {
   return props.fields.filter((field) => field.type !== 'unknown')
+})
+
+const buttonIcon = computed(() => {
+  return isOpen.value ? ChevronUp : ChevronDown
 })
 
 function togglePopover(event: any) {
@@ -174,6 +193,11 @@ onBeforeMount(() => {
 </script>
 
 <style scoped>
+.table-filter {
+  position: relative;
+  z-index: 10;
+}
+
 :global(.table-filter-popover) {
   margin-top: 3px !important;
 }
