@@ -16,6 +16,7 @@
           option-disabled="disabled"
           option-group-label="label"
           option-group-children="items"
+          :disabled="!selectedModel"
         >
           <template #option="{ option }">
             <div class="option">
