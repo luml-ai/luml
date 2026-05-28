@@ -175,7 +175,7 @@ const fileInputAcceptText = computed(() => {
   if (formData.value.type === ArtifactTypeEnum.model) {
     return 'Accepts .luml, .dfs, .fnnx, .pyfnx file type'
   } else if (formData.value.type === ArtifactTypeEnum.experiment) {
-    return 'Accepts .luml file type'
+    return 'Accepts .luml, .fnnx, .pyfnx, .tar file type'
   } else if (formData.value.type === ArtifactTypeEnum.dataset) {
     return 'Accepts .tar file type'
   } else return ''

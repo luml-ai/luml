@@ -1,6 +1,6 @@
 const FILE_TYPES = {
   model: ['dfs', 'fnnx', 'pyfnx', 'luml'],
-  experiment: ['luml'],
+  experiment: ['luml', 'fnnx', 'pyfnx', 'tar'],
   dataset: ['tar'],
 } as const
 
