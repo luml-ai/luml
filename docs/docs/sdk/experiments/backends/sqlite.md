@@ -20,7 +20,8 @@ def initialize_experiment(
     group: str = "default",
     name: str | None = None,
     tags: list[str] | None = None,
-    description: str | None = None
+    description: str | None = None,
+    source: str | None = None
 ) -> None
 ```
 
@@ -35,6 +36,7 @@ Initializes an experiment by associating it with a group and storing its metadat
   be used as the name.
 - `tags` - Optional list of tags associated with the experiment.
 - `description` - Optional description of the experiment.
+- `source` - Path of the script or file that created the experiment.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_static"></a>
 
@@ -128,20 +130,22 @@ the corresponding database record.
 #### log\_span
 
 ```python
-def log_span(experiment_id: str,
-             trace_id: str,
-             span_id: str,
-             name: str,
-             start_time_unix_nano: int,
-             end_time_unix_nano: int,
-             parent_span_id: str | None = None,
-             kind: int = 0,
-             status_code: int = 0,
-             status_message: str | None = None,
-             attributes: dict[str, Any] | None = None,
-             events: list[dict[str, Any]] | None = None,
-             links: list[dict[str, Any]] | None = None,
-             trace_flags: int = 0) -> None
+def log_span(
+    experiment_id: str,
+    trace_id: str,
+    span_id: str,
+    name: str,
+    start_time_unix_nano: int,
+    end_time_unix_nano: int,
+    parent_span_id: str | None = None,
+    kind: int = 0,
+    status_code: int = 0,
+    status_message: str | None = None,
+    attributes: dict[str, Any] | None = None,
+    events: list[dict[str, Any]] | None = None,
+    links: list[dict[str, Any]] | None = None,
+    trace_flags: int = 0
+) -> None
 ```
 
 Logs a span into the database for a specific experiment. This function inserts or replaces
@@ -270,7 +274,7 @@ and attachments associated with the experiment.
 #### get\_attachment
 
 ```python
-def get_attachment(experiment_id: str, name: str) -> Any
+def get_attachment(experiment_id: str, name: str) -> bytes
 ```
 
 Fetches the content of a specific attachment file associated with an experiment.
@@ -296,6 +300,35 @@ the specified attachment cannot be found, appropriate errors are raised.
 
 - `ValueError` - If the specified attachment file is not found within the
   directory of the given experiment.
+
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.list_attachments_tree"></a>
+
+#### list\_attachments\_tree
+
+```python
+def list_attachments_tree(
+    experiment_id: str,
+    parent_path: str | None = None
+) -> list[FileNode]
+```
+
+Retrieves a structured representation of the attachments associated with a specific
+experiment, organized as a tree. Distinguishes between individual files and folders,
+aggregating folder sizes based on their contents.
+
+**Arguments**:
+
+- `experiment_id` - A string representing the identifier for the experiment whose
+  attachments are being queried.
+- `parent_path` - An optional string representing the parent folder path used as a
+  base for filtering and structuring the attachments. Defaults to None.
+  
+
+**Returns**:
+
+  A list of `FileNode` objects organized into a tree structure. Each `FileNode`
+  represents either a file or a folder. Files have their size specified, while
+  folder sizes are aggregated based on their contents.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_experiments"></a>
 
@@ -559,7 +592,9 @@ def log_model(
     experiment_id: str,
     model_path: str,
     name: str | None = None,
-    tags: list[str] | None = None
+    tags: list[str] | None = None,
+    source: str | None = None,
+    description: str | None = None
 ) -> tuple[Model, str]
 ```
 
@@ -575,6 +610,8 @@ copying the model file to the appropriate storage location.
   the model file name is used.
 - `tags` _list[str] | None, optional_ - A list of tags associated with the model to
   provide metadata for organizational or informational purposes.
+- `source` _str | None, optional_ - Path of the script or file that logged the model.
+- `description` _str | None, optional_ - Human-readable description of the model.
   
 
 **Returns**:
@@ -716,7 +753,8 @@ ValueError: Model nonexistent-id not found
 def update_model(
     model_id: str,
     name: str | None = None,
-    tags: list[str] | None = None
+    tags: list[str] | None = None,
+    description: str | None = None
 ) -> Model | None
 ```
 
@@ -1281,15 +1319,14 @@ step, and timestamp when the metric was logged.
 
 ```python
 def get_experiment_traces(
-        experiment_id: str,
-        limit: int = 20,
-        cursor_str: str | None = None,
-        sort_by: Literal["execution_time", "span_count",
-                         "created_at"] = "execution_time",
-        order: Literal["asc", "desc"] = "desc",
-        search: str | None = None,
-        filters: list[str] | None = None,
-        states: list[TraceState] | None = None
+    experiment_id: str,
+    limit: int = 20,
+    cursor_str: str | None = None,
+    sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
+    order: Literal["asc", "desc"] = "desc",
+    search: str | None = None,
+    filters: list[str] | None = None,
+    states: list[TraceState] | None = None
 ) -> PaginatedResponse[TraceRecord]
 ```
 
@@ -1785,7 +1822,9 @@ Resolves the json_sort_column for get_experiment_evals.
 ```python
 def get_evals_average_scores(
     experiment_id: str,
-    dataset_id: str | None = None
+    dataset_id: str | None = None,
+    search: str | None = None,
+    filters: list[str] | None = None
 ) -> dict[str, float]
 ```
 
@@ -1798,6 +1837,10 @@ filters them by a specific dataset.
   evaluation data.
 - `dataset_id` _str | None, optional_ - The unique identifier of the dataset to filter
   evaluations. If not provided, all datasets within the experiment will be considered.
+- `search` _str | None, optional_ - Free-text search applied across id, inputs, outputs,
+  refs, scores and metadata, matching the behaviour of get_experiment_evals.
+- `filters` _list[str] | None, optional_ - SQL-like filter expressions parsed by
+  SearchEvalsUtils, matching the behaviour of get_experiment_evals.
   
 
 **Returns**:

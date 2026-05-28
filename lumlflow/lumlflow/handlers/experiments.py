@@ -378,14 +378,18 @@ class ExperimentsHandler:
         return EvalColumns.model_validate(result)
 
     def get_experiment_eval_average_scores(
-        self, experiment_id: str, dataset_id: str | None = None
+        self,
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
     ) -> dict[str, float]:
         if not self.tracker.get_experiment_record(experiment_id):
             raise NotFound("Experiment not found")
 
         try:
             return self.tracker.get_experiment_evals_average_scores(
-                experiment_id, dataset_id
+                experiment_id, dataset_id, search, filters
             )
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e

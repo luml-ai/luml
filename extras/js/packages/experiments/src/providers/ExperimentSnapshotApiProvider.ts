@@ -279,9 +279,14 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
     this._datasetsCursors[datasetId] = []
   }
 
-  async getDatasetAverageScores(datasetId: string) {
+  async getDatasetAverageScores(datasetId: string, search?: string, filters?: string[]) {
     const responses = this.artifacts.map(async (artifact) => {
-      const scores = await this.apiService.getExperimentDatasetAverageScores(artifact.id, datasetId)
+      const scores = await this.apiService.getExperimentDatasetAverageScores(
+        artifact.id,
+        datasetId,
+        search,
+        filters,
+      )
       return {
         modelId: artifact.id,
         scores,

@@ -47,9 +47,11 @@ def get_experiment_eval_typed_columns(
 def get_experiment_eval_average_scores(
     experiment_id: str,
     dataset_id: str | None = None,
+    search: str | None = None,
+    filters: list[str] = Query(default_factory=list),  # noqa: B008
 ) -> dict[str, float]:
     return experiments_handler.get_experiment_eval_average_scores(
-        experiment_id, dataset_id
+        experiment_id, dataset_id, search, filters or None
     )
 
 

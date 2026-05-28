@@ -195,11 +195,14 @@ export const apiService = {
   getExperimentDatasetAverageScores: async (
     experimentId: string,
     datasetId: string,
+    search?: string,
+    filters?: string[],
   ): Promise<AverageScore[]> => {
     const { data } = await api.get<{ [name: string]: number }>(
       `/experiments/${experimentId}/evals/average-scores`,
       {
-        params: { dataset_id: datasetId },
+        params: { dataset_id: datasetId, search, filters },
+        paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
       },
     )
     return Object.entries(data).map(([name, value]) => ({ name, value }))

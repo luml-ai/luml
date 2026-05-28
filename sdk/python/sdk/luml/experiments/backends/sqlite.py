@@ -3350,7 +3350,11 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         )
 
     def get_evals_average_scores(
-        self, experiment_id: str, dataset_id: str | None = None
+        self,
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
     ) -> dict[str, float]:
         """
         Calculates the average scores for evaluations from a specified experiment and optionally
@@ -3361,6 +3365,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 evaluation data.
             dataset_id (str | None, optional): The unique identifier of the dataset to filter
                 evaluations. If not provided, all datasets within the experiment will be considered.
+            search (str | None, optional): Free-text search applied across id, inputs, outputs,
+                refs, scores and metadata, matching the behaviour of get_experiment_evals.
+            filters (list[str] | None, optional): SQL-like filter expressions parsed by
+                SearchEvalsUtils, matching the behaviour of get_experiment_evals.
 
         Returns:
             dict[str, float]: A dictionary where the keys are evaluation metric names and the values
@@ -3369,25 +3377,44 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cur = conn.cursor()
+
+        where_conditions: list[tuple[str, list]] = [("scores IS NOT NULL", [])]
+
         if dataset_id is not None:
-            cur.execute(
-                """
-                SELECT je.key, AVG(CAST(je.value AS REAL))
-                FROM evals, json_each(evals.scores) AS je
-                WHERE evals.scores IS NOT NULL AND evals.dataset_id = ?
-                GROUP BY je.key
-                """,
-                (dataset_id,),
+            where_conditions.append(("dataset_id = ?", [dataset_id]))
+
+        if search:
+            where_conditions.append(
+                (
+                    """(id LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))""",
+                    [f"%{search}%"] * 6,
+                )
             )
-        else:
-            cur.execute(
-                """
-                SELECT je.key, AVG(CAST(je.value AS REAL))
-                FROM evals, json_each(evals.scores) AS je
-                WHERE evals.scores IS NOT NULL
-                GROUP BY je.key
-                """
-            )
+
+        for f in filters or []:
+            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+            if filter_where:
+                where_conditions.append((filter_where, filter_params))
+
+        where_sql = " AND ".join(clause for clause, _ in where_conditions)
+        params: list = [
+            p for _, clause_params in where_conditions for p in clause_params
+        ]
+
+        cur.execute(
+            f"""
+            SELECT je.key, AVG(CAST(je.value AS REAL))
+            FROM (SELECT * FROM evals WHERE {where_sql}) AS evals,
+                 json_each(evals.scores) AS je
+            GROUP BY je.key
+            """,
+            params,
+        )
         return {row[0]: row[1] for row in cur.fetchall()}
 
     def _has_annotation_tables(self, experiment_id: str) -> bool:

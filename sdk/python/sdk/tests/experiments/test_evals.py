@@ -365,6 +365,93 @@ class TestGetExperimentEvalAverageScores:
 
         assert avg == {}
 
+    def test_search_filters_samples_before_averaging(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="alpha_1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 1.0}
+        )
+        tracker.log_eval_sample(
+            eval_id="beta_1", dataset_id="ds1", inputs={"x": 2}, scores={"acc": 0.0}
+        )
+
+        avg = tracker.get_experiment_evals_average_scores(exp_id, search="alpha")
+
+        assert avg["acc"] == pytest.approx(1.0)
+
+    def test_filters_applied_before_averaging(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 0.9}
+        )
+        tracker.log_eval_sample(
+            eval_id="e2", dataset_id="ds1", inputs={"x": 2}, scores={"acc": 0.3}
+        )
+
+        avg = tracker.get_experiment_evals_average_scores(
+            exp_id, filters=["scores.acc > 0.5"]
+        )
+
+        assert avg["acc"] == pytest.approx(0.9)
+
+    def test_search_and_filters_combined(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="keep_1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 0.8}
+        )
+        tracker.log_eval_sample(
+            eval_id="keep_2", dataset_id="ds1", inputs={"x": 2}, scores={"acc": 0.2}
+        )
+        tracker.log_eval_sample(
+            eval_id="drop_1", dataset_id="ds1", inputs={"x": 3}, scores={"acc": 0.9}
+        )
+
+        avg = tracker.get_experiment_evals_average_scores(
+            exp_id, search="keep", filters=["scores.acc > 0.5"]
+        )
+
+        assert avg["acc"] == pytest.approx(0.8)
+
+    def test_filters_matching_nothing_returns_empty_dict(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(
+            eval_id="e1", dataset_id="ds1", inputs={"x": 1}, scores={"acc": 0.4}
+        )
+
+        avg = tracker.get_experiment_evals_average_scores(
+            exp_id, filters=["scores.acc > 0.9"]
+        )
+
+        assert avg == {}
+
+    def test_legacy_backend_signature_still_supported(
+        self, tracker_with_experiment: tuple[ExperimentTracker, str]
+    ) -> None:
+        """A backend implementing the pre-search/filters signature must keep
+        working when the feature is unused (backward compatibility)."""
+        tracker, exp_id = tracker_with_experiment
+        captured: dict = {}
+
+        def legacy_backend(
+            experiment_id: str, dataset_id: str | None = None
+        ) -> dict[str, float]:
+            captured["args"] = (experiment_id, dataset_id)
+            return {"acc": 1.0}
+
+        tracker.backend.get_evals_average_scores = legacy_backend  # type: ignore[method-assign]
+
+        avg = tracker.get_experiment_evals_average_scores(exp_id, dataset_id="ds1")
+
+        assert avg == {"acc": 1.0}
+        assert captured["args"] == (exp_id, "ds1")
+
 
 class TestGetExperimentEvalDatasetIds:
     def test_returns_distinct_dataset_ids(

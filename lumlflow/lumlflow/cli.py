@@ -27,6 +27,10 @@ def ui(
 ) -> None:
     if path is not None:
         os.environ["BACKEND_STORE_URI"] = path
+
+    from lumlflow.settings import get_config
+
+    typer.echo(f"Using experiment store: {get_config().BACKEND_STORE_URI}")
     url = f"http://{host}:{port}"
 
     def open_browser_delayed() -> None:
