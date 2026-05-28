@@ -259,7 +259,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 }
 
 function reset() {
-  formData.value = initialFormData
+  formData.value = makeInitialFormData()
   resetFile()
 }
 
