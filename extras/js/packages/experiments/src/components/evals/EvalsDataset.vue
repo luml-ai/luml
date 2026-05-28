@@ -45,6 +45,9 @@ import { useEvalsStore } from '../../store/evals'
 import { useDebounceFn } from '@vueuse/core'
 import { Braces } from 'lucide-vue-next'
 import { useAnnotationsStore } from '@/store/annotations'
+import { simpleErrorToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
+import { useToast } from 'primevue'
 import UiCard from '../ui/UiCard.vue'
 import EvalsTable from './EvalsTable.vue'
 import EvalsScoresSingle from './scores/single/EvalsScoresSingle.vue'
@@ -53,7 +56,7 @@ import EvalsScoresMultiple from './scores/multiple/EvalsScoresMultiple.vue'
 const emit = defineEmits<DatasetEmits>()
 
 const evalsStore = useEvalsStore()
-
+const toast = useToast()
 const annotationsStore = useAnnotationsStore()
 
 const props = defineProps<DatasetProps>()
@@ -119,11 +122,15 @@ function getNextPage() {
 }
 
 async function fetchAverageScores() {
-  averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(
-    props.datasetId,
-    filter.search,
-    [...filter.filters],
-  )
+  try {
+    averageScores.value = await evalsStore.getProvider.getDatasetAverageScores(
+      props.datasetId,
+      filter.search,
+      [...filter.filters],
+    )
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to fetch average scores')))
+  }
 }
 
 function onFilterChange() {
