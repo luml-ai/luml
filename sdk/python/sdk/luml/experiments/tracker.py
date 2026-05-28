@@ -1364,9 +1364,9 @@ class ExperimentTracker:
                 are their corresponding average scores.
         """
         kwargs: dict = {}
-        if search is not None:
+        if search:
             kwargs["search"] = search
-        if filters is not None:
+        if filters:
             kwargs["filters"] = filters
         return self.backend.get_evals_average_scores(
             experiment_id, dataset_id, **kwargs

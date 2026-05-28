@@ -51,7 +51,7 @@ def get_experiment_eval_average_scores(
     filters: list[str] = Query(default_factory=list),  # noqa: B008
 ) -> dict[str, float]:
     return experiments_handler.get_experiment_eval_average_scores(
-        experiment_id, dataset_id, search, filters
+        experiment_id, dataset_id, search, filters or None
     )
 
 
