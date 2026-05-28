@@ -20,6 +20,7 @@
         option-label="label"
         option-value="value"
         :invalid="!!errors?.field"
+        append-to="self"
       />
     </div>
     <div>
@@ -33,6 +34,7 @@
         option-label="label"
         option-value="value"
         :invalid="!!errors?.operator"
+        append-to="self"
       />
     </div>
     <div>
@@ -50,6 +52,7 @@
         option-label="label"
         option-value="value"
         :invalid="!!errors?.value"
+        append-to="self"
       />
       <InputText
         v-else
@@ -62,7 +65,13 @@
         :invalid="!!errors?.value"
       />
     </div>
-    <Button variant="text" severity="secondary" class="button" @click="$emit('remove')">
+    <Button
+      v-if="removeAvailable"
+      variant="text"
+      severity="secondary"
+      class="button"
+      @click="$emit('remove')"
+    >
       <template #icon>
         <X :size="14" />
       </template>
@@ -77,7 +86,9 @@ import { InfoIcon, X } from 'lucide-vue-next'
 import { FILTER_OPERATORS } from './filter.const'
 import { computed, watch } from 'vue'
 
-const props = defineProps<FilterItemProps>()
+const props = withDefaults(defineProps<FilterItemProps>(), {
+  removeAvailable: true,
+})
 
 const emit = defineEmits<FilterItemEmits>()
 

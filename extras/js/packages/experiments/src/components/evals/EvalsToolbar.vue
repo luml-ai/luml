@@ -18,6 +18,7 @@
       <TableFilter
         :fields="visibleTypedColumns"
         :async-validate-callback="asyncValidateCallback"
+        :count="usedFiltersCount"
         @apply="filterChange"
       />
       <TableEditColumns
@@ -61,6 +62,10 @@ const searchModel = defineModel<string>('search', { default: '' })
 
 const visibleTypedColumns = computed(() => {
   return props.typedColumns
+})
+
+const usedFiltersCount = computed(() => {
+  return props.datasetId ? evalStore.getDatasetFilters(props.datasetId).length : 0
 })
 
 async function asyncValidateCallback(filters: FilterItem[]) {

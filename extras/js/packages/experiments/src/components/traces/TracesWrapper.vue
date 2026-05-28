@@ -60,6 +60,7 @@ const props = withDefaults(defineProps<TracesWrapperProps>(), {
 
 const selectedColumns = ref<string[]>([])
 const firstLoading = ref(true)
+const tracesExists = ref(false)
 
 const annotationsSummary = computed(() => annotationsStore.tracesAnnotationsSummary)
 
@@ -71,9 +72,7 @@ const expectationColumns = computed(() => {
   return annotationsSummary.value?.expectations.map((item) => item.name + ' (expectation)') || []
 })
 
-const isEmpty = computed(() => tableData.value.length === 0)
-
-const showTable = computed(() => props.showEmptyTable || !isEmpty.value)
+const showTable = computed(() => props.showEmptyTable || tracesExists.value)
 
 const columns = computed(() => {
   return [
@@ -122,6 +121,7 @@ onBeforeMount(async () => {
     firstLoading.value = true
     await traceStore.getTypedColumns()
     await getNextPage(true)
+    tracesExists.value = traceStore.traces.length > 0
     await annotationsStore.getTracesAnnotationSummary(props.artifactId)
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error)))

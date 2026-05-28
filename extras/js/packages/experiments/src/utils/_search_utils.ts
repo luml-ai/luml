@@ -439,7 +439,6 @@ export class SearchUtils {
     throw new Error('_getIdentifier not implemented')
   }
 
-   
   protected static _getValue(
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _identifierType: string,
@@ -452,7 +451,6 @@ export class SearchUtils {
   }
 
   protected static _getComparison(raw: RawComparison): ComparisonDict {
-     
     const cls = this as any
     const comp = cls._getIdentifier(
       raw.identifierStr,
@@ -466,7 +464,7 @@ export class SearchUtils {
   protected static _parseFilter(filterString: string): FilterNode[] {
     const tokens = tokenize(filterString)
     const parser = new FilterParser(tokens)
-     
+
     const cls = this as any
     const nodes = parser.parseExpression()
 
@@ -485,7 +483,6 @@ export class SearchUtils {
   }
 
   protected static _resolveNodes(nodes: Array<unknown>): FilterNode[] {
-     
     const cls = this as any
     const result: FilterNode[] = []
     for (const node of nodes) {
@@ -504,7 +501,7 @@ export class SearchUtils {
 
   static parseSearchFilter(filterString: string | null | undefined): FilterNode[] {
     if (!filterString) return []
-     
+
     const cls = this as any
     const preprocessed = cls.preprocessFilter(filterString) as string
     try {
@@ -1607,5 +1604,20 @@ export class SearchTracesUtils extends SearchUtils {
     const parsed = SearchTracesUtils.parseSearchFilter(filterString)
     if (!parsed.length) return ['', []]
     return SearchTracesUtils._buildSql(parsed)
+  }
+
+  static isAggregateFilter(filterString: string | null | undefined): boolean {
+    const parsed = SearchTracesUtils.parseSearchFilter(filterString)
+    for (const node of parsed) {
+      if ('type' in node && 'key' in node) {
+        if (
+          node.type === SearchTracesUtils._TRACE_COLUMN_IDENTIFIER &&
+          this.TRACE_COLUMNS.has(node.key as string)
+        ) {
+          return true
+        }
+      }
+    }
+    return false
   }
 }

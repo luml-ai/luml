@@ -18,6 +18,7 @@
       <TableFilter
         :fields="visibleTypedColumns"
         :async-validate-callback="asyncValidateCallback"
+        :count="filtersCount"
         @apply="filterChange"
       />
       <TableEditColumns
@@ -65,6 +66,10 @@ const visibleTypedColumns = computed<TypedColumnInfo[]>(() => {
     { name: 'created_at', type: 'string' },
     ...traceStore.typedColumnsList,
   ]
+})
+
+const filtersCount = computed(() => {
+  return traceStore.requestParams.filters.length
 })
 
 async function asyncValidateCallback(filters: FilterItem[]) {
