@@ -137,11 +137,12 @@ const router = useRouter()
 
 const loading = ref(true)
 
-const virtualScrollerOptions: VirtualScrollerProps = {
+const virtualScrollerOptions = computed<VirtualScrollerProps>(() => ({
   lazy: true,
   itemSize: 64,
   scrollHeight: 'calc(100vh - 310px)',
-}
+  onLazyLoad: experimentsStore.onLazyLoad,
+}))
 
 const statusIconInfo = computed(() => getStatusIconInfo)
 
