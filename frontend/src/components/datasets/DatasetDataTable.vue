@@ -70,6 +70,10 @@ watch(
 </script>
 
 <style scoped>
+:deep(.p-datatable-table) {
+  table-layout: fixed;
+}
+
 :deep(.p-datatable-paginator-bottom) {
   border: none;
   padding-top: 12px;
