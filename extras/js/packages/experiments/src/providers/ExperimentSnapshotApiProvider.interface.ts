@@ -54,6 +54,18 @@ export interface ApiServiceInterface {
     params: GetExperimentEvalsParams,
   ) => Promise<{ items: GetExperimentEvalsItem[]; cursor: string | null }>
 
+  getBatchExperimentEvals: (params: {
+    experiment_ids: string[]
+    limit?: number
+    cursor?: string | null
+    dataset_id?: string
+    search?: string
+    filters?: string[]
+  }) => Promise<{
+    items: (GetExperimentEvalsItem & { experiment_id: string })[]
+    cursor: string | null
+  }>
+
   getAllExperimentEvals: (params: GetExperimentEvalsParams) => Promise<GetExperimentEvalsItem[]>
 
   getEvalById: (experimentId: string, evalId: string) => Promise<GetExperimentEvalsItem>

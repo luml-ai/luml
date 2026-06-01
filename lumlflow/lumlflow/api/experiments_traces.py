@@ -82,7 +82,7 @@ def get_experiment_traces(
     order: SortOrder = SortOrder.DESC,
     search: str | None = None,
     filters: list[str] = Query(default_factory=list),  # noqa: B008
-    states: list[TraceState] | None = Query(default=None),
+    states: list[TraceState] | None = Query(default=None),  # noqa: B008
 ) -> PaginatedTraces:
     """
     search: An optional search by trace_id.
@@ -123,7 +123,7 @@ def validate_traces_filter(
 
     Supported fields:
     - **trace_id / id** — =, !=, LIKE, ILIKE, CONTAINS, IN, NOT IN
-    - **state** — =, !=, IN, NOT IN (values: "ok", "error", "in_progress", "unspecified")
+    - **state** — =, !=, IN, NOT IN ("ok", "error", "in_progress", "unspecified")
     - **execution_time** — =, !=, >, >=, <, <= (nanoseconds)
     - **span_count** — =, !=, >, >=, <, <=
     - **created_at** — =, !=, >, >=, <, <= (ISO date string)

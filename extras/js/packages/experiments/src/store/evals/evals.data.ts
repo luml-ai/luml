@@ -8,4 +8,4 @@ export const INITIAL_PARAMS: InitialDatasetParamsType = {
   filters: [],
 }
 
-export const COMPARISON_LIMIT = 100_000
+export const COMPARISON_LIMIT = 20

@@ -8,6 +8,7 @@ from luml.experiments.backends.data_types import (
     AnnotationSummary,
     AnnotationValueType,
     AttachmentRecord,
+    BatchEvalRecord,
     EvalColumns,
     EvalRecord,
     EvalTypedColumns,
@@ -356,6 +357,18 @@ class Backend(ABC):
         search: str | None = None,
         filters: list[str] | None = None,
     ) -> list[EvalRecord]:
+        pass
+
+    @abstractmethod
+    def get_batch_experiment_evals(
+        self,
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> PaginatedResponse[BatchEvalRecord]:
         pass
 
     @abstractmethod

@@ -154,40 +154,38 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
   }
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
-    const responses = this.artifacts.map(async (artifact) => {
-      const cursors = this._datasetsCursors[params.dataset_id] || []
-      const currentCursor = cursors[cursors.length - 1]
-      if (currentCursor === null) return []
-      const { items, cursor: newCursor } = await this.apiService.getExperimentEvals({
-        ...params,
-        experiment_id: artifact.id,
-        cursor: currentCursor,
-      })
-      this._datasetsCursors[params.dataset_id] = [...cursors, newCursor]
-      return items.map((item) => ({ ...item, modelId: artifact.id }))
+    const cursors = this._datasetsCursors[params.dataset_id] || []
+    const currentCursor = cursors[cursors.length - 1]
+    if (currentCursor === null) return []
+    const { items, cursor: newCursor } = await this.apiService.getBatchExperimentEvals({
+      experiment_ids: this.artifacts.map((a) => a.id),
+      limit: params.limit,
+      cursor: currentCursor,
+      dataset_id: params.dataset_id,
+      search: params.search,
+      filters: params.filters,
     })
-    const evalsByArtifact = await Promise.all(responses)
-    return evalsByArtifact.flat()
+    this._datasetsCursors[params.dataset_id] = [...cursors, newCursor]
+    return items.map((item) => ({ ...item, modelId: item.experiment_id }))
   }
 
   async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
-    const responses = this.artifacts.map(async (artifact) => {
-      const cursors = this._datasetsCursors[params.dataset_id] || []
-      const cursorsList = [null, ...cursors]
-      cursorsList.pop()
-      const promises = cursorsList.map(async (cursor) => {
-        const { items } = await this.apiService.getExperimentEvals({
-          ...params,
-          experiment_id: artifact.id,
-          cursor,
-        })
-        return items.map((item) => ({ ...item, modelId: artifact.id }))
+    const cursors = this._datasetsCursors[params.dataset_id] || []
+    const cursorsList = [null, ...cursors]
+    cursorsList.pop()
+    const promises = cursorsList.map(async (cursor) => {
+      const { items } = await this.apiService.getBatchExperimentEvals({
+        experiment_ids: this.artifacts.map((a) => a.id),
+        limit: params.limit,
+        cursor,
+        dataset_id: params.dataset_id,
+        search: params.search,
+        filters: params.filters,
       })
-      const evalsByCursor = await Promise.all(promises)
-      return evalsByCursor.flat()
+      return items.map((item) => ({ ...item, modelId: item.experiment_id }))
     })
-    const evalsByArtifact = await Promise.all(responses)
-    return evalsByArtifact.flat()
+    const evalsByCursor = await Promise.all(promises)
+    return evalsByCursor.flat()
   }
 
   async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {

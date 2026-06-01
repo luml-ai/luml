@@ -25,6 +25,7 @@ from luml.experiments.backends.data_types import (
     AnnotationSummary,
     AnnotationValueType,
     AttachmentRecord,
+    BatchEvalRecord,
     ColumnField,
     ColumnType,
     EvalColumns,
@@ -174,9 +175,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "tags",
         "duration",
     }
-    EVALS_STANDARD_SORT_COLUMNS: frozenset[str] = frozenset(
-        {"created_at", "updated_at", "dataset_id"}
-    )
     _EXPERIMENT_COLUMNS = [
         "id",
         "group_id",
@@ -190,6 +188,28 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "dynamic_params",
         "source",
     ]
+
+    _EVALS_STANDARD_SORT_COLUMNS: frozenset[str] = frozenset(
+        {"created_at", "updated_at", "dataset_id"}
+    )
+
+    _EVALS_COLUMNS = [
+        "id",
+        "dataset_id",
+        "inputs",
+        "outputs",
+        "refs",
+        "scores",
+        "metadata",
+        "created_at",
+        "updated_at",
+    ]
+    _EVALS_SEARCH_QUERY = """(id LIKE ?
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))"""
 
     _SQLITE_TYPE_MAP: dict[str, ColumnType] = {
         "text": ColumnType.STRING,
@@ -219,8 +239,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
     def _ensure_experiment_initialized(self, experiment_id: str) -> None:
         db_path = self._get_experiment_db_path(experiment_id)
+
         if not db_path.exists():
             raise ValueError(f"Experiment {experiment_id} not initialized")
+
         if experiment_id not in self._migrated_experiment_dbs:
             conn = self._get_experiment_connection(experiment_id)
             ExperimentMigrationRunner(conn).migrate()
@@ -348,6 +370,14 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         self._initialize_experiment_db(experiment_id)
         self.pool.mark_experiment_active(experiment_id)
+
+    def _check_exp_exists(self, exp_id: str) -> None:
+        if not self._get_experiment_db_path(exp_id).exists():
+            raise ValueError(f"Experiment '{exp_id}' not found")
+
+    def check_experiments_exists(self, experiment_ids: list[str]) -> None:
+        for exp_id in experiment_ids:
+            self._check_exp_exists(exp_id)
 
     def log_static(self, experiment_id: str, key: str, value: Any) -> None:  # noqa: ANN401
         """
@@ -532,11 +562,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the specified experiment does not exist, or has not been initialized.
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not initialized")
-
         self._ensure_experiment_initialized(experiment_id)
+
         attributes_json = json.dumps(attributes) if attributes else None
         events_json = json.dumps(events) if events else None
         links_json = json.dumps(links) if links else None
@@ -607,10 +634,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             metadata: A dictionary containing additional metadata information related to
                 the evaluation sample. It can be None if no metadata is provided.
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not initialized")
-
         self._ensure_experiment_initialized(experiment_id)
         inputs_json = json.dumps(inputs)
         outputs_json = json.dumps(outputs) if outputs else None
@@ -658,10 +681,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             eval_id: Identifier of the evaluation to be linked.
             trace_id: Identifier of the trace to be associated with the evaluation sample.
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not initialized")
-
         self._ensure_experiment_initialized(experiment_id)
         write_lock = self._get_experiment_write_lock(experiment_id)
         with write_lock:
@@ -710,10 +729,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the experiment with the given experiment ID is not found.
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
-
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
@@ -930,8 +945,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         keys: set[str] = set()
         for experiment_id in experiment_ids:
-            db_path = self._get_experiment_db_path(experiment_id)
-            if not db_path.exists():
+            if not self._get_experiment_db_path(experiment_id).exists():
                 continue
             exp_conn = self._get_experiment_connection(experiment_id)
             exp_cursor = exp_conn.cursor()
@@ -948,8 +962,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         keys: set[str] = set()
         for experiment_id in experiment_ids:
-            db_path = self._get_experiment_db_path(experiment_id)
-            if not db_path.exists():
+            if not self._get_experiment_db_path(experiment_id).exists():
                 continue
             exp_conn = self._get_experiment_connection(experiment_id)
             exp_cursor = exp_conn.cursor()
@@ -2273,10 +2286,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Raises:
             ValueError: If the experiment with the given `experiment_id` does not exist.
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
         self._ensure_experiment_initialized(experiment_id)
+
         conn = self._get_experiment_connection(experiment_id)
         cursor = conn.cursor()
         cursor.execute(
@@ -2383,10 +2394,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 cursor="eyJ0cmFjZV9pZCI6ICJhM2NlOTI5ZC4uLiJ9",
             )
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
-
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
@@ -2548,10 +2555,6 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
-
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
 
@@ -2742,6 +2745,38 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         ]
         return TraceDetails(trace_id=trace_id, spans=spans)
 
+    def _build_evals_where_conditions(
+        self,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> list[tuple[str, list]]:
+        conditions: list[tuple[str, list]] = []
+        if dataset_id:
+            conditions.append(("dataset_id = ?", [dataset_id]))
+        if search:
+            conditions.append((self._EVALS_SEARCH_QUERY, [f"%{search}%"] * 6))
+        for f in filters or []:
+            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
+            if filter_where:
+                conditions.append((filter_where, filter_params))
+        return conditions
+
+    @staticmethod
+    def _flatten_where_conditions(
+        conditions: list[tuple[str, list]],
+        cursor_id: str | None = None,
+    ) -> tuple[str, list]:
+        if cursor_id:
+            conditions = [*conditions, ("id > ?", [cursor_id])]
+        if not conditions:
+            return "", []
+        where_sql = "WHERE " + " AND ".join(c[0] for c in conditions)
+        params: list = []
+        for _, p in conditions:
+            params.extend(p)
+        return where_sql, params
+
     def get_experiment_evals(
         self,
         experiment_id: str,
@@ -2812,58 +2847,26 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 cursor="eyJpZCI6ICJldmFsLTAwMSJ9",
             )
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
+        self._check_exp_exists(experiment_id)
 
         conn = self._get_experiment_connection(experiment_id)
 
-        where_conditions: list[tuple[str, list]] = []
+        where_conditions = self._build_evals_where_conditions(
+            dataset_id, search, filters
+        )
         use_cursor = Cursor.decode_and_validate(cursor_str, sort_by, order)
 
-        if dataset_id:
-            where_conditions.append(("dataset_id = ?", [dataset_id]))
-
-        if search:
-            where_conditions.append(
-                (
-                    """(id LIKE ?
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))""",
-                    [f"%{search}%"] * 6,
-                )
-            )
-
-        for f in filters or []:
-            filter_where, filter_params = SearchEvalsUtils.to_sql(f)
-            if filter_where:
-                where_conditions.append((filter_where, filter_params))
-
-        columns = [
-            "id",
-            "dataset_id",
-            "inputs",
-            "outputs",
-            "refs",
-            "scores",
-            "metadata",
-            "created_at",
-            "updated_at",
-        ]
         rows = self._execute_paginated_query(
             conn=conn,
             table="evals",
-            columns=columns,
+            columns=self._EVALS_COLUMNS,
             limit=limit,
             sort_by=sort_by,
             order=order,
             cursor_id=use_cursor.id if use_cursor else None,
             cursor_value=use_cursor.value if use_cursor else None,
             where=where_conditions or None,
-            allowed_sort_columns=self.EVALS_STANDARD_SORT_COLUMNS,
+            allowed_sort_columns=self._EVALS_STANDARD_SORT_COLUMNS,
             json_sort_column=json_sort_column,
             id_column="id",
         )
@@ -2905,7 +2908,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         if has_more:
             last = evals[-1]
             last_sort_val = self._extract_cursor_value(
-                rows[-1], columns, sort_by, json_sort_column
+                rows[-1], self._EVALS_COLUMNS, sort_by, json_sort_column
             )
             cursor = Cursor(
                 id=last.id,
@@ -2915,6 +2918,106 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             ).encode()
 
         return PaginatedResponse(items=evals, cursor=cursor)
+
+    def _get_evals_ids_for_experiments_batch_pagination(
+        self,
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> tuple[bool, list[str]]:
+        base_conditions = self._build_evals_where_conditions(
+            dataset_id, search, filters
+        )
+
+        candidate_ids: set[str] = set()
+        for exp_id in experiment_ids:
+            self._check_exp_exists(exp_id)
+
+            conn = self._get_experiment_connection(exp_id)
+
+            where_sql, params = self._flatten_where_conditions(
+                base_conditions, cursor_str
+            )
+            rows = conn.execute(
+                f"SELECT id FROM evals {where_sql} ORDER BY id LIMIT ?",
+                params + [limit + 1],
+            ).fetchall()
+
+            candidate_ids.update(row[0] for row in rows)
+
+        sorted_ids = sorted(candidate_ids)
+        has_more = len(sorted_ids) > limit
+
+        return has_more, sorted_ids[:limit]
+
+    def get_batch_experiment_evals(
+        self,
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> PaginatedResponse[BatchEvalRecord]:
+        """
+        Retrieve paginated eval samples across multiple experiments, grouped by eval ID.
+
+        Returns flat list of BatchEvalRecord where each item carries its experiment_id.
+        Pagination is cursor-based on eval.id (lexicographic order). No sorting — evals
+        are ordered by id ASC.
+        """
+        has_more, page_ids = self._get_evals_ids_for_experiments_batch_pagination(
+            experiment_ids, limit, cursor_str, dataset_id, search, filters
+        )
+
+        if not page_ids:
+            return PaginatedResponse(items=[], cursor=None)
+
+        placeholders = ", ".join("?" * len(page_ids))
+        columns_sql = ", ".join(self._EVALS_COLUMNS)
+
+        items: list[BatchEvalRecord] = []
+
+        for exp_id in experiment_ids:
+            self._check_exp_exists(exp_id)
+            conn = self._get_experiment_connection(exp_id)
+
+            rows = conn.execute(
+                f"SELECT {columns_sql} FROM evals WHERE id IN ({placeholders}) ORDER BY id",
+                page_ids,
+            ).fetchall()
+
+            if not rows:
+                continue
+
+            eval_ids_in_exp = [row[0] for row in rows]
+            traces_by_eval = self._fetch_bridge_ids(
+                conn, "eval_id", "trace_id", eval_ids_in_exp
+            )
+            summaries = self.get_evals_annotation_summaries(exp_id, eval_ids_in_exp)
+
+            for row in rows:
+                record = BatchEvalRecord(
+                    experiment_id=exp_id,
+                    id=row[0],
+                    dataset_id=row[1],
+                    inputs=json.loads(row[2]) if row[2] else {},
+                    outputs=json.loads(row[3]) if row[3] else None,
+                    refs=json.loads(row[4]) if row[4] else None,
+                    scores=json.loads(row[5]) if row[5] else None,
+                    metadata=json.loads(row[6]) if row[6] else None,
+                    created_at=row[7],
+                    updated_at=row[8],
+                )
+                record.trace_ids = traces_by_eval.get(record.id, [])
+                record.annotations = summaries.get(record.id)
+                items.append(record)
+
+        next_cursor = page_ids[-1] if has_more else None
+        return PaginatedResponse(items=items, cursor=next_cursor)
 
     def get_experiment_evals_all(
         self,
@@ -2979,9 +3082,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 ),
             ]
         """
-        db_path = self._get_experiment_db_path(experiment_id)
-        if not db_path.exists():
-            raise ValueError(f"Experiment {experiment_id} not found")
+        self._check_exp_exists(experiment_id)
 
         self._ensure_experiment_initialized(experiment_id)
         conn = self._get_experiment_connection(experiment_id)
@@ -2993,14 +3094,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             where_clauses.append("dataset_id = ?")
             params.append(dataset_id)
         if search:
-            where_clauses.append(
-                """(id LIKE ?
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))"""
-            )
+            where_clauses.append(self._EVALS_SEARCH_QUERY)
             params.extend([f"%{search}%"] * 6)
 
         for f in filters or []:
@@ -3011,13 +3105,13 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
         sort_expr = self._build_sort_expr(
-            sort_by, json_sort_column, self.EVALS_STANDARD_SORT_COLUMNS
+            sort_by, json_sort_column, self._EVALS_STANDARD_SORT_COLUMNS
         )
         null_order = "LAST" if order == "desc" else "FIRST"
 
         rows = conn.execute(
             f"""
-            SELECT id, dataset_id, inputs, outputs, refs, scores, metadata, created_at, updated_at
+            SELECT {", ".join(self._EVALS_COLUMNS)}
             FROM evals
             {where_sql}
             ORDER BY {sort_expr} {order.upper()} NULLS {null_order}, id {order.upper()}
@@ -3085,10 +3179,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_experiment_connection(experiment_id)
 
         row = conn.execute(
-            """
-            SELECT id, dataset_id, inputs, outputs, refs, scores, metadata, created_at, updated_at
-            FROM evals WHERE id = ?
-            """,
+            f"""SELECT {", ".join(self._EVALS_COLUMNS)} FROM evals WHERE id = ?""",
             (eval_id,),
         ).fetchone()
 
@@ -3334,7 +3425,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         - "refs"      → sort_by is a ref key
         - raises ValueError → sort_by is unknown
         """
-        if sort_by in self.EVALS_STANDARD_SORT_COLUMNS:
+        if sort_by in self._EVALS_STANDARD_SORT_COLUMNS:
             return None
 
         json_keys = self.get_experiment_eval_columns(experiment_id)
@@ -3345,7 +3436,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         raise ValueError(
             f"Invalid sort_by '{sort_by}'. Must be one of "
-            f"{sorted(self.EVALS_STANDARD_SORT_COLUMNS)} or "
+            f"{sorted(self._EVALS_STANDARD_SORT_COLUMNS)} or "
             f"a valid scores / inputs / outputs / refs key."
         )
 
@@ -3384,17 +3475,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             where_conditions.append(("dataset_id = ?", [dataset_id]))
 
         if search:
-            where_conditions.append(
-                (
-                    """(id LIKE ?
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
-                       OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?))""",
-                    [f"%{search}%"] * 6,
-                )
-            )
+            where_conditions.append((self._EVALS_SEARCH_QUERY, [f"%{search}%"] * 6))
 
         for f in filters or []:
             filter_where, filter_params = SearchEvalsUtils.to_sql(f)

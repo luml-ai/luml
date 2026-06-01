@@ -8,6 +8,7 @@ from lumlflow.schemas.experiments import (
     Eval,
     EvalColumns,
     EvalTypedColumns,
+    PaginatedBatchEvals,
     PaginatedEvals,
     SearchValidationResult,
 )
@@ -84,6 +85,36 @@ def get_experiment_evals_all(
         experiment_id,
         sort_by=sort_by,
         order=order,
+        dataset_id=dataset_id,
+        search=search,
+        filters=filters or None,
+    )
+
+
+@experiments_general_evals_router.get("/compare", response_model=PaginatedBatchEvals)
+def get_experiment_evals_for_comparison(
+    experiment_ids: list[str] = Query(default_factory=list),  # noqa: B008
+    limit: int = Query(default=20, ge=1),  # noqa: B008
+    cursor: str | None = None,
+    dataset_id: str | None = None,
+    search: str | None = None,
+    filters: list[str] = Query(default_factory=list),  # noqa: B008
+) -> PaginatedBatchEvals:
+    """
+    search: optional substring filter on eval id
+
+    filters: list of filter conditions, all AND-ed together.
+    Each condition: <field> <op> <value>
+    Fields: id, dataset_id, created_at, updated_at,
+            inputs.<key>, outputs.<key>, refs.<key>, scores.<key>, metadata.<key>
+
+    sort_by: standard column (created_at, updated_at, dataset_id) or
+    a score / inputs / outputs / refs key / metadata
+    """
+    return experiments_handler.get_experiment_evals_for_compare(
+        experiment_ids,
+        limit=limit,
+        cursor=cursor,
         dataset_id=dataset_id,
         search=search,
         filters=filters or None,

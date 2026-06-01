@@ -8,6 +8,7 @@ from lumlflow.schemas.annotations import AnnotationSummary
 from lumlflow.schemas.base import SortOrder
 from lumlflow.schemas.experiments import (
     AttachmentRecord,
+    BatchEval,
     Eval,
     EvalColumns,
     EvalTypedColumns,
@@ -17,6 +18,7 @@ from lumlflow.schemas.experiments import (
     ExperimentStatus,
     FileNode,
     MetricPoint,
+    PaginatedBatchEvals,
     PaginatedEvals,
     PaginatedTraces,
     SearchValidationResult,
@@ -276,6 +278,39 @@ class ExperimentsHandler:
 
         return PaginatedEvals(
             items=[Eval.model_validate(e) for e in result.items],
+            cursor=result.cursor,
+        )
+
+    def get_experiment_evals_for_compare(
+        self,
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> PaginatedBatchEvals:
+        try:
+            self.tracker.check_experiments_exists(experiment_ids)
+        except ValueError as e:
+            raise NotFound(str(e)) from e
+
+        try:
+            result = self.tracker.get_batch_experiment_evals(
+                experiment_ids,
+                limit=limit,
+                cursor_str=cursor,
+                dataset_id=dataset_id,
+                search=search,
+                filters=filters,
+            )
+        except ValueError as e:
+            raise ApplicationError(str(e), status_code=400) from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+        return PaginatedBatchEvals(
+            items=[BatchEval.model_validate(e) for e in result.items],
             cursor=result.cursor,
         )
 

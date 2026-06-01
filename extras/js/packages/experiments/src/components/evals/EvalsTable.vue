@@ -22,7 +22,7 @@
       :scroll-height="useScroll ? '410px' : undefined"
       :virtual-scroller-options="useScroll ? virtualScrollerOptions : undefined"
       striped-rows
-      :lazy="!isMultipleModels"
+      :lazy="true"
       :row-class="rowClass"
       class="evals-table"
       tableStyle="table-layout: fixed;"
@@ -248,8 +248,8 @@ const useScroll = computed(() => tableData.value.length > 8)
 
 const virtualScrollerOptions = computed(() => ({
   itemSize: 44,
-  lazy: !isMultipleModels.value,
-  onLazyLoad: isMultipleModels.value ? undefined : onLazyLoad,
+  lazy: true,
+  onLazyLoad,
 }))
 
 function onLazyLoad(event: VirtualScrollerLazyEvent) {
