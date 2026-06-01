@@ -3016,6 +3016,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 record.annotations = summaries.get(record.id)
                 items.append(record)
 
+        items.sort(key=lambda r: (r.id, r.experiment_id))
         next_cursor = page_ids[-1] if has_more else None
         return PaginatedResponse(items=items, cursor=next_cursor)
 

@@ -107,9 +107,6 @@ def get_experiment_evals_for_comparison(
     Each condition: <field> <op> <value>
     Fields: id, dataset_id, created_at, updated_at,
             inputs.<key>, outputs.<key>, refs.<key>, scores.<key>, metadata.<key>
-
-    sort_by: standard column (created_at, updated_at, dataset_id) or
-    a score / inputs / outputs / refs key / metadata
     """
     return experiments_handler.get_experiment_evals_for_compare(
         experiment_ids,
