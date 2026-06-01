@@ -1,12 +1,20 @@
 # flake8: noqa: E501
 
+from typing import Any
+from unittest.mock import patch
+
 import pytest
+from sqlparse.sql import Token as SqlToken
+from sqlparse.tokens import Token as TokenType
 
 from luml.experiments.backends._exceptions import LumlFilterError
 from luml.experiments.backends._search_utils import (
     SearchEvalsUtils,
     SearchExperimentsUtils,
     SearchTracesUtils,
+    SearchUtils,
+    _ilike,
+    _like,
 )
 
 
@@ -1042,3 +1050,804 @@ class TestSearchTracesAnnotationUnderscoreSyntax:
         assert "high" in p
         assert "label" in p
         assert "dog" in p
+
+
+class TestSearchUtilsBase:
+    """Cover base SearchUtils helpers and shared error paths."""
+
+    def test_like_helper_matches_pattern(self) -> None:
+        assert _like("hello world", "%world%") is True
+        assert _like("hello", "hello") is True
+        assert _like("HELLO", "hello") is False
+
+    def test_ilike_helper_case_insensitive(self) -> None:
+        assert _ilike("HELLO", "hello") is True
+        assert _ilike("Foo Bar", "%foo%") is True
+
+    def test_like_prefix_anchor(self) -> None:
+        assert _like("abc", "ab%") is True
+        assert _like("xabc", "ab%") is False
+
+    def test_like_suffix_anchor(self) -> None:
+        assert _like("abc", "%bc") is True
+        assert _like("abcx", "%bc") is False
+
+    def test_get_comparison_func_all_operators(self) -> None:
+        assert SearchUtils.get_comparison_func(">")(2, 1) is True
+        assert SearchUtils.get_comparison_func(">=")(1, 1) is True
+        assert SearchUtils.get_comparison_func("=")(1, 1) is True
+        assert SearchUtils.get_comparison_func("!=")(1, 2) is True
+        assert SearchUtils.get_comparison_func("<=")(1, 1) is True
+        assert SearchUtils.get_comparison_func("<")(1, 2) is True
+        assert SearchUtils.get_comparison_func("LIKE")("abc", "%b%") is True
+        assert SearchUtils.get_comparison_func("ILIKE")("ABC", "%b%") is True
+        assert SearchUtils.get_comparison_func("IN")(1, [1, 2]) is True
+        assert SearchUtils.get_comparison_func("NOT IN")(3, [1, 2]) is True
+
+    def test_build_annotation_value_expr_numeric_comparators(self) -> None:
+        for op in (">", ">=", "<", "<="):
+            sql, params = SearchUtils._build_annotation_value_expr(op, 5)
+            assert sql == f"CAST(value AS REAL) {op} ?"
+            assert params == [5]
+
+    def test_build_annotation_value_expr_ilike(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("ILIKE", "%foo%")
+        assert sql == "UPPER(value) LIKE UPPER(?)"
+        assert params == ["%foo%"]
+
+    def test_build_annotation_value_expr_in_and_not_in(self) -> None:
+        sql_in, params_in = SearchUtils._build_annotation_value_expr("IN", ["a", "b"])
+        assert sql_in == "value IN (?,?)"
+        assert params_in == ["a", "b"]
+
+        sql_not, params_not = SearchUtils._build_annotation_value_expr("NOT IN", ["x"])
+        assert sql_not == "value NOT IN (?)"
+        assert params_not == ["x"]
+
+    def test_build_annotation_value_expr_float_one_eq(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("=", 1.0)
+        assert sql == "(value = ? OR value = 'true')"
+        assert params == ["1"]
+
+    def test_build_annotation_value_expr_float_one_neq(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("!=", 1.0)
+        assert sql == "(value != ? AND value != 'true')"
+        assert params == ["1"]
+
+    def test_build_annotation_value_expr_float_zero_eq(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("=", 0.0)
+        assert sql == "(value = ? OR value = 'false')"
+        assert params == ["0"]
+
+    def test_build_annotation_value_expr_float_zero_neq(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("!=", 0.0)
+        assert sql == "(value != ? AND value != 'false')"
+        assert params == ["0"]
+
+    def test_build_annotation_value_expr_float_other(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("=", 3.5)
+        assert sql == "value = ?"
+        assert params == ["3.5"]
+
+    def test_build_annotation_value_expr_string(self) -> None:
+        sql, params = SearchUtils._build_annotation_value_expr("=", "hello")
+        assert sql == "value = ?"
+        assert params == ["hello"]
+
+    def test_validate_date_string_raises_on_invalid(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid date value"):
+            SearchUtils._validate_date_string("not-a-date", "created_at")
+
+    def test_strip_quotes_raises_when_expected(self) -> None:
+        with pytest.raises(LumlFilterError, match="not quoted"):
+            SearchUtils._strip_quotes("bare_value", expect_quoted_value=True)
+
+    def test_strip_quotes_returns_raw_when_optional(self) -> None:
+        assert SearchUtils._strip_quotes("bare", expect_quoted_value=False) == "bare"
+        assert SearchUtils._strip_quotes("'q'") == "q"
+        assert SearchUtils._strip_quotes('"q"') == "q"
+
+    def test_trim_backticks(self) -> None:
+        assert SearchUtils._trim_backticks("`param`") == "param"
+        assert SearchUtils._trim_backticks("plain") == "plain"
+
+    def test_invalid_clause_in_filter_string(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid clause"):
+            SearchExperimentsUtils.parse_search_filter("name")
+
+    def test_parse_list_raises_for_malformed_syntax(self) -> None:
+        class _FakeTok:
+            value = "(1, 2"
+
+        with pytest.raises(LumlFilterError, match="ill-formed list"):
+            SearchUtils._parse_list_from_sql_token(_FakeTok())
+
+    def test_check_valid_identifier_list_rejects_empty(self) -> None:
+        with pytest.raises(LumlFilterError, match="empty list"):
+            SearchExperimentsUtils._check_valid_identifier_list(())
+
+    def test_check_valid_identifier_list_rejects_non_string(self) -> None:
+        with pytest.raises(LumlFilterError, match="different type"):
+            SearchExperimentsUtils._check_valid_identifier_list((1, 2))
+
+
+class TestSearchExperimentsUtilsBranches:
+    """Cover SearchExperimentsUtils edge cases and error paths."""
+
+    def test_preprocess_contains_to_like(self) -> None:
+        result = SearchExperimentsUtils.parse_search_filter('name CONTAINS "bert"')
+        assert result == [
+            {
+                "type": "attribute",
+                "key": "name",
+                "comparator": "LIKE",
+                "value": "%bert%",
+            }
+        ]
+
+    def test_invalid_entity_type_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid entity type"):
+            SearchExperimentsUtils.parse_search_filter('unknown.foo = "x"')
+
+    def test_invalid_key_for_param_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid key"):
+            SearchExperimentsUtils.parse_search_filter('param."bad key!" = "x"')
+
+    def test_metric_non_numeric_value_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected numeric value type for metric"
+        ):
+            SearchExperimentsUtils.parse_search_filter('metric.acc = "string"')
+
+    def test_param_boolean_value(self) -> None:
+        # "true" is preprocessed to 1 then converted to float
+        result = SearchExperimentsUtils.parse_search_filter("param.enabled = true")
+        assert result[0]["value"] == 1.0
+
+    def test_param_invalid_value_type_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected string or numeric value for param"
+        ):
+            SearchExperimentsUtils.parse_search_filter("param.lr = (1, 2)")
+
+    def test_tag_unquoted_value_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected quoted string value for tag"
+        ):
+            SearchExperimentsUtils.parse_search_filter("tags = (1, 2)")
+
+    def test_duration_string_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected numeric value for 'duration'"
+        ):
+            SearchExperimentsUtils.parse_search_filter('duration = "fast"')
+
+    def test_created_at_numeric_accepted(self) -> None:
+        result = SearchExperimentsUtils.parse_search_filter("created_at > 1234567")
+        assert result[0]["key"] == "created_at"
+
+    def test_created_at_invalid_token_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Expected quoted date string"):
+            SearchExperimentsUtils.parse_search_filter("created_at = (1, 2)")
+
+    def test_attribute_in_with_list(self) -> None:
+        result = SearchExperimentsUtils.parse_search_filter(
+            'status IN ("active", "completed")'
+        )
+        assert result[0]["value"] == ("active", "completed")
+        assert result[0]["comparator"] == "IN"
+
+    def test_attribute_invalid_value_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected quoted string value for attribute"
+        ):
+            SearchExperimentsUtils.parse_search_filter("name = 42")
+
+    def test_invalid_comparator_for_metric_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid comparator"):
+            SearchExperimentsUtils.parse_search_filter("metric.acc LIKE 0.9")
+
+    def test_parse_search_filter_multiple_statements_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchExperimentsUtils.parse_search_filter('name = "a"; name = "b"')
+
+    def test_build_sql_order_by_param(self) -> None:
+        clause = SearchExperimentsUtils._build_sql_order_by(["param.lr DESC"])
+        assert clause == "ORDER BY json_extract(static_params, '$.lr') DESC"
+
+    def test_build_sql_order_by_metric(self) -> None:
+        clause = SearchExperimentsUtils._build_sql_order_by(["metric.acc ASC"])
+        assert clause == "ORDER BY json_extract(dynamic_params, '$.acc') ASC"
+
+    def test_build_sql_order_by_invalid_entity_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid order_by entity type"):
+            SearchExperimentsUtils._build_sql_order_by(["tags ASC"])
+
+    def test_parse_order_by_invalid_format_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid order_by clause"):
+            SearchExperimentsUtils.parse_order_by("name ASC EXTRA")
+
+
+class TestSearchEvalsUtilsBranches:
+    """Cover SearchEvalsUtils edge cases and SQL generation branches."""
+
+    def test_annotations_feedback_kind_dot_syntax(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations.feedback.quality = "true"'
+        )
+        assert result[0]["type"] == "annotation"
+        assert result[0]["kind"] == "feedback"
+        assert result[0]["key"] == "quality"
+
+    def test_annotations_expectations_dot_syntax(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations.expectations.score = "high"'
+        )
+        assert result[0]["kind"] == "expectation"
+
+    def test_annotations_no_kind_dot_syntax(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter('annotations.score = "high"')
+        assert result[0]["kind"] is None
+        assert result[0]["key"] == "score"
+
+    def test_annotations_underscore_feedback(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations_feedback.quality = "true"'
+        )
+        assert result[0]["kind"] == "feedback"
+        assert result[0]["key"] == "quality"
+
+    def test_annotations_underscore_expectations(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations_expectations.score = "ok"'
+        )
+        assert result[0]["kind"] == "expectation"
+
+    def test_annotations_underscore_expectation_singular(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations_expectation.score = "ok"'
+        )
+        assert result[0]["kind"] == "expectation"
+
+    def test_json_boolean_value(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter("metadata.is_valid = true")
+        # "true" preprocessed to 1 → numeric
+        assert result[0]["value"] in (1.0, True)
+
+    def test_invalid_field_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid field prefix"):
+            SearchEvalsUtils.parse_search_filter('unknown_col.key = "x"')
+
+    def test_invalid_attribute_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid attribute"):
+            SearchEvalsUtils.parse_search_filter('totally_bogus = "x"')
+
+    def test_invalid_comparator_date_attribute(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid comparator"):
+            SearchEvalsUtils.parse_search_filter('created_at LIKE "2024-01-01"')
+
+    def test_to_sql_with_grouped_and(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('(id = "a" AND dataset_id = "b") OR id = "c"')
+        assert "(id = ? AND dataset_id = ?)" in w
+        assert "OR" in w
+        assert p == ["a", "b", "c"]
+
+    def test_json_field_ilike(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('outputs.prediction ILIKE "%bert%"')
+        assert w == "UPPER(json_extract(outputs, '$.prediction')) LIKE UPPER(?)"
+        assert p == ["%bert%"]
+
+    def test_json_field_in_with_list(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('scores.label IN ("a", "b")')
+        assert "json_extract(scores, '$.label') IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_json_field_not_in_with_list(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('scores.label NOT IN ("a", "b")')
+        assert "json_extract(scores, '$.label') NOT IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_attribute_id_ilike(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id ILIKE "%foo%"')
+        assert w == "UPPER(id) LIKE UPPER(?)"
+        assert p == ["%foo%"]
+
+    def test_attribute_id_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id IN ("a", "b")')
+        assert "id IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_attribute_id_not_in(self) -> None:
+        w, p = SearchEvalsUtils.to_sql('id NOT IN ("a", "b")')
+        assert "id NOT IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_date_invalid_token_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Expected ISO date string"):
+            SearchEvalsUtils.parse_search_filter("created_at = (1, 2)")
+
+    def test_attribute_invalid_value_raises(self) -> None:
+        with pytest.raises(
+            LumlFilterError, match="Expected string value for attribute"
+        ):
+            SearchEvalsUtils.parse_search_filter("id = 42")
+
+    def test_parse_multiple_statements_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchEvalsUtils.parse_search_filter('id = "a"; id = "b"')
+
+
+class TestSearchTracesUtilsBranches:
+    """Cover SearchTracesUtils edge cases."""
+
+    def test_invalid_bare_field_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid field"):
+            SearchTracesUtils.parse_search_filter('totally_bogus = "x"')
+
+    def test_invalid_prefix_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid field prefix"):
+            SearchTracesUtils.parse_search_filter('foo.bar = "x"')
+
+    def test_annotations_no_kind(self) -> None:
+        result = SearchTracesUtils.parse_search_filter('annotations.quality = "ok"')
+        assert result[0]["kind"] is None
+        assert result[0]["key"] == "quality"
+
+    def test_annotations_kind_dot(self) -> None:
+        result = SearchTracesUtils.parse_search_filter(
+            'annotations.feedback.quality = "ok"'
+        )
+        assert result[0]["kind"] == "feedback"
+        assert result[0]["key"] == "quality"
+
+    def test_annotations_expectations_dot(self) -> None:
+        result = SearchTracesUtils.parse_search_filter(
+            'annotations.expectations.q = "ok"'
+        )
+        assert result[0]["kind"] == "expectation"
+
+    def test_state_named_value_ok(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state = "ok"')
+        assert "state = ?" in w
+        assert p == [1]
+
+    def test_state_named_value_error(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state = "error"')
+        assert p == [2]
+
+    def test_state_named_value_in_progress(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state = "in_progress"')
+        assert p == [3]
+
+    def test_state_named_value_unspecified(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state = "state_unspecified"')
+        assert p == [0]
+
+    def test_state_invalid_name_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid state value"):
+            SearchTracesUtils.parse_search_filter('state = "totally_invalid"')
+
+    def test_state_numeric_value(self) -> None:
+        w, p = SearchTracesUtils.to_sql("state = 2")
+        assert p == [2]
+
+    def test_state_in_with_named_list(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state IN ("ok", "error")')
+        assert "state IN (?,?)" in w
+        assert p == [1, 2]
+
+    def test_state_not_in_with_named_list(self) -> None:
+        w, p = SearchTracesUtils.to_sql('state NOT IN ("ok", "error")')
+        assert "state NOT IN (?,?)" in w
+        assert p == [1, 2]
+
+    def test_state_invalid_value_token_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.parse_search_filter("state = ?")
+
+    def test_created_at_string(self) -> None:
+        w, p = SearchTracesUtils.to_sql('created_at > "2024-01-01"')
+        assert "created_at > ?" in w
+        assert p == ["2024-01-01"]
+
+    def test_created_at_invalid_value_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Expected ISO date string"):
+            SearchTracesUtils.parse_search_filter("created_at = (1, 2)")
+
+    def test_execution_time_numeric(self) -> None:
+        w, p = SearchTracesUtils.to_sql("execution_time > 1000")
+        assert "execution_time > ?" in w
+        assert p == [1000]
+
+    def test_span_count_numeric(self) -> None:
+        w, p = SearchTracesUtils.to_sql("span_count >= 5")
+        assert "span_count >= ?" in w
+        assert p == [5.0]
+
+    def test_trace_id_ilike(self) -> None:
+        w, p = SearchTracesUtils.to_sql('trace_id ILIKE "%abc%"')
+        assert w == "UPPER(trace_id) LIKE UPPER(?)"
+        assert p == ["%abc%"]
+
+    def test_trace_id_in_list(self) -> None:
+        w, p = SearchTracesUtils.to_sql('trace_id IN ("a", "b")')
+        assert "trace_id IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_trace_id_not_in_list(self) -> None:
+        w, p = SearchTracesUtils.to_sql('trace_id NOT IN ("a", "b")')
+        assert "trace_id NOT IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_evals_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals = "eval-1"')
+        assert "SELECT DISTINCT trace_id FROM eval_traces_bridge" in w
+        assert "eval_id = ?" in w
+        assert p == ["eval-1"]
+
+    def test_evals_neq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals != "eval-1"')
+        assert "trace_id NOT IN" in w
+        assert p == ["eval-1"]
+
+    def test_evals_ilike(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals ILIKE "%foo%"')
+        assert "UPPER(eval_id) LIKE UPPER(?)" in w
+        assert p == ["%foo%"]
+
+    def test_evals_like(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals LIKE "%foo%"')
+        assert "eval_id LIKE ?" in w
+        assert p == ["%foo%"]
+
+    def test_evals_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals IN ("a", "b")')
+        assert "eval_id IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_evals_not_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql('evals NOT IN ("a", "b")')
+        assert "trace_id NOT IN" in w
+        assert "eval_id IN (?,?)" in w
+        assert p == ["a", "b"]
+
+    def test_span_attributes_eq(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.http.method = "GET"')
+        assert "json_extract(attributes" in w
+        assert p == ["GET"]
+
+    def test_span_attributes_ilike(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.url ILIKE "%api%"')
+        assert "UPPER(" in w
+        assert p == ["%api%"]
+
+    def test_span_attributes_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.code IN ("200", "201")')
+        assert "IN (?,?)" in w
+        assert p == ["200", "201"]
+
+    def test_span_attributes_not_in(self) -> None:
+        w, p = SearchTracesUtils.to_sql('attributes.code NOT IN ("500", "503")')
+        assert "NOT IN (?,?)" in w
+        assert p == ["500", "503"]
+
+    def test_invalid_numeric_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid comparator"):
+            SearchTracesUtils.parse_search_filter('execution_time LIKE "1"')
+
+    def test_invalid_state_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid comparator"):
+            SearchTracesUtils.parse_search_filter('state > "ok"')
+
+    def test_evals_invalid_comparator_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid comparator"):
+            SearchTracesUtils.parse_search_filter("evals > 1")
+
+    def test_multiple_statements_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchTracesUtils.parse_search_filter('trace_id = "a"; trace_id = "b"')
+
+
+class TestSearchUtilsBaseExtras:
+    def test_join_in_truncated_tokens(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid clause"):
+            SearchExperimentsUtils.parse_search_filter("status IN")
+
+    def test_join_in_not_in_without_parenthesis_extends(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchExperimentsUtils.parse_search_filter("status NOT IN status")
+
+    def test_validate_comparison_wrong_token_count_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="Expected 3 tokens"):
+            SearchUtils._validate_comparison([1, 2])
+
+    def test_validate_comparison_non_identifier_left_raises(self) -> None:
+        class _Fake:
+            pass
+
+        with pytest.raises(LumlFilterError, match="Expected 'Identifier'"):
+            SearchUtils._validate_comparison([_Fake(), _Fake(), _Fake()])
+
+    def test_base_get_identifier_not_implemented(self) -> None:
+        with pytest.raises(NotImplementedError):
+            SearchUtils._get_identifier("x", set())
+
+    def test_base_get_value_not_implemented(self) -> None:
+        with pytest.raises(NotImplementedError):
+            SearchUtils._get_value("attribute", "k", None)  # type: ignore[arg-type]
+
+    def test_base_parse_search_filter_empty_returns_empty(self) -> None:
+        assert SearchUtils.parse_search_filter(None) == []
+        assert SearchUtils.parse_search_filter("") == []
+
+    def test_base_parse_search_filter_propagates_via_subclass(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchExperimentsUtils.parse_search_filter('name = "a"; status = "b"')
+
+    def test_preprocess_backticks_annotation_key_with_spaces(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter(
+            'annotations.feedback.quality assessment = "ok"'
+        )
+        assert result[0]["type"] == "annotation"
+        assert result[0]["key"] == "quality assessment"
+
+    def test_invalid_attribute_via_attribute_prefix(self) -> None:
+        with pytest.raises(LumlFilterError, match="Invalid attribute key"):
+            SearchExperimentsUtils.parse_search_filter('attribute.unknown = "x"')
+
+    def test_experiments_invalid_identifier_type_in_get_comparison(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchExperimentsUtils.parse_search_filter('totally.bogus = "x"')
+
+
+class TestSearchEvalsUtilsExtras:
+    def test_json_boolean_token_via_underscore_form(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter("scores.flag = true")
+        assert result is not None
+
+    def test_date_attribute_numeric_value_accepted(self) -> None:
+        result = SearchEvalsUtils.parse_search_filter("created_at > 1700000000")
+        assert result[0]["key"] == "created_at"
+
+    def test_invalid_comparator_annotation_with_kind_shows_field(self) -> None:
+        with pytest.raises(LumlFilterError, match="annotations.feedback.quality"):
+            SearchEvalsUtils.parse_search_filter(
+                "annotations.feedback.quality BETWEEN 1 AND 2"
+            )
+
+
+class TestSearchTracesUtilsExtras:
+    def test_resolve_state_value_integer_passthrough(self) -> None:
+        assert SearchTracesUtils._resolve_state_value(2) == 2
+
+    def test_date_column_numeric_passthrough(self) -> None:
+        result = SearchTracesUtils.parse_search_filter("created_at > 1700000000")
+        assert result[0]["key"] == "created_at"
+
+    def test_grouped_filter_in_build_sql(self) -> None:
+        w, p = SearchTracesUtils.to_sql(
+            '(trace_id = "a" AND state = "ok") OR span_count > 5'
+        )
+        assert "(trace_id = ? AND state = ?)" in w
+        assert "OR" in w
+
+    def test_trace_id_eq_comparator(self) -> None:
+        w, p = SearchTracesUtils.to_sql('trace_id = "abc"')
+        assert "trace_id = ?" in w
+        assert p == ["abc"]
+
+    def test_trace_id_neq_comparator(self) -> None:
+        w, p = SearchTracesUtils.to_sql('trace_id != "abc"')
+        assert "trace_id != ?" in w
+        assert p == ["abc"]
+
+    def test_state_invalid_token_type_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchTracesUtils.parse_search_filter("state = ?")
+
+    def test_multiple_statements_in_traces_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchTracesUtils.parse_search_filter('trace_id = "a"; trace_id = "b"')
+
+
+class TestJoinInTokensFourthNone:
+    def test_three_token_not_in_truncated(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchExperimentsUtils.parse_search_filter("name NOT IN")
+
+
+class TestSearchUtilsBaseGetComparison:
+    def test_covers_lines_286_292(self) -> None:
+        import sqlparse
+        from sqlparse.sql import Comparison as SqlComparison
+
+        class _Concrete(SearchUtils):
+            VALID_SEARCH_ATTRIBUTE_KEYS: set = {"name"}
+
+            @classmethod
+            def _get_identifier(cls, raw: str, valid: set) -> dict:  # type: ignore[override]
+                return {"type": "attribute", "key": raw.strip()}
+
+            @classmethod
+            def _get_value(cls, identifier_type: str, key: str, token: Any) -> str:  # type: ignore[override]  # noqa: ANN401
+                return token.value.strip("'\"")
+
+        parsed = sqlparse.parse('name = "bert"')
+        comparison = next(t for t in parsed[0].tokens if isinstance(t, SqlComparison))
+        result = _Concrete._get_comparison(comparison)
+        assert result["key"] == "name"
+        assert result["comparator"] == "="
+        assert result["value"] == "bert"
+
+
+class TestSearchUtilsBaseParseSearchFilterEdges:
+    def test_non_empty_propagates_to_process_statement(self) -> None:
+        with pytest.raises((AttributeError, NotImplementedError)):
+            SearchUtils.parse_search_filter('name = "bert"')
+
+    def test_multiple_statements_raises(self) -> None:
+        with pytest.raises(LumlFilterError, match="multiple expressions"):
+            SearchUtils.parse_search_filter('name = "a"; name = "b"')
+
+    def test_sqlparse_exception_wraps(self) -> None:
+        from unittest.mock import patch
+
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                side_effect=Exception("parse fail"),
+            ),
+            pytest.raises(LumlFilterError, match="Error on parsing filter"),
+        ):
+            SearchUtils.parse_search_filter("something")
+
+    def test_empty_parse_result_raises(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                return_value=[],
+            ),
+            pytest.raises(LumlFilterError, match="Could not be parsed"),
+        ):
+            SearchUtils.parse_search_filter("something")
+
+
+class TestSearchExperimentsValidateFilterString:
+    def test_validate_none_passes(self) -> None:
+        SearchExperimentsUtils.validate_filter_string(None)
+
+    def test_validate_valid_filter_passes(self) -> None:
+        SearchExperimentsUtils.validate_filter_string('name LIKE "%bert%"')
+
+    def test_validate_invalid_filter_raises(self) -> None:
+        with pytest.raises(LumlFilterError):
+            SearchExperimentsUtils.validate_filter_string('nonexistent = "x"')
+
+
+class TestSearchExperimentsUtilsDirectCalls:
+    def test_tag_dot_notation_covers_line_457(self) -> None:
+        result = SearchExperimentsUtils.parse_search_filter('tag.name LIKE "%bert%"')
+        assert result[0]["type"] == "tag"
+        assert result[0]["key"] == "name"
+
+    def test_get_value_param_boolean_true_covers_line_502(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "TRUE")
+        result = SearchExperimentsUtils._get_value("param", "enabled", bool_token)
+        assert result is True
+
+    def test_get_value_param_boolean_false(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "FALSE")
+        result = SearchExperimentsUtils._get_value("param", "flag", bool_token)
+        assert result is False
+
+    def test_get_value_unknown_type_raises_line_543(self) -> None:
+        str_token = SqlToken(TokenType.Literal.String.Single, "'val'")
+        with pytest.raises(LumlFilterError, match="Invalid identifier type"):
+            SearchExperimentsUtils._get_value("unknown_type", "key", str_token)
+
+    def test_parse_filter_sqlparse_exception_covers_611_612(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                side_effect=Exception("boom"),
+            ),
+            pytest.raises(LumlFilterError, match="Error on parsing filter"),
+        ):
+            SearchExperimentsUtils.parse_search_filter('name = "a"')
+
+    def test_parse_filter_empty_result_covers_614(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                return_value=[],
+            ),
+            pytest.raises(LumlFilterError, match="Could not be parsed"),
+        ):
+            SearchExperimentsUtils.parse_search_filter('name = "a"')
+
+
+class TestSearchEvalsUtilsDirectCalls:
+    def test_get_json_value_boolean_true_covers(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "TRUE")
+        result = SearchEvalsUtils._get_json_value("flag", bool_token)
+        assert result is True
+
+    def test_get_json_value_boolean_false(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "FALSE")
+        result = SearchEvalsUtils._get_json_value("active", bool_token)
+        assert result is False
+
+    def test_invalid_comparator_annotation_with_kind_covers(self) -> None:
+        # <> is not in VALID_ANNOTATION_COMPARATORS; with kind="feedback"
+        # field = "annotations.feedback.quality"
+        with pytest.raises(LumlFilterError, match="annotations.feedback.quality"):
+            SearchEvalsUtils.parse_search_filter(
+                'annotations.feedback.quality <> "bad"'
+            )
+
+    def test_invalid_comparator_annotation_no_kind(self) -> None:
+        # Annotation without kind: field = "annotations.<key>"
+        with pytest.raises(LumlFilterError, match="annotations.score"):
+            SearchEvalsUtils.parse_search_filter('annotations.score <> "bad"')
+
+    def test_parse_filter_sqlparse_exception_covers(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                side_effect=Exception("boom"),
+            ),
+            pytest.raises(LumlFilterError, match="Error on parsing filter"),
+        ):
+            SearchEvalsUtils.parse_search_filter('id = "a"')
+
+    def test_parse_filter_empty_result_covers(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                return_value=[],
+            ),
+            pytest.raises(LumlFilterError, match="Could not be parsed"),
+        ):
+            SearchEvalsUtils.parse_search_filter('id = "a"')
+
+    def test_get_json_value_unknown_token_raises_line_887(self) -> None:
+        null_token = SqlToken(TokenType.Keyword, "NULL")
+        with pytest.raises(LumlFilterError, match="Expected string or numeric value"):
+            SearchEvalsUtils._get_json_value("flag", null_token)
+
+
+class TestSearchTracesUtilsDirectCalls:
+    def test_get_value_boolean_true_covers_1266_1268(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "TRUE")
+        result = SearchTracesUtils._get_value("trace_column", "trace_id", bool_token)
+        assert result is True
+
+    def test_get_value_boolean_false(self) -> None:
+        bool_token = SqlToken(TokenType.Keyword, "FALSE")
+        result = SearchTracesUtils._get_value("trace_column", "trace_id", bool_token)
+        assert result is False
+
+    def test_parse_filter_sqlparse_exception_covers_1437_1438(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                side_effect=Exception("boom"),
+            ),
+            pytest.raises(LumlFilterError, match="Error on parsing filter"),
+        ):
+            SearchTracesUtils.parse_search_filter('trace_id = "a"')
+
+    def test_parse_filter_empty_result_covers_1440(self) -> None:
+        with (
+            patch(
+                "luml.experiments.backends._search_utils.sqlparse.parse",
+                return_value=[],
+            ),
+            pytest.raises(LumlFilterError, match="Could not be parsed"),
+        ):
+            SearchTracesUtils.parse_search_filter('trace_id = "a"')
+
+    def test_get_value_unknown_token_raises_line_1268(self) -> None:
+        null_token = SqlToken(TokenType.Keyword, "NULL")
+        with pytest.raises(LumlFilterError, match="Expected string or numeric value"):
+            SearchTracesUtils._get_value("trace_column", "trace_id", null_token)

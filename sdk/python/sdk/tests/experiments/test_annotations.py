@@ -659,6 +659,80 @@ class TestAnnotationSummary:
         assert fb.counts["true"] == 3
         assert fb.counts["false"] == 2
 
+    def test_get_evals_annotation_summaries_empty_for_no_eval_ids(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        result = tracker.get_evals_annotation_summaries(exp_id, [])
+        assert result == {}
+
+    def test_get_evals_annotation_summaries_aggregates_feedback_and_expectations(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(eval_id="e1", dataset_id="ds1", inputs={"x": 1})
+        tracker.log_eval_sample(eval_id="e2", dataset_id="ds1", inputs={"x": 2})
+
+        tracker.log_eval_annotation(
+            dataset_id="ds1",
+            eval_id="e1",
+            name="correct",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=True,
+            user="alice",
+        )
+        tracker.log_eval_annotation(
+            dataset_id="ds1",
+            eval_id="e1",
+            name="quality",
+            annotation_kind="expectation",
+            value_type="int",
+            value=5,
+            user="alice",
+        )
+        tracker.log_eval_annotation(
+            dataset_id="ds1",
+            eval_id="e2",
+            name="correct",
+            annotation_kind="feedback",
+            value_type="bool",
+            value=False,
+            user="bob",
+        )
+
+        result = tracker.get_evals_annotation_summaries(exp_id, ["e1", "e2"])
+
+        assert set(result.keys()) == {"e1", "e2"}
+        e1_feedback = result["e1"].feedback[0]
+        assert e1_feedback.name == "correct"
+        assert e1_feedback.counts == {"true": 1}
+        e1_exp = result["e1"].expectations[0]
+        assert e1_exp.name == "quality"
+        assert e1_exp.total == 1
+
+    def test_expectation_string_value_returned_as_raw(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_eval_sample(eval_id="e1", dataset_id="ds1", inputs={"x": 1})
+        tracker.log_eval_annotation(
+            dataset_id="ds1",
+            eval_id="e1",
+            name="rating",
+            annotation_kind="expectation",
+            value_type="string",
+            value="excellent",
+            user="alice",
+        )
+
+        summary = tracker.get_eval_annotation_summary(exp_id, "ds1")
+        exp = next(e for e in summary.expectations if e.name == "rating")
+        assert exp.value == "excellent"
+
     def test_span_expectation_summary_covers_all_spans(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],

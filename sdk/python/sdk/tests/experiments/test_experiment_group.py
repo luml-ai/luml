@@ -689,3 +689,88 @@ class TestListGroupExperimentsPagination:
 
         assert len(result.items) == 2
         assert isinstance(result, PaginatedResponse)
+
+
+class TestResolveGroupsExperimentSortColumn:
+    def test_returns_none_for_standard_column(self, tracker: ExperimentTracker) -> None:
+        group_id = _make_group(tracker)
+
+        result = tracker.resolve_groups_experiment_sort_column([group_id], "created_at")
+
+        assert result is None
+
+    def test_returns_dynamic_params_for_metric_key(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        group_id = _make_group(tracker)
+        tracker.log_dynamic("loss", 0.5, step=0)
+
+        result = tracker.resolve_groups_experiment_sort_column([group_id], "loss")
+
+        assert result == "dynamic_params"
+
+    def test_returns_static_params_for_param_key(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        group_id = _make_group(tracker)
+        tracker.log_static("lr", 0.01)
+
+        result = tracker.resolve_groups_experiment_sort_column([group_id], "lr")
+
+        assert result == "static_params"
+
+    def test_raises_for_unknown_sort_by(self, tracker: ExperimentTracker) -> None:
+        group_id = _make_group(tracker)
+
+        with pytest.raises(ValueError, match="Invalid sort_by"):
+            tracker.resolve_groups_experiment_sort_column([group_id], "totally_unknown")
+
+
+class TestListGroupExperimentsPaginationOrderFallback:
+    def test_invalid_order_falls_back_to_desc(self, tracker: ExperimentTracker) -> None:
+        group_id = _make_group(tracker)
+        tracker.log_static("lr", 0.01)
+
+        result = tracker.list_group_experiments_pagination(
+            group_id,
+            sort_by="lr",
+            json_sort_column="static_params",
+            order="invalid_order",
+        )
+
+        assert isinstance(result, PaginatedResponse)
+
+
+class TestListGroupsExperimentsPagination:
+    def test_returns_experiments_from_multiple_groups(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        tracker.start_experiment(name="exp_a1", group="g1")
+        tracker.start_experiment(name="exp_a2", group="g1")
+        tracker.start_experiment(name="exp_b1", group="g2")
+
+        groups = tracker.list_groups()
+        g1_id = next(g.id for g in groups if g.name == "g1")
+        g2_id = next(g.id for g in groups if g.name == "g2")
+
+        result = tracker.list_groups_experiments_pagination([g1_id, g2_id])
+
+        names = {e.name for e in result.items}
+        assert names == {"exp_a1", "exp_a2", "exp_b1"}
+
+    def test_empty_group_ids_returns_empty(self, tracker: ExperimentTracker) -> None:
+        result = tracker.list_groups_experiments_pagination([])
+        assert result.items == []
+        assert result.cursor is None
+
+    def test_search_filters_experiments(self, tracker: ExperimentTracker) -> None:
+        tracker.start_experiment(name="alpha_exp", group="g1")
+        tracker.start_experiment(name="beta_exp", group="g1")
+        g1_id = next(g.id for g in tracker.list_groups() if g.name == "g1")
+
+        result = tracker.list_groups_experiments_pagination(
+            [g1_id], search='name LIKE "alpha%"'
+        )
+
+        assert len(result.items) == 1
+        assert result.items[0].name == "alpha_exp"

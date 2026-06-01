@@ -677,6 +677,22 @@ class TestUpdateModel:
         assert result.name == "new"
         assert result.tags == ["v2"]
 
+    def test_updates_description(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        dummy_model_file: Path,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_model(
+            ModelReference(str(dummy_model_file)), name="m", experiment_id=exp_id
+        )
+        model_id = tracker.list_experiment_models(exp_id)[0].id
+
+        result = tracker.update_model(model_id, description="new description")
+
+        assert result is not None
+        assert result.description == "new description"
+
     def test_returns_current_model_when_no_fields_provided(
         self,
         tracker_with_experiment: tuple[ExperimentTracker, str],
