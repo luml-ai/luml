@@ -328,6 +328,10 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def check_experiments_exists(self, experiment_ids: list[str]) -> None:
+        pass
+
+    @abstractmethod
     def get_eval(self, experiment_id: str, eval_id: str) -> EvalRecord | None:
         pass
 
