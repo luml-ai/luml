@@ -1088,3 +1088,205 @@ class TestValidateEvalsFilter:
         tracker, exp_id = tracker_with_experiment
         with pytest.raises(ValueError, match="Invalid field prefix 'unknown_col'"):
             tracker.validate_evals_filter('unknown_col.key = "x"')
+
+
+class TestBatchEvalsPaginationFull:
+    """
+    Integration tests for get_batch_experiment_evals pagination.
+
+    3 experiments, 18 unique eval IDs, 30 total records:
+      common-01..03    → A + B + C  (3 records each)
+      partial-a-01..02 → A + B      (2 records each)
+      partial-b-01..02 → B + C      (2 records each)
+      partial-c-01..02 → A + C      (2 records each)
+      unique-a-01..03  → A only     (1 record each)
+      unique-b-01..03  → B only     (1 record each)
+      unique-c-01..03  → C only     (1 record each)
+    """
+
+    _COMMON = ["common-01", "common-02", "common-03"]
+    _PARTIAL_A = ["partial-a-01", "partial-a-02"]  # A + B
+    _PARTIAL_B = ["partial-b-01", "partial-b-02"]  # B + C
+    _PARTIAL_C = ["partial-c-01", "partial-c-02"]  # A + C
+    _UNIQUE_A = ["unique-a-01", "unique-a-02", "unique-a-03"]
+    _UNIQUE_B = ["unique-b-01", "unique-b-02", "unique-b-03"]
+    _UNIQUE_C = ["unique-c-01", "unique-c-02", "unique-c-03"]
+    ALL_IDS = sorted(
+        _COMMON
+        + _PARTIAL_A
+        + _PARTIAL_B
+        + _PARTIAL_C
+        + _UNIQUE_A
+        + _UNIQUE_B
+        + _UNIQUE_C
+    )
+
+    @pytest.fixture
+    def three_exps(self, tracker: ExperimentTracker) -> tuple[str, str, str]:
+        ds = "test-ds"
+        exp_a = tracker.start_experiment(name="exp_a")
+        for eid in self._COMMON + self._PARTIAL_A + self._PARTIAL_C + self._UNIQUE_A:
+            tracker.log_eval_sample(
+                eval_id=eid, dataset_id=ds, inputs={"exp": "a"}, scores={"v": 1.0}
+            )
+
+        exp_b = tracker.start_experiment(name="exp_b")
+        for eid in self._COMMON + self._PARTIAL_A + self._PARTIAL_B + self._UNIQUE_B:
+            tracker.log_eval_sample(
+                eval_id=eid, dataset_id=ds, inputs={"exp": "b"}, scores={"v": 2.0}
+            )
+
+        exp_c = tracker.start_experiment(name="exp_c")
+        for eid in self._COMMON + self._PARTIAL_B + self._PARTIAL_C + self._UNIQUE_C:
+            tracker.log_eval_sample(
+                eval_id=eid, dataset_id=ds, inputs={"exp": "c"}, scores={"v": 3.0}
+            )
+
+        return exp_a, exp_b, exp_c
+
+    def test_all_ids_covered_no_duplicates(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        exp_a, exp_b, exp_c = three_exps
+        seen_ids: list[str] = []
+        seen_set: set[str] = set()
+        cursor = None
+        while True:
+            result = tracker.get_batch_experiment_evals(
+                [exp_a, exp_b, exp_c], limit=5, cursor_str=cursor
+            )
+            for r in result.items:
+                if r.id not in seen_set:
+                    seen_set.add(r.id)
+                    seen_ids.append(r.id)
+            if result.cursor is None:
+                break
+            cursor = result.cursor
+        assert seen_ids == self.ALL_IDS
+
+    def test_page_boundaries(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        exp_a, exp_b, exp_c = three_exps
+        exp_ids = [exp_a, exp_b, exp_c]
+
+        def _unique_ids_in_order(result: PaginatedResponse) -> list[str]:  # type: ignore[type-arg]
+            seen: set[str] = set()
+            ids: list[str] = []
+            for r in result.items:
+                if r.id not in seen:
+                    seen.add(r.id)
+                    ids.append(r.id)
+            return ids
+
+        result = tracker.get_batch_experiment_evals(exp_ids, limit=5)
+        assert result.cursor is not None
+        assert _unique_ids_in_order(result) == self.ALL_IDS[0:5]
+
+        result = tracker.get_batch_experiment_evals(
+            exp_ids, limit=5, cursor_str=result.cursor
+        )
+        assert result.cursor is not None
+        assert _unique_ids_in_order(result) == self.ALL_IDS[5:10]
+
+        result = tracker.get_batch_experiment_evals(
+            exp_ids, limit=5, cursor_str=result.cursor
+        )
+        assert result.cursor is not None
+        assert _unique_ids_in_order(result) == self.ALL_IDS[10:15]
+
+        result = tracker.get_batch_experiment_evals(
+            exp_ids, limit=5, cursor_str=result.cursor
+        )
+        assert result.cursor is None
+        assert _unique_ids_in_order(result) == self.ALL_IDS[15:]
+
+    def test_cursor_is_none_on_last_page(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        exp_a, exp_b, exp_c = three_exps
+        exp_ids = [exp_a, exp_b, exp_c]
+        cursor = None
+        for _ in range(3):
+            result = tracker.get_batch_experiment_evals(
+                exp_ids, limit=5, cursor_str=cursor
+            )
+            cursor = result.cursor
+        result = tracker.get_batch_experiment_evals(exp_ids, limit=5, cursor_str=cursor)
+        assert result.cursor is None
+        unique_ids = list(dict.fromkeys(r.id for r in result.items))
+        assert len(unique_ids) == 3
+
+    def test_get_batch_evals_first_page_record_counts(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        exp_a, exp_b, exp_c = three_exps
+        result = tracker.get_batch_experiment_evals([exp_a, exp_b, exp_c], limit=5)
+
+        assert len(result.items) == 13
+        assert result.cursor is not None
+
+        common01 = [r for r in result.items if r.id == "common-01"]
+        assert len(common01) == 3
+        assert {r.experiment_id for r in common01} == {exp_a, exp_b, exp_c}
+
+        pa01 = [r for r in result.items if r.id == "partial-a-01"]
+        assert len(pa01) == 2
+        assert {r.experiment_id for r in pa01} == {exp_a, exp_b}
+
+        pairs = [(r.id, r.experiment_id) for r in result.items]
+        assert pairs == sorted(pairs)
+        assert all(isinstance(r, BatchEvalRecord) for r in result.items)
+
+    def test_full_pagination_30_total_records(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        from collections import Counter
+
+        exp_a, exp_b, exp_c = three_exps
+        all_items: list[BatchEvalRecord] = []
+        cursor = None
+
+        while True:
+            result = tracker.get_batch_experiment_evals(
+                [exp_a, exp_b, exp_c], limit=5, cursor_str=cursor
+            )
+            all_items.extend(result.items)
+            if result.cursor is None:
+                break
+            cursor = result.cursor
+
+        assert len(all_items) == 30
+
+        by_id = Counter(r.id for r in all_items)
+        for eid in self._COMMON:
+            assert by_id[eid] == 3
+        for eid in self._PARTIAL_A + self._PARTIAL_B + self._PARTIAL_C:
+            assert by_id[eid] == 2
+        for eid in self._UNIQUE_A + self._UNIQUE_B + self._UNIQUE_C:
+            assert by_id[eid] == 1
+
+        pairs = [(r.id, r.experiment_id) for r in all_items]
+        assert len(pairs) == len(set(pairs))
+
+    def test_pagination_with_dataset_id_filter(
+        self, tracker: ExperimentTracker, three_exps: tuple[str, str, str]
+    ) -> None:
+        exp_a, exp_b, exp_c = three_exps
+        tracker.start_experiment(name="exp_a_extra")
+        tracker.log_eval_sample(eval_id="other-01", dataset_id="other-ds", inputs={})
+
+        all_items: list[BatchEvalRecord] = []
+        cursor = None
+        while True:
+            result = tracker.get_batch_experiment_evals(
+                [exp_a, exp_b, exp_c], limit=5, cursor_str=cursor, dataset_id="test-ds"
+            )
+            all_items.extend(result.items)
+            if result.cursor is None:
+                break
+            cursor = result.cursor
+
+        unique_ids = list(dict.fromkeys(r.id for r in all_items))
+        assert unique_ids == self.ALL_IDS
+        assert "other-01" not in unique_ids
