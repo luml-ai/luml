@@ -80,6 +80,7 @@ export const useOrganizationStore = defineStore('organization', () => {
     currentOrganizationId.value = id
     LocalStorageService.set('currentOrganizationId', `${id}`)
   }
+
   async function switchOrganization(id: string) {
     setCurrentOrganizationId(id)
 
@@ -87,14 +88,20 @@ export const useOrganizationStore = defineStore('organization', () => {
     orbitsStore.reset()
     await orbitsStore.loadOrbitsList(id)
 
-    const firstOrbit = orbitsStore.orbitsList[0]
-    orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
+    const savedOrbitId = LocalStorageService.get('currentOrbitId')
+    const orbitExists = orbitsStore.orbitsList.some((o) => o.id === savedOrbitId)
+
+    if (orbitExists) {
+      orbitsStore.setCurrentOrbitId(savedOrbitId, id)
+    } else {
+      const firstOrbit = orbitsStore.orbitsList[0]
+      orbitsStore.setCurrentOrbitId(firstOrbit?.id ?? null, id)
+    }
 
     organizationDetails.value = null
     try {
       await getOrganizationDetails(id)
     } catch (e) {
-      organizationDetails.value = null
       console.warn('No permission to load organization details', e)
     }
   }

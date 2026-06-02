@@ -10,6 +10,7 @@ import type {
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useOrganizationStore } from './organization'
+import { LocalStorageService } from '@/utils/services/LocalStorageService'
 
 export const useOrbitsStore = defineStore('orbit', () => {
   const organizationStore = useOrganizationStore()
@@ -27,6 +28,13 @@ export const useOrbitsStore = defineStore('orbit', () => {
 
   function setCurrentOrbitId(id: string | null, orgId?: string) {
     if (id === currentOrbitId.value) return
+
+    if (id) {
+      LocalStorageService.set('currentOrbitId', id)
+    } else {
+      LocalStorageService.remove('currentOrbitId')
+    }
+
     currentOrbitId.value = id
     currentOrbitDetails.value = null
     isLoadingOrbitDetails.value = false
