@@ -192,7 +192,6 @@ class Artifact(BaseModel, BaseOrmConfig):
     created_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
-    deployments: list[ArtifactDeploymentInfo] = []
 
     @field_validator("size")
     @classmethod
@@ -202,8 +201,12 @@ class Artifact(BaseModel, BaseOrmConfig):
         return value
 
 
+class ArtifactListed(Artifact):
+    deployments: list[ArtifactDeploymentInfo] = []
+
+
 class ArtifactDetails(Artifact):
-    deployments: list[Deployment] | None = None  # type: ignore[assignment]
+    deployments: list[Deployment] | None = None
     collection: Collection
 
 
@@ -225,5 +228,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[Artifact]
+    items: list[ArtifactListed]
     cursor: str | None

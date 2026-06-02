@@ -12,11 +12,12 @@ from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreate,
     ArtifactDetails,
+    ArtifactListed,
     ArtifactStatus,
     ArtifactType,
     ArtifactUpdate,
 )
-from luml.schemas.deployment import ArtifactDeploymentInfo, DeploymentStatus
+from luml.schemas.deployment import DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams
 
 
@@ -108,24 +109,15 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
     @staticmethod
     def _orm_artifacts_list_to_models(
         db_models: Sequence[ArtifactOrm],
-    ) -> list[Artifact]:
-        artifacts = []
-        for orm_artifact in db_models:
-            artifact = orm_artifact.to_artifact()
-            artifact.deployments = [
-                ArtifactDeploymentInfo.model_validate(d)
-                for d in orm_artifact.deployments
-                if d.status == DeploymentStatus.ACTIVE
-            ]
-            artifacts.append(artifact)
-        return artifacts
+    ) -> list[ArtifactListed]:
+        return [orm_artifact.to_listed_artifact() for orm_artifact in db_models]
 
     async def get_collection_artifacts(
         self,
         collection_id: UUID,
         pagination: PaginationParams,
         artifact_types: list[ArtifactType] | None = None,
-    ) -> tuple[list[Artifact], Cursor | None]:
+    ) -> tuple[list[ArtifactListed], Cursor | None]:
         async with self._get_session() as session:
             sort_by = pagination.sort_by
             is_extra_values = await self._is_extra_values_sort(collection_id, sort_by)
@@ -146,7 +138,11 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 *conditions,
                 pagination=pagination,
                 options=[
-                    selectinload(ArtifactOrm.deployments).load_only(
+                    selectinload(
+                        ArtifactOrm.deployments.and_(
+                            DeploymentOrm.status == DeploymentStatus.ACTIVE.value
+                        )
+                    ).load_only(
                         DeploymentOrm.id,
                         DeploymentOrm.name,
                         DeploymentOrm.status,

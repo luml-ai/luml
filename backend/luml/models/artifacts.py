@@ -9,6 +9,7 @@ from luml.models.base import Base, TimestampMixin
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactDetails,
+    ArtifactListed,
     ArtifactStatus,
 )
 
@@ -67,8 +68,10 @@ class ArtifactOrm(TimestampMixin, Base):
         return f"Artifact(id={self.id!r}, identifier={self.unique_identifier!r})"
 
     def to_artifact(self) -> Artifact:
-        data = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
-        return Artifact.model_validate(data)
+        return Artifact.model_validate(self)
+
+    def to_listed_artifact(self) -> ArtifactListed:
+        return ArtifactListed.model_validate(self)
 
     def to_artifact_details(self) -> ArtifactDetails:
         return ArtifactDetails.model_validate(self)
