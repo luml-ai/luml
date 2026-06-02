@@ -92,6 +92,52 @@ async def test_get_collection_artifacts(
 
 
 @pytest.mark.asyncio
+async def test_get_collection_artifacts_returns_only_active_deployments(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, orbit, collection = data.engine, data.orbit, data.collection
+    repo = ArtifactRepository(engine)
+    satellite_repo = SatelliteRepository(engine)
+    deployment_repo = DeploymentRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    created_model = await repo.create_artifact(model)
+
+    satellite = await satellite_repo.create_satellite(
+        SatelliteCreate(
+            orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test_satellite"
+        )
+    )
+
+    active, _ = await deployment_repo.create_deployment(
+        DeploymentCreate(
+            name="active-deployment",
+            orbit_id=orbit.id,
+            satellite_id=satellite.id,
+            artifact_id=created_model.id,
+            status=DeploymentStatus.ACTIVE,
+        )
+    )
+    await deployment_repo.create_deployment(
+        DeploymentCreate(
+            name="pending-deployment",
+            orbit_id=orbit.id,
+            satellite_id=satellite.id,
+            artifact_id=created_model.id,
+            status=DeploymentStatus.PENDING,
+        )
+    )
+
+    pagination = PaginationParams(limit=100)
+    models, _ = await repo.get_collection_artifacts(collection.id, pagination)
+
+    assert len(models) == 1
+    assert [d.id for d in models[0].deployments] == [active.id]
+
+
+@pytest.mark.asyncio
 async def test_get_collection_artifacts_count(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:

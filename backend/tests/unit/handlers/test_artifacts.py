@@ -16,11 +16,11 @@ from luml.infra.exceptions import (
     OrbitNotFoundError,
     OrganizationLimitReachedError,
 )
-from luml.repositories.artifacts import ArtifactRepository
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactDetails,
     ArtifactIn,
+    ArtifactListed,
     ArtifactsList,
     ArtifactStatus,
     ArtifactType,
@@ -185,7 +185,7 @@ async def test_get_collection_artifacts(
     artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     expected_models_list = [
-        Artifact(
+        ArtifactListed(
             id=artifact_id,
             collection_id=collection_id,
             file_name="model1.pkl",
@@ -202,6 +202,14 @@ async def test_get_collection_artifacts(
             created_at=datetime.now(),
             updated_at=None,
             type=ArtifactType.MODEL,
+            deployments=[
+                ArtifactDeploymentInfo(
+                    id=UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622"),
+                    name="test",
+                    status=DeploymentStatus.ACTIVE,
+                    orbit_id=orbit_id,
+                )
+            ],
         )
     ]
     expected = ArtifactsList(items=expected_models_list, cursor=None)
@@ -2116,165 +2124,6 @@ async def test_create_artifact_user_not_found(
     )
     mock_check_organization_artifacts_limit.assert_awaited_once_with(organization_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
-
-
-def _make_deployment_mock(
-    dep_id: UUID, orbit_id: UUID, status: DeploymentStatus
-) -> Mock:
-    dep = Mock()
-    dep.id = dep_id
-    dep.name = "test-deployment"
-    dep.status = status
-    dep.orbit_id = orbit_id
-    return dep
-
-
-def _make_orm_artifact_mock(artifact: Artifact, deployments: list) -> Mock:
-    orm = Mock()
-    orm.to_artifact.return_value = artifact.model_copy()
-    orm.deployments = deployments
-    return orm
-
-
-def test_orm_artifacts_list_to_models_no_deployments(
-    manifest_example: Manifest,
-) -> None:
-    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-
-    artifact = Artifact(
-        id=artifact_id,
-        collection_id=collection_id,
-        file_name="model",
-        name=None,
-        extra_values={},
-        manifest=manifest_example,
-        file_hash="hash",
-        file_index={},
-        bucket_location="loc",
-        size=1,
-        unique_identifier="uid",
-        status=ArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
-        updated_at=None,
-        type=ArtifactType.MODEL,
-    )
-    orm = _make_orm_artifact_mock(artifact, [])
-
-    result = ArtifactRepository._orm_artifacts_list_to_models([orm])
-
-    assert len(result) == 1
-    assert result[0].deployments == []
-
-
-def test_orm_artifacts_list_to_models_active_deployment_included(
-    manifest_example: Manifest,
-) -> None:
-    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    dep_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
-
-    artifact = Artifact(
-        id=artifact_id,
-        collection_id=collection_id,
-        file_name="model",
-        name=None,
-        extra_values={},
-        manifest=manifest_example,
-        file_hash="hash",
-        file_index={},
-        bucket_location="loc",
-        size=1,
-        unique_identifier="uid",
-        status=ArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
-        updated_at=None,
-        type=ArtifactType.MODEL,
-    )
-    active_dep = _make_deployment_mock(dep_id, orbit_id, DeploymentStatus.ACTIVE)
-    orm = _make_orm_artifact_mock(artifact, [active_dep])
-
-    result = ArtifactRepository._orm_artifacts_list_to_models([orm])
-
-    assert len(result[0].deployments) == 1
-    assert isinstance(result[0].deployments[0], ArtifactDeploymentInfo)
-    assert result[0].deployments[0].id == dep_id
-    assert result[0].deployments[0].status == DeploymentStatus.ACTIVE
-
-
-def test_orm_artifacts_list_to_models_non_active_deployments_excluded(
-    manifest_example: Manifest,
-) -> None:
-    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-
-    artifact = Artifact(
-        id=artifact_id,
-        collection_id=collection_id,
-        file_name="model",
-        name=None,
-        extra_values={},
-        manifest=manifest_example,
-        file_hash="hash",
-        file_index={},
-        bucket_location="loc",
-        size=1,
-        unique_identifier="uid",
-        status=ArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
-        updated_at=None,
-        type=ArtifactType.MODEL,
-    )
-    non_active_deps = [
-        _make_deployment_mock(uuid7(), orbit_id, DeploymentStatus.PENDING),
-        _make_deployment_mock(uuid7(), orbit_id, DeploymentStatus.FAILED),
-        _make_deployment_mock(uuid7(), orbit_id, DeploymentStatus.DELETION_PENDING),
-    ]
-    orm = _make_orm_artifact_mock(artifact, non_active_deps)
-
-    result = ArtifactRepository._orm_artifacts_list_to_models([orm])
-
-    assert result[0].deployments == []
-
-
-def test_orm_artifacts_list_to_models_mixed_deployments(
-    manifest_example: Manifest,
-) -> None:
-    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
-    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
-    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
-    active_dep_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
-
-    artifact = Artifact(
-        id=artifact_id,
-        collection_id=collection_id,
-        file_name="model",
-        name=None,
-        extra_values={},
-        manifest=manifest_example,
-        file_hash="hash",
-        file_index={},
-        bucket_location="loc",
-        size=1,
-        unique_identifier="uid",
-        status=ArtifactStatus.UPLOADED,
-        created_at=datetime.now(),
-        updated_at=None,
-        type=ArtifactType.MODEL,
-    )
-    deps = [
-        _make_deployment_mock(active_dep_id, orbit_id, DeploymentStatus.ACTIVE),
-        _make_deployment_mock(uuid7(), orbit_id, DeploymentStatus.PENDING),
-        _make_deployment_mock(uuid7(), orbit_id, DeploymentStatus.FAILED),
-    ]
-    orm = _make_orm_artifact_mock(artifact, deps)
-
-    result = ArtifactRepository._orm_artifacts_list_to_models([orm])
-
-    assert len(result[0].deployments) == 1
-    assert result[0].deployments[0].id == active_dep_id
 
 
 @patch(

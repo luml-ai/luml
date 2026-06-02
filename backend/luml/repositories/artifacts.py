@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -106,12 +105,6 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             scope_id=pagination.scope_id,
         )
 
-    @staticmethod
-    def _orm_artifacts_list_to_models(
-        db_models: Sequence[ArtifactOrm],
-    ) -> list[ArtifactListed]:
-        return [orm_artifact.to_listed_artifact() for orm_artifact in db_models]
-
     async def get_collection_artifacts(
         self,
         collection_id: UUID,
@@ -161,7 +154,9 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 )
             )
 
-            artifacts = self._orm_artifacts_list_to_models(db_models)
+            artifacts = [
+                orm_artifact.to_listed_artifact() for orm_artifact in db_models
+            ]
 
             return artifacts, cursor
 
