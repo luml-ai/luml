@@ -106,6 +106,7 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { TAB_TO_ROUTE, ROUTE_TO_TAB } from '@/constants/orbit-navigation'
 import { useThemeStore } from '@/stores/theme'
 import UiThemeToggle from '../ui/UiThemeToggle.vue'
+import { useLocalStorage } from '@vueuse/core'
 
 interface Props {
   mobileSidebarOpened?: boolean
@@ -120,7 +121,7 @@ const { width } = useWindowSize()
 const organizationsStore = useOrganizationStore()
 const themeStore = useThemeStore()
 
-const isSidebarOpened = ref(true)
+const isSidebarOpened = useLocalStorage<boolean>('isSidebarOpened', true)
 const githubStarsCount = ref(null)
 const theme = computed<Theme>({
   get: () => themeStore.getCurrentTheme,
@@ -212,6 +213,7 @@ watch(width, () => {
 watch(
   () => props.mobileSidebarOpened,
   (newVal) => {
+    if (window.innerWidth >= 992) return
     isSidebarOpened.value = newVal
   },
   {
