@@ -464,6 +464,62 @@ async def test_get_collection_artifacts_forwards_filters(
 
 
 @patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._define_artifact_type",
+    return_value=ArtifactType.MODEL,
+)
+@pytest.mark.asyncio
+async def test_create_artifact_type_mismatch(
+    mock_define_artifact_type: Mock,
+    mock_check_orbit_and_collection_access: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    manifest_example: Manifest,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    bucket_secret_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8345")
+
+    artifact_in = ArtifactIn(
+        extra_values={},
+        manifest=manifest_example,
+        file_hash="hash",
+        file_index={},
+        size=1,
+        file_name="file.txt",
+        name=None,
+        tags=["tag"],
+        type=ArtifactType.DATASET,
+    )
+    mock_check_orbit_and_collection_access.return_value = (
+        Mock(bucket_secret_id=bucket_secret_id, organization_id=organization_id),
+        Mock(orbit_id=orbit_id, type=CollectionType.MODEL),
+    )
+    mock_define_artifact_type.return_value = ArtifactType.MODEL
+    with pytest.raises(ArtifactTypeMismatchError) as error:
+        await handler.create_artifact(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            artifact_in,
+        )
+
+    assert error.value.status_code == 400
+    mock_check_permissions.assert_awaited_once_with(
+        organization_id, user_id, Resource.ARTIFACT, Action.CREATE, orbit_id
+    )
+
+
+@patch(
     "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
     new_callable=AsyncMock,
 )
@@ -712,7 +768,7 @@ async def test_create_artifact(
     artifact = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -910,7 +966,7 @@ async def test_request_download_url(
     artifact = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1009,7 +1065,7 @@ async def test_request_delete_url(
     artifact = ArtifactDetails(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1114,7 +1170,7 @@ async def test_request_delete_url_with_deployments(
     artifact = ArtifactDetails(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1228,7 +1284,7 @@ async def test_confirm_deletion_pending(
     artifact = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1304,7 +1360,7 @@ async def test_confirm_deletion_not_pending(
     artifact = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1379,7 +1435,7 @@ async def test_update_artifact(
     artifact = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
@@ -1400,7 +1456,7 @@ async def test_update_artifact(
     expected = Artifact(
         id=artifact_id,
         collection_id=collection_id,
-        file_name="model",
+        file_name="model.luml",
         name=None,
         extra_values={},
         manifest=manifest_example,
