@@ -40,11 +40,7 @@
             </Tag>
           </div>
           <div class="updated-date">
-            {{
-              secret.updated_at
-                ? new Date(secret.updated_at).toLocaleString()
-                : new Date().toLocaleString()
-            }}
+            {{ formatSecretDate(secret) }}
           </div>
 
           <div class="actions">
@@ -99,6 +95,13 @@ const editSecret = (secret: OrbitSecret) => {
 function showSecretModal(secret: OrbitSecret) {
   currentSecret.value = secret
   secretModalVisible.value = true
+}
+
+function formatSecretDate(secret: OrbitSecret): string {
+  const raw = secret.updated_at ?? secret.created_at
+  if (!raw) return '—'
+  const d = new Date(raw)
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString()
 }
 
 function maskSecret(value?: string): string {
