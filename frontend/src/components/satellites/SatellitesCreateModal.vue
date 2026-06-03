@@ -46,6 +46,7 @@ import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { satellitesResolver } from '@/utils/forms/resolvers'
+import { getErrorMessage } from '@/helpers/helpers'
 
 type Emits = {
   create: [CreateSatelliteResponse]
@@ -97,9 +98,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     const data = await satellitesStore.createSatellite(organizationId, orbitId, initialValues.value)
     emits('create', data)
   } catch (e: any) {
-    toast.add(
-      simpleErrorToast(e?.response?.detail?.message || e?.message || 'Failed to create satellite'),
-    )
+    toast.add(simpleErrorToast(getErrorMessage(e)))
   } finally {
     loading.value = false
   }

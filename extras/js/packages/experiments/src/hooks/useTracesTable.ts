@@ -89,14 +89,15 @@ export const useTracesTable = (
       exportLoading.value = true
       const data = await evalsStore.getProvider.getAllTraces(params)
       const viewData = getViewData(data)
+      const columns = selectedColumns.value
       const formattedData = viewData.map((item) => {
-        const entries = Object.entries(item)
-        const formattedEntries = entries
-          .filter(([key]) => selectedColumns.value.includes(key))
-          .map(([key, value]) => [key, valueToString(value)])
-        return Object.fromEntries(formattedEntries)
+        const row: Record<string, string | number | null> = {}
+        for (const key of columns) {
+          row[key] = valueToString((item as Record<string, unknown>)[key])
+        }
+        return row
       })
-      const table = from(formattedData)
+      const table = from(formattedData, columns)
       const csv = table.toCSV()
       const blob = new Blob([csv], { type: 'text/csv' })
       downloadFileFromBlob(blob, `traces.csv`)

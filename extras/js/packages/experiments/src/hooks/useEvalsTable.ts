@@ -70,11 +70,11 @@ export const useEvalsTable = (
     const rowKey = `${String(id)}::${item.modelId || ''}::${idx}`
 
     return {
-      ...item.inputs,
-      ...item.outputs,
-      ...item.refs,
-      ...item.scores,
-      ...item.metadata,
+      ...prefixKeys(item.inputs, 'inputs'),
+      ...prefixKeys(item.outputs, 'outputs'),
+      ...prefixKeys(item.refs, 'refs'),
+      ...prefixKeys(item.scores, 'scores'),
+      ...prefixKeys(item.metadata, 'metadata'),
       ...feedbackObject,
       ...expectationObject,
       id,
@@ -84,6 +84,15 @@ export const useEvalsTable = (
       __isFirstInGroup: isFirstInGroup,
       __hasNextInGroup: hasNextInGroup,
     }
+  }
+
+  function prefixKeys(record: Record<string, unknown> | undefined | null, prefix: string) {
+    if (!record) return {}
+    const result: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(record)) {
+      result[`${prefix}.${key}`] = value
+    }
+    return result
   }
 
   function getFeedbackObject(summary: AnnotationSummary | null) {
@@ -132,14 +141,15 @@ export const useEvalsTable = (
       exportLoading.value = true
       const data = await evalsStore.getProvider.getAllDatasetEvals(params)
       const viewData = getViewData(data)
+      const columns = visibleColumns.value
       const formattedData = viewData.map((item) => {
-        const entries = Object.entries(item)
-        const formattedEntries = entries
-          .filter(([key]) => visibleColumns.value.includes(key))
-          .map(([key, value]) => [key, valueToString(value)])
-        return Object.fromEntries(formattedEntries)
+        const row: Record<string, string | number | null> = {}
+        for (const key of columns) {
+          row[key] = valueToString((item as Record<string, unknown>)[key])
+        }
+        return row
       })
-      const table = from(formattedData)
+      const table = from(formattedData, columns)
       const csv = table.toCSV()
       const blob = new Blob([csv], { type: 'text/csv' })
       downloadFileFromBlob(blob, `${datasetId}.csv`)

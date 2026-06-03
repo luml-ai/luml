@@ -156,7 +156,9 @@ export const getLastUpdateText = (date: string | number | Date) => {
 }
 
 export const getErrorMessage = (error: any, message = 'Something went wrong') => {
-  return error?.response?.detail?.message || error?.message || message
+  return (
+    error?.response?.detail?.message || error?.response?.data?.detail || error?.message || message
+  )
 }
 
 export const getNumberOrString = (string: string | number) => {
