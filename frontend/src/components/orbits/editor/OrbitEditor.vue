@@ -12,10 +12,16 @@
         <span>orbit settings</span>
       </h2>
     </template>
-    <Form id="orbit-edit-form" :initialValues :resolver class="form" @submit="saveChanges">
+    <Form
+      id="orbit-edit-form"
+      :initial-values="initialValues"
+      :resolver
+      class="form"
+      @submit="saveChanges"
+    >
       <div class="form-item">
         <label for="name" class="label">Name</label>
-        <InputText v-model="initialValues.name" name="name" id="name" />
+        <InputText name="name" id="name" />
       </div>
       <div class="form-item">
         <label for="bucket" class="label">Bucket</label>
@@ -57,7 +63,7 @@ import {
   type Orbit as OrbitType,
   type UpdateOrbitPayload,
 } from '@/lib/api/api.interfaces'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   Dialog,
   Button,
@@ -68,7 +74,7 @@ import {
   useConfirm,
 } from 'primevue'
 import { Orbit } from 'lucide-vue-next'
-import { Form } from '@primevue/forms'
+import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { z } from 'zod'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useBucketsStore } from '@/stores/buckets'
@@ -102,19 +108,27 @@ const orbitsStore = useOrbitsStore()
 const toast = useToast()
 const confirm = useConfirm()
 
-const initialValues = ref({
+const initialValues = computed(() => ({
   name: props.orbit.name,
   bucket_secret_id: props.orbit.bucket_secret_id,
-})
+}))
+
 const loading = ref(false)
 
-async function saveChanges() {
+type FormValues = {
+  name: string
+  bucket_secret_id: string
+}
+
+async function saveChanges({ valid, values }: FormSubmitEvent) {
+  if (!valid) return
+  const formValues = values as FormValues
   try {
     loading.value = true
     const payload: UpdateOrbitPayload = {
       id: props.orbit.id,
-      name: initialValues.value.name,
-      bucket_secret_id: initialValues.value.bucket_secret_id,
+      name: formValues.name,
+      bucket_secret_id: formValues.bucket_secret_id,
     }
     await orbitsStore.updateOrbit(props.orbit.organization_id, payload)
     toast.add(simpleSuccessToast('Orbit info successfully updated'))
