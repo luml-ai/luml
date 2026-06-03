@@ -184,6 +184,11 @@ class ArtifactHandler:
 
         artifact_type = self._define_artifact_type(artifact)
 
+        if artifact.type and artifact_type != artifact.type:
+            raise ArtifactTypeMismatchError(
+                "Artifact's real type does not match the type you specified."
+            )
+
         if not is_artifact_type_allowed(collection.type, artifact_type):
             raise ArtifactTypeMismatchError()
 
