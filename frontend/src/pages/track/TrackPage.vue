@@ -127,6 +127,15 @@
       @entry-updated="onEntryUpdated"
       @entry-deleted="onEntryDeleted"
     />
+
+    <TrackAddEntryModal
+      v-if="tracksStore.currentTrack"
+      v-model:visible="showAddEntryModal"
+      :track-id="tracksStore.currentTrack.id"
+      :artifact-type="tracksStore.currentTrack.artifact_type"
+      :existing-artifact-ids="existingArtifactIds"
+      @entry-added="onEntryAdded"
+    />
   </div>
 </template>
 
@@ -148,6 +157,7 @@ import { getStageBadgeStyle } from '@/components/orbits/tabs/tracks/stage-colors
 import Ui404 from '@/components/ui/Ui404.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import TrackArtifactPanel from '@/components/orbits/tabs/tracks/TrackArtifactPanel.vue'
+import TrackAddEntryModal from '@/components/orbits/tabs/tracks/TrackAddEntryModal.vue'
 
 const route = useRoute()
 const tracksStore = useTracksStore()
@@ -171,6 +181,10 @@ const stages = ref<TrackStage[]>([])
 
 const canCreate = computed(() => {
   return !!orbitsStore.getCurrentOrbitPermissions?.track.includes(PermissionEnum.create)
+})
+
+const existingArtifactIds = computed(() => {
+  return new Set(entriesList.value.map((e) => e.artifact_id))
 })
 
 const breadcrumbs = computed<(MenuItem & { route: string })[]>(() => {
@@ -214,6 +228,10 @@ async function onEntryUpdated() {
 
 async function onEntryDeleted() {
   selectedEntry.value = null
+  await loadEntries()
+}
+
+async function onEntryAdded() {
   await loadEntries()
 }
 
