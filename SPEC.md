@@ -591,10 +591,10 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Create `frontend/src/pages/orbits/OrbitTracksView.vue` — model after `CollectionsList.vue`/`CollectionCard.vue` (cards), `CollectionsWelcome.vue` (empty), `CollectionsToolbar.vue` (search + filter)
   - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackCreator.vue` — model after `CollectionCreator.vue`
 
-- [ ] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
-  - [ ] Create `frontend/src/pages/track/TrackPage.vue` — entries table modeled after `artifacts-table/ArtifactsTable.vue` (and its column-body components); breadcrumb after `CollectionBreadcrumb.vue`; stage badge colors per the rule; row click opens `TrackArtifactPanel`
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — model after `CollectionEditor.vue` (Dialog topright + Form + AutoComplete tags); Stages chips with in-use removal blocked + tooltip; delete/save (batch stage create/delete + `updateTrack`)
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — model after `CollectionEditor.vue` drawer; read-only name, Stage select (+ "None"), unlink/save (with 409 force-confirm flow)
+- [x] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
+  - [x] Create `frontend/src/pages/track/TrackPage.vue` — entries table modeled after `artifacts-table/ArtifactsTable.vue` (and its column-body components); breadcrumb after `CollectionBreadcrumb.vue`; stage badge colors per the rule; row click opens `TrackArtifactPanel`
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — model after `CollectionEditor.vue` (Dialog topright + Form + AutoComplete tags); Stages chips with in-use removal blocked + tooltip; delete/save (batch stage create/delete + `updateTrack`)
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — model after `CollectionEditor.vue` drawer; read-only name, Stage select (+ "None"), unlink/save (with 409 force-confirm flow)
 
 - [ ] **Task 7: TrackAddEntryModal + artifact page Tracks section + AddToTrackModal**
   - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackAddEntryModal.vue` — collection dropdown after `ModelUploadCollectionSelect.vue`; artifact cards filtered by `artifact_type` (already-in-track disabled); confirm → `addEntry`

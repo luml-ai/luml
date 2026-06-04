@@ -29,6 +29,12 @@ export const TRACK_TYPE_OPTIONS = [
   { label: 'Experiment', value: ArtifactTypeEnum.experiment, disabled: false },
 ]
 
+export const TRACK_SETTINGS_DIALOG_PT: DialogPassThroughOptions = {
+  footer: {
+    style: 'display: flex; justify-content: space-between; width: 100%; margin-top: auto;',
+  },
+}
+
 export const TRACK_TYPE_CONFIG: Record<
   string,
   { label: string; icon: typeof CircuitBoard }

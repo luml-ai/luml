@@ -1,8 +1,9 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from luml.schemas.artifacts import ArtifactType
 from luml.schemas.base import BaseOrmConfig
@@ -104,6 +105,35 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     added_by: UUID
     created_at: datetime
     updated_at: datetime | None = None
+    artifact_name: str | None = None
+    artifact_description: str | None = None
+    stage_name: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_nested(cls, data: Any) -> Any:  # noqa: ANN401
+        if not isinstance(data, dict):
+            artifact = getattr(data, "artifact", None)
+            stage = getattr(data, "stage", None)
+            result: dict[str, Any] = {
+                "id": getattr(data, "id", None),
+                "track_id": getattr(data, "track_id", None),
+                "artifact_id": getattr(data, "artifact_id", None),
+                "version": getattr(data, "version", None),
+                "stage_id": getattr(data, "stage_id", None),
+                "added_by": getattr(data, "added_by", None),
+                "created_at": getattr(data, "created_at", None),
+                "updated_at": getattr(data, "updated_at", None),
+            }
+            if artifact is not None:
+                result["artifact_name"] = getattr(artifact, "name", None)
+                result["artifact_description"] = getattr(
+                    artifact, "description", None
+                )
+            if stage is not None:
+                result["stage_name"] = getattr(stage, "name", None)
+            return result
+        return data
 
 
 class TrackEntryUpdate(BaseModel):
