@@ -560,10 +560,10 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
 
 # Tasks
 
-- [ ] **Task 1: Backend models + Alembic migration**
-  - [ ] Create `backend/luml/models/tracks.py` with `TrackOrm` (incl. `tags` JSON column), `TrackArtifactOrm`, `TrackStageOrm`, following `backend/luml/models/collection.py`
-  - [ ] Add the `tracks` relationship to `OrbitOrm` in `backend/luml/models/orbit.py`
-  - [ ] Add the next sequential migration under `backend/migrations/versions/` creating `tracks` → `track_stages` → `track_entries` (all columns, FKs, indexes, UNIQUE constraints incl. `UNIQUE(track_id, version)` and the partial unique index on `(track_id, stage_id)`); `downgrade()` drops in reverse
+- [x] **Task 1: Backend models + Alembic migration**
+  - [x] Create `backend/luml/models/tracks.py` with `TrackOrm` (incl. `tags` JSON column), `TrackArtifactOrm`, `TrackStageOrm`, following `backend/luml/models/collection.py`
+  - [x] Add the `tracks` relationship to `OrbitOrm` in `backend/luml/models/orbit.py`
+  - [x] Add the next sequential migration under `backend/migrations/versions/` creating `tracks` → `track_stages` → `track_entries` (all columns, FKs, indexes, UNIQUE constraints incl. `UNIQUE(track_id, version)` and the partial unique index on `(track_id, stage_id)`); `downgrade()` drops in reverse
 
 - [ ] **Task 2: Backend schemas + repository layer**
   - [ ] Create `backend/luml/schemas/tracks.py` following `backend/luml/schemas/collections.py` (incl. `tags`, paginated entries list; no stage-conflict schema — the 409 is a plain `{detail}` message)
