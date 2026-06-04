@@ -142,7 +142,7 @@ async function onFileSubmit() {
   const predictRequest = { data, model_id: props.modelId }
   const result = await startPredict(predictRequest)
   if (result) {
-    data.prediction = result.predictions
+    data.prediction = result.predictions as (string | number)[]
     downloadPredictBlob.value = convertObjectToCsvBlob(data)
   } else {
     filePredictWithError.value = true

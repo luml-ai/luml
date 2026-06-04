@@ -131,7 +131,7 @@ async function loadDeployments() {
     deploymentsLoading.value = true
     const deployments = await deploymentsStore.getDeployments(organizationId, orbitId)
     deploymentsStore.setDeployments(deployments)
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load deployments list')))
   } finally {
     deploymentsLoading.value = false
@@ -146,7 +146,7 @@ async function loadSecrets() {
   try {
     secretsLoading.value = true
     await secretsStore.loadSecrets(organizationId, orbitId)
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load secrets'))
   } finally {
     secretsLoading.value = false

@@ -207,7 +207,7 @@ export class PrismaApi {
   async sendNodeAction(
     nodeId: string,
     action: string,
-    payload: Record<string, any> = {},
+    payload: Record<string, unknown> = {},
   ): Promise<void> {
     await this.api.post(`/nodes/${nodeId}/action`, { action, payload })
   }
@@ -219,7 +219,7 @@ export class PrismaApi {
     return data
   }
 
-  async getDebugSessions(): Promise<any[]> {
+  async getDebugSessions(): Promise<unknown[]> {
     const { data } = await this.api.get('/debug/sessions')
     return data
   }

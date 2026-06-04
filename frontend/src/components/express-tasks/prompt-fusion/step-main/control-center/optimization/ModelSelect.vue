@@ -70,9 +70,8 @@ watch(selectedModel, (value) => {
     ? promptFusionService.teacherModel
     : promptFusionService.studentModel
   if (value !== modelInService) {
-    isTeacherModel.value
-      ? promptFusionService.updateTeacherModel(value)
-      : promptFusionService.updateStudentModel(value)
+    if (isTeacherModel.value) promptFusionService.updateTeacherModel(value)
+    else promptFusionService.updateStudentModel(value)
   }
 })
 

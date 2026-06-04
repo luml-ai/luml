@@ -8,7 +8,6 @@ import type {
 import { defineStore } from 'pinia'
 import { api } from '@/lib/api'
 import { ref } from 'vue'
-import type { OrganizationRoleEnum } from '@/components/organizations/organization.interfaces'
 import { LocalStorageService } from '@/utils/services/LocalStorageService'
 import { computed } from 'vue'
 import { useOrbitsStore } from './orbits'

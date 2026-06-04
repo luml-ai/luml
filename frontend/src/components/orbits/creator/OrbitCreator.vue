@@ -94,6 +94,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { CreateOrbitPayload, IGetUserResponse } from '@/lib/api/api.interfaces'
 import type { DialogPassThroughOptions, MultiSelectPassThroughOptions } from 'primevue'
 import { Dialog, Button, InputText, Checkbox, MultiSelect, Select, useToast } from 'primevue'
@@ -200,8 +201,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     toast.add(simpleSuccessToast('Orbit created'))
     if (orbit) emit('created', orbit)
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create orbit'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create orbit')))
   } finally {
     loading.value = false
   }

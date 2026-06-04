@@ -10,7 +10,7 @@
       <h2 class="dialog-title">setup {{ providerName }}</h2>
     </template>
     <div class="items">
-      <div v-for="setting in settingsState" class="item">
+      <div v-for="setting in settingsState" :key="setting.id" class="item">
         <label :for="setting.id" class="label" :class="{ required: setting.required }">{{
           setting.label
         }}</label>

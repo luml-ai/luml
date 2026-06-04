@@ -31,11 +31,11 @@ const isRunNode = computed(() => props.data.node_type === 'run')
 const metric = computed(() => {
   if (!isRunNode.value) return null
   const node = storeNode.value ?? props.data
-  const val = node?.result?.artifacts?.metric
+  const val = (node?.result?.artifacts as Record<string, unknown> | undefined)?.metric
   return val !== undefined && val !== null ? val : null
 })
 
-function formatMetric(val: any): string {
+function formatMetric(val: unknown): string {
   if (typeof val === 'number') {
     return Number.isInteger(val) ? String(val) : val.toFixed(4)
   }

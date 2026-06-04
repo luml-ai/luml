@@ -56,7 +56,7 @@ export const useDatasetsStore = defineStore('datasets', () => {
     for (const key in subsets) {
       const subset = subsets[key]
       const splits = subset.splits ? Object.entries(subset.splits) : []
-      const numRows = splits.reduce((acc, [splitName, splitData]) => {
+      const numRows = splits.reduce((acc, [, splitData]) => {
         acc += splitData.num_rows || 0
         return acc
       }, 0)
@@ -142,7 +142,12 @@ export const useDatasetsStore = defineStore('datasets', () => {
   async function getChunkData(page: number) {
     const chunk = chunks.value[page]
     if (!chunk) throw new Error('Chunk not found')
-    const arrayBuffer = await downloader.value?.getFileFromBucket(datasetIndex.value, chunk, true)
+    if (!downloader.value) throw new Error('Downloader not found')
+    const arrayBuffer = await downloader.value?.getFileFromBucket<ArrayBuffer>(
+      datasetIndex.value,
+      chunk,
+      true,
+    )
     const { columns, rows } = await getDataFromBuffer(arrayBuffer)
     tableColumns.value = columns
     tableRows.value = rows

@@ -36,12 +36,6 @@ export function useUploadFlow() {
     uploads.value = next
   }
 
-  function _removeUpload(uploadId: string) {
-    const next = new Map(uploads.value)
-    next.delete(uploadId)
-    uploads.value = next
-  }
-
   async function _requestPresignedAndPost(event: UploadReadyEvent): Promise<void> {
     _setUpload({
       uploadId: event.upload_id,
@@ -64,9 +58,9 @@ export function useUploadFlow() {
           file_name: `model-${event.node_id}.luml`,
           file_hash: '',
           size: event.file_size,
-          manifest: event.manifest as any,
-          file_index: event.file_index as any,
-          extra_values: { experiment_ids: event.experiment_ids as any },
+          manifest: event.manifest,
+          file_index: event.file_index,
+          extra_values: { experiment_ids: event.experiment_ids },
           tags: ['agent-upload'],
         },
       )
@@ -135,7 +129,7 @@ export function useUploadFlow() {
           ctx.orbitId,
           ctx.collectionId,
           ctx.artifactId,
-          { status: ArtifactStatusEnum.uploaded },
+          { id: ctx.artifactId, status: ArtifactStatusEnum.uploaded },
         )
       } catch {
         // best-effort confirmation
@@ -211,17 +205,26 @@ export function useUploadFlow() {
         collection_id: collectionId,
         organization_id: organizationId,
         orbit_id: orbitId,
-        manifest: {},
+        manifest: {
+          variant: 'test',
+          producer_name: 'test',
+          producer_version: 'test',
+          producer_tags: [],
+          inputs: [],
+          outputs: [],
+          dynamic_attributes: [],
+          env_vars: [],
+        },
         file_index: {},
       }
       handleUploadReady(event)
     }
   }
 
-  function handleEvent(eventType: string, data: Record<string, any>): void {
+  function handleEvent(eventType: string, data: Record<string, unknown>): void {
     switch (eventType) {
       case 'upload_ready':
-        handleUploadReady(data as UploadReadyEvent)
+        handleUploadReady(data as unknown as UploadReadyEvent)
         break
       case 'upload_completed':
         handleUploadCompleted(data as { upload_id: string; run_id: string; node_id: string })

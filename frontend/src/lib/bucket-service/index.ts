@@ -8,7 +8,7 @@ export class ModelDownloader {
     this.url = url
   }
 
-  async getFileFromBucket<T = any>(
+  async getFileFromBucket<T = ArrayBuffer | Record<string, unknown>>(
     fileIndex: FileIndex,
     fileName: string,
     buffer?: boolean,

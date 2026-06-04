@@ -27,6 +27,7 @@ import OrganizationLimits from '@/components/organizations/OrganizationLimits.vu
 import OrganizationTabs from '@/components/organizations/OrganizationTabs.vue'
 import OrganizationLocked from '@/components/organizations/OrganizationLocked.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
+import type { ApiError } from '@/helpers/helpers'
 
 const route = useRoute()
 const router = useRouter()
@@ -50,10 +51,11 @@ async function init() {
   }
   try {
     organizationStore.resetCurrentOrganization()
-    await organizationStore.setCurrentOrganizationId(organizationId)
+    organizationStore.setCurrentOrganizationId(organizationId)
     organizationStore.getOrganizationDetails(organizationId)
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e.details || 'Unable to retrieve organization data'))
+  } catch (e: unknown) {
+    const errorDetails = (e as ApiError)?.details
+    toast.add(simpleErrorToast(errorDetails || 'Unable to retrieve organization data'))
   }
 }
 

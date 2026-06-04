@@ -187,7 +187,7 @@ async function getSatellites() {
 
     const list = await satellitesStore.loadSatellites(organizationId, orbitId)
     satellitesStore.setList(list)
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load collections')))
   }
 }
@@ -203,7 +203,7 @@ function updateFields() {
         acc[field.key] = field.value
         return acc
       },
-      {} as Record<string, any>,
+      {} as Record<string, unknown>,
     ) || {},
   )
 }

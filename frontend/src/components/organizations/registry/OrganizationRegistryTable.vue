@@ -13,7 +13,7 @@
         <div v-if="!bucketsStore.buckets.length" class="simple-table__placeholder">
           No buckets created for this organization.
         </div>
-        <div v-for="bucket in bucketsStore.buckets" class="simple-table__row">
+        <div v-for="bucket in bucketsStore.buckets" :key="bucket.id" class="simple-table__row">
           <div class="cell">
             {{ bucket.bucket_name }}
           </div>

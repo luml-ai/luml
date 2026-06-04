@@ -37,6 +37,7 @@ import OrbitCreator from '@/components/orbits/creator/OrbitCreator.vue'
 import UiPageLoader from '@/components/ui/UiPageLoader.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const organizationStore = useOrganizationStore()
 const orbitsStore = useOrbitsStore()
@@ -56,8 +57,8 @@ async function loadOrbits(organizationId: string, skipHideLoading = false) {
   try {
     loading.value = true
     await orbitsStore.loadOrbitsList(organizationId)
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.message || 'Failed to load orbits'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load orbits')))
   } finally {
     if (skipHideLoading) return
     loading.value = false
@@ -88,8 +89,8 @@ onBeforeMount(async () => {
   try {
     await loadOrbits(organizationId, true)
     await organizationStore.getOrganizationDetails(organizationId)
-  } catch (e: any) {
-    console.error(e?.response?.data?.detail, e?.message)
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load orbits')))
   } finally {
     loading.value = false
   }

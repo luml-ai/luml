@@ -50,7 +50,7 @@ async function init(organizationId: string) {
       orbitsStore.setCurrentOrbitDetails(details)
     }
     await collectionsStore.setCurrentCollection(collectionId)
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load collection data'))
   } finally {
     loading.value = false

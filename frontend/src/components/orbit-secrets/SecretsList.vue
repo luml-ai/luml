@@ -109,7 +109,7 @@ function maskSecret(value?: string): string {
   return value.length > 15 ? '*'.repeat(15) : '*'.repeat(value.length)
 }
 
-function normalizeTags(tags: any): string[] {
+function normalizeTags(tags: unknown): string[] {
   if (!tags) return []
   if (Array.isArray(tags)) {
     return tags.map((tag) => (typeof tag === 'string' ? tag : (tag.name ?? '')))

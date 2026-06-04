@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import type { CreateDeploymentForm, FieldInfo } from '../deployments.interfaces'
 import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
-import type { FormSubmitEvent } from '@primevue/forms'
+import type { FormInstance, FormSubmitEvent } from '@primevue/forms'
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
 import { Dialog, Button, useToast } from 'primevue'
 import { Form } from '@primevue/forms'
@@ -83,7 +83,7 @@ const toast = useToast()
 
 const visible = defineModel<boolean>('visible')
 
-const formRef = ref<any>()
+const formRef = ref<FormInstance>()
 const loading = ref(false)
 const selectedModel = ref<ModelArtifact | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
@@ -97,13 +97,11 @@ function onCancel() {
   visible.value = false
 }
 
-function resetForm() {
-  initialValues.value = getInitialFormData()
-}
-
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) return
-  const formData = initialValues.value as any as CreateDeploymentForm
+  if (!valid) {
+    return
+  }
+  const formData = initialValues.value as unknown as CreateDeploymentForm
   const payload = getPayload(formData)
   try {
     loading.value = true

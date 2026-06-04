@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { computed, ref, watch } from 'vue'
 import { Dialog, Button, InputText, AutoComplete, Password, useToast, useConfirm } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -125,7 +126,7 @@ async function loadSecretDetails() {
         tags: fullSecret.tags ? [...fullSecret.tags] : [],
       }
     }
-  } catch (error) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load secret details'))
   }
 }
@@ -196,8 +197,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     await secretsStore.updateSecret(req.organizationId, req.orbitId, updatePayload)
     toast.add(simpleSuccessToast('Secret updated successfully'))
     emit('update:visible', false)
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to update secret'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to update secret')))
   } finally {
     updateLoading.value = false
   }
@@ -224,8 +225,8 @@ async function onDelete() {
     await secretsStore.deleteSecret(req.organizationId, req.orbitId, props.secret.id)
     toast.add(simpleSuccessToast('Secret deleted successfully'))
     emit('update:visible', false)
-  } catch (e: any) {
-    const errorMessage = e?.response?.data?.detail || e.message || 'Failed to delete secret'
+  } catch (e: unknown) {
+    const errorMessage = getErrorMessage(e, 'Failed to delete secret')
 
     if (
       errorMessage.includes('used') ||

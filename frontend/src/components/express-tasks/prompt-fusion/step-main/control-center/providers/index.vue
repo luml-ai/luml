@@ -8,7 +8,7 @@
       <h2 class="dialog-title">Model Provider</h2>
     </template>
     <div class="providers">
-      <provider-item v-for="provider in providers" :provider="provider" />
+      <provider-item v-for="provider in providers" :key="provider.name" :provider="provider" />
     </div>
   </d-dialog>
   <provider-settings

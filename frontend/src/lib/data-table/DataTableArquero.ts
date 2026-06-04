@@ -13,24 +13,24 @@ export class DataTableArquero extends Observable<Events> implements IDataTable {
   private selectedColumns: string[] = []
   private filters: FilterItem[] = []
 
-  constructor() {
-    super()
-  }
-
   private getCurrentData() {
     if (!this.dataTable) throw new Error('You need createTable before')
 
     let data = this.dataTable
     if (this.filters.length)
-      data = data.filter(escape((row: any) => this.filteredRow(row, this.filters)))
+      data = data.filter(
+        escape((row: Record<string, unknown>) => this.filteredRow(row, this.filters)),
+      )
     if (this.selectedColumns.length) data = data.select(this.selectedColumns)
     return data
   }
 
-  private filteredRow(row: any, filters: FilterItem[]) {
+  private filteredRow(row: Record<string, unknown>, filters: FilterItem[]) {
     return filters.every((filter) => {
-      const columnValue = row[filter.column]
-      const parameter = isNaN(filter.parameter as any) ? filter.parameter : +filter.parameter
+      const columnValue = row[filter.column] as number | string
+      const parameter = isNaN(filter.parameter as unknown as number)
+        ? filter.parameter
+        : +filter.parameter
 
       switch (filter.filterType) {
         case FilterType.Equals:

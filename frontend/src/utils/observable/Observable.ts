@@ -4,12 +4,6 @@ export type ObservableStructure = {
 
 export type ObserverStopHandle = () => boolean
 
-export interface Observable<Events extends ObservableStructure> {
-  on<K extends keyof Events>(event: K, callback: (a: Events[K]) => void): ObserverStopHandle
-  once<K extends keyof Events>(event: K, callback: (a: Events[K]) => void): ObserverStopHandle
-  off<K extends keyof Events>(event: K, callback: (a: Events[K]) => void): boolean
-}
-
 type Listeners<Events extends ObservableStructure> = {
   [s in keyof Events]: Set<(a: Events[s]) => void>
 }
@@ -57,10 +51,8 @@ export abstract class Observable<Events extends ObservableStructure> {
       return false
     }
 
-    const self = this
-
     setTimeout(() => {
-      self._listeners[event].forEach((callback) => {
+      this._listeners[event].forEach((callback) => {
         callback(value as Events[typeof event])
       })
     })

@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { FormSubmitEvent } from '@primevue/forms'
 import { computed, onMounted, ref, watch } from 'vue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -59,7 +60,6 @@ import { Form } from '@primevue/forms'
 import { PenLine, UserCog } from 'lucide-vue-next'
 import { useOrganizationStore } from '@/stores/organization'
 import { Avatar, Button, Dialog, useToast, InputText } from 'primevue'
-import ImageInput from '../ui/ImageInput.vue'
 import OrganizationDelete from './OrganizationDelete.vue'
 import UiId from '../ui/UiId.vue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -83,16 +83,11 @@ const initialValues = ref({
   name: '',
 })
 const visible = ref(false)
-const logo = ref<File | null>(null)
 const loading = ref(false)
 
 const avatarLabel = computed(() => {
   return organizationStore.currentOrganization?.name.charAt(0).toUpperCase()
 })
-
-function onImageChange(event: File | null) {
-  logo.value = event
-}
 
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
@@ -106,8 +101,8 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
     await organizationStore.updateOrganization(organizationStore.currentOrganization.id, payload)
     toast.add(simpleSuccessToast('All changes have been saved.'))
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e.message || 'Could not create organization'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not update organization')))
   } finally {
     loading.value = false
   }

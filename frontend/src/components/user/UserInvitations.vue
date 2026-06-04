@@ -30,7 +30,11 @@
           </div>
         </div>
         <div class="table-body">
-          <div v-for="invitation in invitationsStore.invitations" class="table-row">
+          <div
+            v-for="invitation in invitationsStore.invitations"
+            :key="invitation.id"
+            class="table-row"
+          >
             <div class="cell">{{ invitation.organization.name }}</div>
             <div class="cell">{{ invitation.role }}</div>
             <div class="cell">{{ invitation.invited_by_user.full_name }}</div>
@@ -82,7 +86,7 @@ async function accept(inviteId: string, organizationId: string) {
   try {
     await invitationsStore.acceptInvitation(inviteId, organizationId)
     toast.add(simpleSuccessToast('You’ve joined the organization successfully.'))
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to accept the invitation'))
   } finally {
     loading.value = false
@@ -95,7 +99,7 @@ async function reject(inviteId: string) {
   try {
     await invitationsStore.rejectInvitation(inviteId)
     toast.add(simpleWardToast('The invitation has been declined.'))
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to reject the invitation'))
   } finally {
     loading.value = false

@@ -78,7 +78,7 @@ export const useBucketsStore = defineStore('buckets', () => {
           headers: { Range: 'bytes=0-10' },
           mode: 'cors',
         })
-      } catch (fetchErr) {
+      } catch {
         throw new BucketValidationError(BucketValidationErrorCode.RANGE_NOT_SUPPORTED)
       }
 

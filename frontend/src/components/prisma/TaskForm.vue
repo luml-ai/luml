@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { InputText, Textarea, Select, Button, Checkbox } from 'primevue'
+import { InputText, Textarea, Select, Checkbox } from 'primevue'
 import type { AgentRepository, Agent } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
 

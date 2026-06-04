@@ -39,11 +39,11 @@ import { useToast } from 'primevue'
 const toast = useToast()
 
 type Props = {
-  uploadCallback: Function
-  removeCallback: Function
+  uploadCallback: (file: File) => unknown
+  removeCallback: () => void
 }
 type Emits = {
-  continue: void
+  continue: []
 }
 type FileData = {
   name?: string

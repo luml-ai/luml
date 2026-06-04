@@ -65,7 +65,7 @@ async function loadSecretValue(secretId: string) {
     loading.value = true
     const fullSecret = await secretsStore.getSecretById(orbit.organization_id, orbit.id, secretId)
     secretValue.value = fullSecret?.value || ''
-  } catch (error) {
+  } catch {
     toast.add(simpleErrorToast('You don’t have access to view this key.'))
   } finally {
     loading.value = false

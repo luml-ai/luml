@@ -63,7 +63,7 @@ const searchedColumns = computed(() =>
   ),
 )
 
-function togglePopover(event: any) {
+function togglePopover(event: Event) {
   popover.value.toggle(event)
 }
 function apply() {
@@ -90,7 +90,7 @@ function onPopoverHide() {
 
 watch(
   () => props.selectedColumns,
-  (val) => {
+  () => {
     columnsState.value = fillColumnsState()
   },
   { deep: true },

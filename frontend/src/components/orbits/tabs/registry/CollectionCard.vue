@@ -25,7 +25,7 @@
         <UiId :id="data.id" class="id-value"></UiId>
       </div>
       <div class="tags">
-        <Tag v-for="tag in data.tags" class="tag">
+        <Tag v-for="tag in data.tags" :key="tag" class="tag">
           <TagIcon :size="12" class="tag-icon" />
           <span>{{ tag }}</span>
         </Tag>

@@ -10,10 +10,7 @@ import type {
 } from '@luml/experiments'
 import { Toast } from 'primevue'
 import StorybookPageWrapper from './StorybookPageWrapper.vue'
-import type {
-  GetEvalsByDatasetParams,
-  GetTracesParams,
-} from '../../../extras/js/packages/experiments/dist/interfaces/interfaces'
+import type { GetEvalsByDatasetParams } from '../../../extras/js/packages/experiments/dist/interfaces/interfaces'
 import '@luml/experiments/style.css'
 import type { GetBatchExperimentsEvalsParams } from '../../../extras/js/packages/experiments/dist/providers/ExperimentSnapshotApiProvider.interface.js'
 
@@ -195,7 +192,7 @@ const createMockProvider = (
     //   if (shouldError) throw new Error('Failed to load evals')
     //   return evalsList
     // },
-    getTraceSpans: async (modelId: string, traceId: string) => {
+    getTraceSpans: async () => {
       return []
     },
     buildSpanTree: async () => {
@@ -222,28 +219,28 @@ const createMockProvider = (
     resetEvalsDatasetsRequestParams: async () => {
       return
     },
-    resetDatasetPage: async (datasetId: string) => {
+    resetDatasetPage: async () => {
       return
     },
-    getDatasetAverageScores: async (datasetId: string) => {
+    getDatasetAverageScores: async () => {
       return []
     },
-    getEvalAnnotations: async (artifactId: string, datasetId: string, evalId: string) => {
+    getEvalAnnotations: async () => {
       return []
     },
-    getTraces: async (params: GetTracesParams) => {
+    getTraces: async () => {
       return []
     },
-    getFreshTraces: async (params: GetTracesParams) => {
+    getFreshTraces: async () => {
       return []
     },
-    getAllTraces: async (params: Omit<GetTracesParams, 'limit'>) => {
+    getAllTraces: async () => {
       return []
     },
-    resetTracesRequestParams: async (artifactId?: string) => {
+    resetTracesRequestParams: async () => {
       return
     },
-    getEvalsDatasetAnnotationsSummary: async (datasetId: string) => {
+    getEvalsDatasetAnnotationsSummary: async () => {
       return {
         feedback: [],
         expectations: [],
@@ -254,16 +251,16 @@ const createMockProvider = (
       if (!data) throw new Error('Eval not found')
       return data
     },
-    getSpanAnnotations: async (artifactId: string, traceId: string, spanId: string) => {
+    getSpanAnnotations: async () => {
       return []
     },
-    getTracesAnnotationSummary: async (artifactId: string) => {
+    getTracesAnnotationSummary: async () => {
       return {
         feedback: [],
         expectations: [],
       }
     },
-    getEvalsColumns: async (datasetId: string) => {
+    getEvalsColumns: async () => {
       return {
         inputs: [
           { name: 'prompt', type: 'string' },
@@ -292,7 +289,7 @@ const createMockProvider = (
         annotations_expectations: [],
       }
     },
-    getTracesColumns: async (artifactId: string) => {
+    getTracesColumns: async () => {
       return {
         attributes: [
           { name: 'span_id', type: 'string' },
@@ -304,10 +301,10 @@ const createMockProvider = (
         annotations_expectations: [],
       }
     },
-    validateEvalsFilter: async (filters: string[]) => {
+    validateEvalsFilter: async () => {
       return []
     },
-    validateTracesFilter: async (filters: string[]) => {
+    validateTracesFilter: async () => {
       return []
     },
     getBatchExperimentEvals: async (params: GetBatchExperimentsEvalsParams) => {

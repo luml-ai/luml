@@ -1,6 +1,6 @@
 <template>
   <div class="zoom">
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoom-out')">
+    <Button variant="text" severity="secondary" size="small" @click="emit('zoomOut')">
       <template #icon>
         <ZoomOut :size="14" />
       </template>
@@ -9,7 +9,7 @@
       <input v-model="modelValue" type="number" class="zoom-input" @input="changeZoom" />
       <span>%</span>
     </div>
-    <Button variant="text" severity="secondary" size="small" @click="emit('zoom-in')">
+    <Button variant="text" severity="secondary" size="small" @click="emit('zoomIn')">
       <template #icon>
         <ZoomIn :size="14" />
       </template>
@@ -22,9 +22,9 @@ import { Button } from 'primevue'
 import { ZoomIn, ZoomOut } from 'lucide-vue-next'
 
 interface Emits {
-  (e: 'zoom-out'): void
-  (e: 'zoom-in'): void
-  (e: 'zoom-change', value: number): void
+  zoomOut: []
+  zoomIn: []
+  zoomChange: [value: number]
 }
 
 const emit = defineEmits<Emits>()
@@ -34,7 +34,7 @@ const modelValue = defineModel<string>('modelValue', { required: true })
 function changeZoom(e: Event) {
   const target = e.target as HTMLInputElement
   const value = !isNaN(Number(target.value)) ? Number(target.value) / 100 : 0
-  emit('zoom-change', value)
+  emit('zoomChange', value)
 }
 </script>
 

@@ -13,7 +13,7 @@ export const getRadialBarOptions = (): ApexOptions => ({
           show: true,
           color: 'var(--p-text-muted-color)',
           offsetY: 20,
-          //@ts-ignore
+          // @ts-expect-error formatter is not present in ApexOptions name dataLabels typings
           formatter: () => 'Total score',
         },
         value: {

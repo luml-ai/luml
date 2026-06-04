@@ -32,7 +32,7 @@ const showPasswordMessage = () => {
 }
 
 onMounted(() => {
-  userStore.isPasswordHasBeenChanged && showPasswordMessage()
+  if (userStore.isPasswordHasBeenChanged) showPasswordMessage()
 })
 </script>
 

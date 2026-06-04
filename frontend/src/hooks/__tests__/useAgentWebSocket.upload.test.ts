@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 
 const UPLOAD_EVENT_TYPES = new Set([
   'upload_ready',

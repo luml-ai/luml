@@ -133,7 +133,7 @@ async function saveChanges({ valid, values }: FormSubmitEvent) {
     await orbitsStore.updateOrbit(props.orbit.organization_id, payload)
     toast.add(simpleSuccessToast('Orbit info successfully updated'))
     visible.value = false
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to update orbit'))
   } finally {
     loading.value = false
@@ -150,7 +150,7 @@ async function deleteOrbit() {
     await orbitsStore.deleteOrbit(props.orbit.organization_id, props.orbit.id)
     toast.add(simpleSuccessToast('Orbit successfully deleted'))
     visible.value = false
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to delete orbit'))
   } finally {
     loading.value = false
@@ -158,7 +158,7 @@ async function deleteOrbit() {
 }
 
 watch(visible, (val) => {
-  val && bucketsStore.getBuckets(props.orbit.organization_id)
+  if (val) bucketsStore.getBuckets(props.orbit.organization_id)
 })
 </script>
 

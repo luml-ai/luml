@@ -65,7 +65,7 @@ async function deleteDeployment() {
     await deploymentsStore.deleteDeployment(props.organizationId, props.orbitId, props.deploymentId)
     toast.add(simpleSuccessToast(`Deployment "${props.name}" is shutting down.`))
     emits('delete')
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Could not delete deployment')))
   } finally {
     loading.value = false

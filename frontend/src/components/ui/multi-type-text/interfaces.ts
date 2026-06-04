@@ -1,6 +1,6 @@
 export type Props = {
   title: string
-  text: any
+  text: unknown
   initialType?: ContentTypeEnum
 }
 

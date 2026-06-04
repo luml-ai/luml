@@ -75,6 +75,12 @@ export interface PredictRequestData {
   model_id: string
 }
 
+export interface PredictResponse {
+  status: 'success' | 'error'
+  error_message?: string
+  predictions: (string | number | object)[]
+}
+
 export interface TabularMetrics {
   performance: {
     eval_cv?: ClassificationMetrics | RegressionMetrics
@@ -94,4 +100,4 @@ export interface TabularModelMetadataPayload {
   metrics: TabularMetrics
 }
 
-export interface PromptOptimizationModelMetadataPayload extends PayloadData {}
+export type PromptOptimizationModelMetadataPayload = PayloadData

@@ -16,7 +16,7 @@ import { ref } from 'vue'
 interface ArtifactData {
   manifest: Manifest
   file_index: Map<string, [number, number]>
-  extra_values: any
+  extra_values: Record<string, object>
 }
 
 export const useArtifactUpload = () => {

@@ -21,6 +21,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { MenuItem } from 'primevue/menuitem'
 import type { Notebook } from '@/lib/databases/database.interfaces'
 import { Menu, Button, Dialog, useConfirm, useToast, type DialogPassThroughOptions } from 'primevue'
@@ -109,11 +110,11 @@ function onDeleteClick() {
           detail: 'Notebook deleted',
           life: 2000,
         })
-      } catch (e: any) {
+      } catch (e: unknown) {
         toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: e?.message || 'Failed to delete the instance',
+          detail: getErrorMessage(e, 'Failed to delete the instance'),
         })
       }
     },
@@ -142,11 +143,11 @@ function onBackupClick() {
     accept: async () => {
       try {
         await notebooksStore.createBackup(props.notebook.name)
-      } catch (e: any) {
+      } catch (e: unknown) {
         toast.add({
           severity: 'error',
           summary: 'Error',
-          detail: e?.message || 'Failed to create a backup',
+          detail: getErrorMessage(e, 'Failed to create a backup'),
           life: 2000,
         })
       }

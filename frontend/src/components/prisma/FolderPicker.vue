@@ -4,6 +4,7 @@ import { InputText, Button } from 'primevue'
 import { FolderOpen, ArrowUp, Folder, Github, Check } from 'lucide-vue-next'
 import { api } from '@/lib/api'
 import type { BrowseEntry } from '@/lib/api/prisma/prisma.interfaces'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const model = defineModel<string>({ default: '' })
 
@@ -27,11 +28,14 @@ async function browse(path?: string) {
     parent.value = result.parent
     dirs.value = result.dirs
     isGit.value = result.is_git
-  } catch (e: any) {
-    if (e?.code === 'ERR_CANCELED' || e?.name === 'AbortError') {
-      error.value = 'Request timed out — is the agent server running?'
-    } else {
-      error.value = e?.response?.data?.detail ?? 'Failed to browse'
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      const code = (e as NodeJS.ErrnoException).code
+      if (code === 'ERR_CANCELED' || e.name === 'AbortError') {
+        error.value = 'Request timed out — is the agent server running?'
+      } else {
+        error.value = getErrorMessage(e, 'Failed to browse')
+      }
     }
   } finally {
     loading.value = false

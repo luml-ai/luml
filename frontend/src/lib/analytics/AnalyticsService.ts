@@ -1,5 +1,5 @@
 export interface AnalyticsInterface {
-  identify: Function
+  identify: (id: number, traits: { email: string }) => void
   track: <K extends keyof TrackEventMap>(event: K, payload: TrackEventMap[K]) => void
 }
 

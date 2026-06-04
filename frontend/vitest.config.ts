@@ -18,6 +18,14 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './tests/setup.ts',
+    server: {
+      deps: {
+        // @fnnx-ai/common ships ESM with extensionless relative imports
+        // (e.g. import ... from './ndarray'), which Node's native ESM resolver
+        // rejects. Inlining lets Vite transform and resolve them.
+        inline: [/@fnnx-ai\/common/, /@fnnx-ai\/web/],
+      },
+    },
     coverage: {
       provider: 'v8',
       reportsDirectory: 'coverage',

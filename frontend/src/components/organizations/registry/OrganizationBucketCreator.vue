@@ -42,6 +42,7 @@ import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import AzureBucketForm from './AzureBucketForm.vue'
 import S3BucketForm from './S3BucketForm.vue'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const dialogPT: DialogPassThroughOptions = {
   header: {
@@ -87,13 +88,11 @@ async function create(data: BucketFormData) {
     await bucketsStore.createBucket(organizationId, data)
     visible.value = false
     toast.add(simpleSuccessToast('New bucket has been added.'))
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (e instanceof BucketValidationError) {
       toast.add(simpleErrorToast(e.getMessage()))
     } else {
-      toast.add(
-        simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create bucket'),
-      )
+      toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create bucket')))
     }
   } finally {
     loading.value = false

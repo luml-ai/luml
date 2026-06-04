@@ -63,6 +63,7 @@ import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { z } from 'zod'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { removeOrganizationUserConfirmOptions } from '@/lib/primevue/data/confirm'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const OPTIONS = [
   {
@@ -111,8 +112,8 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
       role: values.role,
     })
     toast.add(simpleSuccessToast('User role has been updated.'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to update user'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to update user')))
   } finally {
     loading.value = false
   }
@@ -126,8 +127,8 @@ async function deleteUser() {
     loading.value = true
     await organizationStore.deleteMember(props.member.organization_id, props.member.id)
     toast.add(simpleSuccessToast('The user has been successfully removed.'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to delete member'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to delete member')))
   } finally {
     loading.value = false
   }

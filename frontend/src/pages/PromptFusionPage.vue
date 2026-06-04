@@ -53,7 +53,7 @@ import StepEdit from '@/components/express-tasks/prompt-fusion/step-edit/StepEdi
 import StepMain from '@/components/express-tasks/prompt-fusion/step-main/index.vue'
 import UploadData from '@/components/ui/UploadData.vue'
 
-const { $reset, addEdges, addNodes, toObject } = useVueFlow()
+const { $reset, addEdges, addNodes } = useVueFlow()
 
 const tableValidator = (size?: number, columns?: number, rows?: number) => {
   return {

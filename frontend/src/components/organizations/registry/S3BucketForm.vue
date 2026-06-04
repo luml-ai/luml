@@ -17,9 +17,7 @@
           placeholder="e.g. s3.amazonaws.com"
           fluid
         />
-        <div v-if="($form as any).endpoint?.invalid" class="message">
-          Please enter a valid endpoint URL
-        </div>
+        <div v-if="$form.endpoint?.invalid" class="message">Please enter a valid endpoint URL</div>
       </div>
       <div class="field">
         <label for="bucket_name" class="label required">Bucket name</label>
@@ -31,7 +29,7 @@
           placeholder="e.g. luml-storage"
           fluid
         />
-        <div v-if="($form as any).bucket_name?.invalid" class="message">
+        <div v-if="$form.bucket_name?.invalid" class="message">
           Please enter a name for the bucket
         </div>
       </div>

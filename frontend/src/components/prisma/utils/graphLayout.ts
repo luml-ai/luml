@@ -24,10 +24,9 @@ export function computeLayout(
   g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 })
 
   for (const node of nodes) {
+    const artifacts = node.result?.artifacts as Record<string, unknown>
     const hasMetric =
-      node.node_type === 'run' &&
-      node.result?.artifacts?.metric !== undefined &&
-      node.result?.artifacts?.metric !== null
+      node.node_type === 'run' && artifacts?.metric !== undefined && artifacts?.metric !== null
     g.setNode(node.id, { width: 200, height: hasMetric ? 100 : 80 })
   }
   for (const edge of edges) {

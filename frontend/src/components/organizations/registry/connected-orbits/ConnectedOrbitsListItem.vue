@@ -20,7 +20,7 @@ type Props = {
   orbit: Pick<Orbit, 'id' | 'name'>
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 </script>
 
 <style scoped>

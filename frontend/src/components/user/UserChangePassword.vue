@@ -89,6 +89,7 @@ import { ref, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { userChangePasswordResolver } from '@/utils/forms/resolvers'
 import { userChangePasswordInitialValues } from '@/utils/forms/initialValues'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const emit = defineEmits(['success'])
 
@@ -110,8 +111,8 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
     await userStore.changePassword(data)
 
     emit('success')
-  } catch (e: any) {
-    formResponseError.value = e.response.data.detail || 'Form is invalid'
+  } catch (e: unknown) {
+    formResponseError.value = getErrorMessage(e, 'Form is invalid')
   }
 }
 

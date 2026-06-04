@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { ref } from 'vue'
 import { Checkbox, Button, Dialog, useToast } from 'primevue'
 import { useOrganizationStore } from '@/stores/organization'
@@ -56,8 +57,8 @@ async function deleteOrganization() {
     toast.add(
       simpleSuccessToast('The organization and all associated data have been permanently removed.'),
     )
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e.message || 'Could not delete organization'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not delete organization')))
   } finally {
     loading.value = false
   }

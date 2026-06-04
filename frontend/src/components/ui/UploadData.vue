@@ -60,7 +60,7 @@
       <div class="info">
         <h3 class="info-title">Useful Resources:</h3>
         <ul class="info-list">
-          <li v-for="resource in resources" class="info-item">
+          <li v-for="resource in resources" :key="resource.link" class="info-item">
             <a :href="resource.link" target="_blank" class="info-item-body link">
               <span>{{ resource.label }}</span>
               <external-link width="14" height="14" class="link-icon" />

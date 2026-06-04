@@ -69,7 +69,7 @@ vi.mock('lucide-vue-next', () => ({
   Plus: { template: '<span>+</span>' },
 }))
 describe('OrbitCreator', () => {
-  let wrapper: any
+  let wrapper: ReturnType<typeof mount>
   const pinia = createPinia()
 
   beforeEach(() => {

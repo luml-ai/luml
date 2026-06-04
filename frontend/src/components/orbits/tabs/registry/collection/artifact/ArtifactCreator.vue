@@ -198,7 +198,7 @@ function onSelectFile(event: File) {
     formData.value.file = event
   } else {
     fileError.value = true
-    !isFileNameCorrect && toast.add(simpleErrorToast('Incorrect file name'))
+    if (!isFileNameCorrect) toast.add(simpleErrorToast('Incorrect file name'))
   }
 }
 
@@ -251,8 +251,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     })
     reset()
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e?.message || 'Failed file upload'))
+  } catch (e) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
   } finally {
     loading.value = false
   }
@@ -286,7 +286,8 @@ onBeforeMount(() => {
 })
 
 watch(visible, (val) => {
-  val ? initTags() : reset()
+  if (val) initTags()
+  else reset()
 })
 
 watch(() => formData.value.type, resetFile)

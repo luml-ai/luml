@@ -77,6 +77,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 import SatelliteDelete from './SatelliteDelete.vue'
+import { getErrorMessage } from '@/helpers/helpers'
 
 type Props = {
   data: Satellite
@@ -124,8 +125,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       initialValues.value,
     )
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || 'Failed to update satellite'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to update satellite')))
   } finally {
     toast.add(simpleSuccessToast(`${props.data.name} updated successfully.`))
     loading.value = false

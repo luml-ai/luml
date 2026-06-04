@@ -37,7 +37,7 @@ onBeforeMount(async () => {
     if (currentOrbit?.organization_id && currentOrbit?.id) {
       await secretsStore.loadSecrets(currentOrbit.organization_id, currentOrbit.id)
     }
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load secrets'))
   } finally {
     loading.value = false

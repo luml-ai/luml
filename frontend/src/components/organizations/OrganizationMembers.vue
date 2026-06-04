@@ -32,7 +32,7 @@
           </div>
         </div>
         <div class="users-list">
-          <div v-for="member in members" class="row">
+          <div v-for="member in members" :key="member.id" class="row">
             <div class="cell cell-user">
               <Avatar
                 :label="member.user.photo ? undefined : member.user.full_name[0]"

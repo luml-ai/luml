@@ -43,6 +43,7 @@
     >
       <Column
         v-for="column in currentColumns"
+        :key="column"
         :id="column"
         :field="column"
         :header="column === '<=PREDICTED=>' ? 'Prediction' : cutStringOnMiddle(column)"
@@ -86,6 +87,7 @@
       >
         <Column
           v-for="column in currentColumns"
+          :key="column"
           :id="column"
           :field="column"
           :header="column === '<=PREDICTED=>' ? 'Prediction' : cutStringOnMiddle(column)"
@@ -99,7 +101,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
-import { ToggleSwitch, DataTable, Column, Dialog } from 'primevue'
+import { DataTable, Column, Dialog } from 'primevue'
 
 import { Maximize2, Minimize2, TriangleAlert } from 'lucide-vue-next'
 

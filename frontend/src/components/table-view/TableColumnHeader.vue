@@ -90,8 +90,8 @@ type Props = {
   inputsOutputsColumns?: PromptFusionColumn[]
 }
 type Emits = {
-  (event: 'setTarget', column: string): void
-  (event: 'changeGroup', column: string): void
+  setTarget: [column: string]
+  changeGroup: [column: string]
 }
 
 const props = defineProps<Props>()

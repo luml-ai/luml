@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-mutating-props -- editor mutates the shared reactive node-field object in place -->
   <div class="field">
     <header class="field-header">
       <h4 class="field-type">{{ typeLabel ? typeLabel : data.variant }}</h4>
@@ -78,6 +79,7 @@ const options = [
 ]
 
 function onVariadicClick() {
+  // eslint-disable-next-line vue/no-mutating-props -- shared reactive node-field object is mutated in place by design
   props.data.variadic = !props.data.variadic
 }
 function onTrashClick() {

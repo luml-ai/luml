@@ -25,7 +25,11 @@
 </template>
 
 <script setup lang="ts">
-import type { TabularMetrics } from '@/lib/data-processing/interfaces'
+import type {
+  ClassificationMetrics,
+  RegressionMetrics,
+  TabularMetrics,
+} from '@/lib/data-processing/interfaces'
 import { FnnxService, type FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import { computed } from 'vue'
 import ModelTabularPerformance from '@/components/model/ModelTabularPerformance.vue'
@@ -45,7 +49,8 @@ const totalScore = computed(() => {
 })
 const testMetrics = computed(() => {
   return FnnxService.prepareTabularMetrics(
-    props.metrics.performance.eval_cv || props.metrics.performance.eval_holdout!,
+    props.metrics.performance.eval_cv ||
+      (props.metrics.performance.eval_holdout as ClassificationMetrics | RegressionMetrics),
     props.tag,
   )
 })

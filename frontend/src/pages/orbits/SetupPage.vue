@@ -120,7 +120,7 @@ watch(
 
 const TABS: Record<
   string,
-  { title: string; icon: any; cards: { title: string; description: string }[] }
+  { title: string; icon: unknown; cards: { title: string; description: string }[] }
 > = {
   registry: {
     title: 'Registry',
@@ -184,7 +184,7 @@ function onOrbitCreated(orbit: Orbit) {
   router.push({
     name: targetRoute,
     params: {
-      organizationId: organizationStore.currentOrganization!.id,
+      organizationId: organizationStore.currentOrganization?.id as string,
       id: orbit.id,
     },
   })

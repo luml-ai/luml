@@ -32,6 +32,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { ProgressSpinner } from 'primevue'
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
+import type { MetaEntry } from '@fnnx-ai/common/dist/interfaces'
+import type { PromptOptimizationModelMetadataPayload } from '@/lib/data-processing/interfaces'
 import { ModelDownloader } from '@/lib/bucket-service'
 import JSZip from 'jszip'
 import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardTabular.vue'
@@ -51,13 +53,13 @@ const isPromptOptimization = computed(
     FnnxService.isPromptOptimizationTag(artifactsStore.currentModelTag),
 )
 
-function setTabularMetadata(file: any) {
+function setTabularMetadata(file: MetaEntry[]) {
   const metrics = FnnxService.getTabularMetrics(file)
   artifactsStore.setCurrentModelMetadata({ metrics })
 }
 
-function setPromptOptimizationMetadata(file: any) {
-  const data = FnnxService.getPromptOptimizationData(file)
+function setPromptOptimizationMetadata(file: MetaEntry[]) {
+  const data = FnnxService.getPromptOptimizationData(file) as PromptOptimizationModelMetadataPayload
   artifactsStore.setCurrentModelMetadata(data)
 }
 
@@ -94,11 +96,14 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: Mod
   artifactsStore.setCurrentModelTag(tag)
   const url = await artifactsStore.getDownloadUrl(model.id)
   const modelDownloader = new ModelDownloader(url)
-  const file = await modelDownloader.getFileFromBucket(model.file_index, metadataFileName)
+  const file = await modelDownloader.getFileFromBucket<MetaEntry[]>(
+    model.file_index,
+    metadataFileName,
+  )
   if (FnnxService.isTabularTag(tag)) {
-    setTabularMetadata(file)
+    setTabularMetadata(file as MetaEntry[])
   } else if (FnnxService.isPromptOptimizationTag(tag)) {
-    setPromptOptimizationMetadata(file)
+    setPromptOptimizationMetadata(file as MetaEntry[])
   }
 }
 

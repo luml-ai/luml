@@ -71,7 +71,7 @@ const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
   try {
     await authStore.forgotPassword(initialValues.value.email)
     showSuccess()
-  } catch (e) {
+  } catch {
     toast.add(unknownErrorToast)
   }
 }

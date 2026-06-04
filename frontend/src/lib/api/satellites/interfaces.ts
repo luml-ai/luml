@@ -121,7 +121,7 @@ export interface SatelliteField {
 
 export interface Validator {
   type: ValidatorType
-  value: any
+  value: unknown
 }
 
 export interface ConditionsObject {
@@ -132,23 +132,23 @@ export interface ConditionsObject {
 export interface FieldConditionObject {
   field: string
   operator: FieldOperator
-  value: any
+  value: unknown
 }
 
 interface ModelTagsConditionObject {
   field: 'tags'
   operator: ModelTagsOperator
-  value: any
+  value: unknown
 }
 
 interface ModelVersionConditionObject {
   field: 'version'
   operator: ModelVersionOperator
-  value: any
+  value: unknown
 }
 
 interface ModelVariantConditionObject {
   field: 'variant'
   operator: ModelVariantOperator
-  value: any
+  value: unknown
 }

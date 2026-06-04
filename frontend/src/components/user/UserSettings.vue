@@ -98,7 +98,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
-import ImageInput from '../ui/ImageInput.vue'
 
 import { useInputIcon } from '@/hooks/useInputIcon'
 import { useUserStore } from '@/stores/user'
@@ -111,6 +110,7 @@ import { userSettingResolver } from '@/utils/forms/resolvers'
 import { userProfileUpdateSuccessToast } from '@/lib/primevue/data/toasts'
 import { storeToRefs } from 'pinia'
 import { deleteAccountConfirmOptions } from '@/lib/primevue/data/confirm'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const userStore = useUserStore()
 const { getUserFullName, getUserEmail, isUserLoggedWithSSO } = storeToRefs(userStore)
@@ -120,8 +120,8 @@ const router = useRouter()
 const toast = useToast()
 
 type Emits = {
-  (e: 'showChangePassword'): void
-  (e: 'close'): void
+  showChangePassword: []
+  close: []
 }
 
 const emit = defineEmits<Emits>()
@@ -158,10 +158,6 @@ const deleteAccountConfirm = () => {
   confirm.require(deleteAccountConfirmOptions(accept))
 }
 
-const onAvatarChange = (payload: File | null) => {
-  newAvatar.value = payload
-}
-
 const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
   if (!valid) return
 
@@ -184,8 +180,8 @@ const onFormSubmit = async ({ valid }: FormSubmitEvent) => {
 
     showSuccess(response.detail)
     emit('close')
-  } catch (e: any) {
-    formResponseError.value = e.response.data.detail || 'Form is invalid'
+  } catch (e: unknown) {
+    formResponseError.value = getErrorMessage(e, 'Form is invalid')
   }
 }
 

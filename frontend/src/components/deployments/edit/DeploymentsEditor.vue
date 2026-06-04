@@ -207,7 +207,7 @@ async function saveChanges() {
     await deploymentsStore.update(organizationId.value, props.data.orbit_id, props.data.id, payload)
     toast.add(simpleSuccessToast('Deployment changes saved successfully.'))
     visible.value = false
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to update deployment'))
   } finally {
     loading.value = false

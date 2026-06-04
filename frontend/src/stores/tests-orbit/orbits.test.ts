@@ -9,6 +9,7 @@ import type {
   UpdateOrbitPayload,
   AddMemberToOrbitPayload,
   OrbitMember,
+  IGetUserResponse,
 } from '@/lib/api/api.interfaces'
 import { OrbitRoleEnum } from '@/components/orbits/orbits.interfaces'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
@@ -70,7 +71,7 @@ const createMockMember = (
     disabled: false,
     id: userId,
     has_api_key: false,
-  } as any,
+  } as IGetUserResponse,
   created_at: new Date(),
   updated_at: null,
 })

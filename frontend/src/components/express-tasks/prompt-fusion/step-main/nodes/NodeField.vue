@@ -51,8 +51,8 @@ const handleTopPosition = ref<number | null>(null)
 const variantClass = computed(() => props.field.variant || '')
 const connectingHandles = computed(() => {
   return edges.value.reduce((acc, edge) => {
-    edge.sourceHandle && acc.add(edge.sourceHandle)
-    edge.targetHandle && acc.add(edge.targetHandle)
+    if (edge.sourceHandle) acc.add(edge.sourceHandle)
+    if (edge.targetHandle) acc.add(edge.targetHandle)
     return acc
   }, new Set() as Set<string>)
 })

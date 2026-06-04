@@ -18,7 +18,7 @@ async function call(payload: CallPayload, requestId: string) {
   if (!provider) {
     throw new Error('Provider not initialized')
   }
-  const fn = (provider as any)[method]
+  const fn = provider[method] as (...args: unknown[]) => unknown
   if (typeof fn !== 'function') {
     throw new Error(`Provider method "${method}" does not exist`)
   }
@@ -42,12 +42,13 @@ self.onmessage = async (event) => {
         activeRequests.delete(requestId)
         break
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as Error
     activeRequests.delete(requestId)
     self.postMessage({
       type: 'error',
       requestId,
-      error: err.message,
+      error: error.message,
     })
   }
 }

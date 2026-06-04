@@ -9,5 +9,5 @@ export interface CallPayload<
   M extends keyof ExperimentSnapshotDatabaseProvider = keyof ExperimentSnapshotDatabaseProvider,
 > {
   method: M
-  args?: ExperimentSnapshotDatabaseProvider[M] extends (...args: infer A) => any ? A : never[]
+  args?: ExperimentSnapshotDatabaseProvider[M] extends (...args: infer A) => unknown ? A : never[]
 }

@@ -19,25 +19,25 @@ const node = computed(() => store.selectedNode)
 
 const metric = computed(() => {
   if (node.value?.node_type !== 'run') return null
-  const val = node.value?.result?.artifacts?.metric
+  const val = (node.value?.result?.artifacts as Record<string, unknown>)?.metric
   return val !== undefined && val !== null ? val : null
 })
 
 const resolvedArtifact = computed((): ArtifactContext | undefined => {
   if (props.artifact) return props.artifact
-  const link = node.value?.result?.artifact_link
+  const link = node.value?.result?.artifact_link as Record<string, unknown>
   if (link?.artifact_id) {
     return {
       artifactId: link.artifact_id,
       organizationId: link.organization_id,
       orbitId: link.orbit_id,
       collectionId: link.collection_id,
-    }
+    } as ArtifactContext
   }
   return undefined
 })
 
-function formatMetric(val: any): string {
+function formatMetric(val: unknown): string {
   if (typeof val === 'number') {
     return Number.isInteger(val) ? String(val) : val.toFixed(4)
   }

@@ -1,7 +1,7 @@
 <template>
   <div class="manual-wrapper disabled">
     <div class="inputs">
-      <div v-for="field in Object.keys(manualValues)" class="input-wrapper">
+      <div v-for="field in Object.keys(manualValues)" :key="field" class="input-wrapper">
         <d-float-label variant="on">
           <d-input-text
             v-model="manualValues[field as keyof typeof manualValues]"
@@ -44,7 +44,7 @@ const toast = useToast()
 
 type Props = {
   inputNames: string[]
-  predictCallback: Function
+  predictCallback: (data: Record<string, (string | number)[]>) => Promise<unknown>
 }
 
 const props = defineProps<Props>()
@@ -61,7 +61,7 @@ const isPredictButtonDisabled = computed(() => {
 })
 
 function createManualValuesObject(inputs: string[]) {
-  return inputs.reduce((acc: any, input) => {
+  return inputs.reduce<Record<string, string>>((acc, input) => {
     acc[input] = ''
     return acc
   }, {})
@@ -73,7 +73,7 @@ async function submit() {
     for (const key in manualValues.value) {
       data[key] = [manualValues.value[key]]
     }
-    const predictionResult = await props.predictCallback(data)
+    const predictionResult = (await props.predictCallback(data)) as (string | number)[] | undefined
     if (predictionResult) prediction.value = predictionResult.join(', ')
   } catch (e) {
     toast.add(predictErrorToast(e as string))
