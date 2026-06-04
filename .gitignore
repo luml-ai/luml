@@ -22,3 +22,5 @@ node_modules
 /lumlflow/.idea/
 /lumlflow/.env
 luml-agent/uv.lock
+/.mcp.json
+/codie.bash
