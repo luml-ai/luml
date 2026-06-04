@@ -111,6 +111,11 @@ class TrackRepository(RepositoryBase, CrudMixin):
             )
             return TrackStage.model_validate(db_stage) if db_stage else None
 
+    async def get_stage(self, stage_id: UUID) -> TrackStage | None:
+        async with self._get_session() as session:
+            db_stage = await self.get_model(session, TrackStageOrm, stage_id)
+            return TrackStage.model_validate(db_stage) if db_stage else None
+
     async def delete_stage(self, stage_id: UUID) -> None:
         async with self._get_session() as session:
             await self.delete_model(session, TrackStageOrm, stage_id)
