@@ -43,6 +43,7 @@ import { ApiKeysApi } from './api-keys'
 import { SatellitesApi } from './satellites'
 import { OrbitSecretsApi } from './orbit-secrets'
 import { DeploymentsApi } from './deployments'
+import { OrbitTracksApi } from './orbit-tracks'
 import { PrismaApi } from './prisma'
 
 export class ApiClass {
@@ -54,6 +55,7 @@ export class ApiClass {
   public satellites: SatellitesApi
   public orbitSecrets: OrbitSecretsApi
   public deployments: DeploymentsApi
+  public orbitTracks: OrbitTracksApi
   public dataAgent: PrismaApi
 
   constructor() {
@@ -72,6 +74,7 @@ export class ApiClass {
     this.satellites = new SatellitesApi(this.api)
     this.orbitSecrets = new OrbitSecretsApi(this.api)
     this.deployments = new DeploymentsApi(this.api)
+    this.orbitTracks = new OrbitTracksApi(this.api)
     this.dataAgent = new PrismaApi()
   }
 

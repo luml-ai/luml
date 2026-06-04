@@ -578,12 +578,12 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Add the `has_entries_for_artifact` `409` check to `backend/luml/handlers/artifacts.py` in **both** the shared `_artifact_deletion_checks` helper (covers `confirm_deletion` + `force_delete_artifact`) and `request_delete_url`; force-delete stays blocked (no auto-unlink)
   - [x] Unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from Scenarios
 
-- [ ] **Task 4: Frontend API client + Pinia store + composables**
-  - [ ] Add `track` to `OrbitPermissions` in `frontend/src/lib/api/api.interfaces.ts` (mirror `collection`)
-  - [ ] Create `frontend/src/lib/api/orbit-tracks/interfaces.ts` (standard `{detail}` for the 409 — no stage-conflict shape) and `index.ts` (`OrbitTracksApi` with all methods), following `frontend/src/lib/api/orbit-collections/`
-  - [ ] Wire `orbitTracks` into `ApiClass` in `frontend/src/lib/api/api.ts`
-  - [ ] Create `frontend/src/stores/tracks.ts` (tracks/entries/stages CRUD; `artifactEntries`) following `stores/collections.ts`
-  - [ ] Create `frontend/src/hooks/useTracksList.ts` and `useTrackEntriesList.ts` following `hooks/useCollectionsList.ts`
+- [x] **Task 4: Frontend API client + Pinia store + composables**
+  - [x] Add `track` to `OrbitPermissions` in `frontend/src/lib/api/api.interfaces.ts` (mirror `collection`)
+  - [x] Create `frontend/src/lib/api/orbit-tracks/interfaces.ts` (standard `{detail}` for the 409 — no stage-conflict shape) and `index.ts` (`OrbitTracksApi` with all methods), following `frontend/src/lib/api/orbit-collections/`
+  - [x] Wire `orbitTracks` into `ApiClass` in `frontend/src/lib/api/api.ts`
+  - [x] Create `frontend/src/stores/tracks.ts` (tracks/entries/stages CRUD; `artifactEntries`) following `stores/collections.ts`
+  - [x] Create `frontend/src/hooks/useTracksList.ts` and `useTrackEntriesList.ts` following `hooks/useCollectionsList.ts`
 
 - [ ] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
   - [ ] Add the `orbit-tracks` child route and the top-level track-detail route in `frontend/src/router/index.ts` (follow the collection routes)
