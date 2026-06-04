@@ -565,10 +565,10 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Add the `tracks` relationship to `OrbitOrm` in `backend/luml/models/orbit.py`
   - [x] Add the next sequential migration under `backend/migrations/versions/` creating `tracks` → `track_stages` → `track_entries` (all columns, FKs, indexes, UNIQUE constraints incl. `UNIQUE(track_id, version)` and the partial unique index on `(track_id, stage_id)`); `downgrade()` drops in reverse
 
-- [ ] **Task 2: Backend schemas + repository layer**
-  - [ ] Create `backend/luml/schemas/tracks.py` following `backend/luml/schemas/collections.py` (incl. `tags`, paginated entries list; no stage-conflict schema — the 409 is a plain `{detail}` message)
-  - [ ] Create `backend/luml/repositories/tracks.py` with all methods incl. `list_entries_for_artifact`, `has_entries_for_artifact`, `clear_stage_from_entries`, and paginated `list_entries`. Entry create must assign `version` atomically (`UPDATE tracks SET next_version = next_version + 1 ... RETURNING` + insert in one transaction); force stage-reassign must clear the old holder **before** setting the target, in one transaction
-  - [ ] Integration tests in `tests/integration/repository/test_tracks.py`: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination; version monotonicity after deletion (versions never recycled); force stage-reassign (old holder cleared, target set)
+- [x] **Task 2: Backend schemas + repository layer**
+  - [x] Create `backend/luml/schemas/tracks.py` following `backend/luml/schemas/collections.py` (incl. `tags`, paginated entries list; no stage-conflict schema — the 409 is a plain `{detail}` message)
+  - [x] Create `backend/luml/repositories/tracks.py` with all methods incl. `list_entries_for_artifact`, `has_entries_for_artifact`, `clear_stage_from_entries`, and paginated `list_entries`. Entry create must assign `version` atomically (`UPDATE tracks SET next_version = next_version + 1 ... RETURNING` + insert in one transaction); force stage-reassign must clear the old holder **before** setting the target, in one transaction
+  - [x] Integration tests in `tests/integration/repository/test_tracks.py`: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination; version monotonicity after deletion (versions never recycled); force stage-reassign (old holder cleared, target set)
 
 - [ ] **Task 3: Backend handlers + API routers**
   - [ ] Add `TRACK = "track"` to `Resource` in `backend/luml/schemas/permissions.py`; wire `Resource.TRACK` into both permission dicts per the Permissions table
