@@ -570,13 +570,13 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Create `backend/luml/repositories/tracks.py` with all methods incl. `list_entries_for_artifact`, `has_entries_for_artifact`, `clear_stage_from_entries`, and paginated `list_entries`. Entry create must assign `version` atomically (`UPDATE tracks SET next_version = next_version + 1 ... RETURNING` + insert in one transaction); force stage-reassign must clear the old holder **before** setting the target, in one transaction
   - [x] Integration tests in `tests/integration/repository/test_tracks.py`: create/list/get/update/delete track; create/list stages; add/list/patch/delete entries; `list_entries_for_artifact`; `has_entries_for_artifact`; `clear_stage_from_entries`; pagination; version monotonicity after deletion (versions never recycled); force stage-reassign (old holder cleared, target set)
 
-- [ ] **Task 3: Backend handlers + API routers**
-  - [ ] Add `TRACK = "track"` to `Resource` in `backend/luml/schemas/permissions.py`; wire `Resource.TRACK` into both permission dicts per the Permissions table
-  - [ ] Create `backend/luml/handlers/tracks.py` (`TracksHandler`, `TrackEntriesHandler`, `TrackStagesHandler`) following `backend/luml/handlers/collections.py`; permission check first in every method; correct HTTP errors incl. stage-from-wrong-track 422 and stage conflict 409. `create_entry` must validate the artifact: type match (`ArtifactOrm.type` vs `track.artifact_type` → reuse `ArtifactTypeMismatchError`, 422) and same-orbit (artifact's orbit via `collection_id → CollectionOrm.orbit_id` vs `track.orbit_id` → 422)
-  - [ ] Create `backend/luml/api/orbits/orbit_tracks.py` with all endpoints (incl. `GET /tracks/{track_id}`, cursor-paginated entries, `GET /artifacts/{artifact_id}/track-entries`); proper auth deps
-  - [ ] Register the tracks router in `backend/luml/api/organization_routes.py`
-  - [ ] Add the `has_entries_for_artifact` `409` check to `backend/luml/handlers/artifacts.py` in **both** the shared `_artifact_deletion_checks` helper (covers `confirm_deletion` + `force_delete_artifact`) and `request_delete_url`; force-delete stays blocked (no auto-unlink)
-  - [ ] Unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from Scenarios
+- [x] **Task 3: Backend handlers + API routers**
+  - [x] Add `TRACK = "track"` to `Resource` in `backend/luml/schemas/permissions.py`; wire `Resource.TRACK` into both permission dicts per the Permissions table
+  - [x] Create `backend/luml/handlers/tracks.py` (`TracksHandler`, `TrackEntriesHandler`, `TrackStagesHandler`) following `backend/luml/handlers/collections.py`; permission check first in every method; correct HTTP errors incl. stage-from-wrong-track 422 and stage conflict 409. `create_entry` must validate the artifact: type match (`ArtifactOrm.type` vs `track.artifact_type` → reuse `ArtifactTypeMismatchError`, 422) and same-orbit (artifact's orbit via `collection_id → CollectionOrm.orbit_id` vs `track.orbit_id` → 422)
+  - [x] Create `backend/luml/api/orbits/orbit_tracks.py` with all endpoints (incl. `GET /tracks/{track_id}`, cursor-paginated entries, `GET /artifacts/{artifact_id}/track-entries`); proper auth deps
+  - [x] Register the tracks router in `backend/luml/api/organization_routes.py`
+  - [x] Add the `has_entries_for_artifact` `409` check to `backend/luml/handlers/artifacts.py` in **both** the shared `_artifact_deletion_checks` helper (covers `confirm_deletion` + `force_delete_artifact`) and `request_delete_url`; force-delete stays blocked (no auto-unlink)
+  - [x] Unit tests in `tests/unit/handlers/test_tracks.py` covering all happy paths and error cases from Scenarios
 
 - [ ] **Task 4: Frontend API client + Pinia store + composables**
   - [ ] Add `track` to `OrbitPermissions` in `frontend/src/lib/api/api.interfaces.ts` (mirror `collection`)
