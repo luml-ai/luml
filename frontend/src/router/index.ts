@@ -130,7 +130,21 @@ const router = createRouter({
           name: 'orbit-secrets',
           component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
         },
+        {
+          path: 'tracks',
+          name: 'orbit-tracks',
+          component: () => import('../pages/orbits/OrbitTracksView.vue'),
+        },
       ],
+    },
+    {
+      path: '/organization/:organizationId/orbit/:id/track/:trackId',
+      name: 'track',
+      component: () => import('../pages/track/TrackPage.vue'),
+      meta: {
+        requireAuth: true,
+        orbitMiddleware: true,
+      },
     },
     {
       path: '/organization/:organizationId/orbit/:id/collection/:collectionId',
