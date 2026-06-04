@@ -52,6 +52,9 @@ export interface TrackEntry {
   added_by: string
   created_at: string
   updated_at: string | null
+  artifact_name: string | null
+  artifact_description: string | null
+  stage_name: string | null
 }
 
 export interface TrackEntryCreateIn {

@@ -39,6 +39,11 @@
       </Button>
     </div>
   </div>
+  <TrackSettingsPanel
+    v-if="isSettingsVisible"
+    v-model:visible="isSettingsVisible"
+    :data="data"
+  />
 </template>
 
 <script setup lang="ts">
@@ -50,6 +55,7 @@ import { useRouter } from 'vue-router'
 import { getLastUpdateText } from '@/helpers/helpers'
 import { TRACK_TYPE_CONFIG } from './track.const'
 import UiId from '@/components/ui/UiId.vue'
+import TrackSettingsPanel from './TrackSettingsPanel.vue'
 
 type Props = {
   data: Track
