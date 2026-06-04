@@ -79,6 +79,12 @@
         <div class="details__value">{{ metric[1] }}</div>
       </div>
     </div>
+    <div class="details__part">
+      <ArtifactTracksWidget
+        :artifact-id="artifactsStore.currentArtifact.id"
+        :artifact-type="artifactsStore.currentArtifact.type"
+      />
+    </div>
   </div>
   <ModelManifestModal
     v-if="artifactsStore.currentArtifact?.manifest"
@@ -95,6 +101,7 @@ import { getSizeText } from '@/helpers/helpers'
 import { ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
+import ArtifactTracksWidget from '@/components/orbits/tabs/tracks/ArtifactTracksWidget.vue'
 
 const artifactsStore = useArtifactsStore()
 

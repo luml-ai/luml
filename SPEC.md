@@ -596,7 +596,7 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackSettingsPanel.vue` — model after `CollectionEditor.vue` (Dialog topright + Form + AutoComplete tags); Stages chips with in-use removal blocked + tooltip; delete/save (batch stage create/delete + `updateTrack`)
   - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackArtifactPanel.vue` — model after `CollectionEditor.vue` drawer; read-only name, Stage select (+ "None"), unlink/save (with 409 force-confirm flow)
 
-- [ ] **Task 7: TrackAddEntryModal + artifact page Tracks section + AddToTrackModal**
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackAddEntryModal.vue` — collection dropdown after `ModelUploadCollectionSelect.vue`; artifact cards filtered by `artifact_type` (already-in-track disabled); confirm → `addEntry`
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/ArtifactTracksWidget.vue` — "Tracks" section in `pages/collection/artifact/DashboardView.vue` (match existing info-panel section styling); `listArtifactEntries` on mount; comma-separated names; "Link to track" button
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/AddToTrackModal.vue` — single-select dropdown of matching-type tracks (already-linked disabled); confirm → `addEntry`
+- [x] **Task 7: TrackAddEntryModal + artifact page Tracks section + AddToTrackModal**
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackAddEntryModal.vue` — collection dropdown after `ModelUploadCollectionSelect.vue`; artifact cards filtered by `artifact_type` (already-in-track disabled); confirm → `addEntry`
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/ArtifactTracksWidget.vue` — "Tracks" section in `pages/collection/artifact/DashboardView.vue` (match existing info-panel section styling); `listArtifactEntries` on mount; comma-separated names; "Link to track" button
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/AddToTrackModal.vue` — single-select dropdown of matching-type tracks (already-linked disabled); confirm → `addEntry`
