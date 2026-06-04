@@ -89,26 +89,8 @@ const selectedModel = ref<ModelArtifact | null>(null)
 const initialValues = ref(getInitialFormData(props.initialCollectionId, props.initialModelId))
 const resolver = ref(createDeploymentResolver(initialValues))
 
-function areFieldsFilled(fields: FieldInfo<any>[] | undefined): boolean {
-  if (!fields || fields.length === 0) return true
-  return fields.every(
-    (field) => field.value !== null && field.value !== '' && field.value !== undefined,
-  )
-}
-
 const isFormValid = computed(() => {
-  const form = initialValues.value
-
-  const basicFieldsValid = !!(form.name && form.collectionId && form.modelId && form.satelliteId)
-
-  if (!basicFieldsValid) return false
-
-  return (
-    areFieldsFilled(form.secretEnvs) &&
-    areFieldsFilled(form.notSecretEnvs) &&
-    areFieldsFilled(form.secretDynamicAttributes) &&
-    areFieldsFilled(form.satelliteFields)
-  )
+  return !!formRef.value?.valid
 })
 
 function onCancel() {
@@ -120,10 +102,7 @@ function resetForm() {
 }
 
 async function onSubmit({ valid }: FormSubmitEvent) {
-  if (!valid) {
-    toast.add(simpleErrorToast('Check the form for errors'))
-    return
-  }
+  if (!valid) return
   const formData = initialValues.value as any as CreateDeploymentForm
   const payload = getPayload(formData)
   try {
