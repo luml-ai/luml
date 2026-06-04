@@ -585,11 +585,11 @@ In `frontend/src/components/orbits/tabs/OrbitTabs.vue`, add a "Tracks" entry to 
   - [x] Create `frontend/src/stores/tracks.ts` (tracks/entries/stages CRUD; `artifactEntries`) following `stores/collections.ts`
   - [x] Create `frontend/src/hooks/useTracksList.ts` and `useTrackEntriesList.ts` following `hooks/useCollectionsList.ts`
 
-- [ ] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
-  - [ ] Add the `orbit-tracks` child route and the top-level track-detail route in `frontend/src/router/index.ts` (follow the collection routes)
-  - [ ] Add the "Tracks" tab to `items` in `frontend/src/components/orbits/tabs/OrbitTabs.vue` (Lucide icon)
-  - [ ] Create `frontend/src/pages/orbits/OrbitTracksView.vue` — model after `CollectionsList.vue`/`CollectionCard.vue` (cards), `CollectionsWelcome.vue` (empty), `CollectionsToolbar.vue` (search + filter)
-  - [ ] Create `frontend/src/components/orbits/tabs/tracks/TrackCreator.vue` — model after `CollectionCreator.vue`
+- [x] **Task 5: Frontend routing + OrbitTracksView + TrackCreator**
+  - [x] Add the `orbit-tracks` child route and the top-level track-detail route in `frontend/src/router/index.ts` (follow the collection routes)
+  - [x] Add the "Tracks" tab to `items` in `frontend/src/components/orbits/tabs/OrbitTabs.vue` (Lucide icon)
+  - [x] Create `frontend/src/pages/orbits/OrbitTracksView.vue` — model after `CollectionsList.vue`/`CollectionCard.vue` (cards), `CollectionsWelcome.vue` (empty), `CollectionsToolbar.vue` (search + filter)
+  - [x] Create `frontend/src/components/orbits/tabs/tracks/TrackCreator.vue` — model after `CollectionCreator.vue`
 
 - [ ] **Task 6: TrackPage + TrackSettingsPanel + TrackArtifactPanel**
   - [ ] Create `frontend/src/pages/track/TrackPage.vue` — entries table modeled after `artifacts-table/ArtifactsTable.vue` (and its column-body components); breadcrumb after `CollectionBreadcrumb.vue`; stage badge colors per the rule; row click opens `TrackArtifactPanel`

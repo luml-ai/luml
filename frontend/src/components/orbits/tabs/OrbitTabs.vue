@@ -18,7 +18,7 @@
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { Folders, Rocket, Satellite, Lock } from 'lucide-vue-next'
+import { Folders, Rocket, Satellite, Lock, GitBranch } from 'lucide-vue-next'
 
 const tabsListPT = {
   tabList: { style: 'border-left: none; border-top: none; border-right: none;' },
@@ -46,6 +46,11 @@ const items = [
     label: 'Secrets',
     routeName: 'orbit-secrets',
     icon: Lock,
+  },
+  {
+    label: 'Tracks',
+    routeName: 'orbit-tracks',
+    icon: GitBranch,
   },
 ]
 </script>
