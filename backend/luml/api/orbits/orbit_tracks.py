@@ -3,22 +3,23 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
 
-from luml.handlers.tracks import TrackEntriesHandler, TracksHandler, TrackStagesHandler
+from luml.handlers.tracks import TracksHandler
 from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.general import SortOrder
 from luml.schemas.tracks import (
+    Stage,
+    StageCreateIn,
+    StageUpdateIn,
     Track,
     TrackCreateIn,
+    TrackEntriesDeleteIn,
     TrackEntriesList,
     TrackEntry,
     TrackEntryCreateIn,
     TrackEntryUpdateIn,
     TracksList,
     TrackSortBy,
-    TrackStage,
-    TrackStageCreateIn,
-    TrackStageUpdateIn,
     TrackUpdateIn,
 )
 
@@ -29,8 +30,6 @@ tracks_router = APIRouter(
 )
 
 tracks_handler = TracksHandler()
-entries_handler = TrackEntriesHandler()
-stages_handler = TrackStagesHandler()
 
 
 @tracks_router.post(
@@ -142,7 +141,7 @@ async def create_entry(
     track_id: UUID,
     entry: TrackEntryCreateIn,
 ) -> TrackEntry:
-    return await entries_handler.create_entry(
+    return await tracks_handler.create_entry(
         request.user.id, organization_id, orbit_id, track_id, entry
     )
 
@@ -162,7 +161,7 @@ async def list_entries(
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     stage: Annotated[UUID | None, Query()] = None,
 ) -> TrackEntriesList:
-    return await entries_handler.list_entries(
+    return await tracks_handler.list_entries(
         request.user.id,
         organization_id,
         orbit_id,
@@ -187,7 +186,7 @@ async def update_entry(
     entry: TrackEntryUpdateIn,
     force: bool = False,
 ) -> TrackEntry:
-    return await entries_handler.update_entry(
+    return await tracks_handler.update_entry(
         request.user.id,
         organization_id,
         orbit_id,
@@ -210,8 +209,25 @@ async def delete_entry(
     track_id: UUID,
     entry_id: UUID,
 ) -> None:
-    await entries_handler.delete_entry(
+    await tracks_handler.delete_entry(
         request.user.id, organization_id, orbit_id, track_id, entry_id
+    )
+
+
+@tracks_router.delete(
+    "/{track_id}/entries",
+    responses=endpoint_responses,
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_entries(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    track_id: UUID,
+    payload: TrackEntriesDeleteIn,
+) -> None:
+    await tracks_handler.delete_entries(
+        request.user.id, organization_id, orbit_id, track_id, payload.entry_ids
     )
 
 
@@ -221,16 +237,16 @@ async def delete_entry(
 @tracks_router.post(
     "/{track_id}/stages",
     responses=endpoint_responses,
-    response_model=TrackStage,
+    response_model=Stage,
 )
 async def create_stage(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
     track_id: UUID,
-    stage: TrackStageCreateIn,
-) -> TrackStage:
-    return await stages_handler.create_stage(
+    stage: StageCreateIn,
+) -> Stage:
+    return await tracks_handler.create_stage(
         request.user.id, organization_id, orbit_id, track_id, stage
     )
 
@@ -238,15 +254,15 @@ async def create_stage(
 @tracks_router.get(
     "/{track_id}/stages",
     responses=endpoint_responses,
-    response_model=list[TrackStage],
+    response_model=list[Stage],
 )
 async def list_stages(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
     track_id: UUID,
-) -> list[TrackStage]:
-    return await stages_handler.list_stages(
+) -> list[Stage]:
+    return await tracks_handler.list_stages(
         request.user.id, organization_id, orbit_id, track_id
     )
 
@@ -254,7 +270,7 @@ async def list_stages(
 @tracks_router.patch(
     "/{track_id}/stages/{stage_id}",
     responses=endpoint_responses,
-    response_model=TrackStage,
+    response_model=Stage,
 )
 async def update_stage(
     request: Request,
@@ -262,9 +278,9 @@ async def update_stage(
     orbit_id: UUID,
     track_id: UUID,
     stage_id: UUID,
-    stage: TrackStageUpdateIn,
-) -> TrackStage:
-    return await stages_handler.update_stage(
+    stage: StageUpdateIn,
+) -> Stage:
+    return await tracks_handler.update_stage(
         request.user.id, organization_id, orbit_id, track_id, stage_id, stage
     )
 
@@ -282,7 +298,7 @@ async def delete_stage(
     stage_id: UUID,
     force: bool = False,
 ) -> None:
-    await stages_handler.delete_stage(
+    await tracks_handler.delete_stage(
         request.user.id, organization_id, orbit_id, track_id, stage_id, force
     )
 
@@ -307,6 +323,6 @@ async def list_artifact_track_entries(
     orbit_id: UUID,
     artifact_id: UUID,
 ) -> list[TrackEntry]:
-    return await entries_handler.list_entries_for_artifact(
+    return await tracks_handler.list_entries_for_artifact(
         request.user.id, organization_id, orbit_id, artifact_id
     )

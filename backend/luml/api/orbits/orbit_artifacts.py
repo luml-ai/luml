@@ -13,11 +13,18 @@ from luml.schemas.artifacts import (
     ArtifactType,
     ArtifactUpdateIn,
     CreateArtifactResponse,
+    OrbitArtifactsList,
 )
 from luml.schemas.general import SortOrder
 
 artifacts_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
+    tags=["orbit-artifacts"],
+)
+
+orbit_artifacts_router = APIRouter(
+    prefix="/{organization_id}/orbits/{orbit_id}/artifacts",
     dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
     tags=["orbit-artifacts"],
 )
@@ -93,6 +100,37 @@ async def get_artifacts(
         sort_by,
         order,
         types,
+    )
+
+
+@orbit_artifacts_router.get(
+    "",
+    responses=endpoint_responses,
+    response_model=OrbitArtifactsList,
+)
+async def get_orbit_artifacts(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    artifact_type: ArtifactType,
+    cursor: str | None = None,
+    limit: Annotated[int, Query(gt=0, le=100)] = 50,
+    sort_by: str = "created_at",
+    order: SortOrder = SortOrder.DESC,
+    collection_ids: Annotated[list[UUID] | None, Query()] = None,
+    search: str | None = None,
+) -> OrbitArtifactsList:
+    return await artifacts_handler.get_orbit_artifacts(
+        request.user.id,
+        organization_id,
+        orbit_id,
+        artifact_type,
+        cursor,
+        limit,
+        sort_by,
+        order,
+        collection_ids,
+        search,
     )
 
 

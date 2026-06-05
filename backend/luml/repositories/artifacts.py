@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
-from luml.models import ArtifactOrm, DeploymentOrm
+from luml.models import ArtifactOrm, CollectionOrm, DeploymentOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
     Artifact,
@@ -15,6 +15,7 @@ from luml.schemas.artifacts import (
     ArtifactStatus,
     ArtifactType,
     ArtifactUpdate,
+    OrbitArtifact,
 )
 from luml.schemas.deployment import DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams
@@ -157,6 +158,52 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             artifacts = [
                 orm_artifact.to_listed_artifact() for orm_artifact in db_models
             ]
+
+            return artifacts, cursor
+
+    async def get_orbit_artifacts(
+        self,
+        artifact_type: ArtifactType,
+        pagination: PaginationParams,
+        orbit_id: UUID,
+        collection_ids: list[UUID] | None = None,
+        search: str | None = None,
+    ) -> tuple[list[OrbitArtifact], Cursor | None]:
+        async with self._get_session() as session:
+            conditions = [
+                ArtifactOrm.type == artifact_type.value,
+                ArtifactOrm.collection_id.in_(
+                    select(CollectionOrm.id).where(CollectionOrm.orbit_id == orbit_id)
+                ),
+            ]
+
+            if collection_ids:
+                conditions.append(ArtifactOrm.collection_id.in_(collection_ids))
+
+            if search:
+                conditions.append(ArtifactOrm.name.ilike(f"%{search}%"))
+
+            result = await self.get_models_with_pagination(
+                session,
+                ArtifactOrm,
+                *conditions,
+                pagination=pagination,
+                options=[
+                    selectinload(ArtifactOrm.collection).load_only(
+                        CollectionOrm.id,
+                        CollectionOrm.name,
+                    )
+                ],
+            )
+            db_models = result.items
+
+            cursor = (
+                None
+                if not result.has_more
+                else self._get_cursor_from_record(db_models[-1], pagination)
+            )
+
+            artifacts = [orm_artifact.to_orbit_artifact() for orm_artifact in db_models]
 
             return artifacts, cursor
 
