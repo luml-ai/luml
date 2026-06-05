@@ -20,6 +20,7 @@ from luml.schemas.artifacts import (
     Artifact,
     ArtifactDetails,
     ArtifactIn,
+    ArtifactListed,
     ArtifactsList,
     ArtifactStatus,
     ArtifactType,
@@ -30,7 +31,7 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.collections import Collection, CollectionType
-from luml.schemas.deployment import Deployment, DeploymentStatus
+from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.storage import S3UploadDetails
@@ -184,7 +185,7 @@ async def test_get_collection_artifacts(
     artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
     expected_models_list = [
-        Artifact(
+        ArtifactListed(
             id=artifact_id,
             collection_id=collection_id,
             file_name="model1.pkl",
@@ -201,6 +202,14 @@ async def test_get_collection_artifacts(
             created_at=datetime.now(),
             updated_at=None,
             type=ArtifactType.MODEL,
+            deployments=[
+                ArtifactDeploymentInfo(
+                    id=UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622"),
+                    name="test",
+                    status=DeploymentStatus.ACTIVE,
+                    orbit_id=orbit_id,
+                )
+            ],
         )
     ]
     expected = ArtifactsList(items=expected_models_list, cursor=None)
@@ -2115,3 +2124,40 @@ async def test_create_artifact_user_not_found(
     )
     mock_check_organization_artifacts_limit.assert_awaited_once_with(organization_id)
     mock_get_public_user_by_id.assert_awaited_once_with(user_id)
+
+
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts_extra_values",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_is_metric_sort_standard_column(
+    mock_get_extra_values: AsyncMock,
+) -> None:
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+
+    result = await handler._is_metric_sort(collection_id, "created_at")
+
+    assert result is False
+    mock_get_extra_values.assert_not_awaited()
+
+
+def test_validate_cursor_matching() -> None:
+    from luml.schemas.general import Cursor
+
+    collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+
+    cursor = Cursor(
+        id=artifact_id,
+        value=None,
+        sort_by="created_at",
+        order=SortOrder.DESC,
+        scope_id=collection_id,
+    )
+
+    result = ArtifactHandler._validate_cursor(
+        cursor, "created_at", SortOrder.DESC, collection_id
+    )
+
+    assert result is cursor

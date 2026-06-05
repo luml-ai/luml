@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validat
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.collections import Collection
-from luml.schemas.deployment import Deployment
+from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
 
 ArtifactNamesField = Annotated[
@@ -201,6 +201,10 @@ class Artifact(BaseModel, BaseOrmConfig):
         return value
 
 
+class ArtifactListed(Artifact):
+    deployments: list[ArtifactDeploymentInfo] = []
+
+
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
@@ -224,5 +228,5 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 
 class ArtifactsList(BaseModel):
-    items: list[Artifact]
+    items: list[ArtifactListed]
     cursor: str | None
