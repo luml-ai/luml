@@ -31,6 +31,22 @@ class ModelsHandler:
             raise NotFound("Model not found")
         return Model.model_validate(model)
 
+    def get_model(self, model_id: str) -> Model:
+        try:
+            return self.tracker.get_model(model_id)
+        except ValueError as e:
+            raise NotFound("Model not found") from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
+    def get_model_card(self, model_id: str) -> bytes:
+        try:
+            return self.tracker.get_model_card(model_id)
+        except ValueError as e:
+            raise NotFound(str(e)) from e
+        except Exception as e:
+            raise ApplicationError(str(e), status_code=500) from e
+
     def delete_model(self, model_id: str) -> None:
         try:
             self.tracker.get_model(model_id)

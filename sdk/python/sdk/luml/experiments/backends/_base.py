@@ -265,6 +265,10 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_model_card(self, model_id: str) -> bytes:
+        pass
+
+    @abstractmethod
     def update_model(
         self,
         model_id: str,
