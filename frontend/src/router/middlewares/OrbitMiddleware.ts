@@ -33,22 +33,6 @@ export async function orbitMiddleware(
 
   const urlOrgId = to.params.organizationId as string
 
-  if (
-    !organizationStore.currentOrganization ||
-    organizationStore.currentOrganization.id !== urlOrgId
-  ) {
-    const hasAccess = organizationStore.availableOrganizations.some((o) => o.id === urlOrgId)
-    if (hasAccess) {
-      try {
-        await organizationStore.switchOrganization(urlOrgId)
-      } catch {
-        return toSetup(next, targetTab)
-      }
-    } else {
-      return toSetup(next, targetTab)
-    }
-  }
-
   if (!orbitsStore.orbitsList.length) {
     try {
       await orbitsStore.loadOrbitsList(urlOrgId)
