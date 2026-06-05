@@ -7,6 +7,7 @@ import type {
   UpdateModelPayload,
   CheckAuthResponse,
   GetExperimentEvalsParams,
+  GetBatchExperimentEvalsParams,
   AverageScore,
   AddAnnotationPayload,
   UpdateAnnotationPayload,
@@ -21,6 +22,7 @@ import type {
 } from './api.interface'
 import { api } from './client'
 import type {
+  BatchEval,
   Eval,
   Experiment,
   ExperimentMetricHistory,
@@ -174,6 +176,15 @@ export const apiService = {
     const { data } = await api.get<PaginatedResponse<Eval>>(`/experiments/${experiment_id}/evals`, {
       params: rest,
       paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+    })
+    return data
+  },
+
+  getBatchExperimentEvals: async (params: GetBatchExperimentEvalsParams) => {
+    const { experiment_ids, ...rest } = params
+    const { data } = await api.get<PaginatedResponse<BatchEval>>('/experiments/evals/compare', {
+      params: { experiment_ids, ...rest },
+      paramsSerializer: (p) => qs.stringify(p, { arrayFormat: 'repeat' }),
     })
     return data
   },

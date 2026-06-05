@@ -15,6 +15,7 @@ import type {
   GetTracesParams,
 } from '../../../extras/js/packages/experiments/dist/interfaces/interfaces'
 import '@luml/experiments/style.css'
+import type { GetBatchExperimentsEvalsParams } from '../../../extras/js/packages/experiments/dist/providers/ExperimentSnapshotApiProvider.interface.js'
 
 const createMockProvider = (
   options: {
@@ -308,6 +309,9 @@ const createMockProvider = (
     },
     validateTracesFilter: async (filters: string[]) => {
       return []
+    },
+    getBatchExperimentEvals: async (params: GetBatchExperimentsEvalsParams) => {
+      return { items: [], cursor: null }
     },
   }
 }

@@ -165,8 +165,17 @@ class Eval(BaseModel, BaseOrmConfig):
     annotations: AnnotationSummary | None = None
 
 
+class BatchEval(Eval):
+    experiment_id: str
+
+
 class PaginatedEvals(BaseModel):
     items: list[Eval]
+    cursor: str | None = None
+
+
+class PaginatedBatchEvals(BaseModel):
+    items: list[BatchEval]
     cursor: str | None = None
 
 

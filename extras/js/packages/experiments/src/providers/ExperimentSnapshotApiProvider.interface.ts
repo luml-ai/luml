@@ -54,6 +54,11 @@ export interface ApiServiceInterface {
     params: GetExperimentEvalsParams,
   ) => Promise<{ items: GetExperimentEvalsItem[]; cursor: string | null }>
 
+  getBatchExperimentEvals: (params: GetBatchExperimentsEvalsParams) => Promise<{
+    items: (GetExperimentEvalsItem & { experiment_id: string })[]
+    cursor: string | null
+  }>
+
   getAllExperimentEvals: (params: GetExperimentEvalsParams) => Promise<GetExperimentEvalsItem[]>
 
   getEvalById: (experimentId: string, evalId: string) => Promise<GetExperimentEvalsItem>
@@ -164,4 +169,13 @@ export interface SpanFromApi {
   links: Record<string, string> | null
   trace_flags: number | null
   annotation_count: number
+}
+
+export interface GetBatchExperimentsEvalsParams {
+  experiment_ids: string[]
+  limit?: number
+  cursor?: string | null
+  dataset_id?: string
+  search?: string
+  filters?: string[]
 }

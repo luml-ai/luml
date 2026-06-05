@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from luml.experiments.backends.data_types import (
@@ -10,6 +12,7 @@ from luml.experiments.backends.data_types import (
     TraceTypedColumns,
 )
 from luml.experiments.tracker import ExperimentTracker
+from tests.conftest import _exp_db
 
 
 class TestLogSpan:
@@ -819,6 +822,31 @@ class TestGetExperimentTraceColumns:
 
 
 class TestGetExperimentTraceTypedColumns:
+    def test_returns_empty_annotation_fields_for_old_schema(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        tmp_path: Path,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        now = 1_000_000_000
+        tracker.log_span(
+            trace_id="t1",
+            span_id="s1",
+            name="op",
+            start_time_unix_nano=now,
+            end_time_unix_nano=now + 1,
+        )
+
+        conn = _exp_db(tmp_path, exp_id)
+        conn.execute("PRAGMA user_version = 0")
+        conn.commit()
+        conn.close()
+        tracker.backend.pool.close_all()
+
+        result = tracker.get_experiment_trace_typed_columns(exp_id)
+        assert result.annotations_feedback == []
+        assert result.annotations_expectations == []
+
     def test_returns_trace_typed_columns_type(
         self, tracker_with_experiment: tuple[ExperimentTracker, str]
     ) -> None:

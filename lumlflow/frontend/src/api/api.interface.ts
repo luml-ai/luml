@@ -47,6 +47,15 @@ export interface GetExperimentEvalsParams {
   filters: string[]
 }
 
+export interface GetBatchExperimentEvalsParams {
+  experiment_ids: string[]
+  limit?: number
+  cursor?: string | null
+  dataset_id?: string
+  search?: string
+  filters?: string[]
+}
+
 export interface AverageScore {
   name: string
   value: number

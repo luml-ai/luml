@@ -13,6 +13,7 @@ import type {
   TraceSpan,
   TypedTracesColumns,
   ValidateResponseItem,
+  GetBatchExperimentEvalsParams,
 } from '../interfaces/interfaces'
 import type { Trace } from './ExperimentSnapshotApiProvider.interface'
 
@@ -127,6 +128,12 @@ export class ExperimentSnapshotWorkerProxy implements ExperimentSnapshotProvider
 
   getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>) {
     return this.call<EvalsInfo[]>('getAllDatasetEvals', [params])
+  }
+
+  getBatchExperimentEvals(params: GetBatchExperimentEvalsParams) {
+    return this.call<{ items: EvalsInfo[]; cursor: string | null }>('getBatchExperimentEvals', [
+      params,
+    ])
   }
 
   getEvalAnnotations(artifactId: string, datasetId: string, evalId: string) {

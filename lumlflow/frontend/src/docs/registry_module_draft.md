@@ -6,7 +6,7 @@ Local storage has limits. Experiments live on a single machine and are invisible
 
 The Luml Registry is the bridge between these two stages. It is a centralized, versioned store for model artifacts, experiments, and datasets, accessible to everyone in the organization. Uploading an experiment or a model from `lumlflow` to the Registry is often the first step where solo work becomes team work. Once the artifact is in the Registry, teammates can browse it, compare it against other versions, add documentation and evaluation results, and deploy it to a Satellite as a live API endpoint. The Registry becomes the single source of truth for what was trained, how it performed, and which version is currently in production.
 
-Uploading from `lumlflow` preserves the context that was captured locally. Metrics, parameters, evaluation results, and execution traces travel with the artifact as part of the `.luml` package. The Registry makes that context persistent, shared, and actionable.i 
+Uploading from `lumlflow` preserves the context that was captured locally. Metrics, parameters, evaluation results, and execution traces travel with the artifact as part of the `.luml` package. The Registry makes that context persistent, shared, and actionable.i
 
 ### Uploading to the Registry
 
@@ -16,4 +16,4 @@ To upload a model or experiment, select it in lumlflow and click **Upload**. The
 
 Once uploaded, the model appears in the Registry with its full metadata: the Overview tab shows the manifest, input/output schemas, and tags; the Model Card tab can render custom documentation added via the SDK; and the Experiment Snapshots tab displays the training history that was embedded at upload time. Each subsequent upload of the same model creates a new version, building a complete history of how the model evolved.
 
-*Note: for a detailed look at what the Registry stores and how each tab works, see the [Registry documentation](https://docs.luml.ai/documentation/Modules/Registry/).*
+_Note: for a detailed look at what the Registry stores and how each tab works, see the [Registry documentation](https://docs.luml.ai/documentation/Modules/Registry/)._

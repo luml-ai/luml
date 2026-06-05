@@ -52,6 +52,7 @@ const ANNOTATION_VALUE_TYPE_MAP = {
 export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotProvider {
   private _modelsSnapshots: ModelSnapshot[] | null = null
   private evalsDatasetsRequestParams: Record<string, number> = {}
+  private batchEvalsCursors: Record<string, Array<string | null>> = {}
   private tracesRequestParams: Record<string, number> = {}
 
   private get modelsSnapshots() {
@@ -99,6 +100,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getNextEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
+    if (this.modelsSnapshots.length > 1) return this.getNextBatchEvalsByDatasetId(params)
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const key = this.getEvalsPageKey(snapshot.modelId, params.dataset_id)
       const page = this.evalsDatasetsRequestParams[key] || 1
@@ -114,6 +116,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }
 
   async getFreshEvalsByDatasetId(params: GetEvalsByDatasetParams): Promise<EvalsInfo[]> {
+    if (this.modelsSnapshots.length > 1) return this.getFreshBatchEvalsByDatasetId(params)
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const key = this.getEvalsPageKey(snapshot.modelId, params.dataset_id)
       const page = this.evalsDatasetsRequestParams[key] || 1
@@ -130,6 +133,44 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return this.getFlatPromisesResponse(promises)
   }
 
+  private async getNextBatchEvalsByDatasetId(
+    params: GetEvalsByDatasetParams,
+  ): Promise<EvalsInfo[]> {
+    const cursors = this.batchEvalsCursors[params.dataset_id] || []
+    const currentCursor = cursors[cursors.length - 1]
+    if (currentCursor === null) return []
+    const { items, cursor: newCursor } = await this.getBatchExperimentEvals({
+      experiment_ids: this.modelsSnapshots.map((snapshot) => snapshot.modelId),
+      limit: params.limit,
+      cursor: currentCursor,
+      dataset_id: params.dataset_id,
+      search: params.search,
+      filters: params.filters,
+    })
+    this.batchEvalsCursors[params.dataset_id] = [...cursors, newCursor]
+    return items
+  }
+
+  private async getFreshBatchEvalsByDatasetId(
+    params: GetEvalsByDatasetParams,
+  ): Promise<EvalsInfo[]> {
+    const cursors = this.batchEvalsCursors[params.dataset_id] || []
+    const cursorsList: Array<string | null> = [null, ...cursors]
+    cursorsList.pop()
+    const promises = cursorsList.map(async (cursor) => {
+      const { items } = await this.getBatchExperimentEvals({
+        experiment_ids: this.modelsSnapshots.map((snapshot) => snapshot.modelId),
+        limit: params.limit,
+        cursor,
+        dataset_id: params.dataset_id,
+        search: params.search,
+        filters: params.filters,
+      })
+      return items
+    })
+    return this.getFlatPromisesResponse(promises)
+  }
+
   async getAllDatasetEvals(params: Omit<GetEvalsByDatasetParams, 'limit'>): Promise<EvalsInfo[]> {
     const promises = this.modelsSnapshots.map(async (snapshot) => {
       const results = await this.getDatabaseEvalsByDatasetId(snapshot.database, {
@@ -141,14 +182,85 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     return this.getFlatPromisesResponse(promises)
   }
 
+  async getBatchExperimentEvals(params: {
+    experiment_ids?: string[]
+    limit?: number
+    cursor?: string | null
+    dataset_id?: string
+    search?: string
+    filters?: string[]
+  }): Promise<{ items: EvalsInfo[]; cursor: string | null }> {
+    const limit = params.limit ?? 20
+    const snapshots = params.experiment_ids
+      ? this.modelsSnapshots.filter((snapshot) =>
+          params.experiment_ids!.includes(snapshot.modelId),
+        )
+      : this.modelsSnapshots
+
+    const { hasMore, pageIds } = this.getBatchPageIds(snapshots, {
+      limit,
+      cursor: params.cursor,
+      dataset_id: params.dataset_id,
+      search: params.search,
+      filters: params.filters,
+    })
+
+    if (!pageIds.length) return { items: [], cursor: null }
+
+    const placeholders = pageIds.map(() => '?').join(', ')
+    const query = `
+      SELECT id, dataset_id, inputs, outputs, refs, scores, metadata
+      FROM evals
+      WHERE id IN (${placeholders})
+      ORDER BY id
+    `
+
+    const snapshotsPromises = snapshots.map(async (snapshot) => {
+      const rows = this._getRowsByQueryAndParams(snapshot.database, query, pageIds)
+      const rowsPromises = rows.map(async (row) => {
+        const [id, dataset_id, inputs, outputs, refs, scores, metadata] = row
+        const annotationsList = await this.getEvalAnnotations(
+          snapshot.modelId,
+          this.parseValue(dataset_id, 'string'),
+          this.parseValue(id, 'string'),
+        )
+        const annotations = this.annotationsSummary(annotationsList)
+        return this.prepareEvalData({
+          id,
+          dataset_id,
+          inputs,
+          outputs,
+          refs,
+          scores,
+          metadata,
+          modelId: snapshot.modelId,
+          annotations,
+        })
+      })
+      return Promise.all(rowsPromises)
+    })
+
+    const items = await this.getFlatPromisesResponse(snapshotsPromises)
+    items.sort((a, b) => {
+      if (a.id !== b.id) return a.id < b.id ? -1 : 1
+      if (a.modelId !== b.modelId) return a.modelId < b.modelId ? -1 : 1
+      return 0
+    })
+
+    const cursor = hasMore ? (pageIds[pageIds.length - 1] ?? null) : null
+    return { items, cursor }
+  }
+
   async resetEvalsDatasetsRequestParams() {
     this.evalsDatasetsRequestParams = {}
+    this.batchEvalsCursors = {}
   }
 
   async resetDatasetPage(datasetId: string) {
     for (const snapshot of this.modelsSnapshots) {
       delete this.evalsDatasetsRequestParams[this.getEvalsPageKey(snapshot.modelId, datasetId)]
     }
+    delete this.batchEvalsCursors[datasetId]
   }
 
   private getEvalsPageKey(modelId: string, datasetId: string) {
@@ -717,35 +829,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     const offset = page && limit ? (page - 1) * limit : 0
     const offsetQuery = offset ? `OFFSET ${offset}` : ''
 
-    const whereParts: string[] = []
-    const params: SqlValue[] = []
-
-    whereParts.push(`dataset_id = ?`)
-    params.push(dataset_id)
-
-    if (search) {
-      const searchWhere = `(id LIKE ?
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
-        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?)
-      )`
-
-      const like = `%${search}%`
-
-      whereParts.push(searchWhere)
-      params.push(like, like, like, like, like, like)
-    }
-
-    for (const filter of filters || []) {
-      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
-
-      if (where) {
-        whereParts.push(where)
-        params.push(...(filterParams as SqlValue[]))
-      }
-    }
+    const { whereParts, params } = this.buildEvalsWhere(dataset_id, search, filters)
 
     const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
 
@@ -781,6 +865,82 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
       })
     })
     return Promise.all(promises)
+  }
+
+  private buildEvalsWhere(
+    dataset_id?: string,
+    search?: string,
+    filters?: string[],
+  ): { whereParts: string[]; params: SqlValue[] } {
+    const whereParts: string[] = []
+    const params: SqlValue[] = []
+
+    if (dataset_id) {
+      whereParts.push(`dataset_id = ?`)
+      params.push(dataset_id)
+    }
+
+    if (search) {
+      const searchWhere = `(id LIKE ?
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(inputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(outputs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(refs, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(scores, '{}')) WHERE type = 'text' AND value LIKE ?)
+        OR EXISTS (SELECT 1 FROM json_each(COALESCE(metadata, '{}')) WHERE type = 'text' AND value LIKE ?)
+      )`
+      const like = `%${search}%`
+      whereParts.push(searchWhere)
+      params.push(like, like, like, like, like, like)
+    }
+
+    for (const filter of filters || []) {
+      const [where, filterParams] = SearchEvalsUtils.toSql(filter)
+      if (where) {
+        whereParts.push(where)
+        params.push(...(filterParams as SqlValue[]))
+      }
+    }
+
+    return { whereParts, params }
+  }
+
+  private getBatchPageIds(
+    snapshots: ModelSnapshot[],
+    {
+      limit,
+      cursor,
+      dataset_id,
+      search,
+      filters,
+    }: {
+      limit: number
+      cursor?: string | null
+      dataset_id?: string
+      search?: string
+      filters?: string[]
+    },
+  ): { hasMore: boolean; pageIds: string[] } {
+    const candidateIds = new Set<string>()
+
+    for (const snapshot of snapshots) {
+      const { whereParts, params } = this.buildEvalsWhere(dataset_id, search, filters)
+
+      if (cursor) {
+        whereParts.push(`id > ?`)
+        params.push(cursor)
+      }
+
+      const whereCondition = whereParts.length ? `WHERE ${whereParts.join(' AND ')}` : ''
+      const query = `SELECT id FROM evals ${whereCondition} ORDER BY id LIMIT ?`
+      const rows = this._getRowsByQueryAndParams(snapshot.database, query, [...params, limit + 1])
+      for (const row of rows) {
+        candidateIds.add(this.parseValue(row[0], 'string'))
+      }
+    }
+
+    const sortedIds = [...candidateIds].sort()
+    const hasMore = sortedIds.length > limit
+    return { hasMore, pageIds: sortedIds.slice(0, limit) }
   }
 
   private prepareEvalData({

@@ -159,6 +159,22 @@ class EvalRecord:
 
 
 @dataclass
+class BatchEvalRecord:
+    experiment_id: str
+    id: str
+    dataset_id: str
+    inputs: dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+    outputs: dict[str, Any] | None = None
+    refs: dict[str, Any] | None = None
+    scores: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None
+    trace_ids: list[str] = field(default_factory=list)
+    annotations: "AnnotationSummary | None" = None
+
+
+@dataclass
 class ColumnField:
     name: str
     type: ColumnType

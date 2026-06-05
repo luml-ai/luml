@@ -103,3 +103,7 @@ export interface Eval {
   trace_ids: string[]
   annotations: AnnotationSummary | null
 }
+
+export interface BatchEval extends Eval {
+  experiment_id: string
+}

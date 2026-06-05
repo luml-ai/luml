@@ -19,6 +19,7 @@ from luml.experiments.backends.data_types import (
     AnnotationSummary,
     AnnotationValueType,
     AttachmentRecord,
+    BatchEvalRecord,
     EvalColumns,
     EvalRecord,
     EvalTypedColumns,
@@ -117,6 +118,9 @@ class ExperimentTracker:
         if main_module and hasattr(main_module, "__file__") and main_module.__file__:
             return os.path.abspath(main_module.__file__)
         return None
+
+    def check_experiments_exists(self, experiment_ids: list[str]) -> None:
+        self.backend.check_experiments_exists(experiment_ids)
 
     def start_experiment(
         self,
@@ -1295,6 +1299,24 @@ class ExperimentTracker:
             order=order,
             dataset_id=dataset_id,
             json_sort_column=json_sort_column,
+            search=search,
+            filters=filters,
+        )
+
+    def get_batch_experiment_evals(
+        self,
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None,
+    ) -> PaginatedResponse[BatchEvalRecord]:
+        return self.backend.get_batch_experiment_evals(
+            experiment_ids,
+            limit=limit,
+            cursor_str=cursor_str,
+            dataset_id=dataset_id,
             search=search,
             filters=filters,
         )

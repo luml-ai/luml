@@ -1,3 +1,4 @@
+# flake8: noqa: E501
 import io
 import tarfile
 import tempfile
@@ -145,6 +146,32 @@ class TestLogExperiment:
         with pytest.raises(ValueError, match="No active experiment"):
             tracker.end_experiment()
 
+    def test_fail_sets_status_error_and_duration(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.fail_experiment(exp_id)
+
+        exp = tracker.get_experiment_record(exp_id)
+        assert exp.status == "error"
+        assert exp.duration is not None
+        assert exp.duration >= 0.0
+
+    def test_fail_clears_current_experiment_id(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.fail_experiment(exp_id)
+        assert tracker.current_experiment_id is None
+
+    def test_fail_without_active_experiment_raises(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        with pytest.raises(ValueError, match="No active experiment"):
+            tracker.fail_experiment()
+
 
 class TestExperimentWithModel:
     def test_logged_model_appears_in_get_models(
@@ -262,6 +289,28 @@ class TestGetExperiment:
 
     def test_get_experiment_not_found(self, tracker: ExperimentTracker) -> None:
         assert tracker.get_experiment("nonexistent-id") is None
+
+    def test_get_experiment_record_returns_none_for_missing(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        assert tracker.get_experiment_record("nonexistent-id") is None
+
+    def test_get_experiment_data_raises_when_meta_missing(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        tmp_path: Path,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        meta_path = tmp_path / "experiments" / "meta.db"
+        import sqlite3
+
+        conn = sqlite3.connect(meta_path)
+        conn.execute("DELETE FROM experiments WHERE id = ?", (exp_id,))
+        conn.commit()
+        conn.close()
+
+        with pytest.raises(ValueError, match="not found"):
+            tracker.backend.get_experiment_data(exp_id)
 
 
 class TestListExperiments:
@@ -628,6 +677,108 @@ class TestLogExperimentAttachment:
         with pytest.raises(ValueError, match="No active experiment"):
             tracker.log_attachment("file.txt", "data")
 
+    def test_invalid_data_type_raises(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, _ = tracker_with_experiment
+        with pytest.raises(ValueError, match="must be bytes or str"):
+            tracker.log_attachment("file.txt", 123)  # type: ignore[arg-type]
+
+    def test_list_attachments_returns_records(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_attachment("a.txt", "first")
+        tracker.log_attachment("b.txt", "second")
+
+        items = tracker.list_attachments(exp_id)
+
+        names = sorted(item.name for item in items)
+        assert names == ["a.txt", "b.txt"]
+        for item in items:
+            assert item.id
+            assert item.size > 0
+            assert item.created_at is not None
+
+    def test_list_attachments_empty(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        assert tracker.list_attachments(exp_id) == []
+
+    def test_list_attachments_tree_root_files(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_attachment("a.txt", "first")
+        tracker.log_attachment("b.txt", "second_data")
+
+        nodes = tracker.list_attachments_tree(exp_id)
+        files = {n.name: n for n in nodes}
+        assert "a.txt" in files
+        assert "b.txt" in files
+        assert all(n.type == "file" for n in nodes)
+
+    def test_list_attachments_tree_with_folder(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_attachment("plots/loss.svg", "<svg/>")
+        tracker.log_attachment("plots/acc.svg", "<svg>2</svg>")
+        tracker.log_attachment("README.txt", "info")
+
+        nodes = tracker.list_attachments_tree(exp_id)
+
+        folders = [n for n in nodes if n.type == "folder"]
+        files = [n for n in nodes if n.type == "file"]
+        assert any(f.name == "plots" for f in folders)
+        assert any(f.name == "README.txt" for f in files)
+        plots = next(f for f in folders if f.name == "plots")
+        assert plots.size > 0
+
+    def test_list_attachments_tree_with_parent_path(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        tracker.log_attachment("plots/loss.svg", "<svg/>")
+        tracker.log_attachment("plots/acc.svg", "<svg>2</svg>")
+        tracker.log_attachment("README.txt", "ignored")
+
+        nodes = tracker.list_attachments_tree(exp_id, parent_path="plots")
+
+        names = {n.name for n in nodes}
+        assert names == {"loss.svg", "acc.svg"}
+        assert all(n.type == "file" for n in nodes)
+
+    def test_existing_row_with_null_id_gets_new_id(
+        self,
+        tracker_with_experiment: tuple[ExperimentTracker, str],
+        tmp_path: Path,
+    ) -> None:
+        tracker, exp_id = tracker_with_experiment
+        conn = _exp_db(tmp_path, exp_id)
+        conn.execute(
+            "INSERT INTO attachments (id, name, file_path, size) VALUES (NULL, 'legacy.txt', 'old', 0)"
+        )
+        conn.commit()
+        conn.close()
+
+        tracker.log_attachment("legacy.txt", "new content")
+
+        conn = _exp_db(tmp_path, exp_id)
+        row = conn.execute(
+            "SELECT id, file_path FROM attachments WHERE name = 'legacy.txt'"
+        ).fetchone()
+        conn.close()
+        assert row[0] is not None
+        assert row[1] == "legacy.txt"
+
     def test_explicit_experiment_id(self, tracker: ExperimentTracker) -> None:
         exp_id = tracker.start_experiment(name="e1")
         other_id = tracker.start_experiment(name="e2")
@@ -879,3 +1030,42 @@ class TestUpdateExperiment:
         exp = next(e for e in experiments if e.id == exp_id)
         assert exp.name == "persisted"
         assert exp.tags == ["saved"]
+
+
+class TestListBatchExperimentsModels:
+    def test_groups_models_by_experiment(
+        self, tracker: ExperimentTracker, tmp_path: Path
+    ) -> None:
+        exp_a = tracker.start_experiment(name="exp_a")
+        exp_b = tracker.start_experiment(name="exp_b")
+
+        conn = _meta_db(tmp_path)
+        conn.execute(
+            "INSERT INTO models (id, name, experiment_id, path, size, tags, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("m1", "model_one", exp_a, "/p1", 100, "[]", ""),
+        )
+        conn.execute(
+            "INSERT INTO models (id, name, experiment_id, path, size, tags, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("m2", "model_two", exp_a, "/p2", 200, "[]", ""),
+        )
+        conn.execute(
+            "INSERT INTO models (id, name, experiment_id, path, size, tags, source) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            ("m3", "model_three", exp_b, "/p3", 300, "[]", ""),
+        )
+        conn.commit()
+        conn.close()
+
+        result = tracker.backend.list_batch_experiments_models([exp_a, exp_b])
+
+        assert len(result[exp_a]) == 2
+        assert len(result[exp_b]) == 1
+
+    def test_empty_input_returns_empty_dict(self, tracker: ExperimentTracker) -> None:
+        result = tracker.backend.list_batch_experiments_models([])
+        assert result == {}
+
+
+class TestExportExperimentDb:
+    def test_raises_for_missing_experiment(self, tracker: ExperimentTracker) -> None:
+        with pytest.raises(ValueError, match="not found"):
+            tracker.backend.export_experiment_db("nonexistent-id")

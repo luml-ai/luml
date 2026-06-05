@@ -6,6 +6,7 @@ import pytest
 from luml.experiments.backends._exceptions import LumlFilterError
 from luml.experiments.backends._search_utils import SearchExperimentsUtils
 from luml.experiments.backends.sqlite import SQLiteBackend
+from luml.experiments.tracker import ExperimentTracker
 
 
 class TestValidateFilterString:
@@ -192,3 +193,11 @@ class TestListGroupExperimentsPaginationFilterString:
         )
         assert len(page2.items) == 1
         assert page1.items[0].name != page2.items[0].name
+
+
+class TestTrackerValidateWrappers:
+    def test_validate_experiments_search_passes_valid(
+        self, tracker: ExperimentTracker
+    ) -> None:
+        tracker.validate_experiments_search(None)
+        tracker.validate_experiments_search("")

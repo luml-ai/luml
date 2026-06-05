@@ -2,17 +2,17 @@
 
 LUMLFlow is a local experiment tracking UI for viewing metrics, parameters, models, traces, and evaluation results logged by the LUML SDK. This guide walks through a minimal workflow: training a scikit-learn model, running an experiment, logging metrics and the model, then launching LUMLFlow to inspect the results.
 
-*Note: LUMLFlow runs entirely on your machine. It reads experiment data from a local SQLite database created by the `ExperimentTracker` — no cloud account or API key is required.*
+_Note: LUMLFlow runs entirely on your machine. It reads experiment data from a local SQLite database created by the `ExperimentTracker` — no cloud account or API key is required._
 
 ## Setup
 
 Install the LUML SDK and scikit-learn:
 
 ```bash
-pip install luml-sdk scikit-learn numpy 
+pip install luml-sdk scikit-learn numpy
 ```
 
-*Note: the SDK requires Python 3.12 or later.*
+_Note: the SDK requires Python 3.12 or later._
 
 ## Train a Model
 

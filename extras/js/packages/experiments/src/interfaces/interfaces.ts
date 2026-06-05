@@ -37,6 +37,10 @@ export interface ExperimentSnapshotProvider {
 
   resetEvalsDatasetsRequestParams: () => Promise<void>
 
+  getBatchExperimentEvals: (
+    params: GetBatchExperimentEvalsParams,
+  ) => Promise<{ items: EvalsInfo[]; cursor: string | null }>
+
   resetDatasetPage: (datasetId: string) => Promise<void>
 
   getDatasetAverageScores: (
@@ -247,4 +251,13 @@ export interface TypedEvalsColumns {
 export interface ValidateResponseItem {
   valid: boolean
   error: string | null
+}
+
+export interface GetBatchExperimentEvalsParams {
+  experiment_ids: string[]
+  limit?: number
+  cursor?: string | null
+  dataset_id?: string
+  search?: string
+  filters?: string[]
 }
