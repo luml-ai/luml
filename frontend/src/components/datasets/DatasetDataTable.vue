@@ -70,10 +70,6 @@ watch(
 </script>
 
 <style scoped>
-:deep(.p-datatable-table) {
-  table-layout: fixed;
-}
-
 :deep(.p-datatable-paginator-bottom) {
   border: none;
   padding-top: 12px;
@@ -96,5 +92,12 @@ watch(
 :deep(td:last-child),
 :deep(th:last-child) {
   border-right: none;
+}
+
+:deep(.p-datatable-column-title) {
+  width: 248px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

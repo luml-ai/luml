@@ -22,7 +22,7 @@ const valueText = computed(() => {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  min-width: 248px;
+  width: 248px;
   height: 20px;
 }
 </style>
