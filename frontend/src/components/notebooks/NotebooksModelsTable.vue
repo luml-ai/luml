@@ -35,7 +35,7 @@ import { DataTable, Column } from 'primevue'
 import NotebooksModelAction from './NotebooksModelAction.vue'
 
 type Props = {
-  files: any[]
+  files: unknown[]
 }
 
 defineProps<Props>()

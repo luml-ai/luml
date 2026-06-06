@@ -81,11 +81,11 @@ const currentFilters = ref<FilterItem[]>(getCurrentFilters())
 
 const columnSelectOptions = computed(() => {
   const filterAcc = props.filters.reduce((acc, filter) => {
-    acc.includes(filter.column) || acc.push(filter.column)
+    if (!acc.includes(filter.column)) acc.push(filter.column)
     return acc
   }, [] as string[])
   props.data.forEach((item) => {
-    filterAcc.includes(item.name) || filterAcc.push(item.name)
+    if (!filterAcc.includes(item.name)) filterAcc.push(item.name)
   })
 
   return filterAcc
@@ -130,7 +130,7 @@ function getCurrentFilters() {
         },
       ]
 }
-function toggleFilter(event: any) {
+function toggleFilter(event: Event) {
   filterPopover.value.toggle(event)
 }
 function deleteFilter(id: number) {

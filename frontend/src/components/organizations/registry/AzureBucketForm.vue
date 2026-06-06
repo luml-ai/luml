@@ -18,7 +18,7 @@
           placeholder="Enter container name"
           fluid
         />
-        <div v-if="($form as any).bucket_name?.invalid" class="message">
+        <div v-if="$form.bucket_name?.invalid" class="message">
           Please enter a valid container name
         </div>
       </div>
@@ -32,7 +32,7 @@
           placeholder="Enter connection string"
           fluid
         />
-        <div v-if="($form as any).endpoint?.invalid" class="message">
+        <div v-if="$form.endpoint?.invalid" class="message">
           Please enter a valid connection string
         </div>
       </div>

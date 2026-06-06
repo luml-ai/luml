@@ -10,14 +10,16 @@ const store = usePrismaStore()
 const confirm = useConfirm()
 const repositories = computed(() => store.repositories)
 
-const showNewRepository = inject<Ref<boolean>>('showNewRepository')!
+const showNewRepository = inject<Ref<boolean>>('showNewRepository')
 
 async function refresh() {
   store.repositories = await api.dataAgent.listRepositories()
 }
 
 function openNewRepository() {
-  showNewRepository.value = true
+  if (showNewRepository) {
+    showNewRepository.value = true
+  }
 }
 
 function onDeleteRepository(repositoryId: string, repositoryName: string) {

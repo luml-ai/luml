@@ -9,7 +9,7 @@ function hasPosition(item: BoardItem): boolean {
 function sortItems(a: BoardItem, b: BoardItem): number {
   const aHas = hasPosition(a)
   const bHas = hasPosition(b)
-  if (aHas && bHas) return a.data.position! - b.data.position!
+  if (aHas && bHas) return (a.data.position as number) - (b.data.position as number)
   if (aHas && !bHas) return -1
   if (!aHas && bHas) return 1
   return new Date(b.data.updated_at).getTime() - new Date(a.data.updated_at).getTime()

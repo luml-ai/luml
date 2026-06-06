@@ -167,7 +167,7 @@ class DatabaseServiceClass {
   }
 
   async getFileBlob(file: LumlFile) {
-    const byteCharacters = atob(file.content)
+    const byteCharacters = atob(file.content as string)
     const byteNumbers = new Array(byteCharacters.length)
     for (let i = 0; i < byteCharacters.length; i++) {
       byteNumbers[i] = byteCharacters.charCodeAt(i)

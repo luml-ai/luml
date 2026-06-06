@@ -62,7 +62,7 @@ async function deleteSatellite() {
     toast.add(simpleSuccessToast(`Satellite "${props.name}" deleted successfully.`))
     emits('delete')
     visible.value = false
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Could not unpair satellite')))
   } finally {
     loading.value = false

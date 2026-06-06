@@ -47,7 +47,7 @@ import { useToast } from 'primevue'
 const toast = useToast()
 
 type Props = {
-  predictCallback: Function
+  predictCallback: (data: Record<string, (string | number)[]>) => Promise<unknown>
 }
 
 const props = defineProps<Props>()
@@ -73,7 +73,7 @@ async function submit() {
   isLoading.value = true
   const data = getDataForTraining()
   try {
-    const result = await props.predictCallback(data)
+    const result = (await props.predictCallback(data)) as object
     downloadPredictBlob.value = convertObjectToCsvBlob(result)
   } catch (e) {
     toast.add(predictErrorToast(e as string))

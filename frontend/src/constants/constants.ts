@@ -2,7 +2,6 @@ import type { TaskData } from '@/components/homepage-tasks/interfaces'
 import {
   Zap,
   File,
-  Orbit,
   MessageCircleCode,
   Folders,
   Pyramid,

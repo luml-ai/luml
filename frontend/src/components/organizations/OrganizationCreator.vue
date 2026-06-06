@@ -16,9 +16,8 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { InputText, Button, Avatar } from 'primevue'
-import ImageInput from '../ui/ImageInput.vue'
-import Placeholder from '@/assets/img/form-bg.webp'
 import { computed, reactive, ref } from 'vue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
@@ -42,7 +41,6 @@ const resolver = zodResolver(
   }),
 )
 
-const logo = ref<File | null>(null)
 const loading = ref(false)
 const initialValues = reactive({
   name: '',
@@ -51,10 +49,6 @@ const initialValues = reactive({
 const avatarLabel = computed(() => {
   return initialValues.name.charAt(0).toUpperCase()
 })
-
-function onImageChange(event: File | null) {
-  logo.value = event
-}
 
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
@@ -67,8 +61,8 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
     await organizationStore.createOrganization(payload)
     toast.add(simpleSuccessToast('All changes have been saved.'))
     emits('close')
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e.message || 'Could not create organization'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Could not create organization')))
   } finally {
     loading.value = false
   }

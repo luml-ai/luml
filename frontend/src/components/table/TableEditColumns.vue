@@ -104,7 +104,7 @@ function fillSelectedColumns(allColumns: string[], selectedColumns: string[]) {
   }))
 }
 
-function togglePopover(event: any) {
+function togglePopover(event: Event) {
   popover.value.toggle(event)
 }
 

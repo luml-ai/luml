@@ -100,7 +100,7 @@ type Props = {
   features: TrainingImportance[]
   predictedData: Record<string, []>
   isTrainMode: boolean
-  downloadModelCallback: Function
+  downloadModelCallback: () => void
   trainingModelId: string
   currentTask: Tasks | null
   modelBlob: Blob | null
@@ -130,7 +130,7 @@ const EXPORT_ITEMS = [
 ]
 
 const isPredictVisible = ref(false)
-const detailedView = ref<any>([])
+const detailedView = ref<object[]>([])
 
 const featuresData = computed(() => {
   const data = props.features.map((feature) => (feature.scaled_importance * 100).toFixed())

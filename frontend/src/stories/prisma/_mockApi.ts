@@ -7,8 +7,6 @@ import {
   mockRepositories,
   mockTasks,
   mockRuns,
-  mockNodes,
-  mockEdges,
 } from './_fixtures'
 
 export interface PrismaApiOverrides {

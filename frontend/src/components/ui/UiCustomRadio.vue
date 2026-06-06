@@ -1,6 +1,11 @@
 <template>
   <div class="app-custom-radio">
-    <label v-for="option in options" :for="id + option" class="app-custom-radio-label">
+    <label
+      v-for="option in options"
+      :key="option"
+      :for="id + option"
+      class="app-custom-radio-label"
+    >
       <input
         type="radio"
         :name="id"
@@ -22,7 +27,7 @@ import { useId } from 'vue'
 const id = useId()
 
 type Props = {
-  modelValue: any
+  modelValue: unknown
   options: string[]
   disabled?: string[]
 }

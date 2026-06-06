@@ -7,11 +7,11 @@ type FileFormats = 'json'
 type FileTypes = '"notebook"'
 
 export interface LumlFile {
-  content: any
+  content: unknown
   created: Date
   format: FileFormats
   last_modified: Date
-  mimetype: any
+  mimetype: string
   name: string
   path: string
   size: number

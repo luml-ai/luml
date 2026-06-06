@@ -2,7 +2,7 @@ export interface IAuthorizationService {
   id: string
   label: string
   icon: string
-  action: Function
+  action: () => void
 }
 
 export type TAuthorizationWrapperProps = {

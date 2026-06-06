@@ -15,20 +15,20 @@ import { ref } from 'vue'
 export const useSatelliteFields = () => {
   const fields = ref<SatelliteField[]>([])
 
-  function compareValues(a: any, operator: FieldOperator, b: any): boolean {
+  function compareValues(a: unknown, operator: FieldOperator, b: unknown): boolean {
     switch (operator) {
       case 'equal':
         return a === b
       case 'notEqual':
         return a !== b
       case 'gt':
-        return a > b
+        return typeof a === 'number' && typeof b === 'number' && a > b
       case 'gte':
-        return a >= b
+        return typeof a === 'number' && typeof b === 'number' && a >= b
       case 'lt':
-        return a < b
+        return typeof a === 'number' && typeof b === 'number' && a < b
       case 'lte':
-        return a <= b
+        return typeof a === 'number' && typeof b === 'number' && a <= b
       default:
         return false
     }
@@ -37,7 +37,7 @@ export const useSatelliteFields = () => {
   function checkModelVersion(
     modelVersion: string,
     operator: ModelVersionOperator,
-    value: any,
+    value: unknown,
   ): boolean {
     switch (operator) {
       case 'eq':
@@ -47,7 +47,11 @@ export const useSatelliteFields = () => {
     }
   }
 
-  function checkModelTags(modelTags: string[], operator: ModelTagsOperator, value: any): boolean {
+  function checkModelTags(
+    modelTags: string[],
+    operator: ModelTagsOperator,
+    value: unknown,
+  ): boolean {
     if (!Array.isArray(value)) return true
     switch (operator) {
       case 'includes':
@@ -64,13 +68,13 @@ export const useSatelliteFields = () => {
   function checkModelVariant(
     modelVariant: string,
     operator: ModelVariantOperator,
-    value: any,
+    value: unknown,
   ): boolean {
     switch (operator) {
       case 'includes':
-        return value.includes(modelVariant)
+        return typeof value === 'string' && value.includes(modelVariant)
       case 'notIncludes':
-        return !value.includes(modelVariant)
+        return typeof value === 'string' && !value.includes(modelVariant)
       case 'eq':
         return value === modelVariant
       case 'neq':
@@ -80,7 +84,7 @@ export const useSatelliteFields = () => {
 
   function shouldDisplayField(
     conditions: ConditionsObject[] = [],
-    currentValues: Record<string, any>,
+    currentValues: Record<string, unknown>,
     modelTags: string[],
     modelVersion: string,
     modelVariant: string,
@@ -127,7 +131,7 @@ export const useSatelliteFields = () => {
   function setFields(
     satellite: Satellite | null,
     model: ModelArtifact | null,
-    currentValues: Record<string, any>,
+    currentValues: Record<string, unknown>,
   ) {
     if (!satellite || !model) {
       fields.value = []

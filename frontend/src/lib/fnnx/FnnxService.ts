@@ -48,7 +48,7 @@ class FnnxServiceClass {
           const tabularEvalMetrics =
             tabularMetrics.performance.eval_holdout || tabularMetrics.performance.eval_cv || {}
           return Object.fromEntries(
-            Object.entries(tabularEvalMetrics).filter(([key, value]) => key !== 'N_SAMPLES'),
+            Object.entries(tabularEvalMetrics).filter(([key]) => key !== 'N_SAMPLES'),
           )
       }
     }
@@ -80,7 +80,7 @@ class FnnxServiceClass {
     return this.getMetadataByTag(metadata, availableTags)?.metrics || null
   }
 
-  getPromptOptimizationData(metadata: Array<MetaEntry>): any {
+  getPromptOptimizationData(metadata: Array<MetaEntry>): unknown {
     const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_prompt_fusion_v1]
     return this.getMetadataByTag(metadata, availableTags)
   }

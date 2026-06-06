@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, provide, watch, onMounted } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
-import { Tabs, TabList, Tab, TabPanels, TabPanel, Button, Dialog, Tag } from 'primevue'
+import { Tabs, TabList, Tab, Button, Dialog, Tag } from 'primevue'
 import { KanbanSquare, FolderGit, Plus, Monitor, Terminal } from 'lucide-vue-next'
 import type { AgentRepository } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
@@ -13,8 +13,6 @@ import BackendIndicator from '@/components/prisma/BackendIndicator.vue'
 import NewRepositoryDialog from '@/components/prisma/NewRepositoryDialog.vue'
 import NewItemDialog from '@/components/prisma/NewItemDialog.vue'
 import TerminalPanel from '@/components/prisma/TerminalPanel.vue'
-import BoardView from '@/pages/prisma/BoardView.vue'
-import RepositoriesView from '@/pages/prisma/RepositoriesView.vue'
 
 const store = usePrismaStore()
 const route = useRoute()
@@ -25,6 +23,7 @@ const repositories = ref<AgentRepository[]>([])
 const showNewRepository = ref(false)
 const newItemType = ref<'task' | 'workflow' | null>(null)
 const showDebugSessions = ref(false)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const debugSessions = ref<any[]>([])
 const terminalSessionId = ref<string | null>(null)
 const terminalLabel = ref('Terminal')
@@ -158,14 +157,11 @@ onMounted(async () => {
               <span>Repositories</span>
             </Tab>
           </TabList>
-          <TabPanels class="panels">
-            <TabPanel value="board" class="panel">
-              <BoardView />
-            </TabPanel>
-            <TabPanel value="repositories" class="panel">
-              <RepositoriesView />
-            </TabPanel>
-          </TabPanels>
+          <div class="panels">
+            <div class="panel">
+              <RouterView />
+            </div>
+          </div>
         </Tabs>
       </template>
     </template>

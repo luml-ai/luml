@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { AutoCompleteCompleteEvent } from 'primevue'
 import { Dialog, Button, InputText, Select, AutoComplete, Textarea, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -126,10 +127,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     await collectionsStore.createCollection({ ...formData.value }, getRequestInfo())
     visible.value = false
     toast.add(simpleSuccessToast('Collection created'))
-  } catch (e: any) {
-    toast.add(
-      simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create collection'),
-    )
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create collection')))
   } finally {
     loading.value = false
   }

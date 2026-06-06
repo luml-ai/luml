@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-mutating-props -- editor mutates the shared reactive node-data object in place -->
   <div class="sidebar">
     <header class="header">
       <div class="header-main">
@@ -37,6 +38,7 @@
         <div v-if="inputsVisible" class="inputs fields">
           <base-field
             v-for="field in inputFields"
+            :key="field.id"
             :data="field"
             :is-duplicate="isDuplicate(field.id)"
             @delete="onDeleteField(field.id)"
@@ -56,6 +58,7 @@
         <div v-if="outputsVisible" class="outputs fields">
           <base-field
             v-for="field in outputFields"
+            :key="field.id"
             :data="field"
             :is-duplicate="isDuplicate(field.id)"
             :type-label="props.data.type === NodeTypeEnum.gate ? 'input' : undefined"
@@ -78,6 +81,7 @@
           <h3 class="field-title">Conditions</h3>
           <condition-field
             v-for="(field, index) in conditionFields"
+            :key="field.id"
             :data="field"
             :index="index + 1"
             @delete="onDeleteField(field.id)"
@@ -169,6 +173,7 @@ function onDeleteField(id: string) {
     (edge) => edge.targetHandle === id || edge.sourceHandle === id,
   )
   removeEdges(fieldEdges)
+  // eslint-disable-next-line vue/no-mutating-props -- shared reactive node-data object is mutated in place by design
   props.data.fields = props.data.fields.filter((field) => field.id !== id)
 }
 function addField(variant: FieldVariant) {
@@ -184,6 +189,7 @@ function addField(variant: FieldVariant) {
     handlePosition,
     variant,
   }
+  // eslint-disable-next-line vue/no-mutating-props -- shared reactive node-data object is mutated in place by design
   props.data.fields.push(field)
 }
 </script>

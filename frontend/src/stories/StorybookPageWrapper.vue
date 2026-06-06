@@ -52,7 +52,7 @@ type Props = {
   showExperimentSnapshot?: boolean
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 const tabsListPT = {
   tabList: { style: 'border-left: none; border-top: none; border-right: none;' },

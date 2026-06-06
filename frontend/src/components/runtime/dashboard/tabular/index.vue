@@ -43,7 +43,11 @@
 </template>
 
 <script setup lang="ts">
-import { type TabularMetrics } from '@/lib/data-processing/interfaces'
+import {
+  type ClassificationMetrics,
+  type RegressionMetrics,
+  type TabularMetrics,
+} from '@/lib/data-processing/interfaces'
 import { computed, onBeforeMount, ref } from 'vue'
 import { Info } from 'lucide-vue-next'
 import { SelectButton } from 'primevue'
@@ -74,8 +78,8 @@ const metrics = ref<TabularMetrics | null>(null)
 
 const inputNames = computed(() => {
   if (!props.model) return []
-  const manifest = (props.model as any).manifest
-  return manifest.inputs.map((input: any) => input.name)
+  const manifest = props.model.getManifest()
+  return manifest.inputs.map((input) => input.name)
 })
 const features = computed(() => {
   if (!metrics.value) return []
@@ -88,7 +92,8 @@ const totalScore = computed(() => {
 const testMetrics = computed(() => {
   if (!metrics.value || !props.currentTag) return []
   return FnnxService.prepareTabularMetrics(
-    metrics.value.performance.eval_cv || metrics.value.performance.eval_holdout!,
+    metrics.value.performance.eval_cv ||
+      (metrics.value.performance.eval_holdout as ClassificationMetrics | RegressionMetrics),
     props.currentTag,
   )
 })
@@ -110,9 +115,9 @@ async function predict(values: Record<string, (string | number)[]>) {
 }
 function prepareData(values: Record<string, (string | number)[]>) {
   const manifest = props.model.getManifest()
-  const data: Record<string, any> = {}
+  const data: Record<string, unknown> = {}
   for (const key in values) {
-    const valueInfo = manifest.inputs.find((input: any) => input.name === key)
+    const valueInfo = manifest.inputs.find((input) => input.name === key)
     if (!valueInfo) throw new Error('Incorrect data')
     const inputType = extractType(valueInfo.dtype)
     if (inputType) {

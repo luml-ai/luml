@@ -22,7 +22,11 @@
           </div>
         </div>
         <div v-if="organizationStore.organizationDetails?.orbits.length" class="users-list">
-          <div v-for="orbit in organizationStore.organizationDetails.orbits" class="row">
+          <div
+            v-for="orbit in organizationStore.organizationDetails.orbits"
+            :key="orbit.id"
+            class="row"
+          >
             <div class="cell cell-user" style="overflow: hidden">
               <div>
                 <h4 style="overflow: hidden; text-overflow: ellipsis">{{ orbit.name }}</h4>

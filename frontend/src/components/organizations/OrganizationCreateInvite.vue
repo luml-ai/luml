@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import { computed, ref } from 'vue'
 import { Button, Dialog, InputText, Select, useToast } from 'primevue'
 import { Plus } from 'lucide-vue-next'
@@ -127,19 +128,19 @@ async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   loading.value = true
   try {
-    const payload = getPayload(values as any)
+    const payload = getPayload(values)
     const invite = await invitationsStore.createInvite(payload)
     organizationStore.addInviteToCurrentOrganization(invite)
     visible.value = false
     toast.add(simpleSuccessToast('An email invitation was sent to the user.'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create invite'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create invite')))
   } finally {
     loading.value = false
   }
 }
 
-function getPayload(values: { email: string; role: OrganizationRoleEnum }) {
+function getPayload(values: FormSubmitEvent['values']) {
   if (!organizationStore.currentOrganization) throw new Error('Current organization not found')
   return {
     email: values.email,

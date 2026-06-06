@@ -9,7 +9,7 @@ import '@xterm/xterm/css/xterm.css'
 
 const props = defineProps<{
   sessionId: string
-  nodeId: string
+  nodeId?: string
   active: boolean
   taskName: string
   readonly?: boolean
@@ -60,7 +60,7 @@ function onOutputReceived() {
 let scrollbackDone = false
 
 async function loadReadonly() {
-  if (!terminal) return
+  if (!terminal || !props.nodeId) return
   try {
     const buf = await api.dataAgent.getSessionScrollback(props.nodeId, props.sessionId)
     terminal.write(new Uint8Array(buf))
@@ -82,7 +82,7 @@ function connect() {
   ws.onmessage = (event) => {
     if (event.data instanceof ArrayBuffer) {
       const bytes = new Uint8Array(event.data)
-      terminal!.write(bytes)
+      terminal?.write(bytes)
       if (!scrollbackDone) {
         scrollbackDone = true
         setTimeout(() => {
@@ -98,7 +98,7 @@ function connect() {
       try {
         const msg = JSON.parse(event.data)
         if (msg.type === 'exit') {
-          terminal!.write(`\r\n\x1b[33m[Process exited with code ${msg.code}]\x1b[0m\r\n`)
+          terminal?.write(`\r\n\x1b[33m[Process exited with code ${msg.code}]\x1b[0m\r\n`)
         } else if (msg.type === 'waiting_for_input') {
           onWaitingForInput()
         }

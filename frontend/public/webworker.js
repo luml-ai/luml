@@ -72,11 +72,6 @@ async function initPyWorker() {
 self.pyodideReadyPromise = initPyWorker();
 
 
-async function pingPython() {
-    const dfw = self.pyodide.pyimport("dfs_webworker");
-    const res = await dfw.ping();
-}
-
 async function invokeRoute(route, data) {
     const dfw = self.pyodide.pyimport("dfs_webworker");
     const res = (await dfw.invoke(route, data)).toJs();
@@ -86,7 +81,7 @@ async function invokeRoute(route, data) {
 
 // LEGACY ROUTES HANDLED DIRECTLY IN THE WORKER
 
-async function tabularTrain(task, data, target, groups) {
+async function tabularTrain(task, data, target) {
 
     // TODO: groups
     const payload = { "data": data, "target": target, "task": task };

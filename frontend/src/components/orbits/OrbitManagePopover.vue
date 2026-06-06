@@ -113,7 +113,7 @@ const createAvailable = computed(
     false,
 )
 
-function toggle(event: any) {
+function toggle(event: Event) {
   popover.value.toggle(event)
 }
 

@@ -34,12 +34,14 @@
         <div class="details__label">Tags</div>
         <div class="details__value">
           <div class="details__tags">
-            <Tag
-              v-if="artifactsStore.currentArtifact.tags?.length"
-              v-for="tag in artifactsStore.currentArtifact.tags"
-              :value="tag"
-              class="tag"
-            ></Tag>
+            <template v-if="artifactsStore.currentArtifact.tags?.length">
+              <Tag
+                v-for="tag in artifactsStore.currentArtifact.tags"
+                :key="tag"
+                :value="tag"
+                class="tag"
+              ></Tag>
+            </template>
             <span v-else>-</span>
           </div>
         </div>
@@ -70,6 +72,7 @@
       </div>
       <div
         v-for="metric in Object.entries(artifactsStore.currentArtifact.extra_values)"
+        :key="metric[0]"
         class="details__item"
       >
         <div class="details__label">{{ metric[0] }}</div>
@@ -112,6 +115,7 @@ const statusSeverity = computed(() => {
   )
     return 'warn'
   else if (artifactsStore.currentArtifact.status === ArtifactStatusEnum.uploaded) return 'success'
+  return null
 })
 
 function showManifest() {

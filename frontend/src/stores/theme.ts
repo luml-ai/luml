@@ -30,13 +30,13 @@ export const useThemeStore = defineStore('theme', () => {
     } else {
       theme.value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
         if (!localStorage.getItem('theme')) toggleTheme()
       })
     }
   }
 
-  watch(theme, (t) => {
+  watch(theme, () => {
     document.documentElement.dataset.theme = theme.value
   })
 

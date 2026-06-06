@@ -26,7 +26,7 @@
 import type { DatasetDataSelectProps } from './interfaces'
 import { Select } from 'primevue'
 
-const props = defineProps<DatasetDataSelectProps>()
+defineProps<DatasetDataSelectProps>()
 
 const modelValue = defineModel<string | null>('modelValue')
 </script>

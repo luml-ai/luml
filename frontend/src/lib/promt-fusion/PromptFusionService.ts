@@ -20,13 +20,17 @@ import { EvaluationModesEnum, ProviderStatus } from './prompt-fusion.interfaces'
 import { allModels, getProviders } from './prompt-fusion.data'
 import { parseProviderSettingsToObject } from '@/helpers/helpers'
 import { DataProcessingWorker } from '../data-processing/DataProcessingWorker'
-import { WEBWORKER_ROUTES_ENUM } from '../data-processing/interfaces'
+import {
+  WEBWORKER_ROUTES_ENUM,
+  type ClassificationMetrics,
+  type TrainingData,
+} from '../data-processing/interfaces'
 
 type Events = {
   CHANGE_SETTINGS_STATUS: boolean
   CHANGE_OPTIMIZATION_STATE: boolean
   OPEN_PROVIDER_SETTINGS: ProvidersEnum
-  CLOSE_PROVIDER_SETTINGS: void
+  CLOSE_PROVIDER_SETTINGS: undefined
   CHANGE_TEACHER_MODEL: ProviderModelsEnum | null
   CHANGE_STUDENT_MODEL: ProviderModelsEnum | null
   CHANGE_TRAINING_STATE: boolean
@@ -77,10 +81,6 @@ class PromptFusionServiceClass extends Observable<Events> {
   modelBlob: Blob | null = initialState.modelBlob
   inputs: string[] = []
   outputs: string[] = []
-
-  constructor() {
-    super()
-  }
 
   openSettings() {
     this.isSettingsOpened = true
@@ -158,8 +158,8 @@ class PromptFusionServiceClass extends Observable<Events> {
     this.isTrainingActive = true
     this.changeOptimizationState(false)
     this.emit('CHANGE_TRAINING_STATE', this.isTrainingActive)
-    const result = await DataProcessingWorker.startTraining(
-      { task_spec: this.payload! },
+    const result = await DataProcessingWorker.startTraining<TrainingData<ClassificationMetrics>>(
+      { task_spec: this.payload as PromptFusionPayload },
       WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
     )
     if (result.status === 'success' && result.model_id) {
@@ -190,7 +190,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       settings: optimizationSettings,
       trainingData: this.trainingData || {},
     }
-    this.payload = payload
+    this.payload = payload as PromptFusionPayload
   }
 
   endTraining() {
@@ -255,7 +255,7 @@ class PromptFusionServiceClass extends Observable<Events> {
   }
 
   createFlowFromMetadata(metadata: PayloadData) {
-    const nodes = metadata.nodes.map<PromptNode>((node, index) => ({
+    const nodes = metadata.nodes.map<PromptNode>((node) => ({
       ...node,
       type: 'custom',
       data: {
@@ -290,7 +290,7 @@ class PromptFusionServiceClass extends Observable<Events> {
 
   private prepareNodesData(object: FlowExportObject) {
     const edges = this.getEdgesFromObject(object)
-    const nodes: PayloadNode[] = object.nodes.map((node) => {
+    const nodes: PayloadNode[] = object.nodes.map<PayloadNode>((node) => {
       const nodeData = node.data as NodeData
       const data = {
         fields: this.getFieldsDataFromNodeData(nodeData),
@@ -298,7 +298,7 @@ class PromptFusionServiceClass extends Observable<Events> {
         type: nodeData.type,
         label: nodeData.label,
       }
-      return { ...node, data }
+      return { ...node, data } as PayloadNode
     })
     this.nodesData = { edges, nodes }
   }
@@ -307,9 +307,9 @@ class PromptFusionServiceClass extends Observable<Events> {
     return object.edges.map((edge) => ({
       id: edge.id,
       sourceNode: edge.source,
-      sourceField: edge.sourceHandle!,
+      sourceField: edge.sourceHandle as string,
       targetNode: edge.target,
-      targetField: edge.targetHandle!,
+      targetField: edge.targetHandle as string,
     }))
   }
 
@@ -318,7 +318,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       id: field.id,
       value: field.value,
       variant: field.variant,
-      type: field.type!,
+      type: field.type as string,
       variadic: !!field.variadic,
     }))
   }
@@ -339,7 +339,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       : null
     const settingsObject = parseProviderSettingsToObject(teacherProviderSettings)
     return {
-      providerId: teacherProviderId!,
+      providerId: teacherProviderId as string,
       modelId: this.teacherModel,
       providerSettings: settingsObject,
     }
@@ -361,7 +361,7 @@ class PromptFusionServiceClass extends Observable<Events> {
       : null
     const settingsObject = parseProviderSettingsToObject(studentProviderSettings)
     return {
-      providerId: studentProviderId!,
+      providerId: studentProviderId as ProvidersEnum,
       modelId: this.studentModel,
       providerSettings: settingsObject,
     }

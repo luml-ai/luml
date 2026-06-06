@@ -2,11 +2,11 @@ import type { AxiosInstance } from 'axios'
 
 let isRefreshing = false
 let failedQueue: Array<{
-  resolve: (value?: any) => void
-  reject: (reason?: any) => void
+  resolve: (value?: unknown) => void
+  reject: (reason?: unknown) => void
 }> = []
 
-const processQueue = (error: any = null) => {
+const processQueue = (error: unknown = null) => {
   failedQueue.forEach((promise) => {
     if (error) {
       promise.reject(error)

@@ -2,10 +2,11 @@
 import { ref, computed, watch } from 'vue'
 import { Dialog, SelectButton, Button } from 'primevue'
 import { Plus, ListTodo, Waypoints } from 'lucide-vue-next'
-import type { AgentRepository } from '@/lib/api/prisma/prisma.interfaces'
+import type { AgentRepository, RunCreate, TaskCreate } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
 import TaskForm from './TaskForm.vue'
 import WorkflowForm from './WorkflowForm.vue'
+import { getErrorMessage } from '@/helpers/helpers'
 
 type ItemType = 'task' | 'workflow'
 
@@ -42,19 +43,19 @@ const typeOptions = [
 
 const formComponent = computed(() => (selectedType.value === 'task' ? TaskForm : WorkflowForm))
 
-async function onFormSubmit(data: Record<string, unknown>) {
+async function onFormSubmit(data: TaskCreate | RunCreate) {
   error.value = ''
   loading.value = true
   try {
     if (selectedType.value === 'task') {
-      await api.dataAgent.createTask(data as any)
+      await api.dataAgent.createTask(data as TaskCreate)
     } else {
-      await api.dataAgent.createRun(data as any)
+      await api.dataAgent.createRun(data as RunCreate)
     }
     emit('created')
-  } catch (e: any) {
+  } catch (e: unknown) {
     const label = selectedType.value === 'task' ? 'task' : 'workflow'
-    error.value = e?.response?.data?.detail ?? `Failed to create ${label}`
+    error.value = getErrorMessage(e, `Failed to create ${label}`)
   } finally {
     loading.value = false
   }

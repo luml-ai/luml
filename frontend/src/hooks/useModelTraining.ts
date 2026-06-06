@@ -3,6 +3,7 @@ import {
   WEBWORKER_ROUTES_ENUM,
   type ClassificationMetrics,
   type PredictRequestData,
+  type PredictResponse,
   type RegressionMetrics,
   type TaskPayload,
   type TrainingData,
@@ -56,7 +57,7 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
   async function startTraining(data: TaskPayload) {
     isLoading.value = true
     try {
-      const result: TrainingData<ClassificationMetrics> = await DataProcessingWorker.startTraining(
+      const result = await DataProcessingWorker.startTraining<TrainingData<ClassificationMetrics>>(
         JSON.parse(JSON.stringify(data)),
         WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN,
       )
@@ -71,9 +72,9 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
       } else {
         throw new Error(result?.error_message || 'Unknown error')
       }
-    } catch (error: any) {
+    } catch (error) {
       isTrainingSuccess.value = false
-      toast.add(trainingErrorToast(error))
+      toast.add(trainingErrorToast(error instanceof Error ? error.message : String(error)))
     } finally {
       isLoading.value = false
     }
@@ -86,7 +87,7 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
         ? WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT
         : WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT
     try {
-      const result = await DataProcessingWorker.startPredict(
+      const result = await DataProcessingWorker.startPredict<PredictResponse>(
         JSON.parse(JSON.stringify(request)),
         route,
       )
@@ -96,8 +97,8 @@ export const useModelTraining = (service: 'tabular' | 'prompt_optimization') => 
       } else {
         throw new Error(result?.error_message || 'Unknown error')
       }
-    } catch (error: any) {
-      toast.add(predictErrorToast(error))
+    } catch (error) {
+      toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
     } finally {
       isLoading.value = false
     }

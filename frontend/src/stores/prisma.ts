@@ -55,7 +55,7 @@ export const usePrismaStore = defineStore('prisma', () => {
     nodes.value = graph.nodes
     edges.value = graph.edges
     if (graph.run) {
-      const idx = runs.value.findIndex((r) => r.id === graph.run!.id)
+      const idx = runs.value.findIndex((r) => r.id === graph.run?.id)
       if (idx >= 0) {
         runs.value[idx] = graph.run
       }
@@ -72,12 +72,12 @@ export const usePrismaStore = defineStore('prisma', () => {
         const data = event.data
         if (data.node_id && !nodes.value.find((n) => n.id === data.node_id)) {
           nodes.value.push({
-            id: data.node_id,
+            id: data.node_id as string,
             run_id: selectedRunId.value ?? '',
-            parent_node_id: data.parent_node_id ?? null,
-            node_type: data.node_type ?? '',
+            parent_node_id: (data.parent_node_id as string) ?? null,
+            node_type: (data.node_type as string) ?? '',
             status: 'queued',
-            depth: data.depth ?? 0,
+            depth: (data.depth as number) ?? 0,
             payload: {},
             result: {},
             worktree_path: '',
@@ -92,14 +92,14 @@ export const usePrismaStore = defineStore('prisma', () => {
       case 'node_status_changed': {
         const node = nodes.value.find((n) => n.id === event.node_id)
         if (node && event.data.status) {
-          node.status = event.data.status
+          node.status = event.data.status as string
         }
         break
       }
       case 'node_session_started': {
         const node = nodes.value.find((n) => n.id === event.node_id)
         if (node && event.data.session_id) {
-          node.session_id = event.data.session_id
+          node.session_id = event.data.session_id as string
           node.is_alive = true
         }
         break
@@ -107,9 +107,9 @@ export const usePrismaStore = defineStore('prisma', () => {
       case 'node_completed': {
         const node = nodes.value.find((n) => n.id === event.node_id)
         if (node) {
-          node.status = event.data.status ?? node.status
+          node.status = (event.data.status as string) ?? node.status
           if (event.data.result) {
-            node.result = event.data.result
+            node.result = event.data.result as Record<string, unknown>
           }
           node.is_alive = false
         }
@@ -121,9 +121,9 @@ export const usePrismaStore = defineStore('prisma', () => {
           edges.value.push({
             id: `e${data.from_node_id}-${data.to_node_id}`,
             run_id: selectedRunId.value ?? '',
-            from_node_id: data.from_node_id,
-            to_node_id: data.to_node_id,
-            reason: data.reason ?? 'auto',
+            from_node_id: data.from_node_id as string,
+            to_node_id: data.to_node_id as string,
+            reason: (data.reason as string) ?? 'auto',
           })
         }
         break
@@ -131,17 +131,17 @@ export const usePrismaStore = defineStore('prisma', () => {
       case 'node_updated': {
         const node = nodes.value.find((n) => n.id === event.node_id)
         if (node && event.data.result) {
-          node.result = event.data.result
+          node.result = event.data.result as Record<string, unknown>
         }
         break
       }
       case 'run_status_changed': {
         const run = runs.value.find((r) => r.id === selectedRunId.value)
         if (run && event.data.status) {
-          run.status = event.data.status
+          run.status = event.data.status as string
         }
         if (run && event.data.best_node_id !== undefined) {
-          run.best_node_id = event.data.best_node_id
+          run.best_node_id = event.data.best_node_id as string
         }
         break
       }

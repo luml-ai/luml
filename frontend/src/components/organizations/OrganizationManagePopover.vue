@@ -25,6 +25,7 @@
         <div class="list-scroll">
           <div
             v-for="organization in organizationStore.availableOrganizations"
+            :key="organization.id"
             class="organization"
             :class="{ active: organization.id === organizationStore.currentOrganization?.id }"
           >
@@ -115,7 +116,7 @@ const currentOrganizationAvatarLabel = computed(() =>
   organizationStore.currentOrganization?.name.charAt(0).toUpperCase(),
 )
 
-function toggle(event: any) {
+function toggle(event: Event) {
   popover.value.toggle(event)
 }
 

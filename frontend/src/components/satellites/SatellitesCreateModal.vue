@@ -97,7 +97,7 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     loading.value = true
     const data = await satellitesStore.createSatellite(organizationId, orbitId, initialValues.value)
     emits('create', data)
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e)))
   } finally {
     loading.value = false

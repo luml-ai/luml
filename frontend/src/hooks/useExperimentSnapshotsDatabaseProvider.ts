@@ -8,7 +8,7 @@ import { onUnmounted } from 'vue'
 export const useExperimentSnapshotsDatabaseProvider = () => {
   const artifactsStore = useArtifactsStore()
 
-  let abortControllers: Record<string, AbortController> = {}
+  const abortControllers: Record<string, AbortController> = {}
 
   const worker = new Worker(new URL('@/workers/experiment-snapshot', import.meta.url), {
     type: 'module',
@@ -22,7 +22,7 @@ export const useExperimentSnapshotsDatabaseProvider = () => {
     console.error('❌ Worker message error:', e)
   }
 
-  function callWorker<T>(message: any): Promise<T> {
+  function callWorker<T>(message: Record<string, unknown>): Promise<T> {
     const requestId = crypto.randomUUID()
 
     return new Promise((resolve, reject) => {

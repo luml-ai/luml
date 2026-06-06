@@ -192,7 +192,7 @@ async function onDeleteClick() {
 
 async function confirmDelete() {
   try {
-    const artifactsForDelete = props.selectedArtifacts.map((artifact: any) => artifact.id) || []
+    const artifactsForDelete = props.selectedArtifacts.map((artifact) => artifact.id)
     loading.value = true
     const result = await artifactsStore.deleteArtifacts(artifactsForDelete)
     if (result.deleted?.length) {
@@ -211,7 +211,7 @@ async function confirmDelete() {
 
 async function onForceDelete() {
   try {
-    const artifactsForDelete = props.selectedArtifacts.map((artifact: any) => artifact.id) || []
+    const artifactsForDelete = props.selectedArtifacts.map((artifact) => artifact.id)
     loading.value = true
     const result = await artifactsStore.forceDeleteArtifacts(artifactsForDelete)
     if (result.deleted?.length) {
@@ -269,7 +269,7 @@ async function downloadClick() {
   try {
     const artifact = props.selectedArtifacts[0]
     await artifactsStore.downloadArtifact(artifact.id, artifact.file_name)
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load artifacts'))
   } finally {
     emits('clearSelectedArtifacts')

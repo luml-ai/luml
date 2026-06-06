@@ -45,7 +45,7 @@ describe('useUploadFlow', () => {
   describe('handleUploadReady', () => {
     it('creates artifact and posts presigned URL to agent-backend', async () => {
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/upload',
           multipart: false,
@@ -95,7 +95,7 @@ describe('useUploadFlow', () => {
 
     it('handles 409 conflict (another tab claimed upload)', async () => {
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/upload',
           multipart: false,
@@ -119,7 +119,7 @@ describe('useUploadFlow', () => {
 
     it('sets status to failed when postUploadUrl throws', async () => {
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/upload',
           multipart: false,
@@ -195,7 +195,7 @@ describe('useUploadFlow', () => {
   describe('handleEvent', () => {
     it('dispatches upload_ready events', () => {
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/upload',
           multipart: false,
@@ -263,7 +263,7 @@ describe('useUploadFlow', () => {
         },
       ])
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/upload-a',
           multipart: false,
@@ -301,7 +301,7 @@ describe('useUploadFlow', () => {
   describe('retryUpload', () => {
     it('re-triggers the presigned URL flow', async () => {
       mockArtifactsCreate.mockResolvedValue({
-        artifact: {} as any,
+        artifact: {} as unknown,
         upload_details: {
           url: 'https://presigned.example.com/retry',
           multipart: false,

@@ -42,7 +42,7 @@ const bestScore = computed(() => {
   if (!run?.best_node_id) return null
   const bestNode = store.nodes.find((n) => n.id === run.best_node_id)
   if (!bestNode) return null
-  const metric = bestNode.result?.artifacts?.metric
+  const metric = (bestNode.result?.artifacts as Record<string, unknown>)?.metric
   if (metric === undefined || metric === null) return null
   if (typeof metric === 'number') {
     return Number.isInteger(metric) ? String(metric) : metric.toFixed(4)
@@ -93,28 +93,37 @@ function onRetryUpload(uploadId: string) {
     node_id: entry.nodeId,
     file_size: 0,
     experiment_ids: [],
-    collection_id: run.config.luml_collection_id!,
-    organization_id: run.config.luml_organization_id!,
-    orbit_id: run.config.luml_orbit_id!,
-    manifest: {},
+    collection_id: run.config.luml_collection_id,
+    organization_id: run.config.luml_organization_id as string,
+    orbit_id: run.config.luml_orbit_id as string,
+    manifest: {
+      variant: 'test',
+      producer_name: 'test',
+      producer_version: 'test',
+      producer_tags: [],
+      inputs: [],
+      outputs: [],
+      dynamic_attributes: [],
+      env_vars: [],
+    },
     file_index: {},
   }
   uploadFlow.retryUpload(uploadId, event)
 }
 
 async function onStartRun() {
-  const run = await api.dataAgent.startRun(store.selectedRunId!)
+  const run = await api.dataAgent.startRun(store.selectedRunId as string)
   store.updateRun(run)
 }
 
 async function onCancelRun() {
-  const run = await api.dataAgent.cancelRun(store.selectedRunId!)
+  const run = await api.dataAgent.cancelRun(store.selectedRunId as string)
   store.updateRun(run)
 }
 
 async function onMerged() {
   showMergeDialog.value = false
-  const run = await api.dataAgent.getRun(store.selectedRunId!)
+  const run = await api.dataAgent.getRun(store.selectedRunId as string)
   store.updateRun(run)
 }
 
@@ -269,7 +278,7 @@ onUnmounted(() => {
       <TerminalPanel
         v-if="terminalSessionId"
         :session-id="terminalSessionId"
-        :node-id="store.selectedNode?.id ?? ''"
+        :node-id="store.selectedNode?.id"
         :active="showTerminal"
         :task-name="terminalLabel"
         :readonly="terminalReadonly"

@@ -52,7 +52,6 @@ export class TarHandler {
       const typeflag = this.view.getUint8(off + 156)
       const prefix = this.readAscii(off + 345, 155)
 
-      const headerStart = off
       const dataStart = off + 512
       const dataSpan = this.align512(size)
 

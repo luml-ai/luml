@@ -35,13 +35,15 @@ const failCounts = computed(() => {
   return counts
 })
 
-const newItemType = inject<Ref<string | null>>('newItemType')!
-const boardRefreshTrigger = inject<Ref<number>>('boardRefreshTrigger')!
+const newItemType = inject<Ref<string | null>>('newItemType')
+const boardRefreshTrigger = inject<Ref<number>>('boardRefreshTrigger', ref(0))
 
 watch(boardRefreshTrigger, () => refresh())
 
 function openCreate() {
-  newItemType.value = 'workflow'
+  if (newItemType) {
+    newItemType.value = 'workflow'
+  }
 }
 
 let refreshInterval: ReturnType<typeof setInterval> | null = null

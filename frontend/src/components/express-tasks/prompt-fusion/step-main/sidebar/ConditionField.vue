@@ -1,4 +1,5 @@
 <template>
+  <!-- eslint-disable vue/no-mutating-props -- editor mutates the shared reactive node-field object in place -->
   <div class="field">
     <header class="field-header">
       <h4 class="field-type">condition {{ index }}</h4>

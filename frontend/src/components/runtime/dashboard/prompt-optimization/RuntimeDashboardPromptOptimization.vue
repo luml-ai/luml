@@ -70,7 +70,7 @@ const providerId = computed(() => {
   ) as ProvidersEnum
 })
 const fields = computed(() => {
-  const dtypes = props.model.getDtypes() as Record<string, any>
+  const dtypes = props.model.getDtypes() as Record<string, unknown>
   const schema = dtypes['ext::in']
   if (!schema) return []
   const sample = mock(schema)

@@ -136,7 +136,7 @@ async function saveChanges({ valid }: FormSubmitEvent) {
     await collectionsStore.updateCollection(props.data.id, { ...initialValues.value })
     toast.add(simpleSuccessToast('Collection successfully updated'))
     visible.value = false
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to update collection'))
   } finally {
     loading.value = false
@@ -151,7 +151,7 @@ async function deleteCollection() {
     await collectionsStore.deleteCollection(props.data.id)
     toast.add(simpleSuccessToast(`Collection “${props.data.name}” was removed from the Registry.`))
     visible.value = false
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to delete collection'))
   } finally {
     loading.value = false

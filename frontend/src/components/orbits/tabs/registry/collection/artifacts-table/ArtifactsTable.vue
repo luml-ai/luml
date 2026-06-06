@@ -217,7 +217,8 @@ const virtualScrollerOptions = ref<VirtualScrollerProps>({
 })
 
 function onRowClick(event: DataTableRowClickEvent) {
-  const target: any = event.originalEvent.target
+  const target = event.originalEvent.target
+  if (!(target instanceof HTMLElement)) return
   const artifactId = event.data.id
   const isArtifactUploaded = event.data.status === ArtifactStatusEnum.uploaded
   if (!target || !artifactId || !isArtifactUploaded) return
@@ -235,7 +236,7 @@ async function getMetricsKeys() {
     const metrics = await artifactsStore.getArtifactsExtraValues()
     allMetricsKeys.value = metrics
     visibleMetrics.value = allMetricsKeys.value.slice(0, INITIAL_VISIBLE_METRICS_COUNT)
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load metrics')))
   }
 }
@@ -252,7 +253,7 @@ async function initList() {
       collectionId: String(collectionsStore.currentCollection?.id),
     })
     await getInitialPage()
-  } catch (e: any) {
+  } catch (e) {
     toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load artifacts')))
   } finally {
     setLoading(false)

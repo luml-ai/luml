@@ -24,7 +24,7 @@
             </div>
           </div>
           <div class="table-body">
-            <div v-for="invitation in invites" class="table-row">
+            <div v-for="invitation in invites" :key="invitation.email" class="table-row">
               <div class="cell">{{ invitation.email }}</div>
               <div class="cell">{{ invitation.role }}</div>
               <div class="cell">{{ invitation.invited_by_user?.full_name ?? 'Unknown' }}</div>
@@ -59,6 +59,7 @@ import { Trash2 } from 'lucide-vue-next'
 import { useOrganizationStore } from '@/stores/organization'
 import { useInvitationsStore } from '@/stores/invitations'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const dialogPT = {
   root: {
@@ -84,8 +85,8 @@ async function reject(organizationId: string, inviteId: string) {
     await invitationStore.cancelInvite(organizationId, inviteId)
     organizationStore.removeInviteFromCurrentOrganization(inviteId)
     toast.add(simpleSuccessToast('The user is no longer invited to the organization.'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to remove invite'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to remove invite')))
   } finally {
     loading.value = false
   }

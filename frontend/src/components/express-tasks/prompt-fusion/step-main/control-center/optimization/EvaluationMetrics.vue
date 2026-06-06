@@ -85,9 +85,8 @@ watch(
   mode,
   (val) => {
     promptFusionService.evaluationMode = val
-    val === EvaluationModesEnum.llmBased
-      ? (criteriaList.value = [createCriteria()])
-      : (criteriaList.value = [])
+    if (val === EvaluationModesEnum.llmBased) criteriaList.value = [createCriteria()]
+    else criteriaList.value = []
   },
   {},
 )

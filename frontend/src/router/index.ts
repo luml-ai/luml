@@ -213,10 +213,12 @@ const router = createRouter({
         {
           path: '',
           name: 'prisma-board',
+          component: () => import('../pages/prisma/BoardView.vue'),
         },
         {
           path: 'repos',
           name: 'prisma-repos',
+          component: () => import('../pages/prisma/RepositoriesView.vue'),
         },
         {
           path: 'tasks/:taskId',

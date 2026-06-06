@@ -15,7 +15,7 @@ type Props = {
   status: ArtifactStatusEnum
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 </script>
 
 <style scoped>

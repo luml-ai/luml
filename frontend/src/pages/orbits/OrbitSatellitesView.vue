@@ -61,6 +61,7 @@ import UiCardAdd from '@/components/ui/UiCardAdd.vue'
 import SatellitesApiKeyModal from '@/components/satellites/SatellitesApiKeyModal.vue'
 import SatellitesCard from '@/components/satellites/SatellitesCard.vue'
 import { Satellite, Plus } from 'lucide-vue-next'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -79,12 +80,8 @@ async function loadSatellitesList() {
     loading.value = true
     const list = await satellitesStore.loadSatellites(organizationId, orbitId)
     satellitesStore.setList(list)
-  } catch (e: any) {
-    toast.add(
-      simpleErrorToast(
-        e?.response?.detail?.message || e?.message || 'Failed to load satellites list',
-      ),
-    )
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to load satellites list')))
   } finally {
     loading.value = false
   }

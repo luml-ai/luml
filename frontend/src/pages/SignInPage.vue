@@ -93,6 +93,7 @@ import { signInResolver } from '@/utils/forms/resolvers'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { useInputIcon } from '@/hooks/useInputIcon'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -118,12 +119,13 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
     await authStore.signIn(data)
     const redirect = router.currentRoute.value.query.redirect as string
     router.push(redirect || { name: 'home' })
-  } catch (e: any) {
-    const errorDetails = e.response?.data.detail
+  } catch (e: unknown) {
+    const errorDetails = getErrorMessage(e)
 
-    if (typeof errorDetails === 'string') formResponseError.value = e.response.data.detail
+    if (typeof errorDetails === 'string') formResponseError.value = errorDetails
     else if (typeof errorDetails === 'object') {
-      formResponseError.value = errorDetails[0]?.msg
+      const firstError = errorDetails[0] as { msg: string } | undefined
+      formResponseError.value = firstError?.msg || ''
     } else formResponseError.value = 'Form is invalid'
   }
 }

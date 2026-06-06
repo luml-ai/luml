@@ -89,7 +89,8 @@ const organizationId = computed(() => route.params.organizationId as string)
 const orbitId = computed(() => route.params.id as string)
 
 function updateCreatorVisible(visible: boolean | undefined) {
-  visible ? collectionsStore.showCreator() : collectionsStore.hideCreator()
+  if (visible) collectionsStore.showCreator()
+  else collectionsStore.hideCreator()
 }
 
 function onSearch(value: string | undefined) {
@@ -103,7 +104,7 @@ async function getFirstCollectionsPage() {
     reset()
     setRequestInfo({ organizationId: organizationId.value, orbitId: orbitId.value })
     await getInitialPage()
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load collections'))
   } finally {
     initialLoading.value = false

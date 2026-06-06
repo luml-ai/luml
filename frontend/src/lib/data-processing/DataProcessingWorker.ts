@@ -7,20 +7,18 @@ import {
 } from './interfaces'
 
 class DataProcessingWorkerClass {
-  private callbacks: Function[] = []
+  private callbacks: Array<(response: unknown) => void> = []
   private callbackId: number = 1
 
-  constructor() {}
-
-  async sendMessage(
+  async sendMessage<T = unknown>(
     message: WebworkerMessage,
     route?: WEBWORKER_ROUTES_ENUM,
-    data?: any,
-  ): Promise<any> {
+    data?: unknown,
+  ): Promise<T> {
     const callbackId = this.callbackId++
-    return new Promise((resolve, reject) => {
-      this.callbacks[callbackId] = (response: any) => {
-        resolve(response)
+    return new Promise<T>((resolve) => {
+      this.callbacks[callbackId] = (response) => {
+        resolve(response as T)
       }
       const options = { message, id: callbackId, payload: { route, data } }
       window.pyodideWorker.postMessage(options)
@@ -36,6 +34,7 @@ class DataProcessingWorkerClass {
     window.pyodideWorker.onmessage = async (event) => {
       const m = event.data
       const callback = this.callbacks[m.id]
+      // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete this.callbacks[m.id]
       if (callback) callback(m.payload)
     }
@@ -58,23 +57,23 @@ class DataProcessingWorkerClass {
     if (!pyodideReady) throw new Error('Webworker is not ready')
   }
 
-  async startTraining(
+  async startTraining<T = unknown>(
     data: TaskPayload | PromptOptimizationData,
     route: WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
-  ) {
+  ): Promise<T> {
     this.checkPyodideReady()
-    const result = await this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, data)
+    const result = await this.sendMessage<T>(WebworkerMessage.INVOKE_ROUTE, route, data)
     return result
   }
 
-  async startPredict(
+  async startPredict<T = unknown>(
     data: PredictRequestData,
     route:
       | WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT
       | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT,
-  ) {
+  ): Promise<T> {
     this.checkPyodideReady()
-    const predictResult = await this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, data)
+    const predictResult = await this.sendMessage<T>(WebworkerMessage.INVOKE_ROUTE, route, data)
     return predictResult
   }
 
@@ -96,7 +95,9 @@ class DataProcessingWorkerClass {
     model: ArrayBuffer,
   ): Promise<{ model_id: string; status: 'success' } | { status: 'error'; error_message: string }> {
     this.checkPyodideReady()
-    return this.sendMessage(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_INIT, {
+    return this.sendMessage<
+      { model_id: string; status: 'success' } | { status: 'error'; error_message: string }
+    >(WebworkerMessage.INVOKE_ROUTE, WEBWORKER_ROUTES_ENUM.PYFUNC_INIT, {
       model,
     })
   }
@@ -110,7 +111,10 @@ class DataProcessingWorkerClass {
     | { status: 'error'; error_type: string; error_message: string }
   > {
     this.checkPyodideReady()
-    return this.sendMessage(
+    return this.sendMessage<
+      | { status: 'success'; predictions: Record<string, Record<string, string>> }
+      | { status: 'error'; error_type: string; error_message: string }
+    >(
       WebworkerMessage.INVOKE_ROUTE,
       WEBWORKER_ROUTES_ENUM.PYFUNC_COMPUTE,
       JSON.parse(JSON.stringify(payload)),

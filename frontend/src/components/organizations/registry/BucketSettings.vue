@@ -60,6 +60,7 @@ import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteBucketConfirmOptions } from '@/lib/primevue/data/confirm'
+import { getErrorMessage } from '@/helpers/helpers'
 import S3BucketForm from './S3BucketForm.vue'
 import AzureBucketForm from './AzureBucketForm.vue'
 import ConnectedOrbitsList from './connected-orbits/ConnectedOrbitsList.vue'
@@ -116,13 +117,11 @@ async function onFormSubmit(formData: BucketFormData) {
 
     toast.add(simpleSuccessToast('Bucket has been updated.'))
     visible.value = false
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof BucketValidationError) {
       toast.add(simpleErrorToast(err.getMessage()))
     } else {
-      toast.add(
-        simpleErrorToast(err?.response?.data?.detail || err.message || 'Failed to update bucket'),
-      )
+      toast.add(simpleErrorToast(getErrorMessage(err, 'Failed to update bucket')))
     }
   } finally {
     loading.value = false
@@ -139,8 +138,8 @@ async function deleteBucket() {
     loading.value = true
     await bucketsStore.deleteBucket(props.bucket.organization_id, props.bucket.id)
     toast.add(simpleSuccessToast(`Bucket “${props.bucket.bucket_name}” was deleted.`))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to delete bucket'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to delete bucket')))
   } finally {
     loading.value = false
   }

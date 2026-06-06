@@ -155,10 +155,24 @@ export const getLastUpdateText = (date: string | number | Date) => {
   return `Last updated ${diffYear} year${diffYear === 1 ? '' : 's'} ago`
 }
 
-export const getErrorMessage = (error: any, message = 'Something went wrong') => {
-  return (
-    error?.response?.detail?.message || error?.response?.data?.detail || error?.message || message
-  )
+export interface ApiError {
+  message?: string
+  code?: string
+  name?: string
+  details?: string
+  response?: {
+    status?: number
+    detail?: { message?: string }
+    data?: {
+      detail?: string
+      conflicting_files?: string[]
+    }
+  }
+}
+
+export const getErrorMessage = (error: unknown, message = 'Something went wrong') => {
+  const err = error as ApiError
+  return err?.response?.detail?.message || err?.response?.data?.detail || err?.message || message
 }
 
 export const getNumberOrString = (string: string | number) => {
@@ -176,7 +190,7 @@ export function isYamlLike(text: string) {
   return hasKeyColon || hasMultilineHyphen || hasYamlStart
 }
 
-export function jsonToYaml(obj: any, indent = 0): string {
+export function jsonToYaml(obj: unknown, indent = 0): string {
   const spaces = '  '.repeat(indent)
   if (Array.isArray(obj)) {
     return obj.map((v) => `${spaces}- ${jsonToYaml(v, indent + 1).trimStart()}`).join('\n')
@@ -203,7 +217,7 @@ function tryParseJson(text: string) {
     const trimmed = text.trim()
     if (!trimmed) return null
     return JSON.parse(trimmed)
-  } catch (e) {
+  } catch {
     return null
   }
 }
@@ -211,13 +225,13 @@ function tryParseJson(text: string) {
 export function getSatelliteValidator(config: Validator) {
   switch (config.type) {
     case 'min':
-      return z.number().min(config.value)
+      return z.number().min(config.value as number)
 
     case 'max':
-      return z.number().max(config.value)
+      return z.number().max(config.value as number)
 
     case 'regex':
-      return z.string().regex(config.value)
+      return z.string().regex(config.value as RegExp)
 
     case 'equal':
       return z.any().refine((val) => val === config.value)
@@ -226,7 +240,7 @@ export function getSatelliteValidator(config: Validator) {
       return z.any().refine((val) => val !== config.value)
 
     case 'in':
-      return z.any().refine((val) => config.value.includes(val))
+      return z.any().refine((val) => (config.value as string[]).includes(val))
   }
 }
 

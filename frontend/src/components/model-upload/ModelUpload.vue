@@ -66,6 +66,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { AutoCompleteCompleteEvent, DialogPassThroughOptions } from 'primevue'
 import type { Tasks } from '@/lib/data-processing/interfaces'
 import { computed, onBeforeMount, ref, watch } from 'vue'
@@ -177,8 +178,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
       simpleSuccessToast(`${formData.value.name} has been added to the collection successfully.`),
     )
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e?.message || 'Failed file upload'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed file upload')))
   } finally {
     loading.value = false
   }

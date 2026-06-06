@@ -3,7 +3,7 @@ import { computed, onMounted, ref, type Ref } from 'vue'
 
 export const useInputIcon = (
   inputs: Ref[],
-  formRef: any,
+  formRef: Ref<{ states: Record<string, { value: string }> }>,
   values: Ref,
   isShowEditIcon: boolean = true,
 ) => {
@@ -25,12 +25,12 @@ export const useInputIcon = (
     if (getCurrentInputIcon.value(inputName) === X && formRef.value?.states[inputName]) {
       formRef.value.states[inputName] = { ...formRef.value.states[inputName], value: '' }
 
-      values.value[inputName] ? (values.value[inputName] = '') : null
+      if (values.value[inputName]) values.value[inputName] = ''
     }
   }
 
   onMounted(() => {
-    inputs.reduce((obj: any, input) => {
+    inputs.reduce((obj: Record<string, HTMLInputElement>, input) => {
       if (!input.value) return obj
 
       const el = input.value.$el as HTMLInputElement

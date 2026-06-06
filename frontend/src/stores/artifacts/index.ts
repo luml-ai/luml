@@ -39,6 +39,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
   const currentModelTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
   const currentModelMetadata = ref<ModelMetadata | null>(null)
   const currentModelHtmlBlobUrl = ref<string | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const experimentSnapshotProvider = ref<any>(null)
 
   const requestInfo = computed(() => {

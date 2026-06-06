@@ -54,6 +54,7 @@
       >
         <Column
           v-for="column in currentColumns"
+          :key="column"
           :id="column"
           :field="column"
           style="min-width: 13rem"
@@ -79,7 +80,6 @@
 </template>
 
 <script setup lang="ts">
-import type { FilterDataItem } from './TableFilters.vue'
 import type { FilterItem } from '@/lib/data-table/interfaces'
 import type { ColumnType, PromptFusionColumn } from '@/hooks/useDataTable'
 import TableSort from './TableSort.vue'
@@ -99,7 +99,7 @@ type Props = {
   target?: string
   group?: string[]
   selectedColumns: string[]
-  exportCallback: Function
+  exportCallback: () => void
   filters?: FilterItem[]
   columnTypes: Record<string, ColumnType>
   showColumnHeaderMenu?: boolean
@@ -107,13 +107,15 @@ type Props = {
 }
 
 type Emits = {
-  (event: 'edit', list: string[]): void
-  (event: 'setTarget', column: string): void
-  (event: 'changeGroup', column: string): void
-  (event: 'changeFilters', filters: FilterItem[]): void
+  edit: [list: string[]]
+  setTarget: [column: string]
+  changeGroup: [column: string]
+  changeFilters: [filters: FilterItem[]]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  showColumnHeaderMenu: false,
+})
 defineEmits<Emits>()
 
 const multiSortMeta = ref([])

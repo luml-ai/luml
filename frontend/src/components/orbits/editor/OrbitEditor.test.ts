@@ -56,7 +56,7 @@ vi.mock('lucide-vue-next', () => ({
 }))
 
 describe('OrbitSettingsDialog', () => {
-  let wrapper: any
+  let wrapper: ReturnType<typeof mount>
 
   const pinia = createPinia()
 
@@ -105,7 +105,7 @@ describe('OrbitSettingsDialog', () => {
             provide() {
               return {
                 formValues: this.values,
-                setFormValue: (name: string, value: any) => {
+                setFormValue: (name: string, value: unknown) => {
                   this.values[name] = value
                 },
               }

@@ -55,6 +55,7 @@
 </template>
 
 <script setup lang="ts">
+import { getErrorMessage } from '@/helpers/helpers'
 import type { DialogPassThroughOptions, AutoCompleteCompleteEvent } from 'primevue'
 import { Dialog, Button, InputText, AutoComplete, Password, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -127,8 +128,8 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     visible.value = false
     resetForm()
     toast.add(simpleSuccessToast('Secret created successfully'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e.message || 'Failed to create secret'))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to create secret')))
   } finally {
     loading.value = false
   }

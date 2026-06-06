@@ -1,3 +1,5 @@
+import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
+
 export interface AgentRepository {
   id: string
   name: string
@@ -117,7 +119,7 @@ export interface UploadReadyEvent {
   collection_id: string
   organization_id: string
   orbit_id: string
-  manifest: Record<string, any>
+  manifest: Manifest
   file_index: Record<string, [number, number]>
 }
 
@@ -144,8 +146,8 @@ export interface RunNode {
   node_type: string
   status: string
   depth: number
-  payload: Record<string, any>
-  result: Record<string, any>
+  payload: Record<string, unknown>
+  result: Record<string, unknown>
   worktree_path: string
   branch: string
   debug_retries: number
@@ -167,7 +169,7 @@ export interface RunEvent {
   seq: number
   type: string
   node_id: string | null
-  data: Record<string, any>
+  data: Record<string, unknown>
 }
 
 export interface RunGraph {

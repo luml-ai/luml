@@ -4,6 +4,8 @@ import { Dialog, Button } from 'primevue'
 import { Check } from 'lucide-vue-next'
 import type { MergePreview } from '@/lib/api/prisma/prisma.interfaces'
 import { api } from '@/lib/api'
+import { getErrorMessage } from '@/helpers/helpers'
+import type { AxiosError } from 'axios'
 
 const props = defineProps<{
   visible: boolean
@@ -32,8 +34,8 @@ watch(
           props.kind === 'task'
             ? await api.dataAgent.getMergePreview(props.itemId)
             : await api.dataAgent.getRunMergePreview(props.itemId)
-      } catch (e: any) {
-        error.value = e?.response?.data?.detail ?? 'Failed to load preview'
+      } catch (e: unknown) {
+        error.value = getErrorMessage(e, 'Failed to load preview')
       } finally {
         loading.value = false
       }
@@ -53,9 +55,10 @@ async function confirmMerge() {
       await api.dataAgent.mergeRun(props.itemId)
     }
     emit('merged')
-  } catch (e: any) {
-    const data = e?.response?.data
-    if (e?.response?.status === 409 && data?.conflicting_files) {
+  } catch (e: unknown) {
+    const err = e as AxiosError
+    const data = err?.response?.data as { conflicting_files?: string[]; detail?: string }
+    if (err?.response?.status === 409 && data?.conflicting_files) {
       conflictingFiles.value = data.conflicting_files
       error.value = data.detail ?? 'Merge conflicts detected'
     } else {

@@ -1,6 +1,6 @@
 import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
 
-export interface FileIndex extends Record<string, [number, number]> {}
+export type FileIndex = Record<string, [number, number]>
 
 export enum ArtifactStatusEnum {
   pending_upload = 'pending_upload',
@@ -50,7 +50,7 @@ export interface Artifact {
 }
 
 export interface UpdateArtifactPayload {
-  id?: string
+  id: string
   name?: string
   description?: string
   tags?: string[]

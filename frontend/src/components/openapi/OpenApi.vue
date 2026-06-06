@@ -13,13 +13,16 @@ import '@scalar/api-reference/style.css'
 import { computed, watch } from 'vue'
 import { ApiReference } from '@scalar/api-reference'
 import { useThemeStore } from '@/stores/theme'
-import { type AnyApiReferenceConfiguration } from '@scalar/types/api-reference'
+import {
+  type AnyApiReferenceConfiguration,
+  type ApiReferenceConfigurationWithSource,
+} from '@scalar/types/api-reference'
 
 const themeStore = useThemeStore()
 const theme = computed(() => themeStore.getCurrentTheme)
 
 type Props = {
-  content: any
+  content: ApiReferenceConfigurationWithSource['content']
   serverUrl: string
 }
 

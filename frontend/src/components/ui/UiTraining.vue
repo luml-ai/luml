@@ -35,7 +35,7 @@ type Props = {
   time: number
   isCancelAvailable?: boolean
 }
-const emit = defineEmits<{
+defineEmits<{
   (e: 'cancel'): void
   (e: 'update:modelValue', value: boolean): void
 }>()

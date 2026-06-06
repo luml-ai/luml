@@ -12,6 +12,7 @@ import { LogOut } from 'lucide-vue-next'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { leaveOrganizationConfirmOptions } from '@/lib/primevue/data/confirm'
+import { getErrorMessage } from '@/helpers/helpers'
 
 type Props = {
   organizationId: string
@@ -31,10 +32,8 @@ async function leave() {
   try {
     await organizationStore.leaveOrganization(props.organizationId)
     toast.add(simpleSuccessToast('You’ve successfully left the organization.'))
-  } catch (e: any) {
-    toast.add(
-      simpleErrorToast(e?.response?.data?.detail || 'Failed to log out of the organization'),
-    )
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to log out of the organization')))
   }
 }
 </script>

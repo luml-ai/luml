@@ -36,7 +36,7 @@ export async function orbitMiddleware(
   if (!orbitsStore.orbitsList.length) {
     try {
       await orbitsStore.loadOrbitsList(urlOrgId)
-    } catch (e) {
+    } catch {
       return toSetup(next, targetTab)
     }
   }

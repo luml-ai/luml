@@ -80,10 +80,10 @@ import { ArrowDownUp, Trash2, Plus } from 'lucide-vue-next'
 
 type Props = {
   columns: string[]
-  multiSortMeta: any[]
+  multiSortMeta: { field: string; order: 1 | -1 }[]
 }
 type Emits = {
-  (event: 'update:multiSortMeta', sortMeta: any[]): void
+  (event: 'update:multiSortMeta', sortMeta: unknown[]): void
 }
 type SortItem = {
   id: number
@@ -133,7 +133,7 @@ const columnsForSelect = computed(() => {
   return columnsForSelect
 })
 
-function toggleSort(event: any) {
+function toggleSort(event: Event) {
   sortPopover.value.toggle(event)
   isPopoverOpen.value = !isPopoverOpen.value
 }

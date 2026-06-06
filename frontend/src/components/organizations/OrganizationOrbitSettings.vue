@@ -43,7 +43,7 @@
               </div>
             </div>
             <div class="table-body">
-              <div v-for="member in orbitMembers" class="table-row">
+              <div v-for="member in orbitMembers" :key="member.id" class="table-row">
                 <div class="cell cell-user">
                   <Avatar
                     :label="member.user.photo ? undefined : member.user.full_name[0]"
@@ -111,6 +111,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import { OrbitRoleEnum } from '../orbits/orbits.interfaces'
 import { deleteUserConfirmOptions } from '@/lib/primevue/data/confirm'
 import { useUserStore } from '@/stores/user'
+import { getErrorMessage } from '@/helpers/helpers'
 
 const dialogPt: DialogPassThroughOptions = {
   root: {
@@ -193,7 +194,7 @@ async function addUsers() {
     )
     orbitMembers.value = [...orbitMembers.value, ...response]
     toast.add(simpleSuccessToast('Users have been added to the organization'))
-  } catch (e) {
+  } catch {
     toast.add(simpleErrorToast('Failed to add user to orbit'))
   }
 }
@@ -206,7 +207,7 @@ async function getOrbitDetails() {
     const details = await orbitsStore.getOrbitDetails(organizationId, props.orbitId)
     orbitMembers.value = details.members
     initialOrbitMembers.value = JSON.parse(JSON.stringify(details.members))
-  } catch (e: any) {
+  } catch {
     toast.add(simpleErrorToast('Failed to load orbit details'))
   } finally {
     loading.value = false
@@ -231,8 +232,8 @@ async function deleteMember(memberId: string) {
     orbitMembers.value = orbitMembers.value.filter((member) => member.id !== memberId)
     initialOrbitMembers.value = initialOrbitMembers.value.filter((member) => member.id !== memberId)
     toast.add(simpleSuccessToast('The user has been successfully removed.'))
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e?.message))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to delete member')))
   } finally {
     loading.value = false
   }
@@ -249,8 +250,8 @@ async function saveChanges() {
     await Promise.all(requests)
     toast.add(simpleSuccessToast('Changes saved'))
     visible.value = false
-  } catch (e: any) {
-    toast.add(simpleErrorToast(e?.response?.data?.detail || e?.message))
+  } catch (e: unknown) {
+    toast.add(simpleErrorToast(getErrorMessage(e, 'Failed to save changes')))
   } finally {
     loading.value = false
   }
