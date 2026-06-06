@@ -59,7 +59,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import type { DialogPassThroughOptions, AutoCompleteCompleteEvent } from 'primevue'
 import { Dialog, Button, InputText, AutoComplete, Password, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useSecretsStore } from '@/stores/orbit-secrets'
 import type { CreateSecretPayload } from '@/lib/api/orbit-secrets/interfaces'
@@ -134,6 +134,12 @@ async function onSubmit({ valid }: FormSubmitEvent) {
     loading.value = false
   }
 }
+
+watch(visible, (value) => {
+  if (value) {
+    resetForm()
+  }
+})
 </script>
 
 <style scoped>

@@ -209,7 +209,15 @@ async function onSubmit({ valid }: FormSubmitEvent) {
 }
 
 watch(visible, (val) => {
-  if (val) bucketsStore.getBuckets(props.organizationId)
+  if (val) {
+    bucketsStore.getBuckets(props.organizationId)
+    initialValues.value = {
+      name: '',
+      members: [],
+      bucket_secret_id: undefined,
+      notify: true,
+    }
+  }
 })
 </script>
 
