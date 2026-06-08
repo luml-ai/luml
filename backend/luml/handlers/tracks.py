@@ -12,10 +12,19 @@ from luml.infra.exceptions import (
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.repositories.tracks import TrackRepository
+from luml.repositories.tracks import (
+    TrackEntryRepository,
+    TrackRepository,
+    TrackStageRepository,
+)
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.tracks import (
+    Stage,
+    StageCreate,
+    StageCreateIn,
+    StageUpdate,
+    StageUpdateIn,
     Track,
     TrackCreate,
     TrackCreateIn,
@@ -27,11 +36,6 @@ from luml.schemas.tracks import (
     TrackEntryUpdateIn,
     TracksList,
     TrackSortBy,
-    TrackStage,
-    TrackStageCreate,
-    TrackStageCreateIn,
-    TrackStageUpdate,
-    TrackStageUpdateIn,
     TrackUpdate,
     TrackUpdateIn,
 )
@@ -41,8 +45,12 @@ DEFAULT_STAGES = ["Staging", "Pre-Production", "Production", "Archived"]
 
 
 class TracksHandler:
-    __repository = TrackRepository(engine)
+    __track_repository = TrackRepository(engine)
+    __stage_repository = TrackStageRepository(engine)
+    __entry_repository = TrackEntryRepository(engine)
     __orbit_repository = OrbitRepository(engine)
+    __artifact_repository = ArtifactRepository(engine)
+    __collection_repository = CollectionRepository(engine)
     __permissions_handler = PermissionsHandler()
 
     @staticmethod
@@ -81,22 +89,19 @@ class TracksHandler:
             raise NotFoundError("Orbit not found")
 
         track_create = TrackCreate(
-            **track_in.model_dump(),
+            **track_in.model_dump(exclude={"stages"}),
             orbit_id=orbit_id,
-            created_by=user_id,
         )
+        stage_names = track_in.stages or DEFAULT_STAGES
         try:
-            track = await self.__repository.create_track(track_create)
+            track = await self.__track_repository.create_track(
+                track_create, stage_names=stage_names
+            )
         except IntegrityError as error:
             raise ApplicationError(
                 f"Track with name '{track_in.name}' already exists in this orbit.",
                 409,
             ) from error
-
-        for stage_name in DEFAULT_STAGES:
-            await self.__repository.create_stage(
-                TrackStageCreate(track_id=track.id, name=stage_name)
-            )
 
         return track
 
@@ -136,7 +141,7 @@ class TracksHandler:
             scope_id=orbit_id,
         )
 
-        items, cursor = await self.__repository.get_orbit_tracks(
+        items, cursor = await self.__track_repository.get_orbit_tracks(
             orbit_id=orbit_id,
             pagination=pagination,
             search=search,
@@ -159,7 +164,7 @@ class TracksHandler:
             Action.READ,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
         return track
@@ -186,7 +191,7 @@ class TracksHandler:
             raise NotFoundError("Orbit not found")
 
         try:
-            updated = await self.__repository.update_track(
+            updated = await self.__track_repository.update_track(
                 track_id,
                 TrackUpdate(
                     id=track_id,
@@ -224,17 +229,10 @@ class TracksHandler:
         )
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track:
             raise NotFoundError("Track not found")
-        await self.__repository.delete_track(track_id)
-
-
-class TrackEntriesHandler:
-    __repository = TrackRepository(engine)
-    __artifact_repository = ArtifactRepository(engine)
-    __collection_repository = CollectionRepository(engine)
-    __permissions_handler = PermissionsHandler()
+        await self.__track_repository.delete_track(track_id)
 
     async def create_entry(
         self,
@@ -251,7 +249,7 @@ class TrackEntriesHandler:
             Action.CREATE,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
@@ -279,7 +277,7 @@ class TrackEntriesHandler:
             added_by=user_id,
         )
         try:
-            return await self.__repository.create_entry(entry_create)
+            return await self.__entry_repository.create_entry(entry_create)
         except IntegrityError as error:
             raise ApplicationError(
                 "Artifact is already an entry in this track.", 409
@@ -304,7 +302,7 @@ class TrackEntriesHandler:
             Action.READ,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
@@ -325,7 +323,7 @@ class TrackEntriesHandler:
             scope_id=track_id,
         )
 
-        items, new_cursor = await self.__repository.list_entries(
+        items, new_cursor = await self.__entry_repository.list_entries(
             track_id=track_id,
             pagination=pagination,
             stage_id=stage_id,
@@ -350,18 +348,16 @@ class TrackEntriesHandler:
             Action.UPDATE,
             orbit_id,
         )
-        entry = await self.__repository.get_entry(entry_id)
+        entry = await self.__entry_repository.get_entry(entry_id)
         if not entry or entry.track_id != track_id:
             raise NotFoundError("Entry not found")
 
         if entry_in.stage_id is not None:
-            stage = await self.__repository.get_stage(entry_in.stage_id)
+            stage = await self.__stage_repository.get_stage(entry_in.stage_id)
             if not stage or stage.track_id != track_id:
-                raise ApplicationError(
-                    "Stage does not belong to this track.", 422
-                )
+                raise ApplicationError("Stage does not belong to this track.", 422)
 
-            holder = await self.__repository.get_entry_by_stage(
+            holder = await self.__entry_repository.get_entry_by_stage(
                 track_id, entry_in.stage_id
             )
             if holder and holder.id != entry_id and not force:
@@ -373,7 +369,7 @@ class TrackEntriesHandler:
                 )
 
         update_data = TrackEntryUpdate(stage_id=entry_in.stage_id)
-        updated = await self.__repository.update_entry(
+        updated = await self.__entry_repository.update_entry(
             entry_id, update_data, force=force
         )
         if not updated:
@@ -395,10 +391,32 @@ class TrackEntriesHandler:
             Action.DELETE,
             orbit_id,
         )
-        entry = await self.__repository.get_entry(entry_id)
+        entry = await self.__entry_repository.get_entry(entry_id)
         if not entry or entry.track_id != track_id:
             raise NotFoundError("Entry not found")
-        await self.__repository.delete_entry(entry_id)
+        await self.__entry_repository.delete_entry(entry_id)
+
+    async def delete_entries(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        track_id: UUID,
+        entry_ids: list[UUID],
+    ) -> None:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.TRACK,
+            Action.DELETE,
+            orbit_id,
+        )
+        track = await self.__track_repository.get_track(track_id)
+
+        if not track or track.orbit_id != orbit_id:
+            raise NotFoundError("Track not found")
+
+        await self.__entry_repository.delete_entries(track_id, entry_ids)
 
     async def list_entries_for_artifact(
         self,
@@ -414,12 +432,7 @@ class TrackEntriesHandler:
             Action.READ,
             orbit_id,
         )
-        return await self.__repository.list_entries_for_artifact(artifact_id)
-
-
-class TrackStagesHandler:
-    __repository = TrackRepository(engine)
-    __permissions_handler = PermissionsHandler()
+        return await self.__entry_repository.list_entries_for_artifact(artifact_id)
 
     async def create_stage(
         self,
@@ -427,8 +440,8 @@ class TrackStagesHandler:
         organization_id: UUID,
         orbit_id: UUID,
         track_id: UUID,
-        stage_in: TrackStageCreateIn,
-    ) -> TrackStage:
+        stage_in: StageCreateIn,
+    ) -> Stage:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -436,13 +449,13 @@ class TrackStagesHandler:
             Action.CREATE,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
         try:
-            return await self.__repository.create_stage(
-                TrackStageCreate(track_id=track_id, name=stage_in.name)
+            return await self.__stage_repository.create_stage(
+                StageCreate(track_id=track_id, name=stage_in.name)
             )
         except IntegrityError as error:
             raise ApplicationError(
@@ -456,7 +469,7 @@ class TrackStagesHandler:
         organization_id: UUID,
         orbit_id: UUID,
         track_id: UUID,
-    ) -> list[TrackStage]:
+    ) -> list[Stage]:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -464,10 +477,10 @@ class TrackStagesHandler:
             Action.READ,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
-        return await self.__repository.list_stages(track_id)
+        return await self.__stage_repository.list_stages(track_id)
 
     async def update_stage(
         self,
@@ -476,8 +489,8 @@ class TrackStagesHandler:
         orbit_id: UUID,
         track_id: UUID,
         stage_id: UUID,
-        stage_in: TrackStageUpdateIn,
-    ) -> TrackStage:
+        stage_in: StageUpdateIn,
+    ) -> Stage:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -485,13 +498,13 @@ class TrackStagesHandler:
             Action.UPDATE,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
         try:
-            updated = await self.__repository.update_stage(
-                stage_id, TrackStageUpdate(id=stage_id, name=stage_in.name)
+            updated = await self.__stage_repository.update_stage(
+                stage_id, StageUpdate(id=stage_id, name=stage_in.name)
             )
         except IntegrityError as error:
             raise ApplicationError(
@@ -519,11 +532,11 @@ class TrackStagesHandler:
             Action.DELETE,
             orbit_id,
         )
-        track = await self.__repository.get_track(track_id)
+        track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
 
-        in_use = await self.__repository.is_stage_in_use(stage_id)
+        in_use = await self.__stage_repository.is_stage_in_use(stage_id)
         if in_use and not force:
             raise ApplicationError(
                 "Stage is currently assigned to an entry. "
@@ -531,6 +544,6 @@ class TrackStagesHandler:
                 409,
             )
         if in_use:
-            await self.__repository.clear_stage_from_entries(track_id, stage_id)
+            await self.__stage_repository.clear_stage_from_entries(track_id, stage_id)
 
-        await self.__repository.delete_stage(stage_id)
+        await self.__stage_repository.delete_stage(stage_id)

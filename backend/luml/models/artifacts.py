@@ -11,6 +11,7 @@ from luml.schemas.artifacts import (
     ArtifactDetails,
     ArtifactListed,
     ArtifactStatus,
+    OrbitArtifact,
 )
 
 
@@ -72,6 +73,9 @@ class ArtifactOrm(TimestampMixin, Base):
 
     def to_listed_artifact(self) -> ArtifactListed:
         return ArtifactListed.model_validate(self)
+
+    def to_orbit_artifact(self) -> OrbitArtifact:
+        return OrbitArtifact.model_validate(self)
 
     def to_artifact_details(self) -> ArtifactDetails:
         return ArtifactDetails.model_validate(self)

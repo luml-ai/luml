@@ -1,30 +1,39 @@
 from uuid import UUID
 
-from sqlalchemy import String, cast, or_, text, update
+from sqlalchemy import String, cast, delete, or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import Cursor, PaginationParams
 from luml.schemas.tracks import (
+    Stage,
+    StageCreate,
+    StageUpdate,
     Track,
     TrackCreate,
     TrackEntry,
     TrackEntryCreate,
     TrackEntryUpdate,
-    TrackStage,
-    TrackStageCreate,
-    TrackStageUpdate,
     TrackUpdate,
 )
 
 
 class TrackRepository(RepositoryBase, CrudMixin):
-    # --- Tracks ---
-
-    async def create_track(self, track: TrackCreate) -> Track:
+    async def create_track(
+        self, track: TrackCreate, stage_names: list[str] | None = None
+    ) -> Track:
         async with self._get_session() as session:
-            db_track = await self.create_model(session, TrackOrm, track)
+            db_track = TrackOrm(**track.model_dump())
+            session.add(db_track)
+            await session.flush()
+            if stage_names:
+                session.add_all(
+                    TrackStageOrm(track_id=db_track.id, name=name)
+                    for name in stage_names
+                )
+            await session.commit()
+            await session.refresh(db_track)
             return Track.model_validate(db_track)
 
     async def get_track(self, track_id: UUID) -> Track | None:
@@ -52,9 +61,7 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 )
 
             if types:
-                conditions.append(
-                    or_(*[TrackOrm.artifact_type == t for t in types])
-                )
+                conditions.append(or_(*[TrackOrm.artifact_type == t for t in types]))
 
             result = await self.get_models_with_pagination(
                 session,
@@ -70,9 +77,7 @@ class TrackRepository(RepositoryBase, CrudMixin):
             )
             return [Track.model_validate(t) for t in db_tracks], cursor
 
-    async def update_track(
-        self, track_id: UUID, data: TrackUpdate
-    ) -> Track | None:
+    async def update_track(self, track_id: UUID, data: TrackUpdate) -> Track | None:
         data.id = track_id
         async with self._get_session() as session:
             db_track = await self.update_model(
@@ -84,14 +89,14 @@ class TrackRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             await self.delete_model(session, TrackOrm, track_id)
 
-    # --- Stages ---
 
-    async def create_stage(self, stage: TrackStageCreate) -> TrackStage:
+class TrackStageRepository(RepositoryBase, CrudMixin):
+    async def create_stage(self, stage: StageCreate) -> Stage:
         async with self._get_session() as session:
             db_stage = await self.create_model(session, TrackStageOrm, stage)
-            return TrackStage.model_validate(db_stage)
+            return Stage.model_validate(db_stage)
 
-    async def list_stages(self, track_id: UUID) -> list[TrackStage]:
+    async def list_stages(self, track_id: UUID) -> list[Stage]:
         async with self._get_session() as session:
             rows = await self.get_models_where(
                 session,
@@ -99,28 +104,63 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 TrackStageOrm.track_id == track_id,
                 order_by=[TrackStageOrm.created_at],
             )
-            return [TrackStage.model_validate(r) for r in rows]
+            return [Stage.model_validate(r) for r in rows]
 
-    async def update_stage(
-        self, stage_id: UUID, data: TrackStageUpdate
-    ) -> TrackStage | None:
+    async def update_stage(self, stage_id: UUID, data: StageUpdate) -> Stage | None:
         data.id = stage_id
         async with self._get_session() as session:
             db_stage = await self.update_model(
                 session=session, orm_class=TrackStageOrm, data=data
             )
-            return TrackStage.model_validate(db_stage) if db_stage else None
+            return Stage.model_validate(db_stage) if db_stage else None
 
-    async def get_stage(self, stage_id: UUID) -> TrackStage | None:
+    async def get_stage(self, stage_id: UUID) -> Stage | None:
         async with self._get_session() as session:
             db_stage = await self.get_model(session, TrackStageOrm, stage_id)
-            return TrackStage.model_validate(db_stage) if db_stage else None
+            return Stage.model_validate(db_stage) if db_stage else None
 
     async def delete_stage(self, stage_id: UUID) -> None:
         async with self._get_session() as session:
             await self.delete_model(session, TrackStageOrm, stage_id)
 
-    # --- Entries ---
+    async def clear_stage_from_entries(self, track_id: UUID, stage_id: UUID) -> None:
+        async with self._get_session() as session:
+            await session.execute(
+                update(TrackArtifactOrm)
+                .where(
+                    TrackArtifactOrm.track_id == track_id,
+                    TrackArtifactOrm.stage_id == stage_id,
+                )
+                .values(stage_id=None)
+            )
+            await session.commit()
+
+    async def is_stage_in_use(self, stage_id: UUID) -> bool:
+        async with self._get_session() as session:
+            count = await self.get_model_count(
+                session,
+                TrackArtifactOrm,
+                TrackArtifactOrm.stage_id == stage_id,
+            )
+            return count > 0
+
+
+class TrackEntryRepository(RepositoryBase, CrudMixin):
+    @staticmethod
+    async def clear_stage_from_entries_in_session(
+        session: AsyncSession,
+        track_id: UUID,
+        stage_id: UUID,
+    ) -> None:
+        await session.execute(
+            update(TrackArtifactOrm)
+            .where(
+                TrackArtifactOrm.track_id == track_id,
+                TrackArtifactOrm.stage_id == stage_id,
+            )
+            .values(stage_id=None)
+        )
+        await session.flush()
 
     async def create_entry(self, entry: TrackEntryCreate) -> TrackEntry:
         async with self._get_session() as session:
@@ -206,9 +246,17 @@ class TrackRepository(RepositoryBase, CrudMixin):
         async with self._get_session() as session:
             await self.delete_model(session, TrackArtifactOrm, entry_id)
 
-    async def list_entries_for_artifact(
-        self, artifact_id: UUID
-    ) -> list[TrackEntry]:
+    async def delete_entries(self, track_id: UUID, entry_ids: list[UUID]) -> None:
+        async with self._get_session() as session:
+            await session.execute(
+                delete(TrackArtifactOrm).where(
+                    TrackArtifactOrm.track_id == track_id,
+                    TrackArtifactOrm.id.in_(entry_ids),
+                )
+            )
+            await session.commit()
+
+    async def list_entries_for_artifact(self, artifact_id: UUID) -> list[TrackEntry]:
         async with self._get_session() as session:
             rows = await self.get_models_where(
                 session,
@@ -227,36 +275,6 @@ class TrackRepository(RepositoryBase, CrudMixin):
             )
             return count > 0
 
-    async def clear_stage_from_entries(
-        self, track_id: UUID, stage_id: UUID
-    ) -> None:
-        async with self._get_session() as session:
-            await session.execute(
-                update(TrackArtifactOrm)
-                .where(
-                    TrackArtifactOrm.track_id == track_id,
-                    TrackArtifactOrm.stage_id == stage_id,
-                )
-                .values(stage_id=None)
-            )
-            await session.commit()
-
-    @staticmethod
-    async def clear_stage_from_entries_in_session(
-        session: AsyncSession,
-        track_id: UUID,
-        stage_id: UUID,
-    ) -> None:
-        await session.execute(
-            update(TrackArtifactOrm)
-            .where(
-                TrackArtifactOrm.track_id == track_id,
-                TrackArtifactOrm.stage_id == stage_id,
-            )
-            .values(stage_id=None)
-        )
-        await session.flush()
-
     async def get_entry_by_stage(
         self, track_id: UUID, stage_id: UUID
     ) -> TrackEntry | None:
@@ -268,12 +286,3 @@ class TrackRepository(RepositoryBase, CrudMixin):
                 TrackArtifactOrm.stage_id == stage_id,
             )
             return TrackEntry.model_validate(db_entry) if db_entry else None
-
-    async def is_stage_in_use(self, stage_id: UUID) -> bool:
-        async with self._get_session() as session:
-            count = await self.get_model_count(
-                session,
-                TrackArtifactOrm,
-                TrackArtifactOrm.stage_id == stage_id,
-            )
-            return count > 0

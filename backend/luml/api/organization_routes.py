@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from luml.api.orbits.orbit_artifacts import artifacts_router
+from luml.api.orbits.orbit_artifacts import artifacts_router, orbit_artifacts_router
 from luml.api.orbits.orbit_collections import collections_router
 from luml.api.orbits.orbit_deployments import deployments_router
 from luml.api.orbits.orbit_satellites import organization_orbit_satellites_router
@@ -22,6 +22,7 @@ organization_all_routers.include_router(organization_orbits_router)
 organization_all_routers.include_router(orbit_members_router)
 organization_all_routers.include_router(bucket_secrets_router)
 organization_all_routers.include_router(collections_router)
+organization_all_routers.include_router(orbit_artifacts_router)
 organization_all_routers.include_router(artifacts_router)
 organization_all_routers.include_router(orbit_secrets_router)
 organization_all_routers.include_router(deployments_router)

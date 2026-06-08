@@ -7,31 +7,6 @@ from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 from luml.models.base import Base, TimestampMixin
 
 
-class TrackStageOrm(TimestampMixin, Base):
-    __tablename__ = "track_stages"
-    __table_args__ = (
-        UniqueConstraint("track_id", "name", name="uq_track_stages_track_id_name"),
-    )
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
-    )
-    track_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("tracks.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    name: Mapped[str] = mapped_column(String, nullable=False)
-
-    track: Mapped[TrackOrm] = relationship(  # noqa: F821
-        "TrackOrm", back_populates="stages", lazy="selectin"
-    )
-
-    def __repr__(self) -> str:
-        return f"TrackStage(id={self.id!r}, name={self.name!r})"
-
-
 class TrackArtifactOrm(TimestampMixin, Base):
     __tablename__ = "track_entries"
     __table_args__ = (
@@ -76,9 +51,7 @@ class TrackArtifactOrm(TimestampMixin, Base):
     artifact: Mapped[ArtifactOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
         "ArtifactOrm", lazy="selectin"
     )
-    stage: Mapped[TrackStageOrm | None] = relationship(
-        "TrackStageOrm", lazy="selectin"
-    )
+    stage: Mapped[TrackStageOrm | None] = relationship("TrackStageOrm", lazy="selectin")
 
     def __repr__(self) -> str:
         return f"TrackArtifact(id={self.id!r}, version={self.version!r})"
@@ -103,11 +76,6 @@ class TrackOrm(TimestampMixin, Base):
     artifact_type: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     tags: Mapped[list[str] | None] = mapped_column(JSONB, nullable=True, default=list)
-    created_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id"),
-        nullable=False,
-    )
     next_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
 
     orbit: Mapped[OrbitOrm] = relationship(  # type: ignore[name-defined]  # noqa: F821
@@ -117,7 +85,10 @@ class TrackOrm(TimestampMixin, Base):
         back_populates="track", cascade="all, delete, delete-orphan"
     )
     stages: Mapped[list[TrackStageOrm]] = relationship(
-        back_populates="track", cascade="all, delete, delete-orphan"
+        back_populates="track",
+        cascade="all, delete, delete-orphan",
+        lazy="selectin",
+        order_by="TrackStageOrm.created_at",
     )
 
     total_entries = column_property(
@@ -129,3 +100,35 @@ class TrackOrm(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"Track(id={self.id!r}, name={self.name!r})"
+
+
+class TrackStageOrm(TimestampMixin, Base):
+    __tablename__ = "track_stages"
+    __table_args__ = (
+        UniqueConstraint("track_id", "name", name="uq_track_stages_track_id_name"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid7
+    )
+    track_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("tracks.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+
+    track: Mapped[TrackOrm] = relationship(  # noqa: F821
+        "TrackOrm", back_populates="stages", lazy="selectin"
+    )
+
+    is_used = column_property(
+        select(func.count(TrackArtifactOrm.id) > 0)
+        .where(TrackArtifactOrm.stage_id == id)
+        .correlate_except(TrackArtifactOrm)
+        .scalar_subquery()
+    )
+
+    def __repr__(self) -> str:
+        return f"TrackStage(id={self.id!r}, name={self.name!r})"

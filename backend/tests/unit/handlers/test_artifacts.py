@@ -160,6 +160,121 @@ async def test_check_orbit_and_collection_access_collection_not_found(
 
 
 @patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collections_by_ids",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_orbit_and_collections_access_all_accessible(
+    mock_get_orbit_simple: AsyncMock, mock_get_collections_by_ids: AsyncMock
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    collection_ids = [
+        UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70"),
+        UUID("0199c337-09f5-7a01-9f5f-5f68db62cf71"),
+    ]
+
+    orbit = Mock(organization_id=organization_id)
+    mock_get_orbit_simple.return_value = orbit
+    mock_get_collections_by_ids.return_value = [
+        Mock(id=collection_ids[0]),
+        Mock(id=collection_ids[1]),
+    ]
+
+    result = await handler._check_orbit_and_collections_access(
+        organization_id, orbit_id, collection_ids
+    )
+
+    assert result == orbit
+    mock_get_collections_by_ids.assert_awaited_once_with(
+        collection_ids, orbit_id=orbit_id
+    )
+
+
+@patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collections_by_ids",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_orbit_and_collections_access_missing_collection(
+    mock_get_orbit_simple: AsyncMock, mock_get_collections_by_ids: AsyncMock
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    accessible_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+    forbidden_id = UUID("0199c337-09f5-7a01-9f5f-5f68db62cf71")
+
+    orbit = Mock(organization_id=organization_id)
+    mock_get_orbit_simple.return_value = orbit
+    # Only one of the two requested collections belongs to the orbit.
+    mock_get_collections_by_ids.return_value = [Mock(id=accessible_id)]
+
+    with pytest.raises(CollectionNotFoundError) as error:
+        await handler._check_orbit_and_collections_access(
+            organization_id, orbit_id, [accessible_id, forbidden_id]
+        )
+
+    assert error.value.status_code == 404
+    assert str(forbidden_id) in str(error.value)
+    assert str(accessible_id) not in str(error.value)
+
+
+@patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collections_by_ids",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_orbit_and_collections_access_no_collection_ids(
+    mock_get_orbit_simple: AsyncMock, mock_get_collections_by_ids: AsyncMock
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    orbit = Mock(organization_id=organization_id)
+    mock_get_orbit_simple.return_value = orbit
+
+    result = await handler._check_orbit_and_collections_access(
+        organization_id, orbit_id, None
+    )
+
+    assert result == orbit
+    mock_get_collections_by_ids.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_check_orbit_and_collections_access_orbit_not_found(
+    mock_get_orbit_simple: AsyncMock,
+) -> None:
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+
+    mock_get_orbit_simple.return_value = None
+
+    with pytest.raises(OrbitNotFoundError) as error:
+        await handler._check_orbit_and_collections_access(
+            organization_id, orbit_id, [uuid7()]
+        )
+
+    assert error.value.status_code == 404
+
+
+@patch(
     "luml.handlers.artifacts.ArtifactRepository.get_collection_artifacts",
     new_callable=AsyncMock,
 )
@@ -576,7 +691,7 @@ async def test_request_download_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )
@@ -801,7 +916,7 @@ async def test_request_delete_url_with_deployments(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )
@@ -877,7 +992,7 @@ async def test_confirm_deletion_pending(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )
@@ -1363,7 +1478,7 @@ async def test_request_delete_url_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )
@@ -1644,7 +1759,7 @@ async def test_request_satellite_download_url_orbit_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )
@@ -1703,7 +1818,7 @@ async def test_force_delete_artifact_without_deployments(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
 )

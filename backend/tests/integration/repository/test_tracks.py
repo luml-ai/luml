@@ -2,7 +2,11 @@ import uuid
 
 import pytest
 from luml.repositories.artifacts import ArtifactRepository
-from luml.repositories.tracks import TrackRepository
+from luml.repositories.tracks import (
+    TrackEntryRepository,
+    TrackRepository,
+    TrackStageRepository,
+)
 from luml.schemas.artifacts import (
     NDJSON,
     Artifact,
@@ -13,12 +17,12 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.general import PaginationParams
 from luml.schemas.tracks import (
+    StageCreate,
+    StageUpdate,
     Track,
     TrackCreate,
     TrackEntryCreate,
     TrackEntryUpdate,
-    TrackStageCreate,
-    TrackStageUpdate,
     TrackUpdate,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -74,6 +78,7 @@ async def _create_artifact(
         tags=["test"],
         status=ArtifactStatus.UPLOADED,
         type=artifact_type,
+        created_by_user="Test User",
     )
     return await repo.create_artifact(data)
 
@@ -90,7 +95,6 @@ async def test_create_track(create_orbit: OrbitFixtureData) -> None:
         orbit_id=data.orbit.id,
         name="churn-model",
         artifact_type=ArtifactType.MODEL,
-        created_by=data.user.id,
     )
     track = await repo.create_track(track_data)
 
@@ -111,7 +115,6 @@ async def test_get_track(create_orbit: OrbitFixtureData) -> None:
         orbit_id=data.orbit.id,
         name="my-track",
         artifact_type=ArtifactType.MODEL,
-        created_by=data.user.id,
         tags=["prod", "ml"],
     )
     created = await repo.create_track(track_data)
@@ -135,7 +138,6 @@ async def test_list_orbit_tracks(create_orbit: OrbitFixtureData) -> None:
                 orbit_id=data.orbit.id,
                 name=f"track-{i}",
                 artifact_type=ArtifactType.MODEL,
-                created_by=data.user.id,
             )
         )
 
@@ -155,13 +157,10 @@ async def test_update_track(create_orbit: OrbitFixtureData) -> None:
             orbit_id=data.orbit.id,
             name="original",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
-    updated = await repo.update_track(
-        track.id, TrackUpdate(name="updated-name")
-    )
+    updated = await repo.update_track(track.id, TrackUpdate(name="updated-name"))
 
     assert updated is not None
     assert updated.name == "updated-name"
@@ -178,7 +177,6 @@ async def test_delete_track(create_orbit: OrbitFixtureData) -> None:
             orbit_id=data.orbit.id,
             name="to-delete",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
@@ -198,24 +196,24 @@ async def test_delete_track(create_orbit: OrbitFixtureData) -> None:
 async def test_create_and_list_stages(create_orbit: OrbitFixtureData) -> None:
     data = create_orbit
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="stage-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
-    stage1 = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Staging")
+    stage1 = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
     )
-    stage2 = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Production")
+    stage2 = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
     )
 
-    stages = await repo.list_stages(track.id)
+    stages = await stage_repo.list_stages(track.id)
     assert len(stages) == 2
     names = {s.name for s in stages}
     assert names == {"Staging", "Production"}
@@ -227,20 +225,18 @@ async def test_create_and_list_stages(create_orbit: OrbitFixtureData) -> None:
 async def test_update_stage(create_orbit: OrbitFixtureData) -> None:
     data = create_orbit
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="stage-update-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Old")
-    )
+    stage = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Old"))
 
-    updated = await repo.update_stage(stage.id, TrackStageUpdate(name="New"))
+    updated = await stage_repo.update_stage(stage.id, StageUpdate(name="New"))
     assert updated is not None
     assert updated.name == "New"
 
@@ -254,19 +250,19 @@ async def test_create_entry_and_version_assignment(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="entry-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
 
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
@@ -286,19 +282,19 @@ async def test_create_entry_and_version_assignment(
 async def test_list_entries(create_collection: CollectionFixtureData) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="list-entries-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     for _ in range(3):
         artifact = await _create_artifact(data.engine, data.collection.id)
-        await repo.create_entry(
+        await entry_repo.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=artifact.id,
@@ -307,7 +303,7 @@ async def test_list_entries(create_collection: CollectionFixtureData) -> None:
         )
 
     pagination = PaginationParams(limit=100)
-    entries, cursor = await repo.list_entries(track.id, pagination)
+    entries, cursor = await entry_repo.list_entries(track.id, pagination)
 
     assert len(entries) == 3
     versions = {e.version for e in entries}
@@ -320,21 +316,22 @@ async def test_update_entry_stage(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="stage-entry-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Production")
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
@@ -342,7 +339,7 @@ async def test_update_entry_stage(
         )
     )
 
-    updated = await repo.update_entry(
+    updated = await entry_repo.update_entry(
         entry.id, TrackEntryUpdate(stage_id=stage.id)
     )
     assert updated is not None
@@ -350,21 +347,67 @@ async def test_update_entry_stage(
 
 
 @pytest.mark.asyncio
+async def test_stage_is_used_flag(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="is-used-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    used_stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
+    )
+    free_stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
+    )
+
+    artifact = await _create_artifact(data.engine, data.collection.id)
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by=data.user.id,
+        )
+    )
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used_stage.id))
+
+    stages = await stage_repo.list_stages(track.id)
+    by_id = {s.id: s for s in stages}
+    assert by_id[used_stage.id].is_used is True
+    assert by_id[free_stage.id].is_used is False
+
+    # Also exposed via the embedded Track.stages.
+    fetched = await repo.get_track(track.id)
+    assert fetched is not None
+    track_by_id = {s.id: s for s in fetched.stages}
+    assert track_by_id[used_stage.id].is_used is True
+    assert track_by_id[free_stage.id].is_used is False
+
+
+@pytest.mark.asyncio
 async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="delete-entry-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
@@ -372,9 +415,74 @@ async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
         )
     )
 
-    await repo.delete_entry(entry.id)
-    fetched = await repo.get_entry(entry.id)
+    await entry_repo.delete_entry(entry.id)
+    fetched = await entry_repo.get_entry(entry.id)
     assert fetched is None
+
+
+@pytest.mark.asyncio
+async def test_delete_entries_bulk(create_collection: CollectionFixtureData) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="bulk-delete-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+
+    entries = []
+    for _ in range(3):
+        artifact = await _create_artifact(data.engine, data.collection.id)
+        entries.append(
+            await entry_repo.create_entry(
+                TrackEntryCreate(
+                    track_id=track.id,
+                    artifact_id=artifact.id,
+                    added_by=data.user.id,
+                )
+            )
+        )
+
+    await entry_repo.delete_entries(track.id, [entries[0].id, entries[1].id])
+
+    remaining, _ = await entry_repo.list_entries(track.id, PaginationParams(limit=100))
+    assert {e.id for e in remaining} == {entries[2].id}
+
+
+@pytest.mark.asyncio
+async def test_delete_entries_scoped_to_track(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track_a = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="track-a", artifact_type=ArtifactType.MODEL
+        )
+    )
+    track_b = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="track-b", artifact_type=ArtifactType.MODEL
+        )
+    )
+
+    artifact = await _create_artifact(data.engine, data.collection.id)
+    entry_b = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track_b.id, artifact_id=artifact.id, added_by=data.user.id
+        )
+    )
+
+    # Attempt to delete track_b's entry via track_a -> no-op (scoped by track_id).
+    await entry_repo.delete_entries(track_a.id, [entry_b.id])
+
+    assert await entry_repo.get_entry(entry_b.id) is not None
 
 
 @pytest.mark.asyncio
@@ -383,13 +491,13 @@ async def test_list_entries_for_artifact(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track1 = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="track-1",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
     track2 = await repo.create_track(
@@ -397,20 +505,19 @@ async def test_list_entries_for_artifact(
             orbit_id=data.orbit.id,
             name="track-2",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
 
-    await repo.create_entry(
+    await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track1.id,
             artifact_id=artifact.id,
             added_by=data.user.id,
         )
     )
-    await repo.create_entry(
+    await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track2.id,
             artifact_id=artifact.id,
@@ -418,7 +525,7 @@ async def test_list_entries_for_artifact(
         )
     )
 
-    entries = await repo.list_entries_for_artifact(artifact.id)
+    entries = await entry_repo.list_entries_for_artifact(artifact.id)
     assert len(entries) == 2
     track_ids = {e.track_id for e in entries}
     assert track_ids == {track1.id, track2.id}
@@ -430,21 +537,21 @@ async def test_has_entries_for_artifact(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="has-entries-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
 
-    assert await repo.has_entries_for_artifact(artifact.id) is False
+    assert await entry_repo.has_entries_for_artifact(artifact.id) is False
 
-    await repo.create_entry(
+    await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
@@ -452,7 +559,7 @@ async def test_has_entries_for_artifact(
         )
     )
 
-    assert await repo.has_entries_for_artifact(artifact.id) is True
+    assert await entry_repo.has_entries_for_artifact(artifact.id) is True
 
 
 @pytest.mark.asyncio
@@ -461,21 +568,22 @@ async def test_clear_stage_from_entries(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="clear-stage-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Staging")
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
     )
 
     artifact = await _create_artifact(data.engine, data.collection.id)
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
@@ -483,11 +591,11 @@ async def test_clear_stage_from_entries(
         )
     )
 
-    await repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
 
-    await repo.clear_stage_from_entries(track.id, stage.id)
+    await stage_repo.clear_stage_from_entries(track.id, stage.id)
 
-    refreshed = await repo.get_entry(entry.id)
+    refreshed = await entry_repo.get_entry(entry.id)
     assert refreshed is not None
     assert refreshed.stage_id is None
 
@@ -498,13 +606,13 @@ async def test_version_monotonicity_after_deletion(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="monotonic-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
@@ -515,7 +623,7 @@ async def test_version_monotonicity_after_deletion(
 
     entries = []
     for a in artifacts:
-        e = await repo.create_entry(
+        e = await entry_repo.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=a.id,
@@ -528,10 +636,10 @@ async def test_version_monotonicity_after_deletion(
     assert entries[1].version == 2
     assert entries[2].version == 3
 
-    await repo.delete_entry(entries[1].id)
+    await entry_repo.delete_entry(entries[1].id)
 
     new_artifact = await _create_artifact(data.engine, data.collection.id)
-    new_entry = await repo.create_entry(
+    new_entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=new_artifact.id,
@@ -548,30 +656,31 @@ async def test_force_stage_reassign(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="force-reassign-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Production")
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
     )
 
     art1 = await _create_artifact(data.engine, data.collection.id)
     art2 = await _create_artifact(data.engine, data.collection.id)
 
-    entry1 = await repo.create_entry(
+    entry1 = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=art1.id,
             added_by=data.user.id,
         )
     )
-    entry2 = await repo.create_entry(
+    entry2 = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=art2.id,
@@ -579,15 +688,15 @@ async def test_force_stage_reassign(
         )
     )
 
-    await repo.update_entry(entry1.id, TrackEntryUpdate(stage_id=stage.id))
+    await entry_repo.update_entry(entry1.id, TrackEntryUpdate(stage_id=stage.id))
 
-    updated_entry2 = await repo.update_entry(
+    updated_entry2 = await entry_repo.update_entry(
         entry2.id, TrackEntryUpdate(stage_id=stage.id), force=True
     )
     assert updated_entry2 is not None
     assert updated_entry2.stage_id == stage.id
 
-    refreshed_entry1 = await repo.get_entry(entry1.id)
+    refreshed_entry1 = await entry_repo.get_entry(entry1.id)
     assert refreshed_entry1 is not None
     assert refreshed_entry1.stage_id is None
 
@@ -596,19 +705,19 @@ async def test_force_stage_reassign(
 async def test_pagination(create_collection: CollectionFixtureData) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="pagination-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
 
     for _ in range(5):
         art = await _create_artifact(data.engine, data.collection.id)
-        await repo.create_entry(
+        await entry_repo.create_entry(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=art.id,
@@ -617,17 +726,17 @@ async def test_pagination(create_collection: CollectionFixtureData) -> None:
         )
 
     pagination = PaginationParams(limit=2)
-    entries_page1, cursor1 = await repo.list_entries(track.id, pagination)
+    entries_page1, cursor1 = await entry_repo.list_entries(track.id, pagination)
     assert len(entries_page1) == 2
     assert cursor1 is not None
 
     pagination2 = PaginationParams(limit=2, cursor=cursor1)
-    entries_page2, cursor2 = await repo.list_entries(track.id, pagination2)
+    entries_page2, cursor2 = await entry_repo.list_entries(track.id, pagination2)
     assert len(entries_page2) == 2
     assert cursor2 is not None
 
     pagination3 = PaginationParams(limit=2, cursor=cursor2)
-    entries_page3, cursor3 = await repo.list_entries(track.id, pagination3)
+    entries_page3, cursor3 = await entry_repo.list_entries(track.id, pagination3)
     assert len(entries_page3) == 1
     assert cursor3 is None
 
@@ -641,32 +750,33 @@ async def test_is_stage_in_use(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="stage-in-use-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Staging")
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
     )
 
-    assert await repo.is_stage_in_use(stage.id) is False
+    assert await stage_repo.is_stage_in_use(stage.id) is False
 
     artifact = await _create_artifact(data.engine, data.collection.id)
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
             added_by=data.user.id,
         )
     )
-    await repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
 
-    assert await repo.is_stage_in_use(stage.id) is True
+    assert await stage_repo.is_stage_in_use(stage.id) is True
 
 
 @pytest.mark.asyncio
@@ -675,32 +785,33 @@ async def test_get_entry_by_stage(
 ) -> None:
     data = create_collection
     repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
 
     track = await repo.create_track(
         TrackCreate(
             orbit_id=data.orbit.id,
             name="entry-by-stage-track",
             artifact_type=ArtifactType.MODEL,
-            created_by=data.user.id,
         )
     )
-    stage = await repo.create_stage(
-        TrackStageCreate(track_id=track.id, name="Production")
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
     )
 
-    result = await repo.get_entry_by_stage(track.id, stage.id)
+    result = await entry_repo.get_entry_by_stage(track.id, stage.id)
     assert result is None
 
     artifact = await _create_artifact(data.engine, data.collection.id)
-    entry = await repo.create_entry(
+    entry = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
             added_by=data.user.id,
         )
     )
-    await repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
 
-    result = await repo.get_entry_by_stage(track.id, stage.id)
+    result = await entry_repo.get_entry_by_stage(track.id, stage.id)
     assert result is not None
     assert result.id == entry.id

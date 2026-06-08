@@ -3,7 +3,14 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
@@ -205,6 +212,19 @@ class ArtifactListed(Artifact):
     deployments: list[ArtifactDeploymentInfo] = []
 
 
+class OrbitArtifact(BaseModel, BaseOrmConfig):
+    id: UUID
+    collection_id: UUID
+    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] | None = None
+    status: ArtifactStatus
+    type: ArtifactType
+    created_at: datetime
+    updated_at: datetime | None = None
+
+
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
@@ -229,4 +249,9 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 class ArtifactsList(BaseModel):
     items: list[ArtifactListed]
+    cursor: str | None
+
+
+class OrbitArtifactsList(BaseModel):
+    items: list[OrbitArtifact]
     cursor: str | None
