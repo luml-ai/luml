@@ -33,6 +33,10 @@ The main module components are:
     ### Aggregated run summary
     
     Concise overview of each run, showing the main inputs and outputs alongside key metadata and evaluation scores. Useful for quickly comparing results and spotting regressions without diving into execution details.
+
+    ![](/img/eval_inside.webp)
+    ![](/img/evals_table.webp)
+
     
     
   </TabItem>
@@ -42,6 +46,10 @@ The main module components are:
     ### Complete interaction history
     
     Full record of every intermediate step that contributes to an output, including prompts, model parameters, tool calls, database lookups, and so on. Traces reveal the end-to-end flow of a request, making it easier to locate bottlenecks and understand how configuration choices affect cost, performance, and output quality.
+
+    ![](/img/trace_table.webp)
+    ![](/img/trace_inside.webp)
+
     
     
   </TabItem>
@@ -52,6 +60,8 @@ The main module components are:
     
     Aggregated indicators such as model accuracy, average latency, token consumption, and overall cost across runs. Metrics provide operational insight needed for budget control and performance tuning.
     
+    ![](/img/dynamic_metrics.webp)
+
     
   </TabItem>
 </Tabs>
