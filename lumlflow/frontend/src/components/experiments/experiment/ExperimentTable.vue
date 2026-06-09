@@ -86,9 +86,19 @@
         <span v-else>-</span>
       </template>
     </Column>
-    <Column v-if="showColumn('Models')" field="models" header="Models" class="w-[180px]">
+    <Column
+      v-if="showColumn('Models')"
+      field="models"
+      header="Models"
+      class="w-[180px]"
+      :pt="{
+        bodyCell: { class: '!p-0' },
+      }"
+    >
       <template #body="slotProps">
-        <ExperimentModelsListColumn :models="slotProps.data.models" />
+        <div class="px-4 py-2 w-full h-full flex items-center" @click.prevent.stop>
+          <ExperimentModelsListColumn :models="slotProps.data.models" />
+        </div>
       </template>
     </Column>
     <template v-for="metric in dynamicMetrics" :key="metric">
