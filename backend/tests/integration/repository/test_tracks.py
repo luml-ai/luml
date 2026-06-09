@@ -1,4 +1,6 @@
 import uuid
+from datetime import datetime
+from unittest.mock import Mock
 
 import pytest
 from luml.repositories.artifacts import ArtifactRepository
@@ -15,12 +17,13 @@ from luml.schemas.artifacts import (
     ArtifactType,
     Manifest,
 )
-from luml.schemas.general import PaginationParams
+from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.tracks import (
     StageCreate,
     StageUpdate,
     Track,
     TrackCreate,
+    TrackEntry,
     TrackEntryCreate,
     TrackEntryUpdate,
     TrackUpdate,
@@ -62,12 +65,15 @@ async def _create_artifact(
     engine: AsyncEngine,
     collection_id: uuid.UUID,
     artifact_type: ArtifactType = ArtifactType.MODEL,
+    name: str | None = None,
+    description: str | None = None,
 ) -> Artifact:
     repo = ArtifactRepository(engine)
     data = ArtifactCreate(
         collection_id=collection_id,
         file_name="artifact.luml",
-        name=f"artifact-{uuid.uuid4().hex[:8]}",
+        name=name or f"artifact-{uuid.uuid4().hex[:8]}",
+        description=description,
         extra_values={"accuracy": 0.9},
         manifest=_make_manifest(),
         file_hash=str(uuid.uuid4()),
@@ -308,6 +314,287 @@ async def test_list_entries(create_collection: CollectionFixtureData) -> None:
     assert len(entries) == 3
     versions = {e.version for e in entries}
     assert versions == {1, 2, 3}
+
+
+@pytest.mark.asyncio
+async def test_list_entries_sorting(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sort-entries-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
+    )
+
+    # Created in this order: versions 1 ("Charlie"), 2 ("Alpha"), 3 ("Bravo").
+    names = ["Charlie", "Alpha", "Bravo"]
+    entries = []
+    for name in names:
+        artifact = await _create_artifact(data.engine, data.collection.id, name=name)
+        entries.append(
+            await entry_repo.create_entry(
+                TrackEntryCreate(
+                    track_id=track.id,
+                    artifact_id=artifact.id,
+                    added_by=data.user.id,
+                )
+            )
+        )
+
+    # Sort by artifact name ASC.
+    items, _ = await entry_repo.list_entries(
+        track.id,
+        PaginationParams(limit=100, sort_by="artifact_name", order=SortOrder.ASC),
+    )
+    assert [e.artifact_name for e in items] == ["Alpha", "Bravo", "Charlie"]
+
+    # Sort by version DESC.
+    items, _ = await entry_repo.list_entries(
+        track.id,
+        PaginationParams(limit=100, sort_by="version", order=SortOrder.DESC),
+    )
+    assert [e.version for e in items] == [3, 2, 1]
+
+    # Sort by stage ASC: assigning a stage to one entry; NULLs first on ASC.
+    await entry_repo.update_entry(entries[0].id, TrackEntryUpdate(stage_id=stage.id))
+    items, _ = await entry_repo.list_entries(
+        track.id,
+        PaginationParams(limit=100, sort_by="stage", order=SortOrder.ASC),
+    )
+    # The only non-null stage ("Production") sorts after the NULL-stage entries.
+    assert items[-1].stage_name == "Production"
+
+
+async def _seed_entries(
+    data: CollectionFixtureData,
+    specs: list[tuple[str, str | None]],
+) -> tuple[uuid.UUID, list[TrackEntry]]:
+    """Create a track and one entry per (artifact_name, description) spec."""
+    repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name=f"track-{uuid.uuid4().hex[:8]}",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    entries = []
+    for name, description in specs:
+        artifact = await _create_artifact(
+            data.engine, data.collection.id, name=name, description=description
+        )
+        entries.append(
+            await entry_repo.create_entry(
+                TrackEntryCreate(
+                    track_id=track.id,
+                    artifact_id=artifact.id,
+                    added_by=data.user.id,
+                )
+            )
+        )
+    return track.id, entries
+
+
+async def _collect_pages(
+    entry_repo: TrackEntryRepository,
+    track_id: uuid.UUID,
+    sort_by: str,
+    order: SortOrder,
+    limit: int,
+) -> list[TrackEntry]:
+    """Walk every cursor page and return all entries in order."""
+    collected: list[TrackEntry] = []
+    cursor = None
+    for _ in range(100):  # safety bound against accidental infinite loops
+        page, cursor = await entry_repo.list_entries(
+            track_id,
+            PaginationParams(
+                limit=limit,
+                sort_by=sort_by,
+                order=order,
+                cursor=cursor,
+                scope_id=track_id,
+            ),
+        )
+        collected.extend(page)
+        if cursor is None:
+            break
+    return collected
+
+
+@pytest.mark.asyncio
+async def test_list_entries_sort_version(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, _ = await _seed_entries(data, [("a", None), ("b", None), ("c", None)])
+
+    asc, _ = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=100, sort_by="version", order=SortOrder.ASC)
+    )
+    assert [e.version for e in asc] == [1, 2, 3]
+
+    desc, _ = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=100, sort_by="version", order=SortOrder.DESC)
+    )
+    assert [e.version for e in desc] == [3, 2, 1]
+
+
+@pytest.mark.asyncio
+async def test_list_entries_default_sort_created_at_desc(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, _ = await _seed_entries(data, [("a", None), ("b", None), ("c", None)])
+
+    # No sort_by -> defaults to created_at DESC (newest first => v3, v2, v1).
+    items, _ = await entry_repo.list_entries(track_id, PaginationParams(limit=100))
+    assert [e.version for e in items] == [3, 2, 1]
+
+
+@pytest.mark.asyncio
+async def test_list_entries_sort_artifact_name(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, _ = await _seed_entries(
+        data, [("Charlie", None), ("Alpha", None), ("Bravo", None)]
+    )
+
+    asc, _ = await entry_repo.list_entries(
+        track_id,
+        PaginationParams(limit=100, sort_by="artifact_name", order=SortOrder.ASC),
+    )
+    assert [e.artifact_name for e in asc] == ["Alpha", "Bravo", "Charlie"]
+
+    desc, _ = await entry_repo.list_entries(
+        track_id,
+        PaginationParams(limit=100, sort_by="artifact_name", order=SortOrder.DESC),
+    )
+    assert [e.artifact_name for e in desc] == ["Charlie", "Bravo", "Alpha"]
+
+
+@pytest.mark.asyncio
+async def test_list_entries_sort_description(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, _ = await _seed_entries(
+        data, [("a", "zeta"), ("b", "alpha"), ("c", "mu")]
+    )
+
+    asc, _ = await entry_repo.list_entries(
+        track_id,
+        PaginationParams(limit=100, sort_by="description", order=SortOrder.ASC),
+    )
+    assert [e.artifact_description for e in asc] == ["alpha", "mu", "zeta"]
+
+
+@pytest.mark.asyncio
+async def test_list_entries_sort_stage_null_handling(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, entries = await _seed_entries(
+        data, [("a", None), ("b", None), ("c", None)]
+    )
+
+    alpha = await stage_repo.create_stage(StageCreate(track_id=track_id, name="Alpha"))
+    beta = await stage_repo.create_stage(StageCreate(track_id=track_id, name="Beta"))
+    await entry_repo.update_entry(entries[0].id, TrackEntryUpdate(stage_id=beta.id))
+    await entry_repo.update_entry(entries[1].id, TrackEntryUpdate(stage_id=alpha.id))
+    # entries[2] stays without a stage (NULL).
+
+    asc, _ = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=100, sort_by="stage", order=SortOrder.ASC)
+    )
+    assert [e.stage_name for e in asc] == [None, "Alpha", "Beta"]
+
+    desc, _ = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=100, sort_by="stage", order=SortOrder.DESC)
+    )
+    assert [e.stage_name for e in desc] == ["Beta", "Alpha", None]
+
+
+@pytest.mark.asyncio
+async def test_list_entries_pagination_by_version(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, _ = await _seed_entries(data, [(f"a{i}", None) for i in range(5)])
+
+    # First page only.
+    page, cursor = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=2, sort_by="version", order=SortOrder.ASC)
+    )
+    assert [e.version for e in page] == [1, 2]
+    assert cursor is not None
+
+    # Walk all pages of size 2 -> 1,2,3,4,5 with no gaps/dupes.
+    collected = await _collect_pages(
+        entry_repo, track_id, "version", SortOrder.ASC, limit=2
+    )
+    assert [e.version for e in collected] == [1, 2, 3, 4, 5]
+    assert len({e.id for e in collected}) == 5
+
+
+@pytest.mark.asyncio
+async def test_list_entries_pagination_by_artifact_name(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    names = ["Delta", "Alpha", "Echo", "Bravo", "Charlie"]
+    track_id, _ = await _seed_entries(data, [(n, None) for n in names])
+
+    # Cursor pagination over a related-table column (scalar subquery).
+    collected = await _collect_pages(
+        entry_repo, track_id, "artifact_name", SortOrder.ASC, limit=2
+    )
+    assert [e.artifact_name for e in collected] == sorted(names)
+    assert len({e.id for e in collected}) == len(names)
+
+
+def test_entry_cursor_value_maps_fields() -> None:
+    artifact = Mock()
+    artifact.name = "model-x"
+    artifact.description = "the desc"
+    stage = Mock()
+    stage.name = "Production"
+    now = datetime.now()
+    entry = Mock(artifact=artifact, stage=stage, version=7, created_at=now)
+
+    cursor_value = TrackEntryRepository._entry_cursor_value
+    assert cursor_value(entry, "artifact_name") == "model-x"
+    assert cursor_value(entry, "description") == "the desc"
+    assert cursor_value(entry, "stage") == "Production"
+    assert cursor_value(entry, "version") == 7
+    assert cursor_value(entry, "created_at") == now
+    assert cursor_value(entry, None) == now  # falls back to created_at
+
+    # NULL relationships -> None for related-table sorts.
+    entry_no_rel = Mock(artifact=None, stage=None, version=1, created_at=now)
+    assert cursor_value(entry_no_rel, "stage") is None
+    assert cursor_value(entry_no_rel, "artifact_name") is None
 
 
 @pytest.mark.asyncio
@@ -815,3 +1102,150 @@ async def test_get_entry_by_stage(
     result = await entry_repo.get_entry_by_stage(track.id, stage.id)
     assert result is not None
     assert result.id == entry.id
+
+
+# --- Repository coverage: stages / search / filters ---
+
+
+@pytest.mark.asyncio
+async def test_create_track_with_stages(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="track-with-stages",
+            artifact_type=ArtifactType.MODEL,
+        ),
+        stage_names=["Staging", "Production"],
+    )
+
+    stages = await stage_repo.list_stages(track.id)
+    assert {s.name for s in stages} == {"Staging", "Production"}
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_tracks_search_and_types(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+
+    await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="churn-model",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sales-dataset",
+            artifact_type=ArtifactType.DATASET,
+        )
+    )
+
+    by_search, _ = await repo.get_orbit_tracks(
+        data.orbit.id, PaginationParams(limit=100), search="churn"
+    )
+    assert [t.name for t in by_search] == ["churn-model"]
+
+    by_type, _ = await repo.get_orbit_tracks(
+        data.orbit.id,
+        PaginationParams(limit=100),
+        types=[ArtifactType.DATASET.value],
+    )
+    assert [t.name for t in by_type] == ["sales-dataset"]
+
+
+@pytest.mark.asyncio
+async def test_get_stage_found_and_missing(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="get-stage-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
+    )
+
+    fetched = await stage_repo.get_stage(stage.id)
+    assert fetched is not None
+    assert fetched.id == stage.id
+
+    assert await stage_repo.get_stage(uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_delete_stage(create_orbit: OrbitFixtureData) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="delete-stage-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Staging")
+    )
+
+    await stage_repo.delete_stage(stage.id)
+    assert await stage_repo.get_stage(stage.id) is None
+
+
+@pytest.mark.asyncio
+async def test_get_entry_missing_returns_none(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    assert await entry_repo.get_entry(uuid.uuid4()) is None
+
+
+@pytest.mark.asyncio
+async def test_list_entries_filtered_by_stage(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+    track_id, entries = await _seed_entries(
+        data, [("a", None), ("b", None), ("c", None)]
+    )
+
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track_id, name="Production")
+    )
+    await entry_repo.update_entry(entries[0].id, TrackEntryUpdate(stage_id=stage.id))
+
+    items, _ = await entry_repo.list_entries(
+        track_id, PaginationParams(limit=100), stage_id=stage.id
+    )
+    assert [e.id for e in items] == [entries[0].id]
+
+
+@pytest.mark.asyncio
+async def test_update_entry_missing_returns_none(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    entry_repo = TrackEntryRepository(data.engine)
+    result = await entry_repo.update_entry(
+        uuid.uuid4(), TrackEntryUpdate(stage_id=None)
+    )
+    assert result is None

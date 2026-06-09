@@ -9,11 +9,18 @@ from luml.schemas.base import BaseOrmConfig
 
 
 class TrackSortBy(StrEnum):
-    CREATED_AT = "created_at"
     NAME = "name"
-    ARTIFACT_TYPE = "artifact_type"
     DESCRIPTION = "description"
     TOTAL_ENTRIES = "total_entries"
+    CREATED_AT = "created_at"
+
+
+class TrackEntrySortBy(StrEnum):
+    ARTIFACT_NAME = "artifact_name"
+    DESCRIPTION = "description"
+    STAGE = "stage"
+    VERSION = "version"
+    CREATED_AT = "created_at"
 
 
 class StageCreateIn(BaseModel):

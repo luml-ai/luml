@@ -1,8 +1,18 @@
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import String, cast, delete, or_, text, update
+from sqlalchemy import (
+    String,
+    cast,
+    delete,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from luml.models.artifacts import ArtifactOrm
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import Cursor, PaginationParams
@@ -14,6 +24,7 @@ from luml.schemas.tracks import (
     TrackCreate,
     TrackEntry,
     TrackEntryCreate,
+    TrackEntrySortBy,
     TrackEntryUpdate,
     TrackUpdate,
 )
@@ -146,6 +157,61 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
 
 
 class TrackEntryRepository(RepositoryBase, CrudMixin):
+    _SORT_COLUMNS = {
+        TrackEntrySortBy.ARTIFACT_NAME.value: (
+            select(ArtifactOrm.name)
+            .where(ArtifactOrm.id == TrackArtifactOrm.artifact_id)
+            .scalar_subquery()
+        ),
+        TrackEntrySortBy.DESCRIPTION.value: (
+            select(ArtifactOrm.description)
+            .where(ArtifactOrm.id == TrackArtifactOrm.artifact_id)
+            .scalar_subquery()
+        ),
+        TrackEntrySortBy.STAGE.value: (
+            select(TrackStageOrm.name)
+            .where(TrackStageOrm.id == TrackArtifactOrm.stage_id)
+            .scalar_subquery()
+        ),
+        TrackEntrySortBy.VERSION.value: TrackArtifactOrm.version,
+        TrackEntrySortBy.CREATED_AT.value: TrackArtifactOrm.created_at,
+    }
+
+    @staticmethod
+    def _entry_cursor_value(entry: TrackArtifactOrm, sort_by: str | None) -> Any:  # noqa: ANN401
+        if sort_by == TrackEntrySortBy.ARTIFACT_NAME.value:
+            return entry.artifact.name if entry.artifact else None
+        if sort_by == TrackEntrySortBy.DESCRIPTION.value:
+            return entry.artifact.description if entry.artifact else None
+        if sort_by == TrackEntrySortBy.STAGE.value:
+            return entry.stage.name if entry.stage else None
+        return getattr(entry, sort_by or "created_at", entry.created_at)
+
+    @staticmethod
+    def _get_sort_col(  # type: ignore[override]
+        orm_class: type[TrackArtifactOrm],
+        sort_by: str | None = None,
+        extra_sort_field: str | None = None,
+    ) -> Any:  # noqa: ANN401
+        return TrackEntryRepository._SORT_COLUMNS.get(
+            sort_by or "created_at", TrackArtifactOrm.created_at
+        )
+
+    @staticmethod
+    def _get_cursor_from_record(  # type: ignore[override]
+        cursor_rec: TrackArtifactOrm,
+        pagination: PaginationParams,
+    ) -> Cursor:
+        return Cursor(
+            id=cursor_rec.id,
+            value=TrackEntryRepository._entry_cursor_value(
+                cursor_rec, pagination.sort_by
+            ),
+            sort_by=pagination.sort_by,
+            order=pagination.order,
+            scope_id=pagination.scope_id,
+        )
+
     @staticmethod
     async def clear_stage_from_entries_in_session(
         session: AsyncSession,

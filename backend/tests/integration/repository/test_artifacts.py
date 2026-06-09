@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from luml.infra.exceptions import DatabaseConstraintError
+from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
@@ -572,3 +572,102 @@ async def test_get_orbit_artifacts_pagination(
 
     all_ids = {a.id for a in first_page} | {a.id for a in second_page}
     assert len(all_ids) == 3
+
+
+# --- get_collection_artifacts: metric sort + type filter coverage ---
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_sort_by_metric(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    low = test_artifact.model_copy()
+    low.collection_id = collection.id
+    low.unique_identifier = "low"
+    low.extra_values = {"accuracy": 0.1}
+
+    high = test_artifact.model_copy()
+    high.collection_id = collection.id
+    high.unique_identifier = "high"
+    high.extra_values = {"accuracy": 0.9}
+
+    await repo.create_artifact(low)
+    await repo.create_artifact(high)
+
+    # Sort by the metric key, ASC, page size 1 -> lowest first + a cursor.
+    first, cursor = await repo.get_collection_artifacts(
+        collection.id, PaginationParams(limit=1, sort_by="accuracy", order="asc")
+    )
+    assert len(first) == 1
+    assert first[0].extra_values["accuracy"] == 0.1
+    assert cursor is not None
+
+    second, _ = await repo.get_collection_artifacts(
+        collection.id,
+        PaginationParams(limit=1, sort_by="accuracy", order="asc", cursor=cursor),
+    )
+    assert second[0].extra_values["accuracy"] == 0.9
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_sort_extra_values_key_raises(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+    with pytest.raises(InvalidSortingError):
+        await repo.get_collection_artifacts(
+            data.collection.id, PaginationParams(limit=10, sort_by="extra_values")
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_invalid_metric_raises(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = data.collection.id
+    model.extra_values = {"accuracy": 0.5}
+    await repo.create_artifact(model)
+
+    with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
+        await repo.get_collection_artifacts(
+            data.collection.id, PaginationParams(limit=10, sort_by="nonexistent_metric")
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_filtered_by_type(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    model.unique_identifier = "a-model"
+    model.type = ArtifactType.MODEL
+
+    dataset = test_artifact.model_copy()
+    dataset.collection_id = collection.id
+    dataset.unique_identifier = "a-dataset"
+    dataset.type = ArtifactType.DATASET
+
+    await repo.create_artifact(model)
+    await repo.create_artifact(dataset)
+
+    items, _ = await repo.get_collection_artifacts(
+        collection.id,
+        PaginationParams(limit=100),
+        artifact_types=[ArtifactType.MODEL],
+    )
+    assert all(a.type == ArtifactType.MODEL for a in items)
+    assert len(items) == 1

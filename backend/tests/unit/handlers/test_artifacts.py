@@ -28,6 +28,7 @@ from luml.schemas.artifacts import (
     ArtifactUpdateIn,
     LumlArtifactManifest,
     Manifest,
+    OrbitArtifactsList,
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.collections import Collection, CollectionType
@@ -2312,3 +2313,83 @@ def test_validate_cursor_matching() -> None:
     )
 
     assert result is cursor
+
+
+# ---- get_orbit_artifacts + tracks deletion guard coverage ----
+
+_ORG = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+_ORBIT = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+_USER = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+_COLLECTION = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
+_ARTIFACT = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
+
+
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collections_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_orbit_artifacts",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_orbit_artifacts(
+    mock_get_orbit_artifacts: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit_artifacts.return_value = ([], None)
+
+    result = await handler.get_orbit_artifacts(
+        _USER,
+        _ORG,
+        _ORBIT,
+        ArtifactType.MODEL,
+        collection_ids=[_COLLECTION],
+        search="x",
+    )
+
+    assert isinstance(result, OrbitArtifactsList)
+    assert result.items == []
+    mock_check_access.assert_awaited_once_with(_ORG, _ORBIT, [_COLLECTION])
+    # orbit_id is forwarded to the repository for orbit scoping.
+    repo_args = mock_get_orbit_artifacts.await_args.args
+    assert _ORBIT in repo_args
+
+
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_blocked_by_tracks(
+    mock_has_entries: AsyncMock,
+    mock_get_details: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_check_access.return_value = None
+    mock_get_details.return_value = Mock(deployments=None)
+    mock_has_entries.return_value = True
+
+    with pytest.raises(
+        ApplicationError, match="referenced by one or more tracks"
+    ) as exc:
+        await handler.request_delete_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
+    assert exc.value.status_code == 409
