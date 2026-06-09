@@ -92,7 +92,12 @@
       </template>
     </Column>
     <template v-for="metric in dynamicMetrics" :key="metric">
-      <Column v-if="showColumn(metric)" :field="metric" :header="metric" class="w-[180px]">
+      <Column v-if="showColumn(metric)" :field="metric" class="w-[180px]">
+        <template #header>
+          <div v-tooltip.top="metric" class="line-clamp-1 overflow-hidden text-ellipsis">
+            {{ metric }}
+          </div>
+        </template>
         <template #body="slotProps">
           <span
             v-tooltip.top="
