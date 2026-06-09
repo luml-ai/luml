@@ -32,6 +32,7 @@ from luml.schemas.tracks import (
     TrackEntry,
     TrackEntryCreate,
     TrackEntryCreateIn,
+    TrackEntrySortBy,
     TrackEntryUpdate,
     TrackEntryUpdateIn,
     TracksList,
@@ -40,8 +41,6 @@ from luml.schemas.tracks import (
     TrackUpdateIn,
 )
 from luml.utils.pagination import decode_cursor, encode_cursor
-
-DEFAULT_STAGES = ["Staging", "Pre-Production", "Production", "Archived"]
 
 
 class TracksHandler:
@@ -92,16 +91,22 @@ class TracksHandler:
             **track_in.model_dump(exclude={"stages"}),
             orbit_id=orbit_id,
         )
-        stage_names = track_in.stages or DEFAULT_STAGES
         try:
             track = await self.__track_repository.create_track(
-                track_create, stage_names=stage_names
+                track_create, stage_names=track_in.stages
             )
         except IntegrityError as error:
-            raise ApplicationError(
-                f"Track with name '{track_in.name}' already exists in this orbit.",
-                409,
-            ) from error
+            message = str(error)
+            if "uq_tracks_orbit_id_name" in message:
+                raise ApplicationError(
+                    f"Track with name '{track_in.name}' already exists in this orbit.",
+                    409,
+                ) from error
+            if "uq_track_stages_track_id_name" in message:
+                raise ApplicationError(
+                    "Duplicate stage names are not allowed.", 409
+                ) from error
+            raise
 
         return track
 
@@ -283,6 +288,62 @@ class TracksHandler:
                 "Artifact is already an entry in this track.", 409
             ) from error
 
+    async def get_entry(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        track_id: UUID,
+        entry_id: UUID,
+    ) -> TrackEntry | None:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.TRACK,
+            Action.READ,
+            orbit_id,
+        )
+
+        track = await self.__track_repository.get_track(track_id)
+
+        if not track or track.orbit_id != orbit_id:
+            raise NotFoundError("Track not found")
+
+        entry = await self.__entry_repository.get_entry(entry_id)
+
+        if entry and entry.track_id != track_id:
+            raise NotFoundError("Entry not found")
+
+        return entry
+
+    async def get_entry_by_stage(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        track_id: UUID,
+        stage_id: UUID,
+    ) -> TrackEntry | None:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.TRACK,
+            Action.READ,
+            orbit_id,
+        )
+
+        track = await self.__track_repository.get_track(track_id)
+
+        if not track or track.orbit_id != orbit_id:
+            raise NotFoundError("Track not found")
+
+        stage = await self.__stage_repository.get_stage(stage_id)
+
+        if not stage or stage.track_id != track_id:
+            raise NotFoundError("Stage not found")
+
+        return await self.__entry_repository.get_entry_by_stage(track_id, stage_id)
+
     async def list_entries(
         self,
         user_id: UUID,
@@ -291,7 +352,7 @@ class TracksHandler:
         track_id: UUID,
         cursor_str: str | None = None,
         limit: int = 100,
-        sort_by: str = "created_at",
+        sort_by: TrackEntrySortBy = TrackEntrySortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
         stage_id: UUID | None = None,
     ) -> TrackEntriesList:
@@ -302,6 +363,7 @@ class TracksHandler:
             Action.READ,
             orbit_id,
         )
+
         track = await self.__track_repository.get_track(track_id)
         if not track or track.orbit_id != orbit_id:
             raise NotFoundError("Track not found")
@@ -309,7 +371,7 @@ class TracksHandler:
         cursor = decode_cursor(cursor_str)
         use_cursor: Cursor | None = None
         if cursor and (
-            cursor.sort_by == sort_by
+            cursor.sort_by == sort_by.value
             and cursor.order == order.value
             and cursor.scope_id == track_id
         ):
@@ -317,7 +379,7 @@ class TracksHandler:
 
         pagination = PaginationParams(
             cursor=use_cursor,
-            sort_by=sort_by,
+            sort_by=sort_by.value,
             order=order,
             limit=limit,
             scope_id=track_id,

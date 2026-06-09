@@ -17,6 +17,7 @@ from luml.schemas.tracks import (
     TrackEntriesList,
     TrackEntry,
     TrackEntryCreateIn,
+    TrackEntrySortBy,
     TrackEntryUpdateIn,
     TracksList,
     TrackSortBy,
@@ -147,6 +148,40 @@ async def create_entry(
 
 
 @tracks_router.get(
+    "/{track_id}/entries/{entry_id}",
+    responses=endpoint_responses,
+    response_model=TrackEntry,
+)
+async def get_entry(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    track_id: UUID,
+    entry_id: UUID,
+) -> TrackEntry | None:
+    return await tracks_handler.get_entry(
+        request.user.id, organization_id, orbit_id, track_id, entry_id
+    )
+
+
+@tracks_router.get(
+    "/{track_id}/entries/by-stage",
+    responses=endpoint_responses,
+    response_model=TrackEntry,
+)
+async def get_entry_by_stage(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    track_id: UUID,
+    stage_id: UUID,
+) -> TrackEntry | None:
+    return await tracks_handler.get_entry_by_stage(
+        request.user.id, organization_id, orbit_id, track_id, stage_id
+    )
+
+
+@tracks_router.get(
     "/{track_id}/entries",
     responses=endpoint_responses,
     response_model=TrackEntriesList,
@@ -158,6 +193,7 @@ async def list_entries(
     track_id: UUID,
     cursor: str | None = None,
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
+    sort_by: Annotated[TrackEntrySortBy, Query()] = TrackEntrySortBy.CREATED_AT,
     order: Annotated[SortOrder, Query()] = SortOrder.DESC,
     stage: Annotated[UUID | None, Query()] = None,
 ) -> TrackEntriesList:
@@ -168,6 +204,8 @@ async def list_entries(
         track_id,
         cursor,
         limit,
+        sort_by,
+        order,
         stage_id=stage,
     )
 
@@ -304,7 +342,7 @@ async def delete_stage(
 
 
 # --- Artifact track membership ---
-
+# TODO remove and add track info for artifact details ep
 artifact_tracks_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/artifacts/{artifact_id}/track-entries",
     dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
