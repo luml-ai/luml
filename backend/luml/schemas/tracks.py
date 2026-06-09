@@ -90,6 +90,7 @@ class TrackEntryCreate(BaseModel):
     added_by: UUID
 
 
+# TODO add stage for creation
 class TrackEntryCreateIn(BaseModel):
     artifact_id: UUID
 

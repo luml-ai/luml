@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -163,19 +164,21 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
 
     async def get_orbit_artifacts(
         self,
-        artifact_type: ArtifactType,
         pagination: PaginationParams,
         orbit_id: UUID,
+        artifact_type: ArtifactType | None = None,
         collection_ids: list[UUID] | None = None,
         search: str | None = None,
     ) -> tuple[list[OrbitArtifact], Cursor | None]:
         async with self._get_session() as session:
-            conditions = [
-                ArtifactOrm.type == artifact_type.value,
+            conditions: list[Any] = [
                 ArtifactOrm.collection_id.in_(
                     select(CollectionOrm.id).where(CollectionOrm.orbit_id == orbit_id)
                 ),
             ]
+
+            if artifact_type:
+                conditions.append(ArtifactOrm.type == artifact_type.value)
 
             if collection_ids:
                 conditions.append(ArtifactOrm.collection_id.in_(collection_ids))

@@ -30,6 +30,20 @@ tracks_router = APIRouter(
     tags=["orbit-tracks"],
 )
 
+
+tracks_router_stages = APIRouter(
+    prefix="/{organization_id}/orbits/{orbit_id}/tracks/{track_id}/stages",
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
+    tags=["orbit-tracks-stages"],
+)
+
+
+tracks_router_entries = APIRouter(
+    prefix="/{organization_id}/orbits/{orbit_id}/tracks/{track_id}/entries",
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
+    tags=["orbit-tracks-entries"],
+)
+
 tracks_handler = TracksHandler()
 
 
@@ -94,6 +108,7 @@ async def get_track(
     )
 
 
+# TODO add updating stages here and remove endpoints for stages and remove also
 @tracks_router.patch(
     "/{track_id}",
     responses=endpoint_responses,
@@ -130,8 +145,8 @@ async def delete_track(
 # --- Entries ---
 
 
-@tracks_router.post(
-    "/{track_id}/entries",
+@tracks_router_entries.post(
+    "",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -147,8 +162,8 @@ async def create_entry(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.get(
+    "/{entry_id}",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -164,8 +179,8 @@ async def get_entry(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries/by-stage",
+@tracks_router_entries.get(
+    "/by-stage",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -181,8 +196,8 @@ async def get_entry_by_stage(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries",
+@tracks_router_entries.get(
+    "",
     responses=endpoint_responses,
     response_model=TrackEntriesList,
 )
@@ -210,8 +225,8 @@ async def list_entries(
     )
 
 
-@tracks_router.patch(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.patch(
+    "/{entry_id}",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -235,8 +250,8 @@ async def update_entry(
     )
 
 
-@tracks_router.delete(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.delete(
+    "/{entry_id}",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
@@ -252,8 +267,8 @@ async def delete_entry(
     )
 
 
-@tracks_router.delete(
-    "/{track_id}/entries",
+@tracks_router_entries.delete(
+    "",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
@@ -272,8 +287,8 @@ async def delete_entries(
 # --- Stages ---
 
 
-@tracks_router.post(
-    "/{track_id}/stages",
+@tracks_router_stages.post(
+    "",
     responses=endpoint_responses,
     response_model=Stage,
 )
@@ -289,8 +304,8 @@ async def create_stage(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/stages",
+@tracks_router_stages.get(
+    "",
     responses=endpoint_responses,
     response_model=list[Stage],
 )
@@ -305,8 +320,8 @@ async def list_stages(
     )
 
 
-@tracks_router.patch(
-    "/{track_id}/stages/{stage_id}",
+@tracks_router_stages.patch(
+    "/{stage_id}",
     responses=endpoint_responses,
     response_model=Stage,
 )
@@ -323,8 +338,8 @@ async def update_stage(
     )
 
 
-@tracks_router.delete(
-    "/{track_id}/stages/{stage_id}",
+@tracks_router_stages.delete(
+    "/{stage_id}",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )

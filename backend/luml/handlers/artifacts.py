@@ -499,10 +499,10 @@ class ArtifactHandler:
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
-        artifact_type: ArtifactType,
+        artifact_type: ArtifactType | None = None,
         cursor_str: str | None = None,
         limit: int = 100,
-        sort_by: str = "created_at",
+        sort_by: ArtifactSortBy = ArtifactSortBy.CREATED_AT,
         order: SortOrder = SortOrder.DESC,
         collection_ids: list[UUID] | None = None,
         search: str | None = None,
@@ -519,18 +519,18 @@ class ArtifactHandler:
         )
 
         cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by, order, orbit_id)
+        use_cursor = self._validate_cursor(cursor, sort_by.value, order, orbit_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
-            sort_by=sort_by,
+            sort_by=sort_by.value,
             order=order,
             limit=limit,
             scope_id=orbit_id,
         )
 
         items, cursor = await self.__repository.get_orbit_artifacts(
-            artifact_type, pagination, orbit_id, collection_ids, search
+            pagination, orbit_id, artifact_type, collection_ids, search
         )
 
         return OrbitArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
