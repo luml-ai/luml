@@ -17,6 +17,7 @@ from luml.schemas.base import BaseOrmConfig
 from luml.schemas.collections import Collection
 from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
+from luml.schemas.track_base import TrackBase
 
 ArtifactNamesField = Annotated[
     str,
@@ -228,6 +229,7 @@ class OrbitArtifact(BaseModel, BaseOrmConfig):
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
+    tracks: list[TrackBase] = Field(default_factory=list)
 
 
 class CreateArtifactResponse(BaseModel):

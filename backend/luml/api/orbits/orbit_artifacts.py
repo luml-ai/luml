@@ -8,6 +8,7 @@ from luml.infra.dependencies import UserAuthentication
 from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.artifacts import (
     Artifact,
+    ArtifactDetails,
     ArtifactIn,
     ArtifactsList,
     ArtifactSortBy,
@@ -138,7 +139,7 @@ async def get_orbit_artifacts(
 @artifacts_router.get(
     "/{artifact_id}",
     responses=endpoint_responses,
-    response_model=Artifact,
+    response_model=ArtifactDetails,
 )
 async def get_artifact_details(
     request: Request,
@@ -146,7 +147,7 @@ async def get_artifact_details(
     orbit_id: UUID,
     collection_id: UUID,
     artifact_id: UUID,
-) -> Artifact:
+) -> ArtifactDetails:
     return await artifacts_handler.get_artifact(
         request.user.id, organization_id, orbit_id, collection_id, artifact_id
     )

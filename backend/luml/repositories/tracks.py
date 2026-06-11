@@ -10,16 +10,20 @@ from sqlalchemy import (
     text,
     update,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from luml.infra.exceptions import ApplicationError
 from luml.models.artifacts import ArtifactOrm
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.general import Cursor, PaginationParams
+from luml.schemas.track_base import TrackBase
 from luml.schemas.tracks import (
     Stage,
     StageCreate,
     StageUpdate,
+    StageUpsertIn,
     Track,
     TrackCreate,
     TrackEntry,
@@ -88,17 +92,46 @@ class TrackRepository(RepositoryBase, CrudMixin):
             )
             return [Track.model_validate(t) for t in db_tracks], cursor
 
-    async def update_track(self, track_id: UUID, data: TrackUpdate) -> Track | None:
+    async def update_track(
+        self,
+        track_id: UUID,
+        data: TrackUpdate,
+        stages: list[StageUpsertIn] | None = None,
+    ) -> Track | None:
         data.id = track_id
         async with self._get_session() as session:
-            db_track = await self.update_model(
-                session=session, orm_class=TrackOrm, data=data
-            )
-            return Track.model_validate(db_track) if db_track else None
+            db_track = await self.get_model(session, TrackOrm, track_id)
+            if db_track is None:
+                return None
+
+            fields = data.model_dump(exclude_unset=True, exclude={"id"})
+            for field, value in fields.items():
+                setattr(db_track, field, value)
+
+            if stages is not None:
+                await TrackStageRepository.apply_stage_sync(session, track_id, stages)
+
+            await session.commit()
+            await session.refresh(db_track)
+            return Track.model_validate(db_track)
 
     async def delete_track(self, track_id: UUID) -> None:
         async with self._get_session() as session:
             await self.delete_model(session, TrackOrm, track_id)
+
+    async def get_tracks_for_artifact(self, artifact_id: UUID) -> list[TrackBase]:
+        async with self._get_session() as session:
+            rows = await self.get_models_where(
+                session,
+                TrackOrm,
+                TrackOrm.id.in_(
+                    select(TrackArtifactOrm.track_id).where(
+                        TrackArtifactOrm.artifact_id == artifact_id
+                    )
+                ),
+                order_by=[TrackOrm.created_at],
+            )
+            return [TrackBase.model_validate(t) for t in rows]
 
 
 class TrackStageRepository(RepositoryBase, CrudMixin):
@@ -154,6 +187,62 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
                 TrackArtifactOrm.stage_id == stage_id,
             )
             return count > 0
+
+    @staticmethod
+    async def apply_stage_sync(
+        session: AsyncSession, track_id: UUID, desired: list[StageUpsertIn]
+    ) -> None:
+        current = await CrudMixin.get_models_where(
+            session, TrackStageOrm, TrackStageOrm.track_id == track_id
+        )
+        current_by_id = {stage.id: stage for stage in current}
+        desired_ids = {item.id for item in desired if item.id is not None}
+
+        for item in desired:
+            if item.id is not None and item.id not in current_by_id:
+                raise ApplicationError("Stage does not belong to this track.", 422)
+
+        to_delete = [s for s in current if s.id not in desired_ids]
+
+        if to_delete:
+            delete_by_id = {s.id: s for s in to_delete}
+            used_stage_ids = await CrudMixin.get_models_where(
+                session,
+                TrackArtifactOrm,
+                TrackArtifactOrm.stage_id.in_(list(delete_by_id)),
+                select_fields=[TrackArtifactOrm.stage_id],
+                distinct=True,
+            )
+            if used_stage_ids:
+                listed = ", ".join(
+                    f"'{delete_by_id[sid].name}' ({sid})" for sid in used_stage_ids
+                )
+                raise ApplicationError(
+                    f"Cannot remove stages that are assigned to a version: {listed}.",
+                    409,
+                )
+            for stage in to_delete:
+                await session.delete(stage)
+
+        for item in desired:
+            if item.id is not None and current_by_id[item.id].name != item.name:
+                current_by_id[item.id].name = item.name
+
+        session.add_all(
+            TrackStageOrm(track_id=track_id, name=item.name)
+            for item in desired
+            if item.id is None
+        )
+
+    async def sync_stages(self, track_id: UUID, desired: list[StageUpsertIn]) -> None:
+        async with self._get_session() as session:
+            await self.apply_stage_sync(session, track_id, desired)
+            try:
+                await session.commit()
+            except IntegrityError as error:
+                raise ApplicationError(
+                    "Duplicate stage names are not allowed.", 409
+                ) from error
 
 
 class TrackEntryRepository(RepositoryBase, CrudMixin):
@@ -246,6 +335,7 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
                 artifact_id=entry.artifact_id,
                 version=version,
                 added_by=entry.added_by,
+                stage_id=entry.stage_id,
             )
             session.add(db_entry)
             await session.commit()

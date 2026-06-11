@@ -21,7 +21,7 @@ from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
-from luml.repositories.tracks import TrackEntryRepository
+from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import (
     Artifact,
@@ -54,6 +54,7 @@ class ArtifactHandler:
     __collection_repository = CollectionRepository(engine)
     __deployment_repository = DeploymentRepository(engine)
     __track_entry_repository = TrackEntryRepository(engine)
+    __track_repository = TrackRepository(engine)
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
@@ -542,7 +543,7 @@ class ArtifactHandler:
         orbit_id: UUID,
         collection_id: UUID,
         artifact_id: UUID,
-    ) -> Artifact:
+    ) -> ArtifactDetails:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -550,12 +551,17 @@ class ArtifactHandler:
             Action.READ,
             orbit_id,
         )
-        orbit, _ = await self._check_orbit_and_collection_access(
+        await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        artifact = await self.__repository.get_artifact(artifact_id)
+        artifact = await self.__repository.get_artifact_details(artifact_id)
+
         if not artifact or artifact.collection_id != collection_id:
             raise NotFoundError("Artifact not found")
+
+        artifact.tracks = await self.__track_repository.get_tracks_for_artifact(
+            artifact_id
+        )
         return artifact
 
     async def get_satellite_artifact(

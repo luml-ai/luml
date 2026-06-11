@@ -3,6 +3,7 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
+from luml.infra.exceptions import ApplicationError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.tracks import (
     TrackEntryRepository,
@@ -21,6 +22,7 @@ from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.tracks import (
     StageCreate,
     StageUpdate,
+    StageUpsertIn,
     Track,
     TrackCreate,
     TrackEntry,
@@ -1249,3 +1251,314 @@ async def test_update_entry_missing_returns_none(
         uuid.uuid4(), TrackEntryUpdate(stage_id=None)
     )
     assert result is None
+
+
+# --- sync_stages (declarative replace) ---
+
+
+@pytest.mark.asyncio
+async def test_sync_stages_create_rename_delete(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sync-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    keep = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Keep"))
+    rename = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Old"))
+    await stage_repo.create_stage(StageCreate(track_id=track.id, name="ToDelete"))
+
+    await stage_repo.sync_stages(
+        track.id,
+        [
+            StageUpsertIn(id=keep.id, name="Keep"),  # unchanged
+            StageUpsertIn(id=rename.id, name="New"),  # renamed
+            StageUpsertIn(name="Brand"),  # created
+            # "ToDelete" absent -> removed
+        ],
+    )
+
+    stages = await stage_repo.list_stages(track.id)
+    by_id = {s.id: s.name for s in stages}
+    assert by_id[keep.id] == "Keep"
+    assert by_id[rename.id] == "New"
+    assert {s.name for s in stages} == {"Keep", "New", "Brand"}
+
+
+@pytest.mark.asyncio
+async def test_sync_stages_empty_removes_all(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sync-empty",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    await stage_repo.create_stage(StageCreate(track_id=track.id, name="A"))
+    await stage_repo.create_stage(StageCreate(track_id=track.id, name="B"))
+
+    await stage_repo.sync_stages(track.id, [])
+
+    assert await stage_repo.list_stages(track.id) == []
+
+
+@pytest.mark.asyncio
+async def test_sync_stages_in_use_conflict_is_atomic(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sync-inuse",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    used = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Used"))
+
+    artifact = await _create_artifact(data.engine, data.collection.id)
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+        )
+    )
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used.id))
+
+    # Removing the used stage (and trying to add a new one) -> 409, nothing changes.
+    with pytest.raises(ApplicationError) as exc:
+        await stage_repo.sync_stages(track.id, [StageUpsertIn(name="New")])
+    assert exc.value.status_code == 409
+    # The conflicting stage is identified by id (and name) in the message.
+    assert str(used.id) in exc.value.message
+    assert "Used" in exc.value.message
+
+    stages = await stage_repo.list_stages(track.id)
+    assert {s.name for s in stages} == {"Used"}  # unchanged (no "New" created)
+
+
+@pytest.mark.asyncio
+async def test_sync_stages_foreign_id_unprocessable(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sync-foreign",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+
+    with pytest.raises(ApplicationError) as exc:
+        await stage_repo.sync_stages(
+            track.id, [StageUpsertIn(id=uuid.uuid4(), name="Ghost")]
+        )
+    assert exc.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_sync_stages_duplicate_names_conflict(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="sync-dup",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+
+    with pytest.raises(ApplicationError) as exc:
+        await stage_repo.sync_stages(
+            track.id, [StageUpsertIn(name="Dup"), StageUpsertIn(name="Dup")]
+        )
+    assert exc.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_update_track_with_stages_is_atomic(
+    create_collection: CollectionFixtureData,
+) -> None:
+    """A stage conflict must roll back the track-field update too."""
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="atomic-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    used = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Used"))
+
+    artifact = await _create_artifact(data.engine, data.collection.id)
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+        )
+    )
+    await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used.id))
+
+    # Rename the track AND drop the in-use stage in one call -> 409, all rolled back.
+    with pytest.raises(ApplicationError) as exc:
+        await repo.update_track(
+            track.id,
+            TrackUpdate(name="renamed"),
+            stages=[StageUpsertIn(name="Brand")],
+        )
+    assert exc.value.status_code == 409
+
+    after = await repo.get_track(track.id)
+    assert after is not None
+    assert after.name == "atomic-track"  # field update rolled back
+    stages = await stage_repo.list_stages(track.id)
+    assert {s.name for s in stages} == {"Used"}  # stages unchanged
+
+
+@pytest.mark.asyncio
+async def test_update_track_with_stages_commits_together(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="combo-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    old = await stage_repo.create_stage(StageCreate(track_id=track.id, name="Old"))
+
+    updated = await repo.update_track(
+        track.id,
+        TrackUpdate(name="combo-renamed"),
+        stages=[StageUpsertIn(id=old.id, name="New"), StageUpsertIn(name="Fresh")],
+    )
+
+    assert updated is not None
+    assert updated.name == "combo-renamed"
+    # The returned track already carries the synced stages (no re-fetch needed).
+    assert {s.name for s in updated.stages} == {"New", "Fresh"}
+    stages = await stage_repo.list_stages(track.id)
+    assert {s.name for s in stages} == {"New", "Fresh"}
+
+
+@pytest.mark.asyncio
+async def test_update_track_missing_returns_none(
+    create_orbit: OrbitFixtureData,
+) -> None:
+    data = create_orbit
+    repo = TrackRepository(data.engine)
+    result = await repo.update_track(uuid.uuid4(), TrackUpdate(name="x"))
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_create_entry_with_stage(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    stage_repo = TrackStageRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    track = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="entry-stage-track",
+            artifact_type=ArtifactType.MODEL,
+        )
+    )
+    stage = await stage_repo.create_stage(
+        StageCreate(track_id=track.id, name="Production")
+    )
+    artifact = await _create_artifact(data.engine, data.collection.id)
+
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by=data.user.id,
+            stage_id=stage.id,
+        )
+    )
+
+    assert entry.stage_id == stage.id
+    assert entry.stage_name == "Production"
+
+
+@pytest.mark.asyncio
+async def test_get_tracks_for_artifact(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    artifact = await _create_artifact(data.engine, data.collection.id)
+
+    track_a = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="track-a", artifact_type=ArtifactType.MODEL
+        )
+    )
+    track_b = await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="track-b", artifact_type=ArtifactType.MODEL
+        )
+    )
+    # track_c has no entry for this artifact.
+    await repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id, name="track-c", artifact_type=ArtifactType.MODEL
+        )
+    )
+
+    for track in (track_a, track_b):
+        await entry_repo.create_entry(
+            TrackEntryCreate(
+                track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+            )
+        )
+
+    tracks = await repo.get_tracks_for_artifact(artifact.id)
+    assert {t.id for t in tracks} == {track_a.id, track_b.id}
+
+
+@pytest.mark.asyncio
+async def test_get_tracks_for_artifact_none(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = TrackRepository(data.engine)
+    assert await repo.get_tracks_for_artifact(uuid.uuid4()) == []

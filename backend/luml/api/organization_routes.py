@@ -8,7 +8,6 @@ from luml.api.orbits.orbit_secrets import orbit_secrets_router
 from luml.api.orbits.orbit_tracks import (
     tracks_router,
     tracks_router_entries,
-    tracks_router_stages,
 )
 from luml.api.orbits.orbits import organization_orbits_router
 from luml.api.orbits.orbits_members import orbit_members_router
@@ -31,6 +30,5 @@ organization_all_routers.include_router(artifacts_router)
 organization_all_routers.include_router(orbit_secrets_router)
 organization_all_routers.include_router(deployments_router)
 organization_all_routers.include_router(tracks_router)
-organization_all_routers.include_router(tracks_router_stages)
 organization_all_routers.include_router(tracks_router_entries)
 organization_all_routers.include_router(organization_orbit_satellites_router)
