@@ -60,11 +60,11 @@ sdk/python/sdk/luml/
 ├── experiments/
 │   └── evaluation/
 │       └── scorers/
-│           ├── __init__.py          # (existing) re-exports base; ADD builtin re-exports (see Public API)
+│           ├── __init__.py          # (existing; currently empty) ADD builtin re-exports (see Public API)
 │           ├── base.py              # (existing) BaseScorer, UnsupervisedScorer, SupervisedScorer, decorators
 │           └── builtin/
 │               ├── __init__.py      # Public exports: Relevancy, Correctness, Summarization, PromptAlignment, Completeness
-│               ├── _base.py         # LLMJudgeScorer + SupervisedLLMJudgeScorer + _call_judge/_init_client/_extract_input helpers
+│               ├── _base.py         # base classes + _call_judge/_default_client/_extract_input/_run_traced_judge helpers
 │               ├── _exceptions.py   # JudgeModelError (extends LLMError)
 │               ├── _prompts.py      # Shared JSON-output instruction + corrective reminder constants
 │               ├── relevancy.py     # Relevancy scorer
@@ -127,7 +127,9 @@ class OpenAIClient:
 
 ### Tracing interaction
 
-The default `OpenAIClient` constructs its own `openai.OpenAI()` instance. If the user has enabled OpenTelemetry tracing and called `instrument_openai()` (as in `examples/evals_example.py`), the judge's own OpenAI calls are auto-instrumented and will appear as child spans **nested under the existing `eval_scoring` span** created by `_evaluate_single_item`. This is intended and desirable (judge calls become visible in the trace); no extra instrumentation is added by the scorer layer.
+Every built-in judge scorer wraps its judge call in its own `llm_judge` span via `_run_traced_judge` (see above), carrying `eval.scorer.name` and `eval.scorer.score` attributes. These spans nest **under the existing `eval_scoring` span** created by `_evaluate_single_item`, so the trace shows: `eval_request → eval_scoring → llm_judge[<scorer>]`, one `llm_judge` span per built-in scorer per item.
+
+If the user has additionally enabled OpenTelemetry tracing and called `instrument_openai()` (as in `examples/evals_example.py`), the default `OpenAIClient`'s own OpenAI calls are auto-instrumented and nest *inside* the relevant `llm_judge` span — giving full `llm_judge → openai` visibility. When no tracer provider is configured, the `llm_judge` spans are no-ops with zero overhead.
 
 ## LLM Judge Base Classes (`_base.py`)
 
@@ -203,24 +205,17 @@ def _call_judge(client: LLMClient, system_prompt: str, user_prompt: str) -> dict
     )
 ```
 
-### Shared helper: `_init_client`
+### Shared helper: `_default_client`
 
 ```python
-def _init_client(
-    client: LLMClient | None,
-    model: str,
-    api_key: str | None,
-    base_url: str | None,
-    temperature: float,
-) -> LLMClient:
-    """Return the provided client, or create a default OpenAIClient with JSON output."""
-    return client or OpenAIClient(
-        model=model, api_key=api_key, base_url=base_url,
-        response_format={"type": "json_object"}, temperature=temperature,
-    )
+def _default_client(client: LLMClient | None) -> LLMClient:
+    """Return the provided client, or a default JSON-mode OpenAIClient."""
+    return client or OpenAIClient(response_format={"type": "json_object"})
 ```
 
-**Constructor priority:** If `client` is provided, `model`/`api_key`/`base_url`/`temperature` are ignored. If `client` is `None` (default), an `OpenAIClient` is created with `response_format={"type": "json_object"}` and the provided parameters.
+**Client resolution:** Scorers take a single `client: LLMClient | None`. If a client is provided, it is used as-is. If `client` is `None` (default), a default `OpenAIClient` is created with `response_format={"type": "json_object"}` — which itself defaults to `model="gpt-4.1-mini"` and `temperature=0.0`, so the zero-config judge is reproducible JSON-mode out of the box.
+
+**Why no `model`/`api_key`/`base_url`/`temperature` on the scorer:** those are OpenAI-client concerns and would only ever be forwarded to `OpenAIClient`. Exposing them on a provider-agnostic scorer leaks provider specifics, duplicates the client's own constructor, and creates a "which wins" ambiguity when both a `client` and a `model` are passed. Users who need non-default config construct the client explicitly and inject it: `Relevancy(client=OpenAIClient(model="gpt-4.1"))`.
 
 ### Shared helper: `_extract_input`
 
@@ -263,6 +258,40 @@ def parse_judgment(self, judgment: dict[str, Any]) -> dict[str, Any]:
 
 The scorer returns both entries in a single flat dict (the only channel `score()` has). `_evaluate_single_item` then separates the `REASONING_SUFFIX` entry into the eval sample metadata — see *Evaluate Integration*. Subclasses may override `parse_judgment` if they need extra fields, but the five built-ins do not.
 
+### Shared helper: `_run_traced_judge`
+
+Each judge scorer call is wrapped in its own OpenTelemetry span so the LLM judge step is visible as a discrete unit in the trace (and so an `instrument_openai()` client span nests *inside* it rather than loosely under `eval_scoring`). This follows the exact tracer pattern already used in `evaluate.py` (`trace.get_tracer(__name__)`, `start_as_current_span`, `Status`/`StatusCode`).
+
+```python
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
+
+_tracer = trace.get_tracer(__name__)
+
+def _run_traced_judge(
+    scorer: BaseScorer,
+    client: LLMClient,
+    system_prompt: str,
+    user_prompt: str,
+) -> dict[str, Any]:
+    """Call the judge inside a per-scorer span, then parse the result."""
+    name = scorer.get_name()
+    with _tracer.start_as_current_span("llm_judge") as span:
+        span.set_attribute("eval.scorer.name", name)
+        judgment = _call_judge(client, system_prompt, user_prompt)
+        result = scorer.parse_judgment(judgment)
+        score_value = result.get(name)
+        if isinstance(score_value, (int, float)) and not isinstance(score_value, bool):
+            span.set_attribute("eval.scorer.score", float(score_value))
+        span.set_status(Status(StatusCode.OK))
+        return result
+```
+
+Notes:
+- The span name is the **low-cardinality** constant `"llm_judge"`; the scorer name is an attribute (`eval.scorer.name`), per OTel conventions. The numeric score is recorded as `eval.scorer.score`.
+- `start_as_current_span` defaults to `record_exception=True` / `set_status_on_exception=True`, so a `JudgeModelError` / `LLMError` raised by `_call_judge` is recorded on the span and the status set to ERROR automatically before it propagates up to `_call_scorer`'s existing `except` (which logs `__error__<name>`). No explicit try/except is needed here.
+- `opentelemetry-api` is already a hard import of this subsystem (`evaluate.py` imports it unconditionally). When no tracer provider is configured, `get_tracer(...).start_as_current_span(...)` is a no-op span — zero overhead, no setup required.
+
 ### `LLMJudgeScorer` — for scorers that don't need ground truth
 
 Extends `UnsupervisedScorer`. Used by: Relevancy, Summarization, PromptAlignment, Completeness.
@@ -273,15 +302,11 @@ class LLMJudgeScorer(UnsupervisedScorer):
 
     def __init__(
         self,
-        client: LLMClient | None = None,
-        model: str = "gpt-4.1-mini",
-        api_key: str | None = None,
-        base_url: str | None = None,
-        temperature: float = 0.0,
-        input_key: str | None = None,   # override default input key lookup
-        name: str | None = None,        # override default scorer name
+        client: LLMClient | None = None,  # any LLMClient; default = JSON-mode OpenAIClient
+        input_key: str | None = None,     # override default input key lookup
+        name: str | None = None,          # override default scorer name
     ) -> None:
-        self._client = _init_client(client, model, api_key, base_url, temperature)
+        self._client = _default_client(client)
         self._input_key = input_key
         self._name = name or self.default_name()
 
@@ -297,8 +322,7 @@ class LLMJudgeScorer(UnsupervisedScorer):
 
     def score(self, inputs: dict[str, Any], output: Any) -> dict[str, Any]:
         system_prompt, user_prompt = self.build_prompt(inputs, output)
-        judgment = _call_judge(self._client, system_prompt, user_prompt)
-        return self.parse_judgment(judgment)
+        return _run_traced_judge(self, self._client, system_prompt, user_prompt)
 
     def get_name(self) -> str:
         return self._name
@@ -310,9 +334,8 @@ Extends `SupervisedScorer`. Used by: Correctness. Same `__init__`, `default_name
 
 ```python
 class SupervisedLLMJudgeScorer(SupervisedScorer):
-    def __init__(self, client=None, model="gpt-4.1-mini", api_key=None,
-                 base_url=None, temperature=0.0, input_key=None, name=None) -> None:
-        self._client = _init_client(client, model, api_key, base_url, temperature)
+    def __init__(self, client=None, input_key=None, name=None) -> None:
+        self._client = _default_client(client)
         self._input_key = input_key
         self._name = name or self.default_name()
 
@@ -324,8 +347,7 @@ class SupervisedLLMJudgeScorer(SupervisedScorer):
 
     def score(self, inputs: dict[str, Any], expected_output: Any, output: Any) -> dict[str, Any]:
         system_prompt, user_prompt = self.build_prompt(inputs, expected_output, output)
-        judgment = _call_judge(self._client, system_prompt, user_prompt)
-        return self.parse_judgment(judgment)
+        return _run_traced_judge(self, self._client, system_prompt, user_prompt)
 
     def get_name(self) -> str:
         return self._name
@@ -429,6 +451,7 @@ Consequences:
 - Error keys (`error`, `__error__<name>`) do not end with `REASONING_SUFFIX`, so they stay in `metric_scores` as before, preserving the existing `successful_items` count (`"error" not in r.scores`).
 - The span-attribute loop already filters to numeric values, so reasoning strings are naturally skipped there.
 - A custom scorer that happens to emit a key ending in `_reasoning` will have that entry routed to metadata too — this is the documented contract for the metrics-vs-metadata split.
+- This split applies only to the **success path** (where the scoring loop ran). The inference-failure `except` path's `EvalResult(scores={"error": str(e)})` is left unchanged — there are no scorer results to route there.
 
 ## Optional Dependency
 
@@ -497,8 +520,9 @@ Usage examples:
 from luml.experiments.evaluation import evaluate
 from luml.experiments.evaluation.types import EvalItem
 from luml.experiments.evaluation.scorers.builtin import Relevancy, Correctness
+from luml.llm import OpenAIClient
 
-# Default: OpenAI with gpt-4.1-mini, temperature=0
+# Default: zero-config judge (JSON-mode OpenAIClient, gpt-4.1-mini, temperature=0)
 results = evaluate(
     eval_dataset=[
         EvalItem(
@@ -508,7 +532,7 @@ results = evaluate(
         ),
     ],
     inference_fn=my_model,
-    scorers=[Relevancy(), Correctness(model="gpt-4.1")],
+    scorers=[Relevancy(), Correctness()],
     dataset_id="v1",
     experiment_tracker=tracker,
 )
@@ -516,8 +540,12 @@ results = evaluate(
 # Non-standard input key
 scorers = [Relevancy(input_key="prompt")]
 
-# Ollama via base_url (uses OpenAI-compatible API)
-scorers = [Relevancy(model="llama3", base_url="http://localhost:11434/v1")]
+# Custom model / api key — configure the client, then inject it
+scorers = [Correctness(client=OpenAIClient(model="gpt-4.1"))]
+scorers = [Relevancy(client=OpenAIClient(api_key="sk-my-custom-key"))]
+
+# Ollama via base_url (OpenAI-compatible API)
+scorers = [Relevancy(client=OpenAIClient(model="llama3", base_url="http://localhost:11434/v1"))]
 
 # Fully custom provider (no openai package needed)
 class MyAnthropicClient:
@@ -528,7 +556,7 @@ class MyAnthropicClient:
 scorers = [Relevancy(client=MyAnthropicClient())]
 
 # Same client instance shared across multiple scorers
-client = MyAnthropicClient()
+client = OpenAIClient(model="gpt-4.1")
 scorers = [Relevancy(client=client), Correctness(client=client)]
 ```
 
@@ -578,45 +606,45 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
 **When** the user runs `evaluate()` with `scorers=[Relevancy(), is_short]`
 **Then** the eval sample's `scores` contains `{"relevancy": <float>, "is_short": True}`, its `metadata` contains `{"relevancy_reasoning": <str>}`, and aggregation works for the numeric/boolean values
 
-### Scenario: Custom model override
-**Given** `Relevancy(model="gpt-4.1")`
+### Scenario: Default zero-config client
+**Given** `Relevancy()` with no `client`
+**When** the scorer is constructed
+**Then** `_default_client(None)` builds an `OpenAIClient(response_format={"type": "json_object"})`, which itself defaults to `model="gpt-4.1-mini"` and `temperature=0.0`
+
+### Scenario: Custom model via injected client
+**Given** `Relevancy(client=OpenAIClient(model="gpt-4.1"))`
 **When** the scorer runs
 **Then** the judge LLM call uses `gpt-4.1` instead of the default `gpt-4.1-mini`
 
-### Scenario: Temperature override
-**Given** `Relevancy(temperature=0.7)`
-**When** the default `OpenAIClient` is created and `complete()` runs
-**Then** the chat completions call is made with `temperature=0.7` (default is `0.0`)
+### Scenario: Custom temperature via injected client
+**Given** `Relevancy(client=OpenAIClient(temperature=0.7))`
+**When** `complete()` runs
+**Then** the chat completions call is made with `temperature=0.7` (the client's default is `0.0`)
 
 ### Scenario: Custom input key
 **Given** `Relevancy(input_key="prompt")` and `EvalItem(inputs={"prompt": "What is RAG?"})`
 **When** `build_prompt` runs
 **Then** `_extract_input` returns the value of `inputs["prompt"]` and the judge evaluates against it
 
-### Scenario: Custom API key
-**Given** `Relevancy(api_key="sk-my-custom-key")`
+### Scenario: Custom API key via injected client
+**Given** `Relevancy(client=OpenAIClient(api_key="sk-my-custom-key"))`
 **When** the scorer runs
 **Then** the OpenAI client uses the provided key instead of the `OPENAI_API_KEY` env var
 
-### Scenario: Ollama via base_url
+### Scenario: Ollama via injected client base_url
 **Given** Ollama running locally with `llama3`
-**When** the user creates `Relevancy(model="llama3", base_url="http://localhost:11434/v1")`
+**When** the user creates `Relevancy(client=OpenAIClient(model="llama3", base_url="http://localhost:11434/v1"))`
 **Then** the `OpenAIClient` points at the Ollama OpenAI-compatible endpoint and uses `llama3`
 
 ### Scenario: Custom LLM client (non-OpenAI provider)
 **Given** a user implements a class with `complete(system_prompt, user_prompt) -> str` that calls Anthropic
 **When** they create `Relevancy(client=my_anthropic_client)`
-**Then** the scorer uses the custom client, and the `openai` package is never imported
+**Then** the scorer uses the custom client as-is, and the `openai` package is never imported
 
 ### Scenario: Custom client with supervised scorer
 **Given** a user implements a custom LLM client
 **When** they create `Correctness(client=my_custom_client)`
 **Then** the supervised scorer uses the custom client, and `expected_output` is still passed through `build_prompt` correctly
-
-### Scenario: Client parameter takes priority over model/api_key/base_url/temperature
-**Given** `Relevancy(client=my_client, model="gpt-4.1", api_key="sk-key", temperature=0.5)`
-**When** the scorer runs
-**Then** `my_client` is used; `model`, `api_key`, `base_url`, and `temperature` are ignored
 
 ### Scenario: Scores logged to experiment tracker
 **Given** a user runs `evaluate()` with built-in scorers and an `ExperimentTracker`
@@ -632,6 +660,16 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
 **Given** `evaluate(..., n_threads=4)` with built-in scorers
 **When** evaluation runs
 **Then** each thread issues its own judge LLM call via the sync OpenAI client, and results are collected correctly without race conditions
+
+### Scenario: Judge call is traced as its own span
+**Given** an OpenTelemetry `TracerProvider` with an in-memory span exporter is configured, and `evaluate()` runs with `Relevancy()`
+**When** the scorer runs for an item
+**Then** a `"llm_judge"` span is recorded as a child of the `eval_scoring` span, carrying attributes `eval.scorer.name="relevancy"` and a numeric `eval.scorer.score`
+
+### Scenario: Judge error marks the span ERROR
+**Given** tracing is configured and the judge raises `JudgeModelError` (malformed JSON twice)
+**When** the `"llm_judge"` span closes
+**Then** its status is `ERROR` and the exception is recorded on the span, while evaluation still continues (the error is also logged as `__error__relevancy` by `_call_scorer`)
 
 ## Edge Cases
 
@@ -761,17 +799,19 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
   - [ ] Create `.../builtin/_base.py`:
     - `_try_parse(raw) -> dict | None` (JSON parse; require numeric non-bool `score`)
     - `_call_judge(client, system_prompt, user_prompt) -> dict` (one corrective retry with `CORRECTIVE_REMINDER`, else `JudgeModelError`)
-    - `_init_client(client, model, api_key, base_url, temperature) -> LLMClient`
+    - `_default_client(client) -> LLMClient` (returns `client` or `OpenAIClient(response_format={"type": "json_object"})`)
     - `_extract_input(inputs, input_key, default_keys) -> str`
-    - `LLMJudgeScorer(UnsupervisedScorer)`: `__init__(client, model, api_key, base_url, temperature, input_key, name)`, abstract `default_name`/`build_prompt`, concrete `parse_judgment` (clamp + `f"{name}{REASONING_SUFFIX}"`), concrete `score`/`get_name`
-    - `SupervisedLLMJudgeScorer(SupervisedScorer)`: same `__init__`, abstract `default_name`/`build_prompt(inputs, expected_output, output)`, concrete `parse_judgment`/`score`/`get_name`
+    - `_tracer = trace.get_tracer(__name__)` and `_run_traced_judge(scorer, client, system_prompt, user_prompt) -> dict` — wraps `_call_judge` + `parse_judgment` in a `"llm_judge"` span with `eval.scorer.name` / `eval.scorer.score` attributes (mirrors `evaluate.py`'s tracer usage)
+    - `LLMJudgeScorer(UnsupervisedScorer)`: `__init__(client=None, input_key=None, name=None)`, abstract `default_name`/`build_prompt`, concrete `parse_judgment` (clamp + `f"{name}{REASONING_SUFFIX}"`), concrete `score` (via `_run_traced_judge`)/`get_name`
+    - `SupervisedLLMJudgeScorer(SupervisedScorer)`: same `__init__`, abstract `default_name`/`build_prompt(inputs, expected_output, output)`, concrete `parse_judgment`/`score` (via `_run_traced_judge`)/`get_name`
   - [ ] Write tests in `sdk/python/sdk/tests/experiments/evaluation/scorers/test_base.py`:
     - `_try_parse`: valid dict with numeric score; invalid JSON → `None`; missing score → `None`; bool score → `None`
     - `_call_judge`: success first try; success on retry (assert second call uses corrective reminder); failure twice → `JudgeModelError`
-    - `_init_client`: returns provided client; creates `OpenAIClient` with `response_format={"type": "json_object"}` and `temperature` when `None`
+    - `_default_client`: returns the provided client unchanged; creates a JSON-mode `OpenAIClient` when `None`
     - `_extract_input`: `input_key` present; `input_key` missing → default chain; no keys → `str(inputs)`
     - `parse_judgment`: clamps score to [0,1]; missing reasoning → `""`; key names `<name>`/`<name>_reasoning`
-    - concrete stub subclasses of both base classes: `score` calls `build_prompt → _call_judge → parse_judgment`; supervised passes `expected_output` through; custom `name` honored
+    - concrete stub subclasses of both base classes: `score` calls `build_prompt → _run_traced_judge → _call_judge → parse_judgment`; supervised passes `expected_output` through; custom `name` honored; a passed `client` is used as-is
+    - `_run_traced_judge` tracing: with an `InMemorySpanExporter` + `TracerProvider` configured, calling `score()` emits one `"llm_judge"` span carrying `eval.scorer.name` and a numeric `eval.scorer.score`; on `JudgeModelError` the span status is ERROR and the exception is recorded
   - [ ] Add tests in `.../evaluation/test_evaluate.py` for reasoning routing: a stub scorer returning `{name, f"{name}_reasoning"}` results in `log_eval_sample` getting numeric-only `scores` and reasoning under `metadata`; `EvalResult.scores` excludes reasoning; `error`/`__error__` keys stay in `scores`
 
 - [ ] **Task 3: Relevancy scorer**
@@ -811,13 +851,14 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - corrective retry path: client returns bad JSON then good JSON → score returned, no error
     - multi-threaded evaluation (`n_threads=2`) with built-in scorers
     - built-in scorers with a custom `LLMClient` (no `openai` dependency needed); multiple scorers sharing one client instance
+    - tracing end-to-end: with an `InMemorySpanExporter`, an `evaluate()` run with a built-in scorer produces an `eval_request → eval_scoring → llm_judge` span tree, the `llm_judge` span carrying `eval.scorer.name`/`eval.scorer.score`
   - [ ] Verify existing tests in `.../test_evaluate.py` still pass (no regressions)
   - [ ] Add a runnable example `sdk/python/sdk/examples/builtin_scorers_example.py` mirroring `evals_example.py` but using built-in scorers
 
 - [ ] **Task 7: Documentation for the new public API**
-  - [ ] Register the new modules for API-reference generation in `docs/generate_docs.py` `sdk_modules` (the `generate-docs` entrypoint drives the SDK docs):
+  - [ ] Register the new modules for API-reference generation in `docs/generate_docs.py` `sdk_modules` (run via `uv run docs/generate_docs.py`):
     - Add an `"LLM"` category → `"luml.llm": ("llm", "client")` (or similar subdir/file)
     - Add the built-in scorers under the existing `"Experiments"` (or a new `"Evaluation"`) category → e.g. `"luml.experiments.evaluation.scorers.builtin": ("experiments/evaluation", "builtin_scorers")`
   - [ ] Run `uv run docs/generate_docs.py` and commit the generated `.md` pages (consistent with the existing `docs/docs/sdk/experiments/evaluation/evaluate.md` and `types.md`)
-  - [ ] Add a short guide section covering built-in scorers — import paths, the default `OpenAIClient`, `temperature`/`model`/`input_key`/custom-client options, the score-vs-reasoning (metadata) split, and a copy-pasteable example — alongside `lumlflow/frontend/src/docs/llm_evaluation_lumlflow.md` (extend it or add a sibling doc, matching that file's style)
+  - [ ] Add a short guide section covering built-in scorers — import paths, the zero-config default judge, configuring a custom judge by injecting `OpenAIClient(model=..., temperature=..., base_url=...)` or a custom `LLMClient`, the `input_key` option, the score-vs-reasoning (metadata) split, and a copy-pasteable example — alongside `lumlflow/frontend/src/docs/llm_evaluation_lumlflow.md` (extend it or add a sibling doc, matching that file's style)
   - [ ] Ensure module/class docstrings on `OpenAIClient`, `LLMClient`, and the five scorers are complete enough that pydoc-markdown renders useful reference pages (the generator turns docstrings into the `.md`)
