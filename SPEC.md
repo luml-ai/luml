@@ -787,17 +787,17 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
 > - `mypy` passes (repo pins `mypy==1.15.0`); the `LLMClient` `Protocol`/`@runtime_checkable`, lazy `import openai`, and new public exports must type-check cleanly.
 > - The task's own new tests pass and no existing tests regress (`pytest`).
 
-- [ ] **Task 1: `luml.llm` — LLMClient protocol and OpenAIClient**
-  - [ ] Create `sdk/python/sdk/luml/llm/_exceptions.py` — define `LLMError(Exception)`
-  - [ ] Create `sdk/python/sdk/luml/llm/_client.py`:
+- [x] **Task 1: `luml.llm` — LLMClient protocol and OpenAIClient**
+  - [x] Create `sdk/python/sdk/luml/llm/_exceptions.py` — define `LLMError(Exception)`
+  - [x] Create `sdk/python/sdk/luml/llm/_client.py`:
     - `LLMClient` Protocol with `complete(self, system_prompt: str, user_prompt: str) -> str` (use `typing.Protocol`, `@runtime_checkable`)
     - `OpenAIClient` default implementation:
       - Lazy `import openai` in `__init__` with `ImportError` message pointing to `pip install luml_sdk[llm]` and suggesting a custom client
       - `__init__(self, model="gpt-4.1-mini", api_key=None, base_url=None, response_format=None, temperature=0.0, max_tokens=None, max_retries=2)`; constructs `openai.OpenAI(api_key=..., base_url=..., max_retries=...)`
       - `complete(...)` — builds system+user messages, calls `chat.completions.create` with `temperature`, optional `response_format`, optional `max_tokens`; returns `choices[0].message.content or ""`; wraps SDK exceptions in `LLMError`
-  - [ ] Create `sdk/python/sdk/luml/llm/__init__.py` — export `LLMClient`, `OpenAIClient`, `LLMError`
-  - [ ] Add `llm` optional dependency to `sdk/python/sdk/pyproject.toml`: `openai>=1.0.0,<3.0.0`
-  - [ ] Write tests in `sdk/python/sdk/tests/llm/test_client.py`:
+  - [x] Create `sdk/python/sdk/luml/llm/__init__.py` — export `LLMClient`, `OpenAIClient`, `LLMError`
+  - [x] Add `llm` optional dependency to `sdk/python/sdk/pyproject.toml`: `openai>=1.0.0,<3.0.0`
+  - [x] Write tests in `sdk/python/sdk/tests/llm/test_client.py`:
     - `OpenAIClient` with a mocked `openai.OpenAI` (valid response, API error → `LLMError`, content `None` → `""`)
     - `temperature` (default 0.0 and override), `max_tokens`, `base_url`, `response_format`, and `max_retries` are forwarded correctly
     - `ImportError` when `openai` is not importable (patch the import)
