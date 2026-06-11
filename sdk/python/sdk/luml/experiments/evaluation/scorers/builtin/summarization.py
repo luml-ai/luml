@@ -23,6 +23,18 @@ _SYSTEM_PROMPT = (
 
 
 class Summarization(LLMJudgeScorer):
+    """Scores how well a summary captures its source text.
+
+    Unsupervised scorer — no expected output required. Evaluates accuracy,
+    coverage, and absence of hallucination. Returns a float 0.0 (inaccurate /
+    fabricated) to 1.0 (accurately captures all key information).
+
+    Default input keys: ``"text"``.
+
+    >>> from luml.experiments.evaluation.scorers.builtin import Summarization
+    >>> scorer = Summarization()
+    >>> scorer = Summarization(input_key="document")
+    """
     def __init__(
         self,
         client: LLMClient | None = None,

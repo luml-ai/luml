@@ -169,10 +169,8 @@ Orbit(
 #### update
 
 ```python
-def update(
-    name: str | None = None,
-    bucket_secret_id: str | None = None
-) -> Orbit
+def update(name: str | None = None,
+           bucket_secret_id: str | None = None) -> Orbit
 ```
 
 Update default orbit configuration.
@@ -448,10 +446,8 @@ Orbit(
 #### update
 
 ```python
-async def update(
-    name: str | None = None,
-    bucket_secret_id: str | None = None
-) -> Orbit
+async def update(name: str | None = None,
+                 bucket_secret_id: str | None = None) -> Orbit
 ```
 
 Update default orbit configuration.

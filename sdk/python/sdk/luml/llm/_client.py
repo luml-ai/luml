@@ -15,6 +15,16 @@ class LLMClient(Protocol):
 
 
 class OpenAIClient:
+    """LLM client backed by the OpenAI chat-completions API.
+
+    Works with any OpenAI-compatible endpoint. Requires the ``openai`` package
+    (install via ``pip install luml_sdk[llm]``).
+
+    >>> from luml.llm import OpenAIClient
+    >>> client = OpenAIClient(model="gpt-4.1-mini", temperature=0.0)
+    >>> client = OpenAIClient(base_url="http://localhost:8080/v1")
+    """
+
     def __init__(
         self,
         model: str = "gpt-4.1-mini",

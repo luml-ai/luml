@@ -868,10 +868,10 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
   - [x] Verify existing tests in `.../test_evaluate.py` still pass (no regressions)
   - [x] Add a runnable example `sdk/python/sdk/examples/builtin_scorers_example.py` mirroring `evals_example.py` but using built-in scorers
 
-- [ ] **Task 7: Documentation for the new public API**
-  - [ ] Register the new modules for API-reference generation in `docs/generate_docs.py` `sdk_modules` (run via `uv run docs/generate_docs.py`):
+- [x] **Task 7: Documentation for the new public API**
+  - [x] Register the new modules for API-reference generation in `docs/generate_docs.py` `sdk_modules` (run via `uv run docs/generate_docs.py`):
     - Add an `"LLM"` category → `"luml.llm": ("llm", "client")` (or similar subdir/file)
     - Add the built-in scorers under the existing `"Experiments"` (or a new `"Evaluation"`) category → e.g. `"luml.experiments.evaluation.scorers.builtin": ("experiments/evaluation", "builtin_scorers")`
-  - [ ] Run `uv run docs/generate_docs.py` and commit the generated `.md` pages (consistent with the existing `docs/docs/sdk/experiments/evaluation/evaluate.md` and `types.md`)
-  - [ ] Add a short guide section covering built-in scorers — import paths, the zero-config default judge, configuring a custom judge by injecting `OpenAIClient(model=..., temperature=..., base_url=...)` or a custom `LLMClient`, the `input_key` option, the score-vs-reasoning (metadata) split, and a copy-pasteable example — alongside `lumlflow/frontend/src/docs/llm_evaluation_lumlflow.md` (extend it or add a sibling doc, matching that file's style)
-  - [ ] Ensure module/class docstrings on `OpenAIClient`, `LLMClient`, and the five scorers are complete enough that pydoc-markdown renders useful reference pages (the generator turns docstrings into the `.md`)
+  - [x] Run `uv run docs/generate_docs.py` and commit the generated `.md` pages (consistent with the existing `docs/docs/sdk/experiments/evaluation/evaluate.md` and `types.md`)
+  - [x] Add a short guide section covering built-in scorers — import paths, the zero-config default judge, configuring a custom judge by injecting `OpenAIClient(model=..., temperature=..., base_url=...)` or a custom `LLMClient`, the `input_key` option, the score-vs-reasoning (metadata) split, and a copy-pasteable example — alongside `lumlflow/frontend/src/docs/llm_evaluation_lumlflow.md` (extend it or add a sibling doc, matching that file's style)
+  - [x] Ensure module/class docstrings on `OpenAIClient`, `LLMClient`, and the five scorers are complete enough that pydoc-markdown renders useful reference pages (the generator turns docstrings into the `.md`)

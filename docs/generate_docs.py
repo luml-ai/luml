@@ -314,8 +314,31 @@ def generate_docs():
 
     # SDK modules (from luml package)
     sdk_modules = {
+        "LLM": {
+            "luml.llm._client": ("llm", "client"),
+        },
         "Experiments": {
             "luml.experiments.tracker": ("experiments", "tracker"),
+            "luml.experiments.evaluation.scorers.builtin.relevancy": (
+                "experiments/evaluation",
+                "relevancy",
+            ),
+            "luml.experiments.evaluation.scorers.builtin.correctness": (
+                "experiments/evaluation",
+                "correctness",
+            ),
+            "luml.experiments.evaluation.scorers.builtin.summarization": (
+                "experiments/evaluation",
+                "summarization",
+            ),
+            "luml.experiments.evaluation.scorers.builtin.prompt_alignment": (
+                "experiments/evaluation",
+                "prompt_alignment",
+            ),
+            "luml.experiments.evaluation.scorers.builtin.completeness": (
+                "experiments/evaluation",
+                "completeness",
+            ),
         },
         "Integrations": {
             "luml.integrations.sklearn.packaging": ("integrations", "sklearn"),

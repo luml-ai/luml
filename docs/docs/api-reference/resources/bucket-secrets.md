@@ -122,22 +122,22 @@ secrets = luml.bucket_secrets.list()
 #### create
 
 ```python
-def create(
-    endpoint: str,
-    bucket_name: str,
-    access_key: str | None = None,
-    secret_key: str | None = None,
-    session_token: str | None = None,
-    secure: bool | None = None,
-    region: str | None = None,
-    cert_check: bool | None = None
-) -> BucketSecret
+def create(endpoint: str,
+           bucket_name: str,
+           region: str,
+           type: BucketType = BucketType.S3,
+           access_key: str | None = None,
+           secret_key: str | None = None,
+           session_token: str | None = None,
+           secure: bool | None = None,
+           cert_check: bool | None = None) -> BucketSecret
 ```
 
 Create new bucket secret in the default organization.
 
 **Arguments**:
 
+- `type` - "s3" or "azure"
 - `endpoint` - S3-compatible storage endpoint URL (e.g., 's3.amazonaws.com').
 - `bucket_name` - Name of the storage bucket.
 - `access_key` - Access key for bucket authentication.
@@ -194,17 +194,15 @@ BucketSecret(
 #### update
 
 ```python
-def update(
-    secret_id: str,
-    endpoint: str | None = None,
-    bucket_name: str | None = None,
-    access_key: str | None = None,
-    secret_key: str | None = None,
-    session_token: str | None = None,
-    secure: bool | None = None,
-    region: str | None = None,
-    cert_check: bool | None = None
-) -> BucketSecret
+def update(secret_id: str,
+           endpoint: str | None = None,
+           bucket_name: str | None = None,
+           access_key: str | None = None,
+           secret_key: str | None = None,
+           session_token: str | None = None,
+           secure: bool | None = None,
+           region: str | None = None,
+           cert_check: bool | None = None) -> BucketSecret
 ```
 
 Update existing bucket secret.
@@ -312,11 +310,10 @@ luml.bucket_secrets.delete("0199c455-21f2-7131-9a20-da66246845c7")
 
 ```python
 def get_multipart_upload_urls(
-    bucket_id: str,
-    bucket_location: str,
-    size: int,
-    upload_id: str | None = None
-) -> MultiPartUploadDetails
+        bucket_id: str,
+        bucket_location: str,
+        size: int,
+        upload_id: str | None = None) -> MultiPartUploadDetails
 ```
 
 Get presigned URLs for multipart upload parts.
@@ -340,25 +337,26 @@ use this method to get presigned URLs for uploading each part.
 
 **Example**:
 
-```python
-luml = AsyncDataForceClient(api_key="luml_your_key")
+    ```python
+    luml = AsyncDataForceClient(api_key="luml_your_key")
 
-async def main():
-    await luml.setup_config(
-        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+    async def main():
+        await luml.setup_config(
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
 
-    bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
-    bucket_location = "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+        bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+        bucket_location =
+        "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-2
+        1ee-74c6-b747-19a82f1a1e75/my_model_name"
 
-    multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
-        bucket_secret_id,
-        bucket_location,
-        3874658765,
-        "some_upload_id"
-    )
-```
+        multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
+                bucket_secret_id,
+                bucket_location,
+                3874658765,
+                "some_upload_id")
+    ```
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource"></a>
 
@@ -489,11 +487,10 @@ async def main():
 
 ```python
 async def get_multipart_upload_urls(
-    bucket_id: str,
-    bucket_location: str,
-    size: int,
-    upload_id: str | None = None
-) -> MultiPartUploadDetails
+        bucket_id: str,
+        bucket_location: str,
+        size: int,
+        upload_id: str | None = None) -> MultiPartUploadDetails
 ```
 
 Get presigned URLs for multipart upload parts.
@@ -517,43 +514,41 @@ use this method to get presigned URLs for uploading each part.
 
 **Example**:
 
-```python
-luml = AsyncDataForceClient(api_key="luml_your_key")
+    ```python
+    luml = AsyncDataForceClient(api_key="luml_your_key")
 
-async def main():
-    await luml.setup_config(
-        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
+    async def main():
+        await luml.setup_config(
+            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
+            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
+            collection="0199c455-21ee-74c6-b747-19a82f1a1e75")
 
-    bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
-    bucket_location =
-    "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c
-    455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
+        bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
+        bucket_location =
+        "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c
+        455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
 
-    multipart_data = await luml.bucket_secrets.get_multipart_upload_urls(
-        bucket_secret_id,
-        bucket_location,
-        3874658765,
-        "some_upload_id"
-    )
-```
+        multipart_data = await luml.bucket_secrets.get_multipart_upload_urls(
+                bucket_secret_id,
+                bucket_location,
+                3874658765,
+                "some_upload_id")
+    ```
 
 <a id="luml_api.resources.bucket_secrets.AsyncBucketSecretResource.create"></a>
 
 #### create
 
 ```python
-async def create(
-    endpoint: str,
-    bucket_name: str,
-    access_key: str | None = None,
-    secret_key: str | None = None,
-    session_token: str | None = None,
-    secure: bool | None = None,
-    region: str | None = None,
-    cert_check: bool | None = None
-) -> BucketSecret
+async def create(endpoint: str,
+                 bucket_name: str,
+                 region: str,
+                 type: BucketType = BucketType.S3,
+                 access_key: str | None = None,
+                 secret_key: str | None = None,
+                 session_token: str | None = None,
+                 secure: bool | None = None,
+                 cert_check: bool | None = None) -> BucketSecret
 ```
 
 Create new bucket secret in the default organization.
@@ -620,17 +615,15 @@ BucketSecret(
 #### update
 
 ```python
-async def update(
-    secret_id: str,
-    endpoint: str | None = None,
-    bucket_name: str | None = None,
-    access_key: str | None = None,
-    secret_key: str | None = None,
-    session_token: str | None = None,
-    secure: bool | None = None,
-    region: str | None = None,
-    cert_check: bool | None = None
-) -> BucketSecret
+async def update(secret_id: str,
+                 endpoint: str | None = None,
+                 bucket_name: str | None = None,
+                 access_key: str | None = None,
+                 secret_key: str | None = None,
+                 session_token: str | None = None,
+                 secure: bool | None = None,
+                 region: str | None = None,
+                 cert_check: bool | None = None) -> BucketSecret
 ```
 
 Update existing bucket secret.

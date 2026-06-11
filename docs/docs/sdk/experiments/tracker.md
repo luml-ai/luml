@@ -38,12 +38,10 @@ tracker.end_experiment(exp_id)
 #### start_experiment
 
 ```python
-def start_experiment(
-    name: str | None = None,
-    group: str = "default",
-    experiment_id: str | None = None,
-    tags: list[str] | None = None
-) -> str
+def start_experiment(name: str | None = None,
+                     group: str = "default",
+                     experiment_id: str | None = None,
+                     tags: list[str] | None = None) -> str
 ```
 
 Starts a new experiment by initializing it with the backend and setting
@@ -143,12 +141,10 @@ tracker.log_static("batch_size", 32)
 #### log_dynamic
 
 ```python
-def log_dynamic(
-    key: str,
-    value: int | float,
-    step: int | None = None,
-    experiment_id: str | None = None
-) -> None
+def log_dynamic(key: str,
+                value: int | float,
+                step: int | None = None,
+                experiment_id: str | None = None) -> None
 ```
 
 Log time-series metrics (values that change during training).
@@ -176,22 +172,20 @@ for epoch in range(10):
 #### log_span
 
 ```python
-def log_span(
-    trace_id: str,
-    span_id: str,
-    name: str,
-    start_time_unix_nano: int,
-    end_time_unix_nano: int,
-    parent_span_id: str | None = None,
-    kind: int = 0,
-    status_code: int = 0,
-    status_message: str | None = None,
-    attributes: dict[str, Any] | None = None,
-    events: list[dict[str, Any]] | None = None,
-    links: list[dict[str, Any]] | None = None,
-    trace_flags: int = 0,
-    experiment_id: str | None = None
-) -> None
+def log_span(trace_id: str,
+             span_id: str,
+             name: str,
+             start_time_unix_nano: int,
+             end_time_unix_nano: int,
+             parent_span_id: str | None = None,
+             kind: int = 0,
+             status_code: int = 0,
+             status_message: str | None = None,
+             attributes: dict[str, Any] | None = None,
+             events: list[dict[str, Any]] | None = None,
+             links: list[dict[str, Any]] | None = None,
+             trace_flags: int = 0,
+             experiment_id: str | None = None) -> None
 ```
 
 Log an OpenTelemetry-compatible span to the experiment.
@@ -253,16 +247,14 @@ tracker.log_span(
 #### log_eval_sample
 
 ```python
-def log_eval_sample(
-    eval_id: str,
-    dataset_id: str,
-    inputs: dict[str, Any],
-    outputs: dict[str, Any] | None = None,
-    references: dict[str, Any] | None = None,
-    scores: dict[str, Any] | None = None,
-    metadata: dict[str, Any] | None = None,
-    experiment_id: str | None = None
-) -> None
+def log_eval_sample(eval_id: str,
+                    dataset_id: str,
+                    inputs: dict[str, Any],
+                    outputs: dict[str, Any] | None = None,
+                    references: dict[str, Any] | None = None,
+                    scores: dict[str, Any] | None = None,
+                    metadata: dict[str, Any] | None = None,
+                    experiment_id: str | None = None) -> None
 ```
 
 Log a single evaluation sample to the experiment.
@@ -312,12 +304,10 @@ tracker.log_eval_sample(
 #### link_eval_sample_to_trace
 
 ```python
-def link_eval_sample_to_trace(
-    eval_dataset_id: str,
-    eval_id: str,
-    trace_id: str,
-    experiment_id: str | None = None
-) -> None
+def link_eval_sample_to_trace(eval_dataset_id: str,
+                              eval_id: str,
+                              trace_id: str,
+                              experiment_id: str | None = None) -> None
 ```
 
 Link an evaluation sample to a trace.
@@ -364,9 +354,8 @@ tracker.link_eval_sample_to_trace(
 
 ```python
 def get_evals_annotation_summaries(
-    experiment_id: str,
-    eval_ids: list[str]
-) -> dict[str, AnnotationSummary]
+        experiment_id: str,
+        eval_ids: list[str]) -> dict[str, AnnotationSummary]
 ```
 
 Retrieves annotation summaries for a batch of evaluations within an experiment.
@@ -385,29 +374,27 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
 
 **Example**:
 
-```python
-tracker = ExperimentTracker()
-tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
+  ```python
+  tracker = ExperimentTracker()
+  tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
+  ```
 
-{
-    "eval-xyz": AnnotationSummary(
-        feedback=[FeedbackSummaryItem(name="quality", total=2, counts={"true": 1, "false": 1})],
-        expectations=[],
-    ),
-}
-```
+  \{
+- `"eval-xyz"` - AnnotationSummary(
+  feedback=[FeedbackSummaryItem(name="quality", total=2, counts=\{"true": 1, "false": 1\})],
+  expectations=[],
+  ),
+  \}
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_attachment"></a>
 
 #### log_attachment
 
 ```python
-def log_attachment(
-    name: str,
-    data: Any,
-    binary: bool = False,
-    experiment_id: str | None = None
-) -> None
+def log_attachment(name: str,
+                   data: Any,
+                   binary: bool = False,
+                   experiment_id: str | None = None) -> None
 ```
 
 Log files or artifacts to the experiment.
@@ -506,7 +493,8 @@ config = tracker.get_attachment("config.json")
 #### list_attachments
 
 ```python
-def list_attachments(experiment_id: str | None = None) -> list[AttachmentRecord]
+def list_attachments(
+        experiment_id: str | None = None) -> list[AttachmentRecord]
 ```
 
 List all attachments logged for an experiment.
@@ -581,11 +569,9 @@ tracker.delete_experiment("old-experiment-id")
 #### create_group
 
 ```python
-def create_group(
-    name: str,
-    description: str | None = None,
-    tags: list[str] | None = None
-) -> Group
+def create_group(name: str,
+                 description: str | None = None,
+                 tags: list[str] | None = None) -> Group
 ```
 
 Create a new experiment group.
@@ -632,7 +618,8 @@ List all experiment groups in the backend.
 
 **Returns**:
 
-- `list[Group]` - List of Group objects, each containing ``id``, ``name``, ``description``, and ``created_at`` fields.
+- `list[Group]` - List of Group objects, each containing ``id``, ``name``,
+  ``description``, and ``created_at`` fields.
   
 
 **Example**:
@@ -649,24 +636,22 @@ for group in groups:
 #### log_model
 
 ```python
-def log_model(
-    model: ModelReference | Any,
-    *,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None,
-    flavor: str | None = None,
-    inputs: Any = None,
-    experiment_id: str | None = None,
-    dependencies: Literal["default", "all"] | list[str] = "default",
-    extra_dependencies: list[str] | None = None,
-    extra_code_modules: list[str] | Literal["auto"] | None = None,
-    manifest_model_name: str | None = None,
-    manifest_model_version: str | None = None,
-    manifest_model_description: str | None = None,
-    manifest_extra_producer_tags: list[str] | None = None,
-    **save_kwargs: Any
-) -> ModelReference
+def log_model(model: ModelReference | Any,
+              *,
+              name: str | None = None,
+              tags: list[str] | None = None,
+              description: str | None = None,
+              flavor: str | None = None,
+              inputs: Any = None,
+              experiment_id: str | None = None,
+              dependencies: Literal["default", "all"] | list[str] = "default",
+              extra_dependencies: list[str] | None = None,
+              extra_code_modules: list[str] | Literal["auto"] | None = None,
+              manifest_model_name: str | None = None,
+              manifest_model_version: str | None = None,
+              manifest_model_description: str | None = None,
+              manifest_extra_producer_tags: list[str] | None = None,
+              **save_kwargs: Any) -> ModelReference
 ```
 
 Log a model to the experiment.
@@ -800,15 +785,46 @@ model = tracker.get_model("model-uuid-123")
 print(f"{model.name}: {model.path}")
 ```
 
+<a id="luml.experiments.tracker.ExperimentTracker.get_model_card"></a>
+
+#### get_model_card
+
+```python
+def get_model_card(model_id: str) -> bytes
+```
+
+Retrieve the model card zip archive for a model.
+
+**Arguments**:
+
+- `model_id` _str_ - Unique identifier of the model.
+  
+
+**Returns**:
+
+- `bytes` - Raw bytes of ``model_card.zip``, which contains an
+  ``index.html`` with the rendered model card.
+  
+
+**Raises**:
+
+- `ValueError` - If the model is not found or has no model card.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+zip_bytes = tracker.get_model_card("model-uuid-123")
+```
+
 <a id="luml.experiments.tracker.ExperimentTracker.link_to_model"></a>
 
 #### link_to_model
 
 ```python
-def link_to_model(
-    model_reference: ModelReference,
-    experiment_id: str | None = None
-) -> None
+def link_to_model(model_reference: ModelReference,
+                  experiment_id: str | None = None) -> None
 ```
 
 Link experiment data to a saved model.
@@ -840,17 +856,15 @@ tracker.link_to_model(model_ref)
 #### log_eval_annotation
 
 ```python
-def log_eval_annotation(
-    dataset_id: str,
-    eval_id: str,
-    name: str,
-    annotation_kind: str,
-    value_type: str,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None,
-    experiment_id: str | None = None
-) -> AnnotationRecord
+def log_eval_annotation(dataset_id: str,
+                        eval_id: str,
+                        name: str,
+                        annotation_kind: str,
+                        value_type: str,
+                        value: int | bool | str,
+                        user: str,
+                        rationale: str | None = None,
+                        experiment_id: str | None = None) -> AnnotationRecord
 ```
 
 Create an annotation on an eval sample.
@@ -911,17 +925,15 @@ annotation = tracker.log_eval_annotation(
 #### log_span_annotation
 
 ```python
-def log_span_annotation(
-    trace_id: str,
-    span_id: str,
-    name: str,
-    annotation_kind: str,
-    value_type: str,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None,
-    experiment_id: str | None = None
-) -> AnnotationRecord
+def log_span_annotation(trace_id: str,
+                        span_id: str,
+                        name: str,
+                        annotation_kind: str,
+                        value_type: str,
+                        value: int | bool | str,
+                        user: str,
+                        rationale: str | None = None,
+                        experiment_id: str | None = None) -> AnnotationRecord
 ```
 
 Create an annotation on a span within a trace.
@@ -1027,7 +1039,6 @@ Retrieve full trace details including all spans.
 ```python
 tracker = ExperimentTracker()
 trace = tracker.get_trace("exp-1", "trace-abc")
-
 if trace:
     for span in trace.spans:
         print(span.name, span.annotation_count)
@@ -1039,14 +1050,15 @@ if trace:
 
 ```python
 def get_experiment_traces(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    filters: list[str] | None = None,
-    states: list[TraceState] | None = None
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal["execution_time", "span_count",
+                         "created_at"] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        filters: list[str] | None = None,
+        states: list[TraceState] | None = None
 ) -> PaginatedResponse[TraceRecord]
 ```
 
@@ -1082,10 +1094,8 @@ for trace in page.items:
 #### get_experiment_metric_history
 
 ```python
-def get_experiment_metric_history(
-    experiment_id: str,
-    key: str
-) -> list[dict[str, Any]]
+def get_experiment_metric_history(experiment_id: str,
+                                  key: str) -> list[dict[str, Any]]
 ```
 
 Retrieve the full history of a dynamic metric.
@@ -1107,7 +1117,6 @@ Retrieve the full history of a dynamic metric.
 ```python
 tracker = ExperimentTracker()
 history = tracker.get_experiment_metric_history("exp-1", "train_loss")
-
 for point in history:
     print(f"step={point['step']} loss={point['value']}")
 ```
@@ -1118,16 +1127,15 @@ for point in history:
 
 ```python
 def get_experiment_evals(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    dataset_id: str | None = None,
-    json_sort_column: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
-) -> PaginatedResponse[EvalRecord]
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None) -> PaginatedResponse[EvalRecord]
 ```
 
 Retrieve paginated eval samples for an experiment.
@@ -1140,7 +1148,8 @@ Retrieve paginated eval samples for an experiment.
 - `sort_by` _str_ - Sort field. Defaults to ``'created_at'``.
 - `order` _str_ - Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
 - `dataset_id` _str | None_ - Optional filter by dataset.
-- `json_sort_column` _str | None_ - Resolved JSON column for sorting by score / input / output keys.
+- `json_sort_column` _str | None_ - Resolved JSON column for sorting by
+  score/input/output keys.
 - `search` _str | None_ - Optional substring filter on eval ID.
   
 
@@ -1163,10 +1172,8 @@ for eval_rec in page.items:
 #### get_experiment_eval_columns
 
 ```python
-def get_experiment_eval_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
-) -> EvalColumns
+def get_experiment_eval_columns(experiment_id: str,
+                                dataset_id: str | None = None) -> EvalColumns
 ```
 
 Retrieve the set of available column keys across all evals in an experiment.
@@ -1200,10 +1207,9 @@ print("Input columns:", columns.inputs)
 #### get_experiment_eval_typed_columns
 
 ```python
-def get_experiment_eval_typed_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
-) -> EvalTypedColumns
+def get_experiment_eval_typed_columns(experiment_id: str,
+                                      dataset_id: str | None = None
+                                      ) -> EvalTypedColumns
 ```
 
 Like get_experiment_eval_columns but also returns the type for each key.
@@ -1223,7 +1229,8 @@ Return distinct attribute keys from all spans in an experiment.
 #### get_experiment_trace_typed_columns
 
 ```python
-def get_experiment_trace_typed_columns(experiment_id: str) -> TraceTypedColumns
+def get_experiment_trace_typed_columns(
+        experiment_id: str) -> TraceTypedColumns
 ```
 
 Like get_experiment_trace_columns but also returns the type for each key.
@@ -1234,11 +1241,10 @@ Like get_experiment_trace_columns but also returns the type for each key.
 
 ```python
 def get_experiment_evals_average_scores(
-    experiment_id: str,
-    dataset_id: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
-) -> dict[str, float]
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None) -> dict[str, float]
 ```
 
 Calculates the average scores for evaluations from a specified experiment and optionally
@@ -1269,12 +1275,8 @@ def get_experiment_eval_dataset_ids(experiment_id: str) -> list[str]
 
 Retrieve all unique dataset IDs from evals of an experiment.
 
-<a id="luml.experiments.tracker.ExperimentTracker.resolve_evals_sort_column"></a>
-
-#### resolve_evals_sort_column
-```python
 def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
-```
+
 **Arguments**:
 
 - `experiment_id` _str_ - The experiment to query.
@@ -1320,12 +1322,10 @@ col = tracker.resolve_evals_sort_column("exp-1", "scores.accuracy")
 #### update_experiment
 
 ```python
-def update_experiment(
-    experiment_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
-) -> Experiment | None
+def update_experiment(experiment_id: str,
+                      name: str | None = None,
+                      description: str | None = None,
+                      tags: list[str] | None = None) -> Experiment | None
 ```
 
 Update experiment metadata.
@@ -1349,7 +1349,6 @@ Only the provided fields are updated; ``None`` values are ignored.
 
 ```python
 tracker = ExperimentTracker()
-
 tracker.update_experiment(
     "exp-1",
     name="renamed_experiment",
@@ -1362,11 +1361,8 @@ tracker.update_experiment(
 #### get_eval_annotations
 
 ```python
-def get_eval_annotations(
-    experiment_id: str,
-    dataset_id: str,
-    eval_id: str
-) -> list[AnnotationRecord]
+def get_eval_annotations(experiment_id: str, dataset_id: str,
+                         eval_id: str) -> list[AnnotationRecord]
 ```
 
 Retrieve all annotations for a specific eval sample.
@@ -1400,11 +1396,8 @@ for ann in annotations:
 #### get_span_annotations
 
 ```python
-def get_span_annotations(
-    experiment_id: str,
-    trace_id: str,
-    span_id: str
-) -> list[AnnotationRecord]
+def get_span_annotations(experiment_id: str, trace_id: str,
+                         span_id: str) -> list[AnnotationRecord]
 ```
 
 Retrieve all annotations for a specific span.
@@ -1438,13 +1431,11 @@ for ann in annotations:
 #### update_annotation
 
 ```python
-def update_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"],
-    value: int | bool | str | None = None,
-    rationale: str | None = None
-) -> AnnotationRecord
+def update_annotation(experiment_id: str,
+                      annotation_id: str,
+                      target: Literal["eval", "span"],
+                      value: int | bool | str | None = None,
+                      rationale: str | None = None) -> AnnotationRecord
 ```
 
 Update an existing annotation's value and/or rationale.
@@ -1489,11 +1480,8 @@ updated = tracker.update_annotation(
 #### delete_annotation
 
 ```python
-def delete_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"]
-) -> None
+def delete_annotation(experiment_id: str, annotation_id: str,
+                      target: Literal["eval", "span"]) -> None
 ```
 
 Delete an annotation by ID.
@@ -1520,10 +1508,8 @@ tracker.delete_annotation("exp-1", "ann-uuid", "eval")
 #### get_eval_annotation_summary
 
 ```python
-def get_eval_annotation_summary(
-    experiment_id: str,
-    dataset_id: str
-) -> AnnotationSummary
+def get_eval_annotation_summary(experiment_id: str,
+                                dataset_id: str) -> AnnotationSummary
 ```
 
 Get an aggregated summary of annotations across all evals in a dataset.
@@ -1560,10 +1546,8 @@ for exp in summary.expectations:
 #### get_trace_annotation_summary
 
 ```python
-def get_trace_annotation_summary(
-    experiment_id: str,
-    trace_id: str
-) -> AnnotationSummary
+def get_trace_annotation_summary(experiment_id: str,
+                                 trace_id: str) -> AnnotationSummary
 ```
 
 Get an aggregated summary of annotations across all spans in a trace.
@@ -1690,12 +1674,10 @@ if group:
 #### update_group
 
 ```python
-def update_group(
-    group_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
-) -> Group | None
+def update_group(group_id: str,
+                 name: str | None = None,
+                 description: str | None = None,
+                 tags: list[str] | None = None) -> Group | None
 ```
 
 Update group metadata.
@@ -1750,12 +1732,11 @@ tracker.delete_group("group-uuid")
 
 ```python
 def list_groups_pagination(
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None
-) -> PaginatedResponse[Group]
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None) -> PaginatedResponse[Group]
 ```
 
 Retrieve a paginated list of groups.
@@ -1923,12 +1904,10 @@ col = tracker.resolve_experiment_sort_column("group-uuid", "static.lr")
 #### update_model
 
 ```python
-def update_model(
-    model_id: str,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None
-) -> Model | None
+def update_model(model_id: str,
+                 name: str | None = None,
+                 tags: list[str] | None = None,
+                 description: str | None = None) -> Model | None
 ```
 
 Update model metadata.
@@ -2040,6 +2019,7 @@ Export the entire experiment tracking data and save as an artifact.
 
 **Arguments**:
 
+  experiment_id:
 - `output_path` - Path to save the exported artifact.
   
 
@@ -2052,3 +2032,4 @@ exp_id = tracker.start_experiment()
 tracker.end_experiment()
 tracker.export("experiment_data.tar", experiment_id=exp_id)
 ```
+

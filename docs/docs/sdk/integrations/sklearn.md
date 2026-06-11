@@ -4,20 +4,21 @@
 
 <a id="luml.integrations.sklearn.packaging.save_sklearn"></a>
 
-#### save\_sklearn
+#### save_sklearn
 
 ```python
 def save_sklearn(
-    estimator: "BaseEstimator",
-    inputs: Any,
-    path: str | None = None,
-    dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
-    extra_dependencies: list[str] | None = None,
-    extra_code_modules: list[str] | Literal["auto"] | None = None,
-    manifest_model_name: str | None = None,
-    manifest_model_version: str | None = None,
-    manifest_model_description: str | None = None,
-    manifest_extra_producer_tags: list[str] | None = None
+        estimator: "BaseEstimator",
+        inputs: Any,
+        path: str | None = None,
+        dependencies: Literal["default"] | Literal["all"]
+    | list[str] = "default",
+        extra_dependencies: list[str] | None = None,
+        extra_code_modules: list[str] | Literal["auto"] | None = None,
+        manifest_model_name: str | None = None,
+        manifest_model_version: str | None = None,
+        manifest_model_description: str | None = None,
+        manifest_extra_producer_tags: list[str] | None = None
 ) -> ModelReference
 ```
 
@@ -29,7 +30,8 @@ schema for production deployment or model registry.
 **Arguments**:
 
 - `estimator` - Trained scikit-learn estimator (must implement .predict()).
-- `inputs` - Example input data for schema inference. Can be numpy array or pandas DataFrame.
+- `inputs` - Example input data for schema inference.
+  Can be numpy array or pandas DataFrame.
 - `path` - Output file path. Auto-generated if not provided.
 - `dependencies` - Dependency management strategy:
   - "default": Include scikit-learn, numpy, scipy, cloudpickle
@@ -57,6 +59,7 @@ schema for production deployment or model registry.
 from sklearn.ensemble import RandomForestClassifier
 from luml.integrations.sklearn import save_sklearn
 import numpy as np
+
 # Train model
 model = RandomForestClassifier()
 X_train = np.random.rand(100, 4)
