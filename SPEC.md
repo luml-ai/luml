@@ -827,10 +827,10 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `_run_traced_judge` tracing: with an `InMemorySpanExporter` + `TracerProvider` configured, calling `score()` emits one `"llm_judge"` span carrying `eval.scorer.name` and a numeric `eval.scorer.score`; on `JudgeModelError` the span status is ERROR and the exception is recorded
   - [x] Add tests in `.../evaluation/test_evaluate.py` for reasoning routing: a stub scorer returning `{name, f"{name}_reasoning"}` results in `log_eval_sample` getting numeric-only `scores` and reasoning under `metadata`; `EvalResult.scores` excludes reasoning; `error`/`__error__` keys stay in `scores`
 
-- [ ] **Task 3: Relevancy scorer**
-  - [ ] Create `.../builtin/relevancy.py` — `Relevancy(LLMJudgeScorer)`: `default_name` → `"relevancy"`; `build_prompt` uses `_extract_input(inputs, self._input_key, ("question", "query"))` + the specified system/user prompts (output coerced via `str`)
-  - [ ] Export `Relevancy` from `builtin/__init__.py`
-  - [ ] Write tests in `.../scorers/test_relevancy.py`:
+- [x] **Task 3: Relevancy scorer**
+  - [x] Create `.../builtin/relevancy.py` — `Relevancy(LLMJudgeScorer)`: `default_name` → `"relevancy"`; `build_prompt` uses `_extract_input(inputs, self._input_key, ("question", "query"))` + the specified system/user prompts (output coerced via `str`)
+  - [x] Export `Relevancy` from `builtin/__init__.py`
+  - [x] Write tests in `.../scorers/test_relevancy.py`:
     - Mock `LLMClient.complete` to return controlled JSON
     - input key extraction: `question`, `query`, fallback, and `input_key` override
     - output dict has `relevancy` (float) and `relevancy_reasoning` (str)
