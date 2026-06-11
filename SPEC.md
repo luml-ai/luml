@@ -836,10 +836,10 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - output dict has `relevancy` (float) and `relevancy_reasoning` (str)
     - score clamping; reasoning default `""`
 
-- [ ] **Task 4: Correctness scorer**
-  - [ ] Create `.../builtin/correctness.py` — `Correctness(SupervisedLLMJudgeScorer)`: `default_name` → `"correctness"`; `build_prompt` uses `_extract_input(inputs, self._input_key, ("request", "question"))`; `expected_output` dict with `expected_facts` → bulleted block, else `str(expected_output)`; specified prompts
-  - [ ] Export `Correctness` from `builtin/__init__.py`
-  - [ ] Write tests in `.../scorers/test_correctness.py`:
+- [x] **Task 4: Correctness scorer**
+  - [x] Create `.../builtin/correctness.py` — `Correctness(SupervisedLLMJudgeScorer)`: `default_name` → `"correctness"`; `build_prompt` uses `_extract_input(inputs, self._input_key, ("request", "question"))`; `expected_output` dict with `expected_facts` → bulleted block, else `str(expected_output)`; specified prompts
+  - [x] Export `Correctness` from `builtin/__init__.py`
+  - [x] Write tests in `.../scorers/test_correctness.py`:
     - Mock `LLMClient.complete`
     - `expected_output={"expected_facts": [...]}` and `expected_output="plain string"`
     - `isinstance(Correctness(), SupervisedScorer)` is `True`
