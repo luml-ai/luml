@@ -10,11 +10,7 @@ interface RequestInfo {
   orbitId: string
 }
 
-export const useTracksList = (
-  limit = 20,
-  syncStore = true,
-  types?: ArtifactTypeEnum[],
-) => {
+export const useTracksList = (limit = 20, syncStore = true, types?: ArtifactTypeEnum[]) => {
   const tracksStore = useTracksStore()
 
   const savedCursors = ref<Array<string | null>>([])

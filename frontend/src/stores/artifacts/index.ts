@@ -36,6 +36,12 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     currentArtifact.value = null
   }
 
+  async function refreshCurrentArtifact() {
+    if (!currentArtifact.value) return
+    const artifact = await getArtifact(currentArtifact.value.id)
+    setCurrentArtifact(artifact)
+  }
+
   const currentModelTag = ref<FNNX_PRODUCER_TAGS_MANIFEST_ENUM | null>(null)
   const currentModelMetadata = ref<ModelMetadata | null>(null)
   const currentModelHtmlBlobUrl = ref<string | null>(null)
@@ -236,5 +242,6 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     getArtifact,
     artifactsList,
     setArtifactsList,
+    refreshCurrentArtifact,
   }
 })

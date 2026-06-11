@@ -3,7 +3,7 @@
     <div
       v-if="type === 'default' && data"
       class="content content--clickable"
-      @click="$router.push({ name: 'orbit-registry', params: { id: data.id } })"
+      @click="$router.push({ name: 'orbit-collections', params: { id: data.id } })"
     >
       <div class="header">
         <h3 class="title">
