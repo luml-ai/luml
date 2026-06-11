@@ -59,9 +59,6 @@ class TrackArtifactOrm(TimestampMixin, Base):
 
 class TrackOrm(TimestampMixin, Base):
     __tablename__ = "tracks"
-    __table_args__ = (
-        UniqueConstraint("orbit_id", "name", name="uq_tracks_orbit_id_name"),
-    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7

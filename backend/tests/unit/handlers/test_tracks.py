@@ -15,6 +15,7 @@ from luml.schemas.tracks import (
     Stage,
     StageCreateIn,
     StageUpdateIn,
+    StageUpsertIn,
     Track,
     TrackCreateIn,
     TrackEntry,
@@ -165,35 +166,6 @@ async def test_create_track_without_stages(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_create_track_duplicate_name(
-    mock_create_track: AsyncMock,
-    mock_get_orbit: AsyncMock,
-    mock_perms: AsyncMock,
-) -> None:
-    data = TrackCreateIn(name="churn-model", artifact_type="model")
-    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
-    mock_create_track.side_effect = IntegrityError(
-        "", {}, Exception("uq_tracks_orbit_id_name")
-    )
-
-    with pytest.raises(ApplicationError, match="already exists") as exc:
-        await tracks_handler.create_track(USER_ID, ORG_ID, ORBIT_ID, data)
-    assert exc.value.status_code == 409
-
-
-@patch(
-    "luml.handlers.permissions.PermissionsHandler.check_permissions",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.tracks.OrbitRepository.get_orbit_simple",
-    new_callable=AsyncMock,
-)
-@patch(
-    "luml.handlers.tracks.TrackRepository.create_track",
-    new_callable=AsyncMock,
-)
-@pytest.mark.asyncio
 async def test_create_track_other_integrity_error_propagates(
     mock_create_track: AsyncMock,
     mock_get_orbit: AsyncMock,
@@ -209,6 +181,37 @@ async def test_create_track_other_integrity_error_propagates(
 
     with pytest.raises(IntegrityError):
         await tracks_handler.create_track(USER_ID, ORG_ID, ORBIT_ID, data)
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.TrackRepository.create_track",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_track_duplicate_stage_name(
+    mock_create_track: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    data = TrackCreateIn(
+        name="churn-model", artifact_type="model", stages=["Dup", "Dup"]
+    )
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    mock_create_track.side_effect = IntegrityError(
+        "", {}, Exception("uq_track_stages_track_id_name")
+    )
+
+    with pytest.raises(ApplicationError, match="Duplicate stage names") as exc:
+        await tracks_handler.create_track(USER_ID, ORG_ID, ORBIT_ID, data)
+    assert exc.value.status_code == 409
 
 
 @patch(
@@ -487,9 +490,130 @@ async def test_create_entry(
     )
 
     assert result == expected
+    # No stage requested -> repo receives stage_id=None.
+    assert mock_create.await_args.args[0].stage_id is None
     mock_perms.assert_awaited_once_with(
         ORG_ID, USER_ID, Resource.TRACK, Action.CREATE, ORBIT_ID
     )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.TrackEntryRepository.get_entry_by_stage",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_create_entry_with_stage(
+    mock_create: AsyncMock,
+    mock_by_stage: AsyncMock,
+    mock_get_stage: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_stage.return_value = _make_stage()  # belongs to TRACK_ID
+    mock_by_stage.return_value = None  # stage free
+    mock_create.return_value = _make_entry(stage_id=STAGE_ID)
+
+    await tracks_handler.create_entry(
+        USER_ID,
+        ORG_ID,
+        ORBIT_ID,
+        TRACK_ID,
+        TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
+    )
+
+    assert mock_create.await_args.args[0].stage_id == STAGE_ID
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_create_entry_stage_from_wrong_track(
+    mock_get_stage: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    other_track = UUID("0199c337-09fe-7a01-9f5f-000000000099")
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_stage.return_value = _make_stage(track_id=other_track)
+
+    with pytest.raises(ApplicationError, match="does not belong") as exc:
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
+        )
+    assert exc.value.status_code == 422
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.TrackEntryRepository.get_entry_by_stage",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_entry_stage_already_used(
+    mock_by_stage: AsyncMock,
+    mock_get_stage: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_stage.return_value = _make_stage()
+    # Stage already assigned to another entry.
+    mock_by_stage.return_value = _make_entry(version=2)
+
+    with pytest.raises(ApplicationError, match="already assigned") as exc:
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
+        )
+    assert exc.value.status_code == 400
 
 
 @patch(
@@ -1427,16 +1551,41 @@ async def test_update_track_orbit_not_found(
 @patch("luml.handlers.tracks.OrbitRepository.get_orbit_simple", new_callable=AsyncMock)
 @patch("luml.handlers.tracks.TrackRepository.update_track", new_callable=AsyncMock)
 @pytest.mark.asyncio
-async def test_update_track_duplicate_name(
+async def test_update_track_duplicate_stage_name(
+    mock_update: AsyncMock, mock_get_orbit: AsyncMock, mock_perms: AsyncMock
+) -> None:
+    # Track names are not unique; only duplicate stage names map to 409.
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    mock_update.side_effect = IntegrityError(
+        "", {}, Exception("uq_track_stages_track_id_name")
+    )
+    with pytest.raises(ApplicationError, match="Duplicate stage names") as exc:
+        await tracks_handler.update_track(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackUpdateIn(name="t", stages=[StageUpsertIn(name="dup")]),
+        )
+    assert exc.value.status_code == 409
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.OrbitRepository.get_orbit_simple", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.update_track", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_update_track_other_integrity_error_propagates(
     mock_update: AsyncMock, mock_get_orbit: AsyncMock, mock_perms: AsyncMock
 ) -> None:
     mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
-    mock_update.side_effect = IntegrityError("", {}, None)
-    with pytest.raises(ApplicationError, match="already exists") as exc:
+    mock_update.side_effect = IntegrityError("", {}, Exception("some other constraint"))
+    with pytest.raises(IntegrityError):
         await tracks_handler.update_track(
-            USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, TrackUpdateIn(name="dup")
+            USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, TrackUpdateIn(name="x")
         )
-    assert exc.value.status_code == 409
 
 
 @patch(
@@ -1767,3 +1916,87 @@ async def test_delete_stage_track_not_found(
     mock_get_track.return_value = None
     with pytest.raises(NotFoundError, match="Track not found"):
         await tracks_handler.delete_stage(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID)
+
+
+# ---- update_track stage sync ----
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.OrbitRepository.get_orbit_simple", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.update_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_update_track_syncs_stages(
+    mock_get_track: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    mock_update.return_value = _make_track()
+
+    desired = [
+        StageUpsertIn(id=STAGE_ID, name="Renamed"),
+        StageUpsertIn(name="Brand New"),
+    ]
+    data = TrackUpdateIn(name="t", stages=desired)
+
+    await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data)
+
+    # Stages are synced inside update_track (one transaction), not separately.
+    assert mock_update.await_args.kwargs["stages"] == desired
+    # No redundant re-fetch: update_track already returns fresh stages.
+    mock_get_track.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.OrbitRepository.get_orbit_simple", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.update_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_update_track_stages_none_skips_sync(
+    mock_get_track: AsyncMock,
+    mock_update: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    mock_update.return_value = _make_track()
+
+    # stages omitted -> update_track called with stages=None, no re-fetch.
+    await tracks_handler.update_track(
+        USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, TrackUpdateIn(name="t")
+    )
+
+    assert mock_update.await_args.kwargs["stages"] is None
+    mock_get_track.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.OrbitRepository.get_orbit_simple", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackRepository.update_track", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_update_track_stage_sync_conflict_propagates(
+    mock_update: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+    # The atomic update_track raises the stage conflict directly.
+    mock_update.side_effect = ApplicationError(
+        "Cannot remove a stage that is assigned to a version.", 409
+    )
+
+    data = TrackUpdateIn(name="t", stages=[StageUpsertIn(name="x")])
+    with pytest.raises(ApplicationError) as exc:
+        await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data)
+    assert exc.value.status_code == 409

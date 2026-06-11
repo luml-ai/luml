@@ -6,6 +6,7 @@ from pydantic import AliasPath, BaseModel, Field
 
 from luml.schemas.artifacts import ArtifactType
 from luml.schemas.base import BaseOrmConfig
+from luml.schemas.track_base import TrackBase
 
 
 class TrackSortBy(StrEnum):
@@ -44,6 +45,11 @@ class StageUpdateIn(BaseModel):
     name: str | None = None
 
 
+class StageUpsertIn(BaseModel):
+    id: UUID | None = None
+    name: str
+
+
 class StageUpdate(StageUpdateIn):
     id: UUID | None = None
 
@@ -60,24 +66,21 @@ class TrackCreate(TrackCreateIn):
     orbit_id: UUID
 
 
-class Track(BaseModel, BaseOrmConfig):
-    id: UUID
+class Track(TrackBase):
     orbit_id: UUID
-    name: str
     artifact_type: str
     description: str | None = None
     tags: list[str] | None = None
     stages: list[Stage] = Field(default_factory=list)
     next_version: int
     total_entries: int
-    created_at: datetime
-    updated_at: datetime | None = None
 
 
 class TrackUpdateIn(BaseModel):
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
+    stages: list[StageUpsertIn] | None = None
 
 
 class TrackUpdate(TrackUpdateIn):
@@ -88,10 +91,12 @@ class TrackEntryCreate(BaseModel):
     track_id: UUID
     artifact_id: UUID
     added_by: UUID
+    stage_id: UUID | None = None
 
 
 class TrackEntryCreateIn(BaseModel):
     artifact_id: UUID
+    stage_id: UUID | None = None
 
 
 class TrackEntriesDeleteIn(BaseModel):

@@ -96,13 +96,7 @@ class TracksHandler:
                 track_create, stage_names=track_in.stages
             )
         except IntegrityError as error:
-            message = str(error)
-            if "uq_tracks_orbit_id_name" in message:
-                raise ApplicationError(
-                    f"Track with name '{track_in.name}' already exists in this orbit.",
-                    409,
-                ) from error
-            if "uq_track_stages_track_id_name" in message:
+            if "uq_track_stages_track_id_name" in str(error):
                 raise ApplicationError(
                     "Duplicate stage names are not allowed.", 409
                 ) from error
@@ -204,15 +198,18 @@ class TracksHandler:
                     description=track_in.description,
                     tags=track_in.tags,
                 ),
+                stages=track_in.stages,
             )
         except IntegrityError as error:
-            raise ApplicationError(
-                f"Track with name '{track_in.name}' already exists in this orbit.",
-                409,
-            ) from error
+            if "uq_track_stages_track_id_name" in str(error):
+                raise ApplicationError(
+                    "Duplicate stage names are not allowed.", 409
+                ) from error
+            raise
 
         if not updated:
             raise NotFoundError("Track not found")
+
         return updated
 
     async def delete_track(
@@ -276,10 +273,25 @@ class TracksHandler:
                 "Artifact must belong to the same orbit as the track.", 422
             )
 
+        if entry_in.stage_id is not None:
+            stage = await self.__stage_repository.get_stage(entry_in.stage_id)
+            if not stage or stage.track_id != track_id:
+                raise ApplicationError("Stage does not belong to this track.", 422)
+
+            holder = await self.__entry_repository.get_entry_by_stage(
+                track_id, entry_in.stage_id
+            )
+            if holder:
+                raise ApplicationError(
+                    f"Stage '{stage.name}' is already assigned to v{holder.version}.",
+                    400,
+                )
+
         entry_create = TrackEntryCreate(
             track_id=track_id,
             artifact_id=entry_in.artifact_id,
             added_by=user_id,
+            stage_id=entry_in.stage_id,
         )
         try:
             return await self.__entry_repository.create_entry(entry_create)

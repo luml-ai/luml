@@ -9,8 +9,6 @@ from luml.infra.endpoint_responses import endpoint_responses
 from luml.schemas.general import SortOrder
 from luml.schemas.tracks import (
     Stage,
-    StageCreateIn,
-    StageUpdateIn,
     Track,
     TrackCreateIn,
     TrackEntriesDeleteIn,
@@ -28,6 +26,13 @@ tracks_router = APIRouter(
     prefix="/{organization_id}/orbits/{orbit_id}/tracks",
     dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
     tags=["orbit-tracks"],
+)
+
+
+tracks_router_entries = APIRouter(
+    prefix="/{organization_id}/orbits/{orbit_id}/tracks/{track_id}/entries",
+    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
+    tags=["orbit-tracks-entries"],
 )
 
 tracks_handler = TracksHandler()
@@ -127,11 +132,27 @@ async def delete_track(
     )
 
 
+@tracks_router.get(
+    "/{track_id}/stages",
+    responses=endpoint_responses,
+    response_model=list[Stage],
+)
+async def list_stages(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    track_id: UUID,
+) -> list[Stage]:
+    return await tracks_handler.list_stages(
+        request.user.id, organization_id, orbit_id, track_id
+    )
+
+
 # --- Entries ---
 
 
-@tracks_router.post(
-    "/{track_id}/entries",
+@tracks_router_entries.post(
+    "",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -147,8 +168,8 @@ async def create_entry(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.get(
+    "/{entry_id}",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -164,8 +185,8 @@ async def get_entry(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries/by-stage",
+@tracks_router_entries.get(
+    "/by-stage",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -181,8 +202,8 @@ async def get_entry_by_stage(
     )
 
 
-@tracks_router.get(
-    "/{track_id}/entries",
+@tracks_router_entries.get(
+    "",
     responses=endpoint_responses,
     response_model=TrackEntriesList,
 )
@@ -210,8 +231,8 @@ async def list_entries(
     )
 
 
-@tracks_router.patch(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.patch(
+    "/{entry_id}",
     responses=endpoint_responses,
     response_model=TrackEntry,
 )
@@ -235,8 +256,8 @@ async def update_entry(
     )
 
 
-@tracks_router.delete(
-    "/{track_id}/entries/{entry_id}",
+@tracks_router_entries.delete(
+    "/{entry_id}",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
@@ -252,8 +273,8 @@ async def delete_entry(
     )
 
 
-@tracks_router.delete(
-    "/{track_id}/entries",
+@tracks_router_entries.delete(
+    "",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
@@ -266,101 +287,4 @@ async def delete_entries(
 ) -> None:
     await tracks_handler.delete_entries(
         request.user.id, organization_id, orbit_id, track_id, payload.entry_ids
-    )
-
-
-# --- Stages ---
-
-
-@tracks_router.post(
-    "/{track_id}/stages",
-    responses=endpoint_responses,
-    response_model=Stage,
-)
-async def create_stage(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    track_id: UUID,
-    stage: StageCreateIn,
-) -> Stage:
-    return await tracks_handler.create_stage(
-        request.user.id, organization_id, orbit_id, track_id, stage
-    )
-
-
-@tracks_router.get(
-    "/{track_id}/stages",
-    responses=endpoint_responses,
-    response_model=list[Stage],
-)
-async def list_stages(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    track_id: UUID,
-) -> list[Stage]:
-    return await tracks_handler.list_stages(
-        request.user.id, organization_id, orbit_id, track_id
-    )
-
-
-@tracks_router.patch(
-    "/{track_id}/stages/{stage_id}",
-    responses=endpoint_responses,
-    response_model=Stage,
-)
-async def update_stage(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    track_id: UUID,
-    stage_id: UUID,
-    stage: StageUpdateIn,
-) -> Stage:
-    return await tracks_handler.update_stage(
-        request.user.id, organization_id, orbit_id, track_id, stage_id, stage
-    )
-
-
-@tracks_router.delete(
-    "/{track_id}/stages/{stage_id}",
-    responses=endpoint_responses,
-    status_code=status.HTTP_204_NO_CONTENT,
-)
-async def delete_stage(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    track_id: UUID,
-    stage_id: UUID,
-    force: bool = False,
-) -> None:
-    await tracks_handler.delete_stage(
-        request.user.id, organization_id, orbit_id, track_id, stage_id, force
-    )
-
-
-# --- Artifact track membership ---
-# TODO remove and add track info for artifact details ep
-artifact_tracks_router = APIRouter(
-    prefix="/{organization_id}/orbits/{orbit_id}/artifacts/{artifact_id}/track-entries",
-    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
-    tags=["orbit-tracks"],
-)
-
-
-@artifact_tracks_router.get(
-    "",
-    responses=endpoint_responses,
-    response_model=list[TrackEntry],
-)
-async def list_artifact_track_entries(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    artifact_id: UUID,
-) -> list[TrackEntry]:
-    return await tracks_handler.list_entries_for_artifact(
-        request.user.id, organization_id, orbit_id, artifact_id
     )

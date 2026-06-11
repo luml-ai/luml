@@ -396,13 +396,45 @@ async def test_get_orbit_artifacts_filters_by_type(
     )
 
     items, _ = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
     )
 
     assert [a.id for a in items] == [model.id]
     assert all(a.type == ArtifactType.MODEL for a in items)
+
+
+@pytest.mark.asyncio
+async def test_get_orbit_artifacts_without_type_returns_all(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, collection = data.engine, data.collection
+    repo = ArtifactRepository(engine)
+
+    model = await _make_artifact(
+        repo,
+        test_artifact,
+        collection.id,
+        name="a-model",
+        artifact_type=ArtifactType.MODEL,
+    )
+    dataset = await _make_artifact(
+        repo,
+        test_artifact,
+        collection.id,
+        name="a-dataset",
+        artifact_type=ArtifactType.DATASET,
+    )
+
+    items, _ = await repo.get_orbit_artifacts(
+        PaginationParams(limit=100),
+        data.orbit.id,
+    )
+
+    assert {a.id for a in items} == {model.id, dataset.id}
+    assert {a.type for a in items} == {ArtifactType.MODEL, ArtifactType.DATASET}
 
 
 @pytest.mark.asyncio
@@ -428,9 +460,9 @@ async def test_get_orbit_artifacts_filters_by_collection_ids(
     await _make_artifact(repo, test_artifact, other_collection.id, name="out-of-scope")
 
     items, _ = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         orbit.id,
+        artifact_type=ArtifactType.MODEL,
         collection_ids=[collection.id],
     )
 
@@ -449,9 +481,9 @@ async def test_get_orbit_artifacts_search_by_name_partial_and_case_insensitive(
     await _make_artifact(repo, test_artifact, collection.id, name="BERT")
 
     items, _ = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
         collection_ids=[collection.id],
         search="resnet",
     )
@@ -470,9 +502,9 @@ async def test_get_orbit_artifacts_search_no_match(
     await _make_artifact(repo, test_artifact, collection.id, name="ResNet50")
 
     items, cursor = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
         collection_ids=[collection.id],
         search="nonexistent",
     )
@@ -514,9 +546,9 @@ async def test_get_orbit_artifacts_combined_filters(
     )
 
     items, _ = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
         collection_ids=[collection.id],
         search="prod",
     )
@@ -532,9 +564,9 @@ async def test_get_orbit_artifacts_empty(
     repo = ArtifactRepository(data.engine)
 
     items, cursor = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=100),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
     )
 
     assert items == []
@@ -553,18 +585,18 @@ async def test_get_orbit_artifacts_pagination(
         await _make_artifact(repo, test_artifact, collection.id, name=f"model-{i}")
 
     first_page, cursor = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=2),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
     )
 
     assert len(first_page) == 2
     assert cursor is not None
 
     second_page, next_cursor = await repo.get_orbit_artifacts(
-        ArtifactType.MODEL,
         PaginationParams(limit=2, cursor=cursor),
         data.orbit.id,
+        artifact_type=ArtifactType.MODEL,
     )
 
     assert len(second_page) == 1
@@ -572,9 +604,6 @@ async def test_get_orbit_artifacts_pagination(
 
     all_ids = {a.id for a in first_page} | {a.id for a in second_page}
     assert len(all_ids) == 3
-
-
-# --- get_collection_artifacts: metric sort + type filter coverage ---
 
 
 @pytest.mark.asyncio
