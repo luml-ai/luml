@@ -845,14 +845,14 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `isinstance(Correctness(), SupervisedScorer)` is `True`
     - integration with `_call_scorer`: a `Correctness()` + `EvalItem` with `expected_output` routes to the supervised branch and returns `{"correctness", "correctness_reasoning"}`
 
-- [ ] **Task 5: Summarization, PromptAlignment, and Completeness scorers**
-  - [ ] Create `.../builtin/summarization.py` — `Summarization(LLMJudgeScorer)`: keys `("text",)`, specified prompts
-  - [ ] Create `.../builtin/prompt_alignment.py` — `PromptAlignment(LLMJudgeScorer)`: keys `("instructions",)`, specified prompts
-  - [ ] Create `.../builtin/completeness.py` — `Completeness(LLMJudgeScorer)`: keys `("question", "task")`, specified prompts
-  - [ ] Export all three from `builtin/__init__.py` (so `builtin/__init__.py` now exports all five)
-  - [ ] Re-export the five built-ins from `luml/experiments/evaluation/scorers/__init__.py` (add to its `__all__`)
-  - [ ] Re-export the five built-ins from `luml/experiments/evaluation/__init__.py` alongside the existing exports (add to its `__all__`); verify all three import paths in *Public API* resolve to the same classes
-  - [ ] Write tests `.../scorers/test_summarization.py`, `test_prompt_alignment.py`, `test_completeness.py`: same pattern as Relevancy (mock client, input-key extraction with fallback, output dict structure with `_reasoning`)
+- [x] **Task 5: Summarization, PromptAlignment, and Completeness scorers**
+  - [x] Create `.../builtin/summarization.py` — `Summarization(LLMJudgeScorer)`: keys `("text",)`, specified prompts
+  - [x] Create `.../builtin/prompt_alignment.py` — `PromptAlignment(LLMJudgeScorer)`: keys `("instructions",)`, specified prompts
+  - [x] Create `.../builtin/completeness.py` — `Completeness(LLMJudgeScorer)`: keys `("question", "task")`, specified prompts
+  - [x] Export all three from `builtin/__init__.py` (so `builtin/__init__.py` now exports all five)
+  - [x] Re-export the five built-ins from `luml/experiments/evaluation/scorers/__init__.py` (add to its `__all__`)
+  - [x] Re-export the five built-ins from `luml/experiments/evaluation/__init__.py` alongside the existing exports (add to its `__all__`); verify all three import paths in *Public API* resolve to the same classes
+  - [x] Write tests `.../scorers/test_summarization.py`, `test_prompt_alignment.py`, `test_completeness.py`: same pattern as Relevancy (mock client, input-key extraction with fallback, output dict structure with `_reasoning`)
 
 - [ ] **Task 6: Integration tests and end-to-end validation**
   - [ ] Write `.../scorers/test_integration.py`:
