@@ -1,7 +1,8 @@
-import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
+import type { GetTrackEntriesListParams, TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
 
 interface RequestInfo {
   organizationId: string
@@ -9,11 +10,21 @@ interface RequestInfo {
   trackId: string
 }
 
-export const useTrackEntriesList = (limit = 20) => {
+export const useTrackEntriesList = (limit = 20, syncStore = false) => {
+  const artifactLinksStore = useArtifactLinksStore()
+
   const savedCursors = ref<Array<string | null>>([])
   const requestInfo = ref<RequestInfo | null>(null)
   const isLoading = ref(false)
   const stageFilter = ref<string | undefined>(undefined)
+  const sortData = ref<Pick<GetTrackEntriesListParams, 'sort_by' | 'order'>>({
+    sort_by: undefined,
+    order: undefined,
+  })
+
+  function setSortData(data: Pick<GetTrackEntriesListParams, 'sort_by' | 'order'>) {
+    sortData.value = data
+  }
 
   const entriesList = ref<TrackEntry[]>([])
 
@@ -50,7 +61,7 @@ export const useTrackEntriesList = (limit = 20) => {
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       requestInfo.value.trackId,
-      { cursor, limit, stage: stageFilter.value },
+      { cursor, limit, stage: stageFilter.value, ...sortData.value },
     )
   }
 
@@ -59,7 +70,7 @@ export const useTrackEntriesList = (limit = 20) => {
   }
 
   function reset() {
-    entriesList.value = []
+    setEntriesList([])
     savedCursors.value = []
     requestInfo.value = null
   }
@@ -67,7 +78,7 @@ export const useTrackEntriesList = (limit = 20) => {
   function addEntriesToList(entries: TrackEntry[]) {
     const existingIds = entriesList.value.map((entry) => entry.id)
     const newEntries = entries.filter((entry) => !existingIds.includes(entry.id))
-    entriesList.value = [...entriesList.value, ...newEntries]
+    setEntriesList([...entriesList.value, ...newEntries])
   }
 
   function setStageFilter(stageId: string | undefined) {
@@ -82,6 +93,24 @@ export const useTrackEntriesList = (limit = 20) => {
     }
   }
 
+  function setEntriesList(entries: TrackEntry[]) {
+    if (syncStore) {
+      artifactLinksStore.setEntriesList(entries)
+    } else {
+      entriesList.value = entries
+    }
+  }
+
+  if (syncStore) {
+    watch(
+      () => artifactLinksStore.entriesList,
+      (storedEntriesList) => {
+        entriesList.value = storedEntriesList
+      },
+      { immediate: true },
+    )
+  }
+
   return {
     setRequestInfo,
     getInitialPage,
@@ -94,5 +123,7 @@ export const useTrackEntriesList = (limit = 20) => {
     stageFilter,
     setStageFilter,
     onLazyLoad,
+    sortData,
+    setSortData,
   }
 }
