@@ -803,13 +803,13 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `ImportError` when `openai` is not importable (patch the import)
     - any object with a `complete()` method satisfies `isinstance(obj, LLMClient)` via `@runtime_checkable`
 
-- [ ] **Task 2: Scorer base classes, helpers, reasoning routing, and JudgeModelError**
-  - [ ] Add `REASONING_SUFFIX = "_reasoning"` to `sdk/python/sdk/luml/experiments/evaluation/types.py`
-  - [ ] Modify `_evaluate_single_item` in `.../evaluation/evaluate.py` to split `all_scores` into `metric_scores` and `reasoning_metadata` (keys ending in `REASONING_SUFFIX`); call `log_eval_sample(scores=metric_scores, metadata={**eval_item.metadata, **reasoning_metadata})` and build `EvalResult(scores=metric_scores, ...)`. Leave `_call_scorer` and `_aggregate_scores` untouched.
-  - [ ] Create `sdk/python/sdk/luml/experiments/evaluation/scorers/builtin/__init__.py` (exports added in later tasks)
-  - [ ] Create `.../builtin/_exceptions.py` — `JudgeModelError(LLMError)` (import `LLMError` from `luml.llm`)
-  - [ ] Create `.../builtin/_prompts.py` — `JSON_OUTPUT_INSTRUCTION`, `CORRECTIVE_REMINDER` constants
-  - [ ] Create `.../builtin/_base.py`:
+- [x] **Task 2: Scorer base classes, helpers, reasoning routing, and JudgeModelError**
+  - [x] Add `REASONING_SUFFIX = "_reasoning"` to `sdk/python/sdk/luml/experiments/evaluation/types.py`
+  - [x] Modify `_evaluate_single_item` in `.../evaluation/evaluate.py` to split `all_scores` into `metric_scores` and `reasoning_metadata` (keys ending in `REASONING_SUFFIX`); call `log_eval_sample(scores=metric_scores, metadata={**eval_item.metadata, **reasoning_metadata})` and build `EvalResult(scores=metric_scores, ...)`. Leave `_call_scorer` and `_aggregate_scores` untouched.
+  - [x] Create `sdk/python/sdk/luml/experiments/evaluation/scorers/builtin/__init__.py` (exports added in later tasks)
+  - [x] Create `.../builtin/_exceptions.py` — `JudgeModelError(LLMError)` (import `LLMError` from `luml.llm`)
+  - [x] Create `.../builtin/_prompts.py` — `JSON_OUTPUT_INSTRUCTION`, `CORRECTIVE_REMINDER` constants
+  - [x] Create `.../builtin/_base.py`:
     - `_try_parse(raw) -> dict | None` (JSON parse; require numeric non-bool `score`)
     - `_call_judge(client, system_prompt, user_prompt) -> dict` (one corrective retry with `CORRECTIVE_REMINDER`, else `JudgeModelError`)
     - `_default_client(client) -> LLMClient` (returns `client` or `OpenAIClient(response_format={"type": "json_object"})`)
@@ -817,7 +817,7 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `_tracer = trace.get_tracer(__name__)` and `_run_traced_judge(scorer, client, system_prompt, user_prompt) -> dict` — wraps `_call_judge` + `parse_judgment` in a `"llm_judge"` span with `eval.scorer.name` / `eval.scorer.score` attributes (mirrors `evaluate.py`'s tracer usage)
     - `LLMJudgeScorer(UnsupervisedScorer)`: `__init__(client: LLMClient | None = None, input_key: str | tuple[str, ...] | None = None, name: str | None = None)`, abstract `default_name`/`build_prompt`, concrete `parse_judgment` (clamp + `f"{name}{REASONING_SUFFIX}"`), concrete `score` (via `_run_traced_judge`)/`get_name`
     - `SupervisedLLMJudgeScorer(SupervisedScorer)`: same `__init__`, abstract `default_name`/`build_prompt(inputs, expected_output, output)`, concrete `parse_judgment`/`score` (via `_run_traced_judge`)/`get_name`
-  - [ ] Write tests in `sdk/python/sdk/tests/experiments/evaluation/scorers/test_base.py`:
+  - [x] Write tests in `sdk/python/sdk/tests/experiments/evaluation/scorers/test_base.py`:
     - `_try_parse`: valid dict with numeric score; invalid JSON → `None`; missing score → `None`; bool score → `None`
     - `_call_judge`: success first try; success on retry (assert second call uses corrective reminder); failure twice → `JudgeModelError`
     - `_default_client`: returns the provided client unchanged; creates a JSON-mode `OpenAIClient` when `None`
@@ -825,7 +825,7 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `parse_judgment`: clamps score to [0,1]; missing reasoning → `""`; key names `<name>`/`<name>_reasoning`
     - concrete stub subclasses of both base classes: `score` calls `build_prompt → _run_traced_judge → _call_judge → parse_judgment`; supervised passes `expected_output` through; custom `name` honored; a passed `client` is used as-is
     - `_run_traced_judge` tracing: with an `InMemorySpanExporter` + `TracerProvider` configured, calling `score()` emits one `"llm_judge"` span carrying `eval.scorer.name` and a numeric `eval.scorer.score`; on `JudgeModelError` the span status is ERROR and the exception is recorded
-  - [ ] Add tests in `.../evaluation/test_evaluate.py` for reasoning routing: a stub scorer returning `{name, f"{name}_reasoning"}` results in `log_eval_sample` getting numeric-only `scores` and reasoning under `metadata`; `EvalResult.scores` excludes reasoning; `error`/`__error__` keys stay in `scores`
+  - [x] Add tests in `.../evaluation/test_evaluate.py` for reasoning routing: a stub scorer returning `{name, f"{name}_reasoning"}` results in `log_eval_sample` getting numeric-only `scores` and reasoning under `metadata`; `EvalResult.scores` excludes reasoning; `error`/`__error__` keys stay in `scores`
 
 - [ ] **Task 3: Relevancy scorer**
   - [ ] Create `.../builtin/relevancy.py` — `Relevancy(LLMJudgeScorer)`: `default_name` → `"relevancy"`; `build_prompt` uses `_extract_input(inputs, self._input_key, ("question", "query"))` + the specified system/user prompts (output coerced via `str`)
