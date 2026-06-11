@@ -854,8 +854,8 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
   - [x] Re-export the five built-ins from `luml/experiments/evaluation/__init__.py` alongside the existing exports (add to its `__all__`); verify all three import paths in *Public API* resolve to the same classes
   - [x] Write tests `.../scorers/test_summarization.py`, `test_prompt_alignment.py`, `test_completeness.py`: same pattern as Relevancy (mock client, input-key extraction with fallback, output dict structure with `_reasoning`)
 
-- [ ] **Task 6: Integration tests and end-to-end validation**
-  - [ ] Write `.../scorers/test_integration.py`:
+- [x] **Task 6: Integration tests and end-to-end validation**
+  - [x] Write `.../scorers/test_integration.py`:
     - Mixed built-in + custom scorers in one `evaluate()` call (mock client, real `_call_scorer`/`evaluate`)
     - `Correctness` (supervised) and `Relevancy` (unsupervised) coexist in one `scorers` list
     - reasoning routing end-to-end: `log_eval_sample` receives numeric-only `scores` and `<name>_reasoning` under `metadata`; `aggregated_scores` contains only numeric metrics
@@ -865,8 +865,8 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - multi-threaded evaluation (`n_threads=2`) with built-in scorers
     - built-in scorers with a custom `LLMClient` (no `openai` dependency needed); multiple scorers sharing one client instance
     - tracing end-to-end: with an `InMemorySpanExporter`, an `evaluate()` run with a built-in scorer produces an `eval_request → eval_scoring → llm_judge` span tree, the `llm_judge` span carrying `eval.scorer.name`/`eval.scorer.score`
-  - [ ] Verify existing tests in `.../test_evaluate.py` still pass (no regressions)
-  - [ ] Add a runnable example `sdk/python/sdk/examples/builtin_scorers_example.py` mirroring `evals_example.py` but using built-in scorers
+  - [x] Verify existing tests in `.../test_evaluate.py` still pass (no regressions)
+  - [x] Add a runnable example `sdk/python/sdk/examples/builtin_scorers_example.py` mirroring `evals_example.py` but using built-in scorers
 
 - [ ] **Task 7: Documentation for the new public API**
   - [ ] Register the new modules for API-reference generation in `docs/generate_docs.py` `sdk_modules` (run via `uv run docs/generate_docs.py`):
