@@ -219,24 +219,27 @@ def _default_client(client: LLMClient | None) -> LLMClient:
 
 ### Shared helper: `_extract_input`
 
-Resolves the relevant input string for a scorer, honoring a user-supplied `input_key` and falling back to a per-scorer chain of default keys, then to `str(inputs)`.
+Resolves the relevant input string for a scorer, honoring a user-supplied `input_key` and falling back to a per-scorer chain of default keys, then to `str(inputs)`. `input_key` accepts either a single key name **or** a tuple of names (an ordered override chain), so a user can remap one field or handle a dataset where the field is named inconsistently.
 
 ```python
 def _extract_input(
     inputs: dict[str, Any],
-    input_key: str | None,
+    input_key: str | tuple[str, ...] | None,
     default_keys: tuple[str, ...],
 ) -> str:
     """Return the input text for the judge prompt.
 
-    - If input_key is set and present in inputs, use inputs[input_key].
-    - Else try each key in default_keys in order; use the first present.
-    - Else fall back to str(inputs).
+    Resolution order (first present key wins):
+      1. the user-supplied input_key(s), in order
+      2. the scorer's default_keys, in order
+      3. str(inputs) as a last resort
     Values are coerced to str.
     """
-    if input_key is not None and input_key in inputs:
-        return str(inputs[input_key])
-    for key in default_keys:
+    # Normalize the override into an ordered tuple. A bare str is itself
+    # iterable, so wrap it rather than iterating its characters.
+    override_keys = (input_key,) if isinstance(input_key, str) else tuple(input_key or ())
+
+    for key in (*override_keys, *default_keys):
         if key in inputs:
             return str(inputs[key])
     return str(inputs)
@@ -302,9 +305,9 @@ class LLMJudgeScorer(UnsupervisedScorer):
 
     def __init__(
         self,
-        client: LLMClient | None = None,  # any LLMClient; default = JSON-mode OpenAIClient
-        input_key: str | None = None,     # override default input key lookup
-        name: str | None = None,          # override default scorer name
+        client: LLMClient | None = None,            # any LLMClient; default = JSON-mode OpenAIClient
+        input_key: str | tuple[str, ...] | None = None,  # override default input key lookup (one key or an ordered chain)
+        name: str | None = None,                    # override default scorer name
     ) -> None:
         self._client = _default_client(client)
         self._input_key = input_key
@@ -334,7 +337,12 @@ Extends `SupervisedScorer`. Used by: Correctness. Same `__init__`, `default_name
 
 ```python
 class SupervisedLLMJudgeScorer(SupervisedScorer):
-    def __init__(self, client=None, input_key=None, name=None) -> None:
+    def __init__(
+        self,
+        client: LLMClient | None = None,
+        input_key: str | tuple[str, ...] | None = None,
+        name: str | None = None,
+    ) -> None:
         self._client = _default_client(client)
         self._input_key = input_key
         self._name = name or self.default_name()
@@ -621,10 +629,15 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
 **When** `complete()` runs
 **Then** the chat completions call is made with `temperature=0.7` (the client's default is `0.0`)
 
-### Scenario: Custom input key
+### Scenario: Custom input key (single)
 **Given** `Relevancy(input_key="prompt")` and `EvalItem(inputs={"prompt": "What is RAG?"})`
 **When** `build_prompt` runs
 **Then** `_extract_input` returns the value of `inputs["prompt"]` and the judge evaluates against it
+
+### Scenario: Custom input keys (ordered chain)
+**Given** `Relevancy(input_key=("prompt", "instruction"))` and a dataset where some items use `prompt` and others use `instruction`
+**When** `build_prompt` runs for an item with only `{"instruction": "..."}`
+**Then** `_extract_input` skips the absent `prompt` and uses `inputs["instruction"]`; the override chain is tried before the scorer's default keys
 
 ### Scenario: Custom API key via injected client
 **Given** `Relevancy(client=OpenAIClient(api_key="sk-my-custom-key"))`
@@ -800,15 +813,15 @@ scorers = [Relevancy(client=client), Correctness(client=client)]
     - `_try_parse(raw) -> dict | None` (JSON parse; require numeric non-bool `score`)
     - `_call_judge(client, system_prompt, user_prompt) -> dict` (one corrective retry with `CORRECTIVE_REMINDER`, else `JudgeModelError`)
     - `_default_client(client) -> LLMClient` (returns `client` or `OpenAIClient(response_format={"type": "json_object"})`)
-    - `_extract_input(inputs, input_key, default_keys) -> str`
+    - `_extract_input(inputs, input_key: str | tuple[str, ...] | None, default_keys) -> str` (override key(s) tried first, then `default_keys`, then `str(inputs)`)
     - `_tracer = trace.get_tracer(__name__)` and `_run_traced_judge(scorer, client, system_prompt, user_prompt) -> dict` — wraps `_call_judge` + `parse_judgment` in a `"llm_judge"` span with `eval.scorer.name` / `eval.scorer.score` attributes (mirrors `evaluate.py`'s tracer usage)
-    - `LLMJudgeScorer(UnsupervisedScorer)`: `__init__(client=None, input_key=None, name=None)`, abstract `default_name`/`build_prompt`, concrete `parse_judgment` (clamp + `f"{name}{REASONING_SUFFIX}"`), concrete `score` (via `_run_traced_judge`)/`get_name`
+    - `LLMJudgeScorer(UnsupervisedScorer)`: `__init__(client: LLMClient | None = None, input_key: str | tuple[str, ...] | None = None, name: str | None = None)`, abstract `default_name`/`build_prompt`, concrete `parse_judgment` (clamp + `f"{name}{REASONING_SUFFIX}"`), concrete `score` (via `_run_traced_judge`)/`get_name`
     - `SupervisedLLMJudgeScorer(SupervisedScorer)`: same `__init__`, abstract `default_name`/`build_prompt(inputs, expected_output, output)`, concrete `parse_judgment`/`score` (via `_run_traced_judge`)/`get_name`
   - [ ] Write tests in `sdk/python/sdk/tests/experiments/evaluation/scorers/test_base.py`:
     - `_try_parse`: valid dict with numeric score; invalid JSON → `None`; missing score → `None`; bool score → `None`
     - `_call_judge`: success first try; success on retry (assert second call uses corrective reminder); failure twice → `JudgeModelError`
     - `_default_client`: returns the provided client unchanged; creates a JSON-mode `OpenAIClient` when `None`
-    - `_extract_input`: `input_key` present; `input_key` missing → default chain; no keys → `str(inputs)`
+    - `_extract_input`: single-str `input_key` present; tuple `input_key` tried in order (override before defaults); `input_key` missing → default chain; no keys → `str(inputs)`
     - `parse_judgment`: clamps score to [0,1]; missing reasoning → `""`; key names `<name>`/`<name>_reasoning`
     - concrete stub subclasses of both base classes: `score` calls `build_prompt → _run_traced_judge → _call_judge → parse_judgment`; supervised passes `expected_output` through; custom `name` honored; a passed `client` is used as-is
     - `_run_traced_judge` tracing: with an `InMemorySpanExporter` + `TracerProvider` configured, calling `score()` emits one `"llm_judge"` span carrying `eval.scorer.name` and a numeric `eval.scorer.score`; on `JudgeModelError` the span status is ERROR and the exception is recorded
