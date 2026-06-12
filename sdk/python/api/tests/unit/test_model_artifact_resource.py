@@ -22,11 +22,36 @@ def test_artifact_list(mock_sync_client: Mock, sample_artifact: Artifact) -> Non
     artifacts = resource.list()
 
     mock_sync_client.get.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
-        params={"limit": 100, "order": "desc"},
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/artifacts",
+        params={"limit": 100, "order": "desc", "collection_ids": [collection_id]},
     )
     assert len(artifacts.items) == 1
     assert artifacts.items[0].file_name == "model.pkl"
+
+
+def test_artifact_list_forwards_search(
+    mock_sync_client: Mock, sample_artifact: Artifact
+) -> None:
+    organization_id = mock_sync_client.organization
+    orbit_id = mock_sync_client.orbit
+    collection_id = mock_sync_client.collection
+    mock_sync_client.get.return_value = {
+        "items": [sample_artifact.model_dump()],
+        "cursor": None,
+    }
+
+    resource = ArtifactResource(mock_sync_client)
+    resource.list(search="resnet")
+
+    mock_sync_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/artifacts",
+        params={
+            "limit": 100,
+            "order": "desc",
+            "collection_ids": [collection_id],
+            "search": "resnet",
+        },
+    )
 
 
 def test_artifact_get_by_name(
@@ -188,8 +213,8 @@ async def test_async_artifact_list(
     artifacts = await resource.list()
 
     mock_async_client.get.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
-        params={"limit": 100, "order": "desc"},
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/artifacts",
+        params={"limit": 100, "order": "desc", "collection_ids": [collection_id]},
     )
     assert len(artifacts.items) == 1
     assert artifacts.items[0].file_name == "model.pkl"

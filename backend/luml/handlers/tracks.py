@@ -189,15 +189,11 @@ class TracksHandler:
         if not orbit or orbit.organization_id != organization_id:
             raise NotFoundError("Orbit not found")
 
+        update_fields = track_in.model_dump(exclude_unset=True, exclude={"stages"})
         try:
             updated = await self.__track_repository.update_track(
                 track_id,
-                TrackUpdate(
-                    id=track_id,
-                    name=track_in.name,
-                    description=track_in.description,
-                    tags=track_in.tags,
-                ),
+                TrackUpdate(id=track_id, **update_fields),
                 stages=track_in.stages,
             )
         except IntegrityError as error:

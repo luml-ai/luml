@@ -265,6 +265,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
+        search: str | None = None,
     ) -> Iterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -279,6 +280,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
+            search: Filter by a case-insensitive substring of the artifact name.
 
         Returns:
             Artifact objects from all pages.
@@ -318,6 +320,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             types=types,
+            search=search,
         )
 
     @validate_collection
@@ -330,6 +333,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
+        search: str | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -347,6 +351,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
+            search: Filter by a case-insensitive substring of the artifact name.
 
         Returns:
             ArtifactList object.
@@ -454,6 +459,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
         params: dict[str, Any] = {
             "limit": limit,
             "order": order.value if isinstance(order, SortOrder) else order,
+            "collection_ids": [collection_id],
         }
         if start_after:
             params["cursor"] = start_after
@@ -463,9 +469,11 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             params["types"] = [
                 t.value if isinstance(t, ArtifactType) else t for t in types
             ]
+        if search:
+            params["search"] = search
 
         response = self._client.get(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
             params=params,
         )
 
@@ -1249,6 +1257,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
+        search: str | None = None,
     ) -> AsyncIterator[Artifact]:
         """
         List all collection artifacts with auto-paging.
@@ -1263,6 +1272,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
+            search: Filter by a case-insensitive substring of the artifact name.
 
         Returns:
             Artifact objects from all pages.
@@ -1306,6 +1316,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             sort_by=sort_by,
             order=order,
             types=types,
+            search=search,
         )
 
     @validate_collection
@@ -1318,6 +1329,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
         types: list[ArtifactType] | None = None,
+        search: str | None = None,
     ) -> ArtifactsList:
         """
         List all artifacts in the collection.
@@ -1335,6 +1347,7 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             order: Sort order - "asc" or "desc" (default: "desc").
             types: Filter by artifact types:
                 "model", "dataset", or "experiment".
+            search: Filter by a case-insensitive substring of the artifact name.
 
         Returns:
             ArtifactsList object.
@@ -1444,7 +1457,11 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
         ```
         """
 
-        params: dict[str, Any] = {"limit": limit, "order": order.value}
+        params: dict[str, Any] = {
+            "limit": limit,
+            "order": order.value,
+            "collection_ids": [collection_id],
+        }
         if start_after:
             params["cursor"] = start_after
         if sort_by:
@@ -1453,9 +1470,11 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             params["types"] = [
                 t.value if isinstance(t, ArtifactType) else t for t in types
             ]
+        if search:
+            params["search"] = search
 
         response = await self._client.get(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts",
+            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/artifacts",
             params=params,
         )
         if response is None:

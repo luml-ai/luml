@@ -123,20 +123,20 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     )
 
 
-class TrackEntryUpdate(BaseModel):
-    id: UUID | None = None
-    stage_id: UUID | None = None
-
 
 class TrackEntryUpdateIn(BaseModel):
     stage_id: UUID | None = None
 
 
+class TrackEntryUpdate(TrackEntryUpdateIn):
+    id: UUID | None = None
+
+
 class TrackEntriesList(BaseModel):
     items: list[TrackEntry]
-    cursor: str | None
+    cursor: str | None = None
 
 
 class TracksList(BaseModel):
     items: list[Track]
-    cursor: str | None
+    cursor: str | None = None

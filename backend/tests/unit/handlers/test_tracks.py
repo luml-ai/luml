@@ -372,6 +372,39 @@ async def test_update_track(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
+async def test_update_track_partial_does_not_null_unset_fields(
+    mock_update: AsyncMock,
+    mock_get_orbit: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    # Only `name` is provided -> the TrackUpdate passed to the repo must mark
+    # only `name` as set, so exclude_unset leaves description/tags untouched.
+    data_in = TrackUpdateIn(name="new-name")
+    mock_update.return_value = _make_track(name="new-name")
+    mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
+
+    await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data_in)
+
+    passed_update = mock_update.await_args.args[1]
+    dumped = passed_update.model_dump(exclude_unset=True, exclude={"id"})
+    assert dumped == {"name": "new-name"}
+    assert "description" not in dumped
+    assert "tags" not in dumped
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.tracks.TrackRepository.update_track",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
 async def test_update_track_not_found(
     mock_update: AsyncMock,
     mock_get_orbit: AsyncMock,

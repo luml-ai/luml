@@ -454,7 +454,6 @@ class ArtifactHandler:
             return cursor
         return None
 
-    # TODO add filter by tracks
     async def get_collection_artifacts(
         self,
         user_id: UUID,
