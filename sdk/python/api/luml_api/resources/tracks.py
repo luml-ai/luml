@@ -2,6 +2,7 @@ import builtins
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 
+from luml_api._exceptions import ResourceNotFoundError
 from luml_api._types import (
     ArtifactType,
     SortOrder,
@@ -70,10 +71,9 @@ class TrackResourceBase(ABC):
     def list_stages(self, track_id: str) -> builtins.list[Stage]:
         pass
 
-    # TODO by stage id or stage name
     @abstractmethod
     def add_artifact(
-        self, track_id: str, artifact_id: str, stage_id: str | None = None
+        self, track_id: str, artifact_id: str, stage: str | None = None
     ) -> TrackEntry:
         pass
 
@@ -81,9 +81,8 @@ class TrackResourceBase(ABC):
     def get_artifact(self, track_id: str, tracked_artifact_id: str) -> TrackEntry:
         pass
 
-    # TODO by stage id or stage name
     @abstractmethod
-    def get_artifact_by_stage(self, track_id: str, stage_id: str) -> TrackEntry:
+    def get_artifact_by_stage(self, track_id: str, stage: str) -> TrackEntry:
         pass
 
     @abstractmethod
@@ -98,13 +97,12 @@ class TrackResourceBase(ABC):
     ) -> TrackEntriesList:
         pass
 
-    # TODO by stage id or stage name
     @abstractmethod
     def update_artifact(
         self,
         track_id: str,
         tracked_artifact_id: str,
-        stage_id: str | None = None,
+        stage: str | None = None,
         force: bool = False,
     ) -> TrackEntry:
         pass
@@ -243,11 +241,13 @@ class TrackResource(TrackResourceBase, ListedResource):
             return []
         return [Stage.model_validate(stage) for stage in response]
 
-    # TODO by stage id or stage name
     @validate_orbit
     def add_artifact(
-        self, track_id: str, artifact_id: str, stage_id: str | None = None
+        self, track_id: str, artifact_id: str, stage: str | None = None
     ) -> TrackEntry:
+        stage_id = (
+            self._resolve_stage_id(track_id, stage) if stage is not None else None
+        )
         response = self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries",
             json={"artifact_id": artifact_id, "stage_id": stage_id},
@@ -261,9 +261,18 @@ class TrackResource(TrackResourceBase, ListedResource):
         )
         return TrackEntry.model_validate(response)
 
-    # TODO by stage id or stage name
+    def _resolve_stage_id(self, track_id: str, stage: str) -> str:
+        if is_uuid(stage):
+            return stage
+        stages = self.list_stages(track_id)
+        found = find_by_value(stages, stage, condition=lambda s: s.name == stage)
+        if found is None:
+            raise ResourceNotFoundError("Stage", stage, all_values=stages)
+        return str(found.id)
+
     @validate_orbit
-    def get_artifact_by_stage(self, track_id: str, stage_id: str) -> TrackEntry:
+    def get_artifact_by_stage(self, track_id: str, stage: str) -> TrackEntry:
+        stage_id = self._resolve_stage_id(track_id, stage)
         response = self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/by-stage",
             params={"stage_id": stage_id},
@@ -286,7 +295,7 @@ class TrackResource(TrackResourceBase, ListedResource):
         if sort_by:
             params["sort_by"] = sort_by.value
         if stage:
-            params["stage"] = stage
+            params["stage"] = self._resolve_stage_id(track_id, stage)
 
         response = self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries",
@@ -296,15 +305,17 @@ class TrackResource(TrackResourceBase, ListedResource):
             return TrackEntriesList(items=[], cursor=None)
         return TrackEntriesList.model_validate(response)
 
-    # TODO by stage id or stage name
     @validate_orbit
     def update_artifact(
         self,
         track_id: str,
         tracked_artifact_id: str,
-        stage_id: str | None = None,
+        stage: str | None = None,
         force: bool = False,
     ) -> TrackEntry:
+        stage_id = (
+            self._resolve_stage_id(track_id, stage) if stage is not None else None
+        )
         response = self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
             json=self._client.filter_none({"stage_id": stage_id}),
@@ -451,11 +462,13 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
             return []
         return [Stage.model_validate(stage) for stage in response]
 
-    # TODO by stage id or stage name
     @validate_orbit
     async def add_artifact(
-        self, track_id: str, artifact_id: str, stage_id: str | None = None
+        self, track_id: str, artifact_id: str, stage: str | None = None
     ) -> TrackEntry:
+        stage_id = (
+            await self._resolve_stage_id(track_id, stage) if stage is not None else None
+        )
         response = await self._client.post(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries",
             json={"artifact_id": artifact_id, "stage_id": stage_id},
@@ -469,9 +482,18 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         )
         return TrackEntry.model_validate(response)
 
-    # TODO by stage id or stage name
+    async def _resolve_stage_id(self, track_id: str, stage: str) -> str:
+        if is_uuid(stage):
+            return stage
+        stages = await self.list_stages(track_id)
+        found = find_by_value(stages, stage, condition=lambda s: s.name == stage)
+        if found is None:
+            raise ResourceNotFoundError("Stage", stage, all_values=stages)
+        return str(found.id)
+
     @validate_orbit
-    async def get_artifact_by_stage(self, track_id: str, stage_id: str) -> TrackEntry:
+    async def get_artifact_by_stage(self, track_id: str, stage: str) -> TrackEntry:
+        stage_id = await self._resolve_stage_id(track_id, stage)
         response = await self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/by-stage",
             params={"stage_id": stage_id},
@@ -494,7 +516,7 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         if sort_by:
             params["sort_by"] = sort_by.value
         if stage:
-            params["stage"] = stage
+            params["stage"] = await self._resolve_stage_id(track_id, stage)
 
         response = await self._client.get(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries",
@@ -504,15 +526,17 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
             return TrackEntriesList(items=[], cursor=None)
         return TrackEntriesList.model_validate(response)
 
-    # TODO by stage id or stage name
     @validate_orbit
     async def update_artifact(
         self,
         track_id: str,
         tracked_artifact_id: str,
-        stage_id: str | None = None,
+        stage: str | None = None,
         force: bool = False,
     ) -> TrackEntry:
+        stage_id = (
+            await self._resolve_stage_id(track_id, stage) if stage is not None else None
+        )
         response = await self._client.patch(
             f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/tracks/{track_id}/entries/{tracked_artifact_id}",
             json=self._client.filter_none({"stage_id": stage_id}),

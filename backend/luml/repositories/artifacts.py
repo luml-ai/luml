@@ -26,7 +26,6 @@ from luml.schemas.deployment import DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams
 
 
-# TODO sqlalchemy проверка всех запросов
 class ArtifactRepository(RepositoryBase, CrudMixin):
     async def create_artifact(self, artifact: ArtifactCreate) -> Artifact:
         async with self._get_session() as session:
