@@ -32,6 +32,7 @@ class PromptAlignment(LLMJudgeScorer):
     >>> scorer = PromptAlignment()
     >>> scorer = PromptAlignment(input_key="system_prompt")
     """
+
     def __init__(
         self,
         client: LLMClient | None = None,

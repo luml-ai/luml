@@ -31,6 +31,7 @@ class Completeness(LLMJudgeScorer):
     >>> from luml.experiments.evaluation.scorers.builtin import Completeness
     >>> scorer = Completeness()
     """
+
     def __init__(
         self,
         client: LLMClient | None = None,

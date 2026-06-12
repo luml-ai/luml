@@ -31,6 +31,7 @@ class Relevancy(LLMJudgeScorer):
     >>> scorer = Relevancy()
     >>> scorer = Relevancy(input_key="prompt")
     """
+
     def __init__(
         self,
         client: LLMClient | None = None,

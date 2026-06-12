@@ -35,6 +35,7 @@ class Summarization(LLMJudgeScorer):
     >>> scorer = Summarization()
     >>> scorer = Summarization(input_key="document")
     """
+
     def __init__(
         self,
         client: LLMClient | None = None,

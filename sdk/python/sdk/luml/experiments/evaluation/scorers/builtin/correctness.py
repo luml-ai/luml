@@ -46,6 +46,7 @@ class Correctness(SupervisedLLMJudgeScorer):
     >>> from luml.experiments.evaluation.scorers.builtin import Correctness
     >>> scorer = Correctness()
     """
+
     def __init__(
         self,
         client: LLMClient | None = None,
