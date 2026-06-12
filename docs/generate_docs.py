@@ -316,6 +316,7 @@ def generate_docs():
     sdk_modules = {
         "LLM": {
             "luml.llm._client": ("llm", "client"),
+            "luml.llm._exceptions": ("llm", "exceptions"),
         },
         "Experiments": {
             "luml.experiments.tracker": ("experiments", "tracker"),

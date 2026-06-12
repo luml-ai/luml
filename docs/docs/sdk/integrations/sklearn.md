@@ -11,8 +11,7 @@ def save_sklearn(
         estimator: "BaseEstimator",
         inputs: Any,
         path: str | None = None,
-        dependencies: Literal["default"] | Literal["all"]
-    | list[str] = "default",
+        dependencies: Literal["default"] | Literal["all"] | list[str] = "default",
         extra_dependencies: list[str] | None = None,
         extra_code_modules: list[str] | Literal["auto"] | None = None,
         manifest_model_name: str | None = None,

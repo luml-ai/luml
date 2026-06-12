@@ -379,12 +379,12 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
   tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
   ```
 
-  \{
+  {
 - `"eval-xyz"` - AnnotationSummary(
   feedback=[FeedbackSummaryItem(name="quality", total=2, counts=\{"true": 1, "false": 1\})],
   expectations=[],
   ),
-  \}
+  }
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_attachment"></a>
 

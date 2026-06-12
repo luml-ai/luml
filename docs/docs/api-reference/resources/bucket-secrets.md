@@ -348,8 +348,7 @@ use this method to get presigned URLs for uploading each part.
 
         bucket_secret_id = "0199c45c-1b0b-7c82-890d-e31ab10d1e5d"
         bucket_location =
-        "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-2
-        1ee-74c6-b747-19a82f1a1e75/my_model_name"
+        "orbit-0199c455-21ed-7aba-9fe5-5231611220de/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/my_model_name"
 
         multipart_data = luml.bucket_secrets.get_multipart_upload_urls(
                 bucket_secret_id,
