@@ -3,7 +3,7 @@
     <label for="stage_name" class="label">Stage</label>
     <Select
       labelId="stage_name"
-      name="stage_id"
+      :name="props.name"
       fluid
       placeholder="Select stage"
       :options="options"

@@ -6,6 +6,7 @@
         <a
           :href="`/organization/${organizationId}/orbit/${orbitId}/tracks/${track.id}`"
           target="_blank"
+          rel="noopener noreferrer"
           class="link"
         >
           {{ track.name }}

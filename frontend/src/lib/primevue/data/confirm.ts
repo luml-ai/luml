@@ -251,7 +251,7 @@ export const deleteTrackEntryConfirmOptions = (
 ): ConfirmationOptions => ({
   message:
     'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
-  header: count > 1 ? `Unlink ${count}  artifacts?` : 'Unlink artifact?',
+  header: count > 1 ? `Unlink ${count} artifacts?` : 'Unlink artifact?',
   rejectProps: {
     label: 'cancel',
   },

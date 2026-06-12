@@ -28,7 +28,17 @@ const breadcrumbs = computed(() => [
       params: { organizationId: route.params.organizationId, id: route.params.id },
     },
   },
-  { label: props.trackName, route: { name: 'track', params: { id: props.trackId } } },
+  {
+    label: props.trackName,
+    route: {
+      name: 'track',
+      params: {
+        organizationId: route.params.organizationId,
+        id: route.params.id,
+        trackId: props.trackId,
+      },
+    },
+  },
 ])
 </script>
 

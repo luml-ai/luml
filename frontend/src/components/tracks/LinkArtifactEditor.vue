@@ -65,25 +65,25 @@
 </template>
 
 <script setup lang="ts">
-import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links.js'
+import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
 import { computed, ref, watch } from 'vue'
 import { Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { InputText, Textarea, Button } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useToast } from 'primevue'
-import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts.js'
-import { getErrorMessage } from '@/helpers/helpers.js'
+import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import { Bolt, TriangleAlert } from 'lucide-vue-next'
 import { useConfirm } from 'primevue/useconfirm'
 import {
   deleteTrackEntryConfirmOptions,
   patchTrackEntryConfirmOptions,
-} from '@/lib/primevue/data/confirm.js'
+} from '@/lib/primevue/data/confirm'
 import { useTracksStore } from '@/stores/tracks'
 import z from 'zod'
 import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
 import StageSelect from './StageSelect.vue'
-import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces.js'
+import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
 
 const artifactLinksStore = useArtifactLinksStore()
 const toast = useToast()

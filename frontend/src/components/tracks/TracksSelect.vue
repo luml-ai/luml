@@ -43,7 +43,7 @@ import { useTracksList } from '@/hooks/useTracksList'
 import { Search } from 'lucide-vue-next'
 import { useDebounceFn } from '@vueuse/core'
 import TrackCardSmall from './TrackCardSmall.vue'
-import type { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces.js'
+import type { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 
 type Props = {
   controlId?: string

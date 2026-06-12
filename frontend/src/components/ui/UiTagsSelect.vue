@@ -62,7 +62,7 @@ const suggestions = ref([...props.items.filter((item) => !modelValue.value.inclu
 function search(event: AutoCompleteCompleteEvent) {
   const selected = new Set(modelValue.value)
   const filtered = props.items.filter((item) => !selected.has(item))
-  suggestions.value = event.query ? [...filtered, event.query] : filtered
+  suggestions.value = event.query ? Array.from(new Set([...filtered, event.query])) : filtered
 }
 
 function onFocus() {
