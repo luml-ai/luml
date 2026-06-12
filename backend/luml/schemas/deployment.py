@@ -58,22 +58,27 @@ class Deployment(DeploymentBase):
         return self.artifact_name
 
 
-class DeploymentCreateIn(BaseModel):
+class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
     name: str
     satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
     description: str | None = None
-    dynamic_attributes_secrets: dict[str, UUID] = Field(default_factory=dict)
-    env_variables_secrets: dict[str, UUID] = Field(default_factory=dict)
     env_variables: dict[str, str] = Field(default_factory=dict)
     tags: list[str] | None = None
 
 
-class DeploymentCreate(DeploymentCreateIn, BaseOrmConfig):
+class DeploymentCreateIn(DeploymentCreateBase):
+    dynamic_attributes_secrets: dict[str, UUID] = Field(default_factory=dict)
+    env_variables_secrets: dict[str, UUID] = Field(default_factory=dict)
+
+
+class DeploymentCreate(DeploymentCreateBase, BaseOrmConfig):
     orbit_id: UUID
     status: DeploymentStatus = DeploymentStatus.PENDING
     created_by_user: str | None = None
+    dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)
+    env_variables_secrets: dict[str, str] = Field(default_factory=dict)
 
 
 class DeploymentUpdateIn(BaseModel):
@@ -96,23 +101,20 @@ class InferenceAccessOut(BaseModel):
     authorized: bool
 
 
-# TODO leave only one class DeploymentDetailsUpdate
-class DeploymentDetailsUpdateIn(BaseModel):
+class DeploymentDetailsUpdateBase(BaseModel):
     name: str | None = None
     description: str | None = None
+    schemas: dict[str, Any] | None = None
+    error_message: dict[str, Any] | None = None
+    tags: list[str] | None = None
+
+
+class DeploymentDetailsUpdateIn(DeploymentDetailsUpdateBase):
     dynamic_attributes_secrets: dict[str, UUID] | None = None
-    schemas: dict[str, Any] | None = None
-    error_message: dict[str, Any] | None = None
-    tags: list[str] | None = None
 
 
-class DeploymentDetailsUpdate(DeploymentDetailsUpdateIn):
-    name: str | None = None
-    description: str | None = None
+class DeploymentDetailsUpdate(DeploymentDetailsUpdateBase):
     dynamic_attributes_secrets: dict[str, str] | None = None
-    schemas: dict[str, Any] | None = None
-    error_message: dict[str, Any] | None = None
-    tags: list[str] | None = None
 
 
 class DeploymentStatusUpdateIn(BaseModel):
