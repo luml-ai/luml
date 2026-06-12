@@ -71,15 +71,13 @@ Collection(
 #### list_all
 
 ```python
-def list_all(
-    *,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
-) -> Iterator[Collection]
+def list_all(*,
+             limit: int | None = 100,
+             sort_by: CollectionSortBy | None = None,
+             order: SortOrder | None = SortOrder.DESC,
+             search: str | None = None,
+             types: list[CollectionTypeFilter] | None = None,
+             orbit_id: str | None = None) -> Iterator[Collection]
 ```
 
 List all orbit collections with auto-paging.
@@ -90,8 +88,10 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
-- `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
+- `orbit_id` - Orbit ID to list collections from. If not provided,
+  uses the default orbit set in the client.
   
 
 **Returns**:
@@ -133,16 +133,14 @@ for collection in luml.collections.list_all(
 #### list
 
 ```python
-def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
-) -> CollectionsList
+def list(*,
+         start_after: str | None = None,
+         limit: int | None = 100,
+         sort_by: CollectionSortBy | None = None,
+         order: SortOrder | None = SortOrder.DESC,
+         search: str | None = None,
+         types: list[CollectionTypeFilter] | None = None,
+         orbit_id: str | None = None) -> CollectionsList
 ```
 
 List all collections in the default orbit.
@@ -151,11 +149,14 @@ List all collections in the default orbit.
 
 - `start_after` - Cursor to start listing from.
 - `limit` - Maximum number of collections per page (default: 100).
-- `sort_by` - Field to sort by. Options: name, description, created_at. If not provided, sorts by creation time.
+- `sort_by` - Field to sort by. Options: name, description, created_at.
+  If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
-- `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
+- `orbit_id` - Orbit ID to list collections from. If not provided,
+  uses the default orbit set in the client.
   
 
 **Returns**:
@@ -215,12 +216,10 @@ CollectionsList(
 #### create
 
 ```python
-def create(
-    description: str,
-    name: str,
-    type: CollectionType,
-    tags: builtins.list[str] | None = None
-) -> Collection
+def create(description: str,
+           name: str,
+           type: CollectionType,
+           tags: builtins.list[str] | None = None) -> Collection
 ```
 
 Create new collection in the default orbit.
@@ -229,7 +228,8 @@ Create new collection in the default orbit.
 
 - `description` - Description of the collection.
 - `name` - Name of the collection.
-- `type` - Type of collection: "model", "dataset", "experiment", "model_dataset", "dataset_experiment", "model_experiment", "mixed".
+- `type` - Type of collection: "model", "dataset", "experiment",
+  "model_dataset", "dataset_experiment", "model_experiment", "mixed".
 - `tags` - Optional list of tags for organizing collections.
   
 
@@ -270,25 +270,26 @@ Collection(
 
 ```python
 @validate_collection
-def update(
-    name: str | None = None,
-    description: str | None = None,
-    tags: builtins.list[str] | None = None,
-    *,
-    collection_id: str | None = None
-) -> Collection
+def update(name: str | None = None,
+           description: str | None = None,
+           tags: builtins.list[str] | None = None,
+           *,
+           collection_id: str | None = None) -> Collection
 ```
 
 Update collection by ID or use default collection if collection_id not provided.
 
-Updates the collection's data. Only provided parameters will be updated, others remain unchanged. If collection_id is None, the default collection from client will be used.
+Updates the collection's data. Only provided parameters will be
+updated, others remain unchanged. If collection_id is None,
+the default collection from client will be used.
 
 **Arguments**:
 
 - `name` - New name for the collection.
 - `description` - New description for the collection.
 - `tags` - New list of tags.
-- `collection_id` - ID of the collection to update. If not provided, uses the default collection set in the client.
+- `collection_id` - ID of the collection to update. If not provided,
+  uses the default collection set in the client.
   
 
 **Returns**:
@@ -349,7 +350,8 @@ If collection_id is None, the default collection from client will be used.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to delete. If not provided, uses the default collection set in the client.
+- `collection_id` - ID of the collection to delete. If not provided,
+  uses the default collection set in the client.
   
 
 **Returns**:
@@ -417,7 +419,8 @@ Search by name is case-sensitive and matches exact collection name.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several collections with that name / id.
+- `MultipleResourcesFoundError` - If there are several collections
+  with that name / id.
   
 
 **Example**:
@@ -456,15 +459,13 @@ Collection(
 #### list_all
 
 ```python
-def list_all(
-    *,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
-) -> AsyncIterator[Collection]
+def list_all(*,
+             limit: int | None = 100,
+             sort_by: CollectionSortBy | None = None,
+             order: SortOrder | None = SortOrder.DESC,
+             search: str | None = None,
+             types: list[CollectionTypeFilter] | None = None,
+             orbit_id: str | None = None) -> AsyncIterator[Collection]
 ```
 
 List all orbit collections with auto-paging.
@@ -475,8 +476,10 @@ List all orbit collections with auto-paging.
 - `sort_by` - Field to sort by. Options: name, description, created_at.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
-- `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
+- `orbit_id` - Orbit ID to list collections from. If not provided,
+  uses the default orbit set in the client.
   
 
 **Returns**:
@@ -522,16 +525,14 @@ async def main():
 #### list
 
 ```python
-async def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
-) -> CollectionsList
+async def list(*,
+               start_after: str | None = None,
+               limit: int | None = 100,
+               sort_by: CollectionSortBy | None = None,
+               order: SortOrder | None = SortOrder.DESC,
+               search: str | None = None,
+               types: list[CollectionTypeFilter] | None = None,
+               orbit_id: str | None = None) -> CollectionsList
 ```
 
 List all collections in the default orbit.
@@ -540,11 +541,14 @@ List all collections in the default orbit.
 
 - `start_after` - Cursor to start listing from.
 - `limit` - Maximum number of collections per page (default: 100).
-- `sort_by` - Field to sort by. Options: name, description, created_at. If not provided, sorts by creation time.
+- `sort_by` - Field to sort by. Options: name, description, created_at.
+  If not provided, sorts by creation time.
 - `order` - Sort order - "asc" or "desc" (default: "desc").
 - `search` - Search string to filter collections by name or tags.
-- `types` - Filter by collection types: "model", "dataset", "experiment", "mixed".
-- `orbit_id` - Orbit ID to list collections from. If not provided, uses the default orbit set in the client.
+- `types` - Filter by collection types:
+  "model", "dataset", "experiment", "mixed".
+- `orbit_id` - Orbit ID to list collections from. If not provided,
+  uses the default orbit set in the client.
   
 
 **Returns**:
@@ -609,12 +613,10 @@ CollectionsList(
 #### create
 
 ```python
-async def create(
-    description: str,
-    name: str,
-    type: CollectionType,
-    tags: builtins.list[str] | None = None
-) -> Collection
+async def create(description: str,
+                 name: str,
+                 type: CollectionType,
+                 tags: builtins.list[str] | None = None) -> Collection
 ```
 
 Create new collection in the default orbit.
@@ -623,7 +625,8 @@ Create new collection in the default orbit.
 
 - `description` - Description of the collection.
 - `name` - Name of the collection.
-- `type` - Type of collection: "model", "dataset", "experiment", "model_dataset", "dataset_experiment", "model_experiment", "mixed".
+- `type` - Type of collection: "model", "dataset", "experiment",
+  "model_dataset", "dataset_experiment", "model_experiment", "mixed".
 - `tags` - Optional list of tags for organizing collections.
   
 
@@ -670,13 +673,11 @@ Collection(
 
 ```python
 @validate_collection
-async def update(
-    name: str | None = None,
-    description: str | None = None,
-    tags: builtins.list[str] | None = None,
-    *,
-    collection_id: str | None = None
-) -> Collection
+async def update(name: str | None = None,
+                 description: str | None = None,
+                 tags: builtins.list[str] | None = None,
+                 *,
+                 collection_id: str | None = None) -> Collection
 ```
 
 Update collection by ID or use default collection if collection_id not provided.
@@ -690,7 +691,8 @@ the default collection from client will be used.
 - `name` - New name for the collection.
 - `description` - New description for the collection.
 - `tags` - New list of tags.
-- `collection_id` - ID of the collection to update. If not provided, uses the default collection set in the client.
+- `collection_id` - ID of the collection to update. If not provided,
+  uses the default collection set in the client.
   
 
 **Returns**:
@@ -755,7 +757,8 @@ If collection_id is None, the default collection from client will be used.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to delete. If not provided, uses the default collection set in the client.
+- `collection_id` - ID of the collection to delete. If not provided,
+  uses the default collection set in the client.
   
 
 **Returns**:

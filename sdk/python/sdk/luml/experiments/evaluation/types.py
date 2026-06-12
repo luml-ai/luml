@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+REASONING_SUFFIX = "_reasoning"
+
 
 @dataclass
 class EvalItem:
