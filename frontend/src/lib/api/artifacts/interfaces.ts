@@ -89,6 +89,7 @@ export interface GetArtifactsListParams {
   types?: ArtifactTypeEnum[]
   collection_ids?: string[]
   search?: string | null
+  excluded_tracks?: string[]
 }
 
 export type ModelArtifact = Artifact

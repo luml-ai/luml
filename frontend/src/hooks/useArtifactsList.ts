@@ -27,6 +27,11 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     order: undefined,
   })
   const typesQuery = ref<ArtifactTypeEnum[]>(types ?? [])
+  const excludedTracksQuery = ref<string[]>([])
+
+  function setExcludedTracksQuery(tracks: string[]) {
+    excludedTracksQuery.value = tracks
+  }
 
   const searchQuery = ref<string | null>(null)
 
@@ -77,6 +82,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
         types: typesQuery.value,
         collection_ids: requestInfo.value.collectionIds,
         search: searchQuery.value,
+        excluded_tracks: excludedTracksQuery.value,
       },
       abortController.value.signal,
     )
@@ -167,5 +173,6 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     setTypesQuery,
     typesQuery,
     setSearchQuery,
+    setExcludedTracksQuery,
   }
 }
