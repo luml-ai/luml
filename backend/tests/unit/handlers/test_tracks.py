@@ -9,6 +9,7 @@ from luml.infra.exceptions import (
     ArtifactTypeMismatchError,
     NotFoundError,
 )
+from luml.schemas.artifacts import ArtifactType
 from luml.schemas.general import Cursor, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.tracks import (
@@ -108,7 +109,7 @@ async def test_create_track(
     mock_perms: AsyncMock,
 ) -> None:
     data = TrackCreateIn(
-        name="churn-model", artifact_type="model", stages=["Staging", "Prod"]
+        name="churn-model", artifact_type=ArtifactType.MODEL, stages=["Staging", "Prod"]
     )
     expected = _make_track()
     mock_create_track.return_value = expected
@@ -144,7 +145,7 @@ async def test_create_track_without_stages(
     mock_perms: AsyncMock,
 ) -> None:
     # No stages provided -> no default fallback, track created with none.
-    data = TrackCreateIn(name="churn-model", artifact_type="model")
+    data = TrackCreateIn(name="churn-model", artifact_type=ArtifactType.MODEL)
     mock_create_track.return_value = _make_track()
     mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
 
@@ -173,7 +174,7 @@ async def test_create_track_other_integrity_error_propagates(
 ) -> None:
     # An unrelated constraint (e.g. a not-null violation) must not be masked
     # as a duplicate-name 409 — it should surface as-is.
-    data = TrackCreateIn(name="churn-model", artifact_type="model")
+    data = TrackCreateIn(name="churn-model", artifact_type=ArtifactType.MODEL)
     mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
     mock_create_track.side_effect = IntegrityError(
         "", {}, Exception('null value in column "created_by"')
@@ -202,7 +203,7 @@ async def test_create_track_duplicate_stage_name(
     mock_perms: AsyncMock,
 ) -> None:
     data = TrackCreateIn(
-        name="churn-model", artifact_type="model", stages=["Dup", "Dup"]
+        name="churn-model", artifact_type=ArtifactType.MODEL, stages=["Dup", "Dup"]
     )
     mock_get_orbit.return_value = Mock(organization_id=ORG_ID)
     mock_create_track.side_effect = IntegrityError(
@@ -228,7 +229,7 @@ async def test_create_track_orbit_not_found(
     mock_perms: AsyncMock,
 ) -> None:
     mock_get_orbit.return_value = None
-    data = TrackCreateIn(name="churn-model", artifact_type="model")
+    data = TrackCreateIn(name="churn-model", artifact_type=ArtifactType.MODEL)
 
     with pytest.raises(NotFoundError, match="Orbit not found"):
         await tracks_handler.create_track(USER_ID, ORG_ID, ORBIT_ID, data)
@@ -634,7 +635,7 @@ async def test_create_entry_wrong_type(
     mock_get_track: AsyncMock,
     mock_perms: AsyncMock,
 ) -> None:
-    mock_get_track.return_value = _make_track(artifact_type="model")
+    mock_get_track.return_value = _make_track(artifact_type=ArtifactType.MODEL)
     mock_get_art.return_value = Mock(type="dataset", collection_id=COLLECTION_ID)
 
     with pytest.raises(ArtifactTypeMismatchError):

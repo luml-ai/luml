@@ -5,7 +5,9 @@ from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
+from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
+from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreate,
@@ -15,8 +17,11 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.collections import CollectionCreate, CollectionType
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
-from luml.schemas.general import PaginationParams
+from luml.schemas.general import PaginationParams, SortOrder
+from luml.schemas.orbit import OrbitCreateIn
 from luml.schemas.satellite import SatelliteCreate
+from luml.schemas.tracks import TrackCreate, TrackEntryCreate
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.conftest import CollectionFixtureData
 
@@ -28,14 +33,31 @@ async def _make_artifact(
     *,
     name: str,
     artifact_type: ArtifactType = ArtifactType.MODEL,
-    unique_identifier: str | None = None,
+    extra_values: dict[str, object] | None = None,
 ) -> Artifact:
     model = template.model_copy()
     model.collection_id = collection_id
     model.name = name
     model.type = artifact_type
-    model.unique_identifier = unique_identifier or str(uuid.uuid4())
+    model.unique_identifier = str(uuid.uuid4())
+    if extra_values is not None:
+        model.extra_values = extra_values
     return await repo.create_artifact(model)
+
+
+async def _make_collection(
+    engine: AsyncEngine, orbit_id: uuid.UUID, name: str
+) -> uuid.UUID:
+    collection = await CollectionRepository(engine).create_collection(
+        CollectionCreate(
+            orbit_id=orbit_id,
+            description=name,
+            name=name,
+            type=CollectionType.MODEL,
+            tags=[],
+        )
+    )
+    return collection.id
 
 
 @pytest.mark.asyncio
@@ -104,7 +126,9 @@ async def test_get_collection_artifacts(
     created_model2 = await repo.create_artifact(model_data2)
 
     pagination = PaginationParams(limit=limit)
-    models, _ = await repo.get_collection_artifacts(collection.id, pagination)
+    models, _ = await repo.get_collection_artifacts(
+        data.orbit.id, pagination, collection_ids=[collection.id]
+    )
 
     assert len(models) == 2
     model_ids = [m.id for m in models]
@@ -152,7 +176,9 @@ async def test_get_collection_artifacts_returns_only_active_deployments(
     )
 
     pagination = PaginationParams(limit=100)
-    models, _ = await repo.get_collection_artifacts(collection.id, pagination)
+    models, _ = await repo.get_collection_artifacts(
+        orbit.id, pagination, collection_ids=[collection.id]
+    )
 
     assert len(models) == 1
     assert [d.id for d in models[0].deployments] == [active.id]
@@ -373,240 +399,6 @@ async def test_get_artifact_details_not_found(
 
 
 @pytest.mark.asyncio
-async def test_get_orbit_artifacts_filters_by_type(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    model = await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="a-model",
-        artifact_type=ArtifactType.MODEL,
-    )
-    await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="a-dataset",
-        artifact_type=ArtifactType.DATASET,
-    )
-
-    items, _ = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-    )
-
-    assert [a.id for a in items] == [model.id]
-    assert all(a.type == ArtifactType.MODEL for a in items)
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_without_type_returns_all(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    model = await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="a-model",
-        artifact_type=ArtifactType.MODEL,
-    )
-    dataset = await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="a-dataset",
-        artifact_type=ArtifactType.DATASET,
-    )
-
-    items, _ = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-    )
-
-    assert {a.id for a in items} == {model.id, dataset.id}
-    assert {a.type for a in items} == {ArtifactType.MODEL, ArtifactType.DATASET}
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_filters_by_collection_ids(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, orbit, collection = data.engine, data.orbit, data.collection
-    repo = ArtifactRepository(engine)
-    collection_repo = CollectionRepository(engine)
-
-    other_collection = await collection_repo.create_collection(
-        CollectionCreate(
-            orbit_id=orbit.id,
-            description="other",
-            name="other",
-            type=CollectionType.MODEL,
-            tags=[],
-        )
-    )
-
-    in_scope = await _make_artifact(repo, test_artifact, collection.id, name="in-scope")
-    await _make_artifact(repo, test_artifact, other_collection.id, name="out-of-scope")
-
-    items, _ = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        orbit.id,
-        artifact_type=ArtifactType.MODEL,
-        collection_ids=[collection.id],
-    )
-
-    assert [a.id for a in items] == [in_scope.id]
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_search_by_name_partial_and_case_insensitive(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    resnet = await _make_artifact(repo, test_artifact, collection.id, name="ResNet50")
-    await _make_artifact(repo, test_artifact, collection.id, name="BERT")
-
-    items, _ = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-        collection_ids=[collection.id],
-        search="resnet",
-    )
-
-    assert [a.id for a in items] == [resnet.id]
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_search_no_match(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    await _make_artifact(repo, test_artifact, collection.id, name="ResNet50")
-
-    items, cursor = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-        collection_ids=[collection.id],
-        search="nonexistent",
-    )
-
-    assert items == []
-    assert cursor is None
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_combined_filters(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    target = await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="prod-model",
-        artifact_type=ArtifactType.MODEL,
-    )
-    # Same name but wrong type -> excluded by type filter.
-    await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="prod-model",
-        artifact_type=ArtifactType.DATASET,
-    )
-    # Matches type but not the search term.
-    await _make_artifact(
-        repo,
-        test_artifact,
-        collection.id,
-        name="staging-model",
-        artifact_type=ArtifactType.MODEL,
-    )
-
-    items, _ = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-        collection_ids=[collection.id],
-        search="prod",
-    )
-
-    assert [a.id for a in items] == [target.id]
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_empty(
-    create_collection: CollectionFixtureData,
-) -> None:
-    data = create_collection
-    repo = ArtifactRepository(data.engine)
-
-    items, cursor = await repo.get_orbit_artifacts(
-        PaginationParams(limit=100),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-    )
-
-    assert items == []
-    assert cursor is None
-
-
-@pytest.mark.asyncio
-async def test_get_orbit_artifacts_pagination(
-    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
-) -> None:
-    data = create_collection
-    engine, collection = data.engine, data.collection
-    repo = ArtifactRepository(engine)
-
-    for i in range(3):
-        await _make_artifact(repo, test_artifact, collection.id, name=f"model-{i}")
-
-    first_page, cursor = await repo.get_orbit_artifacts(
-        PaginationParams(limit=2),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-    )
-
-    assert len(first_page) == 2
-    assert cursor is not None
-
-    second_page, next_cursor = await repo.get_orbit_artifacts(
-        PaginationParams(limit=2, cursor=cursor),
-        data.orbit.id,
-        artifact_type=ArtifactType.MODEL,
-    )
-
-    assert len(second_page) == 1
-    assert next_cursor is None
-
-    all_ids = {a.id for a in first_page} | {a.id for a in second_page}
-    assert len(all_ids) == 3
-
-
-@pytest.mark.asyncio
 async def test_get_collection_artifacts_sort_by_metric(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:
@@ -629,15 +421,20 @@ async def test_get_collection_artifacts_sort_by_metric(
 
     # Sort by the metric key, ASC, page size 1 -> lowest first + a cursor.
     first, cursor = await repo.get_collection_artifacts(
-        collection.id, PaginationParams(limit=1, sort_by="accuracy", order="asc")
+        data.orbit.id,
+        PaginationParams(limit=1, sort_by="accuracy", order=SortOrder.ASC),
+        collection_ids=[collection.id],
     )
     assert len(first) == 1
     assert first[0].extra_values["accuracy"] == 0.1
     assert cursor is not None
 
     second, _ = await repo.get_collection_artifacts(
-        collection.id,
-        PaginationParams(limit=1, sort_by="accuracy", order="asc", cursor=cursor),
+        data.orbit.id,
+        PaginationParams(
+            limit=1, sort_by="accuracy", order=SortOrder.ASC, cursor=cursor
+        ),
+        collection_ids=[collection.id],
     )
     assert second[0].extra_values["accuracy"] == 0.9
 
@@ -650,7 +447,9 @@ async def test_get_collection_artifacts_sort_extra_values_key_raises(
     repo = ArtifactRepository(data.engine)
     with pytest.raises(InvalidSortingError):
         await repo.get_collection_artifacts(
-            data.collection.id, PaginationParams(limit=10, sort_by="extra_values")
+            data.orbit.id,
+            PaginationParams(limit=10, sort_by="extra_values"),
+            collection_ids=[data.collection.id],
         )
 
 
@@ -668,7 +467,9 @@ async def test_get_collection_artifacts_invalid_metric_raises(
 
     with pytest.raises(InvalidSortingError, match="Invalid sorting column"):
         await repo.get_collection_artifacts(
-            data.collection.id, PaginationParams(limit=10, sort_by="nonexistent_metric")
+            data.orbit.id,
+            PaginationParams(limit=10, sort_by="nonexistent_metric"),
+            collection_ids=[data.collection.id],
         )
 
 
@@ -694,9 +495,377 @@ async def test_get_collection_artifacts_filtered_by_type(
     await repo.create_artifact(dataset)
 
     items, _ = await repo.get_collection_artifacts(
-        collection.id,
+        data.orbit.id,
         PaginationParams(limit=100),
+        collection_ids=[collection.id],
         artifact_types=[ArtifactType.MODEL],
     )
     assert all(a.type == ArtifactType.MODEL for a in items)
     assert len(items) == 1
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_search_partial_case_insensitive(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    resnet = await _make_artifact(
+        repo, test_artifact, data.collection.id, name="ResNet50"
+    )
+    await _make_artifact(repo, test_artifact, data.collection.id, name="BERT")
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100), search="resnet"
+    )
+
+    assert [a.id for a in items] == [resnet.id]
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_search_no_match(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    await _make_artifact(repo, test_artifact, data.collection.id, name="ResNet50")
+
+    items, cursor = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100), search="nonexistent"
+    )
+
+    assert items == []
+    assert cursor is None
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_pagination_by_created_at(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    for i in range(3):
+        await _make_artifact(repo, test_artifact, data.collection.id, name=f"model-{i}")
+
+    first_page, cursor = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=2)
+    )
+    assert len(first_page) == 2
+    assert cursor is not None
+
+    second_page, next_cursor = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=2, cursor=cursor)
+    )
+    assert len(second_page) == 1
+    assert next_cursor is None
+
+    all_ids = {a.id for a in first_page} | {a.id for a in second_page}
+    assert len(all_ids) == 3
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_excludes_other_orbit(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    in_scope = await _make_artifact(
+        repo, test_artifact, data.collection.id, name="in-scope"
+    )
+
+    other_orbit = await OrbitRepository(data.engine).create_orbit(
+        data.organization.id,
+        OrbitCreateIn(name="other orbit", bucket_secret_id=data.bucket_secret.id),
+    )
+    assert other_orbit is not None
+    other_collection_id = await _make_collection(
+        data.engine, other_orbit.id, "other-collection"
+    )
+    await _make_artifact(repo, test_artifact, other_collection_id, name="out-of-scope")
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100)
+    )
+
+    assert [a.id for a in items] == [in_scope.id]
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_whole_orbit_without_collection_ids(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    second_collection_id = await _make_collection(
+        data.engine, data.orbit.id, "second-collection"
+    )
+
+    a1 = await _make_artifact(repo, test_artifact, data.collection.id, name="a1")
+    a2 = await _make_artifact(repo, test_artifact, second_collection_id, name="a2")
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100)
+    )
+
+    assert {a.id for a in items} == {a1.id, a2.id}
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_collection_ids_subset(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    second_collection_id = await _make_collection(
+        data.engine, data.orbit.id, "second-collection"
+    )
+
+    target = await _make_artifact(repo, test_artifact, data.collection.id, name="t")
+    await _make_artifact(repo, test_artifact, second_collection_id, name="other")
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id,
+        PaginationParams(limit=100),
+        collection_ids=[data.collection.id],
+    )
+
+    assert [a.id for a in items] == [target.id]
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_multiple_collection_ids(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    second_collection_id = await _make_collection(
+        data.engine, data.orbit.id, "second-collection"
+    )
+    third_collection_id = await _make_collection(
+        data.engine, data.orbit.id, "third-collection"
+    )
+
+    a1 = await _make_artifact(repo, test_artifact, data.collection.id, name="a1")
+    a2 = await _make_artifact(repo, test_artifact, second_collection_id, name="a2")
+    await _make_artifact(repo, test_artifact, third_collection_id, name="a3")
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id,
+        PaginationParams(limit=100),
+        collection_ids=[data.collection.id, second_collection_id],
+    )
+
+    assert {a.id for a in items} == {a1.id, a2.id}
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_multiple_types(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    model = await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="m",
+        artifact_type=ArtifactType.MODEL,
+    )
+    dataset = await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="d",
+        artifact_type=ArtifactType.DATASET,
+    )
+    await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="e",
+        artifact_type=ArtifactType.EXPERIMENT,
+    )
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id,
+        PaginationParams(limit=100),
+        artifact_types=[ArtifactType.MODEL, ArtifactType.DATASET],
+    )
+
+    assert {a.id for a in items} == {model.id, dataset.id}
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_combined_filters(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    second_collection_id = await _make_collection(
+        data.engine, data.orbit.id, "second-collection"
+    )
+
+    target = await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="prod-model",
+        artifact_type=ArtifactType.MODEL,
+    )
+    # Right collection + name, wrong type.
+    await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="prod-model",
+        artifact_type=ArtifactType.DATASET,
+    )
+    # Right type + name, wrong collection.
+    await _make_artifact(
+        repo,
+        test_artifact,
+        second_collection_id,
+        name="prod-model",
+        artifact_type=ArtifactType.MODEL,
+    )
+    # Right type + collection, name does not match search.
+    await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="staging-model",
+        artifact_type=ArtifactType.MODEL,
+    )
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id,
+        PaginationParams(limit=100),
+        collection_ids=[data.collection.id],
+        artifact_types=[ArtifactType.MODEL],
+        search="prod",
+    )
+
+    assert [a.id for a in items] == [target.id]
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_empty_orbit(
+    create_collection: CollectionFixtureData,
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    items, cursor = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100)
+    )
+
+    assert items == []
+    assert cursor is None
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_metric_sort_without_collection_ids_falls_back(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    # Metric sort only applies when collection_ids is provided. Without it the
+    # metric key is not validated and silently falls back to created_at order.
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    first = await _make_artifact(
+        repo, test_artifact, data.collection.id, name="first", extra_values={"acc": 0.1}
+    )
+    second = await _make_artifact(
+        repo,
+        test_artifact,
+        data.collection.id,
+        name="second",
+        extra_values={"acc": 0.9},
+    )
+
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id,
+        PaginationParams(limit=100, sort_by="acc", order=SortOrder.DESC),
+    )
+
+    # created_at DESC -> most recently created first (no InvalidSortingError raised).
+    assert [a.id for a in items] == [second.id, first.id]
+
+
+async def _add_artifact_to_track(
+    engine: AsyncEngine,
+    orbit_id: uuid.UUID,
+    artifact_id: uuid.UUID,
+    added_by: uuid.UUID,
+    name: str = "track",
+) -> uuid.UUID:
+    track = await TrackRepository(engine).create_track(
+        TrackCreate(orbit_id=orbit_id, name=name, artifact_type=ArtifactType.MODEL)
+    )
+    await TrackEntryRepository(engine).create_entry(
+        TrackEntryCreate(track_id=track.id, artifact_id=artifact_id, added_by=added_by)
+    )
+    return track.id
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_excludes_tracks(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    in_track = await _make_artifact(
+        repo, test_artifact, data.collection.id, name="in-track"
+    )
+    free = await _make_artifact(repo, test_artifact, data.collection.id, name="free")
+
+    track_id = await _add_artifact_to_track(
+        data.engine, data.orbit.id, in_track.id, data.user.id
+    )
+
+    # Without the filter both artifacts are returned.
+    all_items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100)
+    )
+    assert {a.id for a in all_items} == {in_track.id, free.id}
+
+    # Excluding the track drops the artifact that belongs to it.
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100), excluded_tracks=[track_id]
+    )
+    assert [a.id for a in items] == [free.id]
+
+
+@pytest.mark.asyncio
+async def test_get_collection_artifacts_excludes_only_listed_tracks(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+
+    a_in_t1 = await _make_artifact(repo, test_artifact, data.collection.id, name="t1")
+    a_in_t2 = await _make_artifact(repo, test_artifact, data.collection.id, name="t2")
+
+    t1 = await _add_artifact_to_track(
+        data.engine, data.orbit.id, a_in_t1.id, data.user.id, name="track-1"
+    )
+    await _add_artifact_to_track(
+        data.engine, data.orbit.id, a_in_t2.id, data.user.id, name="track-2"
+    )
+
+    # Only t1 is excluded -> the artifact in t2 stays.
+    items, _ = await repo.get_collection_artifacts(
+        data.orbit.id, PaginationParams(limit=100), excluded_tracks=[t1]
+    )
+
+    assert [a.id for a in items] == [a_in_t2.id]
