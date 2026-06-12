@@ -123,7 +123,6 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     )
 
 
-
 class TrackEntryUpdateIn(BaseModel):
     stage_id: UUID | None = None
 
