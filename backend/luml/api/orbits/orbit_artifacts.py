@@ -11,22 +11,14 @@ from luml.schemas.artifacts import (
     ArtifactDetails,
     ArtifactIn,
     ArtifactsList,
-    ArtifactSortBy,
     ArtifactType,
     ArtifactUpdateIn,
     CreateArtifactResponse,
-    OrbitArtifactsList,
 )
 from luml.schemas.general import SortOrder
 
 artifacts_router = APIRouter(
-    prefix="/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
-    dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
-    tags=["orbit-artifacts"],
-)
-
-orbit_artifacts_router = APIRouter(
-    prefix="/{organization_id}/orbits/{orbit_id}/artifacts",
+    prefix="/{organization_id}/orbits/{orbit_id}",
     dependencies=[Depends(UserAuthentication(["jwt", "api_key"]))],
     tags=["orbit-artifacts"],
 )
@@ -35,7 +27,9 @@ artifacts_handler = ArtifactHandler()
 
 
 @artifacts_router.post(
-    "", responses=endpoint_responses, response_model=CreateArtifactResponse
+    "/collections/{collection_id}/artifacts",
+    responses=endpoint_responses,
+    response_model=CreateArtifactResponse,
 )
 async def create_artifact(
     request: Request,
@@ -54,7 +48,7 @@ async def create_artifact(
 
 
 @artifacts_router.patch(
-    "/{artifact_id}",
+    "/collections/{collection_id}/artifacts/{artifact_id}",
     responses=endpoint_responses,
     response_model=Artifact,
 )
@@ -77,67 +71,40 @@ async def update_artifact(
 
 
 @artifacts_router.get(
-    "",
+    "/artifacts",
     responses=endpoint_responses,
     response_model=ArtifactsList,
-)
-async def get_artifacts(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    collection_id: UUID,
-    cursor: str | None = None,
-    limit: Annotated[int, Query(gt=0, le=100)] = 50,
-    sort_by: str = "created_at",
-    order: SortOrder = SortOrder.DESC,
-    types: Annotated[list[ArtifactType] | None, Query()] = None,  # noqa: A002
-) -> ArtifactsList:
-    return await artifacts_handler.get_collection_artifacts(
-        request.user.id,
-        organization_id,
-        orbit_id,
-        collection_id,
-        cursor,
-        limit,
-        sort_by,
-        order,
-        types,
-    )
-
-
-@orbit_artifacts_router.get(
-    "",
-    responses=endpoint_responses,
-    response_model=OrbitArtifactsList,
 )
 async def get_orbit_artifacts(
     request: Request,
     organization_id: UUID,
     orbit_id: UUID,
-    artifact_type: ArtifactType | None = None,
+    types: Annotated[list[ArtifactType] | None, Query()] = None,
     cursor: str | None = None,
     limit: Annotated[int, Query(gt=0, le=100)] = 50,
-    sort_by: ArtifactSortBy = ArtifactSortBy.CREATED_AT,
+    sort_by: str = "created_at",
     order: SortOrder = SortOrder.DESC,
     collection_ids: Annotated[list[UUID] | None, Query()] = None,
     search: str | None = None,
-) -> OrbitArtifactsList:
-    return await artifacts_handler.get_orbit_artifacts(
-        request.user.id,
-        organization_id,
-        orbit_id,
-        artifact_type,
-        cursor,
-        limit,
-        sort_by,
-        order,
-        collection_ids,
-        search,
+    excluded_tracks: Annotated[list[UUID] | None, Query()] = None,
+) -> ArtifactsList:
+    return await artifacts_handler.get_collection_artifacts(
+        user_id=request.user.id,
+        organization_id=organization_id,
+        orbit_id=orbit_id,
+        artifact_types=types,
+        cursor_str=cursor,
+        limit=limit,
+        sort_by=sort_by,
+        order=order,
+        collection_ids=collection_ids,
+        search=search,
+        excluded_tracks=excluded_tracks,
     )
 
 
 @artifacts_router.get(
-    "/{artifact_id}",
+    "/collections/{collection_id}/artifacts/{artifact_id}",
     responses=endpoint_responses,
     response_model=ArtifactDetails,
 )
@@ -153,7 +120,10 @@ async def get_artifact_details(
     )
 
 
-@artifacts_router.get("/{artifact_id}/download-url", responses=endpoint_responses)
+@artifacts_router.get(
+    "/collections/{collection_id}/artifacts/{artifact_id}/download-url",
+    responses=endpoint_responses,
+)
 async def get_artifact_download_url(
     request: Request,
     organization_id: UUID,
@@ -171,7 +141,10 @@ async def get_artifact_download_url(
     return {"url": url}
 
 
-@artifacts_router.get("/{artifact_id}/delete-url", responses=endpoint_responses)
+@artifacts_router.get(
+    "/collections/{collection_id}/artifacts/{artifact_id}/delete-url",
+    responses=endpoint_responses,
+)
 async def get_artifact_delete_url(
     request: Request,
     organization_id: UUID,
@@ -190,7 +163,7 @@ async def get_artifact_delete_url(
 
 
 @artifacts_router.delete(
-    "/{artifact_id}",
+    "/collections/{collection_id}/artifacts/{artifact_id}",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
@@ -211,7 +184,7 @@ async def confirm_artifact_delete(
 
 
 @artifacts_router.delete(
-    "/{artifact_id}/force",
+    "/collections/{collection_id}/artifacts/{artifact_id}/force",
     responses=endpoint_responses,
     status_code=status.HTTP_204_NO_CONTENT,
 )
