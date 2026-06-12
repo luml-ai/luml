@@ -15,7 +15,7 @@ from pydantic import (
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.collections import Collection
-from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment
+from luml.schemas.deployment import Deployment, DeploymentBase
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
 from luml.schemas.track_base import TrackBase
 
@@ -210,20 +210,8 @@ class Artifact(BaseModel, BaseOrmConfig):
 
 
 class ArtifactListed(Artifact):
-    deployments: list[ArtifactDeploymentInfo] = []
-
-
-class OrbitArtifact(BaseModel, BaseOrmConfig):
-    id: UUID
-    collection_id: UUID
+    deployments: list[DeploymentBase] = []
     collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
-    name: str | None = None
-    description: str | None = None
-    tags: list[str] | None = None
-    status: ArtifactStatus
-    type: ArtifactType
-    created_at: datetime
-    updated_at: datetime | None = None
 
 
 class ArtifactDetails(Artifact):
@@ -251,9 +239,4 @@ class SatelliteModelArtifactResponse(SatelliteArtifactResponse):
 
 class ArtifactsList(BaseModel):
     items: list[ArtifactListed]
-    cursor: str | None
-
-
-class OrbitArtifactsList(BaseModel):
-    items: list[OrbitArtifact]
     cursor: str | None

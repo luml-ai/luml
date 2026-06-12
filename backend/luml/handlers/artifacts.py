@@ -36,7 +36,6 @@ from luml.schemas.artifacts import (
     ArtifactUpdateIn,
     CreateArtifactResponse,
     LumlArtifactManifest,
-    OrbitArtifactsList,
     SatelliteArtifactResponse,
 )
 from luml.schemas.bucket_secrets import BucketSecret
@@ -44,7 +43,7 @@ from luml.schemas.collections import Collection, is_artifact_type_allowed
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
-from luml.utils.pagination import decode_cursor, encode_cursor
+from luml.utils.pagination import build_scope_id, decode_cursor, encode_cursor
 
 
 class ArtifactHandler:
@@ -445,69 +444,30 @@ class ArtifactHandler:
 
     @staticmethod
     def _validate_cursor(
-        cursor: Cursor | None, sort_by: str, order: SortOrder, collection_id: UUID
+        cursor: Cursor | None, sort_by: str, order: SortOrder, scope_id: UUID
     ) -> Cursor | None:
         if cursor and (
             cursor.sort_by == sort_by
             and cursor.order == order.value
-            and cursor.scope_id == collection_id
+            and cursor.scope_id == scope_id
         ):
             return cursor
         return None
 
+    # TODO add filter by tracks
     async def get_collection_artifacts(
         self,
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
-        collection_id: UUID,
+        collection_ids: list[UUID] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
         cursor_str: str | None = None,
         limit: int = 100,
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
-        artifact_types: list[ArtifactType] | None = None,
-    ) -> ArtifactsList:
-        await self.__permissions_handler.check_permissions(
-            organization_id,
-            user_id,
-            Resource.ARTIFACT,
-            Action.LIST,
-            orbit_id,
-        )
-        await self._check_orbit_and_collection_access(
-            organization_id, orbit_id, collection_id
-        )
-
-        cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by, order, collection_id)
-
-        pagination = PaginationParams(
-            cursor=use_cursor,
-            sort_by=sort_by,
-            order=order,
-            limit=limit,
-            scope_id=collection_id,
-        )
-
-        items, cursor = await self.__repository.get_collection_artifacts(
-            collection_id, pagination, artifact_types
-        )
-
-        return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
-
-    async def get_orbit_artifacts(
-        self,
-        user_id: UUID,
-        organization_id: UUID,
-        orbit_id: UUID,
-        artifact_type: ArtifactType | None = None,
-        cursor_str: str | None = None,
-        limit: int = 100,
-        sort_by: ArtifactSortBy = ArtifactSortBy.CREATED_AT,
-        order: SortOrder = SortOrder.DESC,
-        collection_ids: list[UUID] | None = None,
         search: str | None = None,
-    ) -> OrbitArtifactsList:
+    ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -519,22 +479,33 @@ class ArtifactHandler:
             organization_id, orbit_id, collection_ids
         )
 
+        scope_id = build_scope_id(
+            orbit_id=orbit_id,
+            collection_ids=collection_ids,
+            artifact_types=artifact_types,
+            search=search,
+        )
+
         cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by.value, order, orbit_id)
+        use_cursor = self._validate_cursor(cursor, sort_by, order, scope_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
-            sort_by=sort_by.value,
+            sort_by=sort_by,
             order=order,
             limit=limit,
-            scope_id=orbit_id,
+            scope_id=scope_id,
         )
 
-        items, cursor = await self.__repository.get_orbit_artifacts(
-            pagination, orbit_id, artifact_type, collection_ids, search
+        items, cursor = await self.__repository.get_collection_artifacts(
+            orbit_id=orbit_id,
+            pagination=pagination,
+            collection_ids=collection_ids,
+            artifact_types=artifact_types,
+            search=search,
         )
 
-        return OrbitArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
+        return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
 
     async def get_artifact(
         self,

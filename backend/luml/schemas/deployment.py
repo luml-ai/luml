@@ -17,14 +17,14 @@ class DeploymentStatus(StrEnum):
     NOT_RESPONDING = "not_responding"
 
 
-class ArtifactDeploymentInfo(BaseModel, BaseOrmConfig):
+class DeploymentBase(BaseModel, BaseOrmConfig):
     id: UUID
     name: str
     status: DeploymentStatus
     orbit_id: UUID
 
 
-class Deployment(ArtifactDeploymentInfo):
+class Deployment(DeploymentBase):
     id: UUID
     orbit_id: UUID
     satellite_id: UUID
@@ -58,21 +58,6 @@ class Deployment(ArtifactDeploymentInfo):
         return self.artifact_name
 
 
-class DeploymentCreate(BaseModel, BaseOrmConfig):
-    orbit_id: UUID
-    satellite_id: UUID
-    artifact_id: UUID
-    name: str
-    satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
-    description: str | None = None
-    dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)
-    env_variables_secrets: dict[str, str] = Field(default_factory=dict)
-    env_variables: dict[str, str] = Field(default_factory=dict)
-    status: DeploymentStatus = DeploymentStatus.PENDING
-    created_by_user: str | None = None
-    tags: list[str] | None = None
-
-
 class DeploymentCreateIn(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
@@ -85,13 +70,10 @@ class DeploymentCreateIn(BaseModel):
     tags: list[str] | None = None
 
 
-class DeploymentUpdate(BaseModel, BaseOrmConfig):
-    id: UUID
-    inference_url: str | None = None
-    status: DeploymentStatus | None = None
-    tags: list[str] | None = None
-    schemas: dict[str, Any] | None = None
-    error_message: dict[str, Any] | None = None
+class DeploymentCreate(DeploymentCreateIn, BaseOrmConfig):
+    orbit_id: UUID
+    status: DeploymentStatus = DeploymentStatus.PENDING
+    created_by_user: str | None = None
 
 
 class DeploymentUpdateIn(BaseModel):
@@ -102,6 +84,10 @@ class DeploymentUpdateIn(BaseModel):
     error_message: dict[str, Any] | None = None
 
 
+class DeploymentUpdate(DeploymentUpdateIn, BaseOrmConfig):
+    id: UUID
+
+
 class InferenceAccessIn(BaseModel):
     api_key: str
 
@@ -110,6 +96,7 @@ class InferenceAccessOut(BaseModel):
     authorized: bool
 
 
+# TODO leave only one class DeploymentDetailsUpdate
 class DeploymentDetailsUpdateIn(BaseModel):
     name: str | None = None
     description: str | None = None
@@ -119,7 +106,7 @@ class DeploymentDetailsUpdateIn(BaseModel):
     tags: list[str] | None = None
 
 
-class DeploymentDetailsUpdate(BaseModel):
+class DeploymentDetailsUpdate(DeploymentDetailsUpdateIn):
     name: str | None = None
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] | None = None

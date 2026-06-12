@@ -32,7 +32,7 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.bucket_secrets import S3BucketSecret
 from luml.schemas.collections import Collection, CollectionType
-from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment, DeploymentStatus
+from luml.schemas.deployment import Deployment, DeploymentBase, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.storage import S3UploadDetails
@@ -319,7 +319,7 @@ async def test_get_collection_artifacts(
             updated_at=None,
             type=ArtifactType.MODEL,
             deployments=[
-                ArtifactDeploymentInfo(
+                DeploymentBase(
                     id=UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622"),
                     name="test",
                     status=DeploymentStatus.ACTIVE,
