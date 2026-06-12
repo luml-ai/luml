@@ -86,6 +86,7 @@ async def get_orbit_artifacts(
     order: SortOrder = SortOrder.DESC,
     collection_ids: Annotated[list[UUID] | None, Query()] = None,
     search: str | None = None,
+    excluded_tracks: Annotated[list[UUID] | None, Query()] = None,
 ) -> ArtifactsList:
     return await artifacts_handler.get_collection_artifacts(
         user_id=request.user.id,
@@ -98,6 +99,7 @@ async def get_orbit_artifacts(
         order=order,
         collection_ids=collection_ids,
         search=search,
+        excluded_tracks=excluded_tracks,
     )
 
 

@@ -6,7 +6,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
-from luml.models import ArtifactOrm, CollectionOrm, DeploymentOrm
+from luml.models import (
+    ArtifactOrm,
+    CollectionOrm,
+    DeploymentOrm,
+    TrackArtifactOrm,
+)
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
     Artifact,
@@ -131,6 +136,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         collection_ids: list[UUID] | None = None,
         artifact_types: list[ArtifactType] | None = None,
         search: str | None = None,
+        excluded_tracks: list[UUID] | None = None,
     ) -> tuple[list[ArtifactListed], Cursor | None]:
         async with self._get_session() as session:
             sort_by = pagination.sort_by
@@ -158,6 +164,15 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
 
             if collection_ids:
                 conditions.append(ArtifactOrm.collection_id.in_(collection_ids))
+
+            if excluded_tracks:
+                conditions.append(
+                    ArtifactOrm.id.not_in(
+                        select(TrackArtifactOrm.artifact_id).where(
+                            TrackArtifactOrm.track_id.in_(excluded_tracks)
+                        )
+                    )
+                )
 
             if search:
                 conditions.append(ArtifactOrm.name.ilike(f"%{search}%"))

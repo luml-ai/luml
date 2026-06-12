@@ -467,6 +467,7 @@ class ArtifactHandler:
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
         search: str | None = None,
+        excluded_tracks: list[UUID] | None = None,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -484,6 +485,7 @@ class ArtifactHandler:
             collection_ids=collection_ids,
             artifact_types=artifact_types,
             search=search,
+            excluded_tracks=excluded_tracks,
         )
 
         cursor = decode_cursor(cursor_str)
@@ -503,6 +505,7 @@ class ArtifactHandler:
             collection_ids=collection_ids,
             artifact_types=artifact_types,
             search=search,
+            excluded_tracks=excluded_tracks,
         )
 
         return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
