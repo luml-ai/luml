@@ -96,6 +96,7 @@ const {
   reset,
   onLazyLoad,
   setSearchQuery,
+  setExcludedTracksQuery,
 } = useArtifactsList(20, false)
 
 const initialValues = ref({
@@ -185,6 +186,10 @@ watch(
 )
 
 watch(artifactSearch, debouncedOnSearch)
+
+watch(trackId, (trackId) => {
+  setExcludedTracksQuery([trackId])
+}, { immediate: true })
 </script>
 
 <style scoped>
