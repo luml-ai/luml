@@ -38,8 +38,7 @@ Search by name is case-sensitive and matches exact collection name.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several collections
-  with that name / id.
+- `MultipleResourcesFoundError` - If there are several collections with that name / id.
   
 
 **Example**:
@@ -52,7 +51,7 @@ collection_by_id = luml.collections.get(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
@@ -72,13 +71,13 @@ Collection(
 
 ```python
 def list_all(
-    *,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
+        *,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None
 ) -> Iterator[Collection]
 ```
 
@@ -134,14 +133,14 @@ for collection in luml.collections.list_all(
 
 ```python
 def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None
 ) -> CollectionsList
 ```
 
@@ -191,7 +190,7 @@ result = luml.collections.list(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 CollectionsList(
     items=[
@@ -216,10 +215,10 @@ CollectionsList(
 
 ```python
 def create(
-    description: str,
-    name: str,
-    type: CollectionType,
-    tags: builtins.list[str] | None = None
+        description: str,
+        name: str,
+        type: CollectionType,
+        tags: builtins.list[str] | None = None
 ) -> Collection
 ```
 
@@ -271,17 +270,19 @@ Collection(
 ```python
 @validate_collection
 def update(
-    name: str | None = None,
-    description: str | None = None,
-    tags: builtins.list[str] | None = None,
-    *,
-    collection_id: str | None = None
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        *,
+        collection_id: str | None = None
 ) -> Collection
 ```
 
 Update collection by ID or use default collection if collection_id not provided.
 
-Updates the collection's data. Only provided parameters will be updated, others remain unchanged. If collection_id is None, the default collection from client will be used.
+Updates the collection's data. Only provided parameters will be
+updated, others remain unchanged. If collection_id is None,
+the default collection from client will be used.
 
 **Arguments**:
 
@@ -437,7 +438,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Collection(
     id="0199c455-21ee-74c6-b747-19a82f1a1e75",
@@ -457,13 +458,13 @@ Collection(
 
 ```python
 def list_all(
-    *,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
+        *,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None
 ) -> AsyncIterator[Collection]
 ```
 
@@ -523,14 +524,14 @@ async def main():
 
 ```python
 async def list(
-    *,
-    start_after: str | None = None,
-    limit: int | None = 100,
-    sort_by: CollectionSortBy | None = None,
-    order: SortOrder | None = SortOrder.DESC,
-    search: str | None = None,
-    types: list[CollectionTypeFilter] | None = None,
-    orbit_id: str | None = None
+        *,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: CollectionSortBy | None = None,
+        order: SortOrder | None = SortOrder.DESC,
+        search: str | None = None,
+        types: list[CollectionTypeFilter] | None = None,
+        orbit_id: str | None = None
 ) -> CollectionsList
 ```
 
@@ -585,7 +586,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 CollectionsList(
     items=[
@@ -610,10 +611,10 @@ CollectionsList(
 
 ```python
 async def create(
-    description: str,
-    name: str,
-    type: CollectionType,
-    tags: builtins.list[str] | None = None
+        description: str,
+        name: str,
+        type: CollectionType,
+        tags: builtins.list[str] | None = None
 ) -> Collection
 ```
 
@@ -671,19 +672,17 @@ Collection(
 ```python
 @validate_collection
 async def update(
-    name: str | None = None,
-    description: str | None = None,
-    tags: builtins.list[str] | None = None,
-    *,
-    collection_id: str | None = None
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        *,
+        collection_id: str | None = None
 ) -> Collection
 ```
 
 Update collection by ID or use default collection if collection_id not provided.
 
-Updates the collection's data. Only provided parameters will be
-updated, others remain unchanged. If collection_id is None,
-the default collection from client will be used.
+Updates the collection's data. Only provided parameters will be updated, others remain unchanged. If collection_id is None, the default collection from client will be used.
 
 **Arguments**:
 

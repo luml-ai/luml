@@ -39,8 +39,7 @@ Search by name is case-sensitive and matches exact orbit name.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - if there are several
-  Orbits with that name.
+- `MultipleResourcesFoundError` - if there are several Orbits with that name.
   
 
 **Example**:
@@ -56,7 +55,7 @@ orbit_by_name = luml.orbits.get("Default Orbit")
 orbit_by_id = luml.orbits.get("0199c455-21ed-7aba-9fe5-5231611220de")
 ```
   
-  Example response:
+**Example response**:
 ```python
 Orbit(
     id="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -97,7 +96,7 @@ luml = LumlClient(
 orgs = luml.orbits.list()
 ```
   
-  Example response:
+**Example response**:
 ```python
 [
     Orbit(
@@ -126,8 +125,7 @@ Create new orbit in the default organization.
 **Arguments**:
 
 - `name` - Name of the orbit.
-- `bucket_secret_id` - ID of the bucket secret.
-  The bucket secret must exist before orbit creation.
+- `bucket_secret_id` - ID of the bucket secret. The bucket secret must exist before orbit creation.
   
 
 **Returns**:
@@ -170,8 +168,8 @@ Orbit(
 
 ```python
 def update(
-    name: str | None = None,
-    bucket_secret_id: str | None = None
+        name: str | None = None,
+        bucket_secret_id: str | None = None
 ) -> Orbit
 ```
 
@@ -183,8 +181,7 @@ parameters will be updated, others remain unchanged.
 **Arguments**:
 
 - `name` - New name for the orbit. If None, name remains unchanged.
-- `bucket_secret_id` - New bucket secret for storage configuration.
-  The bucket secret must exist. If None, bucket secret remains unchanged.
+- `bucket_secret_id` - New bucket secret for storage configuration. The bucket secret must exist. If None, bucket secret remains unchanged.
   
 
 **Returns**:
@@ -307,8 +304,7 @@ Search by name is case-sensitive and matches exact orbit name.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - if there are several
-  Orbits with that name.
+- `MultipleResourcesFoundError` - if there are several Orbits with that name.
   
 
 **Example**:
@@ -329,7 +325,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Orbit(
     id="0199c455-21ed-7aba-9fe5-5231611220de",
@@ -373,7 +369,7 @@ async def main():
     orgs = await luml.orbits.list()
 ```
   
-  Example response:
+**Example response**:
 ```python
 [
     Orbit(
@@ -402,8 +398,7 @@ Create new orbit in the default organization.
 **Arguments**:
 
 - `name` - Name of the orbit.
-- `bucket_secret_id` - ID of the bucket secret.
-  The bucket secret must exist before orbit creation.
+- `bucket_secret_id` - ID of the bucket secret. The bucket secret must exist before orbit creation.
   
 
 **Returns**:
@@ -449,8 +444,8 @@ Orbit(
 
 ```python
 async def update(
-    name: str | None = None,
-    bucket_secret_id: str | None = None
+        name: str | None = None,
+        bucket_secret_id: str | None = None
 ) -> Orbit
 ```
 
@@ -462,8 +457,7 @@ parameters will be updated, others remain unchanged.
 **Arguments**:
 
 - `name` - New name for the orbit. If None, name remains unchanged.
-- `bucket_secret_id` - New bucket secret for storage configuration.
-  The bucket secret must exist. If None, bucket secret remains unchanged.
+- `bucket_secret_id` - New bucket secret for storage configuration. The bucket secret must exist. If None, bucket secret remains unchanged.
   
 
 **Returns**:

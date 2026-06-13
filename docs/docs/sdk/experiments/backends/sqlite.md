@@ -12,16 +12,16 @@ class SQLiteBackend(Backend, SQLitePaginationMixin)
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.initialize_experiment"></a>
 
-#### initialize\_experiment
+#### initialize_experiment
 
 ```python
 def initialize_experiment(
-    experiment_id: str,
-    group: str = "default",
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None,
-    source: str | None = None
+        experiment_id: str,
+        group: str = "default",
+        name: str | None = None,
+        tags: list[str] | None = None,
+        description: str | None = None,
+        source: str | None = None
 ) -> None
 ```
 
@@ -30,17 +30,15 @@ Initializes an experiment by associating it with a group and storing its metadat
 **Arguments**:
 
 - `experiment_id` - Unique identifier for the experiment.
-- `group` - Group name to which the experiment belongs. If the group does not exist, it will
-  be created. Defaults to "Default group".
-- `name` - Optional name of the experiment. If not provided, the `experiment_id` will
-  be used as the name.
+- `group` - Group name to which the experiment belongs. If the group does not exist, it will be created. Defaults to "Default group".
+- `name` - Optional name of the experiment. If not provided, the `experiment_id` will be used as the name.
 - `tags` - Optional list of tags associated with the experiment.
 - `description` - Optional description of the experiment.
 - `source` - Path of the script or file that created the experiment.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_static"></a>
 
-#### log\_static
+#### log_static
 
 ```python
 def log_static(experiment_id: str, key: str, value: Any) -> None
@@ -55,22 +53,20 @@ already exists, it will be updated.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment for which the static
-  parameter is being logged.
+- `experiment_id` _str_ - The unique identifier of the experiment for which the static parameter is being logged.
 - `key` _str_ - The key associated with the static parameter.
-- `value` _Any_ - The value of the static parameter. It can be of type string, integer,
-  float, boolean, or any serializable object.
+- `value` _Any_ - The value of the static parameter. It can be of type string, integer, float, boolean, or any serializable object.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_dynamic"></a>
 
-#### log\_dynamic
+#### log_dynamic
 
 ```python
 def log_dynamic(
-    experiment_id: str,
-    key: str,
-    value: int | float,
-    step: int | None = None
+        experiment_id: str,
+        key: str,
+        value: int | float,
+        step: int | None = None
 ) -> None
 ```
 
@@ -79,15 +75,10 @@ tracking metrics like performance indicators over multiple steps for analysis.
 
 **Arguments**:
 
-- `experiment_id` _str_ - Identifier for the experiment where the metric will
-  be stored. It must be a valid experiment ID initialized beforehand.
-- `key` _str_ - The label or name of the metric being recorded. Used to
-  differentiate between various tracked metrics.
-- `value` _int | float_ - Numeric value of the metric being logged. Must be
-  either an integer or a float.
-- `step` _int | None, optional_ - The specific step number associated with this
-  value. If not provided, the method defaults to the next available
-  step, determined by the maximum recorded step for the specified key.
+- `experiment_id` _str_ - Identifier for the experiment where the metric will be stored. It must be a valid experiment ID initialized beforehand.
+- `key` _str_ - The label or name of the metric being recorded. Used to differentiate between various tracked metrics.
+- `value` _int | float_ - Numeric value of the metric being logged. Must be either an integer or a float.
+- `step` _int | None, optional_ - The specific step number associated with this value. If not provided, the method defaults to the next available step, determined by the maximum recorded step for the specified key.
   
 
 **Returns**:
@@ -96,14 +87,14 @@ tracking metrics like performance indicators over multiple steps for analysis.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_attachment"></a>
 
-#### log\_attachment
+#### log_attachment
 
 ```python
 def log_attachment(
-    experiment_id: str,
-    name: str,
-    data: bytes | str,
-    binary: bool = False
+        experiment_id: str,
+        name: str,
+        data: bytes | str,
+        binary: bool = False
 ) -> None
 ```
 
@@ -112,13 +103,10 @@ the corresponding database record.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment where the attachment
-  will be logged.
+- `experiment_id` _str_ - The unique identifier of the experiment where the attachment will be logged.
 - `name` _str_ - The name of the attachment file.
-- `data` _bytes | str_ - The content of the attachment to be logged. This must be either
-  bytes or a string.
-- `binary` _bool_ - Whether the attachment data should be saved in binary mode. Defaults
-  to False.
+- `data` _bytes | str_ - The content of the attachment to be logged. This must be either bytes or a string.
+- `binary` _bool_ - Whether the attachment data should be saved in binary mode. Defaults to False.
   
 
 **Raises**:
@@ -127,24 +115,24 @@ the corresponding database record.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_span"></a>
 
-#### log\_span
+#### log_span
 
 ```python
 def log_span(
-    experiment_id: str,
-    trace_id: str,
-    span_id: str,
-    name: str,
-    start_time_unix_nano: int,
-    end_time_unix_nano: int,
-    parent_span_id: str | None = None,
-    kind: int = 0,
-    status_code: int = 0,
-    status_message: str | None = None,
-    attributes: dict[str, Any] | None = None,
-    events: list[dict[str, Any]] | None = None,
-    links: list[dict[str, Any]] | None = None,
-    trace_flags: int = 0
+        experiment_id: str,
+        trace_id: str,
+        span_id: str,
+        name: str,
+        start_time_unix_nano: int,
+        end_time_unix_nano: int,
+        parent_span_id: str | None = None,
+        kind: int = 0,
+        status_code: int = 0,
+        status_message: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        events: list[dict[str, Any]] | None = None,
+        links: list[dict[str, Any]] | None = None,
+        trace_flags: int = 0
 ) -> None
 ```
 
@@ -164,13 +152,10 @@ links, timestamps, and status information.
 - `parent_span_id` _str | None_ - Identifier for the parent span, or None if root span.
 - `kind` _int_ - Type of the span (e.g., internal, server, client).
 - `status_code` _int_ - Status code of the span (e.g., OK, ERROR).
-- `status_message` _str | None_ - Human-readable description of the span's status,
-  or None if not provided.
+- `status_message` _str | None_ - Human-readable description of the span's status, or None if not provided.
 - `attributes` _dict[str, Any] | None_ - Arbitrary span attributes, or None if not provided.
-- `events` _list[dict[str, Any]] | None_ - List of event dictionaries associated with the span,
-  or None if no events are present.
-- `links` _list[dict[str, Any]] | None_ - List of link dictionaries associated with the span,
-  or None for no links.
+- `events` _list[dict[str, Any]] | None_ - List of event dictionaries associated with the span, or None if no events are present.
+- `links` _list[dict[str, Any]] | None_ - List of link dictionaries associated with the span, or None for no links.
 - `trace_flags` _int_ - Flags providing additional trace information.
   
 
@@ -180,18 +165,18 @@ links, timestamps, and status information.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_eval_sample"></a>
 
-#### log\_eval\_sample
+#### log_eval_sample
 
 ```python
 def log_eval_sample(
-    experiment_id: str,
-    eval_id: str,
-    dataset_id: str,
-    inputs: dict[str, Any],
-    outputs: dict[str, Any] | None = None,
-    references: dict[str, Any] | None = None,
-    scores: dict[str, Any] | None = None,
-    metadata: dict[str, Any] | None = None
+        experiment_id: str,
+        eval_id: str,
+        dataset_id: str,
+        inputs: dict[str, Any],
+        outputs: dict[str, Any] | None = None,
+        references: dict[str, Any] | None = None,
+        scores: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None
 ) -> None
 ```
 
@@ -204,30 +189,25 @@ serializes the provided data into JSON format to store in the database.
 
 **Arguments**:
 
-- `experiment_id` - Unique identifier of the experiment for which the evaluation
-  is being logged.
+- `experiment_id` - Unique identifier of the experiment for which the evaluation is being logged.
 - `eval_id` - Unique identifier of the evaluation sample within the experiment.
 - `dataset_id` - Identifier of the dataset associated with the evaluation.
 - `inputs` - A dictionary containing input data for the evaluation sample.
-- `outputs` - A dictionary containing output data generated during the evaluation.
-  It can be None if no outputs are available.
-- `references` - A dictionary containing reference data or ground truth values
-  for the evaluation. It can be None if no references are provided.
-- `scores` - A dictionary containing evaluation scores or metrics. It can be None
-  if no scores are available.
-- `metadata` - A dictionary containing additional metadata information related to
-  the evaluation sample. It can be None if no metadata is provided.
+- `outputs` - A dictionary containing output data generated during the evaluation. It can be None if no outputs are available.
+- `references` - A dictionary containing reference data or ground truth values for the evaluation. It can be None if no references are provided.
+- `scores` - A dictionary containing evaluation scores or metrics. It can be None if no scores are available.
+- `metadata` - A dictionary containing additional metadata information related to the evaluation sample. It can be None if no metadata is provided.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.link_eval_sample_to_trace"></a>
 
-#### link\_eval\_sample\_to\_trace
+#### link_eval_sample_to_trace
 
 ```python
 def link_eval_sample_to_trace(
-    experiment_id: str,
-    eval_dataset_id: str,
-    eval_id: str,
-    trace_id: str
+        experiment_id: str,
+        eval_dataset_id: str,
+        eval_id: str,
+        trace_id: str
 ) -> None
 ```
 
@@ -244,7 +224,7 @@ trace data for a given experiment context.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_data"></a>
 
-#### get\_experiment\_data
+#### get_experiment_data
 
 ```python
 def get_experiment_data(experiment_id: str) -> ExperimentData
@@ -261,8 +241,7 @@ and attachments associated with the experiment.
 
 **Returns**:
 
-- `ExperimentData` - An object containing all experiment data, including metadata,
-  static parameters, dynamic metrics, and attachments.
+- `ExperimentData` - An object containing all experiment data, including metadata, static parameters, dynamic metrics, and attachments.
   
 
 **Raises**:
@@ -271,7 +250,7 @@ and attachments associated with the experiment.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_attachment"></a>
 
-#### get\_attachment
+#### get_attachment
 
 ```python
 def get_attachment(experiment_id: str, name: str) -> bytes
@@ -286,8 +265,7 @@ the specified attachment cannot be found, appropriate errors are raised.
 
 **Arguments**:
 
-- `experiment_id` _str_ - Identifier for the experiment whose attachment is
-  being accessed.
+- `experiment_id` _str_ - Identifier for the experiment whose attachment is being accessed.
 - `name` _str_ - Name of the attachment file to retrieve.
   
 
@@ -298,17 +276,16 @@ the specified attachment cannot be found, appropriate errors are raised.
 
 **Raises**:
 
-- `ValueError` - If the specified attachment file is not found within the
-  directory of the given experiment.
+- `ValueError` - If the specified attachment file is not found within the directory of the given experiment.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_attachments_tree"></a>
 
-#### list\_attachments\_tree
+#### list_attachments_tree
 
 ```python
 def list_attachments_tree(
-    experiment_id: str,
-    parent_path: str | None = None
+        experiment_id: str,
+        parent_path: str | None = None
 ) -> list[FileNode]
 ```
 
@@ -318,10 +295,8 @@ aggregating folder sizes based on their contents.
 
 **Arguments**:
 
-- `experiment_id` - A string representing the identifier for the experiment whose
-  attachments are being queried.
-- `parent_path` - An optional string representing the parent folder path used as a
-  base for filtering and structuring the attachments. Defaults to None.
+- `experiment_id` - A string representing the identifier for the experiment whose attachments are being queried.
+- `parent_path` - An optional string representing the parent folder path used as a base for filtering and structuring the attachments. Defaults to None.
   
 
 **Returns**:
@@ -332,7 +307,7 @@ aggregating folder sizes based on their contents.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_experiments"></a>
 
-#### list\_experiments
+#### list_experiments
 
 ```python
 def list_experiments() -> list[Experiment]
@@ -347,12 +322,11 @@ a list of `Experiment` objects which represent the stored experiments.
 
 **Returns**:
 
-- `list[Experiment]` - A list of `Experiment` objects containing information
-  about each experiment retrieved from the database.
+- `list[Experiment]` - A list of `Experiment` objects containing information about each experiment retrieved from the database.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.resolve_experiment_sort_column"></a>
 
-#### resolve\_experiment\_sort\_column
+#### resolve_experiment_sort_column
 
 ```python
 def resolve_experiment_sort_column(group_id: str, sort_by: str) -> str | None
@@ -368,12 +342,12 @@ Specific to experiments: checks dynamic_params and static_params keys.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.resolve_groups_experiment_sort_column"></a>
 
-#### resolve\_groups\_experiment\_sort\_column
+#### resolve_groups_experiment_sort_column
 
 ```python
 def resolve_groups_experiment_sort_column(
-    group_ids: list[str],
-    sort_by: str
+        group_ids: list[str],
+        sort_by: str
 ) -> str | None
 ```
 
@@ -387,7 +361,7 @@ Checks across all provided groups.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment"></a>
 
-#### get\_experiment
+#### get_experiment
 
 ```python
 def get_experiment(experiment_id: str) -> Experiment | None
@@ -410,7 +384,7 @@ based on its unique identifier. If no experiment is found, the method returns No
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.delete_experiment"></a>
 
-#### delete\_experiment
+#### delete_experiment
 
 ```python
 def delete_experiment(experiment_id: str) -> None
@@ -431,14 +405,14 @@ exist on the filesystem.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.update_experiment"></a>
 
-#### update\_experiment
+#### update_experiment
 
 ```python
 def update_experiment(
-    experiment_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Experiment | None
 ```
 
@@ -461,13 +435,13 @@ the current experiment details.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.create_group"></a>
 
-#### create\_group
+#### create_group
 
 ```python
 def create_group(
-    name: str,
-    description: str | None = None,
-    tags: list[str] | None = None
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Group
 ```
 
@@ -490,14 +464,14 @@ commits the changes, and returns the newly created group.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.update_group"></a>
 
-#### update\_group
+#### update_group
 
 ```python
 def update_group(
-    group_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Group | None
 ```
 
@@ -508,10 +482,8 @@ updates are provided, the method retrieves the existing group's details.
 
 - `group_id` - The unique identifier of the group to be updated.
 - `name` - The new name of the group. If None, the name remains unchanged.
-- `description` - The new description of the group. If None, the description
-  remains unchanged.
-- `tags` - A list of new tags associated with the group. If None, the tags
-  remain unchanged.
+- `description` - The new description of the group. If None, the description remains unchanged.
+- `tags` - A list of new tags associated with the group. If None, the tags remain unchanged.
   
 
 **Returns**:
@@ -521,7 +493,7 @@ updates are provided, the method retrieves the existing group's details.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.delete_group"></a>
 
-#### delete\_group
+#### delete_group
 
 ```python
 def delete_group(group_id: str) -> None
@@ -541,7 +513,7 @@ their associated files and directories on the filesystem.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_groups"></a>
 
-#### list\_groups
+#### list_groups
 
 ```python
 def list_groups() -> list[Group]
@@ -553,8 +525,7 @@ and creation date.
 
 **Returns**:
 
-- `list[Group]` - A list of `Group` objects representing all experiment groups in the
-  database.
+- `list[Group]` - A list of `Group` objects representing all experiment groups in the database.
   
 
 **Example**:
@@ -562,39 +533,40 @@ and creation date.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.list_groups()
-
-[
-    Group(
-        id="group-123",
-        name="cv_experiments",
-        description="Computer vision experiments",
-        created_at=datetime(2024, 6, 1, 10, 0, 0),
-        tags=["cv", "production"],
-        last_modified=datetime(2024, 6, 5, 15, 30, 0),
-    ),
-    Group(
-        id="group-456",
-        name="nlp_experiments",
-        description=None,
-        created_at=datetime(2024, 6, 2, 8, 0, 0),
-        tags=[],
-        last_modified=None,
-    ),
-]
+```
+```
+  [
+  Group(
+  id="group-123",
+  name="cv_experiments",
+  description="Computer vision experiments",
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  tags=["cv", "production"],
+  last_modified=datetime(2024, 6, 5, 15, 30, 0),
+  ),
+  Group(
+  id="group-456",
+  name="nlp_experiments",
+  description=None,
+  created_at=datetime(2024, 6, 2, 8, 0, 0),
+  tags=[],
+  last_modified=None,
+  ),
+  ]
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_model"></a>
 
-#### log\_model
+#### log_model
 
 ```python
 def log_model(
-    experiment_id: str,
-    model_path: str,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    source: str | None = None,
-    description: str | None = None
+        experiment_id: str,
+        model_path: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        source: str | None = None,
+        description: str | None = None
 ) -> tuple[Model, str]
 ```
 
@@ -603,13 +575,10 @@ copying the model file to the appropriate storage location.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment to which the model
-  is logged.
+- `experiment_id` _str_ - The unique identifier of the experiment to which the model is logged.
 - `model_path` _str_ - The file path of the model to be logged.
-- `name` _str | None, optional_ - The name of the model. If not provided, the stem of
-  the model file name is used.
-- `tags` _list[str] | None, optional_ - A list of tags associated with the model to
-  provide metadata for organizational or informational purposes.
+- `name` _str | None, optional_ - The name of the model. If not provided, the stem of the model file name is used.
+- `tags` _list[str] | None, optional_ - A list of tags associated with the model to provide metadata for organizational or informational purposes.
 - `source` _str | None, optional_ - Path of the script or file that logged the model.
 - `description` _str | None, optional_ - Human-readable description of the model.
   
@@ -631,23 +600,23 @@ model, dest_path = backend.log_model(
     tags=["production", "v1"],
 )
 model
-
-Model(
-    id="model-abc",
-    name="resnet50_v1",
-    created_at=datetime(2024, 6, 1, 12, 0, 0),
-    tags=["production", "v1"],
-    path="/storage/exp-001/models/resnet50_v1.pt",
-    experiment_id="exp-001",
-)
-dest_path
-
-"/storage/exp-001/models/resnet50_v1.pt"
 ```
+  Model(
+  id="model-abc",
+  name="resnet50_v1",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["production", "v1"],
+  path="/storage/exp-001/models/resnet50_v1.pt",
+  experiment_id="exp-001",
+  )
+```python
+dest_path
+```
+  "/storage/exp-001/models/resnet50_v1.pt"
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_models"></a>
 
-#### get\_models
+#### get_models
 
 ```python
 def get_models(experiment_id: str) -> list[Model]
@@ -661,14 +630,12 @@ to a `Model` object and returned as part of a list.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The identifier of the experiment whose models
-  need to be fetched.
+- `experiment_id` _str_ - The identifier of the experiment whose models need to be fetched.
   
 
 **Returns**:
 
-- `list[Model]` - A list of `Model` objects associated with the given
-  experiment ID.
+- `list[Model]` - A list of `Model` objects associated with the given experiment ID.
   
 
 **Example**:
@@ -676,30 +643,31 @@ to a `Model` object and returned as part of a list.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_models("exp-001")
-
-[
-    Model(
-        id="model-abc",
-        name="resnet50_v1",
-        created_at=datetime(2024, 6, 1, 12, 0, 0),
-        tags=["production", "v1"],
-        path="/artifacts/resnet50_v1.pt",
-        experiment_id="exp-001",
-    ),
-    Model(
-        id="model-def",
-        name="resnet50_v2",
-        created_at=datetime(2024, 6, 2, 9, 0, 0),
-        tags=[],
-        path=None,
-        experiment_id="exp-001",
-    ),
-]
+```
+```
+  [
+  Model(
+  id="model-abc",
+  name="resnet50_v1",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["production", "v1"],
+  path="/artifacts/resnet50_v1.pt",
+  experiment_id="exp-001",
+  ),
+  Model(
+  id="model-def",
+  name="resnet50_v2",
+  created_at=datetime(2024, 6, 2, 9, 0, 0),
+  tags=[],
+  path=None,
+  experiment_id="exp-001",
+  ),
+  ]
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_model"></a>
 
-#### get\_model
+#### get_model
 
 ```python
 def get_model(model_id: str) -> Model
@@ -730,31 +698,69 @@ given model ID. If the model does not exist, a ValueError is raised.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_model("model-abc")
-
-Model(
-    id="model-abc",
-    name="resnet50_v1",
-    created_at=datetime(2024, 6, 1, 12, 0, 0),
-    tags=["production", "v1"],
-    path="/artifacts/resnet50_v1.pt",
-    experiment_id="exp-001",
-)
-
+```
+  Model(
+  id="model-abc",
+  name="resnet50_v1",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["production", "v1"],
+  path="/artifacts/resnet50_v1.pt",
+  experiment_id="exp-001",
+  )
+  
+```python
 backend.get_model("nonexistent-id")
+```
+- `ValueError` - Model nonexistent-id not found
 
-ValueError: Model nonexistent-id not found
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_model_card"></a>
+
+#### get_model_card
+
+```python
+def get_model_card(model_id: str) -> bytes
+```
+
+Retrieves the model card zip archive for the given model.
+
+Opens the model's ``.luml`` tar archive and extracts the
+``model_card.zip`` file stored under ``meta_artifacts/``.
+
+**Arguments**:
+
+- `model_id` _str_ - The unique identifier of the model.
+  
+
+**Returns**:
+
+- `bytes` - Raw bytes of the ``model_card.zip`` archive, which contains an ``index.html`` with the rendered model card.
+  
+
+**Raises**:
+
+- `ValueError` - If the model is not found, the ``.luml`` file is missing, or no model card is embedded in the archive.
+  
+
+**Example**:
+
+```python
+backend = SQLiteBackend("/backend/path")
+zip_bytes = backend.get_model_card("model-abc")
+import zipfile, io
+with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+    html = zf.read("index.html")
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.update_model"></a>
 
-#### update\_model
+#### update_model
 
 ```python
 def update_model(
-    model_id: str,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        description: str | None = None
 ) -> Model | None
 ```
 
@@ -768,8 +774,7 @@ if provided, are stored as a JSON string in the database.
 
 - `model_id` _str_ - The unique identifier of the model to update.
 - `name` _str | None_ - The new name for the model. Defaults to None.
-- `tags` _list[str] | None_ - A list of string tags to associate with the model.
-  Defaults to None.
+- `tags` _list[str] | None_ - A list of string tags to associate with the model. Defaults to None.
   
 
 **Returns**:
@@ -783,24 +788,24 @@ if provided, are stored as a JSON string in the database.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.update_model("model-abc", name="resnet50_v2", tags=["production", "v2"])
-
-Model(
-    id="model-abc",
-    name="resnet50_v2",
-    created_at=datetime(2024, 6, 1, 12, 0, 0),
-    tags=["production", "v2"],
-    path="/artifacts/resnet50_v1.pt",
-    experiment_id="exp-001",
-)
-
-backend.update_model("nonexistent-id")
-
-None
 ```
+  Model(
+  id="model-abc",
+  name="resnet50_v2",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["production", "v2"],
+  path="/artifacts/resnet50_v1.pt",
+  experiment_id="exp-001",
+  )
+  
+```python
+backend.update_model("nonexistent-id")
+```
+  None
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.delete_model"></a>
 
-#### delete\_model
+#### delete_model
 
 ```python
 def delete_model(model_id: str) -> None
@@ -817,15 +822,15 @@ model exists, deletes the associated file from the specified directory.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_groups_pagination"></a>
 
-#### list\_groups\_pagination
+#### list_groups_pagination
 
 ```python
 def list_groups_pagination(
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: str = "desc",
-    search: str | None = None
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: str = "desc",
+        search: str | None = None
 ) -> PaginatedResponse[Group]
 ```
 
@@ -836,19 +841,15 @@ and usability.
 **Arguments**:
 
 - `limit` _int_ - The maximum number of items to include in the response. Defaults to 20.
-- `cursor_str` _str | None_ - An optional encoded cursor string to specify the starting
-  point for the query. Used for cursor-based pagination.
-- `sort_by` _str_ - The attribute by which to sort the results. Must be one of
-  "created_at", "name", or "last_modified". Defaults to "created_at".
-- `order` _str_ - The sort order for the results. Must be either "asc" or "desc".
-  Defaults to "desc".
+- `cursor_str` _str | None_ - An optional encoded cursor string to specify the starting point for the query. Used for cursor-based pagination.
+- `sort_by` _str_ - The attribute by which to sort the results. Must be one of "created_at", "name", or "last_modified". Defaults to "created_at".
+- `order` _str_ - The sort order for the results. Must be either "asc" or "desc". Defaults to "desc".
 - `search` _str | None_ - An optional search term to filter groups based on name or tags.
   
 
 **Returns**:
 
-- `PaginatedResponse[Group]` - A paginated response object containing a list of
-  Group objects and pagination metadata.
+- `PaginatedResponse[Group]` - A paginated response object containing a list of Group objects and pagination metadata.
   
 
 **Example**:
@@ -856,33 +857,32 @@ and usability.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.list_groups_pagination(limit=2, sort_by="created_at", order="desc")
-
-PaginatedResponse(
-    items=[
-        Group(
-            id="group-123",
-            name="cv_experiments",
-            description="Computer vision experiments",
-            created_at=datetime(2024, 6, 2, 10, 0, 0),
-            tags=["cv", "production"],
-            last_modified=datetime(2024, 6, 5, 15, 30, 0),
-        ),
-        Group(
-            id="group-456",
-            name="nlp_experiments",
-            description=None,
-            created_at=datetime(2024, 6, 1, 8, 0, 0),
-            tags=[],
-            last_modified=None,
-        ),
-    ],
-    cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDEifQ==",
-)
 ```
+  PaginatedResponse(
+  items=[
+  Group(
+  id="group-123",
+  name="cv_experiments",
+  description="Computer vision experiments",
+  created_at=datetime(2024, 6, 2, 10, 0, 0),
+  tags=["cv", "production"],
+  last_modified=datetime(2024, 6, 5, 15, 30, 0),
+  ),
+  Group(
+  id="group-456",
+  name="nlp_experiments",
+  description=None,
+  created_at=datetime(2024, 6, 1, 8, 0, 0),
+  tags=[],
+  last_modified=None,
+  ),
+  ],
+  cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDEifQ==",
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_group"></a>
 
-#### get\_group
+#### get_group
 
 ```python
 def get_group(group_id: str) -> Group | None
@@ -910,28 +910,28 @@ with the group's details. Otherwise, it returns `None`.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_group("group-123")
-
-Group(
-    id="group-123",
-    name="cv_experiments",
-    description="Computer vision experiments",
-    created_at=datetime(2024, 6, 1, 10, 0, 0),
-    tags=["cv", "production"],
-    last_modified=datetime(2024, 6, 5, 15, 30, 0),
-)
-
-backend.get_group("nonexistent-id")
-
-None
 ```
+  Group(
+  id="group-123",
+  name="cv_experiments",
+  description="Computer vision experiments",
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  tags=["cv", "production"],
+  last_modified=datetime(2024, 6, 5, 15, 30, 0),
+  )
+  
+```python
+backend.get_group("nonexistent-id")
+```
+  None
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_batch_experiments_models"></a>
 
-#### list\_batch\_experiments\_models
+#### list_batch_experiments_models
 
 ```python
 def list_batch_experiments_models(
-    experiment_ids: list[str]
+        experiment_ids: list[str]
 ) -> dict[str, list[Model]]
 ```
 
@@ -955,34 +955,16 @@ experiment. If no experiment IDs are provided, an empty dictionary is returned.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.list_batch_experiments_models(["exp-001", "exp-002"])
-
-{
-    "exp-001": [
-        Model(
-            id="model-abc",
-            name="resnet50_v1",
-            created_at=datetime(2024, 6, 1, 12, 0, 0),
-            tags=["production"],
-            path="/artifacts/resnet50_v1.pt",
-            experiment_id="exp-001",
-        ),
-    ],
-    "exp-002": [
-        Model(
-            id="model-def",
-            name="bert_base",
-            created_at=datetime(2024, 6, 2, 9, 0, 0),
-            tags=[],
-            path=None,
-            experiment_id="exp-002",
-        ),
-    ],
-}
 ```
+```
+  {
+```
+- `"exp-001"` - [ Model( id="model-abc", name="resnet50_v1", created_at=datetime(2024, 6, 1, 12, 0, 0), tags=["production"], path="/artifacts/resnet50_v1.pt", experiment_id="exp-001", ), ],
+- `"exp-002"` - [ Model( id="model-def", name="bert_base", created_at=datetime(2024, 6, 2, 9, 0, 0), tags=[], path=None, experiment_id="exp-002", ), ], &#125;
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_experiment_models"></a>
 
-#### list\_experiment\_models
+#### list_experiment_models
 
 ```python
 def list_experiment_models(experiment_id: str) -> list[Model]
@@ -997,14 +979,12 @@ timestamps, tags, associated paths, and experiment IDs.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment whose
-  models are to be retrieved.
+- `experiment_id` _str_ - The unique identifier of the experiment whose models are to be retrieved.
   
 
 **Returns**:
 
-- `list[Model]` - A list of `Model` instances representing the models
-  associated with the specified experiment.
+- `list[Model]` - A list of `Model` instances representing the models associated with the specified experiment.
   
 
 **Example**:
@@ -1012,40 +992,41 @@ timestamps, tags, associated paths, and experiment IDs.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.list_experiment_models("exp-001")
-
-[
-    Model(
-        id="model-abc",
-        name="resnet50_v1",
-        created_at=datetime(2024, 6, 1, 12, 0, 0),
-        tags=["production", "v1"],
-        path="/artifacts/resnet50_v1.pt",
-        experiment_id="exp-001",
-    ),
-    Model(
-        id="model-def",
-        name="resnet50_v2",
-        created_at=datetime(2024, 6, 1, 14, 30, 0),
-        tags=[],
-        path=None,
-        experiment_id="exp-001",
-    ),
-]
+```
+```
+  [
+  Model(
+  id="model-abc",
+  name="resnet50_v1",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["production", "v1"],
+  path="/artifacts/resnet50_v1.pt",
+  experiment_id="exp-001",
+  ),
+  Model(
+  id="model-def",
+  name="resnet50_v2",
+  created_at=datetime(2024, 6, 1, 14, 30, 0),
+  tags=[],
+  path=None,
+  experiment_id="exp-001",
+  ),
+  ]
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_group_experiments_pagination"></a>
 
-#### list\_group\_experiments\_pagination
+#### list_group_experiments_pagination
 
 ```python
 def list_group_experiments_pagination(
-    group_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    json_sort_column: Literal["static_params", "dynamic_params"] | None = None
+        group_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None
 ) -> PaginatedResponse[Experiment]
 ```
 
@@ -1059,32 +1040,23 @@ integrating with a cursor-based pagination approach.
 
 **Arguments**:
 
-- `group_id` _str_ - The unique identifier for the group whose experiments are being
-  listed.
-- `limit` _int, optional_ - The maximum number of records to retrieve per page. Default
-  is 20.
-- `cursor_str` _str | None, optional_ - The encoded cursor string for implementing
-  pagination. Default is None.
-- `sort_by` _str, optional_ - The column name to sort the results by. Default is
-  "created_at".
-- `order` _str, optional_ - The order of sorting, either "asc" (ascending) or "desc"
-  (descending). Default is "desc".
-- `search` _str | None, optional_ - The search string for filtering experiments by name
-  or tags. Default is None.
-- `json_sort_column` _str | None, optional_ - A JSON column (either "static_params" or
-  "dynamic_params") to use for sorting. Default is None.
+- `group_id` _str_ - The unique identifier for the group whose experiments are being listed.
+- `limit` _int, optional_ - The maximum number of records to retrieve per page. Default is 20.
+- `cursor_str` _str | None, optional_ - The encoded cursor string for implementing pagination. Default is None.
+- `sort_by` _str, optional_ - The column name to sort the results by. Default is "created_at".
+- `order` _str, optional_ - The order of sorting, either "asc" (ascending) or "desc" (descending). Default is "desc".
+- `search` _str | None, optional_ - The search string for filtering experiments by name or tags. Default is None.
+- `json_sort_column` _str | None, optional_ - A JSON column (either "static_params" or "dynamic_params") to use for sorting. Default is None.
   
 
 **Returns**:
 
-- `PaginatedResponse[Experiment]` - A paginated response object containing the list of
-  Experiment objects and pagination-related metadata.
+- `PaginatedResponse[Experiment]` - A paginated response object containing the list of Experiment objects and pagination-related metadata.
   
 
 **Raises**:
 
-- `ValueError` - If the provided `json_sort_column` is not one of the allowed values
-  ("static_params", "dynamic_params").
+- `ValueError` - If the provided `json_sort_column` is not one of the allowed values ("static_params", "dynamic_params").
   
 
 **Example**:
@@ -1097,40 +1069,35 @@ response = backend.list_group_experiments_pagination(
     sort_by="created_at",
     order="desc",
 )
-
-PaginatedResponse(
-    items=[
-        Experiment(
-            id="exp-001",
-            name="baseline_run",
-            status="completed",
-            created_at=datetime(2024, 6, 1, 12, 0, 0),
-            tags=["baseline", "v1"],
-            models=[],
-            duration=42.3,
-            description="Initial baseline experiment",
-            group_id="group-123",
-            static_params={"lr": 0.01, "epochs": 10},
-            dynamic_params={"loss": 0.25, "accuracy": 0.91},
-        )
-    ],
-    cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ=="
-)
 ```
+  PaginatedResponse(
+  items=[
+  Experiment(
+  id="exp-001",
+  name="baseline_run",
+  status="completed",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["baseline", "v1"],
+  models=[],
+  duration=42.3,
+  description="Initial baseline experiment",
+  group_id="group-123",
+- `static_params={"lr"` - 0.01, "epochs": 10&#125;,
+- `dynamic_params={"loss"` - 0.25, "accuracy": 0.91&#125;, ) ], cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ==" )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.list_groups_experiments_pagination"></a>
 
-#### list\_groups\_experiments\_pagination
+#### list_groups_experiments_pagination
 
 ```python
 def list_groups_experiments_pagination(
-    group_ids: list[str],
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    json_sort_column: Literal["static_params", "dynamic_params"] | None = None
+        group_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None
 ) -> PaginatedResponse[Experiment]
 ```
 
@@ -1144,32 +1111,23 @@ cursor-based pagination. Returns an empty response if the group list is empty.
 
 **Arguments**:
 
-- `group_ids` _list[str]_ - The list of group identifiers whose experiments are being
-  listed.
-- `limit` _int, optional_ - The maximum number of records to retrieve per page. Default
-  is 20.
-- `cursor_str` _str | None, optional_ - The encoded cursor string for implementing
-  pagination. Default is None.
-- `sort_by` _str, optional_ - The column name to sort the results by. Default is
-  "created_at".
-- `order` _str, optional_ - The order of sorting, either "asc" (ascending) or "desc"
-  (descending). Default is "desc".
-- `search` _str | None, optional_ - The search string for filtering experiments by name
-  or tags. Default is None.
-- `json_sort_column` _str | None, optional_ - A JSON column (either "static_params" or
-  "dynamic_params") to use for sorting. Default is None.
+- `group_ids` _list[str]_ - The list of group identifiers whose experiments are being listed.
+- `limit` _int, optional_ - The maximum number of records to retrieve per page. Default is 20.
+- `cursor_str` _str | None, optional_ - The encoded cursor string for implementing pagination. Default is None.
+- `sort_by` _str, optional_ - The column name to sort the results by. Default is "created_at".
+- `order` _str, optional_ - The order of sorting, either "asc" (ascending) or "desc" (descending). Default is "desc".
+- `search` _str | None, optional_ - The search string for filtering experiments by name or tags. Default is None.
+- `json_sort_column` _str | None, optional_ - A JSON column (either "static_params" or "dynamic_params") to use for sorting. Default is None.
   
 
 **Returns**:
 
-- `PaginatedResponse[Experiment]` - A paginated response object containing the list of
-  Experiment objects and pagination-related metadata.
+- `PaginatedResponse[Experiment]` - A paginated response object containing the list of Experiment objects and pagination-related metadata.
   
 
 **Raises**:
 
-- `ValueError` - If the provided `json_sort_column` is not one of the allowed values
-  ("static_params", "dynamic_params").
+- `ValueError` - If the provided `json_sort_column` is not one of the allowed values ("static_params", "dynamic_params").
   
 
 **Example**:
@@ -1182,30 +1140,25 @@ response = backend.list_groups_experiments_pagination(
     sort_by="created_at",
     order="desc",
 )
-
-PaginatedResponse(
-    items=[
-        Experiment(
-            id="exp-001",
-            name="baseline_run",
-            status="completed",
-            created_at=datetime(2024, 6, 1, 12, 0, 0),
-            tags=["baseline", "v1"],
-            models=[],
-            duration=42.3,
-            description="Initial baseline experiment",
-            group_id="group-123",
-            static_params={"lr": 0.01, "epochs": 10},
-            dynamic_params={"loss": 0.25, "accuracy": 0.91},
-        )
-    ],
-    cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ=="
-)
 ```
+  PaginatedResponse(
+  items=[
+  Experiment(
+  id="exp-001",
+  name="baseline_run",
+  status="completed",
+  created_at=datetime(2024, 6, 1, 12, 0, 0),
+  tags=["baseline", "v1"],
+  models=[],
+  duration=42.3,
+  description="Initial baseline experiment",
+  group_id="group-123",
+- `static_params={"lr"` - 0.01, "epochs": 10&#125;,
+- `dynamic_params={"loss"` - 0.25, "accuracy": 0.91&#125;, ) ], cursor="eyJjcmVhdGVkX2F0IjogIjIwMjQtMDYtMDIifQ==" )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.end_experiment"></a>
 
-#### end\_experiment
+#### end_experiment
 
 ```python
 def end_experiment(experiment_id: str) -> None
@@ -1224,7 +1177,7 @@ resource cleanup by marking the experiment as inactive in the connection pool.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.export_experiment_db"></a>
 
-#### export\_experiment\_db
+#### export_experiment_db
 
 ```python
 def export_experiment_db(experiment_id: str) -> DiskFile
@@ -1239,8 +1192,7 @@ method raises an error if the specified experiment cannot be found.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment whose
-  database file needs to be exported.
+- `experiment_id` _str_ - The unique identifier of the experiment whose database file needs to be exported.
   
 
 **Returns**:
@@ -1250,12 +1202,11 @@ method raises an error if the specified experiment cannot be found.
 
 **Raises**:
 
-- `ValueError` - If the experiment with the given experiment ID does not
-  exist.
+- `ValueError` - If the experiment with the given experiment ID does not exist.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.export_attachments"></a>
 
-#### export\_attachments
+#### export_attachments
 
 ```python
 def export_attachments(experiment_id: str) -> tuple[_BaseFile, _BaseFile] | None
@@ -1269,8 +1220,7 @@ it may return created files or None.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment whose
-  attachments need to be exported.
+- `experiment_id` _str_ - The unique identifier of the experiment whose attachments need to be exported.
   
 
 **Returns**:
@@ -1281,12 +1231,12 @@ it may return created files or None.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_metric_history"></a>
 
-#### get\_experiment\_metric\_history
+#### get_experiment_metric_history
 
 ```python
 def get_experiment_metric_history(
-    experiment_id: str,
-    key: str
+        experiment_id: str,
+        key: str
 ) -> list[dict[str, Any]]
 ```
 
@@ -1296,8 +1246,7 @@ step, and timestamp when the metric was logged.
 
 **Arguments**:
 
-- `experiment_id` - The unique identifier for the experiment whose metric history is
-  being retrieved.
+- `experiment_id` - The unique identifier for the experiment whose metric history is being retrieved.
 - `key` - The key for the metric whose history is being fetched.
   
 
@@ -1315,18 +1264,18 @@ step, and timestamp when the metric was logged.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_traces"></a>
 
-#### get\_experiment\_traces
+#### get_experiment_traces
 
 ```python
 def get_experiment_traces(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    filters: list[str] | None = None,
-    states: list[TraceState] | None = None
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        filters: list[str] | None = None,
+        states: list[TraceState] | None = None
 ) -> PaginatedResponse[TraceRecord]
 ```
 
@@ -1364,51 +1313,37 @@ and cursor-based pagination.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_experiment_traces(
-    "exp-001", limit=2, sort_by="execution_time", order="desc"
-)
-
-PaginatedResponse(
-    items=[
-        TraceRecord(
-            trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-            execution_time=15.442,
-            span_count=6,
-            created_at=datetime(2024, 6, 1, 12, 0, 1),
-            state=TraceState.OK,
-            evals=["eval-001", "eval-002"],
-            annotations=AnnotationSummary(
-                feedback=[
-                    FeedbackSummaryItem(
-                        name="correct",
-                        total=3,
-                        counts={"true": 2, "false": 1}
-                    )
-                ],
-                expectations=[
-                    ExpectationSummaryItem(
-                        name="expected_answer",
-                        total=1
-                    )
-                ],
-            ),
-        ),
-    ],
-    cursor="eyJ0cmFjZV9pZCI6ICJhM2NlOTI5ZC4uLiJ9",
+   "exp-001", limit=2, sort_by="execution_time", order="desc"
 )
 ```
+  PaginatedResponse(
+  items=[
+  TraceRecord(
+  trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+  execution_time=15.442,
+  span_count=6,
+  created_at=datetime(2024, 6, 1, 12, 0, 1),
+  state=TraceState.OK,
+  evals=["eval-001", "eval-002"],
+  annotations=AnnotationSummary(
+  feedback=[
+  FeedbackSummaryItem(
+  name="correct",
+  total=3,
+- `counts={"true"` - 2, "false": 1&#125; ) ], expectations=[ ExpectationSummaryItem( name="expected_answer", total=1 ) ], ), ), ], cursor="eyJ0cmFjZV9pZCI6ICJhM2NlOTI5ZC4uLiJ9", )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_traces_all"></a>
 
-#### get\_experiment\_traces\_all
+#### get_experiment_traces_all
 
 ```python
 def get_experiment_traces_all(
-    experiment_id: str,
-    sort_by: str = "execution_time",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    filters: list[str] | None = None,
-    states: list[TraceState] | None = None
+        experiment_id: str,
+        sort_by: str = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        filters: list[str] | None = None,
+        states: list[TraceState] | None = None
 ) -> list[TraceRecord]
 ```
 
@@ -1444,39 +1379,29 @@ and cursor-based pagination.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_experiment_traces(
-    "exp-001", sort_by="execution_time", order="desc"
+   "exp-001", sort_by="execution_time", order="desc"
 )
-
-[
-    TraceRecord(
-        trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-        execution_time=15.442,
-        span_count=6,
-        created_at=datetime(2024, 6, 1, 12, 0, 1),
-        state=TraceState.OK,
-        evals=["eval-001", "eval-002"],
-        annotations=AnnotationSummary(
-            feedback=[
-                FeedbackSummaryItem(
-                    name="correct",
-                    total=3,
-                    counts={"true": 2, "false": 1}
-                )
-            ],
-            expectations=[
-                ExpectationSummaryItem(
-                    name="expected_answer",
-                    total=1
-                )
-            ],
-        ),
-    ),
-]
 ```
+```
+  [
+  TraceRecord(
+  trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+  execution_time=15.442,
+  span_count=6,
+  created_at=datetime(2024, 6, 1, 12, 0, 1),
+  state=TraceState.OK,
+  evals=["eval-001", "eval-002"],
+  annotations=AnnotationSummary(
+  feedback=[
+  FeedbackSummaryItem(
+  name="correct",
+  total=3,
+```
+- `counts={"true"` - 2, "false": 1&#125; ) ], expectations=[ ExpectationSummaryItem( name="expected_answer", total=1 ) ], ), ), ]
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_trace"></a>
 
-#### get\_trace
+#### get_trace
 
 ```python
 def get_trace(experiment_id: str, trace_id: str) -> TraceDetails | None
@@ -1492,8 +1417,7 @@ found.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment whose trace
-  details are being retrieved.
+- `experiment_id` _str_ - The unique identifier of the experiment whose trace details are being retrieved.
 - `trace_id` _str_ - The unique identifier of the trace within the experiment.
   
 
@@ -1505,8 +1429,7 @@ found.
 
 **Raises**:
 
-- `ValueError` - If the specified experiment ID does not have an associated
-  database or the database cannot be found.
+- `ValueError` - If the specified experiment ID does not have an associated database or the database cannot be found.
   
 
 **Example**:
@@ -1514,45 +1437,38 @@ found.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_trace("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
-
-TraceDetails(
-    trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-    spans=[
-        SpanRecord(
-            trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-            span_id="00f067aa0ba902b7",
-            parent_span_id=None,
-            name="agent.run",
-            kind=1,
-            dfs_span_type=2,
-            start_time_unix_nano=1717200000000000000,
-            end_time_unix_nano=1717200015442000000,
-            status_code=1,
-            status_message=None,
-            attributes={"llm.model": "gpt-4o", "llm.token_count": 512},
-            events=None,
-            links=None,
-            trace_flags=1,
-        )
-    ]
-)
 ```
+  TraceDetails(
+  trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+  spans=[
+  SpanRecord(
+  trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
+  span_id="00f067aa0ba902b7",
+  parent_span_id=None,
+  name="agent.run",
+  kind=1,
+  dfs_span_type=2,
+  start_time_unix_nano=1717200000000000000,
+  end_time_unix_nano=1717200015442000000,
+  status_code=1,
+  status_message=None,
+- `attributes={"llm.model"` - "gpt-4o", "llm.token_count": 512&#125;, events=None, links=None, trace_flags=1, ) ] )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_evals"></a>
 
-#### get\_experiment\_evals
+#### get_experiment_evals
 
 ```python
 def get_experiment_evals(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    dataset_id: str | None = None,
-    json_sort_column: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
 ) -> PaginatedResponse[EvalRecord]
 ```
 
@@ -1571,7 +1487,7 @@ dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagina
 - `sort_by` - Sort field or JSON key name when json_sort_column is set.
 - `order` - Sort direction — "asc" or "desc".
 - `dataset_id` - Filter evals to a specific dataset.
-- `json_sort_column` - When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.\{sort_by\}').
+- `json_sort_column` - When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.&#123;sort_by&#125;').
   
 
 **Returns**:
@@ -1589,53 +1505,52 @@ dataset_id, or a JSON column key (via json_sort_column), and cursor-based pagina
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_experiment_evals("exp-001", limit=2)
-
-PaginatedResponse(
-    items=[
-        EvalRecord(
-            id="eval-001",
-            dataset_id="ds-abc",
-            inputs={"question": "What is 2+2?"},
-            outputs={"answer": "4"},
-            scores={"accuracy": 1.0},
-            metadata={"source": "test-set"},
-            created_at=datetime(2024, 6, 1, 12, 0, 0),
-            updated_at=datetime(2024, 6, 1, 12, 0, 0),
-            trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
-            annotations=AnnotationSummary(
-                feedback=[
-                    FeedbackSummaryItem(
-                        name="correct",
-                        total=3,
-                        counts={"true": 2, "false": 1}
-                    )
-                ],
-                expectations=[
-                    ExpectationSummaryItem(
-                        name="expected_answer",
-                        total=1
-                    )
-                ],
-            ),
-        ),
-    ],
-    cursor="eyJpZCI6ICJldmFsLTAwMSJ9",
-)
 ```
+  PaginatedResponse(
+  items=[
+  EvalRecord(
+  id="eval-001",
+  dataset_id="ds-abc",
+- `inputs={"question"` - "What is 2+2?"&#125;,
+- `outputs={"answer"` - "4"&#125;,
+- `scores={"accuracy"` - 1.0&#125;,
+- `metadata={"source"` - "test-set"&#125;, created_at=datetime(2024, 6, 1, 12, 0, 0), updated_at=datetime(2024, 6, 1, 12, 0, 0), trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"], annotations=AnnotationSummary( feedback=[ FeedbackSummaryItem( name="correct", total=3,
+- `counts={"true"` - 2, "false": 1&#125; ) ], expectations=[ ExpectationSummaryItem( name="expected_answer", total=1 ) ], ), ), ], cursor="eyJpZCI6ICJldmFsLTAwMSJ9", )
+
+<a id="luml.experiments.backends.sqlite.SQLiteBackend.get_batch_experiment_evals"></a>
+
+#### get_batch_experiment_evals
+
+```python
+def get_batch_experiment_evals(
+        experiment_ids: list[str],
+        limit: int = 20,
+        cursor_str: str | None = None,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
+) -> PaginatedResponse[BatchEvalRecord]
+```
+
+Retrieve paginated eval samples across multiple experiments, grouped by eval ID.
+
+Returns flat list of BatchEvalRecord where each item carries its experiment_id.
+Pagination is cursor-based on eval.id (lexicographic order). No sorting — evals
+are ordered by id ASC.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_evals_all"></a>
 
-#### get\_experiment\_evals\_all
+#### get_experiment_evals_all
 
 ```python
 def get_experiment_evals_all(
-    experiment_id: str,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    dataset_id: str | None = None,
-    json_sort_column: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
+        experiment_id: str,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
 ) -> list[EvalRecord]
 ```
 
@@ -1651,7 +1566,7 @@ dataset_id, or a JSON column key (via json_sort_column).
 - `sort_by` - Sort field or JSON key name when json_sort_column is set.
 - `order` - Sort direction — "asc" or "desc".
 - `dataset_id` - Filter evals to a specific dataset.
-- `json_sort_column` - When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.\{sort_by\}').
+- `json_sort_column` - When set (e.g. "scores"), sort by json_extract(json_sort_column, '$.&#123;sort_by&#125;').
 - `search` - string to search by name or tag.
   
 
@@ -1670,40 +1585,22 @@ dataset_id, or a JSON column key (via json_sort_column).
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_experiment_evals_all("exp-001")
-
-[
-    EvalRecord(
-        id="eval-001",
-        dataset_id="ds-abc",
-        inputs={"question": "What is 2+2?"},
-        outputs={"answer": "4"},
-        scores={"accuracy": 1.0},
-        metadata={"source": "test-set"},
-        created_at=datetime(2024, 6, 1, 12, 0, 0),
-        updated_at=datetime(2024, 6, 1, 12, 0, 0),
-        trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
-        annotations=AnnotationSummary(
-            feedback=[
-                FeedbackSummaryItem(
-                    name="correct",
-                    total=3,
-                    counts={"true": 2, "false": 1}
-                )
-            ],
-            expectations=[
-                ExpectationSummaryItem(
-                    name="expected_answer",
-                    total=1
-                )
-            ],
-        ),
-    ),
-]
 ```
+```
+  [
+  EvalRecord(
+  id="eval-001",
+  dataset_id="ds-abc",
+```
+- `inputs={"question"` - "What is 2+2?"&#125;,
+- `outputs={"answer"` - "4"&#125;,
+- `scores={"accuracy"` - 1.0&#125;,
+- `metadata={"source"` - "test-set"&#125;, created_at=datetime(2024, 6, 1, 12, 0, 0), updated_at=datetime(2024, 6, 1, 12, 0, 0), trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"], annotations=AnnotationSummary( feedback=[ FeedbackSummaryItem( name="correct", total=3,
+- `counts={"true"` - 2, "false": 1&#125; ) ], expectations=[ ExpectationSummaryItem( name="expected_answer", total=1 ) ], ), ), ]
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_eval"></a>
 
-#### get\_eval
+#### get_eval
 
 ```python
 def get_eval(experiment_id: str, eval_id: str) -> EvalRecord | None
@@ -1727,29 +1624,23 @@ Retrieves an evaluation record associated with a given experiment and evaluation
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_eval("experiment_id", "eval_id")
-
-EvalRecord(
-    id="eval-001",
-    dataset_id="ds-abc",
-    inputs={"question": "What is 2+2?"},
-    outputs={"answer": "4"},
-    scores={"accuracy": 1.0},
-    metadata={"source": "test-set"},
-    created_at=datetime(2024, 6, 1, 12, 0, 0),
-    updated_at=datetime(2024, 6, 1, 12, 0, 0),
-    trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"],
-    annotations=None
-)
 ```
+  EvalRecord(
+  id="eval-001",
+  dataset_id="ds-abc",
+- `inputs={"question"` - "What is 2+2?"&#125;,
+- `outputs={"answer"` - "4"&#125;,
+- `scores={"accuracy"` - 1.0&#125;,
+- `metadata={"source"` - "test-set"&#125;, created_at=datetime(2024, 6, 1, 12, 0, 0), updated_at=datetime(2024, 6, 1, 12, 0, 0), trace_ids=["4bf92f3577b34da6a3ce929d0e0e4736"], annotations=None )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_eval_columns"></a>
 
-#### get\_experiment\_eval\_columns
+#### get_experiment_eval_columns
 
 ```python
 def get_experiment_eval_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
+        experiment_id: str,
+        dataset_id: str | None = None
 ) -> EvalColumns
 ```
 
@@ -1767,12 +1658,12 @@ Returns all evals for the experiment with their inputs, outputs, refs, and score
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_eval_typed_columns"></a>
 
-#### get\_experiment\_eval\_typed\_columns
+#### get_experiment_eval_typed_columns
 
 ```python
 def get_experiment_eval_typed_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
+        experiment_id: str,
+        dataset_id: str | None = None
 ) -> EvalTypedColumns
 ```
 
@@ -1780,7 +1671,7 @@ Like get_experiment_eval_columns but also returns the SQLite type for each key.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_trace_columns"></a>
 
-#### get\_experiment\_trace\_columns
+#### get_experiment_trace_columns
 
 ```python
 def get_experiment_trace_columns(experiment_id: str) -> TraceColumns
@@ -1790,7 +1681,7 @@ Return distinct attribute keys from all spans in an experiment.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_experiment_trace_typed_columns"></a>
 
-#### get\_experiment\_trace\_typed\_columns
+#### get_experiment_trace_typed_columns
 
 ```python
 def get_experiment_trace_typed_columns(experiment_id: str) -> TraceTypedColumns
@@ -1800,7 +1691,7 @@ Like get_experiment_trace_columns but also returns the type for each key.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.resolve_evals_sort_column"></a>
 
-#### resolve\_evals\_sort\_column
+#### resolve_evals_sort_column
 
 ```python
 def resolve_evals_sort_column(experiment_id: str, sort_by: str) -> str | None
@@ -1817,14 +1708,14 @@ Resolves the json_sort_column for get_experiment_evals.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_evals_average_scores"></a>
 
-#### get\_evals\_average\_scores
+#### get_evals_average_scores
 
 ```python
 def get_evals_average_scores(
-    experiment_id: str,
-    dataset_id: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
 ) -> dict[str, float]
 ```
 
@@ -1833,14 +1724,10 @@ filters them by a specific dataset.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment from which to fetch
-  evaluation data.
-- `dataset_id` _str | None, optional_ - The unique identifier of the dataset to filter
-  evaluations. If not provided, all datasets within the experiment will be considered.
-- `search` _str | None, optional_ - Free-text search applied across id, inputs, outputs,
-  refs, scores and metadata, matching the behaviour of get_experiment_evals.
-- `filters` _list[str] | None, optional_ - SQL-like filter expressions parsed by
-  SearchEvalsUtils, matching the behaviour of get_experiment_evals.
+- `experiment_id` _str_ - The unique identifier of the experiment from which to fetch evaluation data.
+- `dataset_id` _str | None, optional_ - The unique identifier of the dataset to filter evaluations. If not provided, all datasets within the experiment will be considered.
+- `search` _str | None, optional_ - Free-text search applied across id, inputs, outputs, refs, scores and metadata, matching the behaviour of get_experiment_evals.
+- `filters` _list[str] | None, optional_ - SQL-like filter expressions parsed by SearchEvalsUtils, matching the behaviour of get_experiment_evals.
   
 
 **Returns**:
@@ -1850,19 +1737,19 @@ filters them by a specific dataset.
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_eval_annotation"></a>
 
-#### log\_eval\_annotation
+#### log_eval_annotation
 
 ```python
 def log_eval_annotation(
-    experiment_id: str,
-    dataset_id: str,
-    eval_id: str,
-    name: str,
-    annotation_kind: AnnotationKind,
-    value_type: AnnotationValueType,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None
+        experiment_id: str,
+        dataset_id: str,
+        eval_id: str,
+        name: str,
+        annotation_kind: AnnotationKind,
+        value_type: AnnotationValueType,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -1905,28 +1792,27 @@ record = backend.log_eval_annotation(
     user="alice",
     rationale="Looks correct",
 )
-
-AnnotationRecord(
-    id="annot-001",
-    name="quality",
-    annotation_kind=AnnotationKind.FEEDBACK,
-    value=True,
-    user="alice",
-    value_type=AnnotationValueType.BOOL,
-    created_at=datetime(2024, 6, 1, 10, 0, 0),
-    rationale="Looks correct"
-)
 ```
+  AnnotationRecord(
+  id="annot-001",
+  name="quality",
+  annotation_kind=AnnotationKind.FEEDBACK,
+  value=True,
+  user="alice",
+  value_type=AnnotationValueType.BOOL,
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  rationale="Looks correct"
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_eval_annotations"></a>
 
-#### get\_eval\_annotations
+#### get_eval_annotations
 
 ```python
 def get_eval_annotations(
-    experiment_id: str,
-    dataset_id: str,
-    eval_id: str
+        experiment_id: str,
+        dataset_id: str,
+        eval_id: str
 ) -> list[AnnotationRecord]
 ```
 
@@ -1953,36 +1839,37 @@ returned as a list of AnnotationRecord objects.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_eval_annotations("exp-001", "dataset-abc", "eval-xyz")
-
-[
-    AnnotationRecord(
-        id="annot-001",
-        name="quality",
-        annotation_kind=AnnotationKind.FEEDBACK,
-        value=True,
-        user="alice",
-        value_type=AnnotationValueType.BOOL,
-        created_at=datetime(2024, 6, 1, 10, 0, 0),
-        rationale="Looks correct"
-    )
-]
+```
+```
+  [
+  AnnotationRecord(
+  id="annot-001",
+  name="quality",
+  annotation_kind=AnnotationKind.FEEDBACK,
+  value=True,
+  user="alice",
+  value_type=AnnotationValueType.BOOL,
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  rationale="Looks correct"
+  )
+  ]
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.log_span_annotation"></a>
 
-#### log\_span\_annotation
+#### log_span_annotation
 
 ```python
 def log_span_annotation(
-    experiment_id: str,
-    trace_id: str,
-    span_id: str,
-    name: str,
-    annotation_kind: AnnotationKind,
-    value_type: AnnotationValueType,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None
+        experiment_id: str,
+        trace_id: str,
+        span_id: str,
+        name: str,
+        annotation_kind: AnnotationKind,
+        value_type: AnnotationValueType,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -1996,20 +1883,16 @@ data in the experiment database, and retrieves the newly created annotation reco
 - `trace_id` _str_ - Identifier for the trace to which the span belongs.
 - `span_id` _str_ - Identifier for the span to be annotated.
 - `name` _str_ - Name of the annotation being logged.
-- `annotation_kind` _AnnotationKind_ - Type or category of the annotation, specifying its role or
-  purpose.
-- `value_type` _AnnotationValueType_ - Data type of the annotation's value, ensuring compatibility
-  and validity.
-- `value` _int | bool | str_ - The actual value associated with the annotation, adhering to the
-  specified value type.
+- `annotation_kind` _AnnotationKind_ - Type or category of the annotation, specifying its role or purpose.
+- `value_type` _AnnotationValueType_ - Data type of the annotation's value, ensuring compatibility and validity.
+- `value` _int | bool | str_ - The actual value associated with the annotation, adhering to the specified value type.
 - `user` _str_ - Identifier of the user or system initiating the creation of the annotation.
 - `rationale` _str | None_ - Optional explanation or justification for the annotation.
   
 
 **Returns**:
 
-- `AnnotationRecord` - An object containing the details of the newly created annotation, including
-  associated metadata and identifier.
+- `AnnotationRecord` - An object containing the details of the newly created annotation, including associated metadata and identifier.
   
 
 **Example**:
@@ -2026,28 +1909,27 @@ record = backend.log_span_annotation(
     value=True,
     user="alice",
 )
-
-AnnotationRecord(
-    id="annot-002",
-    name="latency_ok",
-    annotation_kind=AnnotationKind.FEEDBACK,
-    value=True,
-    user="alice",
-    value_type=AnnotationValueType.BOOL,
-    created_at=datetime(2024, 6, 1, 10, 0, 0),
-    rationale=None,
-)
 ```
+  AnnotationRecord(
+  id="annot-002",
+  name="latency_ok",
+  annotation_kind=AnnotationKind.FEEDBACK,
+  value=True,
+  user="alice",
+  value_type=AnnotationValueType.BOOL,
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  rationale=None,
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_span_annotations"></a>
 
-#### get\_span\_annotations
+#### get_span_annotations
 
 ```python
 def get_span_annotations(
-    experiment_id: str,
-    trace_id: str,
-    span_id: str
+        experiment_id: str,
+        trace_id: str,
+        span_id: str
 ) -> list[AnnotationRecord]
 ```
 
@@ -2067,8 +1949,7 @@ exist for the given experiment, an empty list is returned.
 
 **Returns**:
 
-- `list[AnnotationRecord]` - A list of annotations for the specified span. If no
-  annotations are found, the returned list will be empty.
+- `list[AnnotationRecord]` - A list of annotations for the specified span. If no annotations are found, the returned list will be empty.
   
 
 **Example**:
@@ -2080,32 +1961,33 @@ backend.get_span_annotations(
     "4bf92f3577b34da6a3ce929d0e0e4736",
     "span-abc",
 )
-
-[
-    AnnotationRecord(
-        id="annot-002",
-        name="latency_ok",
-        annotation_kind=AnnotationKind.FEEDBACK,
-        value=True,
-        user="alice",
-        value_type=AnnotationValueType.BOOL,
-        created_at=datetime(2024, 6, 1, 10, 0, 0),
-        rationale=None
-    )
-]
+```
+```
+  [
+  AnnotationRecord(
+  id="annot-002",
+  name="latency_ok",
+  annotation_kind=AnnotationKind.FEEDBACK,
+  value=True,
+  user="alice",
+  value_type=AnnotationValueType.BOOL,
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  rationale=None
+  )
+  ]
 ```
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.update_annotation"></a>
 
-#### update\_annotation
+#### update_annotation
 
 ```python
 def update_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"],
-    value: int | bool | str | None = None,
-    rationale: str | None = None
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -2118,15 +2000,11 @@ update, an error is raised.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier for the experiment associated with the
-  annotation.
+- `experiment_id` _str_ - The unique identifier for the experiment associated with the annotation.
 - `annotation_id` _str_ - The unique identifier for the annotation to be updated.
-- `target` _Literal["eval", "span"]_ - Specifies the annotation table to use. "eval"
-  refers to evaluation annotations and "span" refers to span annotations.
-- `value` _int | bool | str | None, optional_ - The new value to set for the annotation.
-  If not provided, the value field will not be updated.
-- `rationale` _str | None, optional_ - The new rationale to set for the annotation. If
-  not provided, the rationale field will not be updated.
+- `target` _Literal["eval", "span"]_ - Specifies the annotation table to use. "eval" refers to evaluation annotations and "span" refers to span annotations.
+- `value` _int | bool | str | None, optional_ - The new value to set for the annotation. If not provided, the value field will not be updated.
+- `rationale` _str | None, optional_ - The new rationale to set for the annotation. If not provided, the rationale field will not be updated.
   
 
 **Returns**:
@@ -2136,8 +2014,7 @@ update, an error is raised.
 
 **Raises**:
 
-- `ValueError` - If no fields (`value` or `rationale`) are specified for update or if
-  the specified annotation does not exist in the database.
+- `ValueError` - If no fields (`value` or `rationale`) are specified for update or if the specified annotation does not exist in the database.
   
 
 **Example**:
@@ -2151,28 +2028,27 @@ backend.update_annotation(
     value=False,
     rationale="Reconsidered after review",
 )
-
-AnnotationRecord(
-    id="annot-001",
-    name="quality",
-    annotation_kind=AnnotationKind.FEEDBACK,
-    value=False,
-    user="alice",
-    value_type=AnnotationValueType.BOOL,
-    created_at=datetime(2024, 6, 1, 10, 0, 0),
-    rationale="Reconsidered after review",
-)
 ```
+  AnnotationRecord(
+  id="annot-001",
+  name="quality",
+  annotation_kind=AnnotationKind.FEEDBACK,
+  value=False,
+  user="alice",
+  value_type=AnnotationValueType.BOOL,
+  created_at=datetime(2024, 6, 1, 10, 0, 0),
+  rationale="Reconsidered after review",
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.delete_annotation"></a>
 
-#### delete\_annotation
+#### delete_annotation
 
 ```python
 def delete_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"]
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"]
 ) -> None
 ```
 
@@ -2187,8 +2063,7 @@ tables, the method exits without performing any operation.
 
 - `experiment_id` _str_ - The unique identifier for the experiment.
 - `annotation_id` _str_ - The unique identifier for the annotation to be deleted.
-- `target` _Literal["eval", "span"]_ - Specifies the target table from which the
-  annotation should be deleted. Must be either "eval" or "span".
+- `target` _Literal["eval", "span"]_ - Specifies the target table from which the annotation should be deleted. Must be either "eval" or "span".
   
 
 **Example**:
@@ -2200,12 +2075,12 @@ backend.delete_annotation("exp-001", "annot-001", target="eval")
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_evals_annotation_summaries"></a>
 
-#### get\_evals\_annotation\_summaries
+#### get_evals_annotation_summaries
 
 ```python
 def get_evals_annotation_summaries(
-    experiment_id: str,
-    eval_ids: list[str]
+        experiment_id: str,
+        eval_ids: list[str]
 ) -> dict[str, AnnotationSummary]
 ```
 
@@ -2228,23 +2103,20 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
-
-{
-    "eval-xyz": AnnotationSummary(
-        feedback=[FeedbackSummaryItem(name="quality", total=2, counts={"true": 1, "false": 1})],
-        expectations=[],
-    ),
-}
 ```
+```
+  {
+```
+- `"eval-xyz"` - AnnotationSummary( feedback=[FeedbackSummaryItem(name="quality", total=2, counts=&#123;"true": 1, "false": 1&#125;)], expectations=[], ), &#125;
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_eval_annotation_summary"></a>
 
-#### get\_eval\_annotation\_summary
+#### get_eval_annotation_summary
 
 ```python
 def get_eval_annotation_summary(
-    experiment_id: str,
-    dataset_id: str
+        experiment_id: str,
+        dataset_id: str
 ) -> AnnotationSummary
 ```
 
@@ -2259,16 +2131,13 @@ for non-boolean annotations.
 
 **Arguments**:
 
-- `experiment_id` _str_ - Unique identifier for the experiment to retrieve
-  annotation data from.
-- `dataset_id` _str_ - Unique identifier for the dataset within the specified
-  experiment.
+- `experiment_id` _str_ - Unique identifier for the experiment to retrieve annotation data from.
+- `dataset_id` _str_ - Unique identifier for the dataset within the specified experiment.
   
 
 **Returns**:
 
-- `AnnotationSummary` - A summary of feedback and expectations contained in
-  the evaluation annotations for the given experiment and dataset.
+- `AnnotationSummary` - A summary of feedback and expectations contained in the evaluation annotations for the given experiment and dataset.
   
 
 **Example**:
@@ -2276,21 +2145,20 @@ for non-boolean annotations.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_eval_annotation_summary("exp-001", "dataset-abc")
-
-AnnotationSummary(
-    feedback=[FeedbackSummaryItem(name="quality", total=3, counts={"true": 2, "false": 1})],
-    expectations=[],
-)
 ```
+  AnnotationSummary(
+  feedback=[FeedbackSummaryItem(name="quality", total=3, counts=&#123;"true": 2, "false": 1&#125;)],
+  expectations=[],
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_traces_annotation_summaries"></a>
 
-#### get\_traces\_annotation\_summaries
+#### get_traces_annotation_summaries
 
 ```python
 def get_traces_annotation_summaries(
-    experiment_id: str,
-    trace_ids: list[str]
+        experiment_id: str,
+        trace_ids: list[str]
 ) -> dict[str, AnnotationSummary]
 ```
 
@@ -2319,23 +2187,20 @@ backend.get_traces_annotation_summaries(
     "exp-001",
     ["4bf92f3577b34da6a3ce929d0e0e4736", "5bf92f3577b34da6a3ce929d0e0e4737"],
 )
-
-{
-    "4bf92f3577b34da6a3ce929d0e0e4736": AnnotationSummary(
-        feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts={"true": 1})],
-        expectations=[],
-    ),
-}
 ```
+```
+  {
+```
+- `"4bf92f3577b34da6a3ce929d0e0e4736"` - AnnotationSummary( feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts=&#123;"true": 1&#125;)], expectations=[], ), &#125;
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_trace_annotation_summary"></a>
 
-#### get\_trace\_annotation\_summary
+#### get_trace_annotation_summary
 
 ```python
 def get_trace_annotation_summary(
-    experiment_id: str,
-    trace_id: str
+        experiment_id: str,
+        trace_id: str
 ) -> AnnotationSummary
 ```
 
@@ -2350,8 +2215,7 @@ feedback and expectation annotations grouped by name and processed according to 
 
 **Returns**:
 
-- `AnnotationSummary` - An object containing summarized feedback and expectations annotations
-  for the specified trace.
+- `AnnotationSummary` - An object containing summarized feedback and expectations annotations for the specified trace.
   
 
 **Example**:
@@ -2359,16 +2223,15 @@ feedback and expectation annotations grouped by name and processed according to 
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_trace_annotation_summary("exp-001", "4bf92f3577b34da6a3ce929d0e0e4736")
-
-AnnotationSummary(
-    feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts={"true": 1})],
-    expectations=[],
-)
 ```
+  AnnotationSummary(
+  feedback=[FeedbackSummaryItem(name="latency_ok", total=1, counts=&#123;"true": 1&#125;)],
+  expectations=[],
+  )
 
 <a id="luml.experiments.backends.sqlite.SQLiteBackend.get_all_traces_annotation_summary"></a>
 
-#### get\_all\_traces\_annotation\_summary
+#### get_all_traces_annotation_summary
 
 ```python
 def get_all_traces_annotation_summary(experiment_id: str) -> AnnotationSummary
@@ -2383,14 +2246,12 @@ annotation tables are not present, it will return an empty summary object.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment from which annotation data
-  will be retrieved.
+- `experiment_id` _str_ - The unique identifier of the experiment from which annotation data will be retrieved.
   
 
 **Returns**:
 
-- `AnnotationSummary` - A summary object containing feedback-related statistics and expectation
-  values derived from the experiment's annotations.
+- `AnnotationSummary` - A summary object containing feedback-related statistics and expectation values derived from the experiment's annotations.
   
 
 **Example**:
@@ -2398,15 +2259,11 @@ annotation tables are not present, it will return an empty summary object.
 ```python
 backend = SQLiteBackend("/backend/path")
 backend.get_all_traces_annotation_summary("exp-001")
-
-AnnotationSummary(
-    feedback=[
-        FeedbackSummaryItem(
-            name="latency_ok",
-            total=5,
-            counts={"true": 4, "false": 1}
-        )
-    ],
-    expectations=[]
-)
 ```
+  AnnotationSummary(
+  feedback=[
+  FeedbackSummaryItem(
+  name="latency_ok",
+  total=5,
+- `counts={"true"` - 4, "false": 1&#125; ) ], expectations=[] )
+

@@ -15,12 +15,10 @@ class AsyncLumlClient(LumlClientBase, AsyncBaseClient)
 #### setup_config
 
 ```python
-async def setup_config(
-    *,
-    organization: str | None = None,
-    orbit: str | None = None,
-    collection: str | None = None
-) -> None
+async def setup_config(*,
+                       organization: str | None = None,
+                       orbit: str | None = None,
+                       collection: str | None = None) -> None
 ```
 
 Method for setting default values for AsyncLumlClient
@@ -80,7 +78,7 @@ def orbits() -> "AsyncOrbitResource"
 
 Orbits interface.
 
-<a id="luml.api._client.AsyncLumlClient.collections"></a>
+<a id="luml_api._client.AsyncLumlClient.collections"></a>
 
 #### collections
 
