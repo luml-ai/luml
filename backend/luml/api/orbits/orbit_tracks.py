@@ -169,23 +169,6 @@ async def create_entry(
 
 
 @tracks_router_entries.get(
-    "/{entry_id}",
-    responses=endpoint_responses,
-    response_model=TrackEntry,
-)
-async def get_entry(
-    request: Request,
-    organization_id: UUID,
-    orbit_id: UUID,
-    track_id: UUID,
-    entry_id: UUID,
-) -> TrackEntry | None:
-    return await tracks_handler.get_entry(
-        request.user.id, organization_id, orbit_id, track_id, entry_id
-    )
-
-
-@tracks_router_entries.get(
     "/by-stage",
     responses=endpoint_responses,
     response_model=TrackEntry,
@@ -199,6 +182,23 @@ async def get_entry_by_stage(
 ) -> TrackEntry | None:
     return await tracks_handler.get_entry_by_stage(
         request.user.id, organization_id, orbit_id, track_id, stage_id
+    )
+
+
+@tracks_router_entries.get(
+    "/{entry_id}",
+    responses=endpoint_responses,
+    response_model=TrackEntry,
+)
+async def get_entry(
+    request: Request,
+    organization_id: UUID,
+    orbit_id: UUID,
+    track_id: UUID,
+    entry_id: UUID,
+) -> TrackEntry | None:
+    return await tracks_handler.get_entry(
+        request.user.id, organization_id, orbit_id, track_id, entry_id
     )
 
 
