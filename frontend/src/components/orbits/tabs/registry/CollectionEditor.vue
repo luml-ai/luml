@@ -66,7 +66,7 @@
 
 <script setup lang="ts">
 import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   type DialogPassThroughOptions,
   Dialog,
@@ -157,6 +157,16 @@ async function deleteCollection() {
     loading.value = false
   }
 }
+
+watch(visible, (value) => {
+  if (value) {
+    initialValues.value = {
+      name: props.data.name,
+      description: props.data.description,
+      tags: Array.isArray(props.data.tags) ? [...props.data.tags] : [],
+    }
+  }
+})
 </script>
 
 <style scoped>
