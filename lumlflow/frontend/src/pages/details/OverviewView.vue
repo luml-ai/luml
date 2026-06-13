@@ -1,92 +1,15 @@
 <template>
   <div class="grid grid-cols-2 gap-6">
     <div>
-      <div class="mb-5">
-        <h3 class="text-lg mb-4">Parameters ({{ parameters.length }})</h3>
-        <Card>
-          <template #content>
-            <IconField class="mb-2">
-              <InputText v-model="parametersSearch" placeholder="Search" size="small" fluid />
-              <InputIcon>
-                <Search :size="12" />
-              </InputIcon>
-            </IconField>
-            <DataTable
-              :value="visibleParameters"
-              table-class="table-fixed"
-              scrollable
-              scrollHeight="200px"
-              :virtualScrollerOptions="parameters.length > 10 ? { itemSize: 43 } : undefined"
-            >
-              <template #empty>
-                <div class="flex justify-center items-center h-full">
-                  <span>No parameters found</span>
-                </div>
-              </template>
-              <Column field="name" header="Parameter"></Column>
-              <Column field="value" header="Value"></Column>
-            </DataTable>
-          </template>
-        </Card>
-      </div>
-      <div class="mb-5">
-        <h3 class="text-lg mb-4">Metrics ({{ metrics.length }})</h3>
-        <Card>
-          <template #content>
-            <IconField class="mb-2">
-              <InputText v-model="metricsSearch" placeholder="Search" size="small" fluid />
-              <InputIcon>
-                <Search :size="12" />
-              </InputIcon>
-            </IconField>
-            <DataTable
-              :value="visibleMetrics"
-              table-class="table-fixed"
-              scrollable
-              scrollHeight="200px"
-              :virtualScrollerOptions="metrics.length > 10 ? { itemSize: 43 } : undefined"
-            >
-              <template #empty>
-                <div class="flex justify-center items-center h-full">
-                  <span>No metrics found</span>
-                </div>
-              </template>
-              <Column field="name" header="Metric"></Column>
-              <Column field="value" header="Value"></Column>
-            </DataTable>
-          </template>
-        </Card>
-      </div>
-      <div class="mb-5">
-        <h3 class="text-lg mb-4">Logged models ({{ models.length }})</h3>
-        <Card>
-          <template #content>
-            <DataTable
-              :value="models"
-              table-class="table-fixed"
-              scrollable
-              scrollHeight="200px"
-              :virtualScrollerOptions="models.length > 10 ? { itemSize: 43 } : undefined"
-            >
-              <template #empty>
-                <div class="flex justify-center items-center h-full">
-                  <span>No models found</span>
-                </div>
-              </template>
-              <Column field="name" header="Model name">
-                <template #body="slotProps">
-                  <div class="flex items-center gap-2">
-                    <CircuitBoardIcon :size="14" color="var(--p-primary-color)" />
-                    <span>{{ slotProps.data.name }}</span>
-                  </div>
-                </template>
-              </Column>
-              <Column field="size" header="Size"></Column>
-              <Column field="created_at" header="Creation time"></Column>
-            </DataTable>
-          </template>
-        </Card>
-      </div>
+      <ParametersCard :parameters="parameters" />
+
+      <MetricsCard :metrics="metrics" />
+
+      <ModelsCard
+        :models="experiment?.models || []"
+        :group-id="experiment?.group_id || ''"
+        :experiment-id="experiment?.id || ''"
+      />
     </div>
     <div>
       <h3 class="text-lg mb-4">About this experiment</h3>
@@ -156,29 +79,21 @@
 </template>
 
 <script setup lang="ts">
-import { Card, IconField, InputText, InputIcon, DataTable, Column, Tag } from 'primevue'
-import {
-  Search,
-  CircuitBoardIcon,
-  Copy,
-  FileChartLine,
-  Check,
-  Timer,
-  CircleX,
-} from 'lucide-vue-next'
+import { Card, Tag } from 'primevue'
+import { Copy, FileChartLine, Check, Timer, CircleX } from 'lucide-vue-next'
 import UploadModal from '@/components/upload/UploadModal.vue'
 import { dateToText, durationToText } from '@/helpers/date'
-import { cutStringOnMiddle, getSizeText } from '@/helpers/string'
+import { cutStringOnMiddle } from '@/helpers/string'
 import { useExperimentStore } from '@/store/experiment'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useToast } from 'primevue'
 import { successToast } from '@/toasts'
+import ParametersCard from '@/table-cards/ParametersCard.vue'
+import MetricsCard from '@/table-cards/MetricsCard.vue'
+import ModelsCard from '@/table-cards/ModelsCard.vue'
 
 const experimentStore = useExperimentStore()
 const toast = useToast()
-
-const parametersSearch = ref('')
-const metricsSearch = ref('')
 
 const experiment = computed(() => {
   if (!experimentStore.experiment) throw new Error('Experiment not found')
@@ -193,28 +108,11 @@ const parameters = computed(() => {
   }))
 })
 
-const visibleParameters = computed(() => {
-  return parameters.value.filter((parameter) => parameter.name.includes(parametersSearch.value))
-})
-
 const metrics = computed(() => {
   if (!experiment.value?.dynamic_params) return []
   return Object.entries(experiment.value.dynamic_params).map(([name, value]) => ({
     name,
     value,
-  }))
-})
-
-const visibleMetrics = computed(() => {
-  return metrics.value.filter((metric) => metric.name.includes(metricsSearch.value))
-})
-
-const models = computed(() => {
-  if (!experiment.value?.models) return []
-  return experiment.value.models.map((model) => ({
-    name: model.name,
-    size: getSizeText(model.size || 0),
-    created_at: dateToText(model.created_at),
   }))
 })
 
