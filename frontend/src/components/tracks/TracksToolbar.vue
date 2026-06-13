@@ -13,12 +13,12 @@
     </IconField>
     <MultiSelect
       v-model="types"
-      :options="TRACK_TYPE_OPTIONS"
+      :options="TRACKS_TYPE_OPTIONS"
       option-label="label"
       option-value="value"
       size="small"
       placeholder="Filter by type"
-      :pt="TRACK_TYPE_SELECT_PT"
+      :pt="TRACKS_TYPE_SELECT_PT"
     />
   </div>
 </template>
@@ -27,7 +27,7 @@
 import type { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import { IconField, InputText, InputIcon, MultiSelect } from 'primevue'
 import { Search } from 'lucide-vue-next'
-import { TRACK_TYPE_OPTIONS, TRACK_TYPE_SELECT_PT } from './track.const'
+import { TRACKS_TYPE_OPTIONS, TRACKS_TYPE_SELECT_PT } from './tracks.const'
 
 const search = defineModel<string>('search')
 const types = defineModel<ArtifactTypeEnum[]>('types', { default: [] })

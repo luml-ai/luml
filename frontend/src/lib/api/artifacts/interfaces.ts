@@ -33,6 +33,7 @@ export interface Artifact {
   type: ArtifactTypeEnum
   id: string
   collection_id: string
+  collection_name: string
   file_name: string
   name: string
   description: string
@@ -45,6 +46,14 @@ export interface Artifact {
   unique_identifier: string
   tags?: string[]
   status: ArtifactStatusEnum
+  created_at: string
+  updated_at: string
+  tracks?: ArtifactTrack[]
+}
+
+export interface ArtifactTrack {
+  id: string
+  name: string
   created_at: string
   updated_at: string
 }
@@ -78,6 +87,9 @@ export interface GetArtifactsListParams {
   sort_by?: 'created_at' | 'name' | 'size' | 'description' | 'status'
   order?: 'asc' | 'desc'
   types?: ArtifactTypeEnum[]
+  collection_ids?: string[]
+  search?: string | null
+  excluded_tracks?: string[]
 }
 
 export type ModelArtifact = Artifact

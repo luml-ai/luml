@@ -131,6 +131,7 @@
           >
             <template #body="{ data }: { data: Artifact }">
               <div
+                v-if="data.extra_values"
                 v-tooltip="key in data.extra_values ? '' + data.extra_values[key] : null"
                 class="metric-column"
                 style="width: 100px"
@@ -250,7 +251,7 @@ async function initList() {
     setRequestInfo({
       organizationId: String(route.params.organizationId),
       orbitId: String(route.params.id),
-      collectionId: String(collectionsStore.currentCollection?.id),
+      collectionIds: [String(collectionsStore.currentCollection?.id)],
     })
     await getInitialPage()
   } catch (e) {

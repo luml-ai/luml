@@ -12,7 +12,7 @@ import { useDebounceFn } from '@vueuse/core'
 interface RequestInfo {
   organizationId: string
   orbitId: string
-  collectionId: string
+  collectionIds: string[]
 }
 
 export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactTypeEnum[]) => {
@@ -27,6 +27,17 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     order: undefined,
   })
   const typesQuery = ref<ArtifactTypeEnum[]>(types ?? [])
+  const excludedTracksQuery = ref<string[]>([])
+
+  function setExcludedTracksQuery(tracks: string[]) {
+    excludedTracksQuery.value = tracks
+  }
+
+  const searchQuery = ref<string | null>(null)
+
+  function setSearchQuery(query: string) {
+    searchQuery.value = query
+  }
 
   const list = ref<Artifact[]>([])
 
@@ -42,7 +53,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     isLoading.value = true
     const cursor = null
     const response = await getData(cursor)
-    addItemsToList(response.items)
+    addItemsToList(response.items, true)
     savedCursors.value.push(response.cursor)
     isLoading.value = false
   }
@@ -61,11 +72,18 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     if (!requestInfo.value) throw new Error('Request info not set')
     abortController.value?.abort()
     abortController.value = new AbortController()
-    return await api.artifacts.getList(
+    return await api.artifacts.getOrbitArtifacts(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
-      requestInfo.value.collectionId,
-      { cursor, limit, ...sortData.value, types: typesQuery.value },
+      {
+        cursor,
+        limit,
+        ...sortData.value,
+        types: typesQuery.value,
+        collection_ids: requestInfo.value.collectionIds,
+        search: searchQuery.value,
+        excluded_tracks: excludedTracksQuery.value,
+      },
       abortController.value.signal,
     )
   }
@@ -80,10 +98,16 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     requestInfo.value = null
   }
 
-  function addItemsToList(artifacts: Artifact[]) {
-    const existingArtifactsIds = list.value.map((artifact) => artifact.id)
-    const newArtifacts = artifacts.filter((artifact) => !existingArtifactsIds.includes(artifact.id))
-    setList([...list.value, ...newArtifacts])
+  function addItemsToList(artifacts: Artifact[], reset = false) {
+    if (reset) {
+      setList(artifacts)
+    } else {
+      const existingArtifactsIds = list.value.map((artifact) => artifact.id)
+      const newArtifacts = artifacts.filter(
+        (artifact) => !existingArtifactsIds.includes(artifact.id),
+      )
+      setList([...list.value, ...newArtifacts])
+    }
   }
 
   function setSortData(data: Pick<GetArtifactsListParams, 'sort_by' | 'order'>) {
@@ -148,5 +172,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     setLoading,
     setTypesQuery,
     typesQuery,
+    setSearchQuery,
+    setExcludedTracksQuery,
   }
 }

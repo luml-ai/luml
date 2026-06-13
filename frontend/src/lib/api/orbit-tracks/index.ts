@@ -53,12 +53,7 @@ export class OrbitTracksApi {
     return responseData
   }
 
-  async updateTrack(
-    organizationId: string,
-    orbitId: string,
-    trackId: string,
-    data: TrackUpdateIn,
-  ) {
+  async updateTrack(organizationId: string, orbitId: string, trackId: string, data: TrackUpdateIn) {
     const { data: responseData } = await this.api.patch<Track>(
       `${this.basePath(organizationId, orbitId)}/${trackId}`,
       data,
@@ -124,11 +119,15 @@ export class OrbitTracksApi {
     return responseData
   }
 
-  // --- Artifact membership ---
-
-  async listArtifactEntries(organizationId: string, orbitId: string, artifactId: string) {
-    const { data: responseData } = await this.api.get<TrackEntry[]>(
-      `/v1/organizations/${organizationId}/orbits/${orbitId}/artifacts/${artifactId}/track-entries`,
+  async deleteEntries(
+    organizationId: string,
+    orbitId: string,
+    trackId: string,
+    entryIds: string[],
+  ) {
+    const { data: responseData } = await this.api.delete<BaseDetailResponse>(
+      `${this.basePath(organizationId, orbitId)}/${trackId}/entries`,
+      { params: { entry_ids: entryIds } },
     )
     return responseData
   }
@@ -179,6 +178,14 @@ export class OrbitTracksApi {
     const { data: responseData } = await this.api.delete<BaseDetailResponse>(
       `${this.basePath(organizationId, orbitId)}/${trackId}/stages/${stageId}`,
       { params: force ? { force: true } : undefined },
+    )
+    return responseData
+  }
+
+  async getEntryByStage(organizationId: string, orbitId: string, trackId: string, stageId: string) {
+    const { data: responseData } = await this.api.get<TrackEntry>(
+      `${this.basePath(organizationId, orbitId)}/${trackId}/entries/by-stage`,
+      { params: { stage_id: stageId } },
     )
     return responseData
   }

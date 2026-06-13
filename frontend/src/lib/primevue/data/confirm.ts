@@ -244,3 +244,34 @@ export const forceStageReassignConfirmOptions = (
   },
   accept,
 })
+
+export const deleteTrackEntryConfirmOptions = (
+  accept: () => void,
+  count: number,
+): ConfirmationOptions => ({
+  message:
+    'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
+  header: count > 1 ? `Unlink ${count} artifacts?` : 'Unlink artifact?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: count > 1 ? 'unlink artifacts' : 'unlink artifact',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This action will unlink the stage from the artifact it was previously attached to',
+  header: 'Save changes?',
+  rejectProps: {
+    label: 'cancel',
+    outlined: true,
+  },
+  acceptProps: {
+    label: 'save changes',
+  },
+  accept,
+})
