@@ -237,6 +237,7 @@ export interface OrbitPermissions {
   orbit_user: Omit<PermissionEnum, PermissionEnum.deploy>
   artifact: PermissionEnum
   collection: PermissionEnum
+  track: PermissionEnum
 }
 
 export enum PermissionEnum {

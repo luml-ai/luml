@@ -46,6 +46,7 @@ const baseOrbit: Orbit = {
     orbit_user: PermissionEnum.read,
     artifact: PermissionEnum.create,
     collection: PermissionEnum.create,
+    track: PermissionEnum.create,
   },
 }
 
@@ -468,6 +469,7 @@ describe('OrbitsStore', () => {
         orbit_user: PermissionEnum.update,
         artifact: PermissionEnum.create,
         collection: PermissionEnum.delete,
+        track: PermissionEnum.create,
       }
 
       const details = createMockOrbitDetails('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaa0001', {

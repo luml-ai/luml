@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import String, cast, or_
@@ -31,6 +32,16 @@ class CollectionRepository(RepositoryBase, CrudMixin):
                 collection_id,
             )
             return db_collection.to_collection() if db_collection else None
+
+    async def get_collections_by_ids(
+        self, collection_ids: list[UUID], orbit_id: UUID | None = None
+    ) -> list[Collection]:
+        async with self._get_session() as session:
+            conditions: list[Any] = [CollectionOrm.id.in_(collection_ids)]
+            if orbit_id is not None:
+                conditions.append(CollectionOrm.orbit_id == orbit_id)
+            rows = await self.get_models_where(session, CollectionOrm, *conditions)
+            return [r.to_collection() for r in rows]
 
     async def get_orbit_collections(
         self,

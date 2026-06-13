@@ -1,12 +1,35 @@
 import base64
 import json
+import uuid
 from datetime import datetime
+from enum import Enum
 from uuid import UUID
 
 from luml.schemas.general import Cursor, SortOrder
 
 EXTRA_VALUES_SORT_KEY = "extra_values"
 CREATED_AT_SORT_KEY = "created_at"
+
+SCOPE_NAMESPACE = uuid.UUID("a8f5f167-4f8a-5e6c-9b2d-1c3e4d5a6b7f")
+
+
+def _normalize_scope_part(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return ",".join(sorted(_normalize_scope_part(item) for item in value))
+    if isinstance(value, Enum):
+        return _normalize_scope_part(value.value)
+    if isinstance(value, UUID):
+        return value.hex
+    return str(value)
+
+
+def build_scope_id(**filters: object) -> UUID:
+    key = "|".join(
+        f"{name}={_normalize_scope_part(filters[name])}" for name in sorted(filters)
+    )
+    return uuid.uuid5(SCOPE_NAMESPACE, key)
 
 
 def encode_cursor(cursor: Cursor | None) -> str | None:

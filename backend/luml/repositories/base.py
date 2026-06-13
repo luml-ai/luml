@@ -176,6 +176,7 @@ class CrudMixin:
         join_condition: tuple[Any, ...] | None = None,  # noqa: ANN401
         select_fields: list[Any] | None = None,  # noqa: ANN401
         use_unique: bool = False,
+        distinct: bool = False,
     ) -> Sequence[Any]:  # noqa: ANN401
         stmt = select(*(select_fields or [orm_class]))
 
@@ -187,6 +188,9 @@ class CrudMixin:
             .options(*(options or []))
             .order_by(*(order_by or []))
         )
+
+        if distinct:
+            stmt = stmt.distinct()
 
         result = await session.execute(stmt)
 

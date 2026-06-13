@@ -3,13 +3,21 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AliasPath,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
 from luml.constants import MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.collections import Collection
-from luml.schemas.deployment import ArtifactDeploymentInfo, Deployment
+from luml.schemas.deployment import Deployment, DeploymentBase
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
+from luml.schemas.track_base import TrackBase
 
 ArtifactNamesField = Annotated[
     str,
@@ -202,12 +210,14 @@ class Artifact(BaseModel, BaseOrmConfig):
 
 
 class ArtifactListed(Artifact):
-    deployments: list[ArtifactDeploymentInfo] = []
+    deployments: list[DeploymentBase] = []
+    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
 
 
 class ArtifactDetails(Artifact):
     deployments: list[Deployment] | None = None
     collection: Collection
+    tracks: list[TrackBase] = Field(default_factory=list)
 
 
 class CreateArtifactResponse(BaseModel):

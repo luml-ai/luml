@@ -94,10 +94,23 @@ export const collectionCreatorResolver: Resolver = zodResolver(
   }),
 )
 
+export const trackCreatorResolver: Resolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
+    artifact_type: z.string().min(1),
+  }),
+)
+
 export const collectionEditorResolver: Resolver = zodResolver(
   z.object({
     name: z.string().min(1),
     bucket_secret_id: z.string(),
+  }),
+)
+
+export const trackEditorResolver: Resolver = zodResolver(
+  z.object({
+    name: z.string().min(1),
   }),
 )
 
