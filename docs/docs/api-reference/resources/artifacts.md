@@ -18,9 +18,11 @@ Resource for managing artifacts.
 
 ```python
 @validate_collection
-def get(artifact_value: str,
+def get(
+        artifact_value: str,
         *,
-        collection_id: str | None = None) -> Artifact | None
+        collection_id: str | None = None
+) -> Artifact | None
 ```
 
 Get artifact by ID or name.
@@ -32,8 +34,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_value` - The ID or exact name of the artifact to retrieve.
-- `collection_id` - ID of the collection to search in. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to search in. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -45,10 +46,8 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several artifacts
-  with that name.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `MultipleResourcesFoundError` - If there are several artifacts with that name.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -66,7 +65,7 @@ artifact_by_id = luml.artifacts.get(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Artifact(
     id="0199c455-21ee-74c6-b747-19a82f1a1e67",
@@ -134,27 +133,26 @@ Artifact(
 
 ```python
 @validate_collection
-def list_all(*,
-             collection_id: str | None = None,
-             limit: int | None = 100,
-             sort_by: str | None = None,
-             order: SortOrder = SortOrder.DESC,
-             types: list[ArtifactType] | None = None) -> Iterator[Artifact]
+def list_all(
+        *,
+        collection_id: str | None = None,
+        limit: int | None = 100,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+        types: list[ArtifactType] | None = None
+) -> Iterator[Artifact]
 ```
 
 List all collection artifacts with auto-paging.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to list models from. If not provided, uses the default collection set in the client.
 - `limit` - Page size (default: 100).
 - `sort_by` - Field to sort by.
-- `Options` - name, created_at, size, description, status
-  and any metric key
+- `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types:
-  "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -197,13 +195,15 @@ for artifact in luml.artifacts.list_all(
 
 ```python
 @validate_collection
-def list(*,
-         collection_id: str | None = None,
-         start_after: str | None = None,
-         limit: int | None = 100,
-         sort_by: str | None = None,
-         order: SortOrder = SortOrder.DESC,
-         types: list[ArtifactType] | None = None) -> ArtifactsList
+def list(
+        *,
+        collection_id: str | None = None,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+        types: list[ArtifactType] | None = None
+) -> ArtifactsList
 ```
 
 List all artifacts in the collection.
@@ -212,16 +212,13 @@ If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to list models from. If not provided, uses the default collection set in the client.
 - `start_after` - ID of the artifact to start listing from.
 - `limit` - Limit number of models per page (default: 100).
 - `sort_by` - Field to sort by.
-- `Options` - name, created_at, size, description, status
-  and any metric key
+- `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types:
-  "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
   
 
 **Returns**:
@@ -231,8 +228,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -265,7 +261,7 @@ artifacts = luml.artifacts.list(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 ArtifactsList(
     items=[
@@ -338,9 +334,7 @@ ArtifactsList(
 
 ```python
 @validate_collection
-def download_url(artifact_id: str,
-                 *,
-                 collection_id: str | None = None) -> dict
+def download_url(artifact_id: str, *, collection_id: str | None = None) -> dict
 ```
 
 Get download URL for artifact.
@@ -351,8 +345,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to download.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -362,8 +355,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -399,8 +391,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete from storage.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -410,8 +401,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -435,13 +425,15 @@ url_info = luml.artifacts.delete_url(
 
 ```python
 @validate_collection
-def upload(file_path: str,
-           name: str | None = None,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None,
-           *,
-           collection_id: str | None = None,
-           on_progress: BaseProgressHandler | None = None) -> Artifact
+def upload(
+        file_path: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        *,
+        collection_id: str | None = None,
+        on_progress: BaseProgressHandler | None = None
+) -> Artifact
 ```
 
 Upload artifact file to the collection.
@@ -457,22 +449,19 @@ If collection_id is None, uses the default collection from client.
 - `name` - Name for the artifact. If not provided, uses the file name.
 - `description` - Optional description of the model.
 - `tags` - Optional list of tags for organizing models.
-- `collection_id` - ID of the collection to upload to. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to upload to. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
 
-- `Artifact` - Uploaded artifact object with
-  UPLOADED or UPLOAD_FAILED status.
+- `Artifact` - Uploaded artifact object with UPLOADED or UPLOAD_FAILED status.
   
 
 **Raises**:
 
 - `FileError` - If file size exceeds 5GB or unsupported format.
 - `FileUploadError` - If upload to storage fails.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -561,10 +550,12 @@ Artifact(
 
 ```python
 @validate_collection
-def download(artifact_id: str,
-             file_path: str | None = None,
-             *,
-             collection_id: str | None = None) -> None
+def download(
+        artifact_id: str,
+        file_path: str | None = None,
+        *,
+        collection_id: str | None = None
+) -> None
 ```
 
 Download artifact file from the collection.
@@ -575,10 +566,8 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to download.
-- `file_path` - Local path to save the downloaded file. If None,
-  uses the original file name.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `file_path` - Local path to save the downloaded file. If None, uses the original file name.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -589,8 +578,7 @@ If collection_id is None, uses the default collection from client.
 **Raises**:
 
 - `ValueError` - If model with specified ID not found.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -619,16 +607,18 @@ luml.artifacts.download(
 
 ```python
 @validate_collection
-def create(collection_id: str | None,
-           file_name: str,
-           extra_values: dict,
-           manifest: dict,
-           file_hash: str,
-           file_index: dict[str, tuple[int, int]],
-           size: int,
-           name: str,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None) -> CreatedArtifact
+def create(
+        collection_id: str | None,
+        file_name: str,
+        extra_values: dict,
+        manifest: dict,
+        file_hash: str,
+        file_index: dict[str, tuple[int, int]],
+        size: int,
+        name: str,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None
+) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -657,8 +647,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -759,14 +748,16 @@ artifact = result.artifact
 
 ```python
 @validate_collection
-def update(artifact_id: str,
-           file_name: str | None = None,
-           name: str | None = None,
-           description: str | None = None,
-           tags: builtins.list[str] | None = None,
-           status: ArtifactStatus | None = None,
-           *,
-           collection_id: str | None = None) -> Artifact
+def update(
+        artifact_id: str,
+        file_name: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        status: ArtifactStatus | None = None,
+        *,
+        collection_id: str | None = None
+) -> Artifact
 ```
 
 Update artifact metadata.
@@ -793,8 +784,7 @@ uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -814,7 +804,7 @@ artifact = luml.artifacts.update(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Artifact(
     id="0199c455-21ee-74c6-b747-19a82f1a1e67",
@@ -944,9 +934,11 @@ Resource for managing artifacts for async client.
 
 ```python
 @validate_collection
-async def get(artifact_value: str,
-              *,
-              collection_id: str | None = None) -> Artifact | None
+async def get(
+        artifact_value: str,
+        *,
+        collection_id: str | None = None
+) -> Artifact | None
 ```
 
 Get artifact by ID or name.
@@ -1004,8 +996,8 @@ Artifact(
     name="my_model",
     file_name="model.fnnx",
     description="Trained model",
-    metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-    manifest=\{
+    metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
+    manifest=&#123;
         "variant": "pipeline",
         "name": None,
         "version": None,
@@ -1017,29 +1009,29 @@ Artifact(
             "dataforce.studio::tabular_regression:v1",
         ],
         "inputs": [
-            \{
+            &#123;
                 "name": "age",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": ["falcon.beastbyte.ai::numeric:v1"],
                 "shape": ["batch", 1],
-            \},
+            &#125;,
         ],
         "outputs": [
-            \{
+            &#123;
                 "name": "y_pred",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": None,
                 "shape": ["batch", 1],
-            \}
+            &#125;
         ],
         "dynamic_attributes": [],
         "env_vars": [],
-    \},
+    &#125;,
     bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
     file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-    file_index = \{
+    file_index = &#123;
         "env.json": (3584, 2),
         "ops.json": (7168, 1869),
         "meta.json": (239616, 3279),
@@ -1047,7 +1039,7 @@ Artifact(
         "manifest.json": (512, 2353),
         "variant_config.json": (4608, 372),
         "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-    \},
+    &#125;,
     size=245760,
     unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
     status='pending_upload',
@@ -1060,7 +1052,7 @@ Artifact(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.list_all"></a>
 
-#### list_all
+#### list\_all
 
 ```python
 @validate_collection
@@ -1070,7 +1062,8 @@ def list_all(
         limit: int | None = 100,
         sort_by: str | None = None,
         order: SortOrder = SortOrder.DESC,
-        types: list[ArtifactType] | None = None) -> AsyncIterator[Artifact]
+        types: list[ArtifactType] | None = None
+) -> AsyncIterator[Artifact]
 ```
 
 List all collection artifacts with auto-paging.
@@ -1117,7 +1110,7 @@ async def main():
         order="desc",
         limit=50
     ):
-        print(f"\{artifact.name\}: F1=\{artifact.metrics.get('F1')\}")
+        print(f"&#123;artifact.name&#125;: F1=&#123;artifact.metrics.get('F1')&#125;")
 
     # Filter by artifact types
     async for artifact in luml.artifacts.list_all(
@@ -1132,13 +1125,15 @@ async def main():
 
 ```python
 @validate_collection
-async def list(*,
-               collection_id: str | None = None,
-               start_after: str | None = None,
-               limit: int | None = 100,
-               sort_by: str | None = None,
-               order: SortOrder = SortOrder.DESC,
-               types: list[ArtifactType] | None = None) -> ArtifactsList
+async def list(
+        *,
+        collection_id: str | None = None,
+        start_after: str | None = None,
+        limit: int | None = 100,
+        sort_by: str | None = None,
+        order: SortOrder = SortOrder.DESC,
+        types: list[ArtifactType] | None = None
+) -> ArtifactsList
 ```
 
 List all artifacts in the collection.
@@ -1214,8 +1209,8 @@ ArtifactsList(
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
+            manifest=&#123;
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1227,29 +1222,29 @@ ArtifactsList(
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    &#123;
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    &#125;,
                 ],
                 "outputs": [
-                    \{
+                    &#123;
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    &#125;
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            &#125;,
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = &#123;
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1257,7 +1252,7 @@ ArtifactsList(
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            &#125;,
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1273,13 +1268,15 @@ ArtifactsList(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.download_url"></a>
 
-#### download_url
+#### download\_url
 
 ```python
 @validate_collection
-async def download_url(artifact_id: str,
-                       *,
-                       collection_id: str | None = None) -> dict
+async def download_url(
+        artifact_id: str,
+        *,
+        collection_id: str | None = None
+) -> dict
 ```
 
 Get download URL for artifact.
@@ -1326,13 +1323,15 @@ async def main():
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_url"></a>
 
-#### delete_url
+#### delete\_url
 
 ```python
 @validate_collection
-async def delete_url(artifact_id: str,
-                     *,
-                     collection_id: str | None = None) -> dict
+async def delete_url(
+        artifact_id: str,
+        *,
+        collection_id: str | None = None
+) -> dict
 ```
 
 Get delete URL for artifact.
@@ -1383,16 +1382,18 @@ async def main():
 
 ```python
 @validate_collection
-async def create(collection_id: str | None,
-                 file_name: str,
-                 extra_values: dict,
-                 manifest: dict,
-                 file_hash: str,
-                 file_index: dict[str, tuple[int, int]],
-                 size: int,
-                 name: str,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None) -> CreatedArtifact
+async def create(
+        collection_id: str | None,
+        file_name: str,
+        extra_values: dict,
+        manifest: dict,
+        file_hash: str,
+        file_index: dict[str, tuple[int, int]],
+        size: int,
+        name: str,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None
+) -> CreatedArtifact
 ```
 
 Create new artifact record with upload URL.
@@ -1441,10 +1442,10 @@ async def main():
 
     result = await luml.artifacts.create(
         file_name="model.fnnx",
-        extra_values=\{"accuracy": 0.95\},
-        manifest=\{"version": "1.0"\},
+        extra_values=&#123;"accuracy": 0.95&#125;,
+        manifest=&#123;"version": "1.0"&#125;,
         file_hash="abc123",
-        file_index=\{"layer1": (0, 1024)\},
+        file_index=&#123;"layer1": (0, 1024)&#125;,
         size=1048576,
         name="Test Model"
     )
@@ -1459,8 +1460,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
+            manifest=&#123;
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1472,29 +1473,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    &#123;
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    &#125;,
                 ],
                 "outputs": [
-                    \{
+                    &#123;
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    &#125;
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            &#125;,
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = &#123;
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1502,7 +1503,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            &#125;,
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1526,13 +1527,15 @@ async def main():
 
 ```python
 @validate_collection
-async def upload(file_path: str,
-                 name: str | None = None,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None,
-                 *,
-                 collection_id: str | None = None,
-                 on_progress: BaseProgressHandler | None = None) -> Artifact
+async def upload(
+        file_path: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        *,
+        collection_id: str | None = None,
+        on_progress: BaseProgressHandler | None = None
+) -> Artifact
 ```
 
 Upload artifact file to the collection.
@@ -1598,8 +1601,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=\{'R2': 0.8449933416622079, 'MAE': 2753.903519270197\},
-            manifest=\{
+            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
+            manifest=&#123;
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1611,29 +1614,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    \{
+                    &#123;
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    \},
+                    &#125;,
                 ],
                 "outputs": [
-                    \{
+                    &#123;
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    \}
+                    &#125;
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            \},
+            &#125;,
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = \{
+            file_index = &#123;
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1641,7 +1644,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            \},
+            &#125;,
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1665,10 +1668,12 @@ async def main():
 
 ```python
 @validate_collection
-async def download(artifact_id: str,
-                   file_path: str | None = None,
-                   *,
-                   collection_id: str | None = None) -> None
+async def download(
+        artifact_id: str,
+        file_path: str | None = None,
+        *,
+        collection_id: str | None = None
+) -> None
 ```
 
 Download artifact file from the collection.
@@ -1730,14 +1735,16 @@ async def main():
 
 ```python
 @validate_collection
-async def update(artifact_id: str,
-                 file_name: str | None = None,
-                 name: str | None = None,
-                 description: str | None = None,
-                 tags: builtins.list[str] | None = None,
-                 status: ArtifactStatus | None = None,
-                 *,
-                 collection_id: str | None = None) -> Artifact
+async def update(
+        artifact_id: str,
+        file_name: str | None = None,
+        name: str | None = None,
+        description: str | None = None,
+        tags: builtins.list[str] | None = None,
+        status: ArtifactStatus | None = None,
+        *,
+        collection_id: str | None = None
+) -> Artifact
 ```
 
 Update artifact metadata.
@@ -1795,9 +1802,7 @@ async def main():
 
 ```python
 @validate_collection
-async def delete(artifact_id: str,
-                 *,
-                 collection_id: str | None = None) -> None
+async def delete(artifact_id: str, *, collection_id: str | None = None) -> None
 ```
 
 Delete artifact permanently.
