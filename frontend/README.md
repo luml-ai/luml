@@ -152,8 +152,6 @@ frontend/
 │   │   ├── null.css             # Additional reset
 │   │   ├── tables.css           # Table styles
 │   │   └── theme/               # Generated CSS variables (output of `npm run style`)
-│   │       ├── light-theme.css
-│   │       └── dark-theme.css
 │   │
 │   ├── components/              # Reusable Vue components grouped by feature
 │   │   ├── ui/                  # Primitive presentational components — no business logic
@@ -162,10 +160,6 @@ frontend/
 │   │   ├── datasets/            # Dataset upload and management
 │   │   ├── deployments/         # Deployment creation and monitoring
 │   │   ├── express-tasks/       # AutoML wizard (tabular classification/regression)
-│   │   │   └── tabular/
-│   │   │       ├── first-step/
-│   │   │       ├── second-step/
-│   │   │       └── third-step/
 │   │   ├── model/               # Model inspection and metadata
 │   │   ├── model-upload/        # Model upload flow
 │   │   ├── notebooks/           # JupyterLite notebook interface
@@ -181,36 +175,13 @@ frontend/
 │   │   └── user/                # User profile components
 │   │
 │   ├── pages/                   # Full-page route components
-│   │   ├── HomePage.vue
-│   │   ├── SignInPage.vue
-│   │   ├── SignUpPage.vue
-│   │   ├── NotebooksPage.vue
-│   │   ├── FlowPage.vue
-│   │   ├── PrismaPage.vue
-│   │   ├── RuntimePage.vue
-│   │   ├── DeploymentSchemaPage.vue
-│   │   ├── orbits/
-│   │   ├── organization/
-│   │   └── collection/
 │   │
 │   ├── router/                  # Vue Router — routes, lazy loading, auth middleware
-│   │   ├── index.ts
-│   │   ├── router.type.ts
-│   │   └── middlewares/
 │   │
 │   ├── stores/                  # Pinia global state stores
-│   │   ├── artifacts/
-│   │   ├── datasets/
-│   │   └── tests-orbit/
 │   │
 │   ├── lib/                     # Framework-level services
 │   │   ├── api/                 # Axios HTTP client + per-feature endpoint modules
-│   │   │   ├── api.ts           # Main Axios instance
-│   │   │   ├── api.interceptors.ts
-│   │   │   ├── artifacts/
-│   │   │   ├── deployments/
-│   │   │   ├── satellites/
-│   │   │   └── ...
 │   │   ├── data-processing/     # Web Worker + Pyodide/WASM data pipeline
 │   │   ├── primevue/            # PrimeVue config and custom theme preset
 │   │   ├── fnnx/                # FNNX AI SDK integration
@@ -234,15 +205,10 @@ frontend/
 │   └── data/                    # Sample datasets
 │
 ├── tokens/                      # Design token source files (JSON, synced from Figma)
-│   ├── tokens-styles-light.json
-│   └── tokens-styles-dark.json
 │
 ├── tests/                       # Vitest global setup
-│   └── setup.ts                 # Clears mocks between test runs
 │
 ├── .storybook/                  # Storybook configuration
-│   ├── main.ts
-│   └── preview.ts               # Theme decorators, router mocking
 │
 ├── vite.config.ts               # Vite build config, dev proxy, CORS headers, aliases
 ├── vitest.config.ts             # Test environment, coverage, inline deps
