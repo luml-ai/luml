@@ -16,10 +16,23 @@
     <template #empty>
       <div v-if="!isLoading" class="placeholder">No links to show. Add link to the table.</div>
     </template>
-    <Column selectionMode="multiple" :pt="{ headerCell: { style: 'width: 50px' } }"></Column>
+    <Column selectionMode="multiple" :pt="{ headerCell: { style: 'width: 60px' } }"></Column>
     <Column field="id" header="ID" :pt="{ headerCell: { style: 'width: 180px' } }">
       <template #body="{ data }: { data: TrackEntry }">
-        <div class="id">{{ data.id }}</div>
+        <router-link
+          :to="{
+            name: 'artifact',
+            params: {
+              organizationId: route.params.organizationId,
+              orbitId: route.params.id,
+              collectionId: data.artifact_collection_id,
+              artifactId: data.artifact_id,
+            },
+          }"
+          class="id"
+        >
+          {{ data.id }}
+        </router-link>
       </template>
     </Column>
     <Column
@@ -167,6 +180,12 @@ onBeforeMount(initList)
   text-overflow: ellipsis;
   color: var(--p-text-link-color);
   text-decoration: underline;
+  display: inline-block;
+  transition: color 0.3s;
+}
+
+.id:hover {
+  color: var(--p-text-link-hover-color);
 }
 
 .name {

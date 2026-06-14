@@ -112,6 +112,9 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     added_by: UUID
     created_at: datetime
     updated_at: datetime | None = None
+    artifact_collection_id: UUID | None = Field(
+        default=None, validation_alias=AliasPath("artifact", "collection_id")
+    )
     artifact_name: str | None = Field(
         default=None, validation_alias=AliasPath("artifact", "name")
     )

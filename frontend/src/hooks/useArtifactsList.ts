@@ -133,7 +133,9 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
   async function onSortDataChange() {
     setList([])
     savedCursors.value = []
-    getInitialPage()
+    if (requestInfo.value) {
+      await getInitialPage()
+    }
   }
 
   const debouncedOnSortDataChange = useDebounceFn(onSortDataChange, 500)

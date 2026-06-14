@@ -7,7 +7,7 @@
     :pt="DIALOG_PT"
     @update:visible="onVisibleChange"
   >
-    <Form id="link-artifact-form" :initial-values="initialValues" :resolver="resolver">
+    <Form id="link-artifact-form" :initial-values="initialValues">
       <div class="fields">
         <CollectionSelect
           v-if="orbitsStore.currentOrbit"
@@ -52,7 +52,6 @@
 
 <script setup lang="ts">
 import { Form } from '@primevue/forms'
-import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { Button, Dialog, IconField, InputIcon, InputText, useToast } from 'primevue'
 import { computed, ref, watch } from 'vue'
 import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
@@ -60,12 +59,13 @@ import { useOrbitsStore } from '@/stores/orbits'
 import { Search } from 'lucide-vue-next'
 import { useArtifactsList } from '@/hooks/useArtifactsList'
 import { useRoute } from 'vue-router'
-import CollectionSelect from '@/components/orbits/tabs/registry/CollectionSelect.vue'
-import ArtifactsList from '@/components/orbits/tabs/registry/collection/artifact/ArtifactsList.vue'
-import z from 'zod'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 import { useDebounceFn } from '@vueuse/core'
+import { useTracksStore } from '@/stores/tracks'
+import CollectionSelect from '@/components/orbits/tabs/registry/CollectionSelect.vue'
+import ArtifactsList from '@/components/orbits/tabs/registry/collection/artifact/ArtifactsList.vue'
+import type { Track } from '@/lib/api/orbit-tracks/interfaces'
 
 const DIALOG_PT = {
   root: {
@@ -88,6 +88,7 @@ const DIALOG_PT = {
 const toast = useToast()
 const artifactLinksStore = useArtifactLinksStore()
 const orbitsStore = useOrbitsStore()
+const tracksStore = useTracksStore()
 const route = useRoute()
 const {
   setRequestInfo,
@@ -97,6 +98,7 @@ const {
   onLazyLoad,
   setSearchQuery,
   setExcludedTracksQuery,
+  setTypesQuery,
 } = useArtifactsList(20, false)
 
 const initialValues = ref({
@@ -109,12 +111,6 @@ const loading = ref(false)
 const organizationId = computed(() => String(route.params.organizationId))
 const orbitId = computed(() => String(route.params.id))
 const trackId = computed(() => String(route.params.trackId) as string)
-
-const resolver = zodResolver(
-  z.object({
-    collection: z.string().min(1),
-  }),
-)
 
 async function onSubmit() {
   if (!initialValues.value.artifact) return
@@ -157,39 +153,51 @@ const debouncedOnSearch = useDebounceFn((query: string) => {
   resetList()
 }, 500)
 
-watch(
-  () => artifactLinksStore.creatorVisible,
-  (value) => {
-    if (value) {
-      initialValues.value = {
-        collection: '',
-        artifact: '',
-      }
-    }
-  },
-)
+function onTrackChanged(track: Track | null) {
+  if (track) {
+    setTypesQuery([track.artifact_type])
+    setExcludedTracksQuery([track.id])
+  } else {
+    setTypesQuery([])
+    setExcludedTracksQuery([])
+  }
+}
 
-watch(
-  () => initialValues.value.collection,
-  (collectionId) => {
-    if (collectionId) {
-      setRequestInfo({
-        organizationId: organizationId.value,
-        orbitId: orbitId.value,
-        collectionIds: [collectionId],
-      })
-      resetList()
-    } else {
-      reset()
-    }
-  },
-)
+function onVisibleChanged(value: boolean) {
+  if (!value) return
+
+  initialValues.value = {
+    collection: '',
+    artifact: '',
+  }
+  setRequestInfo({
+    organizationId: organizationId.value,
+    orbitId: orbitId.value,
+    collectionIds: [],
+  })
+  resetList()
+}
+
+function onCollectionChanged(collectionId: string) {
+  if (collectionId) {
+    setRequestInfo({
+      organizationId: organizationId.value,
+      orbitId: orbitId.value,
+      collectionIds: [collectionId],
+    })
+    resetList()
+  } else {
+    reset()
+  }
+}
+
+watch(() => artifactLinksStore.creatorVisible, onVisibleChanged)
+
+watch(() => initialValues.value.collection, onCollectionChanged)
+
+watch(() => tracksStore.currentTrack, onTrackChanged, { immediate: true })
 
 watch(artifactSearch, debouncedOnSearch)
-
-watch(trackId, (trackId) => {
-  setExcludedTracksQuery([trackId])
-}, { immediate: true })
 </script>
 
 <style scoped>

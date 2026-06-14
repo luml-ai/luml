@@ -34,9 +34,9 @@
 import { type Artifact } from '@/lib/api/artifacts/interfaces'
 import { computed } from 'vue'
 import { ARTIFACT_TYPE_TAGS_CONFIG } from '../artifacts-table/models-table.data'
-import { Check, CirclePlus, FileIcon, Folders, Tag } from 'lucide-vue-next'
+import { Check, CirclePlus, FileIcon, Folders } from 'lucide-vue-next'
 import { cutStringOnMiddle } from '@/helpers/helpers'
-import { Button } from 'primevue'
+import { Button, Tag } from 'primevue'
 
 interface Props {
   data: Artifact
@@ -119,6 +119,8 @@ const artifactPath = computed(() => {
   gap: 4px;
   overflow-x: auto;
   padding-bottom: 10px;
+}
+.tag {
   height: 19px;
 }
 .right {

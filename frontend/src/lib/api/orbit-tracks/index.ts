@@ -127,7 +127,7 @@ export class OrbitTracksApi {
   ) {
     const { data: responseData } = await this.api.delete<BaseDetailResponse>(
       `${this.basePath(organizationId, orbitId)}/${trackId}/entries`,
-      { params: { entry_ids: entryIds } },
+      { data: { entry_ids: entryIds } },
     )
     return responseData
   }

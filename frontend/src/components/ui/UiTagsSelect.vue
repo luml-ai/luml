@@ -102,4 +102,10 @@ watch(modelValue, (value) => {
 .remove-icon-disabled {
   opacity: 0.6;
 }
+:deep(.p-autocomplete:has(.p-autocomplete-chip-item) .p-autocomplete-input-chip) {
+  display: none;
+}
+:deep(.p-autocomplete.p-focus .p-autocomplete-input-chip) {
+  display: inline-block;
+}
 </style>
