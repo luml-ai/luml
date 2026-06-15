@@ -114,4 +114,21 @@ export class ArtifactsApi {
     )
     return responseData
   }
+
+  async getOrbitArtifacts(
+    organizationId: string,
+    orbitId: string,
+    params: GetArtifactsListParams,
+    signal: AbortSignal,
+  ) {
+    const { data: responseData } = await this.api.get<GetArtifactsListResponse>(
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/artifacts`,
+      {
+        params,
+        signal,
+        paramsSerializer: (params) => qs.stringify(params, { arrayFormat: 'repeat' }),
+      },
+    )
+    return responseData
+  }
 }

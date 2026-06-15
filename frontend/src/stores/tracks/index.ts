@@ -1,9 +1,7 @@
 import type {
   Track,
   TrackCreateIn,
-  TrackEntry,
-  TrackEntryCreateIn,
-  TrackEntryUpdateIn,
+  TrackStage,
   TrackStageCreateIn,
   TrackStageUpdateIn,
   TrackUpdateIn,
@@ -18,8 +16,15 @@ export const useTracksStore = defineStore('tracks', () => {
 
   const tracksList = ref<Track[]>([])
   const currentTrack = ref<Track | null>(null)
-  const artifactEntries = ref<TrackEntry[]>([])
   const creatorVisible = ref(false)
+  const editableTrack = ref<{
+    id: string
+    name: string
+    description: string | undefined
+    stages: string[]
+    lockedStages: string[]
+  } | null>(null)
+  const trackStages = ref<TrackStage[]>([])
 
   const requestInfo = computed(() => {
     if (typeof route.params.organizationId !== 'string')
@@ -31,12 +36,28 @@ export const useTracksStore = defineStore('tracks', () => {
     }
   })
 
+  const editorVisible = computed(() => !!editableTrack.value)
+
   // --- Tracks ---
+
+  function showEditor(track: {
+    id: string
+    name: string
+    description: string | undefined
+    stages: string[]
+    lockedStages: string[]
+  }) {
+    editableTrack.value = track
+  }
+
+  function hideEditor() {
+    editableTrack.value = null
+  }
 
   async function createTrack(payload: TrackCreateIn, requestData?: typeof requestInfo.value) {
     const info = requestData ? requestData : requestInfo.value
     const track = await api.orbitTracks.createTrack(info.organizationId, info.orbitId, payload)
-    setTracksList([...tracksList.value, track])
+    setTracksList([track, ...tracksList.value])
   }
 
   async function updateTrack(trackId: string, payload: TrackUpdateIn) {
@@ -69,9 +90,15 @@ export const useTracksStore = defineStore('tracks', () => {
     tracksList.value = tracks
   }
 
-  async function setCurrentTrack(trackId: string) {
+  function getTrackById(trackId: string) {
     const { organizationId, orbitId } = requestInfo.value
-    currentTrack.value = await api.orbitTracks.getTrack(organizationId, orbitId, trackId)
+    return api.orbitTracks.getTrack(organizationId, orbitId, trackId)
+  }
+
+  async function setCurrentTrack(trackId: string) {
+    resetTrackStages()
+    currentTrack.value = await getTrackById(trackId)
+    await listStages(trackId)
   }
 
   function resetCurrentTrack() {
@@ -81,7 +108,6 @@ export const useTracksStore = defineStore('tracks', () => {
   function reset() {
     tracksList.value = []
     resetCurrentTrack()
-    artifactEntries.value = []
   }
 
   function showCreator() {
@@ -90,50 +116,6 @@ export const useTracksStore = defineStore('tracks', () => {
 
   function hideCreator() {
     creatorVisible.value = false
-  }
-
-  // --- Entries ---
-
-  async function addEntry(trackId: string, payload: TrackEntryCreateIn) {
-    return await api.orbitTracks.addEntry(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      trackId,
-      payload,
-    )
-  }
-
-  async function patchEntry(
-    trackId: string,
-    entryId: string,
-    payload: TrackEntryUpdateIn,
-    force?: boolean,
-  ) {
-    return await api.orbitTracks.patchEntry(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      trackId,
-      entryId,
-      payload,
-      force,
-    )
-  }
-
-  async function deleteEntry(trackId: string, entryId: string) {
-    await api.orbitTracks.deleteEntry(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      trackId,
-      entryId,
-    )
-  }
-
-  async function listArtifactEntries(artifactId: string) {
-    artifactEntries.value = await api.orbitTracks.listArtifactEntries(
-      requestInfo.value.organizationId,
-      requestInfo.value.orbitId,
-      artifactId,
-    )
   }
 
   // --- Stages ---
@@ -148,7 +130,7 @@ export const useTracksStore = defineStore('tracks', () => {
   }
 
   async function listStages(trackId: string) {
-    return await api.orbitTracks.listStages(
+    trackStages.value = await api.orbitTracks.listStages(
       requestInfo.value.organizationId,
       requestInfo.value.orbitId,
       trackId,
@@ -175,13 +157,20 @@ export const useTracksStore = defineStore('tracks', () => {
     )
   }
 
+  function resetTrackStages() {
+    trackStages.value = []
+  }
+
   return {
     tracksList,
     setTracksList,
     currentTrack,
-    artifactEntries,
     creatorVisible,
     requestInfo,
+    editableTrack,
+    editorVisible,
+    showEditor,
+    hideEditor,
     createTrack,
     updateTrack,
     deleteTrack,
@@ -190,13 +179,12 @@ export const useTracksStore = defineStore('tracks', () => {
     resetCurrentTrack,
     showCreator,
     hideCreator,
-    addEntry,
-    patchEntry,
-    deleteEntry,
-    listArtifactEntries,
     createStage,
+    trackStages,
     listStages,
+    resetTrackStages,
     updateStage,
     deleteStage,
+    getTrackById,
   }
 })

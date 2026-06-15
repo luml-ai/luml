@@ -1,5 +1,12 @@
 <template>
-  <Button class="copy-button" severity="secondary" variant="text" @click.stop="copy">
+  <Button
+    class="copy-button"
+    severity="secondary"
+    variant="text"
+    @click.prevent.stop="copy"
+    @mousedown.stop
+    @pointerdown.stop
+  >
     <component :is="copied ? CopyCheck : Copy" :size="12"></component>
   </Button>
 </template>

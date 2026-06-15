@@ -89,7 +89,7 @@ export async function setupGuard(
   }
 
   const tab = (to.query.tab as string) ?? 'registry'
-  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+  const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-collections'
 
   return next({
     name: targetRoute,

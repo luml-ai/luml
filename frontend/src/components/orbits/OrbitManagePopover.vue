@@ -126,7 +126,7 @@ async function onOrbitClick(orbitId: string) {
 
   if (isOnOrbitRoute) {
     const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
-    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-collections'
 
     await router.push({
       name: targetRoute,

@@ -19,6 +19,7 @@ export interface TrackCreateIn {
   artifact_type: ArtifactTypeEnum
   description?: string | null
   tags?: string[] | null
+  stages: string[]
 }
 
 export interface TrackUpdateIn {
@@ -47,6 +48,7 @@ export interface TrackEntry {
   id: string
   track_id: string
   artifact_id: string
+  artifact_collection_id: string
   version: number
   stage_id: string | null
   added_by: string
@@ -59,6 +61,7 @@ export interface TrackEntry {
 
 export interface TrackEntryCreateIn {
   artifact_id: string
+  stage_id?: string | null
 }
 
 export interface TrackEntryUpdateIn {
@@ -87,6 +90,7 @@ export interface GetTracksListParams {
 export interface GetTrackEntriesListParams {
   cursor: string | null
   limit?: number
-  order?: 'asc' | 'desc'
   stage?: string
+  sort_by?: 'created_at' | 'artifact_name' | 'description' | 'stage' | 'version'
+  order?: 'asc' | 'desc'
 }
