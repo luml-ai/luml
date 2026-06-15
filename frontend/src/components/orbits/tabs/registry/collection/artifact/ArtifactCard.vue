@@ -9,9 +9,15 @@
         <div class="title">{{ collectionName }}</div>
       </div>
       <a :href="artifactPath" target="_blank" class="id">{{ cutStringOnMiddle(data.id, 8) }}</a>
-      <div class="description">{{ data.description }}</div>
+      <div class="description">
+        <template v-if="data.description"> {{ data.description }}</template>
+        <div v-else class="placeholder">No description</div>
+      </div>
       <div class="tags">
-        <Tag v-for="tag in data.tags" :key="tag" class="tag">{{ tag }}</Tag>
+        <template v-if="data.tags?.length">
+          <Tag v-for="tag in data.tags" :key="tag" class="tag">{{ tag }}</Tag>
+        </template>
+        <div v-else class="placeholder">No tags</div>
       </div>
     </div>
     <div class="right">
@@ -129,5 +135,9 @@ const artifactPath = computed(() => {
 }
 .check-icon {
   color: var(--p-multiselect-dropdown-color);
+}
+.placeholder {
+  color: var(--p-text-muted-color);
+  font-size: 12px;
 }
 </style>

@@ -17,7 +17,7 @@
       <div v-if="!isLoading" class="placeholder">No links to show. Add link to the table.</div>
     </template>
     <Column selectionMode="multiple" :pt="{ headerCell: { style: 'width: 60px' } }"></Column>
-    <Column field="id" header="ID" :pt="{ headerCell: { style: 'width: 180px' } }">
+    <Column field="id" header="Artifact ID" :pt="{ headerCell: { style: 'width: 180px' } }">
       <template #body="{ data }: { data: TrackEntry }">
         <router-link
           :to="{
