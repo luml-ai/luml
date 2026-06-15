@@ -1,8 +1,8 @@
-"""add tracks
+"""Tracks
 
 Revision ID: 033
 Revises: 032
-Create Date: 2026-06-08 15:15:41.580820
+Create Date: 2026-06-15 22:03:59.360753
 
 """
 
@@ -39,7 +39,6 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["orbit_id"], ["orbits.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("orbit_id", "name", name="uq_tracks_orbit_id_name"),
     )
     op.create_index(op.f("ix_tracks_orbit_id"), "tracks", ["orbit_id"], unique=False)
     op.create_table(
