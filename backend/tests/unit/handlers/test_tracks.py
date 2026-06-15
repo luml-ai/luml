@@ -647,7 +647,7 @@ async def test_create_entry_stage_already_used(
             TRACK_ID,
             TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
         )
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 409
 
 
 @patch(
