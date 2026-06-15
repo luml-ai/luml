@@ -163,7 +163,9 @@ class TrackResource(TrackResourceBase, ListedResource):
         if start_after:
             params["cursor"] = start_after
         if sort_by:
-            params["sort_by"] = sort_by
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, TrackSortBy) else sort_by
+            )
         if types:
             params["types"] = [
                 t.value if isinstance(t, ArtifactType) else t for t in types
@@ -383,7 +385,9 @@ class AsyncTrackResource(TrackResourceBase, ListedResource):
         if start_after:
             params["cursor"] = start_after
         if sort_by:
-            params["sort_by"] = sort_by
+            params["sort_by"] = (
+                sort_by.value if isinstance(sort_by, TrackSortBy) else sort_by
+            )
         if types:
             params["types"] = [
                 t.value if isinstance(t, ArtifactType) else t for t in types

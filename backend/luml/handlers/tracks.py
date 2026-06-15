@@ -280,7 +280,7 @@ class TracksHandler:
             if holder:
                 raise ApplicationError(
                     f"Stage '{stage.name}' is already assigned to v{holder.version}.",
-                    400,
+                    409,
                 )
 
         entry_create = TrackEntryCreate(

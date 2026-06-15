@@ -221,6 +221,32 @@ async def test_async_artifact_list(
 
 
 @pytest.mark.asyncio
+async def test_async_artifact_list_forwards_search(
+    mock_async_client: AsyncMock, sample_artifact: Artifact
+) -> None:
+    organization_id = mock_async_client.organization
+    orbit_id = mock_async_client.orbit
+    collection_id = mock_async_client.collection
+    mock_async_client.get.return_value = {
+        "items": [sample_artifact.model_dump()],
+        "cursor": None,
+    }
+
+    resource = AsyncArtifactResource(mock_async_client)
+    await resource.list(search="resnet")
+
+    mock_async_client.get.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/artifacts",
+        params={
+            "limit": 100,
+            "order": "desc",
+            "collection_ids": [collection_id],
+            "search": "resnet",
+        },
+    )
+
+
+@pytest.mark.asyncio
 async def test_async_artifact_get_string(
     mock_async_client: AsyncMock, sample_artifact: Artifact
 ) -> None:
