@@ -14,6 +14,7 @@
       currentPageReportTemplate="Show {first}-{last} of {totalRecords}"
       scrollable
       scrollHeight="calc(100vh - 535px)"
+      :virtualScrollerOptions="virtualScrollerOptions"
       @page="onPageChange"
     >
       <Column v-for="col of datasetsStore.tableColumns" :key="col" :field="col" :header="col">
@@ -31,6 +32,8 @@ import { DataTable, Column, type DataTablePageEvent } from 'primevue'
 import { computed, nextTick, ref, watch } from 'vue'
 import DatasetDataTableCell from './DatasetDataTableCell.vue'
 
+const ROW_HEIGHT = 45
+
 const datasetsStore = useDatasetsStore()
 
 const dataTableRef = ref()
@@ -38,6 +41,12 @@ const dataTableRef = ref()
 const totalRecords = computed(() => {
   return datasetsStore.selectedSplit?.num_rows || 0
 })
+
+const virtualScrollerOptions = computed(() => ({
+  itemSize: ROW_HEIGHT,
+  lazy: false,
+  showLoader: false,
+}))
 
 function onPageChange(event: DataTablePageEvent) {
   datasetsStore.setCurrentPage(event.page)
@@ -83,5 +92,12 @@ watch(
 :deep(td:last-child),
 :deep(th:last-child) {
   border-right: none;
+}
+
+:deep(.p-datatable-column-title) {
+  width: 248px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>
