@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.user import UserOut
@@ -44,12 +44,12 @@ class OrbitDetails(Orbit):
 
 class OrbitUpdate(BaseModel, BaseOrmConfig):
     id: UUID | None = None
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=100)
     bucket_secret_id: UUID | None = None
 
 
 class OrbitCreateIn(BaseModel, BaseOrmConfig):
-    name: str
+    name: str = Field(max_length=100)
     bucket_secret_id: UUID
     members: list[OrbitMemberCreateSimple] | None = None
     notify: bool = False

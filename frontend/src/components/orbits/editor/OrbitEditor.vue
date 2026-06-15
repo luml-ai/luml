@@ -90,7 +90,7 @@ const dialogPT: DialogPassThroughOptions = {
 
 const resolver = zodResolver(
   z.object({
-    name: z.string().min(1),
+    name: z.string().min(1).max(100),
     bucket_secret_id: z.string(),
   }),
 )

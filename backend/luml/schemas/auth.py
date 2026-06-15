@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class Token(BaseModel):
@@ -21,4 +21,4 @@ class OAuthLogin(BaseModel):
 
 
 class ForgotPasswordIn(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)

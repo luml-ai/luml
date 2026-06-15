@@ -1,9 +1,12 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from luml.schemas.base import BaseOrmConfig
+
+TagList = Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
 
 
 class _OrbitSecretBase(BaseModel):
@@ -12,7 +15,10 @@ class _OrbitSecretBase(BaseModel):
     tags: list[str] | None = None
 
 
-class OrbitSecretCreateIn(_OrbitSecretBase): ...
+class OrbitSecretCreateIn(_OrbitSecretBase):
+    name: str = Field(max_length=255)
+    value: str = Field(max_length=8192)
+    tags: TagList | None = None
 
 
 class OrbitSecretCreate(_OrbitSecretBase):
@@ -37,6 +43,6 @@ class OrbitSecretOut(BaseModel, BaseOrmConfig):
 
 
 class OrbitSecretUpdate(BaseModel):
-    name: str | None = None
-    value: str | None = None
-    tags: list[str] | None = None
+    name: str | None = Field(default=None, max_length=255)
+    value: str | None = Field(default=None, max_length=8192)
+    tags: TagList | None = None
