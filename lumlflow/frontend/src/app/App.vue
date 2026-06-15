@@ -1,4 +1,5 @@
 <template>
+  <ModelModal />
   <router-view></router-view>
   <UiDeleteConfirmation></UiDeleteConfirmation>
   <ConfirmDialog></ConfirmDialog>
@@ -10,6 +11,7 @@
 import { ConfirmDialog, Toast } from 'primevue'
 import UiDeleteConfirmation from '@/components/ui/UiDeleteConfirmation.vue'
 import ApiKeyModal from '@/components/api-key/ApiKeyModal.vue'
+import ModelModal from '@/components/model-card/ModelModal.vue'
 </script>
 
 <style scoped></style>
