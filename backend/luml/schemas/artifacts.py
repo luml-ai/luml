@@ -172,6 +172,7 @@ class ArtifactCreate(ArtifactIn):
 
 
 class Artifact(ArtifactIn, BaseOrmConfig):
+    file_name: str
     id: UUID
     type: ArtifactType
     collection_id: UUID
@@ -181,6 +182,10 @@ class Artifact(ArtifactIn, BaseOrmConfig):
     created_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+
+class ArtifactListed(Artifact):
+    deployments: list[ArtifactDeploymentInfo] = []
 
 
 class ArtifactDetails(Artifact):
