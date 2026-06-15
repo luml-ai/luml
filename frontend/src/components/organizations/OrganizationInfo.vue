@@ -117,6 +117,12 @@ watch(
   () => setOrganizationData(),
 )
 
+watch(visible, (value) => {
+  if (value) {
+    initialValues.value.name = organizationStore.currentOrganization?.name || ''
+  }
+})
+
 onMounted(() => {
   setOrganizationData()
 })
