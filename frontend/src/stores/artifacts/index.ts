@@ -24,6 +24,8 @@ export const useArtifactsStore = defineStore('artifacts', () => {
 
   const artifactsList = ref<Artifact[]>([])
 
+  const modelsWithActiveDeploymentsForDeletion = ref<Artifact[]>([])
+
   const setArtifactsList = (list: Artifact[]) => {
     artifactsList.value = list
   }
@@ -213,6 +215,14 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     setArtifactsList(newArtifactsList)
   }
 
+  function setModelsWithActiveDeploymentsForDeletion(artifacts: Artifact[]) {
+    modelsWithActiveDeploymentsForDeletion.value = artifacts
+  }
+
+  function resetModelsWithActiveDeploymentsForDeletion() {
+    modelsWithActiveDeploymentsForDeletion.value = []
+  }
+
   return {
     currentArtifact,
     setCurrentArtifact,
@@ -242,6 +252,9 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     getArtifact,
     artifactsList,
     setArtifactsList,
+    setModelsWithActiveDeploymentsForDeletion,
+    resetModelsWithActiveDeploymentsForDeletion,
+    modelsWithActiveDeploymentsForDeletion,
     refreshCurrentArtifact,
   }
 })

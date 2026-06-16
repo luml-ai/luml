@@ -1,4 +1,8 @@
-import type { ColumnPassThroughOptions, DataTablePassThroughOptions } from 'primevue'
+import type {
+  ColumnPassThroughOptions,
+  DataTablePassThroughOptions,
+  DialogPassThroughOptions,
+} from 'primevue'
 import { ArtifactStatusEnum, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import { CircuitBoard, FileChartColumn, FlaskConical } from 'lucide-vue-next'
 
@@ -8,6 +12,15 @@ export const TABLE_PT: DataTablePassThroughOptions = {
   },
   emptyMessageCell: {
     style: 'padding: 25px 16px;',
+  },
+}
+
+export const ARTIFACTS_DEPLOYMENTS_MODAL_PT: DialogPassThroughOptions = {
+  root: {
+    style: 'width: 450px;',
+  },
+  header: {
+    style: 'text-transform: uppercase; font-size: 16px; font-weight: 600;',
   },
 }
 

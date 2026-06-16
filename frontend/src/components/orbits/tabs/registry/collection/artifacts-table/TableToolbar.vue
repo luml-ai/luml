@@ -86,6 +86,7 @@
     :initial-model-id="modelForDeployment"
     @update:visible="onUpdateModelDeploymentVisible"
   ></DeploymentsCreateModal>
+  <ArtifactsDeploymentsModal />
 </template>
 
 <script setup lang="ts">
@@ -102,10 +103,12 @@ import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
+import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces.js'
 import ArtifactEditor from '../artifact/ArtifactEditor.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import MetricsSelect from './MetricsSelect.vue'
+import ArtifactsDeploymentsModal from './ArtifactsDeploymentsModal.vue'
 
 const FORCE_DELETE_TEXT =
   'This action will permanently delete the models. If your bucket still contains the model files, the storage space will not be freed until you remove them manually. <br /> If you are sure, then write "delete" below'
@@ -183,7 +186,17 @@ async function onDeleteClick() {
   const hasFailedStatus = props.selectedArtifacts.some(
     (artifact) => artifact.status !== ArtifactStatusEnum.uploaded,
   )
-  if (hasFailedStatus) {
+  const artifactsWithActiveDeployments = props.selectedArtifacts
+    .map((artifact) => {
+      const activeDeployments = artifact.deployments.filter(
+        (deployment) => deployment.status === DeploymentStatusEnum.active,
+      )
+      return activeDeployments.length ? { ...artifact, deployments: activeDeployments } : null
+    })
+    .filter(Boolean) as Artifact[]
+  if (artifactsWithActiveDeployments) {
+    artifactsStore.setModelsWithActiveDeploymentsForDeletion(artifactsWithActiveDeployments)
+  } else if (hasFailedStatus) {
     isForceDeleting.value = true
   } else {
     confirm.require(deleteArtifactConfirmOptions(confirmDelete, props.selectedArtifacts.length))

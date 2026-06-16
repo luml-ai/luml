@@ -118,7 +118,7 @@
       v-if="editableDeployment"
       :visible="!!editableDeployment"
       :data="editableDeployment"
-      @update:visible="editableDeployment = null"
+      @update:visible="onUpdateEditorVisible"
     ></DeploymentsEditor>
   </div>
   <DeploymentErrorModal
@@ -132,7 +132,7 @@
 <script setup lang="ts">
 import { DataTable, Column, IconField, InputIcon, InputText, Tag, Button } from 'primevue'
 import { FilterMatchMode } from '@primevue/core/api'
-import { ref } from 'vue'
+import { onBeforeMount, ref } from 'vue'
 import { Search, Bolt, TriangleAlert } from 'lucide-vue-next'
 import {
   DeploymentStatusEnum,
@@ -142,12 +142,15 @@ import {
 import DeploymentsEditor from '../edit/DeploymentsEditor.vue'
 import UiId from '@/components/ui/UiId.vue'
 import DeploymentErrorModal from '../error/DeploymentErrorModal.vue'
+import { useRoute, useRouter } from 'vue-router'
 
 type Props = {
   data: Deployment[]
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
+const route = useRoute()
+const router = useRouter()
 
 const filters = ref()
 const editableDeployment = ref<Deployment | null>(null)
@@ -163,7 +166,26 @@ function onSettingsClick(deployment: Deployment) {
   editableDeployment.value = deployment
 }
 
+function checkDeploymentInQuery() {
+  if (!route.query.deployment) return
+  const deployment = props.data.find((d) => d.id === route.query.deployment)
+  if (!deployment) return
+  editableDeployment.value = deployment
+}
+
+function onUpdateEditorVisible() {
+  editableDeployment.value = null
+  router.replace({
+    name: 'orbit-deployments',
+    params: route.params,
+  })
+}
+
 initFilters()
+
+onBeforeMount(() => {
+  checkDeploymentInQuery()
+})
 </script>
 
 <style scoped>
