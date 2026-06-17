@@ -85,6 +85,9 @@ def _run_traced_judge(
         score_value = result.get(name)
         if isinstance(score_value, int | float) and not isinstance(score_value, bool):
             span.set_attribute("eval.scorer.score", float(score_value))
+        reasoning = result.get(f"{name}{REASONING_SUFFIX}")          # <-- add
+        if isinstance(reasoning, str) and reasoning:                 # <-- add
+            span.set_attribute("eval.scorer.reasoning", reasoning)
         span.set_status(Status(StatusCode.OK))
         return result
 
