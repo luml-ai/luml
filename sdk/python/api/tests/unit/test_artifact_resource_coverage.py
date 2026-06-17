@@ -130,9 +130,7 @@ def test_list_with_all_params(
     }
     resource = ArtifactResource(mock_sync_client)
 
-    resource.list(
-        start_after="cursor-1", sort_by="F1", types=[ArtifactType.MODEL]
-    )
+    resource.list(start_after="cursor-1", sort_by="F1", types=[ArtifactType.MODEL])
 
     params = mock_sync_client.get.call_args.kwargs["params"]
     assert params["cursor"] == "cursor-1"

@@ -12,7 +12,7 @@ from luml_api.utils.progress import BaseProgressHandler
 
 _UPLOAD_ID_XML = (
     '<?xml version="1.0" encoding="UTF-8"?>'
-    '<InitiateMultipartUploadResult '
+    "<InitiateMultipartUploadResult "
     'xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
     "<Bucket>test</Bucket><Key>model.fnnx</Key>"
     "<UploadId>upload-123</UploadId>"
@@ -112,9 +112,7 @@ def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> Non
 
 
 @pytest.mark.respx
-def test_upload_multipart_error_wrapped(
-    tmp_path: Path, respx_mock: MockRouter
-) -> None:
+def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"01234")
     part_url = "https://s3.example.com/part1"
@@ -182,7 +180,7 @@ def test_initiate_multipart_upload_missing_upload_id(respx_mock: MockRouter) -> 
     initiate_url = "https://s3.example.com/initiate"
     xml = (
         '<?xml version="1.0" encoding="UTF-8"?>'
-        '<InitiateMultipartUploadResult '
+        "<InitiateMultipartUploadResult "
         'xmlns="http://s3.amazonaws.com/doc/2006-03-01/">'
         "<Bucket>test</Bucket></InitiateMultipartUploadResult>"
     )

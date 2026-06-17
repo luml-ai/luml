@@ -78,14 +78,10 @@ def test_extra_values_tabular_eval_holdout(tmp_path: Path) -> None:
     manifest = {"producer_tags": ["dataforce.studio::tabular_classification:v1"]}
     meta = [
         {
-            "producer_tags": [
-                "falcon.beastbyte.ai::tabular_classification_metrics:v1"
-            ],
+            "producer_tags": ["falcon.beastbyte.ai::tabular_classification_metrics:v1"],
             "payload": {
                 "metrics": {
-                    "performance": {
-                        "eval_holdout": {"accuracy": 0.9, "N_SAMPLES": 100}
-                    }
+                    "performance": {"eval_holdout": {"accuracy": 0.9, "N_SAMPLES": 100}}
                 }
             },
         }
@@ -102,12 +98,8 @@ def test_extra_values_tabular_eval_cv_fallback(tmp_path: Path) -> None:
     manifest = {"producer_tags": ["dataforce.studio::tabular_regression:v1"]}
     meta = [
         {
-            "producer_tags": [
-                "falcon.beastbyte.ai::tabular_regression_metrics:v1"
-            ],
-            "payload": {
-                "metrics": {"performance": {"eval_cv": {"rmse": 1.5}}}
-            },
+            "producer_tags": ["falcon.beastbyte.ai::tabular_regression_metrics:v1"],
+            "payload": {"metrics": {"performance": {"eval_cv": {"rmse": 1.5}}}},
         }
     ]
     file_path = _build_tar(tmp_path / "model.fnnx", meta=meta, manifest=manifest)

@@ -95,9 +95,7 @@ def test_upload_multipart_success(tmp_path: Path, respx_mock: MockRouter) -> Non
 
 
 @pytest.mark.respx
-def test_upload_multipart_error_wrapped(
-    tmp_path: Path, respx_mock: MockRouter
-) -> None:
+def test_upload_multipart_error_wrapped(tmp_path: Path, respx_mock: MockRouter) -> None:
     file_path = tmp_path / "model.fnnx"
     file_path.write_bytes(b"01234")
     part_url = "https://blob.example.com/part1"
