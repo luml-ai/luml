@@ -24,3 +24,4 @@ node_modules
 luml-agent/uv.lock
 /.mcp.json
 /codie.bash
+/sdk/python/api/.coverage
