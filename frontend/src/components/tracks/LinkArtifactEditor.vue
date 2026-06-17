@@ -31,17 +31,7 @@
           ></Textarea>
         </div>
         <StageSelect :options="tracksStore.trackStages" />
-        <div v-if="stageWarning" class="message">
-          <TriangleAlert :size="16" class="message-icon" />
-          <div class="message-content">
-            <h3 class="message-title">
-              {{ stageWarning.title }}
-            </h3>
-            <p class="message-description">
-              {{ stageWarning.description }}
-            </p>
-          </div>
-        </div>
+        <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
       </Form>
     </template>
     <template #footer>
@@ -65,15 +55,16 @@
 </template>
 
 <script setup lang="ts">
+import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
 import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, watchEffect } from 'vue'
 import { Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { InputText, Textarea, Button } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useToast } from 'primevue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
-import { Bolt, TriangleAlert } from 'lucide-vue-next'
+import { Bolt } from 'lucide-vue-next'
 import { useConfirm } from 'primevue/useconfirm'
 import {
   deleteTrackEntryConfirmOptions,
@@ -83,7 +74,7 @@ import { useTracksStore } from '@/stores/tracks'
 import z from 'zod'
 import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
 import StageSelect from './StageSelect.vue'
-import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
+import StageWarning from './StageWarning.vue'
 
 const artifactLinksStore = useArtifactLinksStore()
 const toast = useToast()
@@ -93,7 +84,7 @@ const tracksStore = useTracksStore()
 const formRef = ref<FormInstance>()
 const saveLoading = ref(false)
 const deleteLoading = ref(false)
-const stagingTrackArtifact = ref<TrackEntry | null>(null)
+const artifactWithSelectedStage = ref<TrackEntry | null>(null)
 
 const initialValues = computed(() => {
   if (!artifactLinksStore.editableEntry) return {}
@@ -101,18 +92,6 @@ const initialValues = computed(() => {
     artifact_name: artifactLinksStore.editableEntry.artifact_name,
     artifact_description: artifactLinksStore.editableEntry.artifact_description,
     stage_id: artifactLinksStore.editableEntry.stage_id,
-  }
-})
-
-const stageWarning = computed(() => {
-  if (!stagingTrackArtifact.value) return null
-  if (stagingTrackArtifact.value.track_id !== artifactLinksStore.editableEntry?.track_id)
-    return null
-  const isSameArtifact = stagingTrackArtifact.value.id === artifactLinksStore.editableEntry?.id
-  if (isSameArtifact) return null
-  return {
-    title: 'This stage is already in use by another artifact.',
-    description: `Once confirmed, the artifact ${stagingTrackArtifact.value.artifact_name} will be unlinked from this stage.`,
   }
 })
 
@@ -132,7 +111,7 @@ function onVisibleChange(visible: boolean) {
 async function onSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return
   const { stage_id } = values
-  if (stageWarning.value) {
+  if (artifactWithSelectedStage.value) {
     confirm.require(patchTrackEntryConfirmOptions(() => patchEntry(stage_id, true)))
   } else {
     await patchEntry(stage_id, false)
@@ -185,19 +164,15 @@ async function deleteEntry() {
   }
 }
 
-async function getStagingTrackArtifact(trackId: string) {
+async function getArtifactWithSelectedStage(trackId: string, stageId: string) {
+  artifactWithSelectedStage.value = null
   try {
-    await tracksStore.listStages(trackId)
-    const stagingStage = tracksStore.trackStages.find(
-      (stage) => stage.name.toLowerCase() === 'staging',
-    )
-    if (!stagingStage) return
-    const artifact = await artifactLinksStore.getEntryByStage(trackId, stagingStage.id)
-    if (artifact) {
-      stagingTrackArtifact.value = artifact
+    const artifact = await artifactLinksStore.getEntryByStage(trackId, stageId)
+    if (artifact.id !== artifactLinksStore.editableEntry?.id) {
+      artifactWithSelectedStage.value = artifact
     }
   } catch {
-    stagingTrackArtifact.value = null
+    artifactWithSelectedStage.value = null
   }
 }
 
@@ -208,14 +183,15 @@ watch(
   },
 )
 
-watch(
-  () => artifactLinksStore.editableEntry,
-  (entry) => {
-    if (!entry) return
-    stagingTrackArtifact.value = null
-    getStagingTrackArtifact(entry.track_id)
-  },
-)
+watchEffect(() => {
+  if (!artifactLinksStore.editableEntry) return
+  const stageId = formRef.value?.getFieldState('stage_id')?.value
+  if (!stageId) {
+    artifactWithSelectedStage.value = null
+    return
+  }
+  getArtifactWithSelectedStage(artifactLinksStore.editableEntry.track_id, stageId)
+})
 </script>
 
 <style scoped>
@@ -253,32 +229,5 @@ watch(
 }
 .placeholder {
   color: var(--p-text-muted-color);
-}
-.message {
-  padding: var(--p-toast-content-padding);
-  background-color: var(--p-toast-warn-background);
-  border-radius: var(--p-toast-border-radius);
-  border: var(--p-toast-border-width) solid var(--p-toast-warn-border-color);
-  color: var(--p-toast-warn-color);
-  display: flex;
-  gap: var(--p-toast-content-gap);
-}
-.message-icon {
-  flex: 0 0 auto;
-}
-.message-content {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: var(--p-toast-text-gap);
-}
-.message-title {
-  font-weight: var(--p-toast-summary-font-weight);
-  font-size: var(--p-toast-summary-font-size);
-}
-.message-description {
-  font-weight: var(--p-toast-detail-font-weight);
-  font-size: var(--p-toast-detail-font-size);
-  color: var(--p-toast-warn-detail-color);
 }
 </style>

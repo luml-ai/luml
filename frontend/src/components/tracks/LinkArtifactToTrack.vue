@@ -30,17 +30,7 @@
           :hidden-tracks="props.existingTracks.map((track) => track.id)"
         />
         <StageSelect :options="tracksStore.trackStages" />
-        <div v-if="stageWarning" class="message">
-          <TriangleAlert :size="16" class="message-icon" />
-          <div class="message-content">
-            <h3 class="message-title">
-              {{ stageWarning.title }}
-            </h3>
-            <p class="message-description">
-              {{ stageWarning.description }}
-            </p>
-          </div>
-        </div>
+        <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
       </Form>
     </template>
     <template #footer>
@@ -59,11 +49,12 @@
 
 <script setup lang="ts">
 import type { ArtifactTrack, ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
+import type { TrackEntry, TrackEntryCreateIn } from '@/lib/api/orbit-tracks/interfaces'
 import { Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, watchEffect } from 'vue'
 import { Button, useToast } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
-import { TrainTrack, TriangleAlert } from 'lucide-vue-next'
+import { TrainTrack } from 'lucide-vue-next'
 import { useRoute } from 'vue-router'
 import { useTracksStore } from '@/stores/tracks'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -73,7 +64,7 @@ import z from 'zod'
 import TracksSelect from './TracksSelect.vue'
 import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
 import StageSelect from './StageSelect.vue'
-import type { TrackEntry, TrackEntryCreateIn } from '@/lib/api/orbit-tracks/interfaces.js'
+import StageWarning from './StageWarning.vue'
 
 interface Props {
   artifactId: string
@@ -108,23 +99,13 @@ const saveLoading = ref(false)
 
 const stagesLoading = ref(false)
 
-const stagingTrackArtifact = ref<TrackEntry | null>(null)
+const artifactWithSelectedStage = ref<TrackEntry | null>(null)
 
 const initialValues = computed(() => {
   return {
     track_id: '',
     stage_id: '',
   }
-})
-
-const stageWarning = computed(() => {
-  if (stagingTrackArtifact.value) {
-    return {
-      title: 'This stage is already in use by another artifact.',
-      description: `Once confirmed, the artifact ${stagingTrackArtifact.value.artifact_name} will be unlinked from this stage.`,
-    }
-  }
-  return null
 })
 
 const resolver = zodResolver(
@@ -135,12 +116,11 @@ const resolver = zodResolver(
 )
 
 const submitDisabled = computed(() => {
-  return !formRef.value?.valid
+  return !formRef.value?.valid || !!artifactWithSelectedStage.value
 })
 
 async function getTrackStages(trackId: string) {
   try {
-    stagingTrackArtifact.value = null
     stagesLoading.value = true
     await tracksStore.listStages(trackId)
   } catch {
@@ -173,14 +153,11 @@ async function onSubmit({ valid, values }: FormSubmitEvent) {
   }
 }
 
-async function getStagingArtifact(trackId: string, stageId: string) {
+async function getArtifactWithSelectedStage(trackId: string, stageId: string) {
   try {
-    const artifact = await artifactLinksStore.getEntryByStage(trackId, stageId)
-    if (artifact) {
-      stagingTrackArtifact.value = artifact
-    }
+    artifactWithSelectedStage.value = await artifactLinksStore.getEntryByStage(trackId, stageId)
   } catch {
-    stagingTrackArtifact.value = null
+    artifactWithSelectedStage.value = null
   }
 }
 
@@ -202,15 +179,15 @@ watch(visible, (value) => {
   }
 })
 
-watch(
-  () => tracksStore.trackStages,
-  (stages) => {
-    if (!stages) return
-    const stagingStage = stages.find((stage) => stage.name.toLowerCase() === 'staging')
-    if (!stagingStage) return
-    getStagingArtifact(stagingStage.track_id, stagingStage.id)
-  },
-)
+watchEffect(() => {
+  const trackId = formRef.value?.getFieldState('track_id')?.value
+  const stageId = formRef.value?.getFieldState('stage_id')?.value
+  if (!trackId || !stageId) {
+    artifactWithSelectedStage.value = null
+    return
+  }
+  getArtifactWithSelectedStage(trackId, stageId)
+})
 
 onBeforeUnmount(() => {
   tracksStore.reset()

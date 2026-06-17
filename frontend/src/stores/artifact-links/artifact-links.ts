@@ -79,7 +79,7 @@ export const useArtifactLinksStore = defineStore('artifact-links', () => {
     entriesList.value = entriesList.value.map((old) => {
       if (old.id === entryId) {
         return updatedEntry
-      } else if (updatedEntry.stage_name === 'Staging' && old.stage_name === 'Staging') {
+      } else if (updatedEntry.stage_id && updatedEntry.stage_id === old.stage_id) {
         return { ...old, stage_id: null, stage_name: null }
       } else {
         return old
