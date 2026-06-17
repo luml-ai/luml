@@ -18,7 +18,7 @@ class OrgRole(StrEnum):
 
 class OrganizationCreateIn(BaseModel):
     name: str = Field(max_length=100)
-    logo: HttpUrl | None = None
+    logo: HttpUrl | None = Field(default=None, max_length=2048)
 
 
 class OrganizationCreate(BaseModel):
@@ -29,7 +29,7 @@ class OrganizationCreate(BaseModel):
 class OrganizationUpdate(BaseModel):
     id: UUID | None = None
     name: str | None = Field(default=None, max_length=100)
-    logo: HttpUrl | str | None = None
+    logo: HttpUrl | str | None = Field(default=None, max_length=2048)
 
 
 class Organization(BaseModel, BaseOrmConfig):
@@ -46,7 +46,7 @@ class OrganizationSwitcher(Organization):
 
 
 class CreateOrganizationInviteIn(BaseModel):
-    email: EmailStr
+    email: EmailStr = Field(max_length=254)
     role: OrgRole
     organization_id: UUID
 

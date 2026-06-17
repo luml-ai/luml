@@ -75,7 +75,7 @@ const dialogPT = {
 
 const resolver = zodResolver(
   z.object({
-    name: z.string().min(3),
+    name: z.string().min(3).max(100),
   }),
 )
 

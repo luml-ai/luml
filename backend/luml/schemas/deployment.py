@@ -1,11 +1,13 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field
 
 from luml.schemas.base import BaseOrmConfig
+
+TagList = Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
 
 
 class DeploymentStatus(StrEnum):
@@ -61,11 +63,11 @@ class Deployment(DeploymentBase):
 class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
-    name: str
+    name: str = Field(max_length=100)
     satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=1000)
     env_variables: dict[str, str] = Field(default_factory=dict)
-    tags: list[str] | None = None
+    tags: TagList | None = None
 
 
 class DeploymentCreateIn(DeploymentCreateBase):
@@ -82,9 +84,9 @@ class DeploymentCreate(DeploymentCreateBase, BaseOrmConfig):
 
 
 class DeploymentUpdateIn(BaseModel):
-    inference_url: str | None = None
+    inference_url: str | None = Field(default=None, max_length=2048)
     status: DeploymentStatus | None = None
-    tags: list[str] | None = None
+    tags: TagList | None = None
     schemas: dict[str, Any] | None = None
     error_message: dict[str, Any] | None = None
 
@@ -94,7 +96,7 @@ class DeploymentUpdate(DeploymentUpdateIn, BaseOrmConfig):
 
 
 class InferenceAccessIn(BaseModel):
-    api_key: str
+    api_key: str = Field(max_length=255)
 
 
 class InferenceAccessOut(BaseModel):
@@ -102,11 +104,11 @@ class InferenceAccessOut(BaseModel):
 
 
 class DeploymentDetailsUpdateBase(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
     schemas: dict[str, Any] | None = None
     error_message: dict[str, Any] | None = None
-    tags: list[str] | None = None
+    tags: TagList | None = None
 
 
 class DeploymentDetailsUpdateIn(DeploymentDetailsUpdateBase):

@@ -8,6 +8,8 @@ import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 
 type Resolver = ReturnType<typeof zodResolver>
 
+const tagsSchema = z.array(z.string().max(64)).max(50)
+
 export const signInResolver: Resolver = zodResolver(
   z.object({
     email: z.string().email({ message: 'Email is incorrect' }),
@@ -25,7 +27,7 @@ export const signUpResolver: Resolver = zodResolver(
 
 export const forgotPasswordResolver: Resolver = zodResolver(
   z.object({
-    email: z.string().email({ message: 'Email is incorrect' }),
+    email: z.string().email({ message: 'Email is incorrect' }).max(254),
   }),
 )
 
@@ -73,6 +75,7 @@ export const orbitCreatorResolver = (orbitsList: Orbit[]): Resolver =>
       name: z
         .string()
         .min(1)
+        .max(100)
         .refine((val) => !orbitsList.find((orbit) => orbit.name === val), {
           message: 'An Orbit with this name already exists',
         }),
@@ -88,9 +91,10 @@ export const orbitCreatorResolver = (orbitsList: Orbit[]): Resolver =>
 
 export const collectionCreatorResolver: Resolver = zodResolver(
   z.object({
-    description: z.string(),
-    name: z.string().min(1),
+    description: z.string().max(1000),
+    name: z.string().min(1).max(100),
     type: z.string().min(1),
+    tags: tagsSchema.optional(),
   }),
 )
 
@@ -103,7 +107,7 @@ export const trackCreatorResolver: Resolver = zodResolver(
 
 export const collectionEditorResolver: Resolver = zodResolver(
   z.object({
-    name: z.string().min(1),
+    name: z.string().min(1).max(100),
     bucket_secret_id: z.string(),
   }),
 )
@@ -144,24 +148,24 @@ export const modelUploadResolver: Resolver = zodResolver(
 
 export const satellitesResolver: Resolver = zodResolver(
   z.object({
-    name: z.string().min(1),
-    description: z.string().optional(),
+    name: z.string().min(1).max(100),
+    description: z.string().max(1000).optional(),
   }),
 )
 
 export const createSecretResolver: Resolver = zodResolver(
   z.object({
-    name: z.string().trim().min(1, 'Name is required'),
-    value: z.string().trim().min(1, 'Secret value is required'),
-    tags: z.array(z.string()).optional().default([]),
+    name: z.string().trim().min(1, 'Name is required').max(255),
+    value: z.string().trim().min(1, 'Secret value is required').max(8192),
+    tags: tagsSchema.optional().default([]),
   }),
 )
 
 export const updateSecretResolver: Resolver = zodResolver(
   z.object({
-    name: z.string().optional(),
-    value: z.string().trim().optional(),
-    tags: z.array(z.string()).optional().default([]),
+    name: z.string().max(255).optional(),
+    value: z.string().trim().max(8192).optional(),
+    tags: tagsSchema.optional().default([]),
   }),
 )
 
@@ -181,9 +185,9 @@ const valueSchema = z.object({
 export const createDeploymentResolver = (formData: Ref<CreateDeploymentForm>): Resolver =>
   zodResolver(
     z.object({
-      name: z.string().min(1),
-      description: z.string().optional(),
-      tags: z.array(z.string()).optional().default([]),
+      name: z.string().min(1).max(100),
+      description: z.string().max(1000).optional(),
+      tags: tagsSchema.optional().default([]),
       collectionId: z.string().min(1),
       modelId: z.string().min(1),
       satelliteId: z.string().min(1),

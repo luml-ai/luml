@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, HttpUrl, computed_field
+from pydantic import BaseModel, Field, HttpUrl, computed_field
 
 from luml.schemas.base import BaseOrmConfig
 
@@ -59,8 +59,8 @@ class Satellite(BaseModel, BaseOrmConfig):
 
 
 class SatelliteCreateIn(BaseModel, BaseOrmConfig):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class SatelliteCreate(BaseModel, BaseOrmConfig):
@@ -86,8 +86,8 @@ class SatellitePair(BaseModel, BaseOrmConfig):
 
 
 class SatelliteUpdateIn(BaseModel, BaseOrmConfig):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, max_length=100)
+    description: str | None = Field(default=None, max_length=1000)
 
 
 class SatelliteUpdate(BaseModel, BaseOrmConfig):
