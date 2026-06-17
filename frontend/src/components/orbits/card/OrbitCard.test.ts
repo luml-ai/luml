@@ -20,6 +20,7 @@ const mockData: Orbit = {
     orbit_user: PermissionEnum.read,
     artifact: PermissionEnum.create,
     collection: PermissionEnum.create,
+    track: PermissionEnum.create,
   },
 }
 

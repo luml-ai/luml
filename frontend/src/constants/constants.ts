@@ -34,7 +34,7 @@ export const SIDEBAR_SECTIONS = [
         id: 6,
         label: 'Registry',
         icon: Folders,
-        route: 'orbit-registry',
+        route: 'orbit-collections',
         disabled: false,
         tooltipMessage: null,
         analyticsOption: 'orbit-registry',

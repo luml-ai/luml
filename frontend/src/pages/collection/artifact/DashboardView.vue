@@ -78,6 +78,7 @@
         <div class="details__label">{{ metric[0] }}</div>
         <div class="details__value">{{ metric[1] }}</div>
       </div>
+      <ArtifactTracks :tracks="artifactsStore.currentArtifact?.tracks ?? []" />
     </div>
   </div>
   <ModelManifestModal
@@ -95,6 +96,7 @@ import { getSizeText } from '@/helpers/helpers'
 import { ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
+import ArtifactTracks from '@/components/tracks/ArtifactTracks.vue'
 
 const artifactsStore = useArtifactsStore()
 

@@ -114,6 +114,18 @@ const router = createRouter({
           path: '',
           name: 'orbit-registry',
           component: () => import('../pages/orbits/OrbitRegistryView.vue'),
+          children: [
+            {
+              path: '',
+              name: 'orbit-collections',
+              component: () => import('../pages/orbits/CollectionsView.vue'),
+            },
+            {
+              path: 'tracks',
+              name: 'orbit-tracks',
+              component: () => import('../pages/orbits/TracksView.vue'),
+            },
+          ],
         },
         {
           path: 'deployments',
@@ -131,6 +143,15 @@ const router = createRouter({
           component: () => import('../pages/orbits/OrbitDeploymentsView.vue'),
         },
       ],
+    },
+    {
+      path: '/organization/:organizationId/orbit/:id/tracks/:trackId',
+      name: 'track',
+      component: () => import('../pages/orbits/TrackPage.vue'),
+      meta: {
+        requireAuth: true,
+        orbitMiddleware: true,
+      },
     },
     {
       path: '/organization/:organizationId/orbit/:id/collection/:collectionId',

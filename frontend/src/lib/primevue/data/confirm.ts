@@ -201,3 +201,77 @@ export const leavePageConfirmOptions = (accept: () => void): ConfirmationOptions
   },
   accept,
 })
+
+export const deleteTrackConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This action is permanent and cannot be undone.',
+  header: 'Delete track?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'delete',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const unlinkArtifactConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This will remove the artifact from the track.',
+  header: 'Unlink artifact?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'unlink',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const forceStageReassignConfirmOptions = (
+  accept: () => void,
+  message: string,
+): ConfirmationOptions => ({
+  message,
+  header: 'Reassign stage?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: 'confirm',
+  },
+  accept,
+})
+
+export const deleteTrackEntryConfirmOptions = (
+  accept: () => void,
+  count: number,
+): ConfirmationOptions => ({
+  message:
+    'This artifact will be unlinked from current track. This action will not delete the artifact from the registry. You will be able to still access the artifact in the collection.',
+  header: count > 1 ? `Unlink ${count} artifacts?` : 'Unlink artifact?',
+  rejectProps: {
+    label: 'cancel',
+  },
+  acceptProps: {
+    label: count > 1 ? 'unlink artifacts' : 'unlink artifact',
+    severity: 'warn',
+    outlined: true,
+  },
+  accept,
+})
+
+export const patchTrackEntryConfirmOptions = (accept: () => void): ConfirmationOptions => ({
+  message: 'This action will unlink the stage from the artifact it was previously attached to',
+  header: 'Save changes?',
+  rejectProps: {
+    label: 'cancel',
+    outlined: true,
+  },
+  acceptProps: {
+    label: 'save changes',
+  },
+  accept,
+})

@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -5,7 +6,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
-from luml.models import ArtifactOrm, DeploymentOrm
+from luml.models import (
+    ArtifactOrm,
+    CollectionOrm,
+    DeploymentOrm,
+    TrackArtifactOrm,
+)
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
     Artifact,
@@ -65,6 +71,21 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
 
             return sorted({row[0] for row in result.unique().all()})
 
+    async def get_batch_collection_artifacts_extra_values(
+        self, collection_ids: list[UUID]
+    ) -> list[str]:
+        async with self._get_session() as session:
+            query = select(
+                func.jsonb_each(ArtifactOrm.extra_values).scalar_table_valued("key")
+            ).where(
+                ArtifactOrm.collection_id.in_(collection_ids),
+                ArtifactOrm.extra_values.is_not(None),
+                ArtifactOrm.extra_values != {},
+            )
+            result = await session.execute(query)
+
+            return sorted({row[0] for row in result.unique().all()})
+
     async def get_collection_artifacts_tags(self, collection_id: UUID) -> list[str]:
         async with self._get_session() as session:
             tags_query = select(ArtifactOrm.tags).where(
@@ -74,14 +95,16 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
             tags_query_result = await session.execute(tags_query)
             return self.collect_unique_values_from_array_column(tags_query_result.all())
 
-    async def _is_extra_values_sort(self, collection_id: UUID, sort_by: str) -> bool:
+    async def _is_extra_values_sort(
+        self, collection_ids: list[UUID], sort_by: str
+    ) -> bool:
         if sort_by == "extra_values":
             raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
 
         if hasattr(ArtifactOrm, sort_by):
             return False
 
-        metrics = await self.get_collection_artifacts_extra_values(collection_id)
+        metrics = await self.get_batch_collection_artifacts_extra_values(collection_ids)
 
         if sort_by not in metrics:
             raise InvalidSortingError(f"Invalid sorting column: {sort_by}")
@@ -107,23 +130,51 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
 
     async def get_collection_artifacts(
         self,
-        collection_id: UUID,
+        orbit_id: UUID,
         pagination: PaginationParams,
+        collection_ids: list[UUID] | None = None,
         artifact_types: list[ArtifactType] | None = None,
+        search: str | None = None,
+        excluded_tracks: list[UUID] | None = None,
     ) -> tuple[list[ArtifactListed], Cursor | None]:
         async with self._get_session() as session:
             sort_by = pagination.sort_by
-            is_extra_values = await self._is_extra_values_sort(collection_id, sort_by)
+            is_extra_values = False
 
-            if is_extra_values:
-                pagination.extra_sort_field = sort_by
-                pagination.sort_by = "extra_values"
+            if collection_ids and len(collection_ids) > 0:
+                is_extra_values = await self._is_extra_values_sort(
+                    collection_ids, sort_by
+                )
 
-            conditions = [ArtifactOrm.collection_id == collection_id]
+                if is_extra_values:
+                    pagination.extra_sort_field = sort_by
+                    pagination.sort_by = "extra_values"
+
+            conditions: list[Any] = [
+                ArtifactOrm.collection_id.in_(
+                    select(CollectionOrm.id).where(CollectionOrm.orbit_id == orbit_id)
+                ),
+            ]
+
             if artifact_types:
                 conditions.append(
                     or_(*[ArtifactOrm.type == t.value for t in artifact_types])
                 )
+
+            if collection_ids:
+                conditions.append(ArtifactOrm.collection_id.in_(collection_ids))
+
+            if excluded_tracks:
+                conditions.append(
+                    ArtifactOrm.id.not_in(
+                        select(TrackArtifactOrm.artifact_id).where(
+                            TrackArtifactOrm.track_id.in_(excluded_tracks)
+                        )
+                    )
+                )
+
+            if search:
+                conditions.append(ArtifactOrm.name.ilike(f"%{search}%"))
 
             result = await self.get_models_with_pagination(
                 session,
@@ -131,6 +182,10 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 *conditions,
                 pagination=pagination,
                 options=[
+                    selectinload(ArtifactOrm.collection).load_only(
+                        CollectionOrm.id,
+                        CollectionOrm.name,
+                    ),
                     selectinload(
                         ArtifactOrm.deployments.and_(
                             DeploymentOrm.status == DeploymentStatus.ACTIVE.value
@@ -141,7 +196,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                         DeploymentOrm.status,
                         DeploymentOrm.orbit_id,
                         DeploymentOrm.artifact_id,
-                    )
+                    ),
                 ],
             )
             db_models = result.items

@@ -21,6 +21,7 @@ from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
+from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
 from luml.schemas.artifacts import (
     Artifact,
@@ -42,7 +43,7 @@ from luml.schemas.collections import Collection, is_artifact_type_allowed
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.orbit import Orbit
 from luml.schemas.permissions import Action, Resource
-from luml.utils.pagination import decode_cursor, encode_cursor
+from luml.utils.pagination import build_scope_id, decode_cursor, encode_cursor
 
 
 class ArtifactHandler:
@@ -51,6 +52,8 @@ class ArtifactHandler:
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
     __deployment_repository = DeploymentRepository(engine)
+    __track_entry_repository = TrackEntryRepository(engine)
+    __track_repository = TrackRepository(engine)
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
@@ -85,6 +88,31 @@ class ArtifactHandler:
             raise CollectionNotFoundError()
         return orbit, collection
 
+    async def _check_orbit_and_collections_access(
+        self,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_ids: list[UUID] | None,
+    ) -> Orbit:
+        orbit = await self.__orbit_repository.get_orbit_simple(
+            orbit_id, organization_id
+        )
+        if not orbit or orbit.organization_id != organization_id:
+            raise OrbitNotFoundError()
+
+        if collection_ids:
+            accessible = await self.__collection_repository.get_collections_by_ids(
+                collection_ids, orbit_id=orbit_id
+            )
+            accessible_ids = {c.id for c in accessible}
+            missing = [cid for cid in collection_ids if cid not in accessible_ids]
+            if missing:
+                raise CollectionNotFoundError(
+                    "You don't have access to the following collections: "
+                    + ", ".join(str(cid) for cid in missing)
+                )
+        return orbit
+
     async def _artifact_deletion_checks(
         self,
         user_id: UUID,
@@ -108,6 +136,13 @@ class ArtifactHandler:
 
         if not artifact:
             raise ArtifactNotFoundError()
+
+        if await self.__track_entry_repository.has_entries_for_artifact(artifact_id):
+            raise ApplicationError(
+                "Artifact is referenced by one or more tracks. "
+                "Remove it from all tracks before deleting.",
+                409,
+            )
 
         return artifact
 
@@ -328,6 +363,13 @@ class ArtifactHandler:
                 "Cannot delete artifact because it is used in deployments.", 409
             )
 
+        if await self.__track_entry_repository.has_entries_for_artifact(artifact_id):
+            raise ApplicationError(
+                "Artifact is referenced by one or more tracks. "
+                "Remove it from all tracks before deleting.",
+                409,
+            )
+
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
         )
@@ -402,12 +444,12 @@ class ArtifactHandler:
 
     @staticmethod
     def _validate_cursor(
-        cursor: Cursor | None, sort_by: str, order: SortOrder, collection_id: UUID
+        cursor: Cursor | None, sort_by: str, order: SortOrder, scope_id: UUID
     ) -> Cursor | None:
         if cursor and (
             cursor.sort_by == sort_by
             and cursor.order == order.value
-            and cursor.scope_id == collection_id
+            and cursor.scope_id == scope_id
         ):
             return cursor
         return None
@@ -417,12 +459,14 @@ class ArtifactHandler:
         user_id: UUID,
         organization_id: UUID,
         orbit_id: UUID,
-        collection_id: UUID,
+        collection_ids: list[UUID] | None = None,
+        artifact_types: list[ArtifactType] | None = None,
         cursor_str: str | None = None,
         limit: int = 100,
         sort_by: str = "created_at",
         order: SortOrder = SortOrder.DESC,
-        artifact_types: list[ArtifactType] | None = None,
+        search: str | None = None,
+        excluded_tracks: list[UUID] | None = None,
     ) -> ArtifactsList:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -431,23 +475,36 @@ class ArtifactHandler:
             Action.LIST,
             orbit_id,
         )
-        await self._check_orbit_and_collection_access(
-            organization_id, orbit_id, collection_id
+        await self._check_orbit_and_collections_access(
+            organization_id, orbit_id, collection_ids
+        )
+
+        scope_id = build_scope_id(
+            orbit_id=orbit_id,
+            collection_ids=collection_ids,
+            artifact_types=artifact_types,
+            search=search,
+            excluded_tracks=excluded_tracks,
         )
 
         cursor = decode_cursor(cursor_str)
-        use_cursor = self._validate_cursor(cursor, sort_by, order, collection_id)
+        use_cursor = self._validate_cursor(cursor, sort_by, order, scope_id)
 
         pagination = PaginationParams(
             cursor=use_cursor,
             sort_by=sort_by,
             order=order,
             limit=limit,
-            scope_id=collection_id,
+            scope_id=scope_id,
         )
 
         items, cursor = await self.__repository.get_collection_artifacts(
-            collection_id, pagination, artifact_types
+            orbit_id=orbit_id,
+            pagination=pagination,
+            collection_ids=collection_ids,
+            artifact_types=artifact_types,
+            search=search,
+            excluded_tracks=excluded_tracks,
         )
 
         return ArtifactsList(items=items[:limit], cursor=encode_cursor(cursor))
@@ -459,7 +516,7 @@ class ArtifactHandler:
         orbit_id: UUID,
         collection_id: UUID,
         artifact_id: UUID,
-    ) -> Artifact:
+    ) -> ArtifactDetails:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -467,12 +524,17 @@ class ArtifactHandler:
             Action.READ,
             orbit_id,
         )
-        orbit, _ = await self._check_orbit_and_collection_access(
+        await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        artifact = await self.__repository.get_artifact(artifact_id)
+        artifact = await self.__repository.get_artifact_details(artifact_id)
+
         if not artifact or artifact.collection_id != collection_id:
             raise NotFoundError("Artifact not found")
+
+        artifact.tracks = await self.__track_repository.get_tracks_for_artifact(
+            artifact_id
+        )
         return artifact
 
     async def get_satellite_artifact(

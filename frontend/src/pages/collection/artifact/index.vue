@@ -30,6 +30,13 @@
             <Download :size="16" />
           </template>
         </Button>
+        <LinkArtifactToTrack
+          v-if="artifactsStore.currentArtifact"
+          :artifact-id="artifactsStore.currentArtifact.id"
+          :artifact-type="artifactsStore.currentArtifact.type"
+          :existing-tracks="artifactsStore.currentArtifact.tracks ?? []"
+          @tracks-changed="onTracksChanged"
+        />
       </div>
     </div>
     <ArtifactTabs
@@ -80,6 +87,7 @@ import { useDatasetsStore } from '@/stores/datasets'
 import ArtifactTabs from '@/components/orbits/tabs/registry/collection/artifact/ArtifactTabs.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import ArtifactEditor from '@/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue'
+import LinkArtifactToTrack from '@/components/tracks/LinkArtifactToTrack.vue'
 
 const artifactsStore = useArtifactsStore()
 const route = useRoute()
@@ -205,6 +213,14 @@ async function onArtifactIdChange(artifactId: string | string[] | null) {
   } catch (e) {
     const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))
+  }
+}
+
+async function onTracksChanged() {
+  try {
+    await artifactsStore.refreshCurrentArtifact()
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to refresh artifact')))
   }
 }
 

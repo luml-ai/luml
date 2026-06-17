@@ -159,3 +159,7 @@
 .p-chip .p-icon {
   flex-shrink: 0;
 }
+
+.multiselect-wrap-chips .p-multiselect-label {
+  flex-wrap: wrap;
+}

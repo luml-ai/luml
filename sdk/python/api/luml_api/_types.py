@@ -111,6 +111,21 @@ class CollectionSortBy(StrEnum):
     TOTAL_ARTIFACTS = "total_artifacts"
 
 
+class TrackSortBy(StrEnum):
+    NAME = "name"
+    DESCRIPTION = "description"
+    TOTAL_ENTRIES = "total_entries"
+    CREATED_AT = "created_at"
+
+
+class TrackEntrySortBy(StrEnum):
+    ARTIFACT_NAME = "artifact_name"
+    DESCRIPTION = "description"
+    STAGE = "stage"
+    VERSION = "version"
+    CREATED_AT = "created_at"
+
+
 class Organization(BaseModel):
     id: str
     name: str
@@ -270,3 +285,58 @@ class BucketMultipartUpload(BaseModel):
 class CreatedArtifact(BaseModel):
     upload_details: UploadDetails
     artifact: Artifact
+
+
+class StageUpsertIn(BaseModel):
+    id: UUID | None = None
+    name: str
+
+
+class Stage(BaseModel, BaseOrmConfig):
+    id: UUID
+    track_id: UUID
+    name: str
+    is_used: bool = False
+    created_at: str
+    updated_at: str | None = None
+
+
+class TrackBase(BaseModel, BaseOrmConfig):
+    id: UUID
+    name: str
+    created_at: str
+    updated_at: str | None = None
+
+
+class Track(TrackBase):
+    orbit_id: UUID
+    artifact_type: str
+    description: str | None = None
+    tags: list[str] | None = None
+    stages: list[Stage]
+    next_version: int
+    total_entries: int
+
+
+class TrackEntry(BaseModel, BaseOrmConfig):
+    id: UUID
+    track_id: UUID
+    artifact_id: UUID
+    version: int
+    stage_id: UUID | None = None
+    added_by: UUID
+    created_at: str
+    updated_at: str | None = None
+    artifact_name: str | None = None
+    artifact_description: str | None = None
+    stage_name: str | None = None
+
+
+class TrackEntriesList(BaseModel):
+    items: list[TrackEntry]
+    cursor: str | None
+
+
+class TracksList(BaseModel):
+    items: list[Track]
+    cursor: str | None = None

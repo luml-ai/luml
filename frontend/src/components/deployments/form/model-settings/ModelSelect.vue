@@ -69,7 +69,7 @@ async function onRequestInfoChange() {
     setRequestInfo({
       organizationId: props.organizationId,
       orbitId: props.orbitId,
-      collectionId: props.collectionId,
+      collectionIds: [props.collectionId],
     })
     await getInitialPage()
   } catch (e) {

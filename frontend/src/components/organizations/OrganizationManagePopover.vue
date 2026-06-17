@@ -140,7 +140,7 @@ async function onOrganizationClick(organizationId: string) {
   } else if (hasOrgInUrl) {
     const firstOrbit = orbitsStore.orbitsList[0]
     const tab = ROUTE_TO_TAB[currentName] ?? 'registry'
-    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-registry'
+    const targetRoute = TAB_TO_ROUTE[tab] ?? 'orbit-collections'
 
     if (firstOrbit) {
       await router.push({
