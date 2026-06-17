@@ -360,17 +360,22 @@ class TestEvaluateSingleItem:
         def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
-        result = _evaluate_single_item(
-            eval_item=eval_item,
-            inference_fn=inference_fn,
-            scorers=[FailingScorer()],
-            dataset_id="test_dataset",
-            experiment_tracker=mock_tracker,
-            tracer=mock_tracer,
-        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _evaluate_single_item(
+                eval_item=eval_item,
+                inference_fn=inference_fn,
+                scorers=[FailingScorer()],
+                dataset_id="test_dataset",
+                experiment_tracker=mock_tracker,
+                tracer=mock_tracer,
+            )
 
         assert "__error__failing_scorer" in result.scores
         assert "Scoring failed" in str(result.scores["__error__failing_scorer"])
+        assert len(w) == 1
+        assert "failing_scorer" in str(w[0].message)
+        assert "Scoring failed" in str(w[0].message)
 
     @patch("luml.experiments.evaluation.evaluate.trace")
     def test_duplicate_score_keys_warning(self, mock_trace: Mock) -> None:
@@ -674,14 +679,16 @@ class TestReasoningRouting:
         def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
-        result = _evaluate_single_item(
-            eval_item=eval_item,
-            inference_fn=inference_fn,
-            scorers=[MockReasoningScorer("judge"), FailingScorer()],
-            dataset_id="test_dataset",
-            experiment_tracker=mock_tracker,
-            tracer=mock_tracer,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = _evaluate_single_item(
+                eval_item=eval_item,
+                inference_fn=inference_fn,
+                scorers=[MockReasoningScorer("judge"), FailingScorer()],
+                dataset_id="test_dataset",
+                experiment_tracker=mock_tracker,
+                tracer=mock_tracer,
+            )
 
         assert "__error__bad_scorer" in result.scores
         assert "judge" in result.scores

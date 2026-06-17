@@ -15,12 +15,16 @@ from luml.experiments.evaluation.scorers.builtin._base import (
     LLMJudgeScorer,
     SupervisedLLMJudgeScorer,
     _call_judge,
+    _client_model,
     _default_client,
+    _disambiguate_scorer_names,
     _extract_input,
     _run_traced_judge,
     _try_parse,
 )
 from luml.experiments.evaluation.scorers.builtin._exceptions import JudgeModelError
+from luml.experiments.evaluation.scorers.builtin.completeness import Completeness
+from luml.experiments.evaluation.scorers.builtin.relevancy import Relevancy
 from luml.llm import LLMClient
 
 
@@ -153,6 +157,97 @@ class TestExtractInput:
         inputs = {"x": 1}
         result = _extract_input(inputs, None, ())
         assert result == str(inputs)
+
+
+class _ModelClient:
+    """Minimal client that exposes a model, like ``OpenAIClient``."""
+
+    def __init__(self, model: str | None = "gpt-4.1-mini") -> None:
+        self._model = model
+
+    def complete(self, system_prompt: str, user_prompt: str) -> str:
+        return "{}"
+
+
+class TestClientModel:
+    def test_reads_private_model_attr(self) -> None:
+        assert _client_model(_ModelClient("gpt-4o-mini")) == "gpt-4o-mini"
+
+    def test_reads_public_model_attr(self) -> None:
+        client = MagicMock(spec=LLMClient)
+        client.model = "claude"
+        assert _client_model(client) == "claude"
+
+    def test_returns_none_when_no_model(self) -> None:
+        # spec=LLMClient exposes only ``complete``, so model probing fails.
+        assert _client_model(MagicMock(spec=LLMClient)) is None
+
+
+class TestDisambiguateScorerNames:
+    def test_lone_scorer_keeps_bare_name(self) -> None:
+        scorer = Relevancy(client=_ModelClient("gpt-4.1-mini"))
+        _disambiguate_scorer_names([scorer])
+        assert scorer.get_name() == "relevancy"
+
+    def test_different_clients_suffixed_by_model(self) -> None:
+        a = Relevancy(client=_ModelClient("gpt-4.1-mini"))
+        b = Relevancy(client=_ModelClient("gpt-4o-mini"))
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy_gpt-4.1-mini"
+        assert b.get_name() == "relevancy_gpt-4o-mini"
+
+    def test_different_input_keys_suffixed_by_key_only(self) -> None:
+        client = _ModelClient("gpt-4.1-mini")
+        a = Relevancy(client=client, input_key="prompt")
+        b = Relevancy(client=client, input_key="question")
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy_prompt"
+        assert b.get_name() == "relevancy_question"
+
+    def test_same_input_key_different_clients_suffixed_by_model_only(self) -> None:
+        # Case 3: input_key is identical, so it is not used; only model differs.
+        a = Relevancy(client=_ModelClient("gpt-4.1-mini"), input_key="prompt")
+        b = Relevancy(client=_ModelClient("gpt-4o-mini"), input_key="prompt")
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy_gpt-4.1-mini"
+        assert b.get_name() == "relevancy_gpt-4o-mini"
+
+    def test_both_dimensions_differ_uses_both(self) -> None:
+        a = Relevancy(client=_ModelClient("gpt-4.1-mini"), input_key="prompt")
+        b = Relevancy(client=_ModelClient("gpt-4o-mini"), input_key="question")
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy_prompt_gpt-4.1-mini"
+        assert b.get_name() == "relevancy_question_gpt-4o-mini"
+
+    def test_explicit_names_untouched(self) -> None:
+        a = Relevancy(client=_ModelClient("gpt-4.1-mini"), name="rel_a")
+        b = Relevancy(client=_ModelClient("gpt-4o-mini"), name="rel_b")
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "rel_a"
+        assert b.get_name() == "rel_b"
+
+    def test_different_scorer_types_not_grouped(self) -> None:
+        rel = Relevancy(client=_ModelClient("gpt-4.1-mini"))
+        comp = Completeness(client=_ModelClient("gpt-4o-mini"))
+        _disambiguate_scorer_names([rel, comp])
+        assert rel.get_name() == "relevancy"
+        assert comp.get_name() == "completeness"
+
+    def test_truly_identical_scorers_still_collide(self) -> None:
+        client = _ModelClient("gpt-4.1-mini")
+        a = Relevancy(client=client)
+        b = Relevancy(client=client)
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy"
+        assert b.get_name() == "relevancy"
+
+    def test_idempotent(self) -> None:
+        a = Relevancy(client=_ModelClient("gpt-4.1-mini"))
+        b = Relevancy(client=_ModelClient("gpt-4o-mini"))
+        _disambiguate_scorer_names([a, b])
+        _disambiguate_scorer_names([a, b])
+        assert a.get_name() == "relevancy_gpt-4.1-mini"
+        assert b.get_name() == "relevancy_gpt-4o-mini"
 
 
 class _StubUnsupervisedScorer(LLMJudgeScorer):

@@ -255,16 +255,18 @@ class TestErrorIsolation:
         eval_dataset = [EvalItem(id="1", inputs={"question": "Q"})]
         tracker = _make_tracker()
 
-        results = evaluate(
-            eval_dataset=eval_dataset,
-            inference_fn=lambda inputs: "A",
-            scorers=[
-                Relevancy(client=bad_client, name="bad_relevancy"),
-                Relevancy(client=good_client, name="good_relevancy"),
-            ],
-            dataset_id="v1",
-            experiment_tracker=tracker,
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            results = evaluate(
+                eval_dataset=eval_dataset,
+                inference_fn=lambda inputs: "A",
+                scorers=[
+                    Relevancy(client=bad_client, name="bad_relevancy"),
+                    Relevancy(client=good_client, name="good_relevancy"),
+                ],
+                dataset_id="v1",
+                experiment_tracker=tracker,
+            )
 
         scores = results.results[0].scores
         assert "__error__bad_relevancy" in scores
@@ -453,13 +455,15 @@ class TestTracingEndToEnd:
             eval_dataset = [EvalItem(id="1", inputs={"question": "Q"})]
             tracker = _make_tracker()
 
-            results = evaluate(
-                eval_dataset=eval_dataset,
-                inference_fn=lambda inputs: "A",
-                scorers=[Relevancy(client=bad_client)],
-                dataset_id="v1",
-                experiment_tracker=tracker,
-            )
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                results = evaluate(
+                    eval_dataset=eval_dataset,
+                    inference_fn=lambda inputs: "A",
+                    scorers=[Relevancy(client=bad_client)],
+                    dataset_id="v1",
+                    experiment_tracker=tracker,
+                )
 
             assert "__error__relevancy" in results.results[0].scores
 

@@ -11,6 +11,9 @@ from luml.experiments.evaluation.scorers.base import (
     SupervisedScorer,
     UnsupervisedScorer,
 )
+from luml.experiments.evaluation.scorers.builtin._base import (
+    _disambiguate_scorer_names,
+)
 from luml.experiments.evaluation.types import (
     REASONING_SUFFIX,
     EvalItem,
@@ -110,6 +113,8 @@ def evaluate(
         EvalResults: An object containing detailed evaluation results for each item,
             aggregated scores across the dataset, and the associated dataset ID.
     """
+    _disambiguate_scorer_names(scorers)
+
     tracer = trace.get_tracer(__name__)
 
     def evaluate_item(item: EvalItem) -> EvalResult:
@@ -204,6 +209,11 @@ def _evaluate_single_item(
                         all_scores.update(scores)
                     except Exception as e:
                         scorer_name = scorer.get_name()
+                        warnings.warn(
+                            f"Scorer '{scorer_name}' failed for item "
+                            f"'{eval_item.id}' and was skipped: {e}",
+                            stacklevel=4,
+                        )
                         scoring_span.add_event(
                             f"scorer_error_{scorer_name}",
                             {"error": str(e)},

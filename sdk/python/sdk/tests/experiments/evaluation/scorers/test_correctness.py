@@ -2,8 +2,13 @@ import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from luml.experiments.evaluation.evaluate import _call_scorer
 from luml.experiments.evaluation.scorers.base import SupervisedScorer
+from luml.experiments.evaluation.scorers.builtin._exceptions import (
+    MissingExpectedOutputError,
+)
 from luml.experiments.evaluation.scorers.builtin.correctness import Correctness
 from luml.experiments.evaluation.types import EvalItem
 from luml.llm import LLMClient
@@ -190,6 +195,36 @@ class TestCorrectnessCallScorerIntegration:
         assert "correctness" in result
         assert "correctness_reasoning" in result
         assert result["correctness"] == 0.85
+
+
+class TestCorrectnessMissingExpectedOutput:
+    @patch(
+        "luml.experiments.evaluation.scorers.builtin._base.OpenAIClient",
+        autospec=True,
+    )
+    @pytest.mark.parametrize("expected", [None, "", [], {}, ()])
+    def test_empty_expected_output_raises(
+        self,
+        mock_openai: MagicMock,
+        expected: Any,  # noqa: ANN401
+    ) -> None:
+        client = _mock_client({"reasoning": "ok", "score": 0.5})
+        scorer = Correctness(client=client)
+        with pytest.raises(MissingExpectedOutputError):
+            scorer.score({"request": "Q"}, expected, "A")
+        client.complete.assert_not_called()
+
+    @patch(
+        "luml.experiments.evaluation.scorers.builtin._base.OpenAIClient",
+        autospec=True,
+    )
+    def test_present_expected_output_does_not_raise(
+        self, mock_openai: MagicMock
+    ) -> None:
+        client = _mock_client({"reasoning": "ok", "score": 0.5})
+        scorer = Correctness(client=client)
+        result = scorer.score({"request": "Q"}, "the reference", "A")
+        assert result["correctness"] == 0.5
 
 
 class TestCorrectnessConfiguration:
