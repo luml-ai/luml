@@ -2001,9 +2001,8 @@ Export the entire experiment tracking data and save as an artifact.
 
 **Arguments**:
 
-  experiment_id:
 - `output_path` - Path to save the exported artifact.
-  
+- `experiment_id` - Experiment ID to export. Uses the current experiment if not specified.
 
 **Example**:
 
