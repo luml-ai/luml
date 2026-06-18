@@ -38,8 +38,7 @@ Search by name is case-sensitive and matches exact organization names.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - if there are several Organizations
-  with that name.
+- `MultipleResourcesFoundError` - if there are several Organizations with that name.
   
 
 **Example**:
@@ -52,7 +51,7 @@ org_by_id = luml.organizations.get(
 )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Organization(
     id="0199c455-21ec-7c74-8efe-41470e29bae5",
@@ -87,7 +86,7 @@ luml = LumlClient(api_key="luml_your_key")
 orgs = luml.organizations.list()
 ```
   
-  Example response:
+**Example response**:
 ```python
 [
     Organization(
@@ -136,8 +135,7 @@ Search by name is case-sensitive and matches exact organization names.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - if there are several Organizations
-  with that name.
+- `MultipleResourcesFoundError` - if there are several Organizations with that name.
   
 
 **Example**:
@@ -151,7 +149,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Organization(
     id="0199c455-21ec-7c74-8efe-41470e29bae5",
@@ -187,7 +185,7 @@ async def main():
     orgs = await luml.organizations.list()
 ```
   
-  Example response:
+**Example response**:
 ```python
 [
     Organization(

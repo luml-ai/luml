@@ -360,17 +360,22 @@ class TestEvaluateSingleItem:
         def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
             return "response"
 
-        result = _evaluate_single_item(
-            eval_item=eval_item,
-            inference_fn=inference_fn,
-            scorers=[FailingScorer()],
-            dataset_id="test_dataset",
-            experiment_tracker=mock_tracker,
-            tracer=mock_tracer,
-        )
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            result = _evaluate_single_item(
+                eval_item=eval_item,
+                inference_fn=inference_fn,
+                scorers=[FailingScorer()],
+                dataset_id="test_dataset",
+                experiment_tracker=mock_tracker,
+                tracer=mock_tracer,
+            )
 
         assert "__error__failing_scorer" in result.scores
         assert "Scoring failed" in str(result.scores["__error__failing_scorer"])
+        assert len(w) == 1
+        assert "failing_scorer" in str(w[0].message)
+        assert "Scoring failed" in str(w[0].message)
 
     @patch("luml.experiments.evaluation.evaluate.trace")
     def test_duplicate_score_keys_warning(self, mock_trace: Mock) -> None:
@@ -579,3 +584,145 @@ class TestEvaluate:
         assert len(results.results) == 1
         assert "mock_unsupervised" in results.results[0].scores
         assert "mock_supervised" in results.results[0].scores
+
+
+class MockReasoningScorer(UnsupervisedScorer):
+    def __init__(self, name: str = "judge") -> None:
+        self._name = name
+
+    def get_name(self) -> str:
+        return self._name
+
+    def score(
+        self,
+        inputs: dict[str, Any],  # noqa: ANN401
+        output: Any,  # noqa: ANN401
+    ) -> dict[str, Any]:
+        return {self._name: 0.85, f"{self._name}_reasoning": "looks good"}
+
+
+class TestReasoningRouting:
+    @patch("luml.experiments.evaluation.evaluate.trace")
+    def test_reasoning_routed_to_metadata(self, mock_trace: Mock) -> None:
+        mock_tracer = MagicMock()
+        mock_trace.get_tracer.return_value = mock_tracer
+
+        mock_span = MagicMock()
+        mock_span.context.trace_id = 12345
+        mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
+            return_value=mock_span
+        )
+        mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
+            return_value=None
+        )
+
+        mock_tracker = MagicMock()
+        eval_item = EvalItem(
+            id="1", inputs={"text": "hello"}, metadata={"source": "test"}
+        )
+        scorer = MockReasoningScorer("relevancy")
+
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
+            return "response"
+
+        result = _evaluate_single_item(
+            eval_item=eval_item,
+            inference_fn=inference_fn,
+            scorers=[scorer],
+            dataset_id="test_dataset",
+            experiment_tracker=mock_tracker,
+            tracer=mock_tracer,
+        )
+
+        assert "relevancy" in result.scores
+        assert "relevancy_reasoning" not in result.scores
+
+        call_kwargs = mock_tracker.log_eval_sample.call_args
+        logged_scores = call_kwargs.kwargs.get("scores", call_kwargs[1].get("scores"))
+        logged_metadata = call_kwargs.kwargs.get(
+            "metadata", call_kwargs[1].get("metadata")
+        )
+
+        assert "relevancy" in logged_scores
+        assert "relevancy_reasoning" not in logged_scores
+        assert logged_metadata["relevancy_reasoning"] == "looks good"
+        assert logged_metadata["source"] == "test"
+
+    @patch("luml.experiments.evaluation.evaluate.trace")
+    def test_error_keys_stay_in_scores(self, mock_trace: Mock) -> None:
+        mock_tracer = MagicMock()
+        mock_trace.get_tracer.return_value = mock_tracer
+
+        mock_span = MagicMock()
+        mock_span.context.trace_id = 12345
+        mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
+            return_value=mock_span
+        )
+        mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
+            return_value=None
+        )
+
+        class FailingScorer(UnsupervisedScorer):
+            def get_name(self) -> str:
+                return "bad_scorer"
+
+            def score(
+                self,
+                inputs: dict[str, Any],  # noqa: ANN401
+                output: Any,  # noqa: ANN401
+            ) -> dict[str, Any]:
+                raise ValueError("boom")
+
+        mock_tracker = MagicMock()
+        eval_item = EvalItem(id="1", inputs={"text": "hello"})
+
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
+            return "response"
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            result = _evaluate_single_item(
+                eval_item=eval_item,
+                inference_fn=inference_fn,
+                scorers=[MockReasoningScorer("judge"), FailingScorer()],
+                dataset_id="test_dataset",
+                experiment_tracker=mock_tracker,
+                tracer=mock_tracer,
+            )
+
+        assert "__error__bad_scorer" in result.scores
+        assert "judge" in result.scores
+        assert "judge_reasoning" not in result.scores
+
+    @patch("luml.experiments.evaluation.evaluate.trace")
+    def test_eval_result_scores_exclude_reasoning(self, mock_trace: Mock) -> None:
+        mock_tracer = MagicMock()
+        mock_trace.get_tracer.return_value = mock_tracer
+
+        mock_span = MagicMock()
+        mock_span.context.trace_id = 12345
+        mock_tracer.start_as_current_span.return_value.__enter__ = Mock(
+            return_value=mock_span
+        )
+        mock_tracer.start_as_current_span.return_value.__exit__ = Mock(
+            return_value=None
+        )
+
+        mock_tracker = MagicMock()
+        eval_item = EvalItem(id="1", inputs={"text": "hello"})
+
+        def inference_fn(inputs: dict[str, Any]) -> str:  # noqa: ANN401
+            return "response"
+
+        result = _evaluate_single_item(
+            eval_item=eval_item,
+            inference_fn=inference_fn,
+            scorers=[MockReasoningScorer("judge")],
+            dataset_id="test_dataset",
+            experiment_tracker=mock_tracker,
+            tracer=mock_tracer,
+        )
+
+        assert result.scores == {"judge": 0.85}
+        for key in result.scores:
+            assert not key.endswith("_reasoning")

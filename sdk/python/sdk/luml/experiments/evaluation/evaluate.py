@@ -11,7 +11,11 @@ from luml.experiments.evaluation.scorers.base import (
     SupervisedScorer,
     UnsupervisedScorer,
 )
+from luml.experiments.evaluation.scorers.builtin._base import (
+    _disambiguate_scorer_names,
+)
 from luml.experiments.evaluation.types import (
+    REASONING_SUFFIX,
     EvalItem,
     EvalResult,
     EvalResults,
@@ -109,6 +113,8 @@ def evaluate(
         EvalResults: An object containing detailed evaluation results for each item,
             aggregated scores across the dataset, and the associated dataset ID.
     """
+    _disambiguate_scorer_names(scorers)
+
     tracer = trace.get_tracer(__name__)
 
     def evaluate_item(item: EvalItem) -> EvalResult:
@@ -203,13 +209,26 @@ def _evaluate_single_item(
                         all_scores.update(scores)
                     except Exception as e:
                         scorer_name = scorer.get_name()
+                        warnings.warn(
+                            f"Scorer '{scorer_name}' failed for item "
+                            f"'{eval_item.id}' and was skipped: {e}",
+                            stacklevel=4,
+                        )
                         scoring_span.add_event(
                             f"scorer_error_{scorer_name}",
                             {"error": str(e)},
                         )
                         all_scores[f"__error__{scorer_name}"] = str(e)
 
-                for score_name, score_value in all_scores.items():
+                metric_scores: dict[str, Any] = {}
+                reasoning_metadata: dict[str, Any] = {}
+                for key, value in all_scores.items():
+                    if key.endswith(REASONING_SUFFIX):
+                        reasoning_metadata[key] = value
+                    else:
+                        metric_scores[key] = value
+
+                for score_name, score_value in metric_scores.items():
                     if isinstance(score_value, int | float | bool):
                         scoring_span.set_attribute(
                             f"eval.score.{score_name}", score_value
@@ -222,8 +241,8 @@ def _evaluate_single_item(
                     inputs=eval_item.inputs,
                     outputs={"response": model_response},
                     references={"expected": eval_item.expected_output},
-                    scores=all_scores,
-                    metadata=eval_item.metadata,
+                    scores=metric_scores,
+                    metadata={**eval_item.metadata, **reasoning_metadata},
                 )
 
                 experiment_tracker.link_eval_sample_to_trace(
@@ -237,7 +256,7 @@ def _evaluate_single_item(
             return EvalResult(
                 eval_item=eval_item,
                 model_response=model_response,
-                scores=all_scores,
+                scores=metric_scores,
                 trace_id=trace_id,
             )
 

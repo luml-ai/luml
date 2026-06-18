@@ -17,8 +17,7 @@ Supports multiple backend storage options via connection strings.
 
 **Arguments**:
 
-- `connection_string` - Backend connection string. Format: 'backend://config'.
-  Default is 'sqlite://./experiments' for local SQLite storage.
+- `connection_string` - Backend connection string. Format: 'backend://config'. Default is 'sqlite://./experiments' for local SQLite storage.
   
 
 **Example**:
@@ -39,10 +38,10 @@ tracker.end_experiment(exp_id)
 
 ```python
 def start_experiment(
-    name: str | None = None,
-    group: str = "default",
-    experiment_id: str | None = None,
-    tags: list[str] | None = None
+        name: str | None = None,
+        group: str = "default",
+        experiment_id: str | None = None,
+        tags: list[str] | None = None
 ) -> str
 ```
 
@@ -51,14 +50,10 @@ the experiment's metadata.
 
 **Arguments**:
 
-- `name` _str | None_ - The name of the experiment. If not provided,
-  a random name in the format "adjective-noun-###" will be generated
-- `group` _str_ - The group to which the experiment belongs. Defaults to
-  "default".
-- `experiment_id` _str | None_ - A unique identifier for the experiment. If not
-  provided, a new UUID will be generated as the experiment ID.
-- `tags` _list[str] | None_ - A list of tags to associate with the experiment.
-  Can be None if no tags are necessary.
+- `name` _str | None_ - The name of the experiment. If not provided, a random name in the format "adjective-noun-###" will be generated
+- `group` _str_ - The group to which the experiment belongs. Defaults to "default".
+- `experiment_id` _str | None_ - A unique identifier for the experiment. If not provided, a new UUID will be generated as the experiment ID.
+- `tags` _list[str] | None_ - A list of tags to associate with the experiment. Can be None if no tags are necessary.
   
 
 **Returns**:
@@ -89,8 +84,7 @@ End an active experiment tracking session.
 
 **Arguments**:
 
-- `experiment_id` - ID of experiment to end.
-  Uses current experiment if not specified.
+- `experiment_id` - ID of experiment to end. Uses current experiment if not specified.
   
 
 **Example**:
@@ -144,10 +138,10 @@ tracker.log_static("batch_size", 32)
 
 ```python
 def log_dynamic(
-    key: str,
-    value: int | float,
-    step: int | None = None,
-    experiment_id: str | None = None
+        key: str,
+        value: int | float,
+        step: int | None = None,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -177,20 +171,20 @@ for epoch in range(10):
 
 ```python
 def log_span(
-    trace_id: str,
-    span_id: str,
-    name: str,
-    start_time_unix_nano: int,
-    end_time_unix_nano: int,
-    parent_span_id: str | None = None,
-    kind: int = 0,
-    status_code: int = 0,
-    status_message: str | None = None,
-    attributes: dict[str, Any] | None = None,
-    events: list[dict[str, Any]] | None = None,
-    links: list[dict[str, Any]] | None = None,
-    trace_flags: int = 0,
-    experiment_id: str | None = None
+        trace_id: str,
+        span_id: str,
+        name: str,
+        start_time_unix_nano: int,
+        end_time_unix_nano: int,
+        parent_span_id: str | None = None,
+        kind: int = 0,
+        status_code: int = 0,
+        status_message: str | None = None,
+        attributes: dict[str, Any] | None = None,
+        events: list[dict[str, Any]] | None = None,
+        links: list[dict[str, Any]] | None = None,
+        trace_flags: int = 0,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -206,21 +200,15 @@ Spans can be nested via ``parent_span_id`` to form a trace tree.
 - `name` _str_ - Human-readable name describing the operation.
 - `start_time_unix_nano` _int_ - Span start time in nanoseconds since Unix epoch.
 - `end_time_unix_nano` _int_ - Span end time in nanoseconds since Unix epoch.
-- `parent_span_id` _str | None_ - Span ID of the parent span, or ``None`` for
-  root spans.
-- `kind` _int_ - Span kind following the OpenTelemetry spec (0=INTERNAL,
-  1=SERVER, 2=CLIENT, 3=PRODUCER, 4=CONSUMER). Defaults to 0.
+- `parent_span_id` _str | None_ - Span ID of the parent span, or ``None`` for root spans.
+- `kind` _int_ - Span kind following the OpenTelemetry spec (0=INTERNAL, 1=SERVER, 2=CLIENT, 3=PRODUCER, 4=CONSUMER). Defaults to 0.
 - `status_code` _int_ - Status code (0=UNSET, 1=OK, 2=ERROR). Defaults to 0.
-- `status_message` _str | None_ - Optional status description, typically set
-  for error spans.
+- `status_message` _str | None_ - Optional status description, typically set for error spans.
 - `attributes` _dict[str, Any] | None_ - Key-value pairs of span attributes.
-- `events` _list[dict[str, Any]] | None_ - Timestamped event records attached
-  to the span.
-- `links` _list[dict[str, Any]] | None_ - Links to other spans, each containing
-  at minimum ``trace_id`` and ``span_id`` keys.
+- `events` _list[dict[str, Any]] | None_ - Timestamped event records attached to the span.
+- `links` _list[dict[str, Any]] | None_ - Links to other spans, each containing at minimum ``trace_id`` and ``span_id`` keys.
 - `trace_flags` _int_ - W3C trace flags. Defaults to 0.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Raises**:
@@ -254,14 +242,14 @@ tracker.log_span(
 
 ```python
 def log_eval_sample(
-    eval_id: str,
-    dataset_id: str,
-    inputs: dict[str, Any],
-    outputs: dict[str, Any] | None = None,
-    references: dict[str, Any] | None = None,
-    scores: dict[str, Any] | None = None,
-    metadata: dict[str, Any] | None = None,
-    experiment_id: str | None = None
+        eval_id: str,
+        dataset_id: str,
+        inputs: dict[str, Any],
+        outputs: dict[str, Any] | None = None,
+        references: dict[str, Any] | None = None,
+        scores: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -273,18 +261,13 @@ model outputs, ground-truth references, computed scores, and optional metadata.
 **Arguments**:
 
 - `eval_id` _str_ - Unique identifier for this evaluation sample.
-- `dataset_id` _str_ - Identifier of the evaluation dataset this sample
-  belongs to.
+- `dataset_id` _str_ - Identifier of the evaluation dataset this sample belongs to.
 - `inputs` _dict[str, Any]_ - Input data fed to the model for this sample.
 - `outputs` _dict[str, Any] | None_ - Model outputs/predictions for this sample.
-- `references` _dict[str, Any] | None_ - Ground-truth or reference values to
-  compare against.
-- `scores` _dict[str, Any] | None_ - Computed evaluation scores (e.g. accuracy,
-  F1, BLEU).
-- `metadata` _dict[str, Any] | None_ - Additional metadata for the sample (e.g.
-  latency, token counts).
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
+- `references` _dict[str, Any] | None_ - Ground-truth or reference values to compare against.
+- `scores` _dict[str, Any] | None_ - Computed evaluation scores (e.g. accuracy, F1, BLEU).
+- `metadata` _dict[str, Any] | None_ - Additional metadata for the sample (e.g. latency, token counts).
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Raises**:
@@ -313,10 +296,10 @@ tracker.log_eval_sample(
 
 ```python
 def link_eval_sample_to_trace(
-    eval_dataset_id: str,
-    eval_id: str,
-    trace_id: str,
-    experiment_id: str | None = None
+        eval_dataset_id: str,
+        eval_id: str,
+        trace_id: str,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -328,12 +311,10 @@ that produced them.
 
 **Arguments**:
 
-- `eval_dataset_id` _str_ - Identifier of the evaluation dataset the sample
-  belongs to.
+- `eval_dataset_id` _str_ - Identifier of the evaluation dataset the sample belongs to.
 - `eval_id` _str_ - Identifier of the evaluation sample to link.
 - `trace_id` _str_ - Identifier of the trace to link to.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Raises**:
@@ -364,8 +345,8 @@ tracker.link_eval_sample_to_trace(
 
 ```python
 def get_evals_annotation_summaries(
-    experiment_id: str,
-    eval_ids: list[str]
+        experiment_id: str,
+        eval_ids: list[str]
 ) -> dict[str, AnnotationSummary]
 ```
 
@@ -388,13 +369,6 @@ Retrieves annotation summaries for a batch of evaluations within an experiment.
 ```python
 tracker = ExperimentTracker()
 tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
-
-{
-    "eval-xyz": AnnotationSummary(
-        feedback=[FeedbackSummaryItem(name="quality", total=2, counts={"true": 1, "false": 1})],
-        expectations=[],
-    ),
-}
 ```
 
 <a id="luml.experiments.tracker.ExperimentTracker.log_attachment"></a>
@@ -403,10 +377,10 @@ tracker.get_evals_annotation_summaries("exp-001", ["eval-xyz", "eval-abc"])
 
 ```python
 def log_attachment(
-    name: str,
-    data: Any,
-    binary: bool = False,
-    experiment_id: str | None = None
+        name: str,
+        data: Any,
+        binary: bool = False,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -476,10 +450,8 @@ Retrieve a previously logged attachment by name.
 
 **Arguments**:
 
-- `name` _str_ - Name of the attachment as specified during
-  :meth:`log_attachment`.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
+- `name` _str_ - Name of the attachment as specified during :meth:`log_attachment`.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Returns**:
@@ -518,8 +490,7 @@ List all attachments logged for an experiment.
 
 **Returns**:
 
-- `list[AttachmentRecord]` - List of attachment records with ``name``, ``file_path``,
-  and ``created_at`` fields.
+- `list[AttachmentRecord]` - List of attachment records with ``name``, ``file_path``, and ``created_at`` fields.
   
 
 **Raises**:
@@ -582,9 +553,9 @@ tracker.delete_experiment("old-experiment-id")
 
 ```python
 def create_group(
-    name: str,
-    description: str | None = None,
-    tags: list[str] | None = None
+        name: str,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Group
 ```
 
@@ -597,15 +568,13 @@ Experiments are assigned to a group via the ``group`` parameter of
 **Arguments**:
 
 - `name` _str_ - Unique name for the group.
-- `description` _str | None_ - Optional human-readable description of the group's
-  purpose.
+- `description` _str | None_ - Optional human-readable description of the group's purpose.
 - `tags` _list[str] | None_ - Optional tags to associate with the group.
   
 
 **Returns**:
 
-- `Group` - The created group with ``id``, ``name``, ``description``,
-  ``created_at``, and ``tags`` fields.
+- `Group` - The created group with ``id``, ``name``, ``description``, ``created_at``, and ``tags`` fields.
   
 
 **Example**:
@@ -650,22 +619,22 @@ for group in groups:
 
 ```python
 def log_model(
-    model: ModelReference | Any,
-    *,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None,
-    flavor: str | None = None,
-    inputs: Any = None,
-    experiment_id: str | None = None,
-    dependencies: Literal["default", "all"] | list[str] = "default",
-    extra_dependencies: list[str] | None = None,
-    extra_code_modules: list[str] | Literal["auto"] | None = None,
-    manifest_model_name: str | None = None,
-    manifest_model_version: str | None = None,
-    manifest_model_description: str | None = None,
-    manifest_extra_producer_tags: list[str] | None = None,
-    **save_kwargs: Any
+        model: ModelReference | Any,
+        *,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        description: str | None = None,
+        flavor: str | None = None,
+        inputs: Any = None,
+        experiment_id: str | None = None,
+        dependencies: Literal["default", "all"] | list[str] = "default",
+        extra_dependencies: list[str] | None = None,
+        extra_code_modules: list[str] | Literal["auto"] | None = None,
+        manifest_model_name: str | None = None,
+        manifest_model_version: str | None = None,
+        manifest_model_description: str | None = None,
+        manifest_extra_producer_tags: list[str] | None = None,
+        **save_kwargs: Any
 ) -> ModelReference
 ```
 
@@ -678,37 +647,20 @@ and the temporary file is cleaned up.
 
 **Arguments**:
 
-- `model` _ModelReference | Any_ - A ``ModelReference`` pointing to an
-  already-saved model, or a raw model object to be serialized.
+- `model` _ModelReference | Any_ - A ``ModelReference`` pointing to an already-saved model, or a raw model object to be serialized.
 - `name` _str | None_ - Optional display name for the model.
 - `tags` _list[str] | None_ - Optional tags to associate with the model.
-- `flavor` _str | None_ - Serialization flavor (e.g. ``"sklearn"``,
-  ``"xgboost"``). Auto-detected from the model's module if not
-  provided. Supported flavors: sklearn, xgboost, lightgbm, catboost,
-  langgraph.
-- `inputs` _Any_ - Sample input data used for model signature inference.
-  Required by ``sklearn``, optional for ``xgboost`` and ``lightgbm``,
-  and not used by ``catboost`` or ``langgraph``.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
-- `dependencies` _Literal["default", "all"] | list[str]_ - Dependency capture
-  strategy. ``"default"`` captures direct dependencies, ``"all"``
-  captures the full environment, or pass an explicit list of package
-  names.
-- `extra_dependencies` _list[str] | None_ - Additional package dependencies
-  to include beyond those captured by ``dependencies``.
-- `extra_code_modules` _list[str] | Literal["auto"] | None_ - Extra Python
-  modules to bundle with the model. ``"auto"`` attempts automatic
-  detection.
+- `flavor` _str | None_ - Serialization flavor (e.g. ``"sklearn"``, ``"xgboost"``). Auto-detected from the model's module if not provided. Supported flavors: sklearn, xgboost, lightgbm, catboost, langgraph.
+- `inputs` _Any_ - Sample input data used for model signature inference. Required by ``sklearn``, optional for ``xgboost`` and ``lightgbm``, and not used by ``catboost`` or ``langgraph``.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
+- `dependencies` _Literal["default", "all"] | list[str]_ - Dependency capture strategy. ``"default"`` captures direct dependencies, ``"all"`` captures the full environment, or pass an explicit list of package names.
+- `extra_dependencies` _list[str] | None_ - Additional package dependencies to include beyond those captured by ``dependencies``.
+- `extra_code_modules` _list[str] | Literal["auto"] | None_ - Extra Python modules to bundle with the model. ``"auto"`` attempts automatic detection.
 - `manifest_model_name` _str | None_ - Model name for the artifact manifest.
-- `manifest_model_version` _str | None_ - Model version for the artifact
-  manifest.
-- `manifest_model_description` _str | None_ - Model description for the
-  artifact manifest.
-- `manifest_extra_producer_tags` _list[str] | None_ - Additional producer
-  tags for the artifact manifest.
-- `**save_kwargs` _Any_ - Additional keyword arguments forwarded to the
-  flavor-specific save function.
+- `manifest_model_version` _str | None_ - Model version for the artifact manifest.
+- `manifest_model_description` _str | None_ - Model description for the artifact manifest.
+- `manifest_extra_producer_tags` _list[str] | None_ - Additional producer tags for the artifact manifest.
+- `**save_kwargs` _Any_ - Additional keyword arguments forwarded to the flavor-specific save function.
   
 
 **Returns**:
@@ -718,8 +670,7 @@ and the temporary file is cleaned up.
 
 **Raises**:
 
-- `ValueError` - If no experiment is active and ``experiment_id`` is not
-  provided, or if the flavor cannot be auto-detected.
+- `ValueError` - If no experiment is active and ``experiment_id`` is not provided, or if the flavor cannot be auto-detected.
   
 
 **Example**:
@@ -745,14 +696,12 @@ List all models logged to an experiment.
 
 **Arguments**:
 
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if
-  not specified.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Returns**:
 
-- `list[Model]` - List of Model objects, each containing ``id``, ``name``,
-  ``created_at``, ``tags``, ``path``, and ``experiment_id`` fields.
+- `list[Model]` - List of Model objects, each containing ``id``, ``name``, ``created_at``, ``tags``, ``path``, and ``experiment_id`` fields.
   
 
 **Raises**:
@@ -788,8 +737,7 @@ Retrieve a single model by its ID.
 
 **Returns**:
 
-- `Model` - The model record containing ``id``, ``name``, ``created_at``,
-  ``tags``, ``path``, and ``experiment_id`` fields.
+- `Model` - The model record containing ``id``, ``name``, ``created_at``, ``tags``, ``path``, and ``experiment_id`` fields.
   
 
 **Example**:
@@ -800,14 +748,46 @@ model = tracker.get_model("model-uuid-123")
 print(f"{model.name}: {model.path}")
 ```
 
+<a id="luml.experiments.tracker.ExperimentTracker.get_model_card"></a>
+
+#### get_model_card
+
+```python
+def get_model_card(model_id: str) -> bytes
+```
+
+Retrieve the model card zip archive for a model.
+
+**Arguments**:
+
+- `model_id` _str_ - Unique identifier of the model.
+  
+
+**Returns**:
+
+- `bytes` - Raw bytes of ``model_card.zip``, which contains an ``index.html`` with the rendered model card.
+  
+
+**Raises**:
+
+- `ValueError` - If the model is not found or has no model card.
+  
+
+**Example**:
+
+```python
+tracker = ExperimentTracker()
+zip_bytes = tracker.get_model_card("model-uuid-123")
+```
+
 <a id="luml.experiments.tracker.ExperimentTracker.link_to_model"></a>
 
 #### link_to_model
 
 ```python
 def link_to_model(
-    model_reference: ModelReference,
-    experiment_id: str | None = None
+        model_reference: ModelReference,
+        experiment_id: str | None = None
 ) -> None
 ```
 
@@ -841,15 +821,15 @@ tracker.link_to_model(model_ref)
 
 ```python
 def log_eval_annotation(
-    dataset_id: str,
-    eval_id: str,
-    name: str,
-    annotation_kind: str,
-    value_type: str,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None,
-    experiment_id: str | None = None
+        dataset_id: str,
+        eval_id: str,
+        name: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None,
+        experiment_id: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -868,8 +848,7 @@ Feedback annotations must use ``value_type='bool'``.
 - `value` _int | bool | str_ - The annotation value.
 - `user` _str_ - The user who created the annotation.
 - `rationale` _str | None_ - Optional free-text explanation for the annotation.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not
-  specified.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Returns**:
@@ -879,9 +858,7 @@ Feedback annotations must use ``value_type='bool'``.
 
 **Raises**:
 
-- `ValueError` - If no experiment is active, the experiment uses an older
-  schema without annotation support, or a feedback annotation uses
-  a non-bool ``value_type``.
+- `ValueError` - If no experiment is active, the experiment uses an older schema without annotation support, or a feedback annotation uses a non-bool ``value_type``.
   
 
 **Example**:
@@ -912,15 +889,15 @@ annotation = tracker.log_eval_annotation(
 
 ```python
 def log_span_annotation(
-    trace_id: str,
-    span_id: str,
-    name: str,
-    annotation_kind: str,
-    value_type: str,
-    value: int | bool | str,
-    user: str,
-    rationale: str | None = None,
-    experiment_id: str | None = None
+        trace_id: str,
+        span_id: str,
+        name: str,
+        annotation_kind: str,
+        value_type: str,
+        value: int | bool | str,
+        user: str,
+        rationale: str | None = None,
+        experiment_id: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -939,8 +916,7 @@ Feedback annotations must use ``value_type='bool'``.
 - `value` _int | bool | str_ - The annotation value.
 - `user` _str_ - The user who created the annotation.
 - `rationale` _str | None_ - Optional free-text explanation for the annotation.
-- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not
-  specified.
+- `experiment_id` _str | None_ - Experiment ID. Uses current experiment if not specified.
   
 
 **Returns**:
@@ -950,9 +926,7 @@ Feedback annotations must use ``value_type='bool'``.
 
 **Raises**:
 
-- `ValueError` - If no experiment is active, the experiment uses an older
-  schema without annotation support, or a feedback annotation uses
-  a non-bool ``value_type``.
+- `ValueError` - If no experiment is active, the experiment uses an older schema without annotation support, or a feedback annotation uses a non-bool ``value_type``.
   
 
 **Example**:
@@ -1027,7 +1001,6 @@ Retrieve full trace details including all spans.
 ```python
 tracker = ExperimentTracker()
 trace = tracker.get_trace("exp-1", "trace-abc")
-
 if trace:
     for span in trace.spans:
         print(span.name, span.annotation_count)
@@ -1039,14 +1012,14 @@ if trace:
 
 ```python
 def get_experiment_traces(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    filters: list[str] | None = None,
-    states: list[TraceState] | None = None
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: Literal["execution_time", "span_count", "created_at"] = "execution_time",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        filters: list[str] | None = None,
+        states: list[TraceState] | None = None
 ) -> PaginatedResponse[TraceRecord]
 ```
 
@@ -1083,8 +1056,8 @@ for trace in page.items:
 
 ```python
 def get_experiment_metric_history(
-    experiment_id: str,
-    key: str
+        experiment_id: str,
+        key: str
 ) -> list[dict[str, Any]]
 ```
 
@@ -1107,7 +1080,6 @@ Retrieve the full history of a dynamic metric.
 ```python
 tracker = ExperimentTracker()
 history = tracker.get_experiment_metric_history("exp-1", "train_loss")
-
 for point in history:
     print(f"step={point['step']} loss={point['value']}")
 ```
@@ -1118,15 +1090,15 @@ for point in history:
 
 ```python
 def get_experiment_evals(
-    experiment_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    dataset_id: str | None = None,
-    json_sort_column: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
+        experiment_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        dataset_id: str | None = None,
+        json_sort_column: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
 ) -> PaginatedResponse[EvalRecord]
 ```
 
@@ -1140,7 +1112,7 @@ Retrieve paginated eval samples for an experiment.
 - `sort_by` _str_ - Sort field. Defaults to ``'created_at'``.
 - `order` _str_ - Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
 - `dataset_id` _str | None_ - Optional filter by dataset.
-- `json_sort_column` _str | None_ - Resolved JSON column for sorting by score / input / output keys.
+- `json_sort_column` _str | None_ - Resolved JSON column for sorting by score/input/output keys.
 - `search` _str | None_ - Optional substring filter on eval ID.
   
 
@@ -1164,8 +1136,8 @@ for eval_rec in page.items:
 
 ```python
 def get_experiment_eval_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
+        experiment_id: str,
+        dataset_id: str | None = None
 ) -> EvalColumns
 ```
 
@@ -1177,8 +1149,7 @@ fields, useful for building dynamic table headers.
 **Arguments**:
 
 - `experiment_id` _str_ - The experiment to query.
-- `dataset_id` _str | None, optional_ - Dataset ID for filtering. If not provided,
-  all datasets within the experiment are considered.
+- `dataset_id` _str | None, optional_ - Dataset ID for filtering. If not provided, all datasets within the experiment are considered.
   
 
 **Returns**:
@@ -1201,8 +1172,8 @@ print("Input columns:", columns.inputs)
 
 ```python
 def get_experiment_eval_typed_columns(
-    experiment_id: str,
-    dataset_id: str | None = None
+        experiment_id: str,
+        dataset_id: str | None = None
 ) -> EvalTypedColumns
 ```
 
@@ -1234,10 +1205,10 @@ Like get_experiment_trace_columns but also returns the type for each key.
 
 ```python
 def get_experiment_evals_average_scores(
-    experiment_id: str,
-    dataset_id: str | None = None,
-    search: str | None = None,
-    filters: list[str] | None = None
+        experiment_id: str,
+        dataset_id: str | None = None,
+        search: str | None = None,
+        filters: list[str] | None = None
 ) -> dict[str, float]
 ```
 
@@ -1246,10 +1217,8 @@ filters them by a specific dataset.
 
 **Arguments**:
 
-- `experiment_id` _str_ - The unique identifier of the experiment from which to fetch
-  evaluation data.
-- `dataset_id` _str | None, optional_ - The unique identifier of the dataset to filter
-  evaluations. If not provided, all datasets within the experiment will be considered.
+- `experiment_id` _str_ - The unique identifier of the experiment from which to fetch evaluation data.
+- `dataset_id` _str | None, optional_ - The unique identifier of the dataset to filter evaluations. If not provided, all datasets within the experiment will be considered.
 - `search` _str | None, optional_ - Free-text search applied across eval fields.
 - `filters` _list[str] | None, optional_ - SQL-like filter expressions.
   
@@ -1269,12 +1238,8 @@ def get_experiment_eval_dataset_ids(experiment_id: str) -> list[str]
 
 Retrieve all unique dataset IDs from evals of an experiment.
 
-<a id="luml.experiments.tracker.ExperimentTracker.resolve_evals_sort_column"></a>
-
-#### resolve_evals_sort_column
-```python
 def resolve_evals_sort_column(self, experiment_id: str, sort_by: str) -> str | None:
-```
+
 **Arguments**:
 
 - `experiment_id` _str_ - The experiment to query.
@@ -1321,10 +1286,10 @@ col = tracker.resolve_evals_sort_column("exp-1", "scores.accuracy")
 
 ```python
 def update_experiment(
-    experiment_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
+        experiment_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Experiment | None
 ```
 
@@ -1349,7 +1314,6 @@ Only the provided fields are updated; ``None`` values are ignored.
 
 ```python
 tracker = ExperimentTracker()
-
 tracker.update_experiment(
     "exp-1",
     name="renamed_experiment",
@@ -1363,9 +1327,9 @@ tracker.update_experiment(
 
 ```python
 def get_eval_annotations(
-    experiment_id: str,
-    dataset_id: str,
-    eval_id: str
+        experiment_id: str,
+        dataset_id: str,
+        eval_id: str
 ) -> list[AnnotationRecord]
 ```
 
@@ -1401,9 +1365,9 @@ for ann in annotations:
 
 ```python
 def get_span_annotations(
-    experiment_id: str,
-    trace_id: str,
-    span_id: str
+        experiment_id: str,
+        trace_id: str,
+        span_id: str
 ) -> list[AnnotationRecord]
 ```
 
@@ -1439,11 +1403,11 @@ for ann in annotations:
 
 ```python
 def update_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"],
-    value: int | bool | str | None = None,
-    rationale: str | None = None
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"],
+        value: int | bool | str | None = None,
+        rationale: str | None = None
 ) -> AnnotationRecord
 ```
 
@@ -1455,10 +1419,8 @@ At least one of ``value`` or ``rationale`` must be provided.
 
 - `experiment_id` _str_ - The experiment containing the annotation.
 - `annotation_id` _str_ - The annotation to update.
-- `target` _Literal["eval", "span"]_ - Whether this is an eval or span
-  annotation.
-- `value` _int | bool | str | None_ - New annotation value. ``None`` to
-  leave unchanged.
+- `target` _Literal["eval", "span"]_ - Whether this is an eval or span annotation.
+- `value` _int | bool | str | None_ - New annotation value. ``None`` to leave unchanged.
 - `rationale` _str | None_ - New rationale text. ``None`` to leave unchanged.
   
 
@@ -1469,8 +1431,7 @@ At least one of ``value`` or ``rationale`` must be provided.
 
 **Raises**:
 
-- `ValueError` - If no fields are provided to update, the annotation is
-  not found, or the experiment uses an older schema.
+- `ValueError` - If no fields are provided to update, the annotation is not found, or the experiment uses an older schema.
   
 
 **Example**:
@@ -1490,9 +1451,9 @@ updated = tracker.update_annotation(
 
 ```python
 def delete_annotation(
-    experiment_id: str,
-    annotation_id: str,
-    target: Literal["eval", "span"]
+        experiment_id: str,
+        annotation_id: str,
+        target: Literal["eval", "span"]
 ) -> None
 ```
 
@@ -1504,8 +1465,7 @@ No-op if the experiment DB uses an older schema without annotation support.
 
 - `experiment_id` _str_ - The experiment containing the annotation.
 - `annotation_id` _str_ - The annotation to delete.
-- `target` _Literal["eval", "span"]_ - Whether this is an eval or span
-  annotation.
+- `target` _Literal["eval", "span"]_ - Whether this is an eval or span annotation.
   
 
 **Example**:
@@ -1521,8 +1481,8 @@ tracker.delete_annotation("exp-1", "ann-uuid", "eval")
 
 ```python
 def get_eval_annotation_summary(
-    experiment_id: str,
-    dataset_id: str
+        experiment_id: str,
+        dataset_id: str
 ) -> AnnotationSummary
 ```
 
@@ -1561,8 +1521,8 @@ for exp in summary.expectations:
 
 ```python
 def get_trace_annotation_summary(
-    experiment_id: str,
-    trace_id: str
+        experiment_id: str,
+        trace_id: str
 ) -> AnnotationSummary
 ```
 
@@ -1691,10 +1651,10 @@ if group:
 
 ```python
 def update_group(
-    group_id: str,
-    name: str | None = None,
-    description: str | None = None,
-    tags: list[str] | None = None
+        group_id: str,
+        name: str | None = None,
+        description: str | None = None,
+        tags: list[str] | None = None
 ) -> Group | None
 ```
 
@@ -1750,11 +1710,11 @@ tracker.delete_group("group-uuid")
 
 ```python
 def list_groups_pagination(
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None
 ) -> PaginatedResponse[Group]
 ```
 
@@ -1789,13 +1749,13 @@ for group in page.items:
 
 ```python
 def list_group_experiments_pagination(
-    group_id: str,
-    limit: int = 20,
-    cursor_str: str | None = None,
-    sort_by: str = "created_at",
-    order: Literal["asc", "desc"] = "desc",
-    search: str | None = None,
-    json_sort_column: Literal["static_params", "dynamic_params"] | None = None
+        group_id: str,
+        limit: int = 20,
+        cursor_str: str | None = None,
+        sort_by: str = "created_at",
+        order: Literal["asc", "desc"] = "desc",
+        search: str | None = None,
+        json_sort_column: Literal["static_params", "dynamic_params"] | None = None
 ) -> PaginatedResponse[Experiment]
 ```
 
@@ -1809,8 +1769,7 @@ Retrieve a paginated list of experiments within a group.
 - `sort_by` _str_ - Sort field. Defaults to ``'created_at'``.
 - `order` _str_ - Sort order, ``'asc'`` or ``'desc'``. Defaults to ``'desc'``.
 - `search` _str | None_ - Optional string for filtering experiments by sql-like query.
-- `json_sort_column` _str | None_ - Resolved JSON column for sorting by
-  static param or dynamic metric keys.
+- `json_sort_column` _str | None_ - Resolved JSON column for sorting by static param or dynamic metric keys.
   
 
 **Returns**:
@@ -1924,10 +1883,10 @@ col = tracker.resolve_experiment_sort_column("group-uuid", "static.lr")
 
 ```python
 def update_model(
-    model_id: str,
-    name: str | None = None,
-    tags: list[str] | None = None,
-    description: str | None = None
+        model_id: str,
+        name: str | None = None,
+        tags: list[str] | None = None,
+        description: str | None = None
 ) -> Model | None
 ```
 
@@ -2032,8 +1991,10 @@ exp_id = tracker.start_experiment()
 #### export
 
 ```python
-def export(output_path: str,
-           experiment_id: str | None = None) -> "ExperimentReference"
+def export(
+        output_path: str,
+        experiment_id: str | None = None
+) -> "ExperimentReference"
 ```
 
 Export the entire experiment tracking data and save as an artifact.
@@ -2041,7 +2002,7 @@ Export the entire experiment tracking data and save as an artifact.
 **Arguments**:
 
 - `output_path` - Path to save the exported artifact.
-  
+- `experiment_id` - Experiment ID to export. Uses the current experiment if not specified.
 
 **Example**:
 
@@ -2052,3 +2013,4 @@ exp_id = tracker.start_experiment()
 tracker.end_experiment()
 tracker.export("experiment_data.tar", experiment_id=exp_id)
 ```
+

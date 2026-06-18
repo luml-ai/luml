@@ -29,6 +29,9 @@ datasets-hf = [
 datasets-polars = [
     "polars>=1.0.0,<2.0.0",
 ]
+llm = [
+    "openai>=1.0.0,<3.0.0",
+]
 
 [project.scripts]
 generate-docs = "generate_docs:main"
