@@ -32,6 +32,7 @@
                 },
               }"
               target="_blank"
+              rel="noopener noreferrer"
               class="link deployment"
             >
               {{ deployment.name }}
@@ -80,10 +81,5 @@ function onUpdateVisible(visible: boolean) {
   font-weight: 500;
   color: var(--p-text-muted-color);
   margin-bottom: 4px;
-}
-.artifact-deployments {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
 }
 </style>

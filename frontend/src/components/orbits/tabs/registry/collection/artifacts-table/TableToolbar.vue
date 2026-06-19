@@ -103,7 +103,7 @@ import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { useCollectionsStore } from '@/stores/collections'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
-import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces.js'
+import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces'
 import ArtifactEditor from '../artifact/ArtifactEditor.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
@@ -194,7 +194,7 @@ async function onDeleteClick() {
       return activeDeployments.length ? { ...artifact, deployments: activeDeployments } : null
     })
     .filter(Boolean) as Artifact[]
-  if (artifactsWithActiveDeployments) {
+  if (artifactsWithActiveDeployments.length) {
     artifactsStore.setModelsWithActiveDeploymentsForDeletion(artifactsWithActiveDeployments)
   } else if (hasFailedStatus) {
     isForceDeleting.value = true

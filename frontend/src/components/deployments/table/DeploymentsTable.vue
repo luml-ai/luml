@@ -175,9 +175,12 @@ function checkDeploymentInQuery() {
 
 function onUpdateEditorVisible() {
   editableDeployment.value = null
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { deployment: _deployment, ...restQuery } = route.query
   router.replace({
     name: 'orbit-deployments',
     params: route.params,
+    query: restQuery,
   })
 }
 
