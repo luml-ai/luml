@@ -157,11 +157,6 @@ class ArtifactIn(BaseModel):
         return value
 
 
-class ArtifactListed(Artifact):
-    deployments: list[DeploymentBase] = []
-    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
-
-
 class ArtifactCreate(ArtifactIn):
     type: ArtifactType
     collection_id: UUID
@@ -185,7 +180,8 @@ class Artifact(ArtifactIn, BaseOrmConfig):
 
 
 class ArtifactListed(Artifact):
-    deployments: list[ArtifactDeploymentInfo] = []
+    deployments: list[DeploymentBase] = []
+    collection_name: str = Field(validation_alias=AliasPath("collection", "name"))
 
 
 class ArtifactDetails(Artifact):
