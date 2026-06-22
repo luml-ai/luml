@@ -6,10 +6,9 @@
     :draggable="false"
     @update:visible="onUpdateVisible"
   >
-    <template #header>Models with active deployments</template>
+    <template #header>{{ title }}</template>
     <div class="description">
-      Some models are associated with active deployments. If you want to delete these models, you
-      need to stop the deployments first.
+      {{ description }}
     </div>
     <div class="artifacts-list">
       <div
@@ -17,7 +16,7 @@
         :key="artifact.id"
         class="artifact"
       >
-        <div class="artifact-name">Artifact: {{ artifact.name }}</div>
+        <div v-if="isMultiple" class="artifact-name">Artifact: {{ artifact.name }}</div>
         <div class="artifact-deployments">
           <template v-for="(deployment, index) in artifact.deployments" :key="deployment.id">
             <RouterLink
@@ -53,10 +52,30 @@ import { ARTIFACTS_DEPLOYMENTS_MODAL_PT } from './models-table.data'
 import { RouterLink } from 'vue-router'
 import { useRoute } from 'vue-router'
 
+interface Props {
+  isMultiple: boolean
+}
+
 const artifactsStore = useArtifactsStore()
 const route = useRoute()
 
+const props = defineProps<Props>()
+
 const visible = computed(() => !!artifactsStore.modelsWithActiveDeploymentsForDeletion.length)
+
+const title = computed(() => {
+  if (props.isMultiple) {
+    return 'Models with active deployments'
+  }
+  return 'Model with active deployments'
+})
+
+const description = computed(() => {
+  if (props.isMultiple) {
+    return 'Some models are associated with active deployments. If you want to delete these models, you need to stop the deployments first.'
+  }
+  return 'This model is associated with an active deployment. If you want to delete this model, you need to stop the deployment first.'
+})
 
 function onUpdateVisible(visible: boolean) {
   if (!visible) {

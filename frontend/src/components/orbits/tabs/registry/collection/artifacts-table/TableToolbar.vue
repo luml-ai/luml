@@ -86,7 +86,7 @@
     :initial-model-id="modelForDeployment"
     @update:visible="onUpdateModelDeploymentVisible"
   ></DeploymentsCreateModal>
-  <ArtifactsDeploymentsModal />
+  <ArtifactsDeploymentsModal :is-multiple="selectedArtifacts.length > 1" />
 </template>
 
 <script setup lang="ts">
