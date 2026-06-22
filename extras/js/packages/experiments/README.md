@@ -244,8 +244,7 @@ extras/js/packages/experiments/
 ├── src/
 │   ├── index.ts                      # Public API barrel
 │   ├── ExperimentSnapshot.vue        # Root component
-│   ├── interfaces/
-│   │   └── interfaces.ts             # Core type definitions
+│   ├── interfaces/                   # Core type definitions
 │   ├── components/
 │   │   ├── ui/                       # Generic presentational primitives
 │   │   ├── evals/                    # Evaluation table, dataset list, feedback
@@ -263,10 +262,6 @@ extras/js/packages/experiments/
 │   │   ├── dynamic-metrics/
 │   │   └── annotations.ts
 │   ├── providers/                    # Data source implementations
-│   │   ├── ExperimentSnapshotApiProvider.ts
-│   │   ├── ExperimentSnapshotDatabaseProvider.ts
-│   │   ├── ExperimentSnapshotWorkerProxy.ts
-│   │   └── ExperimentSnapshotApiProvider.interface.ts
 │   ├── hooks/                        # Vue composables
 │   ├── helpers/                      # Pure utility functions
 │   ├── services/
@@ -278,8 +273,6 @@ extras/js/packages/experiments/
 │   ├── utils/                        # Search, exception helpers
 │   └── demo/                         # Standalone demo app (not published)
 ├── tokens/                           # Design token JSON files
-│   ├── tokens-styles-light.json
-│   └── tokens-styles-dark.json
 ├── dist/                             # Build output
 ├── vite.config.ts
 ├── tsconfig.app.json

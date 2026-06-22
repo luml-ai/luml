@@ -277,19 +277,9 @@ extras/js/packages/attachments/
 │   │   ├── FilePreview.vue            # Right panel — routes to format-specific previews
 │   │   └── preview/
 │   │       ├── FilePreviewHeader.vue  # File name, size, copy path, download button
-│   │       ├── PreviewStates.vue      # Loading / error / empty / too-big states
-│   │       ├── ImagePreview.vue
-│   │       ├── SvgPreview.vue
-│   │       ├── MediaPreview.vue
-│   │       ├── PdfPreview.vue
-│   │       ├── HtmlPreview.vue
-│   │       ├── CodePreview.vue
-│   │       └── TablePreview.vue
-│   ├── hooks/
-│   │   ├── useFilePreview.ts          # File loading, state management, download
-│   │   └── useTable.ts                # CSV/XML parsing with Arquero
-│   ├── interfaces/
-│   │   └── interfaces.ts             # All TypeScript types
+│   │       └── PreviewStates.vue      # Loading / error / empty / too-big states
+│   ├── hooks/                         # Vue composable functions
+│   ├── interfaces/                    # All TypeScript types
 │   ├── models/
 │   │   └── TarAttachmentsProvider.ts  # Built-in TAR archive provider
 │   ├── utils/
@@ -297,8 +287,6 @@ extras/js/packages/attachments/
 │   │   └── fileContentProcessors.ts   # Blob processing per file type
 │   └── demo/                          # Standalone demo app (not published)
 ├── tokens/                            # Design token JSON files
-│   ├── tokens-styles-light.json
-│   └── tokens-styles-dark.json
 ├── dist/                              # Build output
 ├── vite.config.ts
 ├── tsconfig.app.json

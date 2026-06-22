@@ -262,11 +262,6 @@ lumlflow/frontend/
 │   │   ├── home/                    # Home — groups dashboard
 │   │   ├── experiment/              # Experiment list within a group
 │   │   ├── details/                 # Experiment detail tabs
-│   │   │   ├── OverviewView.vue     # Static parameters, summary
-│   │   │   ├── MetricsView.vue      # Dynamic metric charts
-│   │   │   ├── TracesView.vue       # LLM trace table
-│   │   │   ├── EvalsView.vue        # Evaluation dataset viewer
-│   │   │   └── AttachmentsView.vue  # File attachment browser
 │   │   └── comparison/              # Side-by-side experiment / group comparison
 │   │
 │   ├── components/                  # Reusable components
@@ -283,15 +278,8 @@ lumlflow/frontend/
 │   │   └── MainTemplate.vue         # Shared app shell (header + content slot)
 │   │
 │   ├── hooks/                       # Vue composables
-│   │   ├── useExperimentProvider.ts # Wires up @luml/experiments provider
-│   │   ├── usePagination.ts         # Pagination state
-│   │   └── useUpload.ts             # File upload flow
 │   │
 │   ├── helpers/                     # Pure utility functions
-│   │   ├── colors.ts
-│   │   ├── date.ts
-│   │   ├── string.ts
-│   │   └── errors.ts
 │   │
 │   ├── forms/                       # Zod schemas and form resolvers
 │   ├── dialogs/                     # Standalone dialog components
@@ -314,8 +302,6 @@ lumlflow/frontend/
 │       └── providers/prime-vue/     # PrimeVue plugin configuration
 │
 ├── tokens/                          # Design token source files (JSON)
-│   ├── tokens-styles-light.json
-│   └── tokens-styles-dark.json
 ├── public/                          # Static assets (served as-is)
 ├── dist/                            # Production build output
 ├── vite.config.ts                   # Vite config — proxy, aliases, Tailwind plugin
