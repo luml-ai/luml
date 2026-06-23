@@ -68,6 +68,8 @@ class Experiment:
     static_params: dict[str, Any] = field(default_factory=dict)
     dynamic_params: dict[str, Any] = field(default_factory=dict)
     source: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    upload_status: str = "not_uploaded"
 
 
 @dataclass
@@ -79,6 +81,8 @@ class ExperimentMetaData:
     tags: list[str] = field(default_factory=list)
     duration: float | None = None
     description: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+    upload_status: str = "not_uploaded"
 
 
 @dataclass

@@ -1,6 +1,6 @@
 # Database Schema
 
-Final schema after all migrations (v1–v4).
+Final schema after all migrations (v1–v5).
 
 ---
 
@@ -11,7 +11,7 @@ Final schema after all migrations (v1–v4).
 | `id`            | TEXT      | Primary key                    |
 | `name`          | TEXT      |                                |
 | `created_at`    | TIMESTAMP | Default: current timestamp     |
-| `status`        | TEXT      | Default: `'active'`            |
+| `status`        | TEXT      | Lifecycle: `'active'` / `'completed'` / `'error'` |
 | `tags`          | TEXT      | JSON string                    |
 | `group_id`      | TEXT      | FK → `experiment_groups.id`    |
 | `static_params` | TEXT      | JSON string                    |
@@ -19,6 +19,8 @@ Final schema after all migrations (v1–v4).
 | `duration`      | REAL      |                                |
 | `description`   | TEXT      |                                |
 | `source`        | TEXT      | Added in migration 004         |
+| `metadata`      | TEXT      | JSON string; free-form per-experiment key→value store. Added in migration 005 |
+| `upload_status` | TEXT      | One of `unknown` / `not_uploaded` / `uploading` / `uploaded` / `failed`. Added in migration 005 |
 
 ---
 
@@ -78,3 +80,4 @@ experiment_groups
 | 002     | Fixed group relationship, added models table  |
 | 003     | Added `size` column to models                 |
 | 004     | Added `source` to experiments and models, `description` to models |
+| 005     | Added `metadata` (JSON) and `upload_status` to experiments; backfills existing rows to `upload_status='unknown'` |
