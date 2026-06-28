@@ -40,14 +40,14 @@ function tryParseJson(text: string) {
   }
 }
 
-export function valueToString(value: any) {
+export function valueToString(value: any): string | null {
   if (value === null || value === undefined) return null
   if (value === true) return 'true'
   if (value === false) return 'false'
   if (typeof value === 'string') return value
   if (typeof value === 'number') return value.toString()
   if (Array.isArray(value)) {
-    return value.join(', ')
+    return value.map((item) => valueToString(item)).join(', ')
   }
   if (typeof value === 'object') {
     return jsonToYaml(value)
