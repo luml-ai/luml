@@ -137,9 +137,7 @@ class FakeLumlClient:
     collections: FakeCollectionsResource = field(
         default_factory=FakeCollectionsResource
     )
-    artifacts: FakeArtifactsResource = field(
-        default_factory=FakeArtifactsResource
-    )
+    artifacts: FakeArtifactsResource = field(default_factory=FakeArtifactsResource)
 
     def close(self) -> None:
         pass
@@ -324,9 +322,7 @@ def test_collection_conflict_raises_by_default(
     assert result.status == UPLOAD_STATUS_FAILED
     assert result.error is not None
     assert "not 'mixed'" in result.error
-    assert (
-        store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_FAILED
-    )
+    assert store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_FAILED
 
 
 def test_collection_conflict_suffix_creates_mlflow_named(
@@ -357,9 +353,7 @@ def test_collection_conflict_suffix_creates_mlflow_named(
 def test_local_only_target_skipped(temp_store: Path) -> None:
     local = LumlTrackingStore("luml://local")
     exp_id = local.create_experiment("local-test")
-    run = local.create_run(
-        exp_id, user_id="u", start_time=0, tags=[], run_name="r"
-    )
+    run = local.create_run(exp_id, user_id="u", start_time=0, tags=[], run_name="r")
 
     result = sync_mod.sync(run.info.run_id)
 
@@ -388,9 +382,7 @@ def test_already_uploaded_run_is_skipped(
     assert fake_client.artifacts.upload_calls == []
 
 
-def test_force_re_syncs(
-    store: LumlTrackingStore, fake_client: FakeLumlClient
-) -> None:
+def test_force_re_syncs(store: LumlTrackingStore, fake_client: FakeLumlClient) -> None:
     run_id = _start_run(store)
     sync_mod.sync(run_id, client=fake_client)
     fake_client.artifacts.upload_calls.clear()
@@ -415,9 +407,7 @@ def test_upload_failure_marks_failed_with_error(
 
     assert result.status == UPLOAD_STATUS_FAILED
     assert result.error == "simulated upload failure"
-    assert (
-        store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_FAILED
-    )
+    assert store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_FAILED
     meta = store._tracker.get_experiment_metadata(run_id)
     assert meta[META_LUML_INTERNAL][LUML_UPLOAD_ERROR] == "simulated upload failure"
 
@@ -449,9 +439,7 @@ def test_status_transitions(store: LumlTrackingStore) -> None:
     )
     sync_mod.sync(run_id, client=client)
     assert transitions == ["uploading"]
-    assert (
-        store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_UPLOADED
-    )
+    assert store._tracker.get_experiment_upload_status(run_id) == UPLOAD_STATUS_UPLOADED
 
 
 # ---------------------------------------------------------------- sync_experiment

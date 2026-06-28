@@ -60,6 +60,7 @@ _SPAN_STATUS_TO_LUML: dict[str, int] = {
     SpanStatusCode.ERROR.value: 2,
 }
 
+
 def resolve_owning_run_id(trace_metadata: dict[str, str]) -> str | None:
     """Return the run id that owns a trace, or ``None`` if there is none.
 

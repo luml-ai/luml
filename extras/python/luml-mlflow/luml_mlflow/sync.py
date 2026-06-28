@@ -356,9 +356,7 @@ def _resolve_or_create_collection(
     if existing is not None:
         if str(existing.type) == CollectionType.MIXED.value:
             return existing.id
-        return _handle_collection_conflict(
-            client, collection_name, existing, settings
-        )
+        return _handle_collection_conflict(client, collection_name, existing, settings)
 
     created = client.collections.create(
         description=f"MLflow experiment {collection_name!r}",
@@ -471,8 +469,7 @@ def _build_client(settings: Settings, target: LumlTarget) -> LumlClient:
     api_key = _resolve_api_key(settings)
     if not api_key:
         raise ValueError(
-            "No luml API key configured (set LUML_API_KEY or run "
-            "'lumlflow auth login')"
+            "No luml API key configured (set LUML_API_KEY or run 'lumlflow auth login')"
         )
     return LumlClient(
         base_url=settings.LUML_BASE_URL,
@@ -501,9 +498,7 @@ def _resolve_api_key(settings: Settings) -> str | None:
         import keyring
         import keyring.errors as keyring_errors
 
-        with suppress(
-            keyring_errors.KeyringError, keyring_errors.NoKeyringError
-        ):
+        with suppress(keyring_errors.KeyringError, keyring_errors.NoKeyringError):
             key = keyring.get_password("lumlflow", "api_key")
             if key:
                 return str(key)
@@ -519,9 +514,7 @@ def _close_client(client: LumlClient) -> None:
             closer()
 
 
-def _read_internal_list(
-    tracker: ThreadSafeTracker, run_id: str, key: str
-) -> list[str]:
+def _read_internal_list(tracker: ThreadSafeTracker, run_id: str, key: str) -> list[str]:
     meta = tracker.get_experiment_metadata(run_id)
     luml = meta.get(META_LUML_INTERNAL) or {}
     value = luml.get(key)
@@ -530,9 +523,7 @@ def _read_internal_list(
     return []
 
 
-def _read_internal_str(
-    tracker: ThreadSafeTracker, run_id: str, key: str
-) -> str | None:
+def _read_internal_str(tracker: ThreadSafeTracker, run_id: str, key: str) -> str | None:
     meta = tracker.get_experiment_metadata(run_id)
     luml = meta.get(META_LUML_INTERNAL) or {}
     value = luml.get(key)

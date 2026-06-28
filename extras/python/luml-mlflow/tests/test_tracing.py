@@ -129,9 +129,9 @@ def test_span_tree_round_trip_with_active_run(
 ) -> None:
     exp_id, run_id = run
     trace_id = _TRACE_ABC
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
     root = _make_span(trace_id=trace_id, span_id="0000000000000001", name="root")
     child = _make_span(
         trace_id=trace_id,
@@ -161,9 +161,11 @@ def test_trace_tag_round_trips_via_metadata(
 ) -> None:
     exp_id, run_id = run
     trace_id = _TRACE_TAGS
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id, tags={"foo": "bar"}
-    ))
+    store.start_trace(
+        _make_trace_info(
+            trace_id=trace_id, experiment_id=exp_id, run_id=run_id, tags={"foo": "bar"}
+        )
+    )
     store.set_trace_tag(trace_id, "stage", "prod")
 
     info = store.get_trace_info(trace_id)
@@ -185,9 +187,9 @@ def test_trace_without_run_warn_drops_silently(
     trace_id = _TRACE_ORPHAN
 
     with caplog.at_level("WARNING"):
-        store.start_trace(_make_trace_info(
-            trace_id=trace_id, experiment_id=exp_id, run_id=None
-        ))
+        store.start_trace(
+            _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=None)
+        )
         # log_spans with no active run AND a location that is the group id (the
         # caller passes the MLflow experiment_id, which is the luml group id —
         # NOT a run id). The trace must be dropped.
@@ -219,9 +221,9 @@ def test_trace_without_run_raise_raises_and_writes_nothing(
     trace_id = _TRACE_ORPHAN_RAISE
 
     with pytest.raises(MlflowException, match="active MLflow run"):
-        store.start_trace(_make_trace_info(
-            trace_id=trace_id, experiment_id=exp_id, run_id=None
-        ))
+        store.start_trace(
+            _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=None)
+        )
 
     orphan = _make_span(trace_id=trace_id, span_id="0000000000000001", name="orphan")
     with pytest.raises(MlflowException, match="no owning MLflow run"):
@@ -244,15 +246,19 @@ def test_search_traces_filters_by_experiment_id(
         run_name="other_run",
     )
 
-    store.start_trace(_make_trace_info(
-        trace_id=_TRACE_1, experiment_id=exp_id, run_id=run_id, request_time=300
-    ))
-    store.start_trace(_make_trace_info(
-        trace_id=_TRACE_2,
-        experiment_id=other_exp_id,
-        run_id=other_run.info.run_id,
-        request_time=200,
-    ))
+    store.start_trace(
+        _make_trace_info(
+            trace_id=_TRACE_1, experiment_id=exp_id, run_id=run_id, request_time=300
+        )
+    )
+    store.start_trace(
+        _make_trace_info(
+            trace_id=_TRACE_2,
+            experiment_id=other_exp_id,
+            run_id=other_run.info.run_id,
+            request_time=200,
+        )
+    )
 
     infos, _ = store.search_traces(experiment_ids=[exp_id])
     assert {t.trace_id for t in infos} == {_TRACE_1}
@@ -276,9 +282,9 @@ def test_log_spans_creates_trace_index_when_start_trace_missing(
     # MLflow experiment id which is the group id (not the run id), so we fall
     # back to scanning. For this test we set up the trace index first manually
     # via start_trace.
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
     span = _make_span(trace_id=trace_id, span_id="0000000000000001", name="only")
     store.log_spans(exp_id, [span])
 
@@ -308,9 +314,9 @@ def test_log_spans_before_start_trace_are_buffered_then_flushed(
     assert details is None or not details.spans
 
     # start_trace resolves the run and flushes the buffered child span.
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
     # A root span arriving after start_trace is written directly.
     root = _make_span(trace_id=trace_id, span_id="0000000000000001", name="root")
     store.log_spans(exp_id, [root])
@@ -330,15 +336,13 @@ def test_runless_start_trace_evicts_buffered_spans(
 
     exp_id, run_id = run
     trace_id = _TRACE_RUNLESS_EVICT
-    orphan = _make_span(
-        trace_id=trace_id, span_id="0000000000000001", name="orphan"
-    )
+    orphan = _make_span(trace_id=trace_id, span_id="0000000000000001", name="orphan")
 
     with caplog.at_level("WARNING"):
         store.log_spans(exp_id, [orphan])  # buffered: run unknown
-        store.start_trace(_make_trace_info(
-            trace_id=trace_id, experiment_id=exp_id, run_id=None
-        ))  # runless: reject + evict
+        store.start_trace(
+            _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=None)
+        )  # runless: reject + evict
 
     assert any("active MLflow run" in r.message for r in caplog.records)
     buffer = get_buffer()
@@ -358,9 +362,9 @@ def test_get_trace_reconstructs_prefixed_trace_id(
     exp_id, run_id = run
     hex_id = "1234567890abcdef1234567890abcdef"
     trace_id = "tr-" + hex_id
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
     span = _make_span(
         trace_id=hex_id,
         span_id="0000000000000001",
@@ -383,9 +387,9 @@ def test_start_trace_persists_spans_location_tag(
 
     exp_id, run_id = run
     trace_id = _TRACE_SPANS_LOC
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
 
     info = store.get_trace_info(trace_id)
     assert info.tags[TraceTagKey.SPANS_LOCATION] == SpansLocation.TRACKING_STORE.value
@@ -405,9 +409,9 @@ def test_log_spans_tolerates_missing_links_attribute(
 
     exp_id, run_id = run
     trace_id = _TRACE_NO_LINKS
-    store.start_trace(_make_trace_info(
-        trace_id=trace_id, experiment_id=exp_id, run_id=run_id
-    ))
+    store.start_trace(
+        _make_trace_info(trace_id=trace_id, experiment_id=exp_id, run_id=run_id)
+    )
     span = _make_span(trace_id=trace_id, span_id="0000000000000001", name="only")
     store.log_spans(exp_id, [span])
 

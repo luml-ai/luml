@@ -11,9 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
     BACKEND_STORE_URI: str = Field(
         default=_DEFAULT_STORE_PATH,
-        validation_alias=AliasChoices(
-            "LUML_BACKEND_STORE_URI", "BACKEND_STORE_URI"
-        ),
+        validation_alias=AliasChoices("LUML_BACKEND_STORE_URI", "BACKEND_STORE_URI"),
     )
     LUML_API_KEY: str | None = None
     LUML_BASE_URL: str = "https://api.luml.ai"

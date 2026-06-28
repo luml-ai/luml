@@ -101,9 +101,7 @@ def test_search_runs_all_serialize(store: LumlTrackingStore) -> None:
     _log_run(
         store, experiment_id=exp_id, run_name="done", final_status=RunStatus.FINISHED
     )
-    _log_run(
-        store, experiment_id=exp_id, run_name="bad", final_status=RunStatus.FAILED
-    )
+    _log_run(store, experiment_id=exp_id, run_name="bad", final_status=RunStatus.FAILED)
 
     runs = list(
         store.search_runs(

@@ -1205,9 +1205,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
     ) -> None:
         conn = self._get_meta_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT 1 FROM experiments WHERE id = ?", (experiment_id,)
-        )
+        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
         if cursor.fetchone() is None:
             raise ValueError(f"Experiment {experiment_id} not found")
         cursor.execute(
@@ -1251,9 +1249,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
         conn = self._get_meta_connection()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT 1 FROM experiments WHERE id = ?", (experiment_id,)
-        )
+        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
         if cursor.fetchone() is None:
             raise ValueError(f"Experiment {experiment_id} not found")
         cursor.execute(
