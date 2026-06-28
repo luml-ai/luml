@@ -34,7 +34,7 @@ import { VirtualScroller, type VirtualScrollerLazyEvent } from 'primevue'
 
 interface Props {
   list: Artifact[]
-  selectedArtifact: string
+  selectedArtifact: string | null
   organizationId: string
   orbitId: string
   height?: string

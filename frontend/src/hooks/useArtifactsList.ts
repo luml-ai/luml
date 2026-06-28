@@ -5,7 +5,7 @@ import type {
 } from '@/lib/api/artifacts/interfaces'
 import type { VirtualScrollerLazyEvent } from 'primevue'
 import { api } from '@/lib/api'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, type ComputedRef } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useDebounceFn } from '@vueuse/core'
 
@@ -15,7 +15,12 @@ interface RequestInfo {
   collectionIds: string[]
 }
 
-export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactTypeEnum[]) => {
+export const useArtifactsList = (
+  limit = 20,
+  syncStore = true,
+  types?: ArtifactTypeEnum[],
+  excludedArtifactIds?: ComputedRef<string[]>,
+) => {
   const artifactsStore = useArtifactsStore()
   const abortController = ref<AbortController | null>(null)
 
@@ -41,6 +46,10 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
 
   const list = ref<Artifact[]>([])
 
+  const filteredList = computed(() => {
+    return list.value.filter((artifact) => !excludedArtifactIds?.value?.includes(artifact.id))
+  })
+
   const pageIndex = computed(() => {
     return savedCursors.value.length
   })
@@ -54,7 +63,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     const cursor = null
     const response = await getData(cursor)
     addItemsToList(response.items, true)
-    savedCursors.value.push(response.cursor)
+    savedCursors.value = [response.cursor]
     isLoading.value = false
   }
 
@@ -117,7 +126,7 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
   async function onLazyLoad(event: VirtualScrollerLazyEvent) {
     if (isLoading.value) return
     const { last } = event
-    if (last === pageIndex.value * limit) {
+    if (last === filteredList.value.length) {
       await getNextPage()
     }
   }
@@ -158,9 +167,10 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     )
   }
 
-  watch([sortData, typesQuery], debouncedOnSortDataChange)
+  watch([sortData, typesQuery, searchQuery], debouncedOnSortDataChange)
 
   return {
+    requestInfo,
     setRequestInfo,
     getInitialPage,
     list,
@@ -176,5 +186,6 @@ export const useArtifactsList = (limit = 20, syncStore = true, types?: ArtifactT
     typesQuery,
     setSearchQuery,
     setExcludedTracksQuery,
+    filteredList,
   }
 }
