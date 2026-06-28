@@ -1,4 +1,5 @@
 import type { Manifest } from '@fnnx-ai/common/dist/interfaces'
+import type { Deployment } from '../deployments/interfaces'
 
 export type FileIndex = Record<string, [number, number]>
 
@@ -48,6 +49,7 @@ export interface Artifact {
   status: ArtifactStatusEnum
   created_at: string
   updated_at: string
+  deployments: Pick<Deployment, 'id' | 'name' | 'orbit_id' | 'status'>[]
   tracks?: ArtifactTrack[]
 }
 
