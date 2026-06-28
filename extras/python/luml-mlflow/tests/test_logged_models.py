@@ -127,6 +127,29 @@ def test_log_outputs_is_accepted(
     store.log_outputs(rid, models=[lm])
 
 
+def test_search_logged_models_scopes_by_experiment(
+    store: LumlTrackingStore, run_id: tuple[str, str]
+) -> None:
+    exp_id, rid = run_id
+    created = store.create_logged_model(exp_id, name="rf", source_run_id=rid)
+
+    found = store.search_logged_models([exp_id])
+    assert [m.model_id for m in found] == [created.model_id]
+
+    # The run-details page must not 500 for an experiment with no models.
+    other = store.create_experiment("other")
+    assert list(store.search_logged_models([other])) == []
+
+
+def test_search_logged_models_respects_max_results(
+    store: LumlTrackingStore, run_id: tuple[str, str]
+) -> None:
+    exp_id, rid = run_id
+    store.create_logged_model(exp_id, name="a", source_run_id=rid)
+    store.create_logged_model(exp_id, name="b", source_run_id=rid)
+    assert len(store.search_logged_models([exp_id], max_results=1)) == 1
+
+
 def test_logged_model_artifacts_land_as_luml_model(
     store: LumlTrackingStore, run_id: tuple[str, str], tmp_path: Path
 ) -> None:

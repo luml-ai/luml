@@ -31,6 +31,9 @@ luml = "luml_mlflow.store:LumlTrackingStore"
 [project.entry-points."mlflow.artifact_repository"]
 luml = "luml_mlflow.artifact_repo:LumlArtifactRepository"
 
+[project.entry-points."mlflow.model_registry_store"]
+luml = "luml_mlflow.registry:LumlModelRegistryStore"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

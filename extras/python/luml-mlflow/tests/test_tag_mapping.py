@@ -270,7 +270,7 @@ def test_terminal_status_persists_status_string(
         run_id, run_status=RunStatus.FINISHED, end_time=1000, run_name=None
     )
     run = store.get_run(run_id)
-    assert run.info.status == RunStatus.FINISHED
+    assert run.info.status == RunStatus.to_string(RunStatus.FINISHED)
 
 
 def test_failed_status_persisted(store: LumlTrackingStore) -> None:
@@ -281,7 +281,7 @@ def test_failed_status_persisted(store: LumlTrackingStore) -> None:
         run_id, run_status=RunStatus.FAILED, end_time=1000, run_name=None
     )
     run = store.get_run(run_id)
-    assert run.info.status == RunStatus.FAILED
+    assert run.info.status == RunStatus.to_string(RunStatus.FAILED)
 
 
 # ---------------------------------------------------------------- search runs

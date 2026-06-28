@@ -109,3 +109,55 @@ def test_search_experiments_returns_groups(store: LumlTrackingStore) -> None:
     page = store.search_experiments()
     names = {e.name for e in page}
     assert {DEFAULT_EXPERIMENT_NAME, "a", "b"}.issubset(names)
+
+
+def test_set_experiment_tag_round_trips(store: LumlTrackingStore) -> None:
+    from mlflow.entities import ExperimentTag
+
+    exp_id = store.create_experiment("fraud")
+    store.set_experiment_tag(exp_id, ExperimentTag("team", "ml"))
+    store.set_experiment_tag(exp_id, ExperimentTag("priority", "high"))
+
+    assert store.get_experiment(exp_id).tags == {"team": "ml", "priority": "high"}
+    # Also reachable by name.
+    by_name = store.get_experiment_by_name("fraud")
+    assert by_name is not None
+    assert by_name.tags == {"team": "ml", "priority": "high"}
+
+
+def test_set_experiment_tag_overwrites_existing_key(store: LumlTrackingStore) -> None:
+    from mlflow.entities import ExperimentTag
+
+    exp_id = store.create_experiment("fraud")
+    store.set_experiment_tag(exp_id, ExperimentTag("stage", "dev"))
+    store.set_experiment_tag(exp_id, ExperimentTag("stage", "prod"))
+    assert store.get_experiment(exp_id).tags == {"stage": "prod"}
+
+
+def test_experiment_tag_value_with_equals_round_trips(
+    store: LumlTrackingStore,
+) -> None:
+    from mlflow.entities import ExperimentTag
+
+    exp_id = store.create_experiment("fraud")
+    store.set_experiment_tag(exp_id, ExperimentTag("query", "a=b=c"))
+    assert store.get_experiment(exp_id).tags == {"query": "a=b=c"}
+
+
+def test_create_experiment_persists_initial_tags(store: LumlTrackingStore) -> None:
+    from mlflow.entities import ExperimentTag
+
+    exp_id = store.create_experiment(
+        "fraud", tags=[ExperimentTag("owner", "alice"), ExperimentTag("note", "")]
+    )
+    assert store.get_experiment(exp_id).tags == {"owner": "alice", "note": ""}
+
+
+def test_set_experiment_tag_missing_experiment_raises(
+    store: LumlTrackingStore,
+) -> None:
+    from mlflow.entities import ExperimentTag
+    from mlflow.exceptions import MlflowException
+
+    with pytest.raises(MlflowException, match="not found"):
+        store.set_experiment_tag("nonexistent", ExperimentTag("k", "v"))

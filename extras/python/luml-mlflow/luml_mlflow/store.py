@@ -17,6 +17,7 @@ from typing import Any
 
 from mlflow.entities import (
     Experiment,
+    ExperimentTag,
     LifecycleStage,
     LoggedModel,
     LoggedModelStatus,
@@ -126,8 +127,8 @@ class LumlTrackingStore(AbstractStore):
             from mlflow.exceptions import MlflowException
 
             raise MlflowException(f"Experiment {name!r} already exists")
-        tag_values = [t.value for t in tags or [] if getattr(t, "value", None)]
-        group = self._tracker.create_group(name, tags=tag_values or None)
+        tag_entries = [_encode_group_tag(t.key, t.value) for t in tags or []]
+        group = self._tracker.create_group(name, tags=tag_entries or None)
         return str(group.id)
 
     def get_experiment(self, experiment_id: str) -> Experiment:
@@ -151,12 +152,16 @@ class LumlTrackingStore(AbstractStore):
             if getattr(group, "last_modified", None) is not None
             else creation_ms
         )
+        tags = [
+            ExperimentTag(key, value)
+            for key, value in _decode_group_tags(group.tags or []).items()
+        ]
         return Experiment(
             experiment_id=str(group.id),
             name=group.name,
             artifact_location=self._artifact_uri_for_run(str(group.id)),
             lifecycle_stage=LifecycleStage.ACTIVE,
-            tags=[],
+            tags=tags,
             creation_time=creation_ms,
             last_update_time=last_update_ms,
         )
@@ -193,6 +198,19 @@ class LumlTrackingStore(AbstractStore):
         unsupported(
             "rename_experiment is not supported by the luml store",
             exception_factory=NotImplementedError,
+        )
+
+    def set_experiment_tag(self, experiment_id: str, tag: Any) -> None:
+        group = self._tracker.get_group(experiment_id)
+        if group is None:
+            from mlflow.exceptions import MlflowException
+
+            raise MlflowException(f"Experiment {experiment_id!r} not found")
+        tags = _decode_group_tags(group.tags or [])
+        tags[tag.key] = tag.value
+        self._tracker.update_group(
+            experiment_id,
+            tags=[_encode_group_tag(k, v) for k, v in tags.items()],
         )
 
     # --------------------------------------------------------------------- runs
@@ -464,6 +482,33 @@ class LumlTrackingStore(AbstractStore):
     ) -> LoggedModel:
         return self._to_logged_model(self._require_logged_model(model_id))
 
+    def search_logged_models(
+        self,
+        experiment_ids: list[str],
+        filter_string: str | None = None,
+        datasets: list[dict[str, Any]] | None = None,
+        max_results: int | None = None,
+        order_by: list[dict[str, Any]] | None = None,
+        page_token: str | None = None,
+    ) -> PagedList[LoggedModel]:
+        """Return logged models scoped to ``experiment_ids``.
+
+        The MLflow 3.x run-details page calls this to render its Models section,
+        so it must not raise (the base ``AbstractStore`` does). Logged models are
+        held in-process, so a fresh server process returns an empty page rather
+        than the models a separate training process logged.
+        """
+        wanted = set(experiment_ids or [])
+        models = [
+            self._to_logged_model(rec)
+            for rec in self._logged_models.values()
+            if rec["experiment_id"] in wanted
+        ]
+        models.sort(key=lambda m: m.creation_timestamp, reverse=True)
+        if max_results is not None:
+            models = models[:max_results]
+        return PagedList(models, token=None)
+
     def finalize_logged_model(
         self, model_id: str, status: LoggedModelStatus
     ) -> LoggedModel:
@@ -537,6 +582,29 @@ class LumlTrackingStore(AbstractStore):
         unsupported(
             "link_traces_to_run is not yet supported by the luml store",
         )
+
+
+def _encode_group_tag(key: str, value: str) -> str:
+    """Encode an MLflow experiment tag into a luml group's flat ``tags`` list.
+
+    A group exposes only ``list[str]`` for tags (no key/value metadata column),
+    so each experiment tag is stored as ``"key=value"`` and decoded back by
+    splitting on the first ``=`` (see :func:`_decode_group_tags`).
+    """
+    return f"{key}={value}"
+
+
+def _decode_group_tags(raw_tags: list[str]) -> dict[str, str]:
+    """Inverse of :func:`_encode_group_tag`.
+
+    Splits on the first ``=`` so values may contain ``=``; a bare entry with no
+    ``=`` (e.g. a luml-native flag set outside MLflow) decodes to an empty value.
+    """
+    out: dict[str, str] = {}
+    for raw in raw_tags:
+        key, sep, value = raw.partition("=")
+        out[key] = value if sep else ""
+    return out
 
 
 def _apply_order_by(items: list[Any], order_by: list[str]) -> list[Any]:

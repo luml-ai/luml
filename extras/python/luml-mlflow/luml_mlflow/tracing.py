@@ -7,13 +7,20 @@ requires a luml *experiment*, and in this package a luml experiment IS an MLflow
 that case through the shared ``unsupported()`` chokepoint (governed by
 ``LUML_MLFLOW_ON_UNSUPPORTED``) and never persists orphan spans either way.
 
-Owning-run resolution: the run id is read from the trace's
-``mlflow.sourceRun`` request metadata, which MLflow sets when a run is active
-while tracing.
+Owning-run resolution: the run id is read from the trace's ``mlflow.sourceRun``
+request metadata, which MLflow sets when a run is active while tracing. That
+metadata reaches the store via ``start_trace`` (``trace.info``), but MLflow's V3
+exporter calls ``log_spans`` *first* — so spans whose run is not yet known are
+parked in the :mod:`luml_mlflow._span_buffer` and flushed when ``start_trace``
+resolves the run. ``start_trace`` also tags the trace ``SPANS_LOCATION =
+TRACKING_STORE`` so the exporter does not additionally try to upload trace data
+to a (non-existent) luml artifact location.
 """
 
 import json
 import logging
+import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from mlflow.entities import (
@@ -26,8 +33,14 @@ from mlflow.entities import (
     TraceState,
 )
 from mlflow.exceptions import MlflowException
-from mlflow.tracing.constant import TraceMetadataKey
+from mlflow.tracing.constant import (
+    TRACE_REQUEST_ID_PREFIX,
+    SpansLocation,
+    TraceMetadataKey,
+    TraceTagKey,
+)
 
+from luml_mlflow._span_buffer import get_buffer
 from luml_mlflow._tracker import ThreadSafeTracker
 from luml_mlflow._unsupported import unsupported
 
@@ -56,17 +69,48 @@ def resolve_owning_run_id(trace_metadata: dict[str, str]) -> str | None:
     return (trace_metadata or {}).get(TraceMetadataKey.SOURCE_RUN)
 
 
+_INDEX_LOCK = threading.Lock()
+"""Serializes every read-modify-write of a run's ``trace_index``.
+
+``update_experiment_metadata`` merges only at the top level, so each writer reads
+the whole ``trace_index`` dict, inserts its entry, and writes the dict back. With
+async trace logging on, multiple traces of the same run export concurrently; this
+lock prevents those read-modify-writes from clobbering each other's entries (which
+would make whole traces vanish)."""
+
+
 def _trace_index(tracker: ThreadSafeTracker, run_id: str) -> dict[str, Any]:
     meta = tracker.get_experiment_metadata(run_id)
     return dict(meta.get(META_TRACE_INDEX) or {})
 
 
+def _mutate_index(
+    tracker: ThreadSafeTracker,
+    run_id: str,
+    fn: Callable[[dict[str, Any]], None],
+) -> None:
+    """Atomically read a run's trace index, apply ``fn``, and write it back."""
+    with _INDEX_LOCK:
+        index = _trace_index(tracker, run_id)
+        fn(index)
+        tracker.update_experiment_metadata(run_id, {META_TRACE_INDEX: index})
+
+
 def _write_trace_index_entry(
     tracker: ThreadSafeTracker, run_id: str, trace_id: str, entry: dict[str, Any]
 ) -> None:
-    index = _trace_index(tracker, run_id)
-    index[trace_id] = entry
-    tracker.update_experiment_metadata(run_id, {META_TRACE_INDEX: index})
+    _mutate_index(tracker, run_id, lambda index: index.__setitem__(trace_id, entry))
+
+
+def _ensure_trace_index_entry(
+    tracker: ThreadSafeTracker, run_id: str, trace_id: str, entry: dict[str, Any]
+) -> None:
+    """Insert ``entry`` for ``trace_id`` only if the trace has none yet.
+
+    Atomic with respect to a concurrent ``start_trace`` writing the richer entry:
+    whichever runs second sees the other's write, so ``start_trace``'s entry always
+    wins and is never clobbered by this auto-created placeholder."""
+    _mutate_index(tracker, run_id, lambda index: index.setdefault(trace_id, entry))
 
 
 def _read_trace_index_entry(
@@ -91,28 +135,37 @@ def find_trace_owner(tracker: ThreadSafeTracker, trace_id: str) -> str | None:
 
 
 def start_trace(tracker: ThreadSafeTracker, trace_info: TraceInfo) -> TraceInfo:
-    """Persist a new trace's metadata onto its owning run's metadata column.
+    """Persist a trace's metadata onto its owning run and flush its buffered spans.
 
-    No spans are persisted here — only the trace-level fields the SDK has no
-    native home for. ``log_spans`` writes spans separately and may also arrive
-    before ``start_trace`` in some MLflow clients; the index entry is created
-    on demand if missing.
+    ``start_trace`` is where the owning run first becomes known (via
+    ``mlflow.sourceRun``), so it also drains any spans that ``log_spans`` parked
+    in the buffer before this point. A trace with no owning run is rejected,
+    which evicts any such buffered spans rather than leaking them.
     """
+    buffer = get_buffer()
+    trace_id = trace_info.trace_id
     run_id = resolve_owning_run_id(trace_info.trace_metadata)
     if run_id is None:
-        unsupported(
+        buffer.resolve(trace_id, None)
+        return unsupported(
             "Tracing requires an active MLflow run (luml has no equivalent of "
             "an experiment-only trace). Wrap tracing in `with mlflow.start_run(): ...`",
+            default=trace_info,
         )
-        return trace_info
 
     if tracker.get_experiment_record(run_id) is None:
-        unsupported(
-            f"Trace {trace_info.trace_id!r} references unknown run {run_id!r}; "
+        buffer.resolve(trace_id, None)
+        return unsupported(
+            f"Trace {trace_id!r} references unknown run {run_id!r}; "
             "the run must be created before tracing.",
+            default=trace_info,
         )
-        return trace_info
 
+    # Mark — and persist — that spans live in our tracking store. This both
+    # suppresses the exporter's parallel upload of trace data to a (non-existent)
+    # luml artifact location and tells the read path to load spans from the store
+    # rather than from artifacts, so the tag must be in the stored ``tags``.
+    trace_info.tags[TraceTagKey.SPANS_LOCATION] = SpansLocation.TRACKING_STORE.value
     entry = {
         "tags": dict(trace_info.tags or {}),
         "metadata": dict(trace_info.trace_metadata or {}),
@@ -123,7 +176,12 @@ def start_trace(tracker: ThreadSafeTracker, trace_info: TraceInfo) -> TraceInfo:
         "execution_duration": trace_info.execution_duration,
         "state": trace_info.state.value if trace_info.state else None,
     }
-    _write_trace_index_entry(tracker, run_id, trace_info.trace_id, entry)
+    _write_trace_index_entry(tracker, run_id, trace_id, entry)
+    # Publish the resolution and flush spans parked before the run was known. The
+    # index entry above is written first so any log_spans batch that races in
+    # *after* this resolve (and so writes directly) still finds the trace indexed.
+    for span in buffer.resolve(trace_id, run_id):
+        _write_span(tracker, run_id, span)
     return trace_info
 
 
@@ -132,62 +190,78 @@ def log_spans(
 ) -> list[Span]:
     """Persist a batch of MLflow spans via ``tracker.log_span``.
 
-    Spans are grouped by trace id; each group's owning run is resolved from the
-    first span that carries ``mlflow.sourceRun`` in its trace metadata. The
-    ``location`` argument is the MLflow experiment id (= luml group id) and is
-    used as a hint when no span carries source-run metadata: if the location
-    matches the trace's already-indexed run, use that; otherwise the trace is
-    treated as runless and dropped through ``unsupported()``.
+    Spans are grouped by trace id. If the trace's owning run is already known
+    (``start_trace`` has run, or the location itself is a run), the spans are
+    written immediately. Otherwise — MLflow's normal order, where ``log_spans``
+    precedes ``start_trace`` — they are buffered until ``start_trace`` resolves
+    the run. Spans for a trace already rejected as runless are dropped.
     """
     if not spans:
         return []
 
+    buffer = get_buffer()
     by_trace: dict[str, list[Span]] = {}
     for span in spans:
         by_trace.setdefault(span.trace_id, []).append(span)
 
     written: list[Span] = []
     for trace_id, trace_spans in by_trace.items():
-        run_id = _resolve_run_for_log_spans(tracker, trace_id, trace_spans, location)
+        run_id = _resolve_logged_run(tracker, trace_id, location)
         if run_id is None:
-            continue
-        if tracker.get_experiment_record(run_id) is None:
-            unsupported(
-                f"Spans for trace {trace_id!r} reference unknown run {run_id!r}; "
-                "the run must be created before tracing.",
-            )
-            continue
-        if _read_trace_index_entry(tracker, run_id, trace_id) is None:
-            _write_trace_index_entry(
-                tracker,
-                run_id,
-                trace_id,
-                {
-                    "tags": {},
-                    "metadata": {TraceMetadataKey.SOURCE_RUN: run_id},
-                    "request_preview": None,
-                    "response_preview": None,
-                    "client_request_id": None,
-                    "request_time": (
-                        min(s.start_time_ns for s in trace_spans) // 1_000_000
-                    ),
-                    "execution_duration": None,
-                    "state": TraceState.IN_PROGRESS.value,
+            # The owning run is not known locally yet. Hand the spans to the buffer,
+            # which atomically either parks them (start_trace has not resolved the
+            # run) or — if start_trace already resolved it on another thread —
+            # returns the resolution so we write/drop now with no lost-update window.
+            resolved, owning_run = buffer.add(trace_id, trace_spans)
+            if not resolved:
+                continue
+            if owning_run is None:
+                unsupported(
+                    f"Span batch for trace {trace_id!r} has no owning MLflow run "
+                    "(no mlflow.sourceRun in trace metadata). Wrap tracing in "
+                    "`with mlflow.start_run(): ...`",
+                )
+                continue
+            run_id = owning_run
+        else:
+            # Run known via the trace index or the location. Publish the resolution
+            # so spans another thread may have parked for this trace are drained and
+            # later adds short-circuit instead of buffering forever.
+            for span in buffer.resolve(trace_id, run_id):
+                _write_span(tracker, run_id, span)
+                written.append(span)
+
+        _ensure_trace_index_entry(
+            tracker,
+            run_id,
+            trace_id,
+            {
+                "tags": {
+                    TraceTagKey.SPANS_LOCATION: SpansLocation.TRACKING_STORE.value
                 },
-            )
+                "metadata": {TraceMetadataKey.SOURCE_RUN: run_id},
+                "request_preview": None,
+                "response_preview": None,
+                "client_request_id": None,
+                "request_time": min(s.start_time_ns for s in trace_spans) // 1_000_000,
+                "execution_duration": None,
+                "state": TraceState.IN_PROGRESS.value,
+            },
+        )
         for span in trace_spans:
             _write_span(tracker, run_id, span)
             written.append(span)
     return written
 
 
-def _resolve_run_for_log_spans(
-    tracker: ThreadSafeTracker,
-    trace_id: str,
-    trace_spans: list[Span],
-    location: str | None,
+def _resolve_logged_run(
+    tracker: ThreadSafeTracker, trace_id: str, location: str | None
 ) -> str | None:
-    """Find the owning run id for a batch of spans within a single trace."""
+    """Return the owning run for a span batch, or ``None`` if not yet known.
+
+    ``None`` means the run cannot be determined *yet* (``start_trace`` has not
+    arrived); the caller buffers the spans rather than dropping them.
+    """
     indexed_run = find_trace_owner(tracker, trace_id)
     if indexed_run is not None:
         return indexed_run
@@ -197,11 +271,7 @@ def _resolve_run_for_log_spans(
         # only treat as a run id when it actually identifies an experiment row.
         return location
 
-    return unsupported(
-        f"Span batch for trace {trace_id!r} has no owning MLflow run "
-        "(no mlflow.sourceRun in trace metadata and the location is not a "
-        "known run). Wrap tracing in `with mlflow.start_run(): ...`",
-    )
+    return None
 
 
 def _write_span(tracker: ThreadSafeTracker, run_id: str, span: Span) -> None:
@@ -217,7 +287,9 @@ def _write_span(tracker: ThreadSafeTracker, run_id: str, span: Span) -> None:
         status_message=span.status.description or None,
         attributes=dict(span.attributes) if span.attributes else None,
         events=_serialize_events(span.events),
-        links=_serialize_links(span.links),
+        # ``Span.links`` was only added in a later mlflow 3.x; older versions in
+        # our supported range (>=3.1) lack it. Degrade gracefully, don't raise.
+        links=_serialize_links(getattr(span, "links", None)),
         trace_flags=0,
         experiment_id=run_id,
     )
@@ -259,22 +331,30 @@ def set_trace_tag(
     run_id = find_trace_owner(tracker, trace_id)
     if run_id is None:
         raise MlflowException(f"Trace {trace_id!r} not found")
-    entry = _read_trace_index_entry(tracker, run_id, trace_id) or {}
-    tags = dict(entry.get("tags") or {})
-    tags[key] = value
-    entry["tags"] = tags
-    _write_trace_index_entry(tracker, run_id, trace_id, entry)
+
+    def _set(index: dict[str, Any]) -> None:
+        entry = dict(index.get(trace_id) or {})
+        tags = dict(entry.get("tags") or {})
+        tags[key] = value
+        entry["tags"] = tags
+        index[trace_id] = entry
+
+    _mutate_index(tracker, run_id, _set)
 
 
 def delete_trace_tag(tracker: ThreadSafeTracker, trace_id: str, key: str) -> None:
     run_id = find_trace_owner(tracker, trace_id)
     if run_id is None:
         raise MlflowException(f"Trace {trace_id!r} not found")
-    entry = _read_trace_index_entry(tracker, run_id, trace_id) or {}
-    tags = dict(entry.get("tags") or {})
-    tags.pop(key, None)
-    entry["tags"] = tags
-    _write_trace_index_entry(tracker, run_id, trace_id, entry)
+
+    def _delete(index: dict[str, Any]) -> None:
+        entry = dict(index.get(trace_id) or {})
+        tags = dict(entry.get("tags") or {})
+        tags.pop(key, None)
+        entry["tags"] = tags
+        index[trace_id] = entry
+
+    _mutate_index(tracker, run_id, _delete)
 
 
 def get_trace_info(tracker: ThreadSafeTracker, trace_id: str) -> TraceInfo:
@@ -365,7 +445,8 @@ def _span_record_to_mlflow(record: "SpanRecord") -> Span:
         1: StatusCode.OK,
         2: StatusCode.ERROR,
     }
-    trace_int = int(record.trace_id, 16)
+    # MLflow trace ids are ``tr-<hex>``; the OTel context wants the bare hex int.
+    trace_int = int(record.trace_id.removeprefix(TRACE_REQUEST_ID_PREFIX), 16)
     span_int = int(record.span_id, 16)
     ctx = SpanContext(
         trace_id=trace_int,

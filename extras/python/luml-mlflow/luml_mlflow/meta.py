@@ -297,23 +297,28 @@ def reconstruct_run(
     )
 
 
-def _resolve_run_status(sdk_status: str | None, override_str: str | None) -> int:
+def _resolve_run_status(sdk_status: str | None, override_str: str | None) -> str:
+    """Resolve a run's status to a canonical MLflow status string.
+
+    The return value feeds ``RunInfo(status=...)`` and must be a canonical name
+    (``"RUNNING"``/``"FINISHED"``/``"FAILED"``/...) — never the proto integer —
+    because the MLflow server calls ``RunInfo.to_proto()`` on every run, which
+    routes ``status`` through ``RunStatus.from_string`` and rejects integers.
+    """
     if override_str:
         try:
-            return RunStatus.from_string(override_str)
+            return RunStatus.to_string(RunStatus.from_string(override_str))
         except Exception:  # noqa: BLE001
             logger.debug(
                 "Ignoring unknown MLflow status override %r in metadata",
                 override_str,
             )
-    if sdk_status is None:
-        return RunStatus.RUNNING
     mapping = {
         "active": RunStatus.RUNNING,
         "completed": RunStatus.FINISHED,
         "failed": RunStatus.FAILED,
     }
-    return mapping.get(sdk_status, RunStatus.RUNNING)
+    return RunStatus.to_string(mapping.get(sdk_status or "", RunStatus.RUNNING))
 
 
 def _build_run_tags(

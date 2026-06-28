@@ -2,6 +2,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
+from luml_mlflow import _span_buffer as span_buffer_mod
 from luml_mlflow import _tracker as tracker_mod
 from luml_mlflow import config as config_mod
 
@@ -14,6 +15,8 @@ def temp_store(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Iterator[Path
     monkeypatch.setenv("LUML_MLFLOW_ON_UNSUPPORTED", "warn")
     config_mod.reset_settings_cache()
     tracker_mod.reset_tracker_cache()
+    span_buffer_mod.reset_buffer()
     yield store
     config_mod.reset_settings_cache()
     tracker_mod.reset_tracker_cache()
+    span_buffer_mod.reset_buffer()
