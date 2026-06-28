@@ -1,0 +1,104 @@
+<template>
+  <Dialog
+    :pt="ARTIFACTS_DEPLOYMENTS_MODAL_PT"
+    :visible="visible"
+    modal
+    :draggable="false"
+    @update:visible="onUpdateVisible"
+  >
+    <template #header>{{ title }}</template>
+    <div class="description">
+      {{ description }}
+    </div>
+    <div class="artifacts-list">
+      <div
+        v-for="artifact in artifactsStore.modelsWithActiveDeploymentsForDeletion"
+        :key="artifact.id"
+        class="artifact"
+      >
+        <div v-if="isMultiple" class="artifact-name">Artifact: {{ artifact.name }}</div>
+        <div class="artifact-deployments">
+          <template v-for="(deployment, index) in artifact.deployments" :key="deployment.id">
+            <RouterLink
+              :to="{
+                name: 'orbit-deployments',
+                params: {
+                  organizationId: route.params.organizationId,
+                  id: route.params.id,
+                },
+                query: {
+                  deployment: deployment.id,
+                },
+              }"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="link deployment"
+            >
+              {{ deployment.name }}
+            </RouterLink>
+            <span v-if="index < artifact.deployments.length - 1">, </span>
+          </template>
+        </div>
+      </div>
+    </div>
+  </Dialog>
+</template>
+
+<script setup lang="ts">
+import { Dialog } from 'primevue'
+import { useArtifactsStore } from '@/stores/artifacts'
+import { computed } from 'vue'
+import { ARTIFACTS_DEPLOYMENTS_MODAL_PT } from './models-table.data'
+import { RouterLink } from 'vue-router'
+import { useRoute } from 'vue-router'
+
+interface Props {
+  isMultiple: boolean
+}
+
+const artifactsStore = useArtifactsStore()
+const route = useRoute()
+
+const props = defineProps<Props>()
+
+const visible = computed(() => !!artifactsStore.modelsWithActiveDeploymentsForDeletion.length)
+
+const title = computed(() => {
+  if (props.isMultiple) {
+    return 'Models with active deployments'
+  }
+  return 'Model with active deployments'
+})
+
+const description = computed(() => {
+  if (props.isMultiple) {
+    return 'Some models are associated with active deployments. If you want to delete these models, you need to stop the deployments first.'
+  }
+  return 'This model is associated with an active deployment. If you want to delete this model, you need to stop the deployment first.'
+})
+
+function onUpdateVisible(visible: boolean) {
+  if (!visible) {
+    artifactsStore.resetModelsWithActiveDeploymentsForDeletion()
+  }
+}
+</script>
+
+<style scoped>
+.description {
+  font-size: 14px;
+  line-height: 1.5;
+}
+.artifacts-list {
+  padding-top: 16px;
+}
+.artifact:not(:last-child) {
+  margin-bottom: 16px;
+}
+.artifact-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--p-text-muted-color);
+  margin-bottom: 4px;
+}
+</style>

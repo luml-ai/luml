@@ -88,6 +88,7 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
+import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces'
 
 const dialogPT: DialogPassThroughOptions = {
   footer: {
@@ -149,7 +150,14 @@ async function saveChanges() {
 }
 
 function onDeleteClick() {
-  confirm.require(deleteArtifactConfirmOptions(deleteArtifact, 1))
+  const hasActiveDeployments = props.data.deployments.some(
+    (deployment) => deployment.status === DeploymentStatusEnum.active,
+  )
+  if (hasActiveDeployments) {
+    artifactsStore.setModelsWithActiveDeploymentsForDeletion([props.data])
+  } else {
+    confirm.require(deleteArtifactConfirmOptions(deleteArtifact, 1))
+  }
 }
 
 async function deleteArtifact() {

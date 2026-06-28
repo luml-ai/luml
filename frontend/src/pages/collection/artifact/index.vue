@@ -68,6 +68,8 @@
     @updateArtifact="onUpdateModel"
     @artifactDeleted="onModelDeleted"
   ></ArtifactEditor>
+
+  <ArtifactsDeploymentsModal :is-multiple="false" />
 </template>
 
 <script setup lang="ts">
@@ -88,6 +90,7 @@ import ArtifactTabs from '@/components/orbits/tabs/registry/collection/artifact/
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import ArtifactEditor from '@/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue'
 import LinkArtifactToTrack from '@/components/tracks/LinkArtifactToTrack.vue'
+import ArtifactsDeploymentsModal from '@/components/orbits/tabs/registry/collection/artifacts-table/ArtifactsDeploymentsModal.vue'
 
 const artifactsStore = useArtifactsStore()
 const route = useRoute()
