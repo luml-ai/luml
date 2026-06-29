@@ -188,6 +188,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         "static_params",
         "dynamic_params",
         "source",
+        "metadata",
+        "upload_status",
     ]
 
     _EVALS_STANDARD_SORT_COLUMNS: frozenset[str] = frozenset(
@@ -225,7 +227,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         config: str,
     ) -> None:
         self.base_path = Path(config)
-        self.base_path.mkdir(exist_ok=True)
+        self.base_path.mkdir(parents=True, exist_ok=True)
         self.meta_db_path = self.base_path / "meta.db"
 
         self.pool = ConnectionPool(10)
@@ -310,7 +312,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description=row[8],
         )
 
-    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model:
+    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
         cursor.execute(
             "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE id = ?",
             (model_id,),
@@ -354,8 +356,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         tags_str = json.dumps(tags) if tags else None
         cursor.execute(
             """
-            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description, source)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO experiments (id, name, group_id, tags, description, source, upload_status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
             (
                 experiment_id,
@@ -364,6 +366,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 tags_str,
                 description,
                 source,
+                "not_uploaded",
             ),
         )
 
@@ -759,7 +762,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         meta_conn = self._get_meta_connection()
         meta_cursor = meta_conn.cursor()
         meta_cursor.execute(
-            "SELECT name, created_at, status, group_id, tags, duration, description "
+            "SELECT name, created_at, status, group_id, tags, duration, description, "
+            "metadata, upload_status "
             "FROM experiments WHERE id = ?",
             (experiment_id,),
         )
@@ -779,6 +783,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 tags=json.loads(meta_row[4]) if meta_row[4] else [],
                 duration=meta_row[5],
                 description=meta_row[6],
+                metadata=json.loads(meta_row[7]) if meta_row[7] else {},
+                upload_status=meta_row[8] or "unknown",
             ),
             static_params=static_params,
             dynamic_metrics=dynamic_metrics,
@@ -915,7 +921,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             """
-            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description, source
+            SELECT id, name, created_at, status, group_id, tags, static_params, dynamic_params, duration, description, source, metadata, upload_status
             FROM experiments
             """
         )
@@ -934,6 +940,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                     duration=row[8],
                     description=row[9],
                     source=row[10],
+                    metadata=json.loads(row[11]) if row[11] else {},
+                    upload_status=row[12] or "unknown",
                 )
             )
         return experiments
@@ -1037,7 +1045,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT e.id, e.name, e.created_at, e.status, e.tags, e.duration, e.description, "
-            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name, e.source "
+            "e.group_id, e.static_params, e.dynamic_params, eg.name AS group_name, e.source, "
+            "e.metadata, e.upload_status "
             "FROM experiments e "
             "LEFT JOIN experiment_groups eg ON e.group_id = eg.id "
             "WHERE e.id = ?",
@@ -1059,6 +1068,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             dynamic_params=json.loads(row[9]) if row[9] else {},
             group_name=row[10],
             source=row[11],
+            metadata=json.loads(row[12]) if row[12] else {},
+            upload_status=row[13] or "unknown",
         )
 
     def delete_experiment(self, experiment_id: str) -> None:
@@ -1128,7 +1139,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
 
         if not fields:
             cursor.execute(
-                "SELECT id, name, created_at, status, tags, duration, description, group_id, source "
+                "SELECT id, name, created_at, status, tags, duration, description, group_id, source, metadata, upload_status "
                 "FROM experiments WHERE id = ?",
                 (experiment_id,),
             )
@@ -1145,6 +1156,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 description=row[6],
                 group_id=row[7],
                 source=row[8],
+                metadata=json.loads(row[9]) if row[9] else {},
+                upload_status=row[10] or "unknown",
             )
 
         values.append(experiment_id)
@@ -1155,7 +1168,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn.commit()
 
         cursor.execute(
-            "SELECT id, name, created_at, status, tags, duration, description, group_id, source "
+            "SELECT id, name, created_at, status, tags, duration, description, group_id, source, metadata, upload_status "
             "FROM experiments WHERE id = ?",
             (experiment_id,),
         )
@@ -1172,7 +1185,78 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description=row[6],
             group_id=row[7],
             source=row[8],
+            metadata=json.loads(row[9]) if row[9] else {},
+            upload_status=row[10] or "unknown",
         )
+
+    def get_experiment_metadata(self, experiment_id: str) -> dict[str, Any]:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT metadata FROM experiments WHERE id = ?", (experiment_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        return json.loads(row[0]) if row[0] else {}
+
+    def set_experiment_metadata(
+        self, experiment_id: str, metadata: dict[str, Any]
+    ) -> None:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
+        if cursor.fetchone() is None:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        cursor.execute(
+            "UPDATE experiments SET metadata = ? WHERE id = ?",
+            (json.dumps(metadata) if metadata else None, experiment_id),
+        )
+        conn.commit()
+
+    def update_experiment_metadata(
+        self, experiment_id: str, updates: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Merge `updates` into the experiment's `metadata` column.
+
+        Keys mapped to `None` are removed. Returns the updated metadata dict.
+        """
+        current = self.get_experiment_metadata(experiment_id)
+        for key, value in updates.items():
+            if value is None:
+                current.pop(key, None)
+            else:
+                current[key] = value
+        self.set_experiment_metadata(experiment_id, current)
+        return current
+
+    def get_experiment_upload_status(self, experiment_id: str) -> str:
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT upload_status FROM experiments WHERE id = ?", (experiment_id,)
+        )
+        row = cursor.fetchone()
+        if row is None:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        return row[0] or "unknown"
+
+    def set_experiment_upload_status(self, experiment_id: str, status: str) -> None:
+        allowed = {"unknown", "not_uploaded", "uploading", "uploaded", "failed"}
+        if status not in allowed:
+            raise ValueError(
+                f"Invalid upload_status '{status}'. Must be one of {sorted(allowed)}"
+            )
+        conn = self._get_meta_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM experiments WHERE id = ?", (experiment_id,))
+        if cursor.fetchone() is None:
+            raise ValueError(f"Experiment {experiment_id} not found")
+        cursor.execute(
+            "UPDATE experiments SET upload_status = ? WHERE id = ?",
+            (status, experiment_id),
+        )
+        conn.commit()
 
     def create_group(
         self,
@@ -1565,7 +1649,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         model = self._fetch_model(conn.cursor(), model_id)
 
-        if not model:
+        if not model or not model.path:
             raise ValueError(f"Model {model_id} not found")
 
         luml_path = self.base_path / model.path
@@ -1579,7 +1663,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
             if card_member is None:
                 raise ValueError(f"Model card not found in model {model_id}")
-            return tar.extractfile(card_member).read()
+            extracted = tar.extractfile(card_member)
+            if extracted is None:
+                raise ValueError(f"Model card not found in model {model_id}")
+            return extracted.read()
 
     def update_model(
         self,
@@ -2016,6 +2103,8 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 static_params=e["static_params"] or {},
                 dynamic_params=e["dynamic_params"] or {},
                 source=e.get("source"),
+                metadata=e.get("metadata") or {},
+                upload_status=e.get("upload_status") or "unknown",
             )
             for e in experiments_dicts
         ]

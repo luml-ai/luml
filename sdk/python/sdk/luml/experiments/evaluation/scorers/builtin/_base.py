@@ -145,8 +145,7 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
             continue  # no collision — leave it untouched
 
         dims = [
-            (_input_key_label(s._input_key), _client_model(s._client))
-            for s in group
+            (_input_key_label(s._input_key), _client_model(s._client)) for s in group
         ]
         use_key = len({key for key, _ in dims}) > 1
         use_model = len({model for _, model in dims}) > 1
@@ -156,7 +155,7 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
                 parts.append(_NAME_PART_SANITIZER.sub("_", key_label))
             if use_model and model:
                 parts.append(_NAME_PART_SANITIZER.sub("_", model))
-            scorer._name = "_".join(parts)
+            scorer._name = "_".join(parts)  # type: ignore[attr-defined]
 
 
 def _run_traced_judge(
