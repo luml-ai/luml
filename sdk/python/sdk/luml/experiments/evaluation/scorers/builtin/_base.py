@@ -155,7 +155,7 @@ def _disambiguate_scorer_names(scorers: list[BaseScorer]) -> None:
                 parts.append(_NAME_PART_SANITIZER.sub("_", key_label))
             if use_model and model:
                 parts.append(_NAME_PART_SANITIZER.sub("_", model))
-            scorer._name = "_".join(parts)
+            scorer._name = "_".join(parts)  # type: ignore[attr-defined]
 
 
 def _run_traced_judge(

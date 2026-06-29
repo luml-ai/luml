@@ -312,7 +312,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             description=row[8],
         )
 
-    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model:
+    def _fetch_model(self, cursor: sqlite3.Cursor, model_id: str) -> Model | None:
         cursor.execute(
             "SELECT id, name, created_at, tags, path, size, experiment_id, source, description FROM models WHERE id = ?",
             (model_id,),
@@ -1649,7 +1649,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         conn = self._get_meta_connection()
         model = self._fetch_model(conn.cursor(), model_id)
 
-        if not model:
+        if not model or not model.path:
             raise ValueError(f"Model {model_id} not found")
 
         luml_path = self.base_path / model.path
@@ -1663,7 +1663,10 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             )
             if card_member is None:
                 raise ValueError(f"Model card not found in model {model_id}")
-            return tar.extractfile(card_member).read()
+            extracted = tar.extractfile(card_member)
+            if extracted is None:
+                raise ValueError(f"Model card not found in model {model_id}")
+            return extracted.read()
 
     def update_model(
         self,
