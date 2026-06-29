@@ -148,6 +148,30 @@ class Backend(ABC):
         pass
 
     @abstractmethod
+    def get_experiment_metadata(self, experiment_id: str) -> dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def set_experiment_metadata(
+        self, experiment_id: str, metadata: dict[str, Any]
+    ) -> None:
+        pass
+
+    @abstractmethod
+    def update_experiment_metadata(
+        self, experiment_id: str, updates: dict[str, Any]
+    ) -> dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def get_experiment_upload_status(self, experiment_id: str) -> str:
+        pass
+
+    @abstractmethod
+    def set_experiment_upload_status(self, experiment_id: str, status: str) -> None:
+        pass
+
+    @abstractmethod
     def create_group(
         self,
         name: str,

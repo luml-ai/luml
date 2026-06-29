@@ -10,7 +10,7 @@ from luml.experiments.backends.migration_runner import (
     MetaDBMigrationRunner,
 )
 
-META_DB_LAST_VERSION = 4
+META_DB_LAST_VERSION = 5
 
 # ---------------------------------------------------------------------------
 # Helpers

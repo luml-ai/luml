@@ -1492,6 +1492,40 @@ class ExperimentTracker:
             tags=tags,
         )
 
+    def get_experiment_metadata(self, experiment_id: str) -> dict[str, Any]:
+        """Return the free-form ``metadata`` JSON map for an experiment.
+
+        Returns an empty dict if no metadata has been set.
+        """
+        return self.backend.get_experiment_metadata(experiment_id)
+
+    def set_experiment_metadata(
+        self, experiment_id: str, metadata: dict[str, Any]
+    ) -> None:
+        """Replace the experiment's ``metadata`` map wholesale."""
+        self.backend.set_experiment_metadata(experiment_id, metadata)
+
+    def update_experiment_metadata(
+        self, experiment_id: str, updates: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Merge ``updates`` into the experiment's ``metadata`` map.
+
+        Keys mapped to ``None`` are removed. Returns the updated metadata dict.
+        """
+        return self.backend.update_experiment_metadata(experiment_id, updates)
+
+    def get_experiment_upload_status(self, experiment_id: str) -> str:
+        """Return the experiment's ``upload_status`` column.
+
+        Values: ``unknown`` / ``not_uploaded`` / ``uploading`` / ``uploaded`` /
+        ``failed``. ``unknown`` is the backfilled legacy value.
+        """
+        return self.backend.get_experiment_upload_status(experiment_id)
+
+    def set_experiment_upload_status(self, experiment_id: str, status: str) -> None:
+        """Set the experiment's ``upload_status`` column."""
+        self.backend.set_experiment_upload_status(experiment_id, status)
+
     def get_eval_annotations(
         self, experiment_id: str, dataset_id: str, eval_id: str
     ) -> list[AnnotationRecord]:
