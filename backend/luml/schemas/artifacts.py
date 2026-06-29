@@ -115,50 +115,6 @@ class LumlArtifactManifest(BaseModel):
     payload: dict[str, Any]
 
 
-class ArtifactCreate(BaseModel):
-    collection_id: UUID
-    file_name: str
-    name: str | None = None
-    description: str | None = None
-    extra_values: dict[str, Any]
-    manifest: LumlArtifactManifest | Manifest
-    file_hash: str
-    file_index: dict[str, tuple[int, int]]
-    bucket_location: str
-    size: int
-    unique_identifier: str
-    tags: list[str] | None = None
-    status: ArtifactStatus = ArtifactStatus.PENDING_UPLOAD
-    created_by_user: str | None = None
-    type: ArtifactType
-
-    @field_validator("size")
-    @classmethod
-    def validate_model_size(cls, value: int) -> int:
-        if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError("Artifact cant be bigger than 5TB")
-        return value
-
-
-class ArtifactIn(BaseModel):
-    file_name: ArtifactNamesField
-    name: str | None = None
-    description: str | None = None
-    extra_values: dict[str, Any]
-    manifest: LumlArtifactManifest | Manifest
-    file_hash: str
-    file_index: dict[str, tuple[int, int]]
-    size: int
-    tags: list[str] | None = None
-
-    @field_validator("size")
-    @classmethod
-    def validate_model_size(cls, value: int) -> int:
-        if value > MAX_FILE_SIZE_BYTES:
-            raise ValueError("Artifact cant be bigger than 5TB")
-        return value
-
-
 class ArtifactUpdate(BaseModel):
     id: UUID
     name: str | None = None
@@ -181,25 +137,17 @@ class ArtifactUpdateIn(BaseModel):
     ) = None
 
 
-class Artifact(BaseModel, BaseOrmConfig):
-    id: UUID
-    collection_id: UUID
-    file_name: str
+class ArtifactIn(BaseModel):
+    file_name: ArtifactNamesField
     name: str | None = None
     description: str | None = None
     extra_values: dict[str, Any]
     manifest: LumlArtifactManifest | Manifest
     file_hash: str
     file_index: dict[str, tuple[int, int]]
-    bucket_location: str
     size: int
-    unique_identifier: str
     tags: list[str] | None = None
-    status: ArtifactStatus
-    type: ArtifactType
-    created_by_user: str | None = None
-    created_at: datetime
-    updated_at: datetime | None = None
+    type: ArtifactType | None = None
 
     @field_validator("size")
     @classmethod
@@ -207,6 +155,28 @@ class Artifact(BaseModel, BaseOrmConfig):
         if value > MAX_FILE_SIZE_BYTES:
             raise ValueError("Artifact cant be bigger than 5TB")
         return value
+
+
+class ArtifactCreate(ArtifactIn):
+    type: ArtifactType
+    collection_id: UUID
+    bucket_location: str
+    unique_identifier: str
+    status: ArtifactStatus = ArtifactStatus.PENDING_UPLOAD
+    created_by_user: str | None = None
+
+
+class Artifact(ArtifactIn, BaseOrmConfig):
+    file_name: str
+    id: UUID
+    type: ArtifactType
+    collection_id: UUID
+    bucket_location: str
+    unique_identifier: str
+    status: ArtifactStatus
+    created_by_user: str | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
 
 
 class ArtifactListed(Artifact):
