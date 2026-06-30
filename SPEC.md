@@ -212,40 +212,8 @@ Agent — the Collector owns the GreptimeDB write.)
 ## Instrumentation wrapper
 
 `instrument_inference` is an async context manager used inside
-`ModelServerHandler.model_compute`. Sketch:
+`ModelServerHandler.model_compute`.
 
-```python
-async def model_compute(self, deployment_id, body, request_id):
-    deployment = await self.get_deployment(deployment_id)
-    if not deployment:
-        raise ValueError(...)
-
-    safe_inputs = _strip_secrets(body, deployment)  # capture BEFORE secret injection
-    body["dynamic_attributes"] = await self.get_compute_missing_secrets(...)
-
-    if deployment.monitoring_mode != MonitoringMode.FULL:
-        async with ModelServerClient() as client:        # off: forward only
-            return await client.compute(deployment_id, body)
-
-    event_id = uuid.uuid7().hex
-    async with instrument_inference(
-        deployment_id=deployment_id,
-        request_id=request_id,
-        event_id=event_id,
-        inputs=safe_inputs,
-    ) as recorder:
-        try:
-            async with ModelServerClient() as client:
-                result = await client.compute(deployment_id, body)
-            recorder.record_success(result)
-            return result
-        except ModelServerError as err:
-            recorder.record_error(status_code=err.status_code, detail=err.detail)
-            raise
-        except Exception as err:
-            recorder.record_error(status_code=None, detail=str(err))
-            raise
-```
 
 Best-effort guarantees implemented inside `instrument_inference` /
 `otel.py`:
