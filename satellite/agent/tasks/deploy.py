@@ -87,6 +87,9 @@ class DeployTask(Task):
             "DEPLOYMENT_ID": str(deployment.id),
             "MODEL_NAME": deployment.artifact_name,
         }
+        if config.OTEL_EXPORTER_OTLP_ENDPOINT:
+            env["OTEL_EXPORTER_OTLP_ENDPOINT"] = config.OTEL_EXPORTER_OTLP_ENDPOINT
+
         for key, value in secrets_env.items():
             env[key] = value
 

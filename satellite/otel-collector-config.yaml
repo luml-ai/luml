@@ -1,0 +1,70 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+
+exporters:
+  otlphttp/traces:
+    endpoint: "http://greptimedb:4000"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+      x-greptime-log-table-name: otel_traces
+
+  otlphttp/logs:
+    endpoint: "http://greptimedb:4000"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+      x-greptime-log-table-name: otel_logs
+
+  otlphttp/events:
+    endpoint: "http://greptimedb:4000"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+      x-greptime-log-table-name: inference_events
+
+  otlphttp/metrics:
+    endpoint: "http://greptimedb:4000"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+
+processors:
+  filter/events:
+    logs:
+      include:
+        match_type: regexp
+        resource_attributes:
+          - key: service.name
+            value: ".*\\.events$"
+  filter/operational:
+    logs:
+      exclude:
+        match_type: regexp
+        resource_attributes:
+          - key: service.name
+            value: ".*\\.events$"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlphttp/traces]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/metrics]
+    logs/events:
+      receivers: [otlp]
+      processors: [filter/events]
+      exporters: [otlphttp/events]
+    logs/operational:
+      receivers: [otlp]
+      processors: [filter/operational]
+      exporters: [otlphttp/logs]

@@ -379,15 +379,15 @@ the advertisement instead of assuming support.
   - [x] Tests where feasible: span created when trace context is present; execution
         unaffected when telemetry is off or failing.
 
-- [ ] **Task 5 — Collector + GreptimeDB in the Satellite stack**
-  - [ ] Add the OpenTelemetry Collector and GreptimeDB to the Satellite stack, with
+- [x] **Task 5 — Collector + GreptimeDB in the Satellite stack**
+  - [x] Add the OpenTelemetry Collector and GreptimeDB to the Satellite stack, with
         the Collector configured to store telemetry in GreptimeDB and the Agent
         pointed at the Collector.
-  - [ ] Configure the Collector to route each signal to its dataset: inference-event
+  - [x] Configure the Collector to route each signal to its dataset: inference-event
         log records to `inference_events`, metrics to `runtime_metrics`, spans to
         `otel_traces`, and operational logs to `otel_logs`.
-  - [ ] Set the telemetry-endpoint and kill-switch values for the Agent (and model
+  - [x] Set the telemetry-endpoint and kill-switch values for the Agent (and model
         servers) in the stack so both export to the co-located Collector.
-  - [ ] Document local bring-up and a manual smoke check: one inference to a monitored
+  - [x] Document local bring-up and a manual smoke check: one inference to a monitored
         deployment produces an inference event and a two-span trace in GreptimeDB;
         disabling the deployment flag records nothing while inference still works.
