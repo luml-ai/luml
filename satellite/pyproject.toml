@@ -12,6 +12,9 @@ dependencies = [
     "fastapi==0.121.2",
     "uvicorn==0.38.0",
     "cashews==7.4.3",
+    "opentelemetry-api>=1.43.0",
+    "opentelemetry-sdk>=1.43.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
 ]
 
 [dependency-groups]

@@ -7,6 +7,14 @@ import pytest
 import respx
 
 from agent.clients.model_server_client import ModelServerClient
+from agent.monitoring.testing import FakeTelemetry
+
+
+@pytest.fixture()
+def fake_telemetry() -> FakeTelemetry:
+    ft = FakeTelemetry()
+    yield ft
+    ft.shutdown()
 
 
 @pytest.fixture()

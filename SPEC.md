@@ -347,16 +347,16 @@ the advertisement instead of assuming support.
   - [x] Tests: capabilities include monitoring; flag read correctly; absent/invalid
         means off; flag preserved through deployment registration and sync.
 
-- [ ] **Task 2 — Agent telemetry setup**
-  - [ ] Add OpenTelemetry to the Agent and define its settings (telemetry endpoint
+- [x] **Task 2 — Agent telemetry setup**
+  - [x] Add OpenTelemetry to the Agent and define its settings (telemetry endpoint
         and global kill switch).
-  - [ ] Provide the telemetry component that builds the tracer, metrics, and event
+  - [x] Provide the telemetry component that builds the tracer, metrics, and event
         exporter and is a no-op when monitoring is not configured.
-  - [ ] Define the inference-event shape and the runtime metrics.
-  - [ ] Add a shared fake-telemetry fixture that captures emitted events, metrics, and
+  - [x] Define the inference-event shape and the runtime metrics.
+  - [x] Add a shared fake-telemetry fixture that captures emitted events, metrics, and
         spans, so this and later tasks can assert collected data without a live
         Collector or GreptimeDB.
-  - [ ] Tests: no-op when disabled or unconfigured, never raising; active when
+  - [x] Tests: no-op when disabled or unconfigured, never raising; active when
         configured.
 
 - [ ] **Task 3 — Agent inference instrumentation**
