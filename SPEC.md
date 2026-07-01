@@ -370,13 +370,13 @@ the advertisement instead of assuming support.
         `event_id` echoed; model error recorded and still raised; telemetry failure
         does not break inference; secrets absent from the event.
 
-- [ ] **Task 4 — model-server child span**
-  - [ ] Make the model server read the incoming trace context and wrap model
+- [x] **Task 4 — model-server child span**
+  - [x] Make the model server read the incoming trace context and wrap model
         execution in a child span continued from it, exporting to the Collector;
         best-effort.
-  - [ ] Ensure the telemetry dependencies and endpoint are available inside the
+  - [x] Ensure the telemetry dependencies and endpoint are available inside the
         model-server runtime.
-  - [ ] Tests where feasible: span created when trace context is present; execution
+  - [x] Tests where feasible: span created when trace context is present; execution
         unaffected when telemetry is off or failing.
 
 - [ ] **Task 5 — Collector + GreptimeDB in the Satellite stack**
