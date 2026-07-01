@@ -63,7 +63,7 @@
     "vue-router": "^4.4.5",
     "vue3-apexcharts": "^1.8.0",
     "vuedraggable": "^4.1.0",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/dagre": "^0.7.52",

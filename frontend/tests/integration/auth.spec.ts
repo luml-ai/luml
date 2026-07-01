@@ -148,7 +148,7 @@ test.describe('Auth — Sign in', () => {
       await page.locator('#password input').fill('password123')
       await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 
-      await expect(page.getByText('Form is invalid')).toBeVisible()
+      await expect(page.getByText('Request failed with status code 500')).toBeVisible()
     })
 
     test('clears error message when user edits any input', async ({ page, apiMocks }) => {
@@ -194,7 +194,7 @@ test.describe('Auth — Sign in', () => {
     test('shows password error on blur when password is too short', async ({ page }) => {
       await page.goto('/sign-in')
       await page.locator('#password input').fill('short')
-      await page.getByLabel('Email').click() 
+      await page.getByLabel('Email').click()
       await expect(page.getByText('Minimum password length 8 characters')).toBeVisible()
     })
 

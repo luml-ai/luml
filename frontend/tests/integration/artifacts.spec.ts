@@ -60,9 +60,7 @@ async function mockArtifactsBaseline(apiMocks: ApiMocks) {
   )
 
   await apiMocks.get(
-    new RegExp(
-      `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-    ),
+    new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
     makeArtifactsListResponse([makeArtifact()]),
   )
 }
@@ -92,9 +90,7 @@ test.describe('Artifacts', () => {
 
     test('shows empty placeholder when there are no artifacts', async ({ page, apiMocks }) => {
       await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-        ),
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
         makeArtifactsListResponse([]),
       )
 
@@ -107,9 +103,7 @@ test.describe('Artifacts', () => {
 
     test('shows different status tags for different artifacts', async ({ page, apiMocks }) => {
       await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-        ),
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
         makeArtifactsListResponse([
           makeArtifact(),
           makeArtifact({
@@ -242,9 +236,7 @@ test.describe('Artifacts', () => {
 
     test('deletes multiple artifacts at once', async ({ page, apiMocks }) => {
       await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-        ),
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
         makeArtifactsListResponse([
           makeArtifact(),
           makeArtifact({ id: ARTIFACT_ID_2, name: 'model-v2' }),
@@ -287,9 +279,7 @@ test.describe('Artifacts', () => {
   test.describe('Force delete', () => {
     test('opens force delete dialog for upload-failed artifact', async ({ page, apiMocks }) => {
       await apiMocks.get(
-        new RegExp(
-          `/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/collections/${COLLECTION_ID}/artifacts(\\?|$)`,
-        ),
+        new RegExp(`/v1/organizations/${ORG_ID}/orbits/${ORBIT_ID}/artifacts(\\?|$)`),
         makeArtifactsListResponse([
           makeArtifact({ status: ArtifactStatus.upload_failed }),
         ]),
