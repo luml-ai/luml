@@ -14,10 +14,12 @@ export default defineConfig({
     },
   },
 
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: './tests/setup.ts',
+test: {
+  globals: true,
+  environment: 'jsdom',
+  setupFiles: './tests/setup.ts',
+  include: ['src/**/*.{test,spec}.{ts,tsx}'],
+  exclude: ['**/node_modules/**', 'tests/integration/**'],
     server: {
       deps: {
         // @fnnx-ai/common ships ESM with extensionless relative imports
@@ -26,9 +28,9 @@ export default defineConfig({
         inline: [/@fnnx-ai\/common/, /@fnnx-ai\/web/],
       },
     },
-    coverage: {
-      provider: 'v8',
-      reportsDirectory: 'coverage',
-    },
+  coverage: {
+    provider: 'v8',
+    reportsDirectory: 'coverage',
   },
+},
 })
