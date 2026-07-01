@@ -36,7 +36,7 @@ class Deployment(BaseModel):
     collection_id: str
     inference_url: str | None = None
     status: str
-    satellite_parameters: dict[str, int | str] | None = {}
+    satellite_parameters: dict[str, bool | int | str] | None = {}
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] | None = {}
     env_variables_secrets: dict[str, str] | None = {}
@@ -54,6 +54,7 @@ class LocalDeployment(BaseModel):
     dynamic_attributes_secrets: dict[str, str] | None = {}
     manifest: dict | None = None
     openapi_schema: dict | None = None
+    monitoring_enabled: bool = False
 
 
 class Secret(BaseModel):

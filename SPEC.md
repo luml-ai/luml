@@ -336,15 +336,15 @@ the advertisement instead of assuming support.
 
 # Tasks
 
-- [ ] **Task 1 — Monitoring capability, per-deployment flag + test setup**
-  - [ ] Advertise a monitoring capability in the Satellite's capabilities sent to the
+- [x] **Task 1 — Monitoring capability, per-deployment flag + test setup**
+  - [x] Advertise a monitoring capability in the Satellite's capabilities sent to the
         Platform at pairing, so the Platform never has to assume monitoring support.
-  - [ ] Read the `monitoring_enabled` flag from a deployment's settings and carry it
+  - [x] Read the `monitoring_enabled` flag from a deployment's settings and carry it
         on the Agent's record of that deployment, across every path that registers or
         syncs deployments; default off, absent/invalid means off.
-  - [ ] Add the base Satellite test setup (test runner with async support and HTTP
+  - [x] Add the base Satellite test setup (test runner with async support and HTTP
         mocking for the model-server call).
-  - [ ] Tests: capabilities include monitoring; flag read correctly; absent/invalid
+  - [x] Tests: capabilities include monitoring; flag read correctly; absent/invalid
         means off; flag preserved through deployment registration and sync.
 
 - [ ] **Task 2 — Agent telemetry setup**

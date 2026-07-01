@@ -22,7 +22,10 @@ class SatelliteManager:
                 "supported_variants": ["pyfunc", "pipeline"],
                 "supported_tags_combinations": None,
                 "extra_fields_form_spec": None,
-            }
+            },
+            "monitoring": {
+                "version": 1,
+            },
         }
 
     @staticmethod

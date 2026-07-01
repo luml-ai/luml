@@ -25,7 +25,11 @@ class ModelServerHandler:
         self._openapi_cache_invalidation_callbacks = []
 
     async def add_single_deployment(
-        self, deployment_id: str, dynamic_attributes_secrets: dict[str, str] | None
+        self,
+        deployment_id: str,
+        dynamic_attributes_secrets: dict[str, str] | None,
+        *,
+        monitoring_enabled: bool = False,
     ) -> None:
         manifest = None
         openapi_schema = None
@@ -43,10 +47,25 @@ class ModelServerHandler:
             dynamic_attributes_secrets=dynamic_attributes_secrets,
             manifest=manifest,
             openapi_schema=openapi_schema,
+            monitoring_enabled=monitoring_enabled,
         )
 
+    @staticmethod
+    def _read_monitoring_enabled(satellite_parameters: dict[str, int | str] | None) -> bool:
+        if not satellite_parameters:
+            return False
+        value = satellite_parameters.get("monitoring_enabled")
+        if isinstance(value, bool):
+            return value
+        return False
+
     async def add_deployment(self, deployment: Deployment) -> None:
-        await self.add_single_deployment(deployment.id, deployment.dynamic_attributes_secrets)
+        monitoring_enabled = self._read_monitoring_enabled(deployment.satellite_parameters)
+        await self.add_single_deployment(
+            deployment.id,
+            deployment.dynamic_attributes_secrets,
+            monitoring_enabled=monitoring_enabled,
+        )
         self._invalidate_openapi_cache()
 
     async def remove_deployment(self, deployment_id: UUID) -> None:
@@ -114,7 +133,14 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
-                    await self.add_single_deployment(dep_id, dep.get("dynamic_attributes_secrets"))
+                    monitoring_enabled = self._read_monitoring_enabled(
+                        dep.get("satellite_parameters")
+                    )
+                    await self.add_single_deployment(
+                        dep_id,
+                        dep.get("dynamic_attributes_secrets"),
+                        monitoring_enabled=monitoring_enabled,
+                    )
                 else:
                     logs = ""
                     with suppress(Exception):

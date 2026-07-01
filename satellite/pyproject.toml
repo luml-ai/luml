@@ -17,7 +17,14 @@ dependencies = [
 [dependency-groups]
 dev = [
     "ruff==0.14.5",
+    "pytest==8.4.1",
+    "pytest-asyncio==1.0.0",
+    "respx==0.22.0",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
 
 [tool.ruff]
 target-version = "py314"
