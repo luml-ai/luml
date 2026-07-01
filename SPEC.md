@@ -359,14 +359,14 @@ the advertisement instead of assuming support.
   - [x] Tests: no-op when disabled or unconfigured, never raising; active when
         configured.
 
-- [ ] **Task 3 — Agent inference instrumentation**
-  - [ ] Wrap the Agent's forward-to-model call so that, for a monitored deployment,
+- [x] **Task 3 — Agent inference instrumentation**
+  - [x] Wrap the Agent's forward-to-model call so that, for a monitored deployment,
         it captures secret-safe inputs, generates the `event_id`, records the event,
         metrics, and span, and propagates trace context to the model server.
-  - [ ] Return the `event_id` to the client in the `X-Event-Id` header.
-  - [ ] Keep everything best-effort and re-raise model errors unchanged after
+  - [x] Return the `event_id` to the client in the `X-Event-Id` header.
+  - [x] Keep everything best-effort and re-raise model errors unchanged after
         recording.
-  - [ ] Tests: disabled records nothing; happy path records event + metrics + span;
+  - [x] Tests: disabled records nothing; happy path records event + metrics + span;
         `event_id` echoed; model error recorded and still raised; telemetry failure
         does not break inference; secrets absent from the event.
 
