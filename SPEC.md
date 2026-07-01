@@ -68,6 +68,7 @@ All instrumentation is **best-effort**: monitoring never blocks or alters infere
 
 In scope (this spec):
 
+- advertising a monitoring capability from the Satellite to the Platform
 - per-deployment `monitoring_enabled` setting, read from `satellite_parameters`
 - local event identity: a single `event_id` (UUIDv7)
 - Agent inference instrumentation: structured event, runtime metrics, one span
@@ -98,10 +99,25 @@ for a span around model execution. The model runs in a subprocess, so layer 2 mu
 reach into that subprocess — this is why it needs its own telemetry setup rather than
 riding on the Agent's.
 
+## Capability advertisement
+
+Monitoring is a Satellite capability, and the Platform must never assume it. The
+Satellite already advertises its capabilities to the Platform when it pairs; this
+slice adds a monitoring capability to that advertisement, so the Platform knows this
+Satellite can instrument and collect inference telemetry.
+
+The Platform relies only on the advertised capability: it offers and enables the
+per-deployment monitoring setting only for Satellites that advertise monitoring
+support, and treats monitoring as unavailable for Satellites that do not. A Satellite
+that cannot monitor must not advertise the capability. (The Platform-side handling is
+the Platform's own concern; the requirement here is that the Satellite advertises
+truthfully so the Platform never has to assume.)
+
 ## Per-deployment enablement
 
 Whether a deployment is monitored is controlled by a `monitoring_enabled` flag in
-its `satellite_parameters`, defaulting to off (opt-in). The Agent reads the flag when
+its `satellite_parameters`, defaulting to off (opt-in). This flag is only meaningful
+for Satellites that advertise the monitoring capability. The Agent reads the flag when
 it registers or syncs a deployment and applies it on that deployment's inference
 path.
 
@@ -312,16 +328,24 @@ contain the secret value or the secret-backed attribute.
 **When** the Agent registers or syncs that deployment
 **Then** it is treated as monitored; an absent or invalid flag is treated as off.
 
+## Scenario: Satellite advertises its monitoring capability
+**Given** a Satellite that supports monitoring instrumentation
+**When** it pairs with the Platform
+**Then** its advertised capabilities include monitoring, so the Platform can rely on
+the advertisement instead of assuming support.
+
 # Tasks
 
-- [ ] **Task 1 — Per-deployment enablement + test setup**
+- [ ] **Task 1 — Monitoring capability, per-deployment flag + test setup**
+  - [ ] Advertise a monitoring capability in the Satellite's capabilities sent to the
+        Platform at pairing, so the Platform never has to assume monitoring support.
   - [ ] Read the `monitoring_enabled` flag from a deployment's settings and carry it
         on the Agent's record of that deployment, across every path that registers or
         syncs deployments; default off, absent/invalid means off.
   - [ ] Add the base Satellite test setup (test runner with async support and HTTP
         mocking for the model-server call).
-  - [ ] Tests: flag read correctly; absent/invalid means off; flag preserved through
-        deployment registration and sync.
+  - [ ] Tests: capabilities include monitoring; flag read correctly; absent/invalid
+        means off; flag preserved through deployment registration and sync.
 
 - [ ] **Task 2 — Agent telemetry setup**
   - [ ] Add OpenTelemetry to the Agent and define its settings (telemetry endpoint
