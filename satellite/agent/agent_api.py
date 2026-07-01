@@ -3,7 +3,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.openapi.utils import get_openapi
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -94,10 +94,14 @@ def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> Fast
     async def compute(
         deployment_id: str,
         body: dict,
+        response: Response,
         authorized: bool = Depends(verify_token),  # noqa: B008
     ) -> dict:
         try:
-            return await ms_handler.model_compute(deployment_id, body)
+            result, event_id = await ms_handler.model_compute(deployment_id, body)
+            if event_id:
+                response.headers["X-Event-Id"] = event_id
+            return result
         except ModelServerError as error:
             raise HTTPException(status_code=error.status_code, detail=error.detail) from error
         except Exception as error:

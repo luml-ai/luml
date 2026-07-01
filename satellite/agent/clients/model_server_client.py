@@ -43,10 +43,12 @@ class ModelServerClient:
         self,
         deployment_id: str,
         body: dict,
+        *,
+        extra_headers: dict[str, str] | None = None,
     ) -> dict:
         assert self._session is not None
         url = f"{self._url(deployment_id)}/compute"
-        response = await self._session.post(url, json=body)
+        response = await self._session.post(url, json=body, headers=extra_headers)
         if response.status_code >= 400:
             detail: str
             try:

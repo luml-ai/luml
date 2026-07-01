@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     POLL_INTERVAL_SEC: float = 2.0
     MODEL_SERVER_PORT: int = 8080
 
+    OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
+    MONITORING_ENABLED: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
