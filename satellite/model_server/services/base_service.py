@@ -101,10 +101,7 @@ class UvicornBaseService:
                     body = await service._read_body(receive)
                     request_data = json.loads(body) if body else {}
 
-                    headers = {
-                        k.decode(): v.decode()
-                        for k, v in scope.get("headers", [])
-                    }
+                    headers = {k.decode(): v.decode() for k, v in scope.get("headers", [])}
 
                     sig = inspect.signature(func)
                     param_names = list(sig.parameters.keys())

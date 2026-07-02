@@ -37,7 +37,7 @@ class Deployment(DeploymentBase):
     collection_id: UUID
     inference_url: str | None = None
     status: DeploymentStatus
-    satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
+    satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)
     env_variables_secrets: dict[str, str] = Field(default_factory=dict)
@@ -64,7 +64,7 @@ class DeploymentCreateBase(BaseModel):
     satellite_id: UUID
     artifact_id: UUID
     name: str = Field(max_length=100)
-    satellite_parameters: dict[str, int | str] = Field(default_factory=dict)
+    satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = Field(default=None, max_length=1000)
     env_variables: dict[str, str] = Field(default_factory=dict)
     tags: TagList | None = None

@@ -39,9 +39,7 @@ class TestDisabledRecordsNothing:
         handler = ModelServerHandler(telemetry=fake_telemetry.setup)
         handler.deployments[DEP_ID] = _local_deployment(monitoring_enabled=False)
 
-        result, event_id = await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"x": 1}}
-        )
+        result, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert result == {"prediction": 42}
         assert event_id is None
@@ -56,9 +54,7 @@ class TestDisabledRecordsNothing:
         handler = ModelServerHandler(telemetry=None)
         handler.deployments[DEP_ID] = _local_deployment(monitoring_enabled=True)
 
-        result, event_id = await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"x": 1}}
-        )
+        result, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert result == {"prediction": 42}
         assert event_id is None
@@ -75,7 +71,7 @@ class TestHappyPath:
         handler.deployments[DEP_ID] = _local_deployment()
 
         result, event_id = await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"feature_a": 1.0}}
+            DEP_ID, {"inputs": {"payload": {"msg": "hi"}}, "dynamic_attributes": {"feature_a": 1.0}}
         )
 
         assert result == {"prediction": 42}
@@ -88,7 +84,10 @@ class TestHappyPath:
         assert evt.deployment_id == DEP_ID
         assert evt.status == "success"
         assert evt.latency_ms > 0
-        assert evt.inputs == {"feature_a": 1.0}
+        assert evt.inputs == {
+            "inputs": {"payload": {"msg": "hi"}},
+            "dynamic_attributes": {"feature_a": 1.0},
+        }
         assert evt.output == {"prediction": 42}
         assert evt.trace_id is not None
         assert evt.span_id is not None
@@ -112,9 +111,7 @@ class TestHappyPath:
         handler = ModelServerHandler(telemetry=fake_telemetry.setup)
         handler.deployments[DEP_ID] = _local_deployment()
 
-        _, event_id = await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"x": 1}}
-        )
+        _, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         parsed = uuid.UUID(event_id)
         assert parsed.version == 7
@@ -143,9 +140,7 @@ class TestModelErrorRecordedAndReraised:
         handler.deployments[DEP_ID] = _local_deployment()
 
         with pytest.raises(ModelServerError) as exc_info:
-            await handler.model_compute(
-                DEP_ID, {"dynamic_attributes": {"x": 1}}
-            )
+            await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert exc_info.value.status_code == 422
         assert exc_info.value.detail == "bad input"
@@ -174,9 +169,7 @@ class TestModelErrorRecordedAndReraised:
         handler.deployments[DEP_ID] = _local_deployment()
 
         with pytest.raises(RuntimeError, match="Model server request failed"):
-            await handler.model_compute(
-                DEP_ID, {"dynamic_attributes": {"x": 1}}
-            )
+            await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert len(fake_telemetry.events) == 1
         evt = fake_telemetry.events[0]
@@ -199,9 +192,7 @@ class TestTelemetryFailureDoesNotBreakInference:
         handler = ModelServerHandler(telemetry=fake_telemetry.setup)
         handler.deployments[DEP_ID] = _local_deployment()
 
-        result, event_id = await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"x": 1}}
-        )
+        result, event_id = await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert result == {"prediction": 42}
         assert event_id is not None
@@ -229,14 +220,17 @@ class TestSecretsAbsentFromEvent:
         ):
             result, event_id = await handler.model_compute(
                 DEP_ID,
-                {"dynamic_attributes": {"feature_a": 1.0}},
+                {"inputs": {"payload": {"msg": "hi"}}, "dynamic_attributes": {"feature_a": 1.0}},
             )
 
         assert result == {"prediction": 42}
         assert len(fake_telemetry.events) == 1
         evt = fake_telemetry.events[0]
-        assert evt.inputs == {"feature_a": 1.0}
-        assert "api_key" not in (evt.inputs or {})
+        assert evt.inputs == {
+            "inputs": {"payload": {"msg": "hi"}},
+            "dynamic_attributes": {"feature_a": 1.0},
+        }
+        assert "api_key" not in (evt.inputs or {}).get("dynamic_attributes", {})
 
     @respx.mock
     async def test_no_secrets_all_inputs_recorded(
@@ -249,29 +243,44 @@ class TestSecretsAbsentFromEvent:
 
         result, _ = await handler.model_compute(
             DEP_ID,
-            {"dynamic_attributes": {"a": 1, "b": 2}},
+            {"inputs": {"payload": {"msg": "hi"}}, "dynamic_attributes": {"a": 1, "b": 2}},
         )
 
         assert result == {"prediction": 42}
         evt = fake_telemetry.events[0]
-        assert evt.inputs == {"a": 1, "b": 2}
+        assert evt.inputs == {
+            "inputs": {"payload": {"msg": "hi"}},
+            "dynamic_attributes": {"a": 1, "b": 2},
+        }
 
 
 class TestExtractSafeInputs:
+    def test_captures_model_input_payload(self) -> None:
+        body = {"inputs": {"payload": {"age": 30, "bmi": 22.5}}}
+        dep = _local_deployment()
+        result = _extract_safe_inputs(body, dep)
+        assert result == {"inputs": {"payload": {"age": 30, "bmi": 22.5}}}
+
     def test_excludes_secret_keys(self) -> None:
-        body = {"dynamic_attributes": {"feature": 1.0, "api_key": "val"}}
+        body = {
+            "inputs": {"payload": {"age": 30}},
+            "dynamic_attributes": {"feature": 1.0, "api_key": "val"},
+        }
         dep = _local_deployment(secrets={"api_key": "secret-id"})
         result = _extract_safe_inputs(body, dep)
-        assert result == {"feature": 1.0}
-        assert "api_key" not in result
+        assert result == {
+            "inputs": {"payload": {"age": 30}},
+            "dynamic_attributes": {"feature": 1.0},
+        }
+        assert "api_key" not in result["dynamic_attributes"]
 
     def test_no_secrets_returns_all(self) -> None:
         body = {"dynamic_attributes": {"a": 1, "b": 2}}
         dep = _local_deployment(secrets=None)
         result = _extract_safe_inputs(body, dep)
-        assert result == {"a": 1, "b": 2}
+        assert result == {"dynamic_attributes": {"a": 1, "b": 2}}
 
-    def test_no_dynamic_attributes_returns_none(self) -> None:
+    def test_no_inputs_and_no_dynamic_attributes_returns_none(self) -> None:
         body = {"other_key": "value"}
         dep = _local_deployment()
         result = _extract_safe_inputs(body, dep)
@@ -281,7 +290,7 @@ class TestExtractSafeInputs:
         body = {"dynamic_attributes": {}}
         dep = _local_deployment(secrets={"api_key": "secret-id"})
         result = _extract_safe_inputs(body, dep)
-        assert result == {}
+        assert result == {"dynamic_attributes": {}}
 
 
 class TestTraceContextPropagation:
@@ -298,16 +307,12 @@ class TestTraceContextPropagation:
                     captured_headers["traceparent"] = v
             return httpx.Response(200, json={"prediction": 42})
 
-        respx.post(url__regex=r"http://sat-[^/]+:\d+/compute").mock(
-            side_effect=capture_request
-        )
+        respx.post(url__regex=r"http://sat-[^/]+:\d+/compute").mock(side_effect=capture_request)
 
         handler = ModelServerHandler(telemetry=fake_telemetry.setup)
         handler.deployments[DEP_ID] = _local_deployment()
 
-        await handler.model_compute(
-            DEP_ID, {"dynamic_attributes": {"x": 1}}
-        )
+        await handler.model_compute(DEP_ID, {"dynamic_attributes": {"x": 1}})
 
         assert "traceparent" in captured_headers
         parts = captured_headers["traceparent"].split("-")

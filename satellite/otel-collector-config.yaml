@@ -6,65 +6,50 @@ receivers:
 
 exporters:
   otlphttp/traces:
-    endpoint: "http://greptimedb:4000"
+    endpoint: "http://greptimedb:4000/v1/otlp"
     tls:
       insecure: true
     headers:
       x-greptime-db-name: public
-      x-greptime-log-table-name: otel_traces
-
-  otlphttp/logs:
-    endpoint: "http://greptimedb:4000"
-    tls:
-      insecure: true
-    headers:
-      x-greptime-db-name: public
-      x-greptime-log-table-name: otel_logs
+      x-greptime-trace-table-name: otel_traces
 
   otlphttp/events:
-    endpoint: "http://greptimedb:4000"
+    endpoint: "http://greptimedb:4000/v1/otlp"
     tls:
       insecure: true
     headers:
       x-greptime-db-name: public
-      x-greptime-log-table-name: inference_events
+      x-greptime-trace-table-name: inference_events
 
   otlphttp/metrics:
-    endpoint: "http://greptimedb:4000"
+    endpoint: "http://greptimedb:4000/v1/otlp"
     tls:
       insecure: true
     headers:
       x-greptime-db-name: public
 
 processors:
-  filter/events:
-    logs:
-      include:
-        match_type: regexp
-        resource_attributes:
-          - key: service.name
-            value: ".*\\.events$"
-  filter/operational:
-    logs:
-      exclude:
-        match_type: regexp
-        resource_attributes:
-          - key: service.name
-            value: ".*\\.events$"
+  filter/traces_main:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] == "satellite-agent.events"'
+  filter/traces_events:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] != "satellite-agent.events"'
 
 service:
   pipelines:
-    traces:
+    traces/main:
       receivers: [otlp]
+      processors: [filter/traces_main]
       exporters: [otlphttp/traces]
+    traces/events:
+      receivers: [otlp]
+      processors: [filter/traces_events]
+      exporters: [otlphttp/events]
     metrics:
       receivers: [otlp]
       exporters: [otlphttp/metrics]
-    logs/events:
-      receivers: [otlp]
-      processors: [filter/events]
-      exporters: [otlphttp/events]
-    logs/operational:
-      receivers: [otlp]
-      processors: [filter/operational]
-      exporters: [otlphttp/logs]

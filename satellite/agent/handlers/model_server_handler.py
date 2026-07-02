@@ -57,12 +57,16 @@ class ModelServerHandler:
         )
 
     @staticmethod
-    def _read_monitoring_enabled(satellite_parameters: dict[str, int | str] | None) -> bool:
+    def _read_monitoring_enabled(satellite_parameters: dict[str, bool | int | str] | None) -> bool:
         if not satellite_parameters:
             return False
         value = satellite_parameters.get("monitoring_enabled")
         if isinstance(value, bool):
             return value
+        if isinstance(value, int):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "on"}
         return False
 
     async def add_deployment(self, deployment: Deployment) -> None:
@@ -216,10 +220,7 @@ class ModelServerHandler:
             raise ValueError(f"Deployment {deployment_id} not found")
 
         safe_inputs: dict[str, Any] | None = None
-        should_instrument = (
-            deployment.monitoring_enabled
-            and self._instrumentation is not None
-        )
+        should_instrument = deployment.monitoring_enabled and self._instrumentation is not None
 
         if should_instrument:
             safe_inputs = _extract_safe_inputs(body, deployment)
@@ -290,8 +291,23 @@ class ModelServerHandler:
 
 
 def _extract_safe_inputs(body: dict, deployment: LocalDeployment) -> dict[str, Any] | None:
+    """Capture the model input payload for monitoring, excluding secret-backed attributes.
+
+    The model input payload (``body["inputs"]``) is required for data quality and feature
+    drift, so it is recorded verbatim. Dynamic attributes are recorded too, but keys backed
+    by secrets are dropped so secret values never reach local telemetry.
+    """
+    safe: dict[str, Any] = {}
+
+    model_inputs = body.get("inputs")
+    if model_inputs is not None:
+        safe["inputs"] = model_inputs
+
     dynamic_attrs = body.get("dynamic_attributes")
-    if dynamic_attrs is None:
-        return None
-    secret_keys = set(deployment.dynamic_attributes_secrets or {})
-    return {k: v for k, v in dynamic_attrs.items() if k not in secret_keys}
+    if dynamic_attrs is not None:
+        secret_keys = set(deployment.dynamic_attributes_secrets or {})
+        safe["dynamic_attributes"] = {
+            k: v for k, v in dynamic_attrs.items() if k not in secret_keys
+        }
+
+    return safe or None

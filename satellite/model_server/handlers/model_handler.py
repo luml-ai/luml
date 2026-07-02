@@ -173,6 +173,9 @@ class ModelHandler:
                     )
             for pkg_name in [
                 "uvicorn",
+                "opentelemetry-api",
+                "opentelemetry-sdk",
+                "opentelemetry-exporter-otlp-proto-grpc",
             ]:
                 if pkg_name not in existing_packages:
                     version = importlib_metadata.version(pkg_name)

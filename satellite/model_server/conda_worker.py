@@ -56,7 +56,9 @@ try:
     from telemetry import model_span
 
     async def compute_model(
-        inputs: dict, dynamic_attributes: dict, headers: dict[str, str] | None = None,
+        inputs: dict,
+        dynamic_attributes: dict,
+        headers: dict[str, str] | None = None,
     ) -> dict:
         async with model_span(headers or {}):
             try:
@@ -148,7 +150,9 @@ try:
 
         try:
             return await compute_model(
-                inputs, request_data.get("dynamic_attributes") or {}, headers=headers,
+                inputs,
+                request_data.get("dynamic_attributes") or {},
+                headers=headers,
             )
         except Exception as error:
             upstream = _extract_upstream_status(error)
