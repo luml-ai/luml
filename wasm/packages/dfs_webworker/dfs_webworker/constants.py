@@ -1,3 +1,9 @@
 PRODUCER = "dataforce.studio"
 TABULAR_CLASSIFICATION = "tabular_classification"
 TABULAR_REGRESSION = "tabular_regression"
+
+FORECASTING = "forecasting"
+FORECASTING_PRODUCER = f"{PRODUCER}/forecasting"
+FORECASTING_TAG = f"{PRODUCER}::forecasting:v1"
+FORECASTING_METRICS_TAG = f"{PRODUCER}::forecasting_metrics:v1"
+FORECASTING_CHART_TAG = f"{PRODUCER}::forecasting_chart:v1"
