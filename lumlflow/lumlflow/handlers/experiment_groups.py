@@ -172,9 +172,10 @@ class ExperimentGroupsHandler:
 
         items = []
         try:
-            for e in result.items:
-                exp = ExperimentDetails.model_validate(e)
-                exp.group_name = groups_map.get(exp.group_id)
+            for record in result.items:
+                exp = ExperimentDetails.model_validate(record)
+                if exp.group_id is not None:
+                    exp.group_name = groups_map.get(exp.group_id)
                 items.append(exp)
         except Exception as e:
             raise ApplicationError(str(e), status_code=500) from e

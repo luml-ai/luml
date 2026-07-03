@@ -66,6 +66,40 @@ class UploadArtifactForm(BaseModel):
     artifact: ArtifactIn
 
 
+class UploadFileForm(BaseModel):
+    """Manual upload of an arbitrary artifact file from disk.
+
+    Unlike `UploadArtifactForm`, the payload is a user-chosen path
+    rather than something derived from a tracked experiment.
+    """
+
+    file_path: str
+
+    organization_id: str
+    orbit_id: str
+    collection_id: str
+
+    artifact: ArtifactIn
+
+
+class UploadModelForm(BaseModel):
+    """Upload of one specific linked model (rather than all of them).
+
+    `experiment_id` scopes the model lookup and provides the experiment
+    to embed when `embed_experiment` is set.
+    """
+
+    model_id: str
+    experiment_id: str
+    embed_experiment: bool = False
+
+    organization_id: str
+    orbit_id: str
+    collection_id: str
+
+    artifact: ArtifactIn
+
+
 class Artifact(BaseModel):
     id: str
     collection_id: str
