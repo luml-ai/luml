@@ -45,17 +45,43 @@
       <StepPanel v-slot="{ activateCallback }" :value="2">
         <forecast-setup
           v-if="currentStep === 2 && viewValues"
-          :columns="getAllColumnNames"
-          :rows="viewValues as Record<string, unknown>[]"
-          @change="onSetupChange"
+          v-model:frequency="frequency"
+          v-model:preview-end-date="previewEndDate"
+          :has-known-future="hasKnownFuture"
+          :last-historical-date="lastHistoricalDate"
+          :date-not-parseable="dateNotParseable"
+          :preview-date-invalid="previewDateInvalid"
         />
+        <table-view
+          v-if="currentStep === 2 && columnsCount && rowsCount && viewValues"
+          :columns-count="columnsCount"
+          :rows-count="rowsCount"
+          :all-columns="getAllColumnNames"
+          :value="viewValues"
+          :target="targetCol"
+          :selected-columns="selectedColumns"
+          :export-callback="downloadCSV"
+          :filters="getFilters"
+          :columnTypes="columnTypes"
+          :height-offset="150"
+          @edit="setSelectedColumns"
+          @change-filters="setFilters"
+        >
+          <template #column-header="{ column }">
+            <forecast-column-header
+              :column="column"
+              :column-type="columnTypes[column]"
+              :role="columnRole(column)"
+              @set-date="setDateColumn"
+              @set-target="setTargetColumn"
+              @toggle-aux="toggleAux"
+              @toggle-known-future="toggleKnownFuture"
+            />
+          </template>
+        </table-view>
         <div class="navigation">
           <d-button label="Back" severity="secondary" @click="activateCallback(1)" />
-          <d-button
-            data-testid="forecasting-train"
-            :disabled="!setupState?.isValid"
-            @click="startTraining"
-          >
+          <d-button data-testid="forecasting-train" :disabled="!isValid" @click="startTraining">
             <span style="font-weight: 500">Train</span>
             <arrow-right width="14" height="14" />
           </d-button>
@@ -66,7 +92,7 @@
       </StepPanel>
     </StepPanels>
   </Stepper>
-  <ui-training v-model="isLoading" :time="8" />
+  <ui-training v-model="isLoading" />
 </template>
 
 <script setup lang="ts">
@@ -77,8 +103,8 @@ import type {
   ForecastingTrainPayload,
   ForecastingTrainingTable,
 } from '@/lib/data-processing/interfaces'
-import type { ForecastSetupState } from '@/lib/data-processing/forecasting-setup'
 import { useDataTable } from '@/hooks/useDataTable'
+import { useForecastSetup } from '@/hooks/useForecastSetup'
 import { useForecastingTraining } from '@/hooks/useForecastingTraining'
 import { forecastingResources } from '@/constants/constants'
 import { ArrowRight } from 'lucide-vue-next'
@@ -88,7 +114,9 @@ import StepPanels from 'primevue/steppanels'
 import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
 import UploadData from '@/components/ui/UploadData.vue'
+import TableView from '@/components/table-view/index.vue'
 import ForecastSetup from './ForecastSetup.vue'
+import ForecastColumnHeader from './ForecastColumnHeader.vue'
 import ForecastingEvaluate from './evaluate/index.vue'
 import UiTraining from '@/components/ui/UiTraining.vue'
 import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
@@ -121,10 +149,18 @@ const {
   fileData,
   uploadDataErrors,
   isUploadWithErrors,
+  columnsCount,
+  rowsCount,
   getAllColumnNames,
   viewValues,
+  selectedColumns,
+  getFilters,
+  columnTypes,
   onSelectFile,
   onRemoveFile,
+  setSelectedColumns,
+  downloadCSV,
+  setFilters,
   getDataForTraining,
 } = useDataTable(tableValidator)
 
@@ -133,15 +169,39 @@ const {
   isTrainingSuccess,
   trainingData,
   trainingModelId,
+  modelBlob,
   getTotalScore,
+  getTestMetrics,
+  getTrainingMetrics,
   startTraining: startForecastTraining,
   startPredict,
   downloadModel,
 } = useForecastingTraining()
 
 const currentStep = ref(1)
-const setupState = ref<ForecastSetupState | null>(null)
 const historyRecords = ref<ForecastingRecord[]>([])
+
+const visibleColumns = computed(() =>
+  selectedColumns.value.length ? selectedColumns.value : getAllColumnNames.value,
+)
+const setupRows = computed(() => (viewValues.value ?? []) as Record<string, unknown>[])
+
+const {
+  targetCol,
+  frequency,
+  previewEndDate,
+  hasKnownFuture,
+  lastHistoricalDate,
+  dateNotParseable,
+  previewDateInvalid,
+  isValid,
+  config,
+  columnRole,
+  setDateColumn,
+  setTargetColumn,
+  toggleAux,
+  toggleKnownFuture,
+} = useForecastSetup(visibleColumns, setupRows)
 
 const isStepAvailable = (id: number) => {
   if (currentStep.value === 3) return false
@@ -156,20 +216,17 @@ const evaluateProps = computed(() => {
   if (!data || !trainingModelId.value) return null
   return {
     totalScore: getTotalScore.value,
-    testMetrics: data.test_metrics,
-    trainMetrics: data.train_metrics,
+    testMetrics: getTestMetrics.value,
+    trainingMetrics: getTrainingMetrics.value,
     modelConfig: data.model_config,
     chart: data.chart,
     history: historyRecords.value,
     modelId: trainingModelId.value,
+    modelBlob: modelBlob.value,
     predict: startPredict,
     downloadModel,
   }
 })
-
-function onSetupChange(state: ForecastSetupState) {
-  setupState.value = state
-}
 
 function tableToRecords(table: ForecastingTrainingTable): ForecastingRecord[] {
   const columns = Object.keys(table)
@@ -180,13 +237,13 @@ function tableToRecords(table: ForecastingTrainingTable): ForecastingRecord[] {
 }
 
 async function startTraining() {
-  if (!setupState.value?.isValid) return
+  if (!isValid.value) return
 
   const data = getDataForTraining()
   historyRecords.value = tableToRecords(data)
   const payload: ForecastingTrainPayload = {
     data,
-    ...setupState.value.config,
+    ...config.value,
   }
   await startForecastTraining(payload)
 

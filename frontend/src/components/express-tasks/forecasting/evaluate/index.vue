@@ -1,35 +1,30 @@
 <template>
   <div class="evaluate" data-testid="forecasting-evaluate">
     <header class="header">
-      <h1 class="title">Model Evaluation</h1>
+      <h1 class="title">Model Evaluation Dashboard</h1>
       <div class="buttons">
-        <d-button severity="secondary" data-testid="download-luml" @click="downloadModel">
-          Download .luml
+        <SplitButton
+          label="export"
+          severity="secondary"
+          data-testid="export-model"
+          :model="EXPORT_ITEMS"
+          @click="onDownloadClick"
+        />
+        <d-button data-testid="exit" @click="finishConfirm">
+          <span>exit</span>
+          <log-out width="14" height="14" />
         </d-button>
-        <d-button data-testid="exit" @click="exit">Exit</d-button>
       </div>
     </header>
 
     <div class="body">
-      <section class="performance card">
-        <h3 class="card-title">Model performance</h3>
-        <div class="radialbar-wrapper">
-          <apexchart
-            type="radialBar"
-            :series="[totalScore]"
-            :options="scoreOptions"
-            :style="{ pointerEvents: 'none', marginTop: '-30px', height: '135px' }"
-          />
-        </div>
-        <div class="metric-cards">
-          <metric-card
-            v-for="metric in metricCards"
-            :key="metric.title"
-            :title="metric.title"
-            :items="metric.items"
-          />
-        </div>
-      </section>
+      <ModelTabularPerformance
+        :total-score="totalScore"
+        :test-metrics="testMetrics"
+        :training-metrics="trainingMetrics"
+        :tag="FNNX_PRODUCER_TAGS_MANIFEST_ENUM.forecasting_v1"
+        class="performance"
+      ></ModelTabularPerformance>
 
       <section class="config card" data-testid="model-config">
         <h3 class="card-title">Model configuration</h3>
@@ -146,6 +141,12 @@
       </section>
     </div>
   </div>
+  <ModelUpload
+    v-if="modelBlob && !!organizationStore.currentOrganization"
+    v-model:visible="modelUploadVisible"
+    :model-blob="modelBlob"
+    :current-task="Tasks.FORECASTING"
+  ></ModelUpload>
 </template>
 
 <script setup lang="ts">
@@ -153,12 +154,18 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DatePicker from 'primevue/datepicker'
 import SelectButton from 'primevue/selectbutton'
-import MetricCard from '@/components/ui/MetricCard.vue'
+import { SplitButton } from 'primevue'
+import { LogOut } from 'lucide-vue-next'
 import ForecastChart from './ForecastChart.vue'
 import FutureValuesEditor from './FutureValuesEditor.vue'
-import { getRadialBarOptions } from '@/lib/apex-charts/apex-charts'
-import { downloadFileFromBlob, getFormattedMetric } from '@/helpers/helpers'
+import ModelUpload from '@/components/model-upload/ModelUpload.vue'
+import ModelTabularPerformance from '@/components/model/ModelTabularPerformance.vue'
+import { useOrganizationStore } from '@/stores/organization'
+import { AnalyticsService, AnalyticsTrackKeysEnum } from '@/lib/analytics/AnalyticsService'
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
+import { downloadFileFromBlob } from '@/helpers/helpers'
 import { normalizeForecastRecords } from '@/lib/data-processing/forecasting'
+import { Tasks } from '@/lib/data-processing/interfaces'
 import {
   generateForecastDates,
   lastDate,
@@ -168,35 +175,51 @@ import type {
   ForecastPoint,
   ForecastPredictedRecord,
   ForecastingChart,
-  ForecastingMetrics,
   ForecastingModelConfig,
   ForecastingPredictRequest,
   ForecastingPredictSuccess,
   ForecastingRecord,
-  ForecastingTrainMetrics,
 } from '@/lib/data-processing/interfaces'
 
 type Props = {
   totalScore: number
-  testMetrics: ForecastingMetrics
-  trainMetrics: ForecastingTrainMetrics | null
+  testMetrics: string[]
+  trainingMetrics: string[]
   modelConfig: ForecastingModelConfig
   chart: ForecastingChart
   history: ForecastingRecord[]
   modelId: string
+  modelBlob: Blob | null
   predict: (request: ForecastingPredictRequest) => Promise<ForecastingPredictSuccess | undefined>
   downloadModel: () => void
 }
 
 const props = defineProps<Props>()
 const router = useRouter()
+const organizationStore = useOrganizationStore()
+
+const modelUploadVisible = ref(false)
+
+const EXPORT_ITEMS = [
+  {
+    label: 'Upload to Registry',
+    command: () => {
+      modelUploadVisible.value = true
+    },
+    disabled: () => !organizationStore.currentOrganization,
+  },
+  {
+    label: 'Download model',
+    command: () => {
+      onDownloadClick()
+    },
+  },
+]
 
 const MODES = [
   { label: 'Whole period', value: 'whole' as const },
   { label: 'Selected date only', value: 'single' as const },
 ]
-
-const scoreOptions = ref(getRadialBarOptions())
 
 const endDate = ref<Date | null>(null)
 const mode = ref<'single' | 'whole'>('whole')
@@ -215,21 +238,6 @@ const knownFutureLabel = computed(() =>
 const seasonalPeriodLabel = computed(() =>
   props.modelConfig.seasonal_period > 0 ? String(props.modelConfig.seasonal_period) : 'None',
 )
-
-const metricCards = computed(() => [
-  buildMetricCard('MAE', props.testMetrics.MAE, props.trainMetrics?.MAE),
-  buildMetricCard('RMSE', props.testMetrics.RMSE, props.trainMetrics?.RMSE),
-  buildMetricCard('MAPE', props.testMetrics.MAPE, props.trainMetrics?.MAPE),
-  buildMetricCard('R²', props.testMetrics.R2, props.trainMetrics?.R2),
-])
-
-function buildMetricCard(title: string, test: number | null, train: number | null | undefined) {
-  return { title, items: [{ value: formatMetric(test) }, { value: formatMetric(train) }] }
-}
-
-function formatMetric(value: number | null | undefined): string {
-  return value === null || value === undefined ? '—' : getFormattedMetric(value)
-}
 
 function formatOrder(order: [number, number, number]): string {
   return `(${order.join(', ')})`
@@ -317,7 +325,13 @@ function recordsToCsv(records: ForecastPredictedRecord[]): string {
   return [headers.join(','), ...rows].join('\n')
 }
 
-function exit(): void {
+function onDownloadClick(): void {
+  props.downloadModel()
+  AnalyticsService.track(AnalyticsTrackKeysEnum.download, { task: 'forecasting' })
+}
+
+function finishConfirm(): void {
+  AnalyticsService.track(AnalyticsTrackKeysEnum.finish, { task: 'forecasting' })
   router.push({ name: 'home' })
 }
 
@@ -373,24 +387,6 @@ watch(endDate, () => {
 
 .performance {
   grid-row: span 2;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.radialbar-wrapper {
-  max-width: 325px;
-  margin: 0 auto 2rem;
-}
-
-.radialbar-wrapper .vue-apexcharts {
-  min-height: 0 !important;
-}
-
-.metric-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
 }
 
 .config-summary {
@@ -482,6 +478,11 @@ watch(endDate, () => {
 }
 
 @media (max-width: 1200px) {
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .body {
     grid-template-columns: 1fr;
   }

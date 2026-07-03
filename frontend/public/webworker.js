@@ -58,12 +58,15 @@ async function initPyWorker() {
 
     await micropip.install("scipy==1.14.1");
 
-    // Time-series forecasting engine. statsmodels 0.14.2 is loaded from the Pyodide
-    // 0.26.2 distribution (built against the numpy 1.26.4 / pandas 2.2.0 pinned above)
-    // and runs correctly against the scipy 1.14.1 pin, so scipy is not downgraded.
-    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.26.2/full/packaging-23.2-py3-none-any.whl");
-    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.26.2/full/patsy-0.5.6-py2.py3-none-any.whl");
-    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.26.2/full/statsmodels-0.14.2-cp312-cp312-pyodide_2024_0_wasm32.whl");
+    // Time-series forecasting engine. statsmodels must come from the 0.27.2
+    // distribution: it cimports scipy.linalg.cython_lapack, whose signatures
+    // changed in scipy 1.14, so the wheel has to match the scipy 1.14.1 pin
+    // above. The 0.26.2 build (scipy 1.12) fails with
+    // "cpotrf has wrong signature". Runs fine against numpy 1.26.4: wheels
+    // built with numpy 2 headers target the numpy>=1.19 ABI.
+    // (packaging is already loaded by micropip from the same distribution.)
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/patsy-0.5.6-py2.py3-none-any.whl");
+    await pyodide.loadPackage("https://cdn.jsdelivr.net/pyodide/v0.27.2/full/statsmodels-0.14.4-cp312-cp312-pyodide_2024_0_wasm32.whl");
 
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/28/09/c4d329f7969443cdd4d482048ca406b6f61cda3c8e99ace71feaec7c8734/optuna-4.2.1-py3-none-any.whl");
     await pyodide.loadPackage("https://files.pythonhosted.org/packages/e3/51/9b208e85196941db2f0654ad0357ca6388ab3ed67efdbfc799f35d1f83aa/colorlog-6.9.0-py3-none-any.whl");

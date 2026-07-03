@@ -8,6 +8,7 @@ import type { ForecastPoint, ForecastingChart } from './interfaces'
 export const FORECAST_SEGMENT_COLORS = {
   train: 'var(--p-primary-color)',
   test: 'var(--p-orange-500)',
+  testFit: 'var(--p-purple-500)',
   forecast: 'var(--p-teal-500)',
 } as const
 
@@ -24,6 +25,8 @@ const DASH_DASHED = 6
 const DASH_DOTTED = 2
 const TARGET_WIDTH = 3
 const SERIES_WIDTH = 2
+const FIT_MARKER_SIZE = 3
+const BOUND_WIDTH = 1
 
 const ROLE_LABEL: Record<ForecastSegmentRole, string> = {
   train: 'Train',
@@ -42,6 +45,7 @@ export interface ForecastChartSegment {
   dashArray: number
   width: number
   markerSize: number
+  isBound: boolean
   data: { x: string; y: number }[]
 }
 
@@ -71,8 +75,38 @@ function segment(
     dashArray,
     width,
     markerSize,
+    isBound: false,
     data: points.map((point) => ({ x: point.date, y: point.value })),
   }
+}
+
+/**
+ * Thin dotted confidence-bound lines for points that carry lower/upper bounds
+ * (the target series). Drawn as plain line series: rangeArea combos break the
+ * ApexCharts hover tooltip, and a shaded band cannot be used here.
+ */
+function boundSegments(
+  column: string,
+  role: ForecastSegmentRole,
+  color: string,
+  points: ForecastPoint[],
+): ForecastChartSegment[] {
+  const bounded = points.filter(
+    (point) => point.lower !== undefined && point.upper !== undefined,
+  )
+  if (bounded.length < 2) return []
+  const bound = (label: 'low' | 'high', pick: (p: ForecastPoint) => number | undefined) => ({
+    name: `${column} (${ROLE_LABEL[role]} ${label})`,
+    column,
+    role,
+    color,
+    dashArray: DASH_DOTTED,
+    width: BOUND_WIDTH,
+    markerSize: 0,
+    isBound: true,
+    data: bounded.map((point) => ({ x: point.date, y: pick(point) as number })),
+  })
+  return [bound('low', (p) => p.lower), bound('high', (p) => p.upper)]
 }
 
 /**
@@ -132,19 +166,21 @@ export function buildForecastSegments(
       )
     if (test.length)
       segments.push(segment(col, 'test', FORECAST_SEGMENT_COLORS.test, DASH_SOLID, width, 0, test))
-    if (series.test_fit?.length)
+    if (series.test_fit?.length) {
       segments.push(
         segment(
           col,
           'testFit',
-          FORECAST_SEGMENT_COLORS.test,
+          FORECAST_SEGMENT_COLORS.testFit,
           DASH_DASHED,
           width,
-          0,
+          FIT_MARKER_SIZE,
           series.test_fit,
         ),
+        ...boundSegments(col, 'testFit', FORECAST_SEGMENT_COLORS.testFit, series.test_fit),
       )
-    if (series.future?.length)
+    }
+    if (series.future?.length) {
       segments.push(
         segment(
           col,
@@ -155,7 +191,9 @@ export function buildForecastSegments(
           0,
           series.future,
         ),
+        ...boundSegments(col, 'future', FORECAST_SEGMENT_COLORS.forecast, series.future),
       )
+    }
   }
 
   if (prediction) {
@@ -165,6 +203,7 @@ export function buildForecastSegments(
       const width = col === targetCol ? TARGET_WIDTH : SERIES_WIDTH
       segments.push(
         segment(col, 'prediction', FORECAST_SEGMENT_COLORS.forecast, DASH_DASHED, width, 3, points),
+        ...boundSegments(col, 'prediction', FORECAST_SEGMENT_COLORS.forecast, points),
       )
     }
   }

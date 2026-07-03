@@ -42,6 +42,8 @@ export const getMetricsCards = (
   let titles: string[] = []
   if (tag === FNNX_PRODUCER_TAGS_MANIFEST_ENUM.tabular_classification_v1) {
     titles = ['Balanced accuracy', 'Precision', 'Recall', 'F1 score']
+  } else if (tag === FNNX_PRODUCER_TAGS_MANIFEST_ENUM.forecasting_v1) {
+    titles = ['Mean Absolute Error', 'Root Mean Squared Error', 'Mean Absolute % Error', 'R² Score']
   } else {
     titles = ['Mean Squared Error', 'Root Mean Squared Error', 'Mean Absolute Error', 'R² Score']
   }

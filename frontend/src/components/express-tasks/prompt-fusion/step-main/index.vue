@@ -8,12 +8,7 @@
     <navigation @go-back="$emit('goBack')" />
     <toolbar />
   </div>
-  <ui-training
-    v-model="isTrainingActive"
-    :time="8"
-    :is-cancel-available="true"
-    @cancel="cancelTraining"
-  />
+  <ui-training v-model="isTrainingActive" :is-cancel-available="true" @cancel="cancelTraining" />
   <prompt-fusion-predict />
 </template>
 

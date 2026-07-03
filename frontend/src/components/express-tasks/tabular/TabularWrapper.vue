@@ -83,7 +83,7 @@
       </StepPanel>
     </StepPanels>
   </Stepper>
-  <ui-training v-model="isLoading" :time="8" />
+  <ui-training v-model="isLoading" />
 </template>
 
 <script setup lang="ts">

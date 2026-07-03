@@ -6,15 +6,26 @@ import type {
   ForecastingModelConfig,
 } from '@/lib/data-processing/interfaces'
 
-const { downloadMock } = vi.hoisted(() => ({ downloadMock: vi.fn() }))
+const { downloadMock, trackMock } = vi.hoisted(() => ({
+  downloadMock: vi.fn(),
+  trackMock: vi.fn(),
+}))
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: vi.fn() }) }))
 vi.mock('@/helpers/helpers', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return { ...actual, downloadFileFromBlob: downloadMock }
 })
+vi.mock('@/stores/organization', () => ({
+  useOrganizationStore: () => ({ currentOrganization: null }),
+}))
+vi.mock('@/lib/analytics/AnalyticsService', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return { ...actual, AnalyticsService: { track: trackMock } }
+})
 
 import Evaluate from '../index.vue'
+import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 
 const baseConfig: ForecastingModelConfig = {
   frequency: 'month',
@@ -72,6 +83,22 @@ const stubs = {
   apexchart: true,
   DatePicker: modelStub('DatePicker'),
   SelectButton: modelStub('SelectButton'),
+  SplitButton: {
+    name: 'SplitButton',
+    props: ['label', 'model', 'severity'],
+    emits: ['click'],
+    template: `<button data-testid="export-model" @click="$emit('click')">{{ label }}</button>`,
+  },
+  ModelTabularPerformance: {
+    name: 'ModelTabularPerformance',
+    props: ['totalScore', 'testMetrics', 'trainingMetrics', 'tag'],
+    template: '<div data-testid="performance" />',
+  },
+  ModelUpload: {
+    name: 'ModelUpload',
+    props: ['modelBlob', 'currentTask', 'visible'],
+    template: '<div data-testid="model-upload" />',
+  },
   ForecastChart: {
     name: 'ForecastChart',
     props: ['chart', 'targetCol', 'knownFutureCols', 'prediction', 'supplied'],
@@ -88,7 +115,6 @@ const stubs = {
 type Overrides = {
   modelConfig?: ForecastingModelConfig
   history?: Record<string, string | number>[]
-  testMetrics?: Record<string, number | null>
   forecast?: ForecastPredictedRecord[]
   failPredict?: boolean
 }
@@ -103,12 +129,13 @@ function mountEvaluate(over: Overrides = {}) {
   const wrapper = mount(Evaluate, {
     props: {
       totalScore: 70,
-      testMetrics: over.testMetrics ?? { MAE: 2, RMSE: 3, MAPE: null, R2: 0.7, SC_SCORE: 0.7 },
-      trainMetrics: { MAE: 1, RMSE: 2, MAPE: 0.1, R2: 0.8 },
+      testMetrics: ['2.00', '3.00', '—', '0.70'],
+      trainingMetrics: ['1.00', '2.00', '0.10', '0.80'],
       modelConfig: over.modelConfig ?? baseConfig,
       chart: baseChart,
       history: over.history ?? baseHistory,
       modelId: 'model-1',
+      modelBlob: new Blob(['model']),
       predict,
       downloadModel,
     },
@@ -132,12 +159,13 @@ function readBlob(blob: Blob): Promise<string> {
 }
 
 describe('Forecasting evaluate — metrics & config', () => {
-  it('renders metric cards, showing MAPE as an em dash when null', () => {
+  it('renders the shared performance card with the forecasting producer tag', () => {
     const { wrapper } = mountEvaluate()
-    const text = wrapper.text()
-    expect(text).toContain('MAE')
-    expect(text).toContain('MAPE')
-    expect(text).toContain('—')
+    const performance = wrapper.findComponent({ name: 'ModelTabularPerformance' })
+    expect(performance.props('totalScore')).toBe(70)
+    expect(performance.props('testMetrics')).toEqual(['2.00', '3.00', '—', '0.70'])
+    expect(performance.props('trainingMetrics')).toEqual(['1.00', '2.00', '0.10', '0.80'])
+    expect(performance.props('tag')).toBe(FNNX_PRODUCER_TAGS_MANIFEST_ENUM.forecasting_v1)
   })
 
   it('renders the read-only model configuration with min history and detected orders', () => {
@@ -271,10 +299,20 @@ describe('Forecasting evaluate — re-forecast', () => {
 })
 
 describe('Forecasting evaluate — downloads', () => {
-  it('downloads the .luml via the provided callback', async () => {
+  it('downloads the model from the export split button and tracks the event', async () => {
     const { wrapper, downloadModel } = mountEvaluate()
-    await wrapper.find('[data-testid="download-luml"]').trigger('click')
+    trackMock.mockClear()
+    await wrapper.find('[data-testid="export-model"]').trigger('click')
     expect(downloadModel).toHaveBeenCalled()
+    expect(trackMock).toHaveBeenCalledWith('download', { task: 'forecasting' })
+  })
+
+  it('offers a registry upload entry in the export menu', () => {
+    const { wrapper } = mountEvaluate()
+    const items = wrapper
+      .findComponent({ name: 'SplitButton' })
+      .props('model') as Array<{ label: string }>
+    expect(items.map((item) => item.label)).toEqual(['Upload to Registry', 'Download model'])
   })
 
   it('downloads a predictions CSV including the target bounds', async () => {

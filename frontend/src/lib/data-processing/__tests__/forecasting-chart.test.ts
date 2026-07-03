@@ -52,13 +52,37 @@ describe('buildForecastSegments segmentation', () => {
     ])
   })
 
-  it('draws the out-of-sample test_fit dashed in the test colour', () => {
+  it('draws the out-of-sample test_fit dashed and marked in its own colour', () => {
     const segments = buildForecastSegments(chart, { targetCol: 'sales' })
-    const fit = byRole(segments, 'sales', 'testFit')
+    const fit = segments.find((s) => s.column === 'sales' && s.role === 'testFit' && !s.isBound)
 
-    expect(fit?.color).toBe(FORECAST_SEGMENT_COLORS.test)
+    expect(fit?.color).toBe(FORECAST_SEGMENT_COLORS.testFit)
     expect(fit?.dashArray).toBeGreaterThan(0)
+    expect(fit?.markerSize).toBeGreaterThan(0)
     expect(fit?.data).toHaveLength(2)
+  })
+
+  it('adds dotted confidence-bound lines from the test_fit bounds', () => {
+    const segments = buildForecastSegments(chart, { targetCol: 'sales' })
+    const bounds = segments.filter(
+      (s) => s.column === 'sales' && s.role === 'testFit' && s.isBound,
+    )
+
+    expect(bounds).toHaveLength(2)
+    expect(bounds[0].data).toEqual([
+      { x: '2020-03-01', y: 11 },
+      { x: '2020-04-01', y: 13 },
+    ])
+    expect(bounds[1].data).toEqual([
+      { x: '2020-03-01', y: 15 },
+      { x: '2020-04-01', y: 17 },
+    ])
+    expect(bounds.every((s) => s.width === 1 && s.dashArray > 0)).toBe(true)
+  })
+
+  it('draws no bounds when the points carry none', () => {
+    const segments = buildForecastSegments(chart, { targetCol: 'sales' })
+    expect(segments.find((s) => s.column === 'visitors' && s.isBound)).toBeUndefined()
   })
 
   it('emphasises the target with a thicker stroke than auxiliaries', () => {
@@ -92,12 +116,28 @@ describe('buildForecastSegments overlays', () => {
       },
     })
 
-    const prediction = byRole(segments, 'sales', 'prediction')
+    const prediction = segments.find(
+      (s) => s.column === 'sales' && s.role === 'prediction' && !s.isBound,
+    )
     expect(prediction?.color).toBe(FORECAST_SEGMENT_COLORS.forecast)
     expect(prediction?.dashArray).toBeGreaterThan(0)
     expect(prediction?.data).toEqual([
       { x: '2020-05-01', y: 18 },
       { x: '2020-06-01', y: 20 },
+    ])
+
+    const bounds = segments.filter(
+      (s) => s.column === 'sales' && s.role === 'prediction' && s.isBound,
+    )
+    expect(bounds.map((s) => s.data)).toEqual([
+      [
+        { x: '2020-05-01', y: 16 },
+        { x: '2020-06-01', y: 18 },
+      ],
+      [
+        { x: '2020-05-01', y: 20 },
+        { x: '2020-06-01', y: 22 },
+      ],
     ])
   })
 

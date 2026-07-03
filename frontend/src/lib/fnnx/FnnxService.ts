@@ -19,6 +19,7 @@ export enum FNNX_PRODUCER_TAGS_MANIFEST_ENUM {
   tabular_classification_v1 = 'dataforce.studio::tabular_classification:v1',
   tabular_regression_v1 = 'dataforce.studio::tabular_regression:v1',
   prompt_optimization_v1 = 'dataforce.studio::prompt_optimization:v1',
+  forecasting_v1 = 'dataforce.studio::forecasting:v1',
 }
 
 export enum FNNX_VARIABLES_TAGS_ENUM {

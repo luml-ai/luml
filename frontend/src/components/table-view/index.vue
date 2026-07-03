@@ -59,18 +59,23 @@
           :field="column"
           style="min-width: 13rem"
         >
+          <template #body="{ data }">
+            {{ formatCellValue(data[column]) }}
+          </template>
           <template #header>
-            <table-column-header
-              :values="value"
-              :column="column"
-              :group="group"
-              :target="target"
-              :column-type="columnTypes[column]"
-              :show-menu="showColumnHeaderMenu"
-              :inputs-outputs-columns="inputsOutputsColumns"
-              @change-group="(event) => $emit('changeGroup', event)"
-              @set-target="(event) => $emit('setTarget', event)"
-            />
+            <slot name="column-header" :column="column">
+              <table-column-header
+                :values="value"
+                :column="column"
+                :group="group"
+                :target="target"
+                :column-type="columnTypes[column]"
+                :show-menu="showColumnHeaderMenu"
+                :inputs-outputs-columns="inputsOutputsColumns"
+                @change-group="(event) => $emit('changeGroup', event)"
+                @set-target="(event) => $emit('setTarget', event)"
+              />
+            </slot>
           </template>
         </Column>
       </DataTable>
@@ -104,6 +109,7 @@ type Props = {
   columnTypes: Record<string, ColumnType>
   showColumnHeaderMenu?: boolean
   inputsOutputsColumns?: PromptFusionColumn[]
+  heightOffset?: number
 }
 
 type Emits = {
@@ -115,6 +121,7 @@ type Emits = {
 
 const props = withDefaults(defineProps<Props>(), {
   showColumnHeaderMenu: false,
+  heightOffset: 0,
 })
 defineEmits<Emits>()
 
@@ -129,6 +136,13 @@ const dataForFilters = computed(() => {
   }))
 })
 
+// Date objects otherwise render via Date.toString() ("Wed Jan 01 2020 01:00:00 GMT+0100 ...").
+function formatCellValue(value: unknown): unknown {
+  if (!(value instanceof Date)) return value
+  const iso = value.toISOString()
+  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 16).replace('T', ' ')
+}
+
 function calcTableHeight() {
   let minusValue = 0
   if (window.innerWidth > 992) minusValue = 305
@@ -136,7 +150,7 @@ function calcTableHeight() {
   else {
     minusValue = 300
   }
-  tableHeight.value = document.documentElement.clientHeight - minusValue
+  tableHeight.value = document.documentElement.clientHeight - minusValue - props.heightOffset
 }
 
 onBeforeMount(() => {

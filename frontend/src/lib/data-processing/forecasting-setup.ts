@@ -1,7 +1,5 @@
 import type { ForecastingFrequency } from './interfaces'
 
-export type ForecastPreviewMode = 'single' | 'whole'
-
 export interface ForecastSetupConfig {
   date_col: string
   target_col: string
@@ -9,12 +7,6 @@ export interface ForecastSetupConfig {
   known_future_cols: string[]
   frequency: ForecastingFrequency
   preview_horizon: number | null
-}
-
-export interface ForecastSetupState {
-  config: ForecastSetupConfig
-  previewMode: ForecastPreviewMode
-  isValid: boolean
 }
 
 const DATE_SAMPLE_SIZE = 25

@@ -15,7 +15,7 @@ import { DataProcessingWorker } from '@/lib/data-processing/DataProcessingWorker
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useToast } from 'primevue/usetoast'
 import { predictErrorToast, trainingErrorToast } from '@/lib/primevue/data/toasts'
-import { downloadFileFromBlob, toPercent } from '@/helpers/helpers'
+import { downloadFileFromBlob, getFormattedMetric, toPercent } from '@/helpers/helpers'
 
 export const useForecastingTraining = () => {
   const toast = useToast()
@@ -30,16 +30,26 @@ export const useForecastingTraining = () => {
   const getTotalScore = computed(() =>
     trainingData.value ? toPercent(trainingData.value.test_metrics.SC_SCORE) : 0,
   )
-  const getTestMetrics = computed<ForecastingMetrics | null>(
-    () => trainingData.value?.test_metrics ?? null,
+  // Formatted [MAE, RMSE, MAPE, R2] rows matching getMetricsCards(forecasting_v1) titles.
+  const getTestMetrics = computed<string[]>(() =>
+    formatMetricsRow(trainingData.value?.test_metrics ?? null),
   )
-  const getTrainMetrics = computed<ForecastingTrainMetrics | null>(
-    () => trainingData.value?.train_metrics ?? null,
+  const getTrainingMetrics = computed<string[]>(() =>
+    formatMetricsRow(trainingData.value?.train_metrics ?? null),
   )
   const getModelConfig = computed<ForecastingModelConfig | null>(
     () => trainingData.value?.model_config ?? null,
   )
   const getChart = computed<ForecastingChart | null>(() => trainingData.value?.chart ?? null)
+
+  function formatMetricsRow(
+    metrics: ForecastingMetrics | ForecastingTrainMetrics | null,
+  ): string[] {
+    if (!metrics) return []
+    return [metrics.MAE, metrics.RMSE, metrics.MAPE, metrics.R2].map((value) =>
+      value === null || value === undefined ? '—' : getFormattedMetric(value),
+    )
+  }
 
   async function startTraining(payload: ForecastingTrainPayload) {
     isLoading.value = true
@@ -121,7 +131,7 @@ export const useForecastingTraining = () => {
     modelBlob,
     getTotalScore,
     getTestMetrics,
-    getTrainMetrics,
+    getTrainingMetrics,
     getModelConfig,
     getChart,
     startTraining,
