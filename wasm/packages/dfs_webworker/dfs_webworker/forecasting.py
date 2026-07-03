@@ -21,6 +21,9 @@ from statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import kpss
 
+from dfs_webworker.store import Store
+from dfs_webworker.utils import success
+
 Frequency = str
 
 _PERIOD_CODE: dict[Frequency, str] = {
@@ -984,3 +987,60 @@ def _clean_training_frame(
     df = df.sort_values(date_col).reset_index(drop=True)
     _validate_grid(df[date_col], frequency)
     return df
+
+
+# --------------------------------------------------------------------------- #
+# worker routes
+# --------------------------------------------------------------------------- #
+def forecasting_train(
+    data: object,
+    date_col: str,
+    target_col: str,
+    aux_cols: list[str] | None = None,
+    known_future_cols: list[str] | None = None,
+    frequency: Frequency = "month",
+    preview_horizon: int | None = None,
+) -> dict:
+    # Local import breaks the forecasting <-> forecasting_serialization cycle.
+    from dfs_webworker.forecasting_serialization import serialize
+
+    pipeline = ForecastingPipeline.fit(
+        data,
+        date_col=date_col,
+        target_col=target_col,
+        aux_cols=aux_cols,
+        known_future_cols=known_future_cols,
+        frequency=frequency,
+        preview_horizon=preview_horizon,
+    )
+    model_config = pipeline.model_config()
+    model_bytes = serialize(
+        pipeline, pipeline.test_metrics, model_config, pipeline.chart
+    )
+    model_id = Store.save(pipeline)
+    return success(
+        model_id=model_id,
+        train_metrics=pipeline.train_metrics,
+        test_metrics=pipeline.test_metrics,
+        model_config=model_config,
+        chart=pipeline.chart,
+        model=model_bytes,
+    )
+
+
+def forecasting_predict(
+    model_id: str,
+    history: object,
+    horizon: int,
+    future: object | None = None,
+) -> dict:
+    pipeline = Store.get(model_id)
+    if not isinstance(pipeline, ForecastingPipeline):
+        raise ValueError(f"Model {model_id} is not a forecasting model")
+    forecast = pipeline.predict(history, horizon, future)
+    return success(forecast=forecast)
+
+
+def forecasting_deallocate(model_id: str) -> dict:
+    Store.delete(model_id)
+    return success()

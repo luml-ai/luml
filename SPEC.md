@@ -310,10 +310,10 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] Pin runtime env to statsmodels/scipy/pandas/numpy (+ fnnx deps) via `importlib.metadata`; assert no scikit-learn/joblib
   - [x] Roundtrip test: train → serialize → load via fnnx runtime → predictions match in-memory within tolerance; env/tags/meta assertions; dtype includes `future` only for known-future models; predict-time validation errors propagate through the pyfunc
 
-- [ ] Add forecasting worker routes
-  - [ ] Implement the train/predict/deallocate entry points in `forecasting.py` with the documented contracts (train returns metrics + `model_config` + chart incl. optional preview `future` + model bytes, rejecting a preview horizon when known-future columns are marked; predict takes `history` + `horizon` + optional `future` against the `Store` pipeline)
-  - [ ] Register the three routes in the `Router`
-  - [ ] Route-level tests: train payload shape, predict-by-`model_id` with fresh history, deallocate, error payloads on invalid input
+- [x] Add forecasting worker routes
+  - [x] Implement the train/predict/deallocate entry points in `forecasting.py` with the documented contracts (train returns metrics + `model_config` + chart incl. optional preview `future` + model bytes, rejecting a preview horizon when known-future columns are marked; predict takes `history` + `horizon` + optional `future` against the `Store` pipeline)
+  - [x] Register the three routes in the `Router`
+  - [x] Route-level tests: train payload shape, predict-by-`model_id` with fresh history, deallocate, error payloads on invalid input
 
 - [ ] Extend the frontend shared contract for forecasting
   - [ ] Add the routes, task, and forecasting contract types to `lib/data-processing/interfaces.ts` (frequency, metrics, model config incl. the known-future subset, payload/training-data/chart/record shapes, the predict input with optional future records); verify `DataProcessingWorker.ts` dispatch covers the routes
