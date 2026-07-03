@@ -112,7 +112,7 @@ type Step = {
 
 type TProps = {
   steps: Step[]
-  task: Tasks
+  task: Tasks.TABULAR_CLASSIFICATION | Tasks.TABULAR_REGRESSION
 }
 
 const { setGuard } = useRouteLeaveConfirm(dashboardFinishConfirmOptions(() => {}))

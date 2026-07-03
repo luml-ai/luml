@@ -315,9 +315,9 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] Register the three routes in the `Router`
   - [x] Route-level tests: train payload shape, predict-by-`model_id` with fresh history, deallocate, error payloads on invalid input
 
-- [ ] Extend the frontend shared contract for forecasting
-  - [ ] Add the routes, task, and forecasting contract types to `lib/data-processing/interfaces.ts` (frequency, metrics, model config incl. the known-future subset, payload/training-data/chart/record shapes, the predict input with optional future records); verify `DataProcessingWorker.ts` dispatch covers the routes
-  - [ ] Add the predict-result normalizer (wide `predicted_<col>` records → per-series points, carrying target bounds); unit tests
+- [x] Extend the frontend shared contract for forecasting
+  - [x] Add the routes, task, and forecasting contract types to `lib/data-processing/interfaces.ts` (frequency, metrics, model config incl. the known-future subset, payload/training-data/chart/record shapes, the predict input with optional future records); verify `DataProcessingWorker.ts` dispatch covers the routes
+  - [x] Add the predict-result normalizer (wide `predicted_<col>` records → per-series points, carrying target bounds); unit tests
 
 - [ ] Enable the forecasting task card and route
   - [ ] Flip the card in `constants/constants.ts` (enable, link, analytics; no inference dropdown) and add the forecasting steps and resources constants
