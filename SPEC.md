@@ -319,10 +319,10 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] Add the routes, task, and forecasting contract types to `lib/data-processing/interfaces.ts` (frequency, metrics, model config incl. the known-future subset, payload/training-data/chart/record shapes, the predict input with optional future records); verify `DataProcessingWorker.ts` dispatch covers the routes
   - [x] Add the predict-result normalizer (wide `predicted_<col>` records → per-series points, carrying target bounds); unit tests
 
-- [ ] Enable the forecasting task card and route
-  - [ ] Flip the card in `constants/constants.ts` (enable, link, analytics; no inference dropdown) and add the forecasting steps and resources constants
-  - [ ] Add the `/forecasting` route and a `ForecastingPage.vue` shell rendering the (stub) wrapper
-  - [ ] Smoke test: card enabled, route resolves
+- [x] Enable the forecasting task card and route
+  - [x] Flip the card in `constants/constants.ts` (enable, link, analytics; no inference dropdown) and add the forecasting steps and resources constants
+  - [x] Add the `/forecasting` route and a `ForecastingPage.vue` shell rendering the (stub) wrapper
+  - [x] Smoke test: card enabled, route resolves
 
 - [ ] Build the forecasting training flow
   - [ ] `ForecastingWrapper.vue`: 3-step Stepper; Step 1 upload with forecasting validators; Step 2 setup (role selects with defaults incl. the known-future multi-select over the auxiliaries, frequency, optional preview end-date + single/whole toggle hidden when known-future columns are marked, all §6 validations)

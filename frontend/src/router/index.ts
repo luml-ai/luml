@@ -77,6 +77,14 @@ const router = createRouter({
       },
     },
     {
+      path: '/forecasting',
+      name: 'forecasting',
+      component: () => import('../pages/ForecastingPage.vue'),
+      meta: {
+        showInvalidMessage: 992,
+      },
+    },
+    {
       path: '/runtime',
       name: 'runtime',
       component: () => import('../pages/RuntimePage.vue'),
