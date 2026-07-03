@@ -2,31 +2,33 @@
 
 ## Problem
 
-LUML's **Express Tasks** module (the no-/low-code AutoML surface) ships four task types today: Tabular Classification, Tabular Regression, Prompt Optimization, and Notebooks. The frontend already advertises a fifth — **Time Series Forecasting** — but it is a dead placeholder card (`frontend/src/constants/constants.ts`, `isDisabled: true`, button label "coming soon"). Users who want to predict future values from historical time-series data (sales projections, demand planning, financial forecasting — the exact use cases named in the card copy) have no way to do it on the platform.
+LUML's **Express Tasks** module (the no-/low-code AutoML surface) ships four task types today: Tabular Classification, Tabular Regression, Prompt Optimization, and Notebooks. The frontend already advertises a fifth — **Time Series Forecasting** — but it is a dead placeholder card (`frontend/src/constants/constants.ts`, `isDisabled: true`, button label "coming soon"). Users who want to predict future values from historical time-series data (sales projections, demand planning, financial forecasting) have no way to do it on the platform.
 
 ## Solution (at a glance)
 
-Implement Time Series Forecasting as a **first-class Express Task type with full lifecycle parity** with the existing tabular tasks:
+Implement Time Series Forecasting as a first-class Express Task built on **SARIMAX models with frozen weights**:
 
-1. **Train + evaluate + download** — a 3-step flow (Upload → Configure → Evaluate) that fits a forecasting model entirely **client-side in the WASM Pyodide worker** (`wasm/packages/dfs_webworker`), exactly like tabular classification/regression, and produces a portable `.luml` (FNNX) artifact.
-2. **Runtime inference** — "Upload for inference" support so a downloaded `.luml` forecasting model can be loaded and queried in the Runtime page.
-3. **Registry + Deployment** — promotion to the Registry and serving on a Satellite via the FNNX model server, with no platform-side training (the artifact is a self-describing FNNX bundle that already works with the generic registry/deployment machinery).
-
-The forecasting engine is a **Ridge-regression-based pipeline** (provided by the product owner) that turns dates into seasonal/trend features and, optionally, models auxiliary series first and feeds their *predicted* values into the target model (reducing train/serve skew). It is generalized to support multiple date frequencies (day/week/month/quarter/year).
+1. **Train + evaluate + download** — a 3-step flow (Upload → Configure → Evaluate) that fits SARIMAX models entirely client-side in the WASM Pyodide worker (`wasm/packages/dfs_webworker`), with **fully automatic model configuration** (trend/differencing, seasonality, and ARMA orders are auto-detected; the user picks only the column roles and the date frequency), and produces a portable `.luml` (FNNX) artifact.
+2. **Fixed-weight prediction on fresh history** — the artifact stores the fitted parameter vectors as plain JSON, **never the training data**. Every prediction call supplies a window of recent history (≥ a model-derived minimum length) plus a horizon (and, for models with known-future columns, those columns' future values); the frozen model is applied to that history via Kalman filtering with **fixed parameters — no refitting, no optimization** — and forecasts beyond the window's last date. Users can therefore keep using one trained model on ever-newer historical intervals.
+3. **Two-stage multivariate support with known-future covariates** — at setup the user marks which auxiliary columns will be **known in the future** (planned prices, scheduled promotions, calendar features). Each unmarked auxiliary gets its own univariate SARIMAX and is auto-forecast at prediction time; marked columns get no model of their own — the caller supplies their future values with every prediction. Both kinds feed the target model as **exogenous regressors**.
+4. **Self-describing export** — the artifact is a standard FNNX pyfunc bundle carrying its producer tags, metrics, model configuration, and training-chart payload, so the deferred Runtime/Registry/Deployment integrations can be added later without retraining exported models.
 
 ## Why this approach
 
-- **Mirror the existing tabular pattern.** Tabular Express Tasks already run AutoML in-browser via `dfs_webworker`, serialize to FNNX/`.luml`, and reuse the generic Registry/Runtime/Deployment plumbing. Forecasting fits the same mold, so we reuse the upload/stepper/results UX, the worker dispatch (`Router` in `dfs_webworker/__init__.py`), the `PyfuncBuilder` serialization path, and the satellite FNNX runtime. No new backend training infrastructure is required.
-- **Ridge over a heavyweight forecasting library.** The provided pipeline is small and dependency-light — scikit-learn is needed only for *training* (already available in the Pyodide worker), and *serving* reduces to pure numpy/pandas (the learned params are stored as JSON and applied as a standardize-then-linear-combination). It is deterministic and fast enough to run client-side. A dedicated library (Prophet/statsforecast/sktime) would add weight to the WASM bundle and the satellite runtime for marginal v1 benefit.
-- **FNNX pyfunc bundle keeps parity for free.** Because the trained model is packaged as a standard FNNX pyfunc `.luml`, the existing Registry promotion, Runtime loader (`lib/fnnx/FnnxService.ts` + `@fnnx-ai/web`), and Satellite model server all consume it through their existing generic code paths once we add the forecasting producer tag and a results/inference UI.
+- **SARIMAX is the requested model family, and "fixed weights on new data" is native to it.** statsmodels state-space models separate the parameter vector from the data: a model spec can be rebuilt around any endog series and evaluated with a previously fitted parameter vector (filtering only). This is exactly "ARIMA with fixed weights over new historical intervals" — deterministic, fast, and refit-free.
+- **statsmodels is the only viable library.** It ships in the Pyodide 0.26.2 distribution (statsmodels 0.14.2, with scipy/patsy deps available as wasm wheels), so training runs in the browser worker. Every alternative fails Pyodide: pmdarima (C extensions, not in the distribution), statsforecast (requires numba), prophet (requires cmdstan), sktime (wraps statsmodels anyway). The one piece pmdarima would have provided — automatic order selection — is re-implemented as a bounded stepwise AICc search (Hyndman–Khandakar style).
+- **JSON parameters keep the codebase convention.** Like prompt-optimization, the model is stored as JSON in the bundle's `extra_values` and reconstructed at serve time — no pickle, no sklearn/statsmodels results-object serialization, no version coupling of binary formats.
+- **Mirror the existing tabular/prompt-opt pattern.** Same worker `Router` dispatch, same `PyfuncBuilder` serialization path. No backend training infrastructure.
 
 ## Out of scope (v1)
 
-- Multiple competing algorithms / AutoML model selection for forecasting (only the Ridge pipeline).
-- Probabilistic / confidence-interval forecasts.
-- Multivariate exogenous regressors supplied at inference time (auxiliary series are *modeled from dates*, not user-supplied at predict time).
-- Automatic frequency detection (the user explicitly picks the frequency).
-- Backend (`backend/luml`) or `sdk/python` changes — there are none; all new code lives in `wasm/packages/dfs_webworker` and `frontend`.
+- **Runtime upload-for-inference** — v1 delivers training, the evaluation dashboard, and model export only. The exported artifact is fully self-describing, so these integrations land later without retraining.
+- Multiple competing algorithms / AutoML model selection beyond the automatic SARIMAX configuration.
+- VARMAX joint multivariate modeling (statsmodels VARMAX lacks seasonal orders and is numerically fragile; the two-stage exog design covers the cross-series use case).
+- Automatic frequency detection (the user explicitly picks day/week/month/quarter/year).
+- Multiple seasonal periods per series (daily data gets the weekly cycle only, not day-of-year; noted as a known limitation).
+- Manual override of detected orders/seasonality (fully automatic; the detected configuration is reported read-only).
+- Backend (`backend/luml`) or `sdk/python` changes — all new code lives in `wasm/packages/dfs_webworker` and `frontend`.
 
 ---
 
@@ -34,390 +36,302 @@ The forecasting engine is a **Ridge-regression-based pipeline** (provided by the
 
 ## Architecture overview
 
-```
-Browser (Vue)                         WASM worker (Pyodide)                FNNX artifact (.luml)
-─────────────                         ─────────────────────                ─────────────────────
-ForecastingPage.vue                   dfs_webworker.forecasting            pyfunc bundle:
- └─ ForecastingWrapper.vue   ──train──> forecasting_train()                 - manifest.json (producer tag
-     ├─ Upload (csv)                       ├─ RidgeForecastingPipeline.fit     dataforce.studio::forecasting:v1)
-     ├─ Configure                          ├─ .cross_validate() -> metrics     - dtypes/inputs/outputs
-     │   (roles, freq, horizon)            └─ save_forecasting() -> bytes ───> - variant_artifacts/__pyfunc__.py
-     └─ Evaluate (chart+metrics)        forecasting_predict()                  - variant_artifacts/extra_modules/
-                                        forecasting_deallocate()                  (forecasting pipeline module)
-                                                                              - variant_config.json extra_values:
-                                                                                  {"pipeline": <JSON params>}
-                                                                              - env.json (pandas/numpy only)
-Runtime / Registry / Deployment  ── consume .luml via generic FNNX runtime ──┘
-```
+The browser flow (Upload → Configure → Evaluate) drives a new forecasting module in the WASM worker (`wasm/packages/dfs_webworker`), which auto-configures and fits the SARIMAX pipeline, runs rolling-origin cross-validation, and serializes the result to a `.luml` pyfunc bundle — parameters as JSON in `extra_values`, producer tag `dataforce.studio::forecasting:v1`, env pinning statsmodels/scipy/pandas/numpy. Prediction — the worker route behind the Evaluate screen and the exported pyfunc alike — takes `{history, horizon[, future]}` (the `future` values for known-future columns) and returns `{forecast}` via fixed-parameter filtering.
 
-The split of responsibilities matches the tabular task exactly (`wasm/packages/dfs_webworker/dfs_webworker/tabular.py` + `frontend/src/components/express-tasks/tabular/*`).
+The split of responsibilities matches the tabular task (`wasm/packages/dfs_webworker/dfs_webworker/tabular.py` + `frontend/src/components/express-tasks/tabular/*`) and the prompt-optimization serialization precedent.
 
 ## 1. Forecasting engine (WASM, Python)
 
-New module `wasm/packages/dfs_webworker/dfs_webworker/forecasting.py` containing a **generalized** `RidgeForecastingPipeline` based on the product-owner-provided design, plus the worker entry functions.
+New module `wasm/packages/dfs_webworker/dfs_webworker/forecasting.py` holding the forecasting pipeline. The user supplies only the column roles — date column, target column, optional auxiliary columns, of which any subset may be marked **known-future** (values the user will supply at prediction time) — and the frequency (`day|week|month|quarter|year`); everything else is detected.
 
-### `RidgeForecastingPipeline` (dataclass)
+### Model structure (two-stage)
 
-Fields (constructor args):
-- `date_col: str`
-- `target_col: str`
-- `frequency: str` — one of `"day" | "week" | "month" | "quarter" | "year"` (user-picked; drives **both** feature engineering and the forecast date grid).
-- `auxiliary_cols: list[str] | None = None`
-- `alpha: float = 1.0`
+- One univariate SARIMAX per **auto-forecast auxiliary** column (auxiliaries not marked known-future), each independently auto-configured. **Known-future** columns get no model of their own.
+- One SARIMAX for the **target** with all auxiliary columns — both kinds — as exogenous regressors (aligned actual values at training time).
+- At prediction, auto-forecast auxiliary models are filtered on the provided auxiliary history and forecast `horizon` steps; known-future columns take their caller-supplied future values as-is. The target model is filtered on the provided target history with the actual auxiliary history as exog, then forecasts with the auxiliary **forecasts** plus the supplied known-future values as future exog. (Training on actual exog while predicting with forecast exog is the standard ARIMAX trade-off for auto-forecast auxiliaries; known-future columns avoid it entirely.)
+- With no auxiliary columns, the pipeline is a single univariate SARIMAX. With every auxiliary marked known-future, there are no auxiliary models at all — only the target model.
 
-Fitted state (set in `__post_init__` / `fit`):
-- `training_start_date_: pd.Timestamp | None`
-- `last_training_date_: pd.Timestamp | None`
-- `auxiliary_models_: dict[str, Pipeline]`
-- `target_model_: Pipeline | None`
-- `date_feature_cols_: list[str]` — **frequency-dependent** (see below)
-- `target_feature_cols_: list[str] | None`
+### Automatic configuration (per series)
 
-Methods (same surface as the provided design): `fit(df)`, `predict(dates)`, `cross_validate(df, n_splits=3, test_size=None)`, plus internal helpers `_make_base_model`, `_validate_input_columns`, `_prepare_data`, `_make_date_features`, `_fit_auxiliary_models`, `_build_target_features`, static `_rmse`/`_mae`/`_mape`/`_r2`.
+Detection follows the auto.arima (Hyndman–Khandakar) recipe, implemented with statsmodels primitives:
 
-Each base model is `Pipeline([("scaler", StandardScaler()), ("model", Ridge(alpha=alpha))])`. `fit`/`cross_validate` use scikit-learn (in the WASM training env only).
+- **Seasonal period `s`** comes from the user-picked frequency: day→7, week→52, month→12, quarter→4, year→none. If the series is shorter than two full cycles (plus a small buffer), seasonal modeling is **disabled automatically** for that series rather than erroring.
+- **Seasonal differencing `D`** (0 or 1): STL-decompose the series at period `s` and compute the seasonal-strength statistic (variance-ratio form); `D = 1` when strength exceeds the conventional ~0.64 threshold.
+- **Trend differencing `d`** (0–2): repeated KPSS tests on the (seasonally differenced) series — difference until stationarity is not rejected, capped at 2.
+- **Deterministic term**: constant when `d + D == 0`, drift when `d + D == 1`, none when `d + D ≥ 2` (the search may additionally compare with/without the term by AICc).
+- **Orders `(p,q,P,Q)`**: stepwise neighborhood search minimizing **AICc**, starting from the standard auto.arima starting points, bounded to `p,q ≤ 3` and `P,Q ≤ 1`, with a hard cap of roughly 25 candidate fits per series (browser compute budget). Fits use stationarity/invertibility enforcement (required for stable fixed-param filtering later) and a bounded optimizer iteration count; candidates that fail to converge are skipped. If every candidate fails, fall back to a plain `(0,d,0)` + deterministic-term model, which always fits.
 
-The **two-stage** design is preserved: when `auxiliary_cols` are present, auxiliary models are trained on date features, then the target model is trained on date features + **predicted** auxiliary values (not the real ones), so training-time inputs match inference-time inputs.
+The detected configuration per series — orders, seasonal order, seasonal period, deterministic term, and the resulting minimum history length — is returned to the frontend and embedded in the artifact as the read-only **model configuration report**.
 
-### JSON (de)serialization
+### Fixed weights: serialization and prediction
 
-To match the existing prompt-optimization pyfunc convention (model stored as JSON data and reconstructed at runtime, **not** pickled), the pipeline is reduced to plain numbers. 
+- The pipeline serializes to a **fully JSON-serializable spec**: column roles, frequency, and per series the model orders, seasonal order, deterministic term, the fitted **parameter vector** (list of floats with parameter names), and the minimum history length. No training observations are stored.
+- Deserialization rebuilds the pipeline from that spec. Prediction constructs each statsmodels model around the **caller-supplied history** and evaluates it with the stored parameter vector via **filtering only** — the optimizer never runs at predict time, so predictions are deterministic and fast.
+- Training (`fit`, auto-configuration, cross-validation) is the only code path that needs the optimizer; prediction needs statsmodels/scipy/pandas/numpy but no fitting machinery beyond the Kalman filter. Both sides use statsmodels — there is no pure-numpy serving path in this design (reimplementing the Kalman filter was rejected as high-risk); the serving env consequence is covered in §2.
 
-- `to_dict() -> dict` returns a fully JSON-serializable spec: `date_col`, `target_col`, `frequency`, `auxiliary_cols`, `alpha`, `training_start_date_` (ISO string), `last_training_date_` (ISO string), `date_feature_cols_`, `target_feature_cols_`, and for the target model and **each** auxiliary model the learned params `{ "coef": list[float], "intercept": float, "scaler_mean": list[float], "scaler_scale": list[float] }` (from `Ridge.coef_/intercept_` and `StandardScaler.mean_/scale_`).
-- `from_dict(spec) -> RidgeForecastingPipeline` and a **pure-numpy** prediction path `predict_from_params(dates)` that needs **only pandas + numpy** (no scikit-learn): build date features → standardize with `(x - mean) / scale` → linear combination `X @ coef + intercept`, applying the same two-stage aux→target flow. (`predict` on a fitted in-memory instance may still delegate to the sklearn pipelines; `predict_from_params` is what the deployed bundle uses.)
+### Minimum history (the predict-time contract)
 
-This keeps the trained artifact dependency-light and version-robust on the serving side.
+Every prediction must supply enough history to initialize the model's lags and innovations. Per series the hard floor is `d + D·s + max(p + s·P, q + s·Q) + 1` observations; the **pipeline-level `min_history` is the maximum across the target and all auto-forecast auxiliary models** (they share the same input rows). Known-future columns have no model of their own, but their historical values must still be present in every history row — filtering the target model over the history requires its full exog history. `min_history` is computed at train time, reported to the UI, embedded in the artifact metadata, and **validated on every predict call** with a clear error naming the required row count. A UI hint additionally recommends at least one extra full seasonal cycle when seasonal terms are present (non-blocking).
 
-### Frequency-aware feature engineering (generalization)
+Training has its own floor: a hard minimum of 12 usable rows (clear error below that), with the existing soft UI guard of ~30 rows at upload.
 
-`_make_date_features(dates, training_start_date)` returns a `DataFrame` whose columns depend on `self.frequency`. The trend feature is always a continuous "elapsed periods since training start" value scaled to a stable range; seasonal features are cyclical `sin/cos` pairs appropriate to the frequency:
+### Prediction semantics
 
-| frequency | trend feature | seasonal sin/cos pairs |
-|-----------|---------------|------------------------|
-| `year`    | `years_since_start` | none |
-| `quarter` | `years_since_start` | `quarter` (period 4) |
-| `month`   | `years_since_start` | `month` (12), `quarter` (4) |
-| `week`    | `years_since_start` | `week_of_year` (52), `month` (12) |
-| `day`     | `years_since_start` | `day_of_week` (7), `day_of_year` (365), `month` (12) |
+`predict(history, horizon, future)`:
+- `history`: wide records `[{date, <target>, <aux>…}]` — including the known-future columns' historical values. Validated: all required columns present and numeric, dates parse, no duplicates, and the dates form a **regular grid at the model's frequency** (sorted internally; gaps are an error).
+- `horizon`: positive integer — number of consecutive periods to forecast beyond the last history date. Forecast dates are generated from the last history date at the model frequency (weekly grids anchor to the history's weekday; monthly, quarterly, and yearly grids anchor to period starts).
+- `future`: **required iff the model has known-future columns, rejected otherwise.** Records `[{date, <known-future col>…}]` carrying exactly the known-future columns, numeric, covering **exactly** the `horizon` forecast dates — no gaps, duplicates, extra dates, or extra columns; violations produce clear errors naming the offending dates or columns.
+- Output: wide records `[{date, predicted_<target>, predicted_<target>_lower, predicted_<target>_upper, predicted_<aux>…}]`, where `<aux>` ranges over the **auto-forecast** auxiliaries only. Known-future columns are omitted from the output — the `predicted_` prefix strictly means the model forecast that value; the caller already has what it supplied. The bounds are the 95% prediction interval for the target (available from the state-space forecast at no extra cost); auxiliary series get point forecasts only.
+- The engine always forecasts the full contiguous horizon (SARIMAX forecasting is recursive); the UI's "single date" mode is a display filter, not an engine mode.
 
-`years_since_start` = elapsed days from `training_start_date` ÷ 365.25 (continuous, frequency-independent, replaces the month-only arithmetic in the original draft). `date_feature_cols_` is set from the selected frequency's column list at fit time and reused at predict time. Sin/cos use `2π * value / period`.
+### Evaluation and metrics
 
-This replaces the hardcoded monthly/quarterly features in the original draft so daily/weekly/yearly data is handled correctly.
+- **Rolling-origin cross-validation**: orders are selected once on the full series; then 3 expanding-window folds (fallback to 2 on small data) refit **parameters only** (orders fixed) on each fold's train window and forecast its holdout. Holdout forecasting mirrors predict semantics: auto-forecast auxiliaries are forecast by their fold-refit models, while known-future columns feed the target their **actual holdout values** (they would be known in reality). Per fold: `MAE`, `RMSE`, `MAPE`, `R2` for the target (and per auto-forecast auxiliary; known-future columns have no model and no metrics). Folds aggregate by mean; `MAPE` is computed over non-zero actuals, is `None` for an all-zero fold, aggregation skips `None` folds, and an all-`None` aggregate stays `None` (rendered `—`).
+- `SC_SCORE = clamp(R2, 0, 1)` — the 0–1 total score for the circular widget, mirroring tabular.
+- "Train" metrics are in-sample one-step-ahead predictions from the final full-data fit; "test" metrics are the mean CV metrics.
+- **Chronological only, never shuffled.** The chart's train/test boundary (`split_date`) is the start of the last fold's holdout window; the `test_fit` line is that fold's genuinely out-of-sample forecast (params refit on pre-boundary data only).
 
-### Forecast date grid
+### Chart payload
 
-`predict(dates)` accepts an explicit iterable of dates (used by FNNX inference). The **frontend** is responsible for generating the date grid from the user's horizon selection (see UI section) using the picked frequency. A helper `generate_forecast_dates(last_date, end_date, frequency) -> list[str]` is exposed from `forecasting.py` and used by `forecasting_train` to compute the "future forecast" preview shown on the evaluation screen. Mapping frequency → pandas offset alias: `day→"D"`, `week→"W-<DOW>"`, `month→"MS"`, `quarter→"QS"`, `year→"YS"`. For `week`, anchor to the **weekday of the last historical date** (`W-MON`…`W-SUN`) rather than the bare `"W"` (which defaults to week-ending-Sunday and would shift the generated dates off the data's weekday).
+Identical in shape to the tabular-style structure the frontend consumes: `{split_date, series: {<col>: {actuals, test_fit, future}}}` with per-point `{date, value}`, `actuals` downsampled to ≤ ~500 points, one series per target + auxiliary column. Known-future series carry `actuals` only — no `test_fit` or `future` segments, since nothing models them. `future` is the optional training-time preview (see §6); the target's future points also carry `lower`/`upper` when intervals are rendered.
 
-### Model reusability (no baked-in horizon)
+## 2. FNNX serialization
 
-The trained model is **horizon-agnostic and fully reusable**: it stores only the fitted trend/seasonal coefficients (and auxiliary models), never a fixed forecast range. `predict(dates)` and the FNNX bundle's input schema (`{dates: list[str]}`) accept **any** future dates, any number of times. The training-time end-date picker (Step 2) is **preview-only** — it merely chooses what the Evaluate screen's chart extrapolates (the per-series `chart.series.<col>.future` preview) and is **optional** (`forecast_end_date: str | None`; omit → empty `future`, training still succeeds). Real, repeated predictions happen afterward in **Runtime** (upload for inference, enter any horizon), **Deployment** (send `{dates}` to the Satellite), or by re-loading the downloaded `.luml`. Implementations MUST NOT persist the training-time horizon into the artifact or otherwise constrain the model to it. The only inherent limitation is that dates should fall after `last_training_date_` (extrapolation), and accuracy degrades with distance.
+New package `wasm/packages/dfs_webworker/dfs_webworker/forecasting_serialization/` mirroring `prompt_optimization/serialization/` (JSON in `extra_values`, reconstructed in `warmup`; no pickle):
 
-### Metrics
-
-`cross_validate` uses `sklearn.model_selection.TimeSeriesSplit`. Per fold it reports target `mae`, `rmse`, `mape`, `r2` (and the same four per auxiliary column). The worker aggregates folds by **mean** into a single metrics dict. Definitions:
-- `MAE = mean(|y-ŷ|)`, `RMSE = sqrt(mean((y-ŷ)²))`, `R2 = sklearn.metrics.r2_score`.
-- `MAPE = mean(|y-ŷ| / |y|)` over rows where `y != 0`; if all `y == 0` in a fold, that fold's MAPE is `None`. **Fold aggregation skips `None` MAPE folds** (mean over the folds that have a value); if *every* fold is `None`, the aggregated `MAPE` is `None` (rendered `—` in the UI). The other metrics (MAE/RMSE/R2/SC_SCORE) are always aggregated over all folds regardless.
-- `SC_SCORE = clamp(R2, 0.0, 1.0)` — the 0–1 "total score" used by the circular score widget (mirrors tabular `SC_SCORE`, surfaced via `toPercent`).
-
-"Train" metrics are computed by predicting the full training set after the final `fit`; "test" metrics are the mean CV metrics. If the dataset is too small for `n_splits + 2` rows, fall back to `n_splits = max(2, len-2)` and, if still impossible (`len < 4`), raise a clear error.
-
-**Chronological split — never random.** `TimeSeriesSplit` is inherently ordered: every split uses a contiguous past window to predict a contiguous future window, with no shuffling. The pipeline MUST sort by date in `_prepare_data` and MUST NOT use `train_test_split`, `KFold`, or any shuffled splitter anywhere. For the **chart**, a single chronological train/test boundary is defined as the start of the **last** `TimeSeriesSplit` fold's validation window: everything before it is the *train segment*, the validation window itself is the *test segment*. Expose this as `chart_split(df) -> (split_date, test_index)` and a `fit_window(df, test_index) -> dict[col -> list[{date,value}]]` helper that returns, per series (target + each auxiliary), the model's fit over the test window. **`fit_window` is genuinely out-of-sample**: it trains a fresh pipeline on the **train segment only** (rows before `test_index`) and predicts the held-out test window — it does **not** use the final full-data model, otherwise the test line would be in-sample and misleadingly accurate. These feed both the Evaluate chart and the bundle's embedded chart payload (§2) so Runtime can redraw the same train/test/fit segmentation without the original CSV.
-
-## 2. FNNX serialization (`save_forecasting`)
-
-New package `wasm/packages/dfs_webworker/dfs_webworker/forecasting_serialization/` mirroring `prompt_optimization/serialization/`:
-
-Following the prompt-optimization precedent (model stored as JSON in `extra_values`, reconstructed in `warmup`; **no pickle, no `extra_file`**):
-
-- `__fnnx_pyfunc.py` — commented-out source of `ForecastingPyFunc(PyFunc)` (the build copies this file verbatim into the bundle as `__pyfunc__.py`, per the `PyFuncSpec` mechanism). It:
-  - `warmup()`: `spec = self.fnnx_context.get_value("pipeline"); self.pipeline = RidgeForecastingPipeline.from_dict(spec)` (the pipeline class is bundled as an `extra_module` so it imports inside the runtime; reconstruction sets the learned params, no scikit-learn needed).
-  - `compute(inputs, dynamic_attributes)`: read `inputs["dates"]` (list of ISO date strings), call `self.pipeline.predict_from_params(dates)` (pure numpy/pandas), return `{"forecast": <records>}` where records include the date, `predicted_<target>`, and `predicted_<aux>` columns as JSON-able lists.
-  - `compute_async` raises/delegates to sync (`pyfunc.py` already handles the `NotImplementedError` → sync fallback).
-- `__init__.py` — `serialize(pipeline, metrics, fe_config) -> bytes`:
-  - `builder.add_module(<path to forecasting pipeline module>)` so `RidgeForecastingPipeline.from_dict`/`predict_from_params` are importable in the bundle (mirrors how prompt-opt bundles `promptopt`). The module must import only `numpy`/`pandas` at runtime (guard the scikit-learn imports used by `fit` so they are not required for `from_dict`/`predict_from_params`).
-  - Define input dtype `ext::in` = pydantic model `{ dates: list[str] }`; output dtype `ext::out` = `{ forecast: list[dict] }`. `builder.add_input(JSON(name="dates", dtype="ext::in"))`, `builder.add_output(JSON(name="forecast", dtype="ext::out"))`.
-  - `builder.set_extra_values({"pipeline": pipeline.to_dict()})` — the JSON model spec (params, feature config, dates, frequency, column names) carried inline, exactly like prompt-opt stores `{"graph": graph.to_dict(), ...}`.
-  - `builder.set_producer_info(name="app.dataforce.studio/forecasting", version=..., tags=["dataforce.studio::forecasting:v1"])`.
-  - `create_meta_callback` writes `meta.json` entries:
-    - `dataforce.studio::forecasting_metrics:v1` carrying `{metrics, fe_config}`, where `metrics` is the **test/eval** metrics dict (`MAE/RMSE/MAPE/R2/SC_SCORE`, with `SC_SCORE` so `getForecastingTotalScore` can render the score widget) and `fe_config` is `{frequency, date_col, target_col, auxiliary_cols}` (so Registry/Runtime read metrics without re-running),
-    - `dataforce.studio::registry_metrics:v1` so the existing `FnnxService.getRegistryMetrics` generic path surfaces metrics in the Registry,
-    - `dataforce.studio::forecasting_chart:v1` carrying the **embedded chart payload** so the Runtime screen can redraw the training results (train/test/fit) without the original CSV. Shape: `{ split_date, series: { <col>: { actuals: [{date,value}], test_fit: [{date,value}] } } }`, one entry per target + auxiliary column, `actuals` downsampled to ≤ ~500 points. (Future-forecast points are NOT embedded — they are recomputed live in Runtime from the user's chosen horizon.)
-  - Runtime deps: `add_fnnx_runtime_dependency()`, `fnnx[core]`, `pyfnx_utils`, plus **only `pandas` and `numpy`** pinned to the worker's installed versions via `importlib.metadata.version(...)`. **No `scikit-learn` and no `joblib`** in the runtime env — prediction is pure numpy, so the served bundle stays light and free of sklearn-version pickle coupling.
-
-This is the only "new save function" the product owner referenced; it lives in the WASM package, not the backend or `sdk/python`.
+- The pyfunc's `warmup` rebuilds the pipeline from `extra_values["pipeline"]` (the JSON spec of §1); `compute` validates and runs `predict(history, horizon, future)`. The forecasting pipeline module is bundled via `add_module` so it imports inside the runtime, exactly as prompt-opt bundles `promptopt`.
+- **Input dtype**: `{history: list[record], horizon: int}`, plus `future: list[record]` **iff** the model has known-future columns — the field is written into the per-model dtype only when it applies, so each artifact's schema states exactly what its predict call needs. **Output dtype**: `{forecast: list[record]}` (shapes per §1; known-future columns never appear in output records).
+- **Producer info**: `dataforce.studio/forecasting` with manifest tag `dataforce.studio::forecasting:v1`.
+- **Meta entries**:
+  - `dataforce.studio::forecasting_metrics:v1` — `{metrics, model_config}` where `metrics` is the test-metrics dict (`MAE/RMSE/MAPE/R2/SC_SCORE`) and `model_config` is the read-only report: frequency, column roles (incl. which columns are known-future), per-series orders/seasonal order/deterministic term, seasonal period, and `min_history`.
+  - `dataforce.studio::registry_metrics:v1` — so the existing generic registry-metrics path can surface metrics if an exported model is later promoted (no forecasting-specific Registry work in v1).
+  - `dataforce.studio::forecasting_chart:v1` — the embedded training-results chart payload `{split_date, series: {<col>: {actuals, test_fit}}}` so a future inference surface can redraw training results without the original CSV. Not consumed by any v1 screen — embedded now so exported artifacts stay forward-compatible. Future points are not embedded.
+- **Runtime env**: `fnnx` runtime deps plus `statsmodels`, `scipy`, `pandas`, `numpy` pinned to the worker's installed versions via `importlib.metadata`. **No scikit-learn, no joblib.** (Heavier than a pure-numpy env — the accepted cost of real state-space prediction, see Trade-offs.)
 
 ## 3. Worker entry + routing (WASM)
 
-In `forecasting.py`, add (mirroring `tabular.py`):
-- `forecasting_train(data: dict, date_col: str, target: str, auxiliary_cols: list[str], frequency: str, forecast_end_date: str | None) -> dict` → fits, cross-validates, serializes, stores the live pipeline in `Store`, and returns `success(model_id, train_metrics, test_metrics, chart, model)` where:
-  - `chart`: the structured, **multi-series** chart object (also embedded into the bundle, see §2):
-    ```
-    {
-      "split_date": "<chronological train/test boundary>",
-      "series": {                      # one entry per target + each auxiliary column
-        "<col>": {
-          "actuals":  [{"date","value"}, ...],   # full history, downsampled ≤ ~500 pts, sorted
-          "test_fit": [{"date","value"}, ...],    # model fit over the holdout window
-          "future":   [{"date","value"}, ...]     # future preview up to forecast_end_date; [] if none
-        }, ...
-      }
-    }
-    ```
-    The split is the chronological boundary from `chart_split` (§1). Each series carries train/test actuals via `actuals` + `split_date`, the held-out `test_fit`, and the optional `future` preview.
-  - `model`: the serialized `.luml` bytes (consumed by the frontend `saveModel`).
-- `forecasting_predict(model_id: str, data: dict) -> dict` → predicts against the **in-`Store` trained pipeline** (the `model_id` returned by `forecasting_train`); powers interactive horizon re-prediction on the **Evaluate dashboard** without retraining (mirrors `/tabular/predict`). `data` carries `{"dates": [...]}`; returns `success(predictions=<records>)` where `<records>` are **wide** rows `[{date, predicted_<target>, predicted_<aux>…}]` — the **same wide record shape** the `ForecastingPyFunc.compute` path returns (so the frontend uses one adapter for both, see below). **Not used by Runtime/Deployment** — those load the model from a `.luml` file and use the generic `/pyfunc/*` path (see §8/§9).
-- `forecasting_deallocate(model_id: str) -> dict` → `Store.delete` (cleanup of the Evaluate-session Store model).
+In `forecasting.py`, mirroring `tabular.py`:
 
-Register in `dfs_webworker/__init__.py` `Router`:
-```
-Router.add_route("/forecasting/train", forecasting_train, sync=True)
-Router.add_route("/forecasting/predict", forecasting_predict, sync=True)
-Router.add_route("/forecasting/deallocate", forecasting_deallocate, sync=True)
-```
-Add constants to `dfs_webworker/constants.py`: `FORECASTING = "forecasting"`, `FORECASTING_TAG = f"{PRODUCER}::forecasting:v1"`, `FORECASTING_METRICS_TAG = f"{PRODUCER}::forecasting_metrics:v1"`, `FORECASTING_CHART_TAG = f"{PRODUCER}::forecasting_chart:v1"`.
+- A **train** entry point: takes the dataset, the column roles, the frequency, and an optional preview horizon; auto-configures, fits, cross-validates, and serializes; stores the live pipeline in `Store`; returns the model id, train/test metrics, the model-config report, the chart (including the optional `future` preview computed from the training data when a preview horizon is given — rejected with a clear error when known-future columns are marked, since their future values don't exist at train time; see §6), and the `.luml` bytes.
+- A **predict** entry point: takes a model id, `history`, `horizon`, and — for models with known-future columns — `future`; runs fixed-weight prediction against the in-`Store` pipeline (powers the Evaluate screen's interactive re-forecast; the frontend passes the uploaded training series as `history`). Returns the wide forecast records of §1 — the same shape the pyfunc returns, so the frontend needs one adapter.
+- A **deallocate** entry point for `Store` cleanup by model id.
+
+Register `/forecasting/train`, `/forecasting/predict`, `/forecasting/deallocate` in the `Router` (`dfs_webworker/__init__.py`); add the forecasting constants (task name, manifest tag, metrics tag, chart tag) to `dfs_webworker/constants.py`.
+
+**Worker environment**: `frontend/public/webworker.js` must load statsmodels 0.14.2 and its deps (patsy, packaging) from the Pyodide 0.26.2 distribution. The file currently micropip-installs `scipy==1.14.1` while the distribution's statsmodels is built against scipy 1.12.0 — the implementer must verify statsmodels imports and fits correctly alongside the existing installs and reconcile the scipy source/version if needed.
 
 ## 4. Frontend — shared contract
 
 `frontend/src/lib/data-processing/interfaces.ts`:
-- `WEBWORKER_ROUTES_ENUM`: add `FORECASTING_TRAIN = '/forecasting/train'`, `FORECASTING_PREDICT = '/forecasting/predict'`, `FORECASTING_DEALLOCATE = '/forecasting/deallocate'`.
-- `Tasks`: add `FORECASTING = 'forecasting'`.
-- New types:
-  - `Frequency = 'day'|'week'|'month'|'quarter'|'year'`.
-  - `ForecastingMetrics { MAE; RMSE; MAPE: number | null; R2; SC_SCORE }`.
-  - `ForecastingTaskPayload { data; date_col; target; auxiliary_cols: string[]; frequency: Frequency; forecast_end_date: string | null; task: Tasks.FORECASTING }`.
-  - `ForecastPoint { date: string; value: number }`, `ForecastingSeries { actuals: ForecastPoint[]; test_fit: ForecastPoint[]; future: ForecastPoint[] }`, `ForecastingChart { split_date: string; series: Record<string, ForecastingSeries> }`.
-  - `ForecastingTrainingData { model; model_id; train_metrics: ForecastingMetrics; test_metrics: ForecastingMetrics; chart: ForecastingChart; status; error_message? }`.
+- `WEBWORKER_ROUTES_ENUM`: the three forecasting routes. `Tasks`: add `FORECASTING`.
+- Types covering the forecasting contract: the frequency choices, the metrics dict (`MAE/RMSE/MAPE/R2/SC_SCORE`, MAPE nullable), the model-config report of §2 (incl. `min_history` and the known-future column subset), the train payload and training-data shapes, the predict input (history, horizon, optional future records), the chart structures of §1, and the wide predict-output record (incl. the target's optional bounds).
 
-`frontend/src/lib/data-processing/DataProcessingWorker.ts`: ensure the generic `INVOKE_ROUTE` dispatch covers the new routes (it is route-string based, so usually no change beyond enum usage — verify).
+**Predict-result adapter.** Add a normalizer that pivots the wide `predicted_<col>` records returned by `/forecasting/predict` into per-series `{date, value}` points (carrying the target's bounds through for the band). The Evaluate re-forecast (§7) routes its raw result through it before touching the chart. (When a Runtime surface lands later, the same adapter covers the pyfunc path — its records have the identical wide shape, just nested under `predictions.forecast`.)
 
-**Predict-result adapter (single source of truth for shapes).** Both live-predict paths return **wide** rows (`[{date, predicted_<col>…}]`): `/forecasting/predict` under `result.predictions`, and `/pyfunc/compute` under `result.predictions.forecast` (the pyfunc output is named `forecast`). The chart, however, consumes **per-series** `{date, value}` (`ForecastingChart.series`). Add a normalizer `toForecastSeries(records, columns): Record<string, ForecastPoint[]>` (in `lib/data-processing` or a `lib/forecasting` util) that pivots wide `predicted_<col>` rows into the per-series long shape. **Both** the Evaluate (§7) and Runtime (§8) predict paths MUST route their raw result through `toForecastSeries` (after first unwrapping `predictions` vs `predictions.forecast`) before overlaying on `ForecastChart`, so the chart only ever sees one shape.
-
-`frontend/src/lib/fnnx/FnnxService.ts`:
-- `FNNX_PRODUCER_TAGS_MANIFEST_ENUM`: add `forecasting_v1 = 'dataforce.studio::forecasting:v1'`.
-- `FNNX_PRODUCER_TAGS_METADATA_ENUM`: add `contains_forecasting_metrics_v1 = 'dataforce.studio::forecasting_metrics:v1'`.
-- Add `getForecastingData(metadata)`, `getForecastingTotalScore`, `prepareForecastingMetrics` (formats MAE/RMSE/MAPE/R2), and include the new tag in `getTypeTag` (already enumerates all manifest tags, so it works once added).
+No `FnnxService.ts` changes in v1 — the forecasting tags are written by the serializer, but nothing reads `.luml` files in the frontend until the Runtime surface lands.
 
 ## 5. Frontend — task registration & routing
 
-`frontend/src/constants/constants.ts`:
-- Flip the Time Series Forecasting card: remove `isDisabled`, set `btnText: 'next'`, `linkName: 'forecasting'`, `analyticsTaskName: 'forecasting'`, and `dropdownOptions: [{ label: 'Train new model' }, { label: 'Upload for inference', route: 'runtime' }]`.
-- Add `forecastingSteps = [{id:1,text:'Data Upload'},{id:2,text:'Forecast Setup'},{id:3,text:'Model Evaluation'}]` and `forecastingResources` (links analogous to `regressionResources`).
+- `frontend/src/constants/constants.ts`: enable the Time Series Forecasting card — drop the disabled/"coming soon" state, give it the standard next-step button, link it to the forecasting route, keep an analytics name. **No "Upload for inference" dropdown option** — Runtime is deferred, so the card offers only training. Add the forecasting step labels (Data Upload / Forecast Setup / Model Evaluation) and resources entries alongside the existing tasks'.
+- `frontend/src/router/index.ts`: add the `/forecasting` route to a new `ForecastingPage.vue` (same `meta.showInvalidMessage` pattern as the tabular pages).
 
-`frontend/src/router/index.ts`: add route `{ path: '/forecasting', name: 'forecasting', component: () => import('../pages/ForecastingPage.vue'), meta: { showInvalidMessage: 992 } }`.
+## 6. Frontend — training flow
 
-## 6. Frontend — training flow components
-
-- `frontend/src/pages/ForecastingPage.vue` — thin page rendering `<ForecastingWrapper :steps="forecastingSteps" />` (mirrors `ClassificationPage.vue`).
-- `frontend/src/components/express-tasks/forecasting/ForecastingWrapper.vue` — 3-step `Stepper` (mirrors `TabularWrapper.vue`):
-  - **Step 1 Upload**: reuse `ui/UploadData.vue` + `useDataTable`. Validation: min 3 columns, min ~30 rows. Note: 30 is a **soft UI guard** (forecasting needs fewer rows than tabular's 100, but too-short series fit poorly); the **hard floor** enforced by the engine is `<4` rows (the `cross_validate` `n_splits+2` requirement, §1). The UI guard prevents most low-quality runs before they reach the worker.
-  - **Step 2 Forecast Setup**: reuse `table-view` for column-role assignment plus a config panel:
-    - **Date column** select (default: first column whose values parse as dates).
-    - **Target column** select.
-    - **Auxiliary columns** multi-select (optional; excludes date + target).
-    - **Frequency** select (day/week/month/quarter/year).
-    - **Horizon (preview-only, optional)**: a future **end date** picker + a toggle **"Forecast for the selected date only" vs "Forecast the whole period up to it"** (the frontend builds the date grid; "single date" sends just that one date, "whole period" sends the full grid from `last_training_date` to the end date at the chosen frequency). This only controls the per-series `chart.series.<col>.future` preview drawn on the Evaluate screen — it does **not** constrain the saved model, which remains reusable for arbitrary dates via Runtime/Deployment. If left empty, training proceeds and the Evaluate chart simply omits the future line.
-  - **Step 3 Evaluate**: results (see next).
-- New hook `frontend/src/hooks/useForecastingTraining.ts` (parallel to `useModelTraining`) exposing `startTraining(payload)`, `startPredict`, `downloadModel`, `modelBlob`, training metrics getters, chart-series getters, and `deleteModels` cleanup on unmount. `downloadModel` filename: `forecasting_<timestamp>.luml`.
+- `pages/ForecastingPage.vue` → thin page rendering `ForecastingWrapper` (mirrors `ClassificationPage.vue`).
+- `components/express-tasks/forecasting/ForecastingWrapper.vue` — 3-step `Stepper` (mirrors `TabularWrapper.vue`):
+  - **Step 1 Upload**: reuse `ui/UploadData.vue` + `useDataTable`; validate ≥ 2 columns and the ~30-row soft guard (the 12-row hard floor lives in the engine).
+  - **Step 2 Forecast Setup**: date column select (default: first parseable-as-dates column), target select, optional auxiliary multi-select (excludes date/target), an optional **known-future multi-select** over the chosen auxiliaries (marks the features whose future values the user will supply at prediction time; subset of the auxiliaries by construction), frequency select, and an **optional preview horizon**: a future end-date picker plus a "selected date only / whole period" toggle. The preview only controls the Evaluate chart's `future` segment; it never constrains the saved model. When any column is marked known-future, the preview controls are hidden with a hint pointing to the Evaluate re-forecast (which collects the needed future values), and no preview horizon is sent. Validations: distinct date/target columns, a parseable date column must exist, end date must be after the last historical date.
+  - **Step 3 Evaluate**: below.
+- New hook `hooks/useForecastingTraining.ts` (parallel to `useModelTraining`) owning train, predict, model download (`forecasting_<timestamp>.luml`), metrics/chart/model-config access, and deallocation of tracked models on unmount.
 
 ## 7. Frontend — evaluation & results
 
-`frontend/src/components/express-tasks/forecasting/evaluate/index.vue`:
-- **Metrics panel** — circular total score from `SC_SCORE` (`toPercent`) + cards for MAE, RMSE, MAPE (`—` when null), R² (reuse the `ServiceEvaluate` styling pattern; no feature-importances panel — date features are not user-meaningful).
-- **Forecast chart** — a single **overlaid multi-series** line chart (reuse the app's existing chart component — confirm which wrapper is used by other dashboards and reuse it; do NOT add a charting dependency) that plots the **target series and every auxiliary series together** on one set of axes. Each series line is **segmented by data role**, with a **shared semantic color per segment** (identical across all series so the train/test/prediction split is instantly legible):
-  - **Train segment** (token `--chart-train`): actual values over the training portion — every point **before** the chronological split boundary.
-  - **Test segment** (token `--chart-test`): actual values over the holdout window (from the boundary through the last historical date), **plus** the model's fit on that same window drawn as a **dashed** line in the test color, so predicted-vs-actual on held-out data is visible.
-  - **Prediction segment** (token `--chart-prediction`): the future forecast beyond the last historical date, **dashed** (only present if a horizon was chosen — see §6).
-  - The split is **strictly chronological** — the holdout is the final contiguous window (the last `TimeSeriesSplit` fold); there is **never** a random/shuffled split. The train window always precedes the test window in time.
-  - Series are distinguished from each other by **legend label** (and a subtle per-series channel such as marker shape / line weight, with the **target emphasized** via a thicker line); **segment color is shared** across series, per the requirement that each line is divided into train/test/prediction colors.
-- **Predict control (interactive re-forecast).** A horizon picker (future end date + frequency-aware single/whole-period toggle, the same component as §6/§8) lets the user forecast a different horizon **without retraining**. It calls `useForecastingTraining.startPredict` → `/forecasting/predict` against the training `model_id` still live in the worker `Store`, normalizes the wide result via `toForecastSeries` (§4), and overlays the returned per-series future onto the chart in `--chart-prediction` (dashed), plus a predictions-CSV download. (This is the in-session Store path; Runtime uses the generic `/pyfunc/*` path instead — see §8.)
-- **Color tokens** — define `--chart-train`, `--chart-test`, `--chart-prediction` in the design tokens (`frontend/tokens` / style-dictionary) so the Evaluate screen and the Runtime screen (§8) render the exact same colors.
-- **Download** `.luml` button.
+`components/express-tasks/forecasting/evaluate/index.vue`:
+- **Metrics panel** — circular total score from `SC_SCORE` + cards for MAE, RMSE, MAPE (`—` when null), R².
+- **Model configuration card** — the read-only auto-detection report: detected orders/seasonality per series, seasonal period, which columns are known-future (with a note that predict calls must supply their future values), and the **minimum history** required for future predictions (this is the user's heads-up that predict calls need that much data).
+- **Forecast chart** — one overlaid multi-series line chart (reuse the app's existing chart component; no new charting dependency) plotting target + auxiliaries, each line segmented by role with shared segment colors: train actuals (before `split_date`), test actuals plus dashed out-of-sample `test_fit`, dashed future forecast. Target emphasized (thicker), series distinguished by legend. The three segment colors come from **existing theme CSS variables** (`var(--p-…)`, the same mechanism `lib/apex-charts/apex-charts.ts` already uses), shared across series. The theme files (`assets/theme/light-theme.css`/`dark-theme.css`) are auto-generated from the Figma design tokens and **must never be hand-edited**; introducing new dedicated tokens is out of scope — that would have to go through the Figma export pipeline. A shaded 95% band around the target's future segment is a **nice-to-have** — point lines are required, the band may ship later.
+- **Interactive re-forecast** — a horizon picker (future end date + single/whole-period toggle) calls `startPredict` → `/forecasting/predict` with the **in-session training series as `history`** and the computed horizon; the result is normalized via the §4 adapter and overlaid as the prediction segment, plus a predictions-CSV download (including the bound columns). For models with known-future columns, the panel additionally shows a **future-values editor**: an editable grid with one row per horizon date and one column per known-future feature, which can also be populated by uploading a small CSV (`date` + known-future columns; rows matched to the horizon dates). Forecasting stays blocked until every cell holds a numeric value; the grid contents are sent as `future` alongside history/horizon, and the provided values are drawn as those series' future segment, visually distinct from forecast lines.
+- **Download `.luml`** button.
 
-## 8. Frontend — Runtime inference
+## 8. Deferred: Runtime, Registry, Deployment
 
-`frontend/src/components/runtime/dashboard/RuntimeDashboard.vue`: map `FNNX_PRODUCER_TAGS_MANIFEST_ENUM.forecasting_v1` → a new `runtime/dashboard/forecasting/index.vue`.
-- **Model performance** card from the bundle's `forecasting_metrics` metadata (total score + MAE/RMSE/MAPE/R²).
-- **Training-results chart (always shown).** Read the bundle's `forecasting_chart:v1` metadata and redraw the **same overlaid multi-series, segment-colored chart** as the Evaluate screen — train segment (`--chart-train`), test actuals + dashed test fit (`--chart-test`) — reusing the identical chart component and tokens. This satisfies the requirement that Runtime users still see the model's training results, without needing the original CSV.
-- **Predict card.** A **frequency-aware horizon picker** (future end date + single/whole-period toggle, reusing the §6 component) builds the date grid and predicts via the **generic FNNX pyfunc path** — `useFnnxModel` already detects `variant === 'pyfunc'` on upload and runs `/pyfunc/init`, so prediction is `DataProcessingWorker.computePythonModel` → `/pyfunc/compute` (exactly as prompt-opt's `RuntimeDashboardPromptOptimizationPredict.vue` does), unwrapping `result.predictions.forecast` and normalizing via `toForecastSeries` (§4). **Runtime does NOT use `/forecasting/predict`** — that route is only for the in-session Store model on the Evaluate screen (§7); here the model comes from an uploaded `.luml`, not a training session. The returned future forecast is **overlaid onto the same training-results chart** in the **prediction color** (`--chart-prediction`, dashed), so fit and fresh forecast appear together, and is also offered as a downloadable predictions CSV (date + predicted target/auxiliary columns).
-
-## 9. Deployment / Satellite parity
-
-**Deployment works identically to every other Express Task — it is fully generic and requires no forecasting-specific code.** The exact same path used by tabular and prompt-optimization deployments applies:
-- **Create/deploy** — `DeploymentsCreateModal` binds a Registry artifact to a Satellite; the satellite `DeployTask` (`satellite/agent/tasks/deploy.py`) downloads the `.luml` and runs it in the `model_server` container, with no model-type-specific logic.
-- **Schema/inference UI** — the `model_server`'s `OpenAPIGenerator` (`satellite/model_server/openapi_generator.py`) builds the inference OpenAPI schema **automatically from the FNNX manifest** (its `inputs`/`outputs` + `dtypes.json`). `DeploymentSchemaPage.vue` renders that schema generically via the `OpenApi` component against the satellite inference URL. Because forecasting's manifest already declares `ext::in {dates: list[str]}` / `ext::out {forecast: list[dict]}` (§2), the deployment playground exposes the `{dates}` → `{forecast}` contract with **no new frontend work**. (Note: the task-branched `components/predict/index.vue` is *not* a deployment component — it is the local-worker predict used by `ServiceEvaluate.vue`/prompt-fusion; deployment uses the generic OpenAPI path only.)
-
-**Prompt-optimization is the direct precedent**: it is also a `pyfunc` bundle, so if it deploys and serves, forecasting does too. The only thing to confirm is the serving env:
-- Verify the Satellite `model_server` reconstructs the bundle env from `env.json` (only `pandas`, `numpy`, `fnnx`, `pyfnx_utils` → conda/pip install on the satellite) and runs `ForecastingPyFunc` via `from_dict` + pure-numpy `predict_from_params` (no scikit-learn, no pickle → no version coupling). The roundtrip test (Scenario: Serialization roundtrip) guards the artifact correctness; this step confirms it end-to-end on a real satellite.
-- Confirm Deployment creation does not whitelist model/task types (it is artifact-generic) — no `backend/luml` change expected.
+Not built in v1. The artifact is designed so all three land later with no engine or serialization changes:
+- **Runtime** — the `forecasting_v1` manifest tag, `forecasting_metrics:v1`/`forecasting_chart:v1` meta entries, and the generic pyfunc contract are already in the bundle; a future dashboard needs only frontend work (tag mapping, cards, a recent-history CSV upload validated against `min_history`, plus the future-values input for known-future models — the input dtype says whether it's needed).
+- **Registry** — the `registry_metrics:v1` meta entry is written at export, so the existing generic metrics path works whenever promotion is enabled for this task type.
+- **Deployment** — fully generic for pyfunc bundles; the manifest-derived OpenAPI schema would expose `{history, horizon[, future]}` → `{forecast}` as-is. The bundle env is pinned correctly now (statsmodels/scipy/pandas/numpy), so exported models remain deployable without retraining.
 
 ## Dependencies
 
-No new app dependencies. The WASM worker already has scikit-learn, pandas, numpy, fnnx, pyfnx_utils available (scikit-learn is used for **training only**); the served bundle declares only `pandas`, `numpy`, `fnnx`, `pyfnx_utils` as runtime deps (prediction is pure numpy — no scikit-learn/joblib). Frontend reuses PrimeVue Stepper, `@fnnx-ai/web`, and the existing chart component.
+- **New in the Pyodide worker**: statsmodels 0.14.2 (+ patsy, packaging) from the Pyodide 0.26.2 distribution (`webworker.js` changes, incl. the scipy-version reconciliation noted in §3).
+- **Bundle runtime env**: statsmodels, scipy, pandas, numpy (+ fnnx runtime deps). No scikit-learn/joblib.
+- **Frontend**: no new dependencies (PrimeVue Stepper, existing chart component).
 
 ## Trade-offs
 
-- **Single Ridge model, no AutoML search** — predictable, fast, light; weaker on strongly non-linear/seasonal data. Acceptable for v1; the pipeline interface leaves room for swapping the base estimator later.
-- **User picks frequency (no auto-detect)** — simpler and more predictable; a wrong choice yields poor seasonal features but never a crash. Auto-detect can be added later.
-- **Auxiliary series modeled from dates only** — no need for users to supply future exogenous values at inference, at the cost of not using genuinely independent signals. Matches the provided pipeline's "reduce train/serve skew" intent.
-- **JSON params + numpy predict** — the trained model is stored as a JSON spec in `extra_values` and reconstructed at serve time (matching the prompt-optimization pyfunc convention), with prediction reimplemented in pure numpy. Costs a `to_dict()/from_dict()` + numpy predict path, but avoids sklearn/joblib pickle version-coupling, keeps the served bundle light, and is consistent with the existing codebase. (Pickling the sklearn pipeline via joblib was the alternative — rejected for the version-coupling risk and because no other Express Task pickles its model.)
+- **statsmodels at serve time** — heavier than a pure-numpy path, but fixed-weight SARIMAX prediction *is* Kalman filtering; reimplementing it in numpy was rejected as high-risk. In v1 the bundle's predict path is exercised only by the serialization roundtrip test (serving surfaces are deferred), but the env pins are set correctly now so exported artifacts serve later without changes.
+- **History always required at predict** — the artifact is stateless and never embeds user data (a privacy and staleness win), at the cost of any future inference surface needing a data upload before it can forecast. Chosen deliberately over storing the training tail.
+- **Two-stage exog** — the target is trained on actual auxiliary values but predicts with forecast ones; standard ARIMAX behavior, accepted for the cross-series signal it buys. Marking a column known-future sidesteps this entirely — at the cost of the caller having to supply its values on every predict.
+- **Bounded stepwise search** — `p,q ≤ 3`, `P,Q ≤ 1`, ~25 fits: worse than exhaustive search on pathological series, necessary for browser latency; the `(0,d,0)` fallback guarantees training never dead-ends.
+- **Single seasonal period per frequency** — daily data models the weekly cycle only (no 365-period terms; SARIMAX state dimension makes long periods impractical); weekly data's `s = 52` is allowed but seasonal orders stay minimal. Fourier-term exog for long periods is a possible v2.
 
 ---
 
 # Scenarios
 
-## Scenario: Train a single-series monthly forecast (happy path)
-**Given** a CSV with a monthly `date` column and a numeric `sales` column (≥ 40 rows) and no auxiliary columns
-**When** the user uploads it, selects `date` as the date column, `sales` as the target, frequency `month`, picks a future end date 12 months out with "whole period", and clicks train
-**Then** `forecasting_train` fits the pipeline, returns mean-CV `train_metrics`/`test_metrics` (MAE/RMSE/MAPE/R²/SC_SCORE) and a `chart` object with one `series` entry for `sales` (`actuals`, `test_fit`, 12-point `future`) plus `split_date`, and the Evaluate step shows the score widget, metric cards, and the overlaid segment-colored chart (train/test/fit/future).
+## Scenario: Train a monthly forecast with auto-configuration (happy path)
+**Given** a CSV with a monthly `date` column and a numeric `sales` column (≥ 36 rows, visible trend and yearly seasonality)
+**When** the user uploads it, assigns `date`/`sales`, picks frequency `month`, and trains
+**Then** the engine detects `s = 12`, a nonzero `D` or seasonal terms, selects orders by stepwise AICc, returns train/test metrics (MAE/RMSE/MAPE/R²/SC_SCORE), a `model_config` report (orders, seasonal period, deterministic term, `min_history`), a chart with `actuals`/`test_fit` for `sales`, and the `.luml` bytes; the Evaluate step renders score, metric cards, config card, and the segmented chart.
 
-## Scenario: Train with auxiliary columns
-**Given** a CSV with `date`, target `revenue`, and auxiliary `marketing_spend`, `visitors`
-**When** the user assigns `date`/`revenue`/auxiliary `[marketing_spend, visitors]`, frequency `month`, and trains
-**Then** the pipeline trains one auxiliary model per auxiliary column on date features, trains the target model on date features + **predicted** auxiliary values, and `test_metrics` includes per-target metrics; the bundle predicts target and `predicted_marketing_spend`/`predicted_visitors` for future dates.
+## Scenario: Two-stage training with auxiliary columns
+**Given** a CSV with `date`, target `revenue`, auxiliaries `marketing_spend` and `visitors`
+**When** the user assigns roles and trains
+**Then** each auxiliary gets its own auto-configured SARIMAX, the target model uses both auxiliaries as exogenous regressors, `model_config` reports per-series configurations, and prediction outputs include `predicted_revenue` (with bounds) plus `predicted_marketing_spend`/`predicted_visitors`.
 
-## Scenario: Chart split is strictly chronological (never random)
-**Given** any trained forecast
-**When** the `chart` is produced and rendered
-**Then** the `split_date` boundary equals the start of the last `TimeSeriesSplit` validation window, every `actuals` point before it is colored as *train* and every point from it through the last historical date is colored as *test*, the train window strictly precedes the test window in time, and no shuffled/random splitter is used anywhere in fitting or evaluation.
+## Scenario: Known-future covariates supplied at predict
+**Given** a model trained with target `sales`, auto-forecast auxiliary `visitors`, and `promo` marked known-future
+**When** predict is called with a valid history (including `promo`'s historical values), `horizon = 4`, and `future` records carrying `promo` for the 4 forecast dates
+**Then** no auxiliary model exists for `promo`, the supplied values feed the target as future exog, and the output records contain `predicted_sales` (with bounds) and `predicted_visitors` but no `promo` field of any kind.
 
-## Scenario: Multi-series overlay (target + auxiliaries)
-**Given** a model trained with target `revenue` and auxiliaries `marketing_spend`, `visitors`
-**When** the Evaluate chart renders
-**Then** all three series are drawn overlaid on one chart, each line segmented into train/test/prediction using the shared `--chart-train`/`--chart-test`/`--chart-prediction` colors, the target is emphasized (thicker), and series are told apart by legend label; the `chart.series` object contains keys `revenue`, `marketing_spend`, `visitors`.
+## Scenario: Missing or malformed future values
+**Given** a model with a known-future column
+**When** predict is called without `future`, or with future records that miss a horizon date, add an extra date, or omit the known-future column
+**Then** the call fails with a clear error naming the missing/extra dates or columns, and nothing is forecast; symmetrically, supplying `future` to a model with no known-future columns is rejected.
 
-## Scenario: Runtime shows training results plus the new prediction
-**Given** a downloaded forecasting `.luml` opened in Runtime
-**When** the dashboard loads and the user runs a horizon prediction
-**Then** the training-results chart is reconstructed from the bundle's `forecasting_chart:v1` metadata (train + test actuals + dashed test fit, same colors as Evaluate) **without** the original CSV, and the freshly predicted future is overlaid on the same chart in the `--chart-prediction` color (dashed) and offered as a CSV download.
+## Scenario: Evaluation uses actual holdout values for known-future columns
+**Given** a training run with a known-future column
+**When** rolling-origin CV forecasts each fold's holdout
+**Then** the target's future exog for that column comes from the actual holdout values (never a forecast), auto-forecast auxiliaries are forecast by their fold-refit models, and metrics are reported for the target and auto-forecast auxiliaries only.
 
-## Scenario: Frequency-aware features for daily data
-**Given** a CSV with a daily `date` column and target `load`
-**When** the user picks frequency `day` and trains
-**Then** `_make_date_features` produces `years_since_start` plus `day_of_week`, `day_of_year`, and `month` sin/cos features (not the monthly-only set), and the forecast date grid is generated at daily (`"D"`) frequency.
+## Scenario: Fixed-weight prediction on fresh history
+**Given** a model trained on 2020–2023 monthly data and a predict call supplying only 2024 rows (≥ `min_history`) with `horizon = 6`
+**When** the pyfunc (or `/forecasting/predict`) runs
+**Then** no parameter optimization occurs — the stored parameter vectors are applied to the new history by filtering — and the response contains 6 consecutive monthly records starting after the last 2024 date, reflecting the provided history's recent level (not the training data's).
 
-## Scenario: Forecast a single future date only
-**Given** a trained-ready dataset
-**When** the user picks a future end date and selects "Forecast for the selected date only"
-**Then** the frontend sends exactly one date, and the `future` series / predictions contain a single record for that date.
+## Scenario: Prediction is deterministic
+**Given** the same artifact, the same history window, and the same horizon
+**When** predict is called repeatedly (via the worker route or a loaded bundle)
+**Then** the outputs are identical across calls and environments (within floating tolerance).
 
-## Scenario: Forecast the whole period up to a date
-**Given** the same setup with "Forecast the whole period up to it"
-**When** the user trains/predicts
-**Then** the frontend generates every period from `last_training_date` to the end date at the chosen frequency, and the response contains one record per period.
+## Scenario: Too little history at predict time
+**Given** a model whose `min_history` is 15 and a predict call supplying 10 rows
+**When** the call validates
+**Then** it fails with a clear error naming the required minimum (15) and the supplied count.
 
-## Scenario: Serialization roundtrip (artifact correctness)
-**Given** a pipeline trained in the WASM worker and serialized via `save_forecasting`
-**When** the resulting `.luml` is loaded through a fresh `fnnx` `Runtime` (the path used by Runtime/Satellite, with scikit-learn **absent** from the environment) and asked to predict the same future dates
-**Then** the predictions equal (within floating tolerance) the in-memory `pipeline.predict(dates)` output, reconstruction uses `from_dict` + `predict_from_params` (no scikit-learn import), and the bundle's `env.json` lists `pandas`, `numpy`, `fnnx` but **not** `scikit-learn` or `joblib`.
+## Scenario: History with gaps or wrong columns
+**Given** a predict history whose dates skip a period at the model frequency, or which lacks an auxiliary column the model was trained with
+**When** validation runs
+**Then** the call errors with a message naming the gap (or the missing column); nothing is forecast.
 
-## Scenario: Runtime upload-for-inference
-**Given** a downloaded forecasting `.luml`
-**When** the user opens Runtime, uploads the file, and enters a future end date + frequency horizon
-**Then** `RuntimeDashboard` resolves the `forecasting_v1` tag to the forecasting dashboard, shows the stored metrics, and rendering the horizon predict returns a forecast chart + downloadable CSV.
+## Scenario: Short series disables seasonality instead of failing
+**Given** 18 monthly rows (fewer than two full yearly cycles)
+**When** the user trains with frequency `month`
+**Then** seasonal modeling is disabled automatically (non-seasonal ARIMA), training succeeds, and `model_config` reports the absence of seasonal terms.
 
-## Scenario: Registry promotion surfaces metrics
-**Given** a forecasting model promoted to a Collection
-**When** the Registry reads the artifact
-**Then** `FnnxService.getRegistryMetrics` returns the forecasting metrics (via the `registry_metrics:v1` meta entry written by `save_forecasting`) and they render on the model card.
+## Scenario: Trending non-seasonal series gets differenced
+**Given** a strongly trending, non-seasonal series
+**When** auto-configuration runs
+**Then** KPSS-based detection selects `d ≥ 1`, the seasonal-strength test selects `D = 0`, and the fitted model extrapolates the trend (drift/deterministic term per the `d + D` rule).
 
-## Scenario: Deployment serves forecasts on a Satellite (generic path)
-**Given** a forecasting model deployed to a paired Satellite via the **same generic flow** as any other Express Task (`DeploymentsCreateModal` → `DeployTask` → `model_server`)
-**When** the deployment comes up and an inference request with `{dates: [...]}` hits the Satellite endpoint
-**Then** the `model_server` `OpenAPIGenerator` has auto-derived the `{dates}`→`{forecast}` schema from the manifest (rendered by `DeploymentSchemaPage.vue` with no forecasting-specific code), the server reconstructs the pipeline from the bundle's JSON `extra_values` (`from_dict`, no scikit-learn), runs `ForecastingPyFunc.compute` (pure numpy), and returns the forecast records.
-
-## Scenario: No parseable date column (error)
-**Given** a CSV where no column parses as dates
-**When** the user reaches Forecast Setup
-**Then** the date-column select shows a validation error / disables training, with a message that a valid date column is required (no train call is made).
-
-## Scenario: Too few rows for cross-validation
-**Given** a CSV with fewer than 4 usable rows
+## Scenario: Training data below the hard floor
+**Given** a CSV with fewer than 12 usable rows
 **When** the user trains
-**Then** `cross_validate` raises a clear, surfaced error ("Not enough data points for forecasting evaluation") shown via the training error toast, and no model is produced.
+**Then** the engine raises a clear "not enough data" error surfaced via the training error toast, and no model is produced.
 
-## Scenario: Future end date not after the last training date (error)
-**Given** the user picks an end date ≤ the dataset's last date
-**When** they try to set the horizon
-**Then** the UI blocks it with a message that the forecast end date must be after the last historical date.
-
-## Scenario: Target equals date column (validation)
-**Given** the user selects the same column for date and target
-**When** they attempt to continue
-**Then** the UI prevents it and prompts to pick distinct columns.
-
-## Scenario: Non-numeric or missing target values
-**Given** a target column with non-numeric or NaN entries
+## Scenario: Every candidate fit fails to converge
+**Given** a pathological series where all stepwise candidates error or fail to converge
 **When** training runs
-**Then** `_prepare_data`/`_validate_input_columns` coerces/raises a clear error for non-numeric targets and drops/forward-handles NaN rows deterministically (documented behavior), surfaced via toast rather than an uncaught traceback.
+**Then** the engine falls back to the `(0,d,0)` + deterministic-term model, training completes, and metrics/artifact are still produced.
+
+## Scenario: Chart split is strictly chronological
+**Given** any trained forecast
+**When** the chart is produced
+**Then** `split_date` equals the start of the last rolling-origin holdout, all `actuals` before it are the train segment and from it onward the test segment, `test_fit` comes from a params-refit on pre-boundary data only (genuinely out-of-sample), and no shuffled splitter is used anywhere.
+
+## Scenario: Evaluate-screen re-forecast without retraining
+**Given** a completed training session on the Evaluate step
+**When** the user picks a new future end date and runs the re-forecast
+**Then** the frontend sends the uploaded training series as `history` with the computed horizon to `/forecasting/predict`, the overlay updates from the normalized result, and a predictions CSV (incl. target bounds) is downloadable — with no new training call.
+
+## Scenario: Re-forecast with the future-values editor
+**Given** the Evaluate step for a model with known-future columns and a chosen future end date
+**When** the user fills the per-date grid (or uploads a CSV of `date` + known-future columns that populates it) and runs the re-forecast
+**Then** forecasting stays blocked until every horizon date has a numeric value for every known-future column, the predict call carries the grid contents as `future`, and the overlay/CSV update as usual.
+
+## Scenario: Preview deferred when known-future columns exist
+**Given** Step 2 with an auxiliary marked known-future
+**When** the user completes setup and trains
+**Then** the preview end-date controls are hidden with a hint pointing to the Evaluate re-forecast, the train call carries no preview horizon, and the training chart has no `future` segment.
+
+## Scenario: Single-date display mode
+**Given** a horizon picker set to "selected date only" for a date 8 periods out
+**When** the forecast returns
+**Then** the engine forecast covers all 8 periods, and the UI displays/exports only the final date's record.
+
+## Scenario: Serialization roundtrip without refitting
+**Given** a pipeline trained in the worker and serialized
+**When** the `.luml` is loaded through a fresh fnnx runtime and asked to predict with the training series as history
+**Then** predictions match the in-memory pipeline's output within floating tolerance, reconstruction reads only the JSON spec (no pickle), the env pins statsmodels/scipy/pandas/numpy but not scikit-learn/joblib, and the manifest/meta carry the forecasting tags, metrics, `model_config` (incl. the known-future designation), and chart payload; for a model with known-future columns the input dtype carries the `future` field, for one without it doesn't.
 
 ## Scenario: MAPE with zero target values
 **Given** a target series containing zeros
 **When** metrics are computed
-**Then** MAPE is computed only over non-zero rows (or returned `null`/omitted when all-zero), R²/MAE/RMSE/SC_SCORE are still computed, and the UI renders `—` for an absent MAPE.
+**Then** MAPE uses only non-zero actuals per fold, all-zero folds yield `None` and are skipped in aggregation (all-`None` → `None`, rendered `—`), while MAE/RMSE/R²/SC_SCORE aggregate normally.
+
+## Scenario: Setup validations
+**Given** the Forecast Setup step
+**When** no column parses as dates, or date and target are the same column, or the preview end date is not after the last historical date
+**Then** the UI blocks progression with a specific message for each case; no train call is made.
 
 ## Scenario: Worker error is reported, not swallowed
-**Given** any exception inside `forecasting_train`
+**Given** any exception inside a forecasting route
 **When** the worker `invoke` wraps it
-**Then** it returns `{status:'error', error_type, error_message, traceback}` (existing `Router.invoke` behavior) and the frontend shows `trainingErrorToast` with the message, leaving the user on the setup step.
+**Then** the standard `{status:'error', error_type, error_message, traceback}` payload is returned and the frontend shows the training/predict error toast, leaving the user on their current step.
 
 ## Scenario: Model cleanup on unmount
 **Given** trained models held in the worker `Store`
-**When** the user navigates away from the forecasting flow or Runtime
-**Then** `useForecastingTraining` calls `/forecasting/deallocate` (or `/store/deallocate`) for every tracked `model_id` on `onBeforeUnmount`.
+**When** the user leaves the forecasting flow
+**Then** the hook deallocates every tracked `model_id` on unmount.
 
 ---
 
 # Tasks
 
-- [ ] **Task 1 — WASM: forecasting engine + frequency-aware features**
-  - [ ] Add `wasm/packages/dfs_webworker/dfs_webworker/forecasting.py` with the generalized `RidgeForecastingPipeline` (fields, `fit`, `predict`, `cross_validate`, `to_dict`/`from_dict`, pure-numpy `predict_from_params`, internal helpers). Guard scikit-learn imports so `from_dict`/`predict_from_params` need only numpy/pandas.
-  - [ ] Implement `_make_date_features` with the per-frequency feature table (day/week/month/quarter/year) and `years_since_start` trend.
-  - [ ] Implement metrics helpers `_mae`/`_rmse`/`_mape`/`_r2` and CV aggregation (mean over folds, small-data fallback/error). Use only `TimeSeriesSplit`; never a shuffled splitter.
-  - [ ] Implement `chart_split(df) -> (split_date, test_index)` (last `TimeSeriesSplit` fold boundary) and `fit_window(df, test_index) -> dict[col -> list[{date,value}]]` (per-series held-out fit) for the train/test/fit chart.
-  - [ ] Implement `generate_forecast_dates(last_date, end_date, frequency)` with the pandas offset-alias mapping.
-  - [ ] Add constants to `dfs_webworker/constants.py` (`FORECASTING`, `FORECASTING_TAG`, `FORECASTING_METRICS_TAG`, `FORECASTING_CHART_TAG`).
-  - [ ] Unit tests (mirror `wasm` test conventions): fit/predict shapes, each frequency's feature columns, auxiliary two-stage training, CV metrics, small-data error, MAPE-with-zeros (incl. fold aggregation skipping `None` folds and all-`None` → `None`), `chart_split` chronological (train indices all precede test indices), and `predict_from_params` matches the fitted `predict` within tolerance (numpy path correctness).
+- [ ] Add the SARIMAX forecasting engine with auto-configuration
+  - [ ] Load statsmodels (+ patsy/packaging) in `frontend/public/webworker.js` from the Pyodide distribution; verify import/fit works alongside the existing scipy pin and reconcile if needed
+  - [ ] Create `dfs_webworker/forecasting.py`: pipeline class, two-stage fit (per auto-forecast-aux SARIMAX + target-with-exog; known-future columns get no model), auto-detection (STL seasonal strength → D, KPSS → d, deterministic-term rule, bounded stepwise AICc search with the `(0,d,0)` fallback), seasonal-period-from-frequency table incl. the short-series seasonal-disable rule
+  - [ ] Implement the JSON spec (to/from dict, params + orders + column roles incl. known-future + `min_history`, no training data) and fixed-weight `predict(history, horizon, future)` with full history validation (columns, regular grid, min length), future-values validation (required iff known-future columns exist, exact horizon-date coverage, exact column set), and 95% target bounds
+  - [ ] Implement rolling-origin CV (params-only refits, actual holdout values as future exog for known-future columns, metric definitions incl. the MAPE `None` rules and SC_SCORE), train metrics, and the chart payload (`split_date`, per-series `actuals`/`test_fit`, actuals-only known-future series, out-of-sample fit, ≤ ~500-point downsampling)
+  - [ ] Add forecasting constants to `dfs_webworker/constants.py`
+  - [ ] Unit tests: auto-detection on trending/seasonal/short synthetic series, two-stage exog flow, known-future flow (supplied values feed the target, no aux model/metrics, output omits the column), fixed-weight predict on fresh history (level shift reflected, no refit), determinism, min-history/gap/column/future-values validation errors, CV chronology, MAPE-with-zeros, convergence fallback
 
-- [ ] **Task 2 — WASM: FNNX serialization (`save_forecasting`)**
-  - [ ] Add `dfs_webworker/forecasting_serialization/__fnnx_pyfunc.py` (commented `ForecastingPyFunc`: `warmup` reconstructs `RidgeForecastingPipeline.from_dict(self.fnnx_context.get_value("pipeline"))`; `compute` runs `predict_from_params`).
-  - [ ] Add `dfs_webworker/forecasting_serialization/__init__.py` `serialize(pipeline, metrics, fe_config)` using `PyfuncBuilder`: `add_module` the forecasting pipeline module, `set_extra_values({"pipeline": pipeline.to_dict()})` (JSON params — no pickle/`add_file`), define in/out dtypes, producer info + `forecasting:v1` tag, `meta.json` entries (`forecasting_metrics:v1` + `registry_metrics:v1` + `forecasting_chart:v1` with the embedded `{split_date, series}` chart payload), runtime deps **only** `fnnx`, `pyfnx_utils`, `pandas`, `numpy` pinned via `importlib.metadata` (no scikit-learn/joblib).
-  - [ ] Roundtrip test (with scikit-learn import made to fail, to prove it's unused at serve time): train → `serialize` → load via `fnnx.Runtime` → predictions match in-memory `predict`; assert `env.json` has `pandas`/`numpy`/`fnnx` and **not** `scikit-learn`/`joblib`, manifest tag, and that the `forecasting_chart:v1` meta entry round-trips with per-series `actuals`/`test_fit` + `split_date`.
+- [ ] Serialize forecasting models to FNNX bundles
+  - [ ] Add `dfs_webworker/forecasting_serialization/` mirroring prompt-opt: pyfunc source (warmup rebuilds from `extra_values["pipeline"]`, compute validates + predicts) and a serializer taking the pipeline, metrics, model config, and chart that writes the `{history, horizon[, future]}`/`{forecast}` dtypes (`future` present iff the model has known-future columns), the producer tag, and the three meta entries (`forecasting_metrics:v1` with `{metrics, model_config}`, `registry_metrics:v1`, `forecasting_chart:v1`)
+  - [ ] Pin runtime env to statsmodels/scipy/pandas/numpy (+ fnnx deps) via `importlib.metadata`; assert no scikit-learn/joblib
+  - [ ] Roundtrip test: train → serialize → load via fnnx runtime → predictions match in-memory within tolerance; env/tags/meta assertions; dtype includes `future` only for known-future models; predict-time validation errors propagate through the pyfunc
 
-- [ ] **Task 3 — WASM: worker entry functions + routing**
-  - [ ] In `forecasting.py`, add `forecasting_train`, `forecasting_predict`, `forecasting_deallocate` returning the documented `success(...)` payloads (train returns `train_metrics`, `test_metrics`, the structured multi-series `chart` object `{split_date, series:{<col>:{actuals,test_fit,future}}}` with `actuals` downsampled ≤ ~500 pts, and `model` bytes; predict returns per-series future records).
-  - [ ] Register the three routes in `dfs_webworker/__init__.py` `Router` and export the functions.
-  - [ ] Tests for the route handlers (train returns metrics + model bytes; predict by `model_id`; deallocate removes from `Store`; error payload on bad input).
+- [ ] Add forecasting worker routes
+  - [ ] Implement the train/predict/deallocate entry points in `forecasting.py` with the documented contracts (train returns metrics + `model_config` + chart incl. optional preview `future` + model bytes, rejecting a preview horizon when known-future columns are marked; predict takes `history` + `horizon` + optional `future` against the `Store` pipeline)
+  - [ ] Register the three routes in the `Router`
+  - [ ] Route-level tests: train payload shape, predict-by-`model_id` with fresh history, deallocate, error payloads on invalid input
 
-- [ ] **Task 4 — Frontend: shared contract (interfaces, worker routes, FnnxService tags)**
-  - [ ] Extend `lib/data-processing/interfaces.ts`: `Tasks.FORECASTING`, `WEBWORKER_ROUTES_ENUM` forecasting routes, `Frequency`, `ForecastingTaskPayload`, `ForecastingMetrics`, `ForecastPoint`/`ForecastingSeries`/`ForecastingChart`, `ForecastingTrainingData`.
-  - [ ] Verify/extend `lib/data-processing/DataProcessingWorker.ts` dispatch for the new routes.
-  - [ ] Add `toForecastSeries(records, columns)` normalizer (pivots wide `predicted_<col>` rows → per-series `ForecastPoint[]`) used by both predict paths (§7/§8), with a unit test covering the `/forecasting/predict` (`predictions`) and `/pyfunc/compute` (`predictions.forecast`) unwrapping.
-  - [ ] Extend `lib/fnnx/FnnxService.ts`: add manifest tag `forecasting_v1`, metadata tag `contains_forecasting_metrics_v1`, `getForecastingData`, `getForecastingTotalScore`, `prepareForecastingMetrics`.
-  - [ ] Unit tests for `FnnxService` forecasting tag/metrics extraction (extend `lib/fnnx/__tests__/FnnxService.test.ts`).
+- [ ] Extend the frontend shared contract for forecasting
+  - [ ] Add the routes, task, and forecasting contract types to `lib/data-processing/interfaces.ts` (frequency, metrics, model config incl. the known-future subset, payload/training-data/chart/record shapes, the predict input with optional future records); verify `DataProcessingWorker.ts` dispatch covers the routes
+  - [ ] Add the predict-result normalizer (wide `predicted_<col>` records → per-series points, carrying target bounds); unit tests
 
-- [ ] **Task 5 — Frontend: task registration, routing, page shell**
-  - [ ] `constants/constants.ts`: enable the Forecasting card (`linkName: 'forecasting'`, `btnText: 'next'`, dropdown options, analytics), add `forecastingSteps` and `forecastingResources`.
-  - [ ] `router/index.ts`: add `/forecasting` route.
-  - [ ] Add `pages/ForecastingPage.vue` rendering `ForecastingWrapper` (stub wrapper acceptable here, completed in Task 6).
-  - [ ] Smoke test/route test that the card is enabled and `/forecasting` resolves.
+- [ ] Enable the forecasting task card and route
+  - [ ] Flip the card in `constants/constants.ts` (enable, link, analytics; no inference dropdown) and add the forecasting steps and resources constants
+  - [ ] Add the `/forecasting` route and a `ForecastingPage.vue` shell rendering the (stub) wrapper
+  - [ ] Smoke test: card enabled, route resolves
 
-- [ ] **Task 6 — Frontend: training flow (upload + setup + hook)**
-  - [ ] `components/express-tasks/forecasting/ForecastingWrapper.vue`: 3-step Stepper; Step 1 upload (reuse `UploadData` + `useDataTable`, forecasting validators); Step 2 Forecast Setup (date/target/auxiliary role selects, frequency select, horizon end-date picker + single/whole-period toggle, with all validations from Scenarios).
-  - [ ] `hooks/useForecastingTraining.ts`: `startTraining`/`startPredict`/`downloadModel`/`deleteModels`, metrics + chart-series getters, unmount cleanup.
-  - [ ] Wire Step 2 → `startTraining` → advance to Step 3 on success.
-  - [ ] Component tests for setup validations (no date column, target==date, end-date ≤ last date) and a successful train→advance flow (worker mocked).
+- [ ] Build the forecasting training flow
+  - [ ] `ForecastingWrapper.vue`: 3-step Stepper; Step 1 upload with forecasting validators; Step 2 setup (role selects with defaults incl. the known-future multi-select over the auxiliaries, frequency, optional preview end-date + single/whole toggle hidden when known-future columns are marked, all §6 validations)
+  - [ ] `hooks/useForecastingTraining.ts`: train/predict/download/cleanup + metrics/chart/config getters; wire Step 2 → train → Step 3
+  - [ ] Component tests: each setup validation, preview hidden when known-future columns are marked, successful train→advance (worker mocked), unmount cleanup
 
-- [ ] **Task 7 — Frontend: evaluation/results step**
-  - [ ] Add `--chart-train`, `--chart-test`, `--chart-prediction` design tokens (`frontend/tokens` / style-dictionary) shared by Evaluate and Runtime.
-  - [ ] `components/express-tasks/forecasting/evaluate/index.vue`: total-score widget + MAE/RMSE/MAPE/R² cards (MAPE `—` when null), and a single **overlaid multi-series** chart (reuse the existing chart component) rendering every `chart.series` entry with per-segment colors (train actuals / test actuals + dashed test fit / dashed future), `split_date` boundary, target emphasized, legend per series, and a `.luml` download.
-  - [ ] Build a reusable `ForecastChart.vue` consuming `ForecastingChart` (+ optional live prediction series) so Runtime (Task 8) reuses it.
-  - [ ] Add the interactive **predict control** (horizon picker) wired to `useForecastingTraining.startPredict` → `/forecasting/predict` (in-session `model_id`), overlaying the result in `--chart-prediction` + CSV download.
-  - [ ] Component tests: metric rendering incl. null MAPE; chart maps each series to correct segment colors; train segment precedes test segment at `split_date`; re-predict overlays a new future series; download triggers blob.
-
-- [ ] **Task 8 — Frontend: Runtime inference + Deployment verification**
-  *(The Runtime dashboard is the bulk of this task; deployment is verification-only since it's fully generic — see §9. If an `/apply` session runs low on context, split into **8a Runtime dashboard** and **8b Deployment verification**.)*
-  - [ ] `runtime/dashboard/RuntimeDashboard.vue`: map `forecasting_v1` → `runtime/dashboard/forecasting/index.vue`.
-  - [ ] `runtime/dashboard/forecasting/index.vue`: performance card from bundle metrics; reconstruct the training-results chart from the `forecasting_chart:v1` metadata (reusing `ForecastChart.vue`, same tokens); horizon predict (end date + frequency + single/whole-period) via the generic pyfunc path (`useFnnxModel` auto-`/pyfunc/init` + `computePythonModel` → `/pyfunc/compute`, **not** `/forecasting/predict`), normalizing via `toForecastSeries`, with the new future overlaid in `--chart-prediction` + CSV export.
-  - [ ] **Deployment is generic — no forecasting-specific UI.** Verify end-to-end on a real satellite that the forecasting `.luml` deploys via the existing flow (`DeploymentsCreateModal` → `DeployTask` → `model_server`), that `OpenAPIGenerator` auto-derives the `{dates}`→`{forecast}` schema from the manifest, that `DeploymentSchemaPage.vue` renders it, and that an inference call returns forecasts. Same path as a prompt-optimization deployment.
-  - [ ] Confirm the satellite `model_server` builds the bundle env from `env.json` (only `pandas`/`numpy`/`fnnx`/`pyfnx_utils`), reconstructs the pipeline via `from_dict`, and computes forecasts with pure numpy (no scikit-learn/joblib). Confirm no `backend/luml` change is needed (deployment is artifact-generic, not task-whitelisted).
-  - [ ] Tests: RuntimeDashboard resolves the forecasting tag; horizon predict builds the correct date grid and renders results.
+- [ ] Build the forecasting evaluation step
+  - [ ] Pick the train/test/prediction segment colors from existing `--p-*` theme variables (the theme CSS files are Figma-generated — never hand-edit them or add tokens manually)
+  - [ ] Build a reusable `ForecastChart.vue` (overlaid multi-series, role-segmented colors, dashed test-fit/future, actuals-only known-future series, target emphasis, legend; optional target band as nice-to-have)
+  - [ ] Build the future-values editor (per-horizon-date grid over the known-future columns + CSV upload populating it, numeric completeness gating the forecast)
+  - [ ] `evaluate/index.vue`: score widget, metric cards (MAPE `—` when null), model-config card incl. `min_history` and known-future roles, chart, interactive re-forecast (training series as history + grid contents as `future` → `/forecasting/predict` → overlay + CSV), `.luml` download
+  - [ ] Component tests: metric/config rendering, segment coloring around `split_date`, future-values grid gating and CSV fill, re-forecast overlay (with and without known-future columns), downloads
