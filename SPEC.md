@@ -305,10 +305,10 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] Add forecasting constants to `dfs_webworker/constants.py`
   - [x] Unit tests: auto-detection on trending/seasonal/short synthetic series, two-stage exog flow, known-future flow (supplied values feed the target, no aux model/metrics, output omits the column), fixed-weight predict on fresh history (level shift reflected, no refit), determinism, min-history/gap/column/future-values validation errors, CV chronology, MAPE-with-zeros, convergence fallback
 
-- [ ] Serialize forecasting models to FNNX bundles
-  - [ ] Add `dfs_webworker/forecasting_serialization/` mirroring prompt-opt: pyfunc source (warmup rebuilds from `extra_values["pipeline"]`, compute validates + predicts) and a serializer taking the pipeline, metrics, model config, and chart that writes the `{history, horizon[, future]}`/`{forecast}` dtypes (`future` present iff the model has known-future columns), the producer tag, and the three meta entries (`forecasting_metrics:v1` with `{metrics, model_config}`, `registry_metrics:v1`, `forecasting_chart:v1`)
-  - [ ] Pin runtime env to statsmodels/scipy/pandas/numpy (+ fnnx deps) via `importlib.metadata`; assert no scikit-learn/joblib
-  - [ ] Roundtrip test: train → serialize → load via fnnx runtime → predictions match in-memory within tolerance; env/tags/meta assertions; dtype includes `future` only for known-future models; predict-time validation errors propagate through the pyfunc
+- [x] Serialize forecasting models to FNNX bundles
+  - [x] Add `dfs_webworker/forecasting_serialization/` mirroring prompt-opt: pyfunc source (warmup rebuilds from `extra_values["pipeline"]`, compute validates + predicts) and a serializer taking the pipeline, metrics, model config, and chart that writes the `{history, horizon[, future]}`/`{forecast}` dtypes (`future` present iff the model has known-future columns), the producer tag, and the three meta entries (`forecasting_metrics:v1` with `{metrics, model_config}`, `registry_metrics:v1`, `forecasting_chart:v1`)
+  - [x] Pin runtime env to statsmodels/scipy/pandas/numpy (+ fnnx deps) via `importlib.metadata`; assert no scikit-learn/joblib
+  - [x] Roundtrip test: train → serialize → load via fnnx runtime → predictions match in-memory within tolerance; env/tags/meta assertions; dtype includes `future` only for known-future models; predict-time validation errors propagate through the pyfunc
 
 - [ ] Add forecasting worker routes
   - [ ] Implement the train/predict/deallocate entry points in `forecasting.py` with the documented contracts (train returns metrics + `model_config` + chart incl. optional preview `future` + model bytes, rejecting a preview horizon when known-future columns are marked; predict takes `history` + `horizon` + optional `future` against the `Store` pipeline)
