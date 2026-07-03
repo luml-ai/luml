@@ -60,6 +60,10 @@ const stubs = {
   UploadData: true,
   UiTraining: true,
   ForecastSetup: { name: 'ForecastSetup', emits: ['change'], template: '<div />' },
+  ForecastingEvaluate: {
+    name: 'ForecastingEvaluate',
+    template: '<div data-testid="forecasting-evaluate" />',
+  },
 }
 
 const DButton = {

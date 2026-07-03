@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import {
   detectDateColumns,
+  generateForecastDates,
   isDateColumn,
   isDateLike,
   lastDate,
+  periodKey,
   periodsBetween,
 } from '../forecasting-setup'
 
@@ -110,5 +112,57 @@ describe('periodsBetween', () => {
   it('returns 0 when the end is not after the start', () => {
     expect(periodsBetween(last, last, 'day')).toBe(0)
     expect(periodsBetween(last, new Date('2020-01-01T00:00:00Z'), 'month')).toBe(0)
+  })
+})
+
+describe('generateForecastDates', () => {
+  it('advances day and week frequencies by fixed offsets from the last date', () => {
+    expect(generateForecastDates(new Date('2020-01-31'), 2, 'day')).toEqual([
+      '2020-02-01',
+      '2020-02-02',
+    ])
+    expect(generateForecastDates(new Date('2020-01-01'), 2, 'week')).toEqual([
+      '2020-01-08',
+      '2020-01-15',
+    ])
+  })
+
+  it('snaps month, quarter, and year frequencies to the period start', () => {
+    expect(generateForecastDates(new Date('2020-03-15'), 3, 'month')).toEqual([
+      '2020-04-01',
+      '2020-05-01',
+      '2020-06-01',
+    ])
+    expect(generateForecastDates(new Date('2020-02-15'), 2, 'quarter')).toEqual([
+      '2020-04-01',
+      '2020-07-01',
+    ])
+    expect(generateForecastDates(new Date('2020-06-01'), 2, 'year')).toEqual([
+      '2021-01-01',
+      '2022-01-01',
+    ])
+  })
+
+  it('returns an empty list for a non-positive horizon', () => {
+    expect(generateForecastDates(new Date('2020-01-01'), 0, 'month')).toEqual([])
+  })
+})
+
+describe('periodKey', () => {
+  it('buckets coarse frequencies so any date in the period matches', () => {
+    expect(periodKey('2020-03-01', 'month')).toBe('2020-03')
+    expect(periodKey('2020-03-31', 'month')).toBe('2020-03')
+    expect(periodKey('2020-05-10', 'quarter')).toBe('2020-Q2')
+    expect(periodKey('2020-11-30', 'year')).toBe('2020')
+  })
+
+  it('uses the exact date for day and week frequencies', () => {
+    expect(periodKey('2020-03-15', 'day')).toBe('2020-03-15')
+    expect(periodKey(new Date('2020-03-15'), 'week')).toBe('2020-03-15')
+  })
+
+  it('returns null for values that are not dates', () => {
+    expect(periodKey('not a date', 'month')).toBeNull()
+    expect(periodKey(1500, 'month')).toBeNull()
   })
 })

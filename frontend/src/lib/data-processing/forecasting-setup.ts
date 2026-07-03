@@ -98,3 +98,70 @@ export function periodsBetween(from: Date, end: Date, frequency: ForecastingFreq
       return Math.ceil(monthsBetween(from, end) / 12)
   }
 }
+
+function formatUtcDate(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+/**
+ * The i-th forecast date after `from`, replicating the engine's
+ * `_generate_future_dates`: day/week advance by fixed offsets from the last
+ * date, while month/quarter/year snap to the period start (first of the
+ * month/quarter/year). All arithmetic is UTC so the ISO output is stable
+ * regardless of the runtime timezone.
+ */
+function forecastDate(from: Date, step: number, frequency: ForecastingFrequency): Date {
+  const year = from.getUTCFullYear()
+  const month = from.getUTCMonth()
+  switch (frequency) {
+    case 'day':
+      return new Date(from.getTime() + step * MS_PER_DAY)
+    case 'week':
+      return new Date(from.getTime() + step * 7 * MS_PER_DAY)
+    case 'month':
+      return new Date(Date.UTC(year, month + step, 1))
+    case 'quarter':
+      return new Date(Date.UTC(year, (Math.floor(month / 3) + step) * 3, 1))
+    case 'year':
+      return new Date(Date.UTC(year + step, 0, 1))
+  }
+}
+
+/**
+ * The `horizon` consecutive forecast dates (`YYYY-MM-DD`) beyond `from`. These
+ * must match the dates the engine generates so a future-values grid built from
+ * them aligns with the model's predict-time validation.
+ */
+export function generateForecastDates(
+  from: Date,
+  horizon: number,
+  frequency: ForecastingFrequency,
+): string[] {
+  return Array.from({ length: Math.max(0, horizon) }, (_, i) =>
+    formatUtcDate(forecastDate(from, i + 1, frequency)),
+  )
+}
+
+/**
+ * A canonical key identifying which forecast period a date falls in, used to
+ * match uploaded CSV rows to the horizon grid. Mirrors the engine's
+ * period-based `future` validation (exact date for day/week; year-month,
+ * year-quarter, or year for the coarser frequencies).
+ */
+export function periodKey(value: unknown, frequency: ForecastingFrequency): string | null {
+  const date = toDate(value)
+  if (!date) return null
+  const year = date.getUTCFullYear()
+  const month = date.getUTCMonth()
+  switch (frequency) {
+    case 'day':
+    case 'week':
+      return formatUtcDate(date)
+    case 'month':
+      return `${year}-${String(month + 1).padStart(2, '0')}`
+    case 'quarter':
+      return `${year}-Q${Math.floor(month / 3) + 1}`
+    case 'year':
+      return `${year}`
+  }
+}

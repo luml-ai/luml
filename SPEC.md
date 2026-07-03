@@ -329,9 +329,9 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] `hooks/useForecastingTraining.ts`: train/predict/download/cleanup + metrics/chart/config getters; wire Step 2 → train → Step 3
   - [x] Component tests: each setup validation, preview hidden when known-future columns are marked, successful train→advance (worker mocked), unmount cleanup
 
-- [ ] Build the forecasting evaluation step
-  - [ ] Pick the train/test/prediction segment colors from existing `--p-*` theme variables (the theme CSS files are Figma-generated — never hand-edit them or add tokens manually)
-  - [ ] Build a reusable `ForecastChart.vue` (overlaid multi-series, role-segmented colors, dashed test-fit/future, actuals-only known-future series, target emphasis, legend; optional target band as nice-to-have)
-  - [ ] Build the future-values editor (per-horizon-date grid over the known-future columns + CSV upload populating it, numeric completeness gating the forecast)
-  - [ ] `evaluate/index.vue`: score widget, metric cards (MAPE `—` when null), model-config card incl. `min_history` and known-future roles, chart, interactive re-forecast (training series as history + grid contents as `future` → `/forecasting/predict` → overlay + CSV), `.luml` download
-  - [ ] Component tests: metric/config rendering, segment coloring around `split_date`, future-values grid gating and CSV fill, re-forecast overlay (with and without known-future columns), downloads
+- [x] Build the forecasting evaluation step
+  - [x] Pick the train/test/prediction segment colors from existing `--p-*` theme variables (the theme CSS files are Figma-generated — never hand-edit them or add tokens manually)
+  - [x] Build a reusable `ForecastChart.vue` (overlaid multi-series, role-segmented colors, dashed test-fit/future, actuals-only known-future series, target emphasis, legend; optional target band as nice-to-have)
+  - [x] Build the future-values editor (per-horizon-date grid over the known-future columns + CSV upload populating it, numeric completeness gating the forecast)
+  - [x] `evaluate/index.vue`: score widget, metric cards (MAPE `—` when null), model-config card incl. `min_history` and known-future roles, chart, interactive re-forecast (training series as history + grid contents as `future` → `/forecasting/predict` → overlay + CSV), `.luml` download
+  - [x] Component tests: metric/config rendering, segment coloring around `split_date`, future-values grid gating and CSV fill, re-forecast overlay (with and without known-future columns), downloads

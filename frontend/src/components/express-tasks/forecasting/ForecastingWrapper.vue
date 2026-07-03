@@ -62,16 +62,7 @@
         </div>
       </StepPanel>
       <StepPanel :value="3">
-        <div
-          v-if="currentStep === 3 && trainingModelId"
-          class="evaluate"
-          data-testid="forecasting-evaluate"
-        >
-          <p class="evaluate-text">
-            Your forecasting model is ready. The evaluation dashboard renders here.
-          </p>
-          <d-button label="Download .luml" @click="downloadModel" />
-        </div>
+        <forecasting-evaluate v-if="currentStep === 3 && evaluateProps" v-bind="evaluateProps" />
       </StepPanel>
     </StepPanels>
   </Stepper>
@@ -79,8 +70,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
-import type { Tasks, ForecastingTrainPayload } from '@/lib/data-processing/interfaces'
+import { computed, ref, watch } from 'vue'
+import type {
+  Tasks,
+  ForecastingRecord,
+  ForecastingTrainPayload,
+  ForecastingTrainingTable,
+} from '@/lib/data-processing/interfaces'
 import type { ForecastSetupState } from '@/lib/data-processing/forecasting-setup'
 import { useDataTable } from '@/hooks/useDataTable'
 import { useForecastingTraining } from '@/hooks/useForecastingTraining'
@@ -93,6 +89,7 @@ import Step from 'primevue/step'
 import StepPanel from 'primevue/steppanel'
 import UploadData from '@/components/ui/UploadData.vue'
 import ForecastSetup from './ForecastSetup.vue'
+import ForecastingEvaluate from './evaluate/index.vue'
 import UiTraining from '@/components/ui/UiTraining.vue'
 import { useRouteLeaveConfirm } from '@/hooks/useRouteLeaveConfirm'
 import { dashboardFinishConfirmOptions } from '@/lib/primevue/data/confirm'
@@ -134,13 +131,17 @@ const {
 const {
   isLoading,
   isTrainingSuccess,
+  trainingData,
   trainingModelId,
+  getTotalScore,
   startTraining: startForecastTraining,
+  startPredict,
   downloadModel,
 } = useForecastingTraining()
 
 const currentStep = ref(1)
 const setupState = ref<ForecastSetupState | null>(null)
+const historyRecords = ref<ForecastingRecord[]>([])
 
 const isStepAvailable = (id: number) => {
   if (currentStep.value === 3) return false
@@ -150,15 +151,41 @@ const isStepAvailable = (id: number) => {
   else return false
 }
 
+const evaluateProps = computed(() => {
+  const data = trainingData.value
+  if (!data || !trainingModelId.value) return null
+  return {
+    totalScore: getTotalScore.value,
+    testMetrics: data.test_metrics,
+    trainMetrics: data.train_metrics,
+    modelConfig: data.model_config,
+    chart: data.chart,
+    history: historyRecords.value,
+    modelId: trainingModelId.value,
+    predict: startPredict,
+    downloadModel,
+  }
+})
+
 function onSetupChange(state: ForecastSetupState) {
   setupState.value = state
+}
+
+function tableToRecords(table: ForecastingTrainingTable): ForecastingRecord[] {
+  const columns = Object.keys(table)
+  const length = columns.length ? table[columns[0]].length : 0
+  return Array.from({ length }, (_, i) =>
+    Object.fromEntries(columns.map((col) => [col, table[col][i]])),
+  )
 }
 
 async function startTraining() {
   if (!setupState.value?.isValid) return
 
+  const data = getDataForTraining()
+  historyRecords.value = tableToRecords(data)
   const payload: ForecastingTrainPayload = {
-    data: getDataForTraining(),
+    data,
     ...setupState.value.config,
   }
   await startForecastTraining(payload)
@@ -190,18 +217,6 @@ watch(
   display: flex;
   gap: 24px;
   justify-content: flex-end;
-}
-
-.evaluate {
-  padding: 32px 0;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  align-items: flex-start;
-}
-
-.evaluate-text {
-  color: var(--p-text-muted-color);
 }
 
 @media (max-height: 1050px) {
