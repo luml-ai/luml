@@ -324,10 +324,10 @@ Not built in v1. The artifact is designed so all three land later with no engine
   - [x] Add the `/forecasting` route and a `ForecastingPage.vue` shell rendering the (stub) wrapper
   - [x] Smoke test: card enabled, route resolves
 
-- [ ] Build the forecasting training flow
-  - [ ] `ForecastingWrapper.vue`: 3-step Stepper; Step 1 upload with forecasting validators; Step 2 setup (role selects with defaults incl. the known-future multi-select over the auxiliaries, frequency, optional preview end-date + single/whole toggle hidden when known-future columns are marked, all §6 validations)
-  - [ ] `hooks/useForecastingTraining.ts`: train/predict/download/cleanup + metrics/chart/config getters; wire Step 2 → train → Step 3
-  - [ ] Component tests: each setup validation, preview hidden when known-future columns are marked, successful train→advance (worker mocked), unmount cleanup
+- [x] Build the forecasting training flow
+  - [x] `ForecastingWrapper.vue`: 3-step Stepper; Step 1 upload with forecasting validators; Step 2 setup (role selects with defaults incl. the known-future multi-select over the auxiliaries, frequency, optional preview end-date + single/whole toggle hidden when known-future columns are marked, all §6 validations)
+  - [x] `hooks/useForecastingTraining.ts`: train/predict/download/cleanup + metrics/chart/config getters; wire Step 2 → train → Step 3
+  - [x] Component tests: each setup validation, preview hidden when known-future columns are marked, successful train→advance (worker mocked), unmount cleanup
 
 - [ ] Build the forecasting evaluation step
   - [ ] Pick the train/test/prediction segment colors from existing `--p-*` theme variables (the theme CSS files are Figma-generated — never hand-edit them or add tokens manually)
