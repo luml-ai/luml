@@ -86,7 +86,7 @@ import { computed, onBeforeMount, onMounted, ref } from 'vue'
 import { useEvalsStore } from '@/store/evals'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useAnnotationsStore } from '@/store/annotations'
-import { getErrorMessage } from '@/helpers/helpers'
+import { getErrorMessage, isEmpty } from '@/helpers/helpers'
 import UiMultiTypeText from '../../../ui/UiMultiTypeText.vue'
 import EvalsScoresSingle from '../../scores/single/EvalsScoresSingle.vue'
 import AnnotationsButton from '../../../annotations/AnnotationsButton.vue'
@@ -175,13 +175,17 @@ function closeAnnotations() {
 
 onBeforeMount(async () => {
   try {
-    if (!props.id || !evalsStore.selectedEval?.datasetId || !evalsStore.selectedEval?.evalId) {
+    if (
+      isEmpty(props.id) ||
+      isEmpty(evalsStore.selectedEval?.datasetId) ||
+      isEmpty(evalsStore.selectedEval?.evalId)
+    ) {
       throw new Error('Artifact ID, dataset ID and eval ID are required')
     }
     await annotationsStore.getEvalAnnotations(
       props.id,
-      evalsStore.selectedEval?.datasetId,
-      evalsStore.selectedEval?.evalId,
+      String(evalsStore.selectedEval?.datasetId),
+      String(evalsStore.selectedEval?.evalId),
     )
   } catch (error) {
     toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to get annotations')))

@@ -496,4 +496,8 @@ button.header-cell-content {
 :deep(td) {
   height: 44px;
 }
+
+:deep(.p-datatable-header-cell) {
+  border-color: var(--p-datatable-header-cell-border-color);
+}
 </style>
