@@ -4,9 +4,8 @@
 import sys
 
 import pytest
-from typer.testing import CliRunner
-
 from lumlflow.cli import app
+from typer.testing import CliRunner
 
 runner = CliRunner()
 
