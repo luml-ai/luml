@@ -165,7 +165,8 @@ class GroupsScreen(BaseScreen):
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("g", "cursor_first", "First", show=False),
-        Binding("shift+g", "cursor_last", "Last", show=False),
+        Binding("G", "cursor_last", "Last", show=False),
+        Binding("u", "upload", "Upload", show=False),
     ]
 
     AUTO_FOCUS = "#groups-table"
@@ -234,7 +235,14 @@ class GroupsScreen(BaseScreen):
         return (BreadcrumbSegment("Groups"),)
 
     def footer_scopes(self) -> tuple[Scope, ...]:
-        return ("global", "list", "actions")
+        return ("global", "home", "list", "actions")
+
+    def action_upload(self) -> None:
+        """Open the manual file-upload flow (home screen only)."""
+
+        from lumlflow.tui.screens.cloud_publish import CloudPublishScreen
+
+        self.app.push_screen(CloudPublishScreen(facade=self.facade))
 
     # ----- facade -----
 
@@ -358,18 +366,8 @@ class GroupsScreen(BaseScreen):
 
     def _empty_state_text(self) -> str:
         if self._search:
-            return (
-                f"No groups match {self._search!r}.\n\n"
-                "Press [Esc] to clear the search."
-            )
-        # First-run / fresh-install welcome.
-        return (
-            "Welcome to Lumlflow.\n\n"
-            "No experiment groups yet — they appear here as your training "
-            "scripts log to this store.\n\n"
-            f"Store: {self._store_path()}\n\n"
-            "Press [?] for help · [:] for commands"
-        )
+            return f"No groups match {self._search!r}."
+        return f"No groups yet.\n\nStore: {self._store_path()}"
 
     def _store_path(self) -> str:
         """Resolved filesystem path of the store the TUI is reading.

@@ -396,14 +396,7 @@ class AttachmentsPanel(Widget):
         except Exception:
             return
         header.update("No attachments")
-        body.update(
-            Text(
-                "This experiment has no attachments yet.\n\n"
-                "Attachments appear here as your code logs them with "
-                "`tracker.log_attachment(...)`.",
-                style="dim",
-            )
-        )
+        body.update(Text("No attachments yet.", style="dim"))
 
     # ----- tree event handlers -----
 

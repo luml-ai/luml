@@ -165,12 +165,14 @@ class EvalsPanel(Widget):
     }
     EvalsPanel #evals-dataset-list {
         width: 28;
+        height: auto;
         max-height: 6;
         border-right: solid $panel;
     }
     EvalsPanel #evals-controls-right {
         width: 1fr;
         layout: vertical;
+        height: auto;
     }
     EvalsPanel #evals-search {
         margin: 0 2;
@@ -222,8 +224,10 @@ class EvalsPanel(Widget):
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("g", "cursor_first", "First", show=False),
-        Binding("shift+g", "cursor_last", "Last", show=False),
+        Binding("G", "cursor_last", "Last", show=False),
         Binding("y", "yank_focused", "Yank id", show=False),
+        Binding("d", "next_dataset", "Next dataset", show=False),
+        Binding("D", "prev_dataset", "Prev dataset", show=False),
     ]
 
     SEARCH_DEBOUNCE = 0.2
@@ -433,6 +437,31 @@ class EvalsPanel(Widget):
             ListView.Highlighted(event.list_view, event.item)
         )
 
+    def action_next_dataset(self) -> None:
+        self._step_dataset(1)
+
+    def action_prev_dataset(self) -> None:
+        self._step_dataset(-1)
+
+    def _step_dataset(self, step: int) -> None:
+        """Cycle the dataset selection without leaving the table.
+
+        The keyboard path — there is no focus route to the dataset
+        ListView (Tab cycles the screen's tabs). Moving the ListView
+        index funnels through `on_list_view_highlighted`, so key and
+        mouse selection share one code path.
+        """
+
+        if not self._dataset_ids:
+            return
+        count = len(self._dataset_ids) + 1  # +1 for "All datasets"
+        index = (self._selected_dataset_index() + step) % count
+        try:
+            view = self.query_one("#evals-dataset-list", ListView)
+        except Exception:
+            return
+        view.index = index
+
     # ----- columns -----
 
     @work(thread=True, exclusive=True, group="evals-columns")
@@ -633,19 +662,10 @@ class EvalsPanel(Widget):
 
     def _empty_state_text(self) -> str:
         if self._search or self._filter:
-            return (
-                "No evals match the active search/filter.\n\n"
-                "Press [Esc] to clear search or [f] to edit the filter."
-            )
+            return "No evals match the search/filter."
         if self._selected_dataset is not None:
-            return (
-                f"No evals in dataset {self._selected_dataset!r} yet.\n\n"
-                "Select another dataset above, or log an eval sample from your code."
-            )
-        return (
-            "No evals yet.\n\n"
-            "Evals appear here as your code logs eval samples for this experiment."
-        )
+            return f"No evals in dataset {self._selected_dataset!r}."
+        return "No evals yet."
 
     # ----- row rendering / heatmap -----
 
@@ -908,7 +928,7 @@ class EvalsPanel(Widget):
             initial_value=self._filter,
             validator=validator,
             help_text=(
-                "Advanced filter DSL · examples:  "
+                "Examples:  "
                 'dataset_id = "ds-1"  ·  '
                 "score.accuracy > 0.8  ·  "
                 'input.prompt CONTAINS "hello"'

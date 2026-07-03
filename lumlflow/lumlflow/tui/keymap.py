@@ -13,6 +13,7 @@ from textual.binding import Binding
 
 Scope = Literal[
     "global",
+    "home",
     "list",
     "actions",
     "selection",
@@ -20,6 +21,9 @@ Scope = Literal[
     "metrics",
     "attachments",
     "annotations",
+    "eval_detail",
+    "evals",
+    "experiment",
     "tabs",
     "span_tree",
     "dialog",
@@ -186,12 +190,24 @@ def build_default_registry() -> KeymapRegistry:
                 group="Refresh",
                 show_in_footer=False,
             ),
+            # Upload lives on the home screen only. Publishing a tracked
+            # experiment/model is `p` where one is focused; a raw file
+            # upload has no context, so it stays with the store overview
+            # rather than competing with `p` on every screen.
             Command(
-                id="global.upload",
+                id="home.upload",
                 key="u",
                 label="Upload",
                 description="Upload an artifact file from disk to luml cloud",
-                scope="global",
+                scope="home",
+                group="Cloud",
+            ),
+            Command(
+                id="experiment.publish",
+                key="p",
+                label="Publish",
+                description="Publish this experiment to luml cloud",
+                scope="experiment",
                 group="Cloud",
             ),
             # Ctrl+T, not bare `t`: the experiment-detail screen uses
@@ -387,6 +403,31 @@ def build_default_registry() -> KeymapRegistry:
                 show_in_footer=False,
             ),
             Command(
+                id="eval_detail.open_trace",
+                key="t",
+                label="Trace",
+                description="Open the eval's linked trace",
+                scope="eval_detail",
+                group="Annotations",
+            ),
+            Command(
+                id="evals.next_dataset",
+                key="d",
+                label="Dataset",
+                description="Switch to the next eval dataset",
+                scope="evals",
+                group="Evals",
+            ),
+            Command(
+                id="evals.prev_dataset",
+                key="D",
+                label="Prev dataset",
+                description="Switch to the previous eval dataset",
+                scope="evals",
+                group="Evals",
+                show_in_footer=False,
+            ),
+            Command(
                 id="list.compare",
                 key="c",
                 label="Compare",
@@ -492,30 +533,6 @@ def build_default_registry() -> KeymapRegistry:
                 aliases=("down", "left", "right"),
                 show_in_footer=False,
             ),
-            Command(
-                id="metrics.toggle_smoothing",
-                key="S",
-                label="Smoothing",
-                description="Toggle exponential moving average on the zoomed metric",
-                scope="metrics",
-                group="Metrics",
-            ),
-            Command(
-                id="metrics.toggle_log_scale",
-                key="L",
-                label="Log scale",
-                description="Toggle log-scale Y axis on the zoomed metric",
-                scope="metrics",
-                group="Metrics",
-            ),
-            Command(
-                id="metrics.toggle_x_axis",
-                key="X",
-                label="X axis",
-                description="Toggle X axis between step and wall-clock",
-                scope="metrics",
-                group="Metrics",
-            ),
         ]
     )
 
@@ -535,14 +552,6 @@ def build_default_registry() -> KeymapRegistry:
                 key="d",
                 label="Delete model",
                 description="Delete the focused linked model (with confirm)",
-                scope="models",
-                group="Models",
-            ),
-            Command(
-                id="models.publish",
-                key="p",
-                label="Publish model",
-                description="Publish the focused linked model to luml cloud",
                 scope="models",
                 group="Models",
             ),

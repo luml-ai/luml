@@ -5,9 +5,8 @@ experiment-detail screen — the integration with the screen
 (`refresh_live`, message routing, keymap binding) is covered by
 ``tests/test_tui_experiment_detail.py``. Here we verify the
 presentational contract: grid cells map to keys, history flows into
-the right cell, the zoom view toggles transform the rendered series,
-empty states render, and zoom toggles fire ``ToggleChanged`` messages
-so the screen can react.
+the right cell, empty states render, and the zoom view renders the
+selected metric.
 """
 
 from __future__ import annotations
@@ -20,8 +19,6 @@ from lumlflow.tui.widgets.metric_grid import (
     MetricCell,
     MetricGrid,
     MetricZoomView,
-    _exponential_moving_average,
-    _filter_positive,
     _sanitize_metric_key,
 )
 from textual.app import App, ComposeResult
@@ -45,45 +42,6 @@ class TestSanitizeMetricKey:
     )
     def test_replaces_unsafe_chars(self, raw: str, expected: str) -> None:
         assert _sanitize_metric_key(raw) == expected
-
-
-class TestExponentialMovingAverage:
-    def test_empty_returns_empty(self) -> None:
-        assert _exponential_moving_average([]) == []
-
-    def test_first_value_unchanged(self) -> None:
-        out = _exponential_moving_average([1.0, 2.0, 3.0], alpha=0.5)
-        assert out[0] == 1.0
-
-    def test_smooths_a_step_change(self) -> None:
-        # alpha=0.5: each value is the midpoint of the previous EMA + raw.
-        out = _exponential_moving_average([0.0, 10.0, 10.0, 10.0], alpha=0.5)
-        assert out[0] == 0.0
-        assert out[1] == 5.0
-        assert out[2] == 7.5
-        assert out[3] == 8.75
-
-    def test_higher_alpha_reacts_faster(self) -> None:
-        low = _exponential_moving_average([0.0, 100.0], alpha=0.1)
-        high = _exponential_moving_average([0.0, 100.0], alpha=0.9)
-        assert high[1] > low[1]
-
-
-class TestFilterPositive:
-    def test_drops_non_positive(self) -> None:
-        xs, ys = _filter_positive([1, 2, 3, 4], [10.0, -1.0, 0.0, 5.0])
-        assert xs == [1, 4]
-        assert ys == [10.0, 5.0]
-
-    def test_all_positive_passes_through(self) -> None:
-        xs, ys = _filter_positive([1, 2], [1.0, 2.0])
-        assert xs == [1, 2]
-        assert ys == [1.0, 2.0]
-
-    def test_all_dropped(self) -> None:
-        xs, ys = _filter_positive([1, 2], [0.0, -1.0])
-        assert xs == []
-        assert ys == []
 
 
 # ---------------------------------------------------------------------------
@@ -286,25 +244,6 @@ class TestMetricZoomView:
             await pilot.pause()
             zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
             assert zoom.metric_key is None
-            assert zoom.smoothing is False
-            assert zoom.log_scale is False
-            assert zoom.x_axis == "step"
-
-    async def test_set_metric_key_resets_toggles(self) -> None:
-        async with _ZoomApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
-            zoom.set_metric_key("loss")
-            zoom.action_toggle_smoothing()
-            zoom.action_toggle_log_scale()
-            zoom.action_toggle_x_axis()
-            assert zoom.smoothing is True
-            assert zoom.log_scale is True
-            assert zoom.x_axis == "wall_clock"
-            zoom.set_metric_key("acc")
-            assert zoom.smoothing is False
-            assert zoom.log_scale is False
-            assert zoom.x_axis == "step"
 
     async def test_set_history_for_wrong_key_ignored(self) -> None:
         async with _ZoomApp().run_test() as pilot:
@@ -312,9 +251,8 @@ class TestMetricZoomView:
             zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
             zoom.set_metric_key("loss")
             await pilot.pause()
-            # An out-of-date fetch for a previously-selected metric should
-            # be silently dropped — toggles wouldn't apply to the wrong
-            # series, status wouldn't update, etc.
+            # An out-of-date fetch for a previously-selected metric is
+            # silently dropped so it never renders as the wrong series.
             zoom.set_history(_history("acc", points=3))
             await pilot.pause()
             assert zoom._history is None
@@ -331,37 +269,6 @@ class TestMetricZoomView:
             assert "loss" in text
             assert "points: 4" in text
             assert "subsampled" in text
-            assert "smoothing: off" in text
-            assert "x: step" in text
-
-    async def test_toggle_smoothing_emits_message(self) -> None:
-        received: list[tuple[str, object]] = []
-
-        class _CaptureApp(App[None]):
-            def compose(self) -> ComposeResult:
-                yield MetricZoomView(id="zoom")
-
-            def on_metric_zoom_view_toggle_changed(
-                self, event: MetricZoomView.ToggleChanged
-            ) -> None:
-                received.append((event.name, event.value))
-                event.stop()
-
-        async with _CaptureApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom", MetricZoomView)
-            zoom.set_metric_key("loss")
-            zoom.set_history(_history("loss", points=5))
-            zoom.action_toggle_smoothing()
-            zoom.action_toggle_log_scale()
-            zoom.action_toggle_x_axis()
-            for _ in range(3):
-                await pilot.pause()
-            names = [n for n, _ in received]
-            assert names == ["smoothing", "log_scale", "x_axis"]
-            assert received[0][1] is True
-            assert received[1][1] is True
-            assert received[2][1] == "wall_clock"
 
     async def test_series_for_plot_step_axis(self) -> None:
         async with _ZoomApp().run_test() as pilot:
@@ -374,107 +281,86 @@ class TestMetricZoomView:
             assert xs == [0.0, 1.0, 2.0, 3.0]
             assert ys == [0.0, 1.0, 2.0, 3.0]
 
-    async def test_series_for_plot_wall_clock(self) -> None:
-        async with _ZoomApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
-            zoom.set_metric_key("loss")
-            history = _history("loss", points=3)
-            zoom.set_history(history)
-            zoom.action_toggle_x_axis()
-            xs, ys = zoom._series_for_plot(history.history)
-            # Wall-clock xs are elapsed seconds from the first point —
-            # never raw epoch timestamps (unreadable as axis ticks).
-            assert xs == [0.0, 1.0, 2.0]
-            assert ys == [0.0, 1.0, 2.0]
-            assert zoom._x_label() == "elapsed (s)"
 
-    async def test_series_for_plot_wall_clock_scales_to_minutes(self) -> None:
-        async with _ZoomApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
-            zoom.set_metric_key("loss")
-            # Points 100 seconds apart: span 400s > 120s → minutes.
-            history = ExperimentMetricHistory(
-                experiment_id="exp",
-                key="loss",
-                subsampled=False,
-                history=[
-                    MetricPoint(
-                        value=float(i),
-                        step=i,
-                        logged_at=datetime(
-                            2026, 1, 1, 0, i, 40, tzinfo=UTC
-                        ),
-                    )
-                    for i in range(5)
-                ],
-            )
-            # 60s apart per point → 240s span → minutes unit.
-            zoom.set_history(history)
-            zoom.action_toggle_x_axis()
-            xs, _ys = zoom._series_for_plot(history.history)
-            assert xs == [0.0, 1.0, 2.0, 3.0, 4.0]
-            assert zoom._x_label() == "elapsed (m)"
+# ---------------------------------------------------------------------------
+# No redundant re-renders
+# ---------------------------------------------------------------------------
 
-    async def test_series_for_plot_log_scale_filters_non_positive(
-        self,
-    ) -> None:
-        async with _ZoomApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
-            zoom.set_metric_key("loss")
-            # First point has value 0 — should be dropped under log Y.
-            history = _history("loss", points=4)
-            zoom.set_history(history)
-            zoom.action_toggle_log_scale()
-            xs, ys = zoom._series_for_plot(history.history)
-            assert 0.0 not in ys
-            assert xs == [1.0, 2.0, 3.0]
-            assert ys == [1.0, 2.0, 3.0]
 
-    async def test_series_for_plot_smoothing_changes_values(self) -> None:
+class TestNoRedundantRerender:
+    async def test_history_requested_once_at_rendered_width(self) -> None:
+        """Regression: cells used to request history at mount time with
+        width 0 (fallback max_points), then the refresh tick re-fetched
+        at the real width — every chart visibly re-rendered at a
+        different granularity. The request must fire once, after
+        layout, with a width-quantized max_points."""
+
+        received: list[tuple[str, int]] = []
+
+        class _CaptureApp(App[None]):
+            def compose(self) -> ComposeResult:
+                yield MetricGrid(id="grid")
+
+            def on_metric_grid_history_needed(
+                self, event: MetricGrid.HistoryNeeded
+            ) -> None:
+                received.append((event.metric_key, event.max_points))
+                event.stop()
+
+        async with _CaptureApp().run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            grid = pilot.app.query_one("#grid", MetricGrid)
+            grid.set_metric_keys(["loss"])
+            for _ in range(5):
+                await pilot.pause()
+            assert len(received) == 1
+            _, max_points = received[0]
+            # Quantized and sized from the real (laid out) width.
+            assert max_points % 50 == 0
+            cell = grid.query_one(MetricCell)
+            assert cell.chart_max_points() == max_points
+
+    async def test_set_history_skips_redraw_when_unchanged(self) -> None:
+        async with _GridApp().run_test(size=(120, 40)) as pilot:
+            await pilot.pause()
+            grid = pilot.app.query_one("#grid-under-test", MetricGrid)
+            grid.set_metric_keys(["loss"])
+            for _ in range(3):
+                await pilot.pause()
+            cell = grid.query_one(MetricCell)
+            cell.set_history(_history("loss", points=5))
+            redraws: list[int] = []
+            cell._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            cell.set_history(_history("loss", points=5))
+            assert redraws == []
+            cell.set_history(_history("loss", points=6))
+            assert redraws == [1]
+
+    async def test_zoom_set_history_skips_redraw_when_unchanged(self) -> None:
         async with _ZoomApp().run_test() as pilot:
             await pilot.pause()
             zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
             zoom.set_metric_key("loss")
-            # Build a series with a big step so smoothing has something to do.
-            history = ExperimentMetricHistory(
-                experiment_id="exp",
-                key="loss",
-                subsampled=False,
-                history=[
-                    MetricPoint(value=0.0, step=0),
-                    MetricPoint(value=10.0, step=1),
-                    MetricPoint(value=10.0, step=2),
-                ],
-            )
-            zoom.set_history(history)
-            _, raw_ys = zoom._series_for_plot(history.history)
-            zoom.action_toggle_smoothing()
-            _, smoothed_ys = zoom._series_for_plot(history.history)
-            # First value stays put; second value is dampened.
-            assert raw_ys[0] == smoothed_ys[0]
-            assert smoothed_ys[1] < raw_ys[1]
+            zoom.set_history(_history("loss", points=5))
+            redraws: list[int] = []
+            zoom._redraw = lambda: redraws.append(1)  # type: ignore[method-assign]
+            zoom.set_history(_history("loss", points=5))
+            assert redraws == []
+            zoom.set_history(_history("loss", points=6))
+            assert redraws == [1]
 
 
 # ---------------------------------------------------------------------------
-# Keymap integration: zoom + toggle commands are discoverable.
+# Keymap integration: the zoom command is discoverable.
 # ---------------------------------------------------------------------------
 
 
 class TestKeymapRegistration:
-    def test_zoom_actions_registered(self) -> None:
+    def test_zoom_action_registered(self) -> None:
         from lumlflow.tui.keymap import build_default_registry
 
         registry = build_default_registry()
-        for cmd_id in (
-            "metrics.zoom",
-            "metrics.toggle_smoothing",
-            "metrics.toggle_log_scale",
-            "metrics.toggle_x_axis",
-        ):
-            assert cmd_id in registry, f"{cmd_id} missing from keymap"
+        assert "metrics.zoom" in registry
 
     def test_zoom_action_appears_in_palette_search(self) -> None:
         from lumlflow.tui.keymap import build_default_registry
@@ -482,9 +368,6 @@ class TestKeymapRegistration:
         registry = build_default_registry()
         labels = {cmd.label for cmd in registry.all()}
         assert "Zoom" in labels
-        assert "Smoothing" in labels
-        assert "Log scale" in labels
-        assert "X axis" in labels
 
 
 # ---------------------------------------------------------------------------
@@ -626,23 +509,6 @@ class TestZoomMetricStepping:
             await pilot.press("right", "left", "l", "h")
             await pilot.pause()
             assert received == [1, -1, 1, -1]
-
-    async def test_set_metric_key_can_preserve_toggles(self) -> None:
-        async with _ZoomApp().run_test() as pilot:
-            await pilot.pause()
-            zoom = pilot.app.query_one("#zoom-under-test", MetricZoomView)
-            zoom.set_metric_key("loss")
-            zoom.action_toggle_smoothing()
-            zoom.action_toggle_log_scale()
-            await pilot.pause()
-            zoom.set_metric_key("acc", preserve_toggles=True)
-            assert zoom.smoothing is True
-            assert zoom.log_scale is True
-            # The default path still resets, so a fresh zoom opens clean.
-            zoom.set_metric_key("f1")
-            assert zoom.smoothing is False
-            assert zoom.log_scale is False
-
 
 # ---------------------------------------------------------------------------
 # Smoke: the screen-style focus contract works through PanelFrame.

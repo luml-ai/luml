@@ -146,7 +146,7 @@ class TracesPanel(Widget):
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("g", "cursor_first", "First", show=False),
-        Binding("shift+g", "cursor_last", "Last", show=False),
+        Binding("G", "cursor_last", "Last", show=False),
         Binding("y", "yank_focused", "Yank id", show=False),
     ]
 
@@ -334,15 +334,8 @@ class TracesPanel(Widget):
 
     def _empty_state_text(self) -> str:
         if self._search or self._filter:
-            return (
-                "No traces match the active search/filter.\n\n"
-                "Press [Esc] to clear search or [f] to edit the filter."
-            )
-        return (
-            "No traces yet.\n\n"
-            "Traces appear here as your code emits OpenTelemetry spans "
-            "during this experiment."
-        )
+            return "No traces match the search/filter."
+        return "No traces yet."
 
     # ----- row rendering -----
 
@@ -560,7 +553,7 @@ class TracesPanel(Widget):
             initial_value=self._filter,
             validator=validator,
             help_text=(
-                "Advanced filter DSL · examples:  "
+                "Examples:  "
                 'state = "error"  ·  '
                 "span_count > 5  ·  "
                 'attributes.user_id = "u-42"'

@@ -126,6 +126,7 @@ class EvalDetailScreen(BaseScreen):
         Binding("e", "edit_annotation", "Edit annotation", show=False),
         Binding("d", "delete_annotation", "Delete annotation", show=False),
         Binding("y", "yank", "Yank eval id", show=False),
+        Binding("t", "open_trace", "Open trace", show=False),
     ]
 
     def __init__(
@@ -225,7 +226,7 @@ class EvalDetailScreen(BaseScreen):
         return tuple(segments)
 
     def footer_scopes(self) -> tuple[Scope, ...]:
-        return ("global", "annotations")
+        return ("global", "eval_detail", "annotations")
 
     def focusable_panes(self) -> Iterable:
         try:
@@ -305,7 +306,8 @@ class EvalDetailScreen(BaseScreen):
             for i, tid in enumerate(eval_rec.trace_ids):
                 if i > 0:
                     traces_text.append("\n")
-                traces_text.append(tid, style="dim")
+                # The first trace is what [t] opens; keep the rest dim.
+                traces_text.append(tid, style="bold" if i == 0 else "dim")
             self.query_one("#eval-traces", Static).update(traces_text)
         else:
             self.query_one("#eval-traces", Static).update(
@@ -378,6 +380,31 @@ class EvalDetailScreen(BaseScreen):
         self._lumlflow_app.show_toast(
             f"eval id: {self._eval_id}", severity="info", duration=2.5
         )
+
+    # ----- trace drill-in -----
+
+    def action_open_trace(self) -> None:
+        eval_rec = self._eval
+        trace_ids = eval_rec.trace_ids if eval_rec is not None else []
+        if not trace_ids:
+            self._lumlflow_app.show_toast(
+                "No linked traces for this eval.", severity="info", duration=2.5
+            )
+            return
+        from lumlflow.tui.screens.trace_detail import TraceDetailScreen
+
+        screen = TraceDetailScreen(
+            facade=self.facade,
+            experiment_id=self._experiment_id,
+            experiment_name=self._experiment_name,
+            group_name=self._group_name,
+            trace_id=trace_ids[0],
+        )
+        if len(trace_ids) > 1:
+            self._lumlflow_app.show_toast(
+                f"Trace 1 of {len(trace_ids)}.", severity="info", duration=2.0
+            )
+        self._lumlflow_app.push_screen(screen)
 
     # ----- annotation create / edit / delete -----
 

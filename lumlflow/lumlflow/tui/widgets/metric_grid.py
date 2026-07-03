@@ -3,8 +3,7 @@
 The Metrics tab of the experiment detail screen renders one mini-chart
 per metric key in a responsive, scrollable grid (the ``MetricGrid``
 widget below). Pressing Enter on a focused mini-chart opens the
-``MetricZoomView``: a single large chart for that metric with toggles
-for smoothing (EMA), log-scale Y, and X-axis (step vs wall-clock).
+``MetricZoomView``: a single large chart for that metric.
 
 The widgets are presentational — they own no facade and no fetching.
 The parent screen calls ``set_metric_keys`` to seed the grid and
@@ -49,39 +48,19 @@ def _sanitize_metric_key(key: str) -> str:
     return "".join(c if c.isalnum() or c in "-_" else "_" for c in key)
 
 
-def _exponential_moving_average(values: list[float], alpha: float = 0.3) -> list[float]:
-    """Return an EMA-smoothed copy of the input series.
+def _same_series(
+    a: ExperimentMetricHistory, b: ExperimentMetricHistory
+) -> bool:
+    """True when two histories plot identically (steps and values)."""
 
-    Alpha 0.3 trades responsiveness for noise rejection — high enough
-    that the smoothed line still tracks real shifts, low enough that
-    short bursts get averaged out. The first point is taken as-is so
-    the curve starts at the raw value.
-    """
-
-    if not values:
-        return []
-    out = [values[0]]
-    for v in values[1:]:
-        out.append(alpha * v + (1 - alpha) * out[-1])
-    return out
-
-
-def _filter_positive(
-    xs: list[float], ys: list[float]
-) -> tuple[list[float], list[float]]:
-    """Drop ``(x, y)`` pairs where ``y <= 0`` so log-scale works.
-
-    ``plotext`` raises on log-scale with non-positive values; preview
-    instead of erroring by silently dropping the offending points.
-    """
-
-    out_x: list[float] = []
-    out_y: list[float] = []
-    for x, y in zip(xs, ys, strict=False):
-        if y > 0:
-            out_x.append(x)
-            out_y.append(y)
-    return out_x, out_y
+    if a.key != b.key or a.subsampled != b.subsampled:
+        return False
+    if len(a.history) != len(b.history):
+        return False
+    return all(
+        pa.step == pb.step and pa.value == pb.value
+        for pa, pb in zip(a.history, b.history, strict=True)
+    )
 
 
 class MetricCell(PanelFrame):
@@ -154,6 +133,7 @@ class MetricCell(PanelFrame):
         self.metric_key = metric_key
         self._history: ExperimentMetricHistory | None = None
         self._last_render_width: int = 0
+        self._history_requested: bool = False
 
     def compose(self) -> Iterable[Widget]:  # type: ignore[override]
         yield PlotextPlot(classes="metric-cell-chart")
@@ -163,6 +143,21 @@ class MetricCell(PanelFrame):
         super().on_mount()
         self._sync_empty_state()
 
+    def on_resize(self) -> None:
+        # Cells mount at width 0 (and stay 0 while their tab is hidden),
+        # so the history request waits for the first real layout — a
+        # fetch sized to the fallback width would be re-fetched at the
+        # real width on the next refresh tick, visibly re-rendering the
+        # chart at a different granularity.
+        if self._history_requested or self._history is not None:
+            return
+        if self.size.width <= 0:
+            return
+        self._history_requested = True
+        self.post_message(
+            MetricGrid.HistoryNeeded(self.metric_key, self.chart_max_points())
+        )
+
     def chart_max_points(self) -> int:
         """Estimate how many points to subsample to for this cell."""
 
@@ -170,17 +165,34 @@ class MetricCell(PanelFrame):
             chart = self.query_one(PlotextPlot)
         except Exception:
             return max(40, _DEFAULT_FALLBACK_WIDTH * 2)
-        width = chart.size.width or chart.virtual_size.width or _DEFAULT_FALLBACK_WIDTH
-        if width <= 0:
-            width = _DEFAULT_FALLBACK_WIDTH
+        # The chart child can lag the cell by one layout pass, so fall
+        # back to the cell's own width minus the frame borders.
+        width = (
+            chart.size.width
+            or chart.virtual_size.width
+            or max(0, self.size.width - 2)
+            or _DEFAULT_FALLBACK_WIDTH
+        )
         self._last_render_width = width
         # Two points per terminal column: smooth enough without
-        # overshooting the renderer's resolution.
-        return max(40, int(width) * 2)
+        # overshooting the renderer's resolution. Quantized upward to a
+        # multiple of 50 — width can differ by a column or two between
+        # measurements (chart vs cell, layout passes), and a slightly
+        # different max_points would refetch and repaint a chart that
+        # looks identical.
+        raw = max(40, int(width) * 2)
+        return -(-raw // 50) * 50
 
     def set_history(self, history: ExperimentMetricHistory) -> None:
-        """Push new points into the cell and redraw."""
+        """Push new points into the cell and redraw.
 
+        Skips the redraw when the series is unchanged — live refresh
+        re-fetches on a timer, and repainting an identical chart makes
+        it visibly churn for no reason.
+        """
+
+        if self._history is not None and _same_series(self._history, history):
+            return
         self._history = history
         self._redraw()
 
@@ -272,9 +284,11 @@ class MetricGrid(VerticalScroll):
             self.metric_key = metric_key
 
     class HistoryNeeded(Message):
-        """Posted when a freshly added cell needs its history fetched.
+        """Posted when a cell needs its history fetched.
 
-        The screen owns the facade and the worker, so the widget just
+        Sent by a cell on its first real layout (so ``max_points``
+        matches the rendered width) and by ``request_refresh_visible``.
+        The screen owns the facade and the worker; the widget just
         announces "I have a cell for ``metric_key`` with viewport
         ``max_points``; please go fetch."
         """
@@ -378,18 +392,9 @@ class MetricGrid(VerticalScroll):
         self._metric_keys = new_keys
         self._sync_empty_state()
         self._relayout()
-
-        # Announce that every freshly-added cell needs a history fetch.
-        # ``max_points`` uses the cell's own width — falls back to a
-        # safe default until the first paint sets ``size.width``.
-        for key in new_keys:
-            target_cell = self._cells.get(key)
-            if target_cell is None:
-                continue
-            if target_cell._history is not None:
-                continue
-            max_points = target_cell.chart_max_points()
-            self.post_message(self.HistoryNeeded(key, max_points))
+        # No fetch requests here: each cell announces its own
+        # ``HistoryNeeded`` from ``on_resize`` once it has a real width,
+        # so ``max_points`` always matches the rendered size.
 
     def apply_history(self, history: ExperimentMetricHistory) -> None:
         """Push fetched points into the cell for ``history.key``."""
@@ -500,12 +505,11 @@ class MetricGrid(VerticalScroll):
 
 
 class MetricZoomView(Vertical):
-    """Large single-metric chart with smoothing / log-scale / x-axis toggles.
+    """Large single-metric chart.
 
     Like ``MetricGrid``, the view is presentational. The screen pushes
     a metric key (``set_metric_key``) and the latest history
-    (``set_history``); the view manages its own toggles and redraws
-    on each change.
+    (``set_history``); the view redraws on each change.
     """
 
     DEFAULT_CSS = """
@@ -537,9 +541,6 @@ class MetricZoomView(Vertical):
     """
 
     BINDINGS = [
-        Binding("S", "toggle_smoothing", "Smoothing", show=False),
-        Binding("L", "toggle_log_scale", "Log scale", show=False),
-        Binding("X", "toggle_x_axis", "X axis", show=False),
         # Step between metrics without leaving the zoom view — the same
         # arrows that move between cells on the grid.
         Binding("left,h", "step_metric(-1)", "Prev metric", show=False),
@@ -547,14 +548,6 @@ class MetricZoomView(Vertical):
     ]
 
     can_focus = True
-
-    class ToggleChanged(Message):
-        """Bubbled after a toggle flips so tests/the screen can react."""
-
-        def __init__(self, name: str, value: bool | str) -> None:
-            super().__init__()
-            self.name = name
-            self.value = value
 
     class StepRequested(Message):
         """Posted when the user steps to the previous/next metric."""
@@ -567,19 +560,10 @@ class MetricZoomView(Vertical):
         super().__init__(id=id)
         self._metric_key: str | None = None
         self._history: ExperimentMetricHistory | None = None
-        self._smoothing: bool = False
-        self._log_scale: bool = False
-        # Either "step" or "wall_clock"; defaults to step so the view
-        # opens with the same axis the grid used.
-        self._x_axis: str = "step"
-        # Unit chosen for the wall-clock axis on the last redraw —
-        # elapsed seconds/minutes/hours picked from the series span.
-        self._x_unit: str = "s"
 
     def compose(self) -> Iterable[Widget]:  # type: ignore[override]
         with PanelFrame(
             title="(no metric)",
-            subtitle=self._subtitle(),
             fill=True,
             id="metric-zoom-panel",
         ):
@@ -599,65 +583,24 @@ class MetricZoomView(Vertical):
     def metric_key(self) -> str | None:
         return self._metric_key
 
-    @property
-    def smoothing(self) -> bool:
-        return self._smoothing
-
-    @property
-    def log_scale(self) -> bool:
-        return self._log_scale
-
-    @property
-    def x_axis(self) -> str:
-        return self._x_axis
-
-    def set_metric_key(
-        self, key: str | None, *, preserve_toggles: bool = False
-    ) -> None:
-        """Switch the focused metric and reset toggles to defaults.
-
-        ``preserve_toggles`` keeps smoothing/log/x-axis as they are —
-        used when stepping between metrics inside the zoom view so the
-        user compares charts through the same lens.
-        """
-
+    def set_metric_key(self, key: str | None) -> None:
         if key == self._metric_key:
             return
         self._metric_key = key
-        if not preserve_toggles:
-            # Reset toggles so each zoom session opens clean.
-            self._smoothing = False
-            self._log_scale = False
-            self._x_axis = "step"
         self._history = None
         self._sync_panel_title()
         self._redraw()
 
     def set_history(self, history: ExperimentMetricHistory) -> None:
-        """Push new points and redraw."""
+        """Push new points and redraw (skipped when unchanged)."""
 
         if self._metric_key is None or history.key != self._metric_key:
             # Stale fetch for a different metric — ignore.
             return
+        if self._history is not None and _same_series(self._history, history):
+            return
         self._history = history
         self._redraw()
-
-    # ----- toggles -----
-
-    def action_toggle_smoothing(self) -> None:
-        self._smoothing = not self._smoothing
-        self._redraw()
-        self.post_message(self.ToggleChanged("smoothing", self._smoothing))
-
-    def action_toggle_log_scale(self) -> None:
-        self._log_scale = not self._log_scale
-        self._redraw()
-        self.post_message(self.ToggleChanged("log_scale", self._log_scale))
-
-    def action_toggle_x_axis(self) -> None:
-        self._x_axis = "wall_clock" if self._x_axis == "step" else "step"
-        self._redraw()
-        self.post_message(self.ToggleChanged("x_axis", self._x_axis))
 
     def action_step_metric(self, delta: int) -> None:
         self.post_message(self.StepRequested(delta))
@@ -675,7 +618,6 @@ class MetricZoomView(Vertical):
             chart.add_class("-hidden")
             empty.remove_class("-hidden")
             self._update_status()
-            self._update_subtitle()
             return
         chart.remove_class("-hidden")
         empty.add_class("-hidden")
@@ -687,94 +629,22 @@ class MetricZoomView(Vertical):
         if xs and ys:
             plt.plot(xs, ys, marker="braille")
             plt.title(history.key)
-            plt.xlabel(self._x_label())
+            plt.xlabel("step")
             plt.ylabel(history.key)
-            if self._log_scale:
-                try:
-                    plt.yscale("log")
-                except Exception:
-                    pass
         chart.refresh()
         self._update_status()
-        self._update_subtitle()
 
     def _series_for_plot(
         self, points: list[MetricPoint]
     ) -> tuple[list[float], list[float]]:
-        values = [p.value for p in points]
-        if self._smoothing:
-            values = _exponential_moving_average(values)
-        if self._x_axis == "wall_clock":
-            stamps: list[float] = []
-            kept_values: list[float] = []
-            for point, value in zip(points, values, strict=False):
-                if point.logged_at is None:
-                    continue
-                stamps.append(point.logged_at.timestamp())
-                kept_values.append(value)
-            xs = self._to_elapsed(stamps)
-            ys = kept_values
-        else:
-            xs = [float(p.step) for p in points]
-            ys = values
-        if self._log_scale:
-            xs, ys = _filter_positive(xs, ys)
-        return xs, ys
-
-    def _to_elapsed(self, stamps: list[float]) -> list[float]:
-        """Convert absolute timestamps to elapsed time in a legible unit.
-
-        Raw epoch seconds render as unreadable 1.7e9-style axis ticks;
-        instead the axis shows time since the first point, scaled to
-        seconds, minutes, or hours based on the series span.
-        """
-
-        if not stamps:
-            self._x_unit = "s"
-            return []
-        base = stamps[0]
-        elapsed = [s - base for s in stamps]
-        span = elapsed[-1] if elapsed else 0.0
-        if span >= 2 * 3600:
-            self._x_unit = "h"
-            divisor = 3600.0
-        elif span >= 120:
-            self._x_unit = "m"
-            divisor = 60.0
-        else:
-            self._x_unit = "s"
-            divisor = 1.0
-        return [e / divisor for e in elapsed]
-
-    def _x_label(self) -> str:
-        if self._x_axis == "step":
-            return "step"
-        return f"elapsed ({self._x_unit})"
-
-    def _subtitle(self) -> str:
-        bits = []
-        bits.append("EMA on" if self._smoothing else "EMA off")
-        bits.append("log Y" if self._log_scale else "linear Y")
-        bits.append(
-            "x: wall-clock" if self._x_axis == "wall_clock" else "x: step"
-        )
-        return "  ·  ".join(bits)
+        return [float(p.step) for p in points], [p.value for p in points]
 
     def _sync_panel_title(self) -> None:
         try:
             panel = self.query_one("#metric-zoom-panel", PanelFrame)
         except Exception:
             return
-        title = self._metric_key or "(no metric)"
-        panel.set_title(title)
-        panel.set_subtitle(self._subtitle())
-
-    def _update_subtitle(self) -> None:
-        try:
-            panel = self.query_one("#metric-zoom-panel", PanelFrame)
-        except Exception:
-            return
-        panel.set_subtitle(self._subtitle())
+        panel.set_title(self._metric_key or "(no metric)")
 
     def _update_status(self) -> None:
         try:
@@ -794,15 +664,6 @@ class MetricZoomView(Vertical):
         ]
         if history.subsampled:
             bits.append("subsampled")
-        bits.append(
-            "smoothing: on" if self._smoothing else "smoothing: off"
-        )
-        bits.append("y: log" if self._log_scale else "y: linear")
-        bits.append(
-            "x: wall-clock"
-            if self._x_axis == "wall_clock"
-            else "x: step"
-        )
         status.update("  ·  ".join(bits))
 
 
@@ -810,7 +671,5 @@ __all__ = (
     "MetricCell",
     "MetricGrid",
     "MetricZoomView",
-    "_exponential_moving_average",
-    "_filter_positive",
     "_sanitize_metric_key",
 )

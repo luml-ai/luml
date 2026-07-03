@@ -28,6 +28,7 @@ from lumlflow.tui import LumlflowApp
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.screens.eval_detail import EvalDetailScreen, _render_dict
 from lumlflow.tui.screens.experiment_detail import ExperimentDetailScreen
+from lumlflow.tui.screens.trace_detail import TraceDetailScreen
 from lumlflow.tui.widgets.annotation_dialog import (
     AnnotationDialog,
     AnnotationDialogResult,
@@ -463,6 +464,70 @@ class TestEvalsDatasetSelector:
             )
             assert panel._selected_dataset == "ds-2"
 
+    async def test_next_dataset_key_cycles_through_datasets(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """`d` cycles All → ds-1 → ds-2 → All without touching the mouse.
+
+        There is no focus route to the dataset ListView (Tab cycles the
+        screen's tabs), so the cycle key is the only keyboard path."""
+
+        exp_id = _seed_experiment_with_evals(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = _push_detail_screen(
+                app, facade, experiment_id=exp_id, experiment_name="exp"
+            )
+            await pilot.pause()
+            await pilot.pause()
+            screen.action_jump_tab("evals")
+            panel = screen.query_one("#pane-evals-panel", EvalsPanel)
+            assert await _wait_until(
+                pilot, lambda: len(panel._rows) == 3 and len(panel._dataset_ids) == 2
+            )
+            panel.action_next_dataset()
+            assert await _wait_until(
+                pilot, lambda: panel._selected_dataset == "ds-1"
+            )
+            assert await _wait_until(
+                pilot, lambda: {r.key for r in panel._rows} == {"e-1", "e-2"}
+            )
+            panel.action_next_dataset()
+            assert await _wait_until(
+                pilot, lambda: panel._selected_dataset == "ds-2"
+            )
+            assert await _wait_until(
+                pilot, lambda: {r.key for r in panel._rows} == {"e-3"}
+            )
+            panel.action_next_dataset()
+            assert await _wait_until(
+                pilot, lambda: panel._selected_dataset is None
+            )
+            assert await _wait_until(pilot, lambda: len(panel._rows) == 3)
+
+    async def test_prev_dataset_key_wraps_to_last(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_evals(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = _push_detail_screen(
+                app, facade, experiment_id=exp_id, experiment_name="exp"
+            )
+            await pilot.pause()
+            await pilot.pause()
+            screen.action_jump_tab("evals")
+            panel = screen.query_one("#pane-evals-panel", EvalsPanel)
+            assert await _wait_until(
+                pilot, lambda: len(panel._rows) == 3 and len(panel._dataset_ids) == 2
+            )
+            panel.action_prev_dataset()
+            assert await _wait_until(
+                pilot, lambda: panel._selected_dataset == "ds-2"
+            )
+
     async def test_average_scores_label_renders(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
@@ -839,6 +904,143 @@ class TestEvalAnnotationCrud:
                     )
                 ),
             )
+
+
+# ---------------------------------------------------------------------------
+# Evals tab — rendered layout
+# ---------------------------------------------------------------------------
+
+
+class TestEvalsTableLayout:
+    async def test_table_gets_real_height_after_load(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """Regression: the dataset ListView and the controls Vertical both
+        default to `height: 1fr`, which made the auto-height controls bar
+        swallow the whole panel — the table rendered 1 row tall (invisible)
+        even though it held every eval. Assert on the *rendered* geometry,
+        not the DataTable's internal row count."""
+
+        exp_id = _seed_experiment_with_evals(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = _push_detail_screen(
+                app, facade, experiment_id=exp_id, experiment_name="exp"
+            )
+            await pilot.pause()
+            await pilot.pause()
+            screen.action_jump_tab("evals")
+            panel = screen.query_one("#pane-evals-panel", EvalsPanel)
+            assert await _wait_until(pilot, lambda: len(panel._rows) == 3)
+            table = panel.query_one("#evals-table", DataTable)
+            assert await _wait_until(pilot, lambda: table.region.height >= 5)
+            controls = panel.query_one("#evals-controls")
+            assert controls.region.height <= 10
+
+
+# ---------------------------------------------------------------------------
+# Eval → trace drill-in
+# ---------------------------------------------------------------------------
+
+
+def _seed_eval_linked_to_trace(
+    tracker: ExperimentTracker, *, trace_id: str = "tr-1"
+) -> str:
+    tracker.create_group("g")
+    exp_id = tracker.start_experiment(name="exp", group="g")
+    tracker.log_span(
+        trace_id=trace_id,
+        span_id=f"{trace_id}-root",
+        name="root",
+        start_time_unix_nano=1_000_000,
+        end_time_unix_nano=2_000_000,
+        status_code=1,
+        experiment_id=exp_id,
+    )
+    tracker.log_eval_sample(
+        eval_id="e-1",
+        dataset_id="ds-1",
+        inputs={"prompt": "hello"},
+        outputs={"answer": "hi"},
+        scores={"accuracy": 0.9},
+        experiment_id=exp_id,
+    )
+    tracker.link_eval_sample_to_trace(
+        eval_dataset_id="ds-1",
+        eval_id="e-1",
+        trace_id=trace_id,
+        experiment_id=exp_id,
+    )
+    tracker.end_experiment(experiment_id=exp_id)
+    return exp_id
+
+
+class TestEvalTraceDrillIn:
+    async def test_open_trace_pushes_trace_detail(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_eval_linked_to_trace(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = EvalDetailScreen(
+                facade=facade,
+                experiment_id=exp_id,
+                experiment_name="exp",
+                dataset_id="ds-1",
+                eval_id="e-1",
+            )
+            app.push_screen(screen)
+            assert await _wait_until(pilot, lambda: screen._eval is not None)
+            screen.action_open_trace()
+            assert await _wait_until(
+                pilot, lambda: isinstance(app.screen, TraceDetailScreen)
+            )
+            current = app.screen
+            assert isinstance(current, TraceDetailScreen)
+            assert current._trace_id == "tr-1"
+
+    async def test_open_trace_without_links_stays_on_detail(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_experiment_with_evals(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = EvalDetailScreen(
+                facade=facade,
+                experiment_id=exp_id,
+                experiment_name="exp",
+                dataset_id="ds-1",
+                eval_id="e-1",
+            )
+            app.push_screen(screen)
+            assert await _wait_until(pilot, lambda: screen._eval is not None)
+            screen.action_open_trace()
+            await pilot.pause()
+            await pilot.pause()
+            assert app.screen is screen
+
+    async def test_linked_traces_section_lists_trace_ids(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        exp_id = _seed_eval_linked_to_trace(tracker)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = EvalDetailScreen(
+                facade=facade,
+                experiment_id=exp_id,
+                experiment_name="exp",
+                dataset_id="ds-1",
+                eval_id="e-1",
+            )
+            app.push_screen(screen)
+            assert await _wait_until(pilot, lambda: screen._eval is not None)
+            traces_static = screen.query_one("#eval-traces", Static)
+            text = str(traces_static.render())
+            assert "tr-1" in text
 
 
 # ---------------------------------------------------------------------------

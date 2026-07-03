@@ -441,12 +441,6 @@ class ExperimentDetailScreen(BaseScreen):
         # publishes that model; anywhere else it publishes the whole
         # experiment (the screen always knows which one it shows).
         Binding("p", "publish_focused", "Publish", show=False),
-        # Metrics tab: zoom in / zoom-view toggles. The keys live on
-        # the screen so they take effect whenever the Metrics tab is
-        # the active surface; non-metrics tabs ignore the action.
-        Binding("S", "metrics_toggle_smoothing", "Smoothing", show=False),
-        Binding("L", "metrics_toggle_log_scale", "Log scale", show=False),
-        Binding("X", "metrics_toggle_x_axis", "X axis", show=False),
     ]
 
     def __init__(
@@ -599,13 +593,13 @@ class ExperimentDetailScreen(BaseScreen):
         """
 
         per_tab: dict[str, tuple[Scope, ...]] = {
-            "overview": ("global", "tabs", "models"),
-            "metrics": ("global", "tabs", "metrics"),
-            "traces": ("global", "tabs", "list"),
-            "evals": ("global", "tabs", "list"),
-            "attachments": ("global", "tabs", "attachments"),
+            "overview": ("global", "tabs", "models", "experiment"),
+            "metrics": ("global", "tabs", "metrics", "experiment"),
+            "traces": ("global", "tabs", "list", "experiment"),
+            "evals": ("global", "tabs", "list", "evals", "experiment"),
+            "attachments": ("global", "tabs", "attachments", "experiment"),
         }
-        return per_tab.get(self._active_tab, ("global", "tabs"))
+        return per_tab.get(self._active_tab, ("global", "tabs", "experiment"))
 
     # ----- facade access -----
 
@@ -834,15 +828,13 @@ class ExperimentDetailScreen(BaseScreen):
 
     # ----- zoom view -----
 
-    def _open_zoom(
-        self, metric_key: str, *, preserve_toggles: bool = False
-    ) -> None:
+    def _open_zoom(self, metric_key: str) -> None:
         try:
             zoom = self.query_one("#metrics-zoom", MetricZoomView)
         except Exception:
             return
         self._zoomed_metric = metric_key
-        zoom.set_metric_key(metric_key, preserve_toggles=preserve_toggles)
+        zoom.set_metric_key(metric_key)
         cached = self._metric_history.get(metric_key)
         if cached is not None:
             zoom.set_history(cached)
@@ -852,8 +844,8 @@ class ExperimentDetailScreen(BaseScreen):
             # canvas has more detail.
             self._fetch_metric_history(metric_key, max_points=400)
         self._show_metric_zoom()
-        # Focus the zoom panel so the toggle keys (S/L/X), ←/→ metric
-        # stepping, and Esc target it directly without a Tab press.
+        # Focus the zoom panel so ←/→ metric stepping and Esc target
+        # it directly without a Tab press.
         try:
             zoom.focus()
         except Exception:
@@ -887,7 +879,7 @@ class ExperimentDetailScreen(BaseScreen):
         target = index + event.delta
         if not (0 <= target < len(self._metric_keys)):
             return
-        self._open_zoom(self._metric_keys[target], preserve_toggles=True)
+        self._open_zoom(self._metric_keys[target])
 
     def _focus_metrics_surface(self) -> None:
         """Focus whatever the Metrics tab is currently showing.
@@ -938,35 +930,6 @@ class ExperimentDetailScreen(BaseScreen):
         grid.display = False
         zoom.remove_class("-hidden")
         zoom.display = True
-
-    # ----- zoom keymap actions -----
-
-    def action_metrics_toggle_smoothing(self) -> None:
-        if not self._is_zoom_active():
-            return
-        try:
-            zoom = self.query_one("#metrics-zoom", MetricZoomView)
-        except Exception:
-            return
-        zoom.action_toggle_smoothing()
-
-    def action_metrics_toggle_log_scale(self) -> None:
-        if not self._is_zoom_active():
-            return
-        try:
-            zoom = self.query_one("#metrics-zoom", MetricZoomView)
-        except Exception:
-            return
-        zoom.action_toggle_log_scale()
-
-    def action_metrics_toggle_x_axis(self) -> None:
-        if not self._is_zoom_active():
-            return
-        try:
-            zoom = self.query_one("#metrics-zoom", MetricZoomView)
-        except Exception:
-            return
-        zoom.action_toggle_x_axis()
 
     def _is_zoom_active(self) -> bool:
         return (

@@ -293,7 +293,9 @@ class TestAuthGate:
                 facade.auth,
                 "set_api_key",
                 side_effect=ApplicationError(
-                    "Could not reach LUML platform", 502
+                    "Could not reach LUML platform at http://localhost:1 "
+                    "(ConnectError: connection refused)",
+                    502,
                 ),
             ),
         ):
@@ -317,6 +319,11 @@ class TestAuthGate:
                     screen.query_one("#publish-error", Static).render()
                 )
                 assert "Could not reach" in rendered
+                # The handler's diagnostic detail (URL + cause) must reach
+                # the screen unmangled — it's the only way the user can
+                # tell a bad base-url override from a network failure.
+                assert "http://localhost:1" in rendered
+                assert "ConnectError" in rendered
                 assert screen._step == "auth"
 
     async def test_valid_key_advances_to_org_step(
@@ -1040,6 +1047,33 @@ class TestManualUploadMode:
                 await pilot.press("u")
                 await pilot.pause()
                 assert app.screen is screen
+
+    async def test_u_key_inert_outside_home(
+        self, facade: DataFacade, tracker: ExperimentTracker
+    ) -> None:
+        """`u` uploads only from the home screen; on screens where a
+        tracked entity is in focus, `p` (publish) is the single cloud
+        verb."""
+
+        from lumlflow.tui.screens.experiment_detail import (
+            ExperimentDetailScreen,
+        )
+
+        tracker.create_group("g")
+        exp_id = tracker.start_experiment(name="e", group="g")
+        tracker.end_experiment(experiment_id=exp_id)
+        app = _make_app(facade)
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            screen = ExperimentDetailScreen(
+                facade=facade, experiment_id=exp_id, experiment_name="e"
+            )
+            app.push_screen(screen)
+            await pilot.pause()
+            await pilot.pause()
+            await pilot.press("u")
+            await pilot.pause()
+            assert app.screen is screen
 
     async def test_manual_upload_step_shows_file_form(
         self, facade: DataFacade

@@ -9,7 +9,7 @@ from textual.widget import Widget
 from textual.widgets import Input
 
 from lumlflow.schemas.experiments import ExperimentDetails
-from lumlflow.tui.clipboard import osc52_copy
+from lumlflow.tui.clipboard import osc52_copy, read_system_clipboard
 from lumlflow.tui.data import DataFacade
 from lumlflow.tui.keymap import Command, KeymapRegistry, build_default_registry
 from lumlflow.tui.live_refresh import LiveRefreshScheduler
@@ -218,7 +218,6 @@ class LumlflowApp(App[None]):
             "global.toggle_theme": "toggle_theme",
             "global.cycle_focus": "cycle_focus",
             "global.cycle_focus_back": "cycle_focus_back",
-            "global.upload": "upload_artifact",
         }
         for cmd_id, action in action_map.items():
             if cmd_id not in self.keymap:
@@ -443,6 +442,24 @@ class LumlflowApp(App[None]):
             severity="info",
             duration=5.0,
         )
+
+    # ----- Clipboard -----
+
+    @property
+    def clipboard(self) -> str:
+        """App clipboard with an OS-clipboard fallback for Ctrl+V.
+
+        Textual's `Input` binds Ctrl+V to paste from the app-internal
+        clipboard, which only ever holds text copied *inside* the app —
+        so pasting an API key copied from a browser silently inserted
+        nothing. Fall back to the system clipboard (wl-paste / xclip /
+        xsel / pbpaste) when the internal one is empty. Terminal
+        bracketed paste (Ctrl+Shift+V, right-click) is unaffected.
+        """
+
+        if self._clipboard:
+            return self._clipboard
+        return read_system_clipboard() or ""
 
     # ----- Yank (OSC52 clipboard) -----
 
@@ -893,20 +910,6 @@ class LumlflowApp(App[None]):
             severity="info",
             duration=1.5,
         )
-
-    def action_upload_artifact(self) -> None:
-        """Open the manual cloud upload flow (`u` from anywhere).
-
-        Pushes a `CloudPublishScreen` in file mode: the user picks a
-        file from disk, a target org → orbit → collection, and uploads —
-        the TUI counterpart of the web UI's "add artifact" dialog.
-        """
-
-        from lumlflow.tui.screens.cloud_publish import CloudPublishScreen
-
-        if isinstance(self.screen, CloudPublishScreen):
-            return
-        self.push_screen(CloudPublishScreen(facade=self._facade))
 
     def action_toggle_theme(self) -> None:
         current = self.theme

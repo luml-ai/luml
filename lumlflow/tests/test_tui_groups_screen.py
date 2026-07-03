@@ -73,8 +73,7 @@ class TestEmptyState:
             assert isinstance(screen, GroupsScreen)
             empty = screen.query_one("#groups-empty", Static)
             text = str(empty.render())
-            assert "Welcome to Lumlflow" in text
-            assert "No experiment groups yet" in text
+            assert "No groups yet" in text
             # The active store path is surfaced so users know where the
             # TUI is looking for runs.
             assert str(tmp_path / "experiments") in text
@@ -205,8 +204,10 @@ class TestNavigation:
             await pilot.press("k")
             await pilot.pause()
             assert table.cursor_row == 1
-            # `G` (shift+g) should jump to the last row.
-            await pilot.press("shift+g")
+            # `G` should jump to the last row. Real terminals deliver
+            # Shift+G as the character key "G" (never "shift+g"), so the
+            # binding and this press must both use the character form.
+            await pilot.press("G")
             await pilot.pause()
             assert table.cursor_row == table.row_count - 1
             # `g` should jump back to the top.

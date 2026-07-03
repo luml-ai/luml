@@ -338,17 +338,29 @@ class TraceDetailScreen(BaseScreen):
                     )
 
     def on_mount(self) -> None:
-        table = self.query_one("#span-annotations-table", DataTable)
-        table.add_columns("Name", "Kind", "Type", "Value", "Rationale")
-        tree = self.query_one("#span-tree", Tree)
+        # The children may not yet be mounted when the screen's
+        # `on_mount` fires (Textual mounts them asynchronously); defer
+        # setup to the next refresh cycle if so.
+        if not self._init_widgets():
+            self.call_after_refresh(self._init_widgets)
+        # Trigger the initial fetch.
+        if self.facade is not None:
+            self._fetch_trace()
+
+    def _init_widgets(self) -> bool:
+        try:
+            table = self.query_one("#span-annotations-table", DataTable)
+            tree = self.query_one("#span-tree", Tree)
+        except Exception:
+            return False
+        if not table.columns:
+            table.add_columns("Name", "Kind", "Type", "Value", "Rationale")
         tree.show_root = False
         tree.guide_depth = 2
         # Auto-focus the span tree so navigation keys work immediately
         # when the user arrives from a trace list drill-in.
         tree.focus()
-        # Trigger the initial fetch.
-        if self.facade is not None:
-            self._fetch_trace()
+        return True
 
     # ----- scope wiring -----
 

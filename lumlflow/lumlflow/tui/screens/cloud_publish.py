@@ -526,14 +526,12 @@ class CloudPublishScreen(BaseScreen):
         return [
             Static("Step 1 · LUML API key", classes="step-title"),
             Label(
-                "Paste your LUML API key. It will be validated against "
-                "the LUML platform and stored locally for future "
-                "publishes.",
+                "Validated against LUML and stored locally.",
                 id="publish-auth-help",
             ),
             Label("API key", classes="field-label"),
             Input(
-                placeholder="luml_sk_…",
+                placeholder="dfs_…",
                 password=True,
                 id="publish-api-key-input",
             ),
@@ -570,9 +568,9 @@ class CloudPublishScreen(BaseScreen):
             message = err.message if err else "Failed to validate API key"
             if err and err.code == 401:
                 self._set_error(f"Invalid API key — {message}")
-            elif err and err.code == 502:
-                self._set_error(f"Could not reach LUML platform — {message}")
             else:
+                # 502 and friends carry a complete, self-describing
+                # message from the handler (URL + underlying error).
                 self._set_error(message)
             return
         self._lumlflow_app.show_toast(
@@ -633,7 +631,7 @@ class CloudPublishScreen(BaseScreen):
             # re-enter the key without losing the rest of the screen.
             if err and err.code == 401:
                 self._lumlflow_app.show_toast(
-                    "API key required — please re-enter.",
+                    "API key required.",
                     severity="warning",
                 )
                 # Set the state first; defer the error display so it
@@ -677,7 +675,7 @@ class CloudPublishScreen(BaseScreen):
         return [
             Static("Step 3 · Orbit", classes="step-title"),
             Label(
-                "Pick the orbit (workspace) within this organization.",
+                "Pick the orbit (workspace).",
                 id="publish-orbit-help",
             ),
             ListView(id="publish-orbit-list", classes="pick-list"),
@@ -855,18 +853,15 @@ class CloudPublishScreen(BaseScreen):
             Label("Upload type", classes="field-label"),
             ListView(
                 ListItem(
-                    Static(
-                        "auto · one model → embed & upload it; "
-                        "otherwise models + experiment archive"
-                    ),
+                    Static("auto · embed a single model, else models + archive"),
                     id="publish-type-auto",
                 ),
                 ListItem(
-                    Static("model · upload linked model(s) only"),
+                    Static("model · linked models only"),
                     id="publish-type-model",
                 ),
                 ListItem(
-                    Static("experiment · upload the experiment archive"),
+                    Static("experiment · archive only"),
                     id="publish-type-experiment",
                 ),
                 id="publish-upload-type-list",
@@ -910,8 +905,8 @@ class CloudPublishScreen(BaseScreen):
     @staticmethod
     def _build_embed_radio() -> RadioSet:
         return RadioSet(
-            RadioButton("no — upload the model file as-is", value=True),
-            RadioButton("yes — bundle the experiment into the model"),
+            RadioButton("no · model file as-is", value=True),
+            RadioButton("yes · bundle the experiment", value=False),
             id="publish-embed-radio",
         )
 
@@ -957,12 +952,11 @@ class CloudPublishScreen(BaseScreen):
         return [
             Static("Step 5 · File & metadata", classes="step-title"),
             Label(
-                "Path of the artifact file to upload "
-                "(model .luml/.fnnx/.pyfnx/.dfs, experiment archive, "
-                "or dataset .tar).",
+                "Model (.luml/.fnnx/.pyfnx/.dfs), experiment archive, "
+                "or dataset (.tar).",
                 id="publish-file-help",
             ),
-            Label("File path (→ completes)", classes="field-label"),
+            Label("File path", classes="field-label"),
             Input(
                 placeholder="/path/to/model.luml",
                 id="publish-file-path-input",

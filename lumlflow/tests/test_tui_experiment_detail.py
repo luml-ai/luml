@@ -755,56 +755,6 @@ class TestMetricsTab:
             assert grid.display is True
             assert zoom.display is False
 
-    async def test_zoom_toggles_change_state(
-        self, facade: DataFacade, tracker: ExperimentTracker
-    ) -> None:
-        """Smoothing / log-scale / X-axis toggles flip the zoom state and
-        the chart redraws (the underlying series transform changes)."""
-
-        exp_id = _seed_experiment_with_metrics(
-            tracker, metric_keys=("loss",), points_per_metric=20
-        )
-        app = _make_app(facade)
-        async with app.run_test() as pilot:
-            await pilot.pause()
-            screen = _push_detail_screen(
-                app, facade, experiment_id=exp_id, experiment_name="exp"
-            )
-            await pilot.pause()
-            await pilot.pause()
-            screen.action_jump_tab("metrics")
-            for _ in range(5):
-                await pilot.pause()
-            screen._open_zoom("loss")
-            for _ in range(3):
-                await pilot.pause()
-            zoom = screen.query_one("#metrics-zoom", MetricZoomView)
-            assert zoom.smoothing is False
-            assert zoom.log_scale is False
-            assert zoom.x_axis == "step"
-            # Toggle smoothing via the screen action; the same path is
-            # registered in the keymap as `metrics.toggle_smoothing`.
-            screen.action_metrics_toggle_smoothing()
-            await pilot.pause()
-            assert zoom.smoothing is True
-            screen.action_metrics_toggle_log_scale()
-            await pilot.pause()
-            assert zoom.log_scale is True
-            screen.action_metrics_toggle_x_axis()
-            await pilot.pause()
-            assert zoom.x_axis == "wall_clock"
-            # Toggles in non-zoom state are no-ops (no exception, no flip).
-            screen._close_zoom()
-            await pilot.pause()
-            zoom_state_before = (zoom.smoothing, zoom.log_scale, zoom.x_axis)
-            screen.action_metrics_toggle_smoothing()
-            await pilot.pause()
-            assert (
-                zoom.smoothing,
-                zoom.log_scale,
-                zoom.x_axis,
-            ) == zoom_state_before
-
     async def test_subsampled_state_recorded(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
@@ -943,8 +893,7 @@ class TestMetricsTab:
     async def test_zoom_arrows_step_between_metrics(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        """`→`/`←` inside the zoom view step to the adjacent metric,
-        keeping the toggles so charts are compared through one lens."""
+        """`→`/`←` inside the zoom view step to the adjacent metric."""
 
         exp_id = _seed_experiment_with_metrics(
             tracker, metric_keys=("loss", "acc"), points_per_metric=5
@@ -964,14 +913,10 @@ class TestMetricsTab:
             screen._open_zoom("acc")
             for _ in range(3):
                 await pilot.pause()
-            zoom = screen.query_one("#metrics-zoom", MetricZoomView)
-            zoom.action_toggle_smoothing()
-            await pilot.pause()
             await pilot.press("right")
             for _ in range(3):
                 await pilot.pause()
             assert screen._zoomed_metric == "loss"
-            assert zoom.smoothing is True
             # Clamped at the last metric.
             await pilot.press("right")
             await pilot.pause()
@@ -1288,16 +1233,20 @@ class TestTabScopedFooter:
             )
             await pilot.pause()
             await pilot.pause()
-            assert screen.footer_scopes() == ("global", "tabs", "models")
+            assert screen.footer_scopes() == (
+                "global", "tabs", "models", "experiment"
+            )
             screen.action_jump_tab("metrics")
-            assert screen.footer_scopes() == ("global", "tabs", "metrics")
+            assert screen.footer_scopes() == (
+                "global", "tabs", "metrics", "experiment"
+            )
             screen.action_jump_tab("traces")
-            assert screen.footer_scopes() == ("global", "tabs", "list")
+            assert screen.footer_scopes() == (
+                "global", "tabs", "list", "experiment"
+            )
             screen.action_jump_tab("attachments")
             assert screen.footer_scopes() == (
-                "global",
-                "tabs",
-                "attachments",
+                "global", "tabs", "attachments", "experiment"
             )
 
     async def test_footer_text_updates_on_tab_switch(

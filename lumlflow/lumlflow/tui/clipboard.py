@@ -19,6 +19,8 @@ from __future__ import annotations
 
 import base64
 import os
+import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from typing import IO
@@ -77,4 +79,47 @@ def osc52_copy(text: str, *, stream: IO[str] | None = None) -> ClipboardResult:
     return ClipboardResult(ok=True)
 
 
-__all__ = ["ClipboardResult", "osc52_copy", "supports_osc52"]
+# OSC52 cannot *read* the clipboard (terminals disable it for security),
+# so reading goes through the platform's CLI tools instead. Ordered by
+# platform prevalence; the first available tool that succeeds wins.
+_READ_COMMANDS: tuple[tuple[str, ...], ...] = (
+    ("wl-paste", "--no-newline"),
+    ("xclip", "-selection", "clipboard", "-o"),
+    ("xsel", "--clipboard", "--output"),
+    ("pbpaste",),
+)
+
+
+def read_system_clipboard(timeout: float = 0.5) -> str | None:
+    """Best-effort read of the OS clipboard via common CLI tools.
+
+    Returns `None` when no tool is available or none produced text —
+    callers treat that as an empty clipboard, never an error.
+    """
+
+    for command in _READ_COMMANDS:
+        if shutil.which(command[0]) is None:
+            continue
+        try:
+            proc = subprocess.run(
+                command, capture_output=True, timeout=timeout
+            )
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if proc.returncode != 0:
+            continue
+        try:
+            text = proc.stdout.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if text:
+            return text
+    return None
+
+
+__all__ = [
+    "ClipboardResult",
+    "osc52_copy",
+    "read_system_clipboard",
+    "supports_osc52",
+]

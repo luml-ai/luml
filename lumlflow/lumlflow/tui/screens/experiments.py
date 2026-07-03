@@ -202,7 +202,7 @@ class ExperimentsScreen(BaseScreen):
         Binding("j", "cursor_down", "Down", show=False),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("g", "cursor_first", "First", show=False),
-        Binding("shift+g", "cursor_last", "Last", show=False),
+        Binding("G", "cursor_last", "Last", show=False),
     ]
 
     AUTO_FOCUS = "#experiments-table"
@@ -487,20 +487,11 @@ class ExperimentsScreen(BaseScreen):
 
     def _empty_state_text(self) -> str:
         if self._search or self._filter:
-            return (
-                "No experiments match the active search/filter.\n\n"
-                "Press [Esc] to clear search or [f] to edit the filter."
-            )
+            return "No experiments match the search/filter."
         if self._all_experiments:
-            return (
-                "No experiments yet.\n\n"
-                "Experiments appear here as your training scripts log to "
-                "this store."
-            )
+            return "No experiments yet."
         return (
-            f"Group {self._group_name or self._group_id!r} has no "
-            "experiments yet.\n\n"
-            "Experiments appear here as scripts log to this group."
+            f"No experiments in {self._group_name or self._group_id!r} yet."
         )
 
     # ----- row rendering -----
