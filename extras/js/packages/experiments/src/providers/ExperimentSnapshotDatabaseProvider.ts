@@ -963,14 +963,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     annotations: AnnotationSummary | null
   }) {
     return {
-      id: safeParse(id),
-      dataset_id: safeParse(dataset_id),
+      id: id?.toString() ?? '',
+      dataset_id: dataset_id?.toString() ?? '',
       inputs: safeParse(inputs) || {},
       outputs: safeParse(outputs) || {},
       refs: safeParse(refs) || {},
       scores: safeParse(scores) || {},
       metadata: safeParse(metadata) || {},
-      modelId: safeParse(modelId),
+      modelId: modelId,
       annotations,
     }
   }
