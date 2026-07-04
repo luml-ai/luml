@@ -80,15 +80,24 @@ can be added later).
 
 ## Building on part 1
 
-Part 1 already provides, and this slice assumes:
+Part 1 is implemented and this slice builds directly on it:
 
-- collected `inference_events` (per-request inputs, outputs, status, latency) and
-  `runtime_metrics` in local GreptimeDB;
-- the per-deployment `monitoring_enabled` flag and the Satellite telemetry setup;
-- the deploy flow that downloads the model artifact and reads its contract (manifest
-  / schema) — the reference profile is loaded on the same path.
+- **Collected data lives in GreptimeDB** (database `public`), queried over its
+  SQL/HTTP interface. Inference events are stored in a **trace table
+  `inference_events`**, one row per request, carrying `event_id`, `deployment_id`,
+  `status`, `status_code`, `latency_ms`, `trace_id` / `span_id`, and the model
+  **`inputs` and `output` as JSON strings** (the worker parses them). Runtime signals
+  also exist as OpenTelemetry **metric tables** (`inference.requests`,
+  `inference.errors`, `inference.latency_ms`). There is **no separate `runtime_metrics`
+  table** — runtime health is derived from `inference_events` (and, where useful, the
+  metric tables). Real spans live in `otel_traces`.
+- The per-deployment **`monitoring_enabled` flag**, the **monitoring capability**
+  advertised to the Platform, and the Agent / model-server **telemetry setup** already
+  exist — this slice reuses them and does not re-add them.
+- The **deploy flow** downloads the model artifact and reads its contract (manifest /
+  schema); the reference profile is loaded on the same path.
 
-This slice adds two new stored datasets:
+This slice adds two new stored datasets in GreptimeDB:
 
 | Dataset | Purpose |
 | --- | --- |
@@ -172,8 +181,9 @@ strictly off the inference path.
   interval are configurable with sensible defaults.
 - **Scope:** every unit of work is deployment-scoped (deployment id, metric group,
   window).
-- **Source:** it reads only the local collected datasets from part 1; it writes only
-  `monitoring_results` and `monitoring_alerts`.
+- **Source:** it reads only from GreptimeDB — primarily the `inference_events` trace
+  table (parsing the JSON-string `inputs` / `output`) plus the runtime metric tables —
+  and writes only `monitoring_results` and `monitoring_alerts`.
 - **Best-effort:** the worker never blocks or affects inference. If the reference
   profile is missing, profile-dependent calculations (data-quality ranges, drift,
   multivariate) are skipped while runtime health still runs. If storage is
@@ -187,7 +197,8 @@ clears alerts in `monitoring_alerts`.
 
 ### Runtime health
 
-- **Inputs:** `runtime_metrics` and `inference_events` (no profile needed).
+- **Inputs:** `inference_events` (per-request status and latency) and the runtime
+  metric tables (no profile needed).
 - **Metrics:** request count, success count, error count, error rate, latency p50 /
   p95 / max, failed-inference count.
 - **Alerts:** error rate > 1% warning, > 5% critical; latency p95 over a
