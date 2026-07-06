@@ -31,17 +31,21 @@ Three pieces:
   input.
 - **Satellite** loads the reference profile from the artifact when it deploys the
   model, and keeps it available for that deployment.
-- **Monitoring Worker** — one shared per-Satellite background worker — periodically
-  reads the collected inference data for each monitored deployment, compares it to
-  the reference profile, and computes:
+- **Monitoring Worker** — one shared per-Satellite background worker — is a **generic
+  metric engine**, not a fixed set of calculations. It holds a **registry of metric
+  definitions**; every tick it reads each monitored deployment's latest window of
+  collected data, selects the metrics that **apply** (by what the deployment has —
+  profile parts, task type, data), computes them, and writes results and alert state
+  into local storage. The initial registry ships five built-in metrics:
   - runtime health,
   - data quality,
   - univariate feature drift (PSI),
   - output drift (PSI on predictions),
   - multivariate drift (PCA reconstruction error).
 
-  It writes the results and alert state into local storage, in a shape a later
-  dashboard can read.
+  Adding a metric later is a new registry entry, not a change to the worker. The same
+  metric interface is the extension point for custom metrics and, next stage, a
+  deployed monitoring model.
 
 Out of scope: realized performance and delayed targets (deferred with the targets
 work); the dashboard, Query API, and UI (a later slice).
@@ -58,6 +62,9 @@ work); the dashboard, Query API, and UI (a later slice).
 - **PCA reconstruction error** is the established method for multivariate drift: it
   catches joint/correlation shifts that per-feature drift misses, with a single
   interpretable metric and a simple threshold.
+- A **generic metric engine** follows how Evidently, NannyML, and W&B Weave work —
+  every metric (built-in or custom) is the same kind of registered unit — so new and
+  custom metrics are registry entries with a common interface, not worker rewrites.
 
 # Design
 
@@ -66,15 +73,18 @@ work); the dashboard, Query API, and UI (a later slice).
 In scope:
 
 - Satellite loading of the reference profile at deploy time
-- a per-Satellite Monitoring Worker that computes, per monitored deployment and time
-  window: runtime health, data quality, feature drift, output drift, multivariate
-  drift
+- a per-Satellite Monitoring Worker built as a **generic metric engine**: a metric
+  interface, a registry, and applicability-based selection
+- the five built-in metrics as registry entries: runtime health, data quality,
+  feature drift, output drift, multivariate drift
 - materialized results and alert state, in a read-ready shape
 
-Out of scope: generation of the reference profile in the SDK; realized performance and delayed targets; Query API,
-dashboard, and UI; alert delivery to external channels; task types beyond the
-classical-ML tabular case (regression and classification are covered; the
-profile/worker are structured so more can be added later).
+Out of scope: generation of the reference profile in the SDK; authoring and delivery
+of custom metrics to the Satellite and monitoring by a deployed model (next stage —
+this slice only defines the extension point they plug into); realized performance and
+delayed targets; Query API, dashboard, and UI; alert delivery to external channels;
+task types beyond the classical-ML tabular case (regression and classification are
+covered; new metrics and task types are added as registry entries).
 
 ## Building on part 1
 
@@ -237,24 +247,51 @@ One shared Monitoring Worker runs per Satellite as a background loop (alongside 
 existing periodic controller), processing all deployments that are monitored. It is
 strictly off the inference path.
 
+The worker is a **generic metric engine**, not a fixed set of calculations. It holds a
+**registry** of metric definitions; the five built-in metrics below are its initial
+entries, and everything the worker computes is driven by the registry.
+
+**Metric interface.** Each metric definition declares:
+
+- **requirements / applicability** — what it needs to run: which collected data, which
+  reference-profile parts (feature summaries / output summary / PCA profile), and which
+  `task_type`;
+- **compute** — given a window of the deployment's collected data and the reference
+  profile, produce metric values and a severity;
+- **thresholds** — the values that turn a result into a warning or critical alert
+  (built-in defaults now, overridable later).
+
+**Selection (how the worker decides what to compute).** Each tick, for each monitored
+deployment, the worker builds the deployment's context — does it have a profile, which
+parts, which `task_type`, is there data in the window — and runs **only the registry
+metrics whose requirements are satisfied**. The set of metrics is therefore not
+hard-coded: with no profile only runtime health runs; with a partial profile only the
+applicable subset runs; with a full profile all five run.
+
+**Extension point.** Adding a metric is a new registry entry implementing the same
+interface — no change to the worker loop. This is where custom metrics and, next stage,
+a deployed monitoring model plug in; how such a metric is delivered to the Satellite
+(bundled in the model artifact or deployed as a monitoring model) is decided in that
+next stage and is out of scope here.
+
 - **Scheduling:** the worker wakes on an interval and, for each monitored deployment,
   processes the most recent completed time window of collected data. Window size and
   interval are configurable with sensible defaults.
-- **Scope:** every unit of work is deployment-scoped (deployment id, metric group,
-  window).
+- **Scope:** every unit of work is deployment-scoped (deployment id, metric, window).
 - **Source:** it reads only from GreptimeDB — primarily the `inference_events` trace
   table (parsing the JSON-string `inputs` / `output`) plus the runtime metric tables —
   and writes only `monitoring_results` and `monitoring_alerts`.
-- **Best-effort:** the worker never blocks or affects inference. If the reference
-  profile is missing, profile-dependent calculations (data-quality ranges, drift,
-  multivariate) are skipped while runtime health still runs. If storage is
-  unavailable, the tick is skipped and retried next interval.
+- **Best-effort:** the worker never blocks or affects inference. A metric whose
+  requirements are unmet is skipped (e.g. no profile → only runtime health runs); a
+  failing metric is isolated and does not stop the others; if storage is unavailable,
+  the tick is skipped and retried next interval.
 
-## Calculations
+## Built-in metrics
 
-Each calculation reads a window of collected data (and, where noted, the reference
-profile), produces metric values written to `monitoring_results`, and raises or
-clears alerts in `monitoring_alerts`.
+These five are the initial registry entries. Each follows the metric interface above:
+it declares its requirements (shown as **Inputs**), computes over the window, and
+raises or clears alerts in `monitoring_alerts` through its thresholds. The worker runs
+each only when its requirements are met.
 
 ### Runtime health
 
@@ -327,7 +364,7 @@ window:
 | Field | Meaning |
 | --- | --- |
 | `deployment_id` | which deployment |
-| `metric_group` | runtime, data_quality, feature_drift, output_drift, multivariate |
+| `metric` | the registry metric that produced this result — a built-in group (runtime, data_quality, feature_drift, output_drift, multivariate) or a registered metric id |
 | `window_start` / `window_end` | the time window covered |
 | `values` | the computed metrics for the group (per-feature where applicable) |
 | `severity` | worst severity in the group for the window (normal / warning / critical) |
@@ -360,6 +397,19 @@ resolves it when the metric returns to normal.
 **When** the worker runs a window
 **Then** runtime health metrics are materialized and profile-dependent calculations
 are skipped, without error.
+
+## Scenario: worker runs only the applicable metrics
+**Given** a monitored deployment whose profile has feature summaries but no PCA profile
+**When** the worker ticks
+**Then** runtime health, data quality, and feature drift run, while multivariate drift
+is skipped because its requirements are unmet — without error.
+
+## Scenario: a new metric is added as a registry entry
+**Given** a new metric registered with the metric interface whose requirements are met
+by a deployment
+**When** the worker ticks
+**Then** the new metric is computed and its results/alerts are materialized, with no
+change to the worker loop or the built-in metrics.
 
 ## Scenario: feature drift is detected
 **Given** a monitored deployment whose live inputs for a feature have shifted well
@@ -416,40 +466,48 @@ The reference profile these tasks consume is produced by the SDK per
   - [ ] Tests: profile loaded and available for a deployment that has one; deployment
         without a profile still deploys and is marked as having no profile.
 
-- [ ] **Task 2 — Monitoring Worker foundation + runtime health**
+- [ ] **Task 2 — Monitoring Worker engine (registry + selection) + runtime health**
   - [ ] Add a shared per-Satellite worker loop that wakes on an interval and, for each
         monitored deployment, processes the latest completed window; deployment-scoped,
         off the inference path, best-effort.
+  - [ ] Define the metric interface (requirements/applicability, compute over a window,
+        thresholds) and a registry; each tick, build the deployment context and run only
+        the metrics whose requirements are met; a failing metric is isolated from the
+        others.
   - [ ] Add the `monitoring_results` and `monitoring_alerts` storage and the alert
         lifecycle (open / update / resolve).
-  - [ ] Implement runtime health (counts, error rate, latencies, failed inferences)
-        and its alerts; this needs no profile.
-  - [ ] Tests: worker processes only monitored deployments; runtime health results and
-        alerts are materialized; alert opens and later resolves; a storage failure
-        skips the window without affecting inference.
+  - [ ] Register runtime health (counts, error rate, latencies, failed inferences) as
+        the first built-in metric; it requires no profile.
+  - [ ] Tests: only monitored deployments are processed; selection runs runtime health
+        with no profile and skips profile-dependent metrics; results/alerts are
+        materialized; an alert opens then resolves; a failing metric does not stop the
+        others; a storage failure skips the window without affecting inference.
 
-- [ ] **Task 3 — Worker: data quality**
-  - [ ] Compute per-feature missing rate, type-mismatch rate, numeric range-violation
-        rate (against reference min/max), and unseen-category rate (against reference
-        categories), with alerts.
-  - [ ] Skip cleanly when no profile is available.
+- [ ] **Task 3 — Worker: data quality metric**
+  - [ ] Register data quality as a registry metric whose requirement is the profile's
+        feature summaries: per-feature missing rate, type-mismatch rate, numeric
+        range-violation rate (against reference min/max), and unseen-category rate
+        (against reference categories), with alerts.
+  - [ ] Skip cleanly when no profile is available (requirement unmet).
   - [ ] Tests: invalid inputs (missing, wrong type, out-of-range, unseen category)
         produce the expected rates and alerts; no profile → skipped.
 
-- [ ] **Task 4 — Worker: feature drift and output drift (PSI)**
-  - [ ] Compute univariate PSI per input feature against the reference distributions
-        (numerical via reference bins, categorical via reference proportions) with
-        severity thresholds.
-  - [ ] Compute output drift via PSI on predictions against the output summary, plus
-        the regression prediction-trend summary, with severity.
+- [ ] **Task 4 — Worker: feature drift and output drift metrics (PSI)**
+  - [ ] Register feature drift as a registry metric (requires per-feature reference
+        distributions): univariate PSI per input feature (numerical via reference bins,
+        categorical via reference proportions) with severity thresholds.
+  - [ ] Register output drift as a registry metric (requires the output summary and
+        `task_type`): PSI on predictions against the output summary, plus the regression
+        prediction-trend summary, with severity.
   - [ ] Tests: shifted inputs/outputs cross the PSI thresholds and raise alerts;
         stable data stays normal; unseen categories contribute to feature PSI.
 
-- [ ] **Task 5 — Worker: multivariate drift (PCA reconstruction error)**
-  - [ ] For the live window, standardize numerical features with the stored scaler,
+- [ ] **Task 5 — Worker: multivariate drift metric (PCA reconstruction error)**
+  - [ ] Register multivariate drift as a registry metric (requires the PCA profile):
+        for the live window, standardize numerical features with the stored scaler,
         project and reconstruct via the stored PCA, compute mean reconstruction error,
-        and alert when it exceeds the reference mean by more than 3 standard
-        deviations.
-  - [ ] Skip cleanly when the PCA profile or required numerical features are missing.
+        and alert when it exceeds the reference mean by more than 3 standard deviations.
+  - [ ] Skip cleanly when the PCA profile or required numerical features are missing
+        (requirement unmet).
   - [ ] Tests: a joint/correlation shift that univariate drift misses is caught by the
         reconstruction-error threshold; in-distribution data stays normal.
