@@ -466,19 +466,19 @@ The reference profile these tasks consume is produced by the SDK per
   - [x] Tests: profile loaded and available for a deployment that has one; deployment
         without a profile still deploys and is marked as having no profile.
 
-- [ ] **Task 2 — Monitoring Worker engine (registry + selection) + runtime health**
-  - [ ] Add a shared per-Satellite worker loop that wakes on an interval and, for each
+- [x] **Task 2 — Monitoring Worker engine (registry + selection) + runtime health**
+  - [x] Add a shared per-Satellite worker loop that wakes on an interval and, for each
         monitored deployment, processes the latest completed window; deployment-scoped,
         off the inference path, best-effort.
-  - [ ] Define the metric interface (requirements/applicability, compute over a window,
+  - [x] Define the metric interface (requirements/applicability, compute over a window,
         thresholds) and a registry; each tick, build the deployment context and run only
         the metrics whose requirements are met; a failing metric is isolated from the
         others.
-  - [ ] Add the `monitoring_results` and `monitoring_alerts` storage and the alert
+  - [x] Add the `monitoring_results` and `monitoring_alerts` storage and the alert
         lifecycle (open / update / resolve).
-  - [ ] Register runtime health (counts, error rate, latencies, failed inferences) as
+  - [x] Register runtime health (counts, error rate, latencies, failed inferences) as
         the first built-in metric; it requires no profile.
-  - [ ] Tests: only monitored deployments are processed; selection runs runtime health
+  - [x] Tests: only monitored deployments are processed; selection runs runtime health
         with no profile and skips profile-dependent metrics; results/alerts are
         materialized; an alert opens then resolves; a failing metric does not stop the
         others; a storage failure skips the window without affecting inference.

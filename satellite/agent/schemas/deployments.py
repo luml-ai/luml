@@ -55,6 +55,7 @@ class LocalDeployment(BaseModel):
     manifest: dict | None = None
     openapi_schema: dict | None = None
     reference_profile: dict | None = None
+    monitoring_enabled: bool = True
 
 
 def usable_reference_profile(profile: dict | None) -> dict | None:
