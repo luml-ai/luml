@@ -2,7 +2,30 @@ networks:
   satellite-network:
     driver: bridge
 
+volumes:
+  greptimedb-data:
+
 services:
+  greptimedb:
+    image: greptime/greptimedb:v0.13.1
+    command: standalone start --http-addr=0.0.0.0:4000 --rpc-addr=0.0.0.0:4001
+    networks:
+      - satellite-network
+    volumes:
+      - greptimedb-data:/tmp/greptimedb
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.127.0
+    command: ["--config=/etc/otel/config.yaml"]
+    networks:
+      - satellite-network
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel/config.yaml:ro
+    depends_on:
+      - greptimedb
+    restart: unless-stopped
+
   model-image:
     image: luml-random-svc:latest
     build:
@@ -25,6 +48,8 @@ services:
       BASE_URL: ${BASE_URL:-http://localhost}
       MODEL_IMAGE: ${MODEL_IMAGE:-luml-random-svc:latest}
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      MONITORING_ENABLED: "true"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     user: "0:0"
@@ -34,4 +59,5 @@ services:
       - "80:8000"
     depends_on:
       - model-image
+      - otel-collector
     restart: unless-stopped

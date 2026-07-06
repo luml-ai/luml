@@ -10,6 +10,7 @@ from luml.schemas.base import BaseOrmConfig
 
 class SatelliteCapability(StrEnum):
     DEPLOY = "deploy"
+    MONITORING = "monitoring"
 
 
 class SatelliteTaskType(StrEnum):

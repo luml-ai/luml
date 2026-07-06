@@ -11,6 +11,9 @@ dependencies = [
     "numpy",
     "onnxruntime",
     "pydantic",
+    "opentelemetry-api>=1.43.0",
+    "opentelemetry-sdk>=1.43.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
 ]
 
 [tool.ruff]

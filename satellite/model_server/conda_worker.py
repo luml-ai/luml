@@ -53,13 +53,20 @@ try:
         handler_config=LocalHandlerConfig(auto_cleanup=False),
     )
 
-    async def compute_model(inputs: dict, dynamic_attributes: dict) -> dict:
-        try:
-            result = await handler.compute_async(inputs, dynamic_attributes)
-        except NotImplementedError:
-            logger.info("compute_async not implemented, falling back to sync compute")
-            result = handler.compute(inputs, dynamic_attributes)
-        return to_jsonable(result)
+    from telemetry import model_span
+
+    async def compute_model(
+        inputs: dict,
+        dynamic_attributes: dict,
+        headers: dict[str, str] | None = None,
+    ) -> dict:
+        async with model_span(headers or {}):
+            try:
+                result = await handler.compute_async(inputs, dynamic_attributes)
+            except NotImplementedError:
+                logger.info("compute_async not implemented, falling back to sync compute")
+                result = handler.compute(inputs, dynamic_attributes)
+            return to_jsonable(result)
 
     openapi_gen = None
     title = None
@@ -136,13 +143,17 @@ try:
         return None
 
     @app.post("/compute")
-    async def compute(request_data: dict) -> dict[str, Any]:  # noqa: ANN401
+    async def compute(*, headers: dict[str, str], request_data: dict) -> dict[str, Any]:  # noqa: ANN401
         inputs = request_data.get("inputs")
         if inputs is None:
             raise HTTPException(status_code=400, detail="Missing 'inputs' in request")
 
         try:
-            return await compute_model(inputs, request_data.get("dynamic_attributes") or {})
+            return await compute_model(
+                inputs,
+                request_data.get("dynamic_attributes") or {},
+                headers=headers,
+            )
         except Exception as error:
             upstream = _extract_upstream_status(error)
             if upstream is not None:
