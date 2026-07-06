@@ -1,4 +1,5 @@
 from agent.monitoring.data_quality import DataQualityMetric, QualityThreshold
+from agent.monitoring.feature_drift import FeatureDriftMetric
 from agent.monitoring.greptime import GreptimeMonitoringStore
 from agent.monitoring.metric import Metric, MetricInput
 from agent.monitoring.models import (
@@ -14,6 +15,7 @@ from agent.monitoring.models import (
     TimeWindow,
     worst_severity,
 )
+from agent.monitoring.output_drift import OutputDriftMetric
 from agent.monitoring.registry import MetricRegistry, default_registry
 from agent.monitoring.runtime_health import RuntimeHealthMetric
 from agent.monitoring.store import InMemoryMonitoringStore, MonitoringStore
@@ -25,6 +27,7 @@ __all__ = [
     "AlertState",
     "DataQualityMetric",
     "DeploymentContext",
+    "FeatureDriftMetric",
     "GreptimeMonitoringStore",
     "InMemoryMonitoringStore",
     "InferenceEvent",
@@ -36,6 +39,7 @@ __all__ = [
     "MonitoredDeployment",
     "MonitoringStore",
     "MonitoringWorker",
+    "OutputDriftMetric",
     "QualityThreshold",
     "RuntimeHealthMetric",
     "Severity",

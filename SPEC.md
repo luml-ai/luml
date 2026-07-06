@@ -492,14 +492,14 @@ The reference profile these tasks consume is produced by the SDK per
   - [x] Tests: invalid inputs (missing, wrong type, out-of-range, unseen category)
         produce the expected rates and alerts; no profile → skipped.
 
-- [ ] **Task 4 — Worker: feature drift and output drift metrics (PSI)**
-  - [ ] Register feature drift as a registry metric (requires per-feature reference
+- [x] **Task 4 — Worker: feature drift and output drift metrics (PSI)**
+  - [x] Register feature drift as a registry metric (requires per-feature reference
         distributions): univariate PSI per input feature (numerical via reference bins,
         categorical via reference proportions) with severity thresholds.
-  - [ ] Register output drift as a registry metric (requires the output summary and
+  - [x] Register output drift as a registry metric (requires the output summary and
         `task_type`): PSI on predictions against the output summary, plus the regression
         prediction-trend summary, with severity.
-  - [ ] Tests: shifted inputs/outputs cross the PSI thresholds and raise alerts;
+  - [x] Tests: shifted inputs/outputs cross the PSI thresholds and raise alerts;
         stable data stays normal; unseen categories contribute to feature PSI.
 
 - [ ] **Task 5 — Worker: multivariate drift metric (PCA reconstruction error)**
