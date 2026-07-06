@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/luml-design-system-e2a12de5-73c8-4fe2-badf-40c2fbc089a1/colors_and_type.css">
+  <script src="_ds/luml-design-system-e2a12de5-73c8-4fe2-badf-40c2fbc089a1/_ds_bundle.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    #mon-main::-webkit-scrollbar{width:11px;height:11px}
+    #mon-main::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:6px;border:3px solid #f8fafc}
+    #mon-main::-webkit-scrollbar-thumb:hover{background:#cbd5e1}
+    .nv:hover{background:#f1f5f9 !important;color:#1e293b !important}
+    .qr:hover{background:#f8fafc !important}
+  </style>
+</helmet>
+<div style="display:grid;grid-template-columns:180px 1fr;grid-template-rows:64px 1fr;height:100vh;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#334155;background:#f8fafc">
+
+  <header style="grid-column:1/-1;height:64px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 18px;gap:18px;z-index:5">
+    <div style="display:flex;align-items:center;width:150px"><img src="assets/logo-full-light.svg" alt="LUML" style="height:26px"></div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748b;flex:1">
+      <span>dataforce-org</span><span style="opacity:.4">/</span><span>insurance-pricing</span><span style="opacity:.4">/</span><span>Deployments</span><span style="opacity:.4">/</span><span style="color:#1e293b;font-weight:500">Monitoring</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="height:32px;padding:0 12px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:#334155">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.4.7-4.1-1.6-4.1-1.6-.6-1.5-1.4-1.9-1.4-1.9-1.1-.8.1-.8.1-.8 1.2.1 1.9 1.3 1.9 1.3 1.1 1.9 3 1.4 3.7 1 .1-.8.4-1.4.8-1.7-2.7-.3-5.6-1.4-5.6-6 0-1.3.5-2.4 1.3-3.2-.1-.3-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.7 1.6.2 2.9.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.9 5.7-5.6 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+        Star<span style="color:#eab308">★</span> 2.4k
+      </div>
+      <button class="nv" style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#64748b;cursor:pointer;background:transparent;border:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(226deg,#add8fb 28%,#dfa3f0 98.72%);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:12px">EK</div>
+    </div>
+  </header>
+
+  <aside style="background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;padding:14px 10px;gap:2px">
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;padding:12px 8px 6px;text-transform:uppercase;letter-spacing:.04em">Workspace</div>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Express tasks</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>Registry</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5 3 21l4.5-1.5"/><path d="m9 12 6 6"/><path d="M12.5 2 22 11.5 11.5 22 2 12.5 12.5 2Z"/></svg>Satellites</a>
+    <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:#1e293b;font-size:14px;font-weight:500;cursor:pointer;height:34px;background:#fff;box-shadow:0 1px 3px rgba(28,43,64,.06),0 4px 5px rgba(28,43,64,.03);border:1px solid #e2e8f0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22 22 0 0 1-4 2Z"/></svg>Deployments</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/></svg>Data Agent</a>
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;padding:14px 8px 6px;text-transform:uppercase;letter-spacing:.04em">Observability</div>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>LLM traces</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M5 20V10"/><path d="M10 20V4"/><path d="M15 20v-7"/><path d="M20 20v-4"/></svg>Experiments</a>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:8px;border-top:1px solid #e2e8f0">
+      <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Help &amp; docs</a>
+    </div>
+  </aside>
+
+  <main id="mon-main" style="overflow:auto">
+    <!-- deployment header -->
+    <div style="padding:26px 36px 0;display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap">
+      <div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="width:38px;height:38px;border-radius:9px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><img src="assets/task-icons/tabular-regression.svg" style="width:30px;height:30px"></div>
+          <h1 style="font-size:24px;font-weight:500;letter-spacing:-0.48px;line-height:1.2;color:#1e293b;margin:0;font-family:var(--luml-font-mono),monospace">{{ deploymentName }}</h1>
+          <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:#dcfce7;color:#15803d;font-size:12px;font-weight:500"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 3px #22c55e33"></span>Active</span>
+        </div>
+        <div style="font-size:13px;color:#64748b;margin-top:8px;padding-left:50px">Tabular Regression · insurance charges · bound to satellite <span style="font-family:var(--luml-font-mono),monospace">eu-west-sat-2</span> · model <span style="font-family:var(--luml-font-mono),monospace">v3</span> · last prediction 2m ago</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:12px;color:#94a3b8;font-weight:500">Window</span>
+        {{ windowToggle }}
+        <button class="nv" style="height:38px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Inference URL</button>
+      </div>
+    </div>
+
+    <!-- sticky section nav -->
+    <div style="position:sticky;top:0;z-index:4;background:#f8fafc;padding:18px 36px 0;margin-top:18px;border-bottom:1px solid #e2e8f0">{{ sectionNav }}</div>
+
+    <div style="padding:28px 36px 64px;display:flex;flex-direction:column;gap:44px;max-width:1280px">
+
+      <!-- ════ OVERVIEW ════ -->
+      <section id="overview" data-screen-label="Overview" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Overview</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Runtime health and headline signals for the selected window.</p></div>
+
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Requests</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">12,430</div><div style="font-size:12px;color:#15803d;margin-top:4px">↑ 8.2% vs prev</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Error rate</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">0.3%</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 0.1pp vs prev</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Latency p95</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">180 ms</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 18 ms vs prev</div></div>
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Active alerts</div><div style="font-size:25px;font-weight:500;color:#b91c1c;letter-spacing:-.02em;margin-top:7px">2</div><div style="font-size:12px;color:#b91c1c;margin-top:4px">2 critical</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Drifted features</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">2</div><div style="font-size:12px;color:#64748b;margin-top:4px;font-family:var(--luml-font-mono),monospace">smoker, bmi</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Latest RMSE</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">{{ latestRmseVal }}</div><div style="font-size:12px;color:#64748b;margin-top:4px">{{ latestRmseSub }}</div></div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);margin-top:18px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:flex-start;gap:11px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div><span style="font-weight:600;color:#1e293b;font-size:13.5px">Prediction drift critical</span><span style="font-size:13px;color:#64748b;margin-left:8px">y_pred PSI 0.28 — current median 17,000 vs 9,500 reference. Model is predicting materially higher charges.</span></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:11px;border-top:1px solid #f1f5f9;padding-top:12px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div><span style="font-weight:600;color:#1e293b;font-size:13.5px">Feature drift critical — smoker</span><span style="font-size:13px;color:#64748b;margin-left:8px">PSI 0.31 — share of <span style="font-family:var(--luml-font-mono),monospace">yes</span> moved 20.5% → 45%. Check the upstream intake form.</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Requests over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">prediction calls per interval</div><div data-cw="requests" style="width:100%;overflow:hidden;margin-top:8px">{{ requestsChart }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Error rate over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">4xx / 5xx share of calls</div><div data-cw="error" style="width:100%;overflow:hidden;margin-top:8px">{{ errorChart }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Latency p95 over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">95th percentile response time</div><div data-cw="latency" style="width:100%;overflow:hidden;margin-top:8px">{{ latencyChart }}</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="font-size:14px;font-weight:600;color:#1e293b">Top drifted features</div><div style="font-size:12px;color:#64748b;margin-top:2px;margin-bottom:14px">population stability index (PSI)</div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <sc-for list="{{ topDriftRows }}" as="row" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:13px;font-weight:500;color:#334155;font-family:var(--luml-font-mono),monospace">{{ row.name }}</span><span style="font-size:12px;color:#64748b">PSI <span style="font-weight:600;color:#1e293b">{{ row.psiText }}</span></span></div>
+                  <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;border-radius:4px;width:{{ row.barW }};background:{{ row.barColor }}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div><div style="font-size:14px;font-weight:600;color:#1e293b">Prediction drift</div><div style="font-size:12px;color:#64748b;margin-top:2px">y_pred median with p05–p95 band</div></div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#a855f7"></span>median</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#a855f7;opacity:.18"></span>p05–p95</span></div></div>
+            <div data-cw="predband" style="width:100%;overflow:hidden;margin-top:8px">{{ predBandChart }}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ DATA QUALITY ════ -->
+      <section id="data-quality" data-screen-label="Data quality" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Data quality</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Are incoming features well-formed, or did an upstream pipeline break?</p></div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Feature</th>
+              <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Missing</th>
+              <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Type errors</th>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Range / unseen</th>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Status</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ dqRows }}" as="row" hint-placeholder-count="6">
+                <tr class="qr">
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ row.feature }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:var(--luml-font-mono),monospace;color:{{ row.missingColor }}">{{ row.missing }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:var(--luml-font-mono),monospace;color:#334155">{{ row.type }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:var(--luml-font-mono),monospace">{{ row.range }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ row.statusBg }};color:{{ row.statusFg }}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>{{ row.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ════ FEATURE DRIFT ════ -->
+      <section id="feature-drift" data-screen-label="Feature drift" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Feature drift</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">How far the live input distribution has moved from the training reference. Select a feature for detail.</p></div>
+        <div style="display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <sc-for list="{{ featureRows }}" as="row" hint-placeholder-count="6">
+              <div onClick="{{ row.onClick }}" style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:8px;cursor:pointer;background:{{ row.rowBg }}">
+                <span style="width:3px;height:30px;border-radius:2px;background:{{ row.accent }};flex-shrink:0"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13.5px;font-weight:500;color:{{ row.nameColor }};font-family:var(--luml-font-mono),monospace">{{ row.name }}</span><span style="font-size:12px;color:#64748b">PSI <span style="font-weight:600;color:#1e293b">{{ row.psiText }}</span></span></div>
+                  <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-top:7px"><div style="height:100%;border-radius:3px;width:{{ row.barW }};background:{{ row.barColor }}"></div></div>
+                </div>
+                <span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:500;background:{{ row.statusBg }};color:{{ row.statusFg }};flex-shrink:0">{{ row.statusLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px"><span style="font-size:16px;font-weight:600;color:#1e293b;font-family:var(--luml-font-mono),monospace">{{ featName }}</span><span style="font-size:12px;color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:5px">{{ featType }}</span><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ featStatusBg }};color:{{ featStatusFg }}">{{ featStatus }} · PSI {{ featPsi }}</span></div>
+            <div style="display:grid;grid-template-columns:1fr;gap:18px;margin-top:14px">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><div style="font-size:13px;font-weight:600;color:#1e293b">Reference vs current distribution</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#cbd5e1"></span>Reference</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#2673fd"></span>Current</span></div></div>
+                <div data-cw="featdist" style="width:100%;overflow:hidden">{{ featDistChart }}</div>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">PSI over time</div>
+                <div data-cw="featpsi" style="width:100%;overflow:hidden">{{ featPsiChart }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════ PREDICTION DRIFT ════ -->
+      <section id="prediction-drift" data-screen-label="Prediction drift" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Prediction drift</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Has the model's output distribution shifted? <span style="font-family:var(--luml-font-mono),monospace">y_pred</span> = predicted insurance charge.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Reference median</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px;font-family:var(--luml-font-mono),monospace">9,500</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Current median</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px;font-family:var(--luml-font-mono),monospace">17,000</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 79% vs reference</div></div>
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Prediction PSI</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:25px;font-weight:500;color:#b91c1c;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">0.28</div><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;background:#fee2e2;color:#b91c1c">Critical</span></div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:14px;font-weight:600;color:#1e293b">Reference vs current y_pred histogram</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#cbd5e1"></span>Reference</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#2673fd"></span>Current</span></div></div>
+          <div data-cw="ypredhist" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredHist }}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:14px;font-weight:600;color:#1e293b">y_pred mean / median over time</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#2673fd"></span>median</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#a855f7"></span>mean</span></div></div><div data-cw="ypredlines" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredLines }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">y_pred p05–p95 band over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">spread of predictions widening</div><div data-cw="ypredband" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredBand }}</div></div>
+        </div>
+      </section>
+
+      <!-- ════ PERFORMANCE ════ -->
+      <section id="performance" data-screen-label="Performance" style="scroll-margin-top:60px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Performance</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Accuracy against ground-truth labels — available once <span style="font-family:var(--luml-font-mono),monospace">y_true</span> arrives.</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:#94a3b8;font-weight:500">Targets</span>{{ perfToggle }}</div>
+        </div>
+
+        <sc-if value="{{ notTargets }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:40px 32px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);display:flex;align-items:center;gap:22px">
+            <div style="width:52px;height:52px;border-radius:12px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div><div style="font-size:16px;font-weight:600;color:#1e293b">Waiting for targets</div><div style="font-size:13.5px;color:#64748b;margin-top:5px;max-width:560px;line-height:1.5">Ground-truth labels haven't landed yet, so RMSE / MAE / R² can't be computed. Runtime health, data quality, feature drift, and prediction drift are available above and stay current.</div></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ targets }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">RMSE</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">5,100</div><span style="font-size:12px;color:#c2410c">↑ 5.7%</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">4,824</span></div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">MAE</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">2,950</div><span style="font-size:12px;color:#c2410c">↑ 3.9%</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">2,838</span></div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">R²</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">0.79</div><span style="font-size:12px;color:#c2410c">↓ 0.044</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">0.834</span></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">RMSE over time</div><div data-cw="rmse" style="width:100%;overflow:hidden;margin-top:8px">{{ rmseChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">MAE over time</div><div data-cw="mae" style="width:100%;overflow:hidden;margin-top:8px">{{ maeChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">R² over time</div><div data-cw="r2" style="width:100%;overflow:hidden;margin-top:8px">{{ r2Chart }}</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:16px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Predicted vs actual</div><div style="font-size:12px;color:#64748b;margin-top:2px">points above the diagonal = over-prediction</div><div data-cw="scatter" style="width:100%;overflow:hidden;margin-top:8px">{{ scatterChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Residual distribution</div><div style="font-size:12px;color:#64748b;margin-top:2px">actual − predicted, % of labelled calls</div><div data-cw="resid" style="width:100%;overflow:hidden;margin-top:8px">{{ residChart }}</div></div>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1380,&quot;height&quot;:920},&quot;deploymentName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;tabular_regression_1781778223788&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;defaultWindow&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;24h&quot;,&quot;7d&quot;,&quot;30d&quot;],&quot;default&quot;:&quot;7d&quot;,&quot;tsType&quot;:&quot;'24h'|'7d'|'30d'&quot;},&quot;targetsArrived&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { widths: {}, hover: null };
+
+  // ── lifecycle ──
+  componentDidMount() {
+    this._m = () => this.measure();
+    requestAnimationFrame(this._m);
+    setTimeout(this._m, 140);
+    window.addEventListener('resize', this._m);
+    this._main = document.getElementById('mon-main');
+    if (this._main) { this._scroll = () => this.scrollSpy(); this._main.addEventListener('scroll', this._scroll, { passive: true }); }
+  }
+  componentDidUpdate() { this.measure(); }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._m);
+    if (this._main && this._scroll) this._main.removeEventListener('scroll', this._scroll);
+  }
+  measure() {
+    const cur = this.state.widths || {}; const w = {}; let changed = false;
+    document.querySelectorAll('[data-cw]').forEach(el => { const id = el.getAttribute('data-cw'); const x = el.clientWidth; w[id] = x; if (cur[id] !== x) changed = true; });
+    if (Object.keys(w).length !== Object.keys(cur).length) changed = true;
+    if (changed) this.setState({ widths: w });
+  }
+  scrollSpy() {
+    const ids = ['overview', 'data-quality', 'feature-drift', 'prediction-drift', 'performance'];
+    const probe = this._main.scrollTop + 140; let cur = ids[0];
+    for (const id of ids) { const el = document.getElementById(id); if (el && el.offsetTop <= probe) cur = id; }
+    if (this.state.sec !== cur) this.setState({ sec: cur });
+  }
+  cw(id, fb) { const w = this.state.widths && this.state.widths[id]; return (w && w > 24) ? w : (fb || 520); }
+
+  // ── selectors ──
+  win() { return this.state.win != null ? this.state.win : (this.props.defaultWindow || '7d'); }
+  feat() { return this.state.feat != null ? this.state.feat : 'smoker'; }
+  perfTargets() { return this.state.perfTargets != null ? this.state.perfTargets : !!this.props.targetsArrived; }
+
+  // ── data ──
+  hourLabels() { const o = []; for (let i = 0; i < 24; i++) o.push((i < 10 ? '0' : '') + i + ':00'); return o; }
+  dateLabels(n) { const end = new Date(2026, 5, 14); const o = []; for (let i = n - 1; i >= 0; i--) { const d = new Date(end.getTime()); d.setDate(end.getDate() - i); o.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })); } return o; }
+
+  winData(win) {
+    this._wc = this._wc || {};
+    if (this._wc[win]) return this._wc[win];
+    let n, labels;
+    if (win === '24h') { n = 24; labels = this.hourLabels(); }
+    else if (win === '7d') { n = 7; labels = this.dateLabels(7); }
+    else { n = 30; labels = this.dateLabels(30); }
+    const t = i => n > 1 ? i / (n - 1) : 0;
+    const wob = (i, a) => Math.sin(i * 1.7) * a + Math.sin(i * 0.6) * a * 0.55;
+    const reqBase = win === '24h' ? 470 : win === '7d' ? 11200 : 10600;
+    const reqAmp = win === '24h' ? 150 : 900;
+    const requests = labels.map((lb, i) => Math.round(reqBase * (1 + 0.12 * Math.sin(i / n * Math.PI * 2 * (win === '24h' ? 1 : 2))) + wob(i, reqAmp * 0.25) + reqBase * 0.18 * t(i)));
+    const errorRate = labels.map((lb, i) => { let v = 0.09 + 0.30 * Math.pow(t(i), 1.6) + wob(i, 0.015); if (i >= n - 2) v += 0.12; return Math.max(0.02, +v.toFixed(3)); });
+    const latency = labels.map((lb, i) => { let v = 150 + 40 * t(i) + wob(i, 6); if (i === n - 2) v += 22; return Math.round(v); });
+    const ypredMed = labels.map((lb, i) => Math.round(9500 + 7500 * Math.pow(t(i), 1.15) + wob(i, 260)));
+    const ypredMean = labels.map((lb, i) => Math.round(10100 + 7700 * Math.pow(t(i), 1.15) + wob(i, 280)));
+    const ypredLo = labels.map((lb, i) => Math.round(3000 + 2200 * t(i) + wob(i, 120)));
+    const ypredHi = labels.map((lb, i) => Math.round(18000 + 16000 * Math.pow(t(i), 1.2) + wob(i, 500)));
+    const rmse = labels.map((lb, i) => Math.round(4824 + 300 * Math.pow(t(i), 1.3) + wob(i, 28)));
+    const mae = labels.map((lb, i) => Math.round(2838 + 130 * Math.pow(t(i), 1.3) + wob(i, 16)));
+    const r2 = labels.map((lb, i) => +(0.834 - 0.05 * Math.pow(t(i), 1.2) + wob(i, 0.004)).toFixed(3));
+    const psiEnds = { smoker: 0.31, bmi: 0.18, region: 0.09, age: 0.05, sex: 0.02, children: 0.01 };
+    const psiBy = {};
+    Object.keys(psiEnds).forEach(k => { const end = psiEnds[k]; psiBy[k] = labels.map((lb, i) => +Math.max(0.005, end * (0.18 + 0.82 * Math.pow(t(i), 1.5)) + wob(i, end * 0.04)).toFixed(3)); });
+    const out = { n, labels, requests, errorRate, latency, ypredMed, ypredMean, ypredLo, ypredHi, rmse, mae, r2, psiBy };
+    this._wc[win] = out; return out;
+  }
+  scatterPts() {
+    if (this._sp) return this._sp;
+    const pts = []; let s = 12345; const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    for (let i = 0; i < 90; i++) { const a = 2000 + 36000 * rnd(); const pred = a * 0.93 + 2600 + (rnd() - 0.5) * 5200; pts.push({ x: a, y: Math.max(200, pred) }); }
+    this._sp = pts; return pts;
+  }
+  featMeta() {
+    return {
+      smoker: { label: 'smoker', type: 'Categorical', psi: 0.31, status: 'Critical', cats: ['no', 'yes'], ref: [79.5, 20.5], cur: [55, 45] },
+      bmi: { label: 'bmi', type: 'Numeric', psi: 0.18, status: 'Warning', cats: ['15–20', '20–25', '25–30', '30–35', '35–40', '40+'], ref: [5, 22, 30, 25, 12, 6], cur: [3, 15, 26, 28, 18, 10] },
+      region: { label: 'region', type: 'Categorical', psi: 0.09, status: 'OK', cats: ['NE', 'NW', 'SE', 'SW'], ref: [25, 25, 27, 23], cur: [22, 24, 30, 24] },
+      age: { label: 'age', type: 'Numeric', psi: 0.05, status: 'OK', cats: ['18–30', '30–40', '40–50', '50–60', '60+'], ref: [22, 24, 22, 18, 14], cur: [20, 23, 22, 19, 16] },
+      sex: { label: 'sex', type: 'Categorical', psi: 0.02, status: 'OK', cats: ['female', 'male'], ref: [49.5, 50.5], cur: [48, 52] },
+      children: { label: 'children', type: 'Numeric', psi: 0.01, status: 'OK', cats: ['0', '1', '2', '3', '4', '5'], ref: [42, 24, 18, 9, 5, 2], cur: [40, 25, 18, 10, 5, 2] }
+    };
+  }
+
+  // ── interaction helpers ──
+  mkMove(id, n) { return (ev) => { const r = ev.currentTarget.getBoundingClientRect(); const rx = (ev.clientX - r.left) / r.width; let idx = Math.round(rx * (n - 1)); idx = Math.max(0, Math.min(n - 1, idx)); const h = this.state.hover; if (!h || h.id !== id || h.idx !== idx) this.setState({ hover: { id, idx } }); }; }
+  mkLeave() { return () => { if (this.state.hover) this.setState({ hover: null }); }; }
+
+  segmented(opts, active, onPick) {
+    const e = React.createElement;
+    return e('div', { style: { display: 'inline-flex', gap: 2, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 } },
+      opts.map(([k, lb], i) => { const on = k === active; return e('button', { key: i, onClick: () => onPick(k), style: { border: 'none', background: on ? '#2673fd' : 'transparent', color: on ? '#fff' : '#475569', padding: '6px 13px', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' } }, lb); }));
+  }
+
+  // ── line / band chart ──
+  plot(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 150;
+    const series = o.series, band = o.band, n = series[0].data.length;
+    const pL = 8, pR = 12, pT = 12, pB = 22;
+    const px = i => pL + (n > 1 ? i / (n - 1) * (W - pL - pR) : (W - pL - pR) / 2);
+    let vals = []; series.forEach(s => s.data.forEach(d => vals.push(d.y)));
+    if (band) { band.lo.forEach(v => vals.push(v)); band.hi.forEach(v => vals.push(v)); }
+    if (o.thresholds) o.thresholds.forEach(t => vals.push(t.v));
+    let mn = o.yMin != null ? o.yMin : Math.min.apply(null, vals);
+    let mx = o.yMax != null ? o.yMax : Math.max.apply(null, vals);
+    if (mn === mx) mx = mn + 1;
+    const pad = (mx - mn) * 0.12; if (o.yMin == null) mn -= pad; if (o.yMax == null) mx += pad;
+    const py = v => pT + (H - pT - pB) - (v - mn) / (mx - mn) * (H - pT - pB);
+    const L = [];
+    for (let g = 0; g <= 3; g++) { const vy = pT + (H - pT - pB) * g / 3; L.push(e('line', { key: 'g' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9', strokeWidth: 1 })); }
+    if (o.thresholds) o.thresholds.forEach((t, ti) => { const vy = py(t.v); L.push(e('line', { key: 'th' + ti, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: t.color, strokeWidth: 1, strokeDasharray: '4 4', opacity: 0.65 })); L.push(e('text', { key: 'tht' + ti, x: W - pR, y: vy - 3, textAnchor: 'end', fontSize: 9, fill: t.color }, t.label)); });
+    if (band) {
+      let d = '';
+      for (let i = 0; i < n; i++) d += (i ? 'L' : 'M') + px(i) + ' ' + py(band.hi[i]) + ' ';
+      for (let i = n - 1; i >= 0; i--) d += 'L' + px(i) + ' ' + py(band.lo[i]) + ' ';
+      d += 'Z';
+      L.push(e('path', { key: 'band', d: d, fill: band.color, opacity: 0.16, stroke: 'none' }));
+    }
+    series.forEach((s, si) => {
+      let dl = ''; s.data.forEach((dp, i) => { dl += (i ? 'L' : 'M') + px(i) + ' ' + py(dp.y) + ' '; });
+      if (o.area && si === 0 && !band) { const da = dl + 'L' + px(n - 1) + ' ' + (H - pB) + ' L' + px(0) + ' ' + (H - pB) + ' Z'; L.push(e('path', { key: 'a' + si, d: da, fill: s.color, opacity: 0.10, stroke: 'none' })); }
+      L.push(e('path', { key: 'l' + si, d: dl, fill: 'none', stroke: s.color, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }));
+    });
+    const step = Math.max(1, Math.ceil(n / 5));
+    for (let i = 0; i < n; i++) { if (i % step === 0 || i === n - 1) L.push(e('text', { key: 'x' + i, x: px(i), y: H - 5, textAnchor: i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle'), fontSize: 9, fill: '#94a3b8' }, series[0].data[i].label)); }
+    const hv = this.state.hover; let tip = null;
+    if (hv && hv.id === id) {
+      const i = Math.max(0, Math.min(n - 1, hv.idx));
+      L.push(e('line', { key: 'hl', x1: px(i), x2: px(i), y1: pT, y2: H - pB, stroke: '#cbd5e1', strokeWidth: 1 }));
+      series.forEach((s, si) => L.push(e('circle', { key: 'hd' + si, cx: px(i), cy: py(s.data[i].y), r: 3.5, fill: '#fff', stroke: s.color, strokeWidth: 2 })));
+      const rows = series.map((s, si) => e('div', { key: si, style: { display: 'flex', alignItems: 'center', gap: 6 } }, e('span', { style: { width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 } }), e('span', { style: { color: '#64748b' } }, s.name), e('span', { style: { marginLeft: 'auto', fontWeight: 600, color: '#1e293b' } }, o.fmt ? o.fmt(s.data[i].y) : s.data[i].y)));
+      tip = e('div', { style: { position: 'absolute', left: Math.max(4, Math.min(W - 158, px(i) + 8)) + 'px', top: '4px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0px 4px 6px -1px #0000001a', padding: '7px 9px', fontSize: 11, pointerEvents: 'none', minWidth: '128px', zIndex: 5 } }, e('div', { style: { fontWeight: 600, marginBottom: 4, color: '#1e293b' } }, series[0].data[i].label), rows);
+    }
+    return e('div', { style: { position: 'relative' }, onMouseMove: this.mkMove(id, n), onMouseLeave: this.mkLeave() }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L), tip);
+  }
+
+  // ── grouped / single bar chart ──
+  gbars(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 160;
+    const cats = o.cats, series = o.series;
+    const pL = 8, pR = 10, pT = 12, pB = 24;
+    let mx = o.yMax != null ? o.yMax : Math.max.apply(null, [].concat.apply([], series.map(s => s.vals)));
+    mx *= 1.16; if (mx <= 0) mx = 1;
+    const plotW = W - pL - pR, plotH = H - pT - pB, groupW = plotW / cats.length;
+    const ns = series.length, barGap = 4, innerPad = groupW * 0.16;
+    const bw = Math.max(2, (groupW - innerPad * 2 - barGap * (ns - 1)) / ns);
+    const L = [];
+    for (let g = 0; g <= 3; g++) { const vy = pT + plotH * g / 3; L.push(e('line', { key: 'g' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9', strokeWidth: 1 })); }
+    const hv = this.state.hover;
+    cats.forEach((c, ci) => {
+      const gx = pL + groupW * ci + innerPad;
+      series.forEach((s, si) => { const v = s.vals[ci]; const bh = v / mx * plotH; const x = gx + si * (bw + barGap); const y = pT + plotH - bh; const active = hv && hv.id === id && hv.idx === ci; L.push(e('rect', { key: c + si, x: x, y: y, width: bw, height: Math.max(0, bh), rx: 3, fill: s.color, opacity: active ? 1 : 0.9 })); });
+      L.push(e('text', { key: 'x' + ci, x: gx + (groupW - innerPad * 2) / 2, y: H - 8, textAnchor: 'middle', fontSize: 9.5, fill: '#64748b' }, c));
+    });
+    let tip = null;
+    if (hv && hv.id === id) {
+      const ci = Math.max(0, Math.min(cats.length - 1, hv.idx)); const cx = pL + groupW * ci + groupW / 2;
+      const rows = series.map((s, si) => e('div', { key: si, style: { display: 'flex', alignItems: 'center', gap: 6 } }, e('span', { style: { width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 } }), e('span', { style: { color: '#64748b' } }, s.name), e('span', { style: { marginLeft: 'auto', fontWeight: 600, color: '#1e293b' } }, o.fmt ? o.fmt(s.vals[ci]) : s.vals[ci])));
+      tip = e('div', { style: { position: 'absolute', left: Math.max(4, Math.min(W - 138, cx - 60)) + 'px', top: '2px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0px 4px 6px -1px #0000001a', padding: '7px 9px', fontSize: 11, pointerEvents: 'none', minWidth: '116px', zIndex: 5 } }, e('div', { style: { fontWeight: 600, marginBottom: 4, color: '#1e293b' } }, cats[ci]), rows);
+    }
+    const move = (ev) => { const r = ev.currentTarget.getBoundingClientRect(); const rx = (ev.clientX - r.left) / r.width * W; let ci = Math.floor((rx - pL) / groupW); ci = Math.max(0, Math.min(cats.length - 1, ci)); const h = this.state.hover; if (!h || h.id !== id || h.idx !== ci) this.setState({ hover: { id, idx: ci } }); };
+    return e('div', { style: { position: 'relative' }, onMouseMove: move, onMouseLeave: this.mkLeave() }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L), tip);
+  }
+
+  // ── scatter ──
+  scatter(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 300;
+    const pts = o.pts, pL = 40, pR = 14, pT = 12, pB = 32;
+    const mn = 0, mx = Math.max.apply(null, [].concat(pts.map(p => p.x), pts.map(p => p.y))) * 1.05;
+    const X = v => pL + (v - mn) / (mx - mn) * (W - pL - pR);
+    const Y = v => pT + (H - pT - pB) - (v - mn) / (mx - mn) * (H - pT - pB);
+    const L = [];
+    for (let g = 0; g <= 4; g++) { const tt = g / 4; const vy = pT + (H - pT - pB) * tt; const vx = pL + (W - pL - pR) * tt; L.push(e('line', { key: 'gy' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9' })); L.push(e('line', { key: 'gx' + g, x1: vx, x2: vx, y1: pT, y2: H - pB, stroke: '#f8fafc' })); const val = Math.round(mx * (1 - tt) / 1000); L.push(e('text', { key: 'ay' + g, x: pL - 5, y: vy + 3, textAnchor: 'end', fontSize: 8.5, fill: '#94a3b8' }, val + 'k')); }
+    L.push(e('line', { key: 'diag', x1: X(mn), y1: Y(mn), x2: X(mx), y2: Y(mx), stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5 4' }));
+    pts.forEach((p, i) => L.push(e('circle', { key: i, cx: X(p.x), cy: Y(p.y), r: 3, fill: '#2673fd', opacity: 0.5 }, e('title', null, 'actual ' + Math.round(p.x).toLocaleString() + ' · pred ' + Math.round(p.y).toLocaleString()))));
+    L.push(e('text', { key: 'xl', x: W / 2, y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#64748b' }, 'Actual'));
+    L.push(e('text', { key: 'yl', x: 11, y: H / 2, textAnchor: 'middle', fontSize: 10, fill: '#64748b', transform: 'rotate(-90 11 ' + (H / 2) + ')' }, 'Predicted'));
+    return e('div', { style: { position: 'relative' } }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L));
+  }
+
+  renderVals() {
+    const C = { brand: '#2673fd', help: '#a855f7', warn: '#f97316', info: '#0ea5e9', ref: '#cbd5e1', danger: '#ef4444', success: '#22c55e' };
+    const win = this.win(), d = this.winData(win), feat = this.feat(), meta = this.featMeta(), fm = meta[feat], targets = this.perfTargets();
+    const fmtInt = v => Math.round(v).toLocaleString('en-US');
+    const fmtPct = v => (+v).toFixed(2) + '%';
+    const fmtMs = v => Math.round(v) + ' ms';
+    const fmtPsi = v => (+v).toFixed(2);
+    const fmt3 = v => (+v).toFixed(3);
+    const mk = arr => d.labels.map((lb, i) => ({ label: lb, y: arr[i] }));
+
+    const stColor = s => s === 'Critical' ? { bg: '#fee2e2', fg: '#b91c1c' } : s === 'Warning' ? { bg: '#ffedd5', fg: '#c2410c' } : { bg: '#dcfce7', fg: '#15803d' };
+    const order = ['smoker', 'bmi', 'region', 'age', 'sex', 'children'];
+    const featureRows = order.map(k => {
+      const m = meta[k], sc = stColor(m.status), sel = k === feat;
+      return { name: m.label, psiText: m.psi.toFixed(2), statusLabel: m.status, statusBg: sc.bg, statusFg: sc.fg, barW: Math.round(m.psi / 0.31 * 100) + '%', barColor: m.status === 'Critical' ? C.danger : m.status === 'Warning' ? C.warn : C.success, accent: sel ? C.brand : 'transparent', rowBg: sel ? '#f8fafc' : '#fff', nameColor: sel ? '#1e293b' : '#334155', onClick: () => this.setState({ hover: null, feat: k }) };
+    });
+    const topDriftRows = featureRows.slice(0, 4);
+
+    const dqRows = [
+      { feature: 'age', missing: '0.1%', type: '0%', range: '0.3% out of range', status: 'OK' },
+      { feature: 'bmi', missing: '3.8%', type: '0%', range: '1.2% out of range', status: 'Warning' },
+      { feature: 'sex', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'children', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'smoker', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'region', missing: '0%', type: '0%', range: '0.5% unseen', status: 'Warning' }
+    ].map(r => { const sc = stColor(r.status); return Object.assign({}, r, { statusBg: sc.bg, statusFg: sc.fg, missingColor: parseFloat(r.missing) > 1 ? '#c2410c' : '#334155' }); });
+
+    const yh = { cats: ['0–5k', '5–10k', '10–15k', '15–20k', '20–25k', '25k+'], ref: [28, 34, 20, 11, 5, 2], cur: [10, 18, 22, 24, 16, 10] };
+    const rb = { cats: ['<-4k', '-4k…-2k', '-2k…0', '0…2k', '2k…4k', '4k…6k', '>6k'], vals: [4, 11, 19, 24, 18, 9, 4] };
+
+    const featStColor = stColor(fm.status);
+
+    return {
+      deploymentName: this.props.deploymentName || 'tabular_regression_1781778223788',
+      win,
+      windowToggle: this.segmented([['24h', '24h'], ['7d', '7d'], ['30d', '30d']], win, k => this.setState({ win: k })),
+      perfToggle: this.segmented([[false, 'Waiting'], [true, 'Arrived']], targets, k => this.setState({ perfTargets: k })),
+      sectionNav: this.buildNav(),
+      targets, notTargets: !targets,
+      latestRmseVal: targets ? '5,100' : '—',
+      latestRmseSub: targets ? 'baseline CV 4,824' : 'waiting for targets',
+
+      requestsChart: this.plot('requests', { series: [{ name: 'Requests', color: C.brand, data: mk(d.requests) }], area: true, height: 150, fmt: fmtInt, fb: 300 }),
+      errorChart: this.plot('error', { series: [{ name: 'Error rate', color: C.warn, data: mk(d.errorRate) }], area: true, height: 150, fmt: fmtPct, yMin: 0, fb: 300 }),
+      latencyChart: this.plot('latency', { series: [{ name: 'Latency p95', color: C.info, data: mk(d.latency) }], area: true, height: 150, fmt: fmtMs, fb: 300 }),
+      predBandChart: this.plot('predband', { series: [{ name: 'Median', color: C.help, data: mk(d.ypredMed) }], band: { lo: d.ypredLo, hi: d.ypredHi, color: C.help }, height: 150, fmt: fmtInt, fb: 520 }),
+
+      featDistChart: this.gbars('featdist', { cats: fm.cats, series: [{ name: 'Reference', color: C.ref, vals: fm.ref }, { name: 'Current', color: C.brand, vals: fm.cur }], height: 170, fmt: v => v + '%', fb: 480 }),
+      featPsiChart: this.plot('featpsi', { series: [{ name: 'PSI', color: fm.status === 'Critical' ? C.danger : fm.status === 'Warning' ? C.warn : C.brand, data: mk(d.psiBy[feat]) }], area: true, height: 160, fmt: fmtPsi, yMin: 0, fb: 480, thresholds: [{ v: 0.1, color: '#f97316', label: 'warning 0.1' }, { v: 0.2, color: '#ef4444', label: 'critical 0.2' }] }),
+
+      ypredHist: this.gbars('ypredhist', { cats: yh.cats, series: [{ name: 'Reference', color: C.ref, vals: yh.ref }, { name: 'Current', color: C.brand, vals: yh.cur }], height: 190, fmt: v => v + '%', fb: 900 }),
+      ypredLines: this.plot('ypredlines', { series: [{ name: 'Median', color: C.brand, data: mk(d.ypredMed) }, { name: 'Mean', color: C.help, data: mk(d.ypredMean) }], height: 170, fmt: fmtInt, fb: 460 }),
+      ypredBand: this.plot('ypredband', { series: [{ name: 'Median', color: C.brand, data: mk(d.ypredMed) }], band: { lo: d.ypredLo, hi: d.ypredHi, color: C.brand }, height: 170, fmt: fmtInt, fb: 460 }),
+
+      rmseChart: this.plot('rmse', { series: [{ name: 'RMSE', color: C.brand, data: mk(d.rmse) }], area: true, height: 150, fmt: fmtInt, fb: 300, thresholds: [{ v: 4824, color: '#94a3b8', label: 'baseline 4824' }] }),
+      maeChart: this.plot('mae', { series: [{ name: 'MAE', color: C.info, data: mk(d.mae) }], area: true, height: 150, fmt: fmtInt, fb: 300, thresholds: [{ v: 2838, color: '#94a3b8', label: 'baseline 2838' }] }),
+      r2Chart: this.plot('r2', { series: [{ name: 'R²', color: C.help, data: mk(d.r2) }], height: 150, fmt: fmt3, fb: 300, thresholds: [{ v: 0.834, color: '#94a3b8', label: 'baseline 0.834' }] }),
+      scatterChart: this.scatter('scatter', { pts: this.scatterPts(), height: 300, fb: 520 }),
+      residChart: this.gbars('resid', { cats: rb.cats, series: [{ name: 'Residuals', color: C.brand, vals: rb.vals }], height: 220, fmt: v => v + '%', fb: 460 }),
+
+      featureRows, topDriftRows, dqRows,
+      featName: fm.label, featType: fm.type, featPsi: fm.psi.toFixed(2), featStatus: fm.status, featStatusBg: featStColor.bg, featStatusFg: featStColor.fg
+    };
+  }
+
+  buildNav() {
+    const e = React.createElement;
+    const items = [['overview', 'Overview'], ['data-quality', 'Data quality'], ['feature-drift', 'Feature drift'], ['prediction-drift', 'Prediction drift'], ['performance', 'Performance']];
+    const sec = this.state.sec || 'overview';
+    return e('div', { style: { display: 'flex', gap: 4 } }, items.map(([id, lb]) => { const on = id === sec; return e('a', { key: id, href: '#' + id, style: { padding: '10px 16px', fontSize: 14, fontWeight: 500, color: on ? '#2673fd' : '#64748b', borderBottom: '2px solid ' + (on ? '#2673fd' : 'transparent'), marginBottom: '-1px', textDecoration: 'none', cursor: 'pointer' } }, lb); }));
+  }
+}
+</script>
+</body>
+</html>
