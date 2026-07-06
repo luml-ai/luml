@@ -1,3 +1,4 @@
+from agent.monitoring.data_quality import DataQualityMetric
 from agent.monitoring.metric import Metric
 from agent.monitoring.runtime_health import RuntimeHealthMetric
 
@@ -16,5 +17,11 @@ class MetricRegistry:
 
 
 def default_registry(*, latency_p95_threshold_ms: float = 1000.0) -> MetricRegistry:
-    """The built-in registry. Ships runtime health as its first entry."""
-    return MetricRegistry([RuntimeHealthMetric(latency_p95_threshold_ms=latency_p95_threshold_ms)])
+    """The built-in registry. Runtime health needs no profile; data quality needs
+    the profile's feature summaries and is selected out when they are absent."""
+    return MetricRegistry(
+        [
+            RuntimeHealthMetric(latency_p95_threshold_ms=latency_p95_threshold_ms),
+            DataQualityMetric(),
+        ]
+    )

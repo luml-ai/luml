@@ -483,13 +483,13 @@ The reference profile these tasks consume is produced by the SDK per
         materialized; an alert opens then resolves; a failing metric does not stop the
         others; a storage failure skips the window without affecting inference.
 
-- [ ] **Task 3 — Worker: data quality metric**
-  - [ ] Register data quality as a registry metric whose requirement is the profile's
+- [x] **Task 3 — Worker: data quality metric**
+  - [x] Register data quality as a registry metric whose requirement is the profile's
         feature summaries: per-feature missing rate, type-mismatch rate, numeric
         range-violation rate (against reference min/max), and unseen-category rate
         (against reference categories), with alerts.
-  - [ ] Skip cleanly when no profile is available (requirement unmet).
-  - [ ] Tests: invalid inputs (missing, wrong type, out-of-range, unseen category)
+  - [x] Skip cleanly when no profile is available (requirement unmet).
+  - [x] Tests: invalid inputs (missing, wrong type, out-of-range, unseen category)
         produce the expected rates and alerts; no profile → skipped.
 
 - [ ] **Task 4 — Worker: feature drift and output drift metrics (PSI)**
