@@ -502,12 +502,12 @@ The reference profile these tasks consume is produced by the SDK per
   - [x] Tests: shifted inputs/outputs cross the PSI thresholds and raise alerts;
         stable data stays normal; unseen categories contribute to feature PSI.
 
-- [ ] **Task 5 — Worker: multivariate drift metric (PCA reconstruction error)**
-  - [ ] Register multivariate drift as a registry metric (requires the PCA profile):
+- [x] **Task 5 — Worker: multivariate drift metric (PCA reconstruction error)**
+  - [x] Register multivariate drift as a registry metric (requires the PCA profile):
         for the live window, standardize numerical features with the stored scaler,
         project and reconstruct via the stored PCA, compute mean reconstruction error,
         and alert when it exceeds the reference mean by more than 3 standard deviations.
-  - [ ] Skip cleanly when the PCA profile or required numerical features are missing
+  - [x] Skip cleanly when the PCA profile or required numerical features are missing
         (requirement unmet).
-  - [ ] Tests: a joint/correlation shift that univariate drift misses is caught by the
+  - [x] Tests: a joint/correlation shift that univariate drift misses is caught by the
         reconstruction-error threshold; in-distribution data stays normal.

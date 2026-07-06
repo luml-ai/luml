@@ -15,6 +15,7 @@ from agent.monitoring.models import (
     TimeWindow,
     worst_severity,
 )
+from agent.monitoring.multivariate_drift import MultivariateDriftMetric
 from agent.monitoring.output_drift import OutputDriftMetric
 from agent.monitoring.registry import MetricRegistry, default_registry
 from agent.monitoring.runtime_health import RuntimeHealthMetric
@@ -39,6 +40,7 @@ __all__ = [
     "MonitoredDeployment",
     "MonitoringStore",
     "MonitoringWorker",
+    "MultivariateDriftMetric",
     "OutputDriftMetric",
     "QualityThreshold",
     "RuntimeHealthMetric",
