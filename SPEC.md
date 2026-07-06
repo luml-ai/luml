@@ -25,10 +25,10 @@ profile and the Monitoring Worker that computes metrics from it.
 
 Three pieces:
 
-- **SDK** generates a **reference profile** from the model's training dataset at
-  packaging time (per-feature statistics and distributions, an output distribution,
-  and a PCA profile for multivariate monitoring) and embeds it in the model artifact.
-  The user only passes the training data; the SDK computes everything.
+- The **reference profile** is produced by the SDK from the model's training dataset
+  at packaging and shipped in the model artifact. Its generation is specified
+  separately in `spec_sdk_reference_profile.md`; this spec treats the profile as an
+  input.
 - **Satellite** loads the reference profile from the artifact when it deploys the
   model, and keeps it available for that deployment.
 - **Monitoring Worker** — one shared per-Satellite background worker — periodically
@@ -49,8 +49,8 @@ work); the dashboard, Query API, and UI (a later slice).
 ## Why this approach
 
 - The **training dataset is the natural baseline** — it defines what "normal" inputs
-  and outputs are. Generating the profile in the SDK means the user does not hand-author
-  statistics.
+  and outputs are. The SDK produces the profile from it (separate spec), so the worker
+  only reads and compares.
 - A **shared, off-path worker** keeps expensive calculations away from inference, so
   it can never slow down or break serving (consistent with part 1's best-effort rule).
 - It **reuses part 1's collected data** as its only source, so no new collection is
@@ -65,18 +65,16 @@ work); the dashboard, Query API, and UI (a later slice).
 
 In scope:
 
-- SDK generation of the reference profile from the training dataset, embedded in the
-  model artifact
 - Satellite loading of the reference profile at deploy time
 - a per-Satellite Monitoring Worker that computes, per monitored deployment and time
   window: runtime health, data quality, feature drift, output drift, multivariate
   drift
 - materialized results and alert state, in a read-ready shape
 
-Out of scope: realized performance and delayed targets; Query API, dashboard, and UI;
-alert delivery to external channels; task types beyond the classical-ML tabular case
-(regression and classification are covered; the profile/worker are structured so more
-can be added later).
+Out of scope: generation of the reference profile in the SDK; realized performance and delayed targets; Query API,
+dashboard, and UI; alert delivery to external channels; task types beyond the
+classical-ML tabular case (regression and classification are covered; the
+profile/worker are structured so more can be added later).
 
 ## Building on part 1
 
@@ -106,12 +104,13 @@ This slice adds two new stored datasets in GreptimeDB:
 
 ## Reference profile (the contract)
 
-The reference profile is the data contract between the SDK (producer) and the worker
-(consumer). The **user passes the training data** at packaging (the reference
-dataset, the model, and the task type); the **SDK computes the whole profile** and
-embeds it in the artifact. The user never writes it by hand.
+The reference profile is the input the worker reads for each deployment. It is
+**produced by the SDK** from the model's training data and shipped in the artifact —
+its generation will implemented later. The worker only reads
+it. This section documents the shape the worker relies on.
 
-The profile has three parts.
+The profile carries a `task_type` (`regression` | `classification`) and a
+`profile_status` (`ready` | `placeholder`), plus three parts.
 
 ### Per-feature summaries
 
@@ -169,6 +168,68 @@ univariate drift and data quality but not in the multivariate metric.
 
 The profile status is marked so a placeholder (missing or not yet regenerated)
 profile can be surfaced rather than trusted.
+
+### Example
+
+A concrete example the worker parses (regression model, two numerical and two
+categorical features). The full contract and generation live in
+`spec_sdk_reference_profile.md`; this example is kept here for implementation
+accuracy.
+
+```json
+{
+  "task_type": "regression",
+  "profile_status": "ready",
+  "feature_summaries": {
+    "numerical_features": {
+      "age": {
+        "position": 1,
+        "mean": 35.2, "std": 12.5, "min": 18, "max": 75,
+        "quantiles": {"q05": 20, "q25": 25, "q50": 34, "q75": 45, "q95": 65},
+        "bin_edges": [18, 25, 35, 45, 55, 65, 75],
+        "bin_centres": [21.5, 30, 40, 50, 60, 70],
+        "frequencies": [5, 15, 40, 25, 10, 5],
+        "probabilities": [0.05, 0.15, 0.40, 0.25, 0.10, 0.05],
+        "count": 100, "missing": 0
+      }
+    },
+    "categorical_features": {
+      "region": {
+        "position": 3,
+        "categories": ["north", "south", "east", "west"],
+        "frequencies": [25, 25, 25, 25],
+        "probabilities": {"north": 0.25, "south": 0.25, "east": 0.25, "west": 0.25},
+        "count": 100, "missing": 0, "n_unique": 4
+      }
+    }
+  },
+  "output_summary": {
+    "type": "numerical",
+    "summary": {
+      "mean": 51230.0, "std": 14800.0, "min": 21000, "max": 118000,
+      "quantiles": {"q05": 26000, "q25": 40500, "q50": 50500, "q75": 64000, "q95": 99000},
+      "bin_edges": [21000, 40000, 60000, 80000, 100000, 118000],
+      "bin_centres": [30500, 50000, 70000, 90000, 109000],
+      "frequencies": [12, 33, 34, 14, 7],
+      "probabilities": [0.12, 0.33, 0.34, 0.14, 0.07],
+      "count": 100, "missing": 0
+    }
+  },
+  "pca_profile": {
+    "scaler": {"mean_": [35.2, 52000], "scale_": [12.5, 15000], "var_": [156.25, 225000000], "n_features": 2},
+    "pca": {
+      "n_components": 2, "n_features": 2,
+      "components": [[0.8, 0.6], [-0.6, 0.8]],
+      "mean_": [0.0, 0.0],
+      "feature_names": ["age", "income"]
+    },
+    "reconstruction_error_reference": {"mean": 0.42, "std": 0.08, "n_chunks": 10}
+  }
+}
+```
+
+For a classification model, `task_type` is `classification` and `output_summary` is
+categorical (predicted-class proportions).
 
 ## The Monitoring Worker
 
@@ -289,14 +350,6 @@ resolves it when the metric returns to normal.
 
 # Scenarios
 
-## Scenario: SDK generates the reference profile from training data
-**Given** a user packaging a classical-ML model and passing the training dataset and
-task type
-**When** the model is packaged
-**Then** the artifact contains a reference profile with per-feature summaries, an
-output summary, and a PCA profile, all computed from the training data, and the user
-did not hand-author any of it.
-
 ## Scenario: Satellite loads the profile at deploy
 **Given** a model artifact that contains a reference profile
 **When** the Satellite deploys the model
@@ -353,31 +406,17 @@ is retried next interval.
 
 # Tasks
 
-- [ ] **Task 1 — SDK: generate the reference profile from training data**
-  - [ ] At packaging, accept the training dataset (reference data), the model, and the
-        task type, and compute per-feature summaries (numerical: stats, quantiles,
-        histogram bins and probabilities, missing; categorical: categories,
-        frequencies, probabilities, n_unique, missing).
-  - [ ] Compute the output summary by running the model on the training data and
-        summarizing predictions (numerical for regression, categorical for
-        classification).
-  - [ ] Fit a scaler and PCA on the numerical features and record the reconstruction
-        error reference (mean and std over training chunks) plus the scaler and PCA
-        parameters.
-  - [ ] Embed the assembled reference profile in the model artifact, marked with a
-        profile status.
-  - [ ] Tests: the profile is produced and embedded for a regression and a
-        classification model; feature/output summaries and PCA parts are present and
-        internally consistent (probabilities sum to ~1, bin arrays aligned).
+The reference profile these tasks consume is produced by the SDK per
+`spec_sdk_reference_profile.md`; that work is not part of these tasks.
 
-- [ ] **Task 2 — Satellite: load the reference profile at deploy**
+- [ ] **Task 1 — Satellite: load the reference profile at deploy**
   - [ ] Read the reference profile from the artifact on the deploy path and store it
         on the deployment record alongside the existing schema/manifest.
   - [ ] Treat a missing or placeholder profile as "no profile" rather than an error.
   - [ ] Tests: profile loaded and available for a deployment that has one; deployment
         without a profile still deploys and is marked as having no profile.
 
-- [ ] **Task 3 — Monitoring Worker foundation + runtime health**
+- [ ] **Task 2 — Monitoring Worker foundation + runtime health**
   - [ ] Add a shared per-Satellite worker loop that wakes on an interval and, for each
         monitored deployment, processes the latest completed window; deployment-scoped,
         off the inference path, best-effort.
@@ -389,7 +428,7 @@ is retried next interval.
         alerts are materialized; alert opens and later resolves; a storage failure
         skips the window without affecting inference.
 
-- [ ] **Task 4 — Worker: data quality**
+- [ ] **Task 3 — Worker: data quality**
   - [ ] Compute per-feature missing rate, type-mismatch rate, numeric range-violation
         rate (against reference min/max), and unseen-category rate (against reference
         categories), with alerts.
@@ -397,7 +436,7 @@ is retried next interval.
   - [ ] Tests: invalid inputs (missing, wrong type, out-of-range, unseen category)
         produce the expected rates and alerts; no profile → skipped.
 
-- [ ] **Task 5 — Worker: feature drift and output drift (PSI)**
+- [ ] **Task 4 — Worker: feature drift and output drift (PSI)**
   - [ ] Compute univariate PSI per input feature against the reference distributions
         (numerical via reference bins, categorical via reference proportions) with
         severity thresholds.
@@ -406,7 +445,7 @@ is retried next interval.
   - [ ] Tests: shifted inputs/outputs cross the PSI thresholds and raise alerts;
         stable data stays normal; unseen categories contribute to feature PSI.
 
-- [ ] **Task 6 — Worker: multivariate drift (PCA reconstruction error)**
+- [ ] **Task 5 — Worker: multivariate drift (PCA reconstruction error)**
   - [ ] For the live window, standardize numerical features with the stored scaler,
         project and reconstruct via the stored PCA, compute mean reconstruction error,
         and alert when it exceeds the reference mean by more than 3 standard
