@@ -459,11 +459,11 @@ is retried next interval.
 The reference profile these tasks consume is produced by the SDK per
 `spec_sdk_reference_profile.md`; that work is not part of these tasks.
 
-- [ ] **Task 1 — Satellite: load the reference profile at deploy**
-  - [ ] Read the reference profile from the artifact on the deploy path and store it
+- [x] **Task 1 — Satellite: load the reference profile at deploy**
+  - [x] Read the reference profile from the artifact on the deploy path and store it
         on the deployment record alongside the existing schema/manifest.
-  - [ ] Treat a missing or placeholder profile as "no profile" rather than an error.
-  - [ ] Tests: profile loaded and available for a deployment that has one; deployment
+  - [x] Treat a missing or placeholder profile as "no profile" rather than an error.
+  - [x] Tests: profile loaded and available for a deployment that has one; deployment
         without a profile still deploys and is marked as having no profile.
 
 - [ ] **Task 2 — Monitoring Worker engine (registry + selection) + runtime health**

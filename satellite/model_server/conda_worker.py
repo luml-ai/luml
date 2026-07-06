@@ -100,6 +100,20 @@ try:
                 status_code=500, detail=f"Failed to get manifest: {str(error)}"
             ) from error
 
+    @app.get(
+        "/reference_profile",
+        summary="Get Reference Profile",
+        description="Returns the monitoring reference profile shipped in the model artifact",
+        tags=["model"],
+    )
+    async def get_reference_profile() -> dict[str, Any]:  # noqa: ANN401
+        try:
+            return model_data.get("reference_profile") or {}
+        except Exception as error:
+            raise HTTPException(
+                status_code=500, detail=f"Failed to get reference profile: {str(error)}"
+            ) from error
+
     def _extract_upstream_status(error: BaseException) -> tuple[int, str] | None:
         response = getattr(error, "response", None)
         if response is not None:
