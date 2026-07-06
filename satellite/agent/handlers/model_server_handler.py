@@ -7,6 +7,8 @@ from uuid import UUID
 from agent._exceptions import ContainerNotFoundError, ContainerNotRunningError
 from agent.clients import ModelServerClient, ModelServerError, PlatformClient
 from agent.clients.docker_client import DockerService
+from agent.monitoring.instrumentation import InferenceInstrumentation
+from agent.monitoring.telemetry import TelemetrySetup
 from agent.schemas import (
     Deployment,
     DeploymentStatus,
@@ -20,12 +22,20 @@ logger = logging.getLogger(__name__)
 
 
 class ModelServerHandler:
-    def __init__(self) -> None:
+    def __init__(self, telemetry: TelemetrySetup | None = None) -> None:
         self.deployments: dict[str, LocalDeployment] = {}
-        self._openapi_cache_invalidation_callbacks = []
+        self._openapi_cache_invalidation_callbacks: list[Callable] = []
+        self._telemetry = telemetry
+        self._instrumentation: InferenceInstrumentation | None = None
+        if telemetry and telemetry.active:
+            self._instrumentation = InferenceInstrumentation(telemetry)
 
     async def add_single_deployment(
-        self, deployment_id: str, dynamic_attributes_secrets: dict[str, str] | None
+        self,
+        deployment_id: str,
+        dynamic_attributes_secrets: dict[str, str] | None,
+        *,
+        monitoring_enabled: bool = False,
     ) -> None:
         manifest = None
         openapi_schema = None
@@ -43,10 +53,29 @@ class ModelServerHandler:
             dynamic_attributes_secrets=dynamic_attributes_secrets,
             manifest=manifest,
             openapi_schema=openapi_schema,
+            monitoring_enabled=monitoring_enabled,
         )
 
+    @staticmethod
+    def _read_monitoring_enabled(satellite_parameters: dict[str, bool | int | str] | None) -> bool:
+        if not satellite_parameters:
+            return False
+        value = satellite_parameters.get("monitoring_enabled")
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value != 0
+        if isinstance(value, str):
+            return value.strip().lower() in {"true", "1", "yes", "on"}
+        return False
+
     async def add_deployment(self, deployment: Deployment) -> None:
-        await self.add_single_deployment(deployment.id, deployment.dynamic_attributes_secrets)
+        monitoring_enabled = self._read_monitoring_enabled(deployment.satellite_parameters)
+        await self.add_single_deployment(
+            deployment.id,
+            deployment.dynamic_attributes_secrets,
+            monitoring_enabled=monitoring_enabled,
+        )
         self._invalidate_openapi_cache()
 
     async def remove_deployment(self, deployment_id: UUID) -> None:
@@ -114,7 +143,14 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
-                    await self.add_single_deployment(dep_id, dep.get("dynamic_attributes_secrets"))
+                    monitoring_enabled = self._read_monitoring_enabled(
+                        dep.get("satellite_parameters")
+                    )
+                    await self.add_single_deployment(
+                        dep_id,
+                        dep.get("dynamic_attributes_secrets"),
+                        monitoring_enabled=monitoring_enabled,
+                    )
                 else:
                     logs = ""
                     with suppress(Exception):
@@ -178,22 +214,50 @@ class ModelServerHandler:
 
         return compute_dynamic_atr | missing_secrets
 
-    async def model_compute(self, deployment_id: str, body: dict) -> dict:
+    async def model_compute(self, deployment_id: str, body: dict) -> tuple[dict, str | None]:
         deployment = await self.get_deployment(deployment_id)
         if not deployment:
             raise ValueError(f"Deployment {deployment_id} not found")
+
+        safe_inputs: dict[str, Any] | None = None
+        should_instrument = deployment.monitoring_enabled and self._instrumentation is not None
+
+        if should_instrument:
+            safe_inputs = _extract_safe_inputs(body, deployment)
 
         body["dynamic_attributes"] = await self.get_compute_missing_secrets(
             deployment, body.get("dynamic_attributes") or {}
         )
 
+        if should_instrument:
+            assert self._instrumentation is not None
+
+            async def _forward(*, extra_headers: dict[str, str] | None = None) -> dict:
+                try:
+                    async with ModelServerClient() as client:
+                        return await client.compute(
+                            deployment_id, body, extra_headers=extra_headers
+                        )
+                except ModelServerError:
+                    raise
+                except Exception as e:
+                    raise RuntimeError(f"Model server request failed: {str(e)}") from e
+
+            result, event_id = await self._instrumentation.instrumented_compute(
+                deployment_id=deployment_id,
+                safe_inputs=safe_inputs,
+                forward_fn=_forward,
+            )
+            return result, event_id
+
         try:
             async with ModelServerClient() as client:
-                return await client.compute(deployment_id, body)
+                result = await client.compute(deployment_id, body)
         except ModelServerError:
             raise
         except Exception as e:
             raise RuntimeError(f"Model server request failed: {str(e)}") from e
+        return result, None
 
     async def get_deployment_schemas(self, deployment_id) -> dict[str, Any] | None:  # noqa ANN101
         logger.info(f"[get_deployment_schemas] Starting for deployment_id='{deployment_id}'...")
@@ -224,3 +288,26 @@ class ModelServerHandler:
         for callback in self._openapi_cache_invalidation_callbacks:
             with suppress(Exception):
                 callback()
+
+
+def _extract_safe_inputs(body: dict, deployment: LocalDeployment) -> dict[str, Any] | None:
+    """Capture the model input payload for monitoring, excluding secret-backed attributes.
+
+    The model input payload (``body["inputs"]``) is required for data quality and feature
+    drift, so it is recorded verbatim. Dynamic attributes are recorded too, but keys backed
+    by secrets are dropped so secret values never reach local telemetry.
+    """
+    safe: dict[str, Any] = {}
+
+    model_inputs = body.get("inputs")
+    if model_inputs is not None:
+        safe["inputs"] = model_inputs
+
+    dynamic_attrs = body.get("dynamic_attributes")
+    if dynamic_attrs is not None:
+        secret_keys = set(deployment.dynamic_attributes_secrets or {})
+        safe["dynamic_attributes"] = {
+            k: v for k, v in dynamic_attrs.items() if k not in secret_keys
+        }
+
+    return safe or None

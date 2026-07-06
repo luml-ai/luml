@@ -67,7 +67,7 @@ class DeploymentOrm(TimestampMixin, Base):
     env_variables: Mapped[dict[str, str]] = mapped_column(
         postgresql.JSONB, nullable=False, default=dict, server_default="{}"
     )
-    satellite_parameters: Mapped[dict[str, int | str]] = mapped_column(
+    satellite_parameters: Mapped[dict[str, bool | int | str]] = mapped_column(
         postgresql.JSONB, nullable=False, default=dict, server_default="{}"
     )
     schemas: Mapped[dict[str, Any]] = mapped_column(

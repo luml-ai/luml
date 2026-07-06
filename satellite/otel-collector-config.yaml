@@ -1,0 +1,55 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+
+exporters:
+  otlphttp/traces:
+    endpoint: "http://greptimedb:4000/v1/otlp"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+      x-greptime-trace-table-name: otel_traces
+
+  otlphttp/events:
+    endpoint: "http://greptimedb:4000/v1/otlp"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+      x-greptime-trace-table-name: inference_events
+
+  otlphttp/metrics:
+    endpoint: "http://greptimedb:4000/v1/otlp"
+    tls:
+      insecure: true
+    headers:
+      x-greptime-db-name: public
+
+processors:
+  filter/traces_main:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] == "satellite-agent.events"'
+  filter/traces_events:
+    error_mode: ignore
+    traces:
+      span:
+        - 'resource.attributes["service.name"] != "satellite-agent.events"'
+
+service:
+  pipelines:
+    traces/main:
+      receivers: [otlp]
+      processors: [filter/traces_main]
+      exporters: [otlphttp/traces]
+    traces/events:
+      receivers: [otlp]
+      processors: [filter/traces_events]
+      exporters: [otlphttp/events]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/metrics]

@@ -7,7 +7,7 @@ from agent.settings import config
 class SatelliteManager:
     def __init__(self, platform: PlatformClient) -> None:
         self.platform = platform
-        self.slug = "docker-2026.01-v1-debian12"
+        self.slug = "docker-2026.01-v2-debian12"
 
     async def pair(self) -> None:
         await self.platform.pair_satellite(
@@ -21,8 +21,20 @@ class SatelliteManager:
                 "version": 1,
                 "supported_variants": ["pyfunc", "pipeline"],
                 "supported_tags_combinations": None,
-                "extra_fields_form_spec": None,
-            }
+                "extra_fields_form_spec": [
+                    {
+                        "name": "monitoring_enabled",
+                        "type": "boolean",
+                        "values": None,
+                        "required": False,
+                        "validators": [],
+                        "conditions": [],
+                    }
+                ],
+            },
+            "monitoring": {
+                "version": 1,
+            },
         }
 
     @staticmethod
