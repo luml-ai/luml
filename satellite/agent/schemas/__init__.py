@@ -8,6 +8,7 @@ from agent.schemas.deployments import (
     InferenceAccessOut,
     LocalDeployment,
     Secret,
+    usable_reference_profile,
 )
 from agent.schemas.task import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
 
@@ -24,4 +25,5 @@ __all__ = [
     "InferenceAccessIn",
     "InferenceAccessOut",
     "Healthz",
+    "usable_reference_profile",
 ]

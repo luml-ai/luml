@@ -36,3 +36,7 @@ jobs:
       - name: Lint with Ruff
         working-directory: satellite
         run: uv run ruff check agent model_server
+
+      - name: Run tests
+        working-directory: satellite
+        run: uv run pytest
