@@ -538,13 +538,13 @@ are treated here as existing inputs.
         its shift/variance/projection values; placeholder profile degrades gracefully;
         missing results yield the empty shape.
 
-- [ ] **Task 6 — Satellite Query API: Alerts + Traces**
-  - [ ] Add the read-only **Alerts** endpoint grouped by metric group (runtime, data
+- [x] **Task 6 — Satellite Query API: Alerts + Traces**
+  - [x] Add the read-only **Alerts** endpoint grouped by metric group (runtime, data
         quality, feature drift) from `monitoring_alerts`, and the local **Traces** endpoint
         (paginated recent `inference_events`).
-  - [ ] Ensure the Traces endpoint is reachable only via the same-origin session and is
+  - [x] Ensure the Traces endpoint is reachable only via the same-origin session and is
         never exposed for Platform proxying.
-  - [ ] Tests: Alerts are read-only and correctly grouped/filtered by severity; Traces
+  - [x] Tests: Alerts are read-only and correctly grouped/filtered by severity; Traces
         paginate and are session-scoped.
 
 - [ ] **Task 7 — Satellite Monitoring UI: shell, header, controls, Overview**
