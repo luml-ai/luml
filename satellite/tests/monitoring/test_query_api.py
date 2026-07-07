@@ -9,6 +9,7 @@ from agent.monitoring import (
     MonitoringSessionStore,
     ReferenceFeatureProfile,
     ReferenceProfile,
+    StoredAlert,
     StoredMetricResult,
 )
 from agent.schemas.monitoring import MONITORING_READ_SCOPE, MonitoringIntrospection
@@ -41,6 +42,8 @@ async def test_missing_session_is_unauthorized() -> None:
         "/data-quality",
         "/feature-drift",
         "/reference-profile",
+        "/alerts",
+        "/traces",
     )
     async with client_for(app) as client:
         for path in paths:
@@ -180,6 +183,124 @@ async def test_invalid_window_is_rejected() -> None:
         resp = await client.get(
             "/monitoring/api/overview",
             params={"window": "99y"},
+            headers=_cookie(session.session_id),
+        )
+
+    assert resp.status_code == 422
+
+
+async def test_alerts_endpoint_is_read_only() -> None:
+    dep = uuid.uuid4()
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=InMemoryMonitoringStore())
+
+    async with client_for(app) as client:
+        get = await client.get("/monitoring/api/alerts", headers=_cookie(session.session_id))
+        post = await client.post("/monitoring/api/alerts", headers=_cookie(session.session_id))
+
+    assert get.status_code == 200
+    assert post.status_code == 405  # no acknowledge/resolve — read-only in this slice
+
+
+async def test_alerts_endpoint_grouped_and_scoped_to_session() -> None:
+    dep_a, dep_b = uuid.uuid4(), uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_alert(
+        StoredAlert(
+            deployment_id=dep_a,
+            group="runtime",
+            metric="error_rate",
+            severity="critical",
+            current_value=0.44,
+            threshold=0.1,
+            last_seen=ago(60),
+        )
+    )
+    store.add_alert(
+        StoredAlert(
+            deployment_id=dep_b,
+            group="feature_drift",
+            metric="psi",
+            feature="income",
+            severity="warning",
+            last_seen=ago(60),
+        )
+    )
+    sessions = MonitoringSessionStore()
+    session_a = sessions.create(dep_a, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store)
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/alerts",
+            params={"deployment_id": str(dep_b)},  # A's session must ignore this
+            headers=_cookie(session_a.session_id),
+        )
+
+    body = resp.json()
+    assert [g["group"] for g in body["groups"]] == ["runtime"]  # only deployment A's alert
+    assert body["groups"][0]["alerts"][0]["metric"] == "error_rate"
+
+
+async def test_alerts_endpoint_filters_by_severity() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_alert(
+        StoredAlert(deployment_id=dep, group="runtime", metric="error_rate", severity="critical")
+    )
+    store.add_alert(
+        StoredAlert(deployment_id=dep, group="data_quality", metric="missing", severity="warning")
+    )
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store)
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/alerts",
+            params={"severity": "critical"},
+            headers=_cookie(session.session_id),
+        )
+
+    body = resp.json()
+    assert [g["group"] for g in body["groups"]] == ["runtime"]  # warning group filtered out
+
+
+async def test_traces_endpoint_paginates_and_is_session_scoped() -> None:
+    dep_a, dep_b = uuid.uuid4(), uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for _ in range(5):
+        store.add_event(_event(dep_a))
+    store.add_event(_event(dep_b))  # must not appear under A's session
+
+    sessions = MonitoringSessionStore()
+    session_a = sessions.create(dep_a, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=store, clock=lambda: FIXED_NOW)
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/traces",
+            params={"limit": 2, "offset": 0, "deployment_id": str(dep_b)},  # dep_b ignored
+            headers=_cookie(session_a.session_id),
+        )
+
+    body = resp.json()
+    assert body["total"] == 5  # deployment A only, not B
+    assert len(body["rows"]) == 2
+    assert body["limit"] == 2 and body["offset"] == 0
+
+
+async def test_traces_endpoint_rejects_invalid_pagination() -> None:
+    dep = uuid.uuid4()
+    sessions = MonitoringSessionStore()
+    session = sessions.create(dep, MONITORING_READ_SCOPE)
+    app = build_app(_INACTIVE, session_store=sessions, data_store=InMemoryMonitoringStore())
+
+    async with client_for(app) as client:
+        resp = await client.get(
+            "/monitoring/api/traces",
+            params={"limit": 0},  # below the ge=1 bound
             headers=_cookie(session.session_id),
         )
 

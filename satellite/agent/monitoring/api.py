@@ -1,9 +1,15 @@
-from fastapi import Depends, Request
+from fastapi import Depends, Query, Request
 from fastapi.routing import APIRouter
 
-from agent.monitoring.query import MonitoringQueryService, QueryDimensions
+from agent.monitoring.query import (
+    TRACES_DEFAULT_LIMIT,
+    TRACES_MAX_LIMIT,
+    MonitoringQueryService,
+    QueryDimensions,
+)
 from agent.monitoring.session import MonitoringSession, require_monitoring_session
 from agent.schemas.monitoring_query import (
+    AlertsResponse,
     Compare,
     DataQualityResponse,
     FeatureDriftResponse,
@@ -13,6 +19,7 @@ from agent.schemas.monitoring_query import (
     ReferenceProfileResponse,
     RuntimeResponse,
     SeverityFilter,
+    TracesResponse,
     Window,
 )
 
@@ -88,5 +95,23 @@ def build_query_router() -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> ReferenceProfileResponse:
         return await service.reference_profile(session.deployment_id, dims)
+
+    @router.get("/alerts", response_model=AlertsResponse)
+    async def alerts(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> AlertsResponse:
+        return await service.alerts(session.deployment_id, dims)
+
+    @router.get("/traces", response_model=TracesResponse)
+    async def traces(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        limit: int = Query(TRACES_DEFAULT_LIMIT, ge=1, le=TRACES_MAX_LIMIT),
+        offset: int = Query(0, ge=0),
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> TracesResponse:
+        return await service.traces(session.deployment_id, dims, limit=limit, offset=offset)
 
     return router
