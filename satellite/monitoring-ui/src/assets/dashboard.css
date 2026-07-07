@@ -1,0 +1,63 @@
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--luml-bg);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.dashboard {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: var(--luml-space-8) var(--luml-space-6) var(--luml-space-10);
+  display: flex;
+  flex-direction: column;
+  gap: var(--luml-space-5);
+}
+
+.card {
+  background: var(--luml-bg-card);
+  border: 1px solid var(--luml-border);
+  border-radius: var(--luml-radius-lg);
+  box-shadow: var(--luml-shadow-card);
+  padding: var(--luml-space-5);
+}
+
+.section-title {
+  font-size: var(--luml-text-lg);
+  font-weight: 600;
+  color: var(--luml-fg-strong);
+  margin: 0;
+}
+
+.section-subtitle {
+  font-size: var(--luml-caption-size);
+  color: var(--luml-fg-muted);
+  margin: 2px 0 0;
+}
+
+.eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--luml-fg-muted);
+}
+
+.mono {
+  font-family: var(--luml-font-mono);
+}
+
+.grid {
+  display: grid;
+  gap: var(--luml-space-4);
+}

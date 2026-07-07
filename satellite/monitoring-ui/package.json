@@ -1,0 +1,29 @@
+{
+  "name": "@luml/satellite-monitoring-ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Satellite-hosted monitoring dashboard SPA, served by the Agent into the Platform iframe.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "apexcharts": "^5.10.6",
+    "lucide-vue-next": "^0.460.0",
+    "vue": "^3.5.12",
+    "vue3-apexcharts": "^1.8.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.3",
+    "@vue/test-utils": "^2.4.6",
+    "jsdom": "^27.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^6.4.1",
+    "vitest": "^3.2.4",
+    "vue-tsc": "^2.1.10"
+  }
+}
