@@ -490,17 +490,17 @@ are treated here as existing inputs.
         claims and expires; single-use enforced (second introspection rejected); eligibility
         reflects mode + capability.
 
-- [ ] **Task 2 — Platform frontend: deployment detail + Monitoring tab + iframe**
-  - [ ] Add a deployment detail context/route keyed by `deploymentId` with a Monitoring
+- [x] **Task 2 — Platform frontend: deployment detail + Monitoring tab + iframe**
+  - [x] Add a deployment detail context/route keyed by `deploymentId` with a Monitoring
         tab (breadcrumb `org / orbit / Deployments / Monitoring`), reusing the Platform
         shell.
-  - [ ] Add the API module + store to mint the launch token and read eligibility, and
+  - [x] Add the API module + store to mint the launch token and read eligibility, and
         render a **full-bleed iframe** at `{satellite.base_url}/monitoring/launch?token=…`
         as the tab's entire content — no Platform-rendered monitoring header, window
         toggle, or sub-tabs (all of that is Satellite-served inside the iframe).
-  - [ ] Implement the disabled (off / no capability), unavailable (Satellite unreachable /
+  - [x] Implement the disabled (off / no capability), unavailable (Satellite unreachable /
         launch failed), and loading states, plus a re-launch action on session expiry.
-  - [ ] Tests: disabled state for `off` / missing capability; unavailable state when the
+  - [x] Tests: disabled state for `off` / missing capability; unavailable state when the
         launch URL fails; active state renders the iframe with a freshly minted token.
 
 - [ ] **Task 3 — Satellite: launch validation, dashboard session, embedding, hosting**

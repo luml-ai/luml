@@ -214,6 +214,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/organization/:organizationId/orbit/:id/deployments/:deploymentId/monitoring',
+      name: 'deployment-monitoring',
+      component: () => import('../pages/DeploymentMonitoringPage.vue'),
+      meta: {
+        requireAuth: true,
+        orbitMiddleware: true,
+      },
+    },
+    {
       path: '/notebooks',
       name: 'notebooks',
       component: () => import('../pages/NotebooksPage.vue'),
