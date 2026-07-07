@@ -24,6 +24,7 @@ from agent.monitoring.models import (
 )
 from agent.monitoring.multivariate_drift import MultivariateDriftMetric
 from agent.monitoring.output_drift import OutputDriftMetric
+from agent.monitoring.query import MonitoringQueryService, QueryDimensions
 from agent.monitoring.registry import MetricRegistry, default_registry
 from agent.monitoring.runtime_health import RuntimeHealthMetric
 from agent.monitoring.session import (
@@ -56,6 +57,7 @@ __all__ = [
     "MetricRegistry",
     "MetricResult",
     "MonitoredDeployment",
+    "MonitoringQueryService",
     "MonitoringSession",
     "MonitoringSessionStore",
     "MonitoringStore",
@@ -63,6 +65,7 @@ __all__ = [
     "MultivariateDriftMetric",
     "OutputDriftMetric",
     "QualityThreshold",
+    "QueryDimensions",
     "RuntimeHealthMetric",
     "Severity",
     "TelemetrySetup",

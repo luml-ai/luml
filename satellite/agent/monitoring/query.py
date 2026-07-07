@@ -1,0 +1,397 @@
+"""Chart-ready read logic for the Monitoring Query API.
+
+Turns the store's rows into already-aggregated, render-ready contracts — the UI does no
+metric math. ``deployment_id`` always comes from the caller (the dashboard session), never
+from client input.
+"""
+
+import math
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from time import time
+from uuid import UUID
+
+from agent.monitoring.query_store import (
+    EventStatus,
+    InferenceEvent,
+    MonitoringStore,
+    MonitoringStoreUnavailable,
+    StoredAlert,
+)
+from agent.schemas.monitoring_query import (
+    AlertBanner,
+    Card,
+    Compare,
+    DataQualityFeatureRow,
+    DataQualityResponse,
+    DriftedFeature,
+    Granularity,
+    HeaderResponse,
+    OverviewResponse,
+    ProfileStatus,
+    RuntimeResponse,
+    SectionState,
+    Series,
+    SeriesPoint,
+    Severity,
+    SeverityFilter,
+    Window,
+)
+
+GROUP_RUNTIME = "runtime"
+GROUP_DATA_QUALITY = "data_quality"
+GROUP_FEATURE_DRIFT = "feature_drift"
+
+_WINDOW_SECONDS: dict[Window, int] = {
+    Window.H24: 24 * 3600,
+    Window.D7: 7 * 24 * 3600,
+    Window.D30: 30 * 24 * 3600,
+}
+_AUTO_BUCKET_SECONDS: dict[Window, int] = {
+    Window.H24: 3600,
+    Window.D7: 6 * 3600,
+    Window.D30: 24 * 3600,
+}
+_BANNER_LIMIT = 5
+_TOP_DRIFTED_LIMIT = 5
+
+
+@dataclass(frozen=True)
+class QueryDimensions:
+    window: Window = Window.H24
+    compare: Compare = Compare.REFERENCE
+    severity: SeverityFilter = SeverityFilter.ALL
+    granularity: Granularity = Granularity.AUTO
+    feature: str | None = None
+
+
+@dataclass(frozen=True)
+class _Rollup:
+    request_count: int
+    success_count: int
+    error_count: int
+    timeout_count: int
+    failed_inference_count: int
+    error_rate: float
+    latency_p50_ms: float | None
+    latency_p95_ms: float | None
+    latency_max_ms: float | None
+
+
+def _percentile(values: list[float], pct: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    rank = max(1, math.ceil(pct / 100 * len(ordered)))
+    return ordered[min(rank, len(ordered)) - 1]
+
+
+def _rollup(events: list[InferenceEvent]) -> _Rollup:
+    total = len(events)
+    success = sum(1 for e in events if e.status == EventStatus.SUCCESS)
+    latencies = [e.latency_ms for e in events]
+    return _Rollup(
+        request_count=total,
+        success_count=success,
+        error_count=sum(1 for e in events if e.status == EventStatus.ERROR),
+        timeout_count=sum(1 for e in events if e.status == EventStatus.TIMEOUT),
+        failed_inference_count=sum(1 for e in events if e.status == EventStatus.FAILED_INFERENCE),
+        error_rate=(total - success) / total if total else 0.0,
+        latency_p50_ms=_percentile(latencies, 50),
+        latency_p95_ms=_percentile(latencies, 95),
+        latency_max_ms=max(latencies) if latencies else None,
+    )
+
+
+def _bucket_seconds(dims: QueryDimensions) -> int:
+    if dims.granularity is Granularity.HOUR:
+        bucket = 3600
+    elif dims.granularity is Granularity.DAY:
+        bucket = 24 * 3600
+    else:
+        bucket = _AUTO_BUCKET_SECONDS[dims.window]
+    return min(bucket, _WINDOW_SECONDS[dims.window])
+
+
+def _runtime_series(
+    events: list[InferenceEvent], start: datetime, bucket_seconds: int, n_buckets: int
+) -> list[Series]:
+    buckets: list[list[InferenceEvent]] = [[] for _ in range(n_buckets)]
+    for event in events:
+        index = int((event.ts - start).total_seconds() // bucket_seconds)
+        buckets[min(max(index, 0), n_buckets - 1)].append(event)
+
+    stamps = [start + timedelta(seconds=i * bucket_seconds) for i in range(n_buckets)]
+    requests, error_rate, latency = [], [], []
+    for stamp, bucket in zip(stamps, buckets, strict=True):
+        count = len(bucket)
+        successes = sum(1 for e in bucket if e.status == EventStatus.SUCCESS)
+        requests.append(SeriesPoint(t=stamp, value=float(count)))
+        error_rate.append(
+            SeriesPoint(t=stamp, value=(count - successes) / count if count else None)
+        )
+        latency.append(SeriesPoint(t=stamp, value=_percentile([e.latency_ms for e in bucket], 95)))
+    return [
+        Series(key="requests", label="Requests", points=requests),
+        Series(key="error_rate", label="Error rate", unit="ratio", points=error_rate),
+        Series(key="latency_p95", label="Latency p95", unit="ms", points=latency),
+    ]
+
+
+def _severity_matches(severity: str, chosen: SeverityFilter) -> bool:
+    if chosen is SeverityFilter.ALL:
+        return True
+    return severity == chosen.value
+
+
+def _alert_banner(alert: StoredAlert) -> AlertBanner:
+    label = alert.feature or alert.metric
+    message = alert.message or (
+        f"{label} {alert.severity}: {alert.current_value} vs threshold {alert.threshold}"
+    )
+    return AlertBanner(
+        group=alert.group,
+        metric=alert.metric,
+        feature=alert.feature,
+        severity=Severity(alert.severity),
+        current_value=alert.current_value,
+        threshold=alert.threshold,
+        message=message,
+        first_seen=alert.first_seen,
+        last_seen=alert.last_seen,
+    )
+
+
+def _delta(current: float | None, previous: float | None) -> float | None:
+    if current is None or previous is None:
+        return None
+    return current - previous
+
+
+class MonitoringQueryService:
+    """Assembles the Query API contracts from a :class:`MonitoringStore`."""
+
+    def __init__(self, store: MonitoringStore, clock: Callable[[], float] = time) -> None:
+        self._store = store
+        self._clock = clock
+
+    def _window_bounds(self, window: Window) -> tuple[datetime, datetime]:
+        end = datetime.fromtimestamp(self._clock(), tz=UTC)
+        return end - timedelta(seconds=_WINDOW_SECONDS[window]), end
+
+    async def header(self, deployment_id: UUID) -> HeaderResponse:
+        try:
+            descriptor = await self._store.describe_deployment(deployment_id)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return HeaderResponse(state=SectionState.UNAVAILABLE, deployment_id=deployment_id)
+        if descriptor is None:
+            return HeaderResponse(
+                state=SectionState.EMPTY, deployment_id=deployment_id, profile_status=profile
+            )
+        return HeaderResponse(
+            state=SectionState.OK,
+            deployment_id=deployment_id,
+            name=descriptor.name,
+            status=descriptor.status,
+            task_type=descriptor.task_type,
+            model_name=descriptor.model_name,
+            environment=descriptor.environment,
+            satellite=descriptor.satellite,
+            inference_url=descriptor.inference_url,
+            last_prediction_at=descriptor.last_prediction_at,
+            last_monitored_at=descriptor.last_monitored_at,
+            profile_status=profile,
+        )
+
+    async def runtime(self, deployment_id: UUID, dims: QueryDimensions) -> RuntimeResponse:
+        try:
+            rollup, series = await self._runtime(deployment_id, dims)
+            alerts = await self._banners(deployment_id, dims.severity, group=GROUP_RUNTIME)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return RuntimeResponse(state=SectionState.UNAVAILABLE)
+        return RuntimeResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            request_count=rollup.request_count,
+            success_count=rollup.success_count,
+            error_count=rollup.error_count,
+            error_rate=rollup.error_rate,
+            latency_p50_ms=rollup.latency_p50_ms,
+            latency_p95_ms=rollup.latency_p95_ms,
+            latency_max_ms=rollup.latency_max_ms,
+            timeout_count=rollup.timeout_count,
+            failed_inference_count=rollup.failed_inference_count,
+            series=series,
+            alerts=alerts,
+        )
+
+    async def overview(self, deployment_id: UUID, dims: QueryDimensions) -> OverviewResponse:
+        try:
+            rollup, series = await self._runtime(deployment_id, dims)
+            previous = await self._previous_rollup(deployment_id, dims)
+            alerts = await self._store.fetch_alerts(deployment_id)
+            drift = await self._store.fetch_result(
+                deployment_id, GROUP_FEATURE_DRIFT, dims.window.value
+            )
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return OverviewResponse(state=SectionState.UNAVAILABLE)
+
+        matching = [a for a in alerts if _severity_matches(a.severity, dims.severity)]
+        criticals = [a for a in matching if a.severity == Severity.CRITICAL]
+        banners = [_alert_banner(a) for a in sorted(matching, key=_banner_order)][:_BANNER_LIMIT]
+
+        drifted = _drifted_features(drift.values if drift else {})
+        top_drifted = sorted(drifted, key=lambda d: d.psi, reverse=True)[:_TOP_DRIFTED_LIMIT]
+        drifted_names = [d.feature for d in drifted if d.severity is not Severity.OK]
+
+        return OverviewResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            cards=_overview_cards(rollup, previous, dims, matching, criticals, drifted_names),
+            alert_banners=banners,
+            series=series,
+            top_drifted_features=top_drifted,
+        )
+
+    async def data_quality(self, deployment_id: UUID, dims: QueryDimensions) -> DataQualityResponse:
+        try:
+            result = await self._store.fetch_result(
+                deployment_id, GROUP_DATA_QUALITY, dims.window.value
+            )
+            alerts = await self._banners(deployment_id, dims.severity, group=GROUP_DATA_QUALITY)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return DataQualityResponse(state=SectionState.UNAVAILABLE)
+        if result is None:
+            return DataQualityResponse(
+                state=SectionState.EMPTY, profile_status=profile, alerts=alerts
+            )
+        rows = _data_quality_rows(result.values, dims.feature)
+        return DataQualityResponse(
+            state=SectionState.OK, profile_status=profile, features=rows, alerts=alerts
+        )
+
+    async def _runtime(
+        self, deployment_id: UUID, dims: QueryDimensions
+    ) -> tuple[_Rollup, list[Series]]:
+        start, end = self._window_bounds(dims.window)
+        events = await self._store.fetch_events(deployment_id, start, end)
+        bucket = _bucket_seconds(dims)
+        n_buckets = math.ceil(_WINDOW_SECONDS[dims.window] / bucket)
+        return _rollup(events), _runtime_series(events, start, bucket, n_buckets)
+
+    async def _previous_rollup(self, deployment_id: UUID, dims: QueryDimensions) -> _Rollup | None:
+        if dims.compare is not Compare.PREVIOUS:
+            return None
+        _, current_start = self._window_bounds(dims.window)
+        duration = timedelta(seconds=_WINDOW_SECONDS[dims.window])
+        prev_start = current_start - 2 * duration
+        prev_end = current_start - duration
+        return _rollup(await self._store.fetch_events(deployment_id, prev_start, prev_end))
+
+    async def _banners(
+        self, deployment_id: UUID, severity: SeverityFilter, *, group: str
+    ) -> list[AlertBanner]:
+        alerts = await self._store.fetch_alerts(deployment_id)
+        return [
+            _alert_banner(a)
+            for a in sorted(alerts, key=_banner_order)
+            if a.group == group and _severity_matches(a.severity, severity)
+        ]
+
+    async def _profile_status(self, deployment_id: UUID) -> ProfileStatus:
+        raw = await self._store.profile_status(deployment_id)
+        return ProfileStatus.PLACEHOLDER if raw != ProfileStatus.READY else ProfileStatus.READY
+
+
+def _banner_order(alert: StoredAlert) -> tuple[int, float]:
+    rank = 0 if alert.severity == Severity.CRITICAL else 1
+    last_seen = alert.last_seen.timestamp() if alert.last_seen else 0.0
+    return rank, -last_seen
+
+
+def _drifted_features(values: dict) -> list[DriftedFeature]:
+    features = values.get("features", {})
+    drifted: list[DriftedFeature] = []
+    for name, entry in features.items():
+        psi = entry.get("psi")
+        if psi is None:
+            continue
+        drifted.append(
+            DriftedFeature(
+                feature=name,
+                psi=float(psi),
+                severity=Severity(entry.get("status", Severity.OK)),
+            )
+        )
+    return drifted
+
+
+def _data_quality_rows(values: dict, feature: str | None) -> list[DataQualityFeatureRow]:
+    features = values.get("features", {})
+    rows: list[DataQualityFeatureRow] = []
+    for name, entry in features.items():
+        if feature is not None and name != feature:
+            continue
+        rows.append(
+            DataQualityFeatureRow(
+                feature=name,
+                missing_rate=entry.get("missing_rate"),
+                type_error_rate=entry.get("type_error_rate"),
+                range_unseen_rate=entry.get("range_unseen_rate"),
+                status=Severity(entry.get("status", Severity.OK)),
+            )
+        )
+    return rows
+
+
+def _overview_cards(
+    rollup: _Rollup,
+    previous: _Rollup | None,
+    dims: QueryDimensions,
+    alerts: list[StoredAlert],
+    criticals: list[StoredAlert],
+    drifted_names: list[str],
+) -> list[Card]:
+    kind = dims.compare if previous is not None else None
+    return [
+        Card(
+            key="requests",
+            label="Requests",
+            value=rollup.request_count,
+            delta=_delta(rollup.request_count, previous.request_count) if previous else None,
+            delta_kind=kind,
+        ),
+        Card(
+            key="error_rate",
+            label="Error rate",
+            value=rollup.error_rate,
+            unit="ratio",
+            delta=_delta(rollup.error_rate, previous.error_rate) if previous else None,
+            delta_kind=kind,
+        ),
+        Card(
+            key="latency_p95",
+            label="Latency p95",
+            value=rollup.latency_p95_ms,
+            unit="ms",
+            delta=_delta(rollup.latency_p95_ms, previous.latency_p95_ms) if previous else None,
+            delta_kind=kind,
+        ),
+        Card(
+            key="active_alerts",
+            label="Active alerts",
+            value=len(alerts),
+            critical_count=len(criticals),
+        ),
+        Card(
+            key="drifted_features",
+            label="Drifted features",
+            value=len(drifted_names),
+            feature_names=drifted_names,
+        ),
+    ]

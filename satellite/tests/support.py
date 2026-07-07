@@ -1,9 +1,16 @@
 import uuid
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 import httpx
 from fastapi import FastAPI
 
-from agent.monitoring import IntrospectFn, MonitoringSessionStore, register_monitoring
+from agent.monitoring import (
+    IntrospectFn,
+    MonitoringSessionStore,
+    register_monitoring,
+)
+from agent.monitoring.query_store import MonitoringStore
 from agent.schemas.monitoring import (
     MONITORING_READ_SCOPE,
     MonitoringIntrospection,
@@ -11,6 +18,15 @@ from agent.schemas.monitoring import (
 )
 
 DEFAULT_FRAME_ANCESTORS = ["https://app.luml.ai"]
+FIXED_NOW = 1_700_000_000.0
+
+
+def now_dt() -> datetime:
+    return datetime.fromtimestamp(FIXED_NOW, tz=UTC)
+
+
+def ago(seconds: float) -> datetime:
+    return datetime.fromtimestamp(FIXED_NOW - seconds, tz=UTC)
 
 
 def make_claims(
@@ -52,6 +68,8 @@ def build_app(
     *,
     frame_ancestors: list[str] | None = None,
     session_store: MonitoringSessionStore | None = None,
+    data_store: MonitoringStore | None = None,
+    clock: Callable[[], float] | None = None,
     cookie_secure: bool = True,
 ) -> FastAPI:
     app = FastAPI()
@@ -60,6 +78,8 @@ def build_app(
         introspect=introspect,
         frame_ancestors=DEFAULT_FRAME_ANCESTORS if frame_ancestors is None else frame_ancestors,
         session_store=session_store,
+        data_store=data_store,
+        clock=(lambda: FIXED_NOW) if clock is None else clock,
         cookie_secure=cookie_secure,
     )
     return app
