@@ -11,11 +11,16 @@ class Settings(BaseSettings):
     MODEL_IMAGE: str = "luml-random-svc:latest"
     POLL_INTERVAL_SEC: float = 2.0
     MODEL_SERVER_PORT: int = 8080
+    MONITORING_FRAME_ANCESTORS: str = ""
+    MONITORING_SESSION_TTL_SECONDS: int = 1800
 
     model_config = SettingsConfigDict(
         env_file=".env",
         extra="ignore",
     )
+
+    def monitoring_frame_ancestors(self) -> list[str]:
+        return self.MONITORING_FRAME_ANCESTORS.split()
 
 
 @lru_cache
