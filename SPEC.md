@@ -560,14 +560,14 @@ are treated here as existing inputs.
         re-renders without re-launch; `401` shows the re-launch state; placeholder warning
         appears when `profile_status` is placeholder.
 
-- [ ] **Task 8 — Satellite Monitoring UI: Data quality + Feature drift**
-  - [ ] Implement the **Data quality** table and the **Feature drift** tab (ranked PSI,
+- [x] **Task 8 — Satellite Monitoring UI: Data quality + Feature drift**
+  - [x] Implement the **Data quality** table and the **Feature drift** tab (ranked PSI,
         feature detail with reference-vs-current distribution and PSI-over-time,
         multivariate PCA panel, reference profile panel), each rendering its Query API
         contract.
-  - [ ] Render per-section empty states when the worker has no results, the placeholder
+  - [x] Render per-section empty states when the worker has no results, the placeholder
         warning for a placeholder profile, and the local Traces panel loaded same-origin.
-  - [ ] Tests: Data quality and Feature drift render from the contracts across classical-ML
+  - [x] Tests: Data quality and Feature drift render from the contracts across classical-ML
         task types without task-specific branching; empty states render when the worker has
         no results; the PCA panel and reference profile panel render; the Traces panel loads
         same-origin.

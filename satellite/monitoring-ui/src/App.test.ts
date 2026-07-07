@@ -4,6 +4,10 @@ import { flushPromises, mount } from '@vue/test-utils'
 vi.mock('@/api/monitoring', () => ({
   getHeader: vi.fn(),
   getOverview: vi.fn(),
+  getDataQuality: vi.fn(),
+  getFeatureDrift: vi.fn(),
+  getReferenceProfile: vi.fn(),
+  getTraces: vi.fn(),
   dimensionParams: (dims: unknown) => dims,
 }))
 
@@ -12,10 +16,22 @@ import { SessionExpiredError } from '@/api/client'
 import App from '@/App.vue'
 import { MONITORING_SESSION_EXPIRED_MESSAGE } from '@/composables/useMonitoringDashboard'
 import { ProfileStatus, Window } from '@/api/types'
-import { makeHeader, makeOverview } from '@/test/fixtures'
+import {
+  makeDataQuality,
+  makeFeatureDrift,
+  makeFeatureDriftDetail,
+  makeHeader,
+  makeOverview,
+  makeReferenceProfile,
+  makeTraces,
+} from '@/test/fixtures'
 
 const getHeader = vi.mocked(monitoringApi.getHeader)
 const getOverview = vi.mocked(monitoringApi.getOverview)
+const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
+const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
+const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
+const getTraces = vi.mocked(monitoringApi.getTraces)
 
 function mountApp() {
   return mount(App, { global: { stubs: { apexchart: true } } })
@@ -26,6 +42,10 @@ describe('App (dashboard shell)', () => {
     vi.restoreAllMocks()
     getHeader.mockResolvedValue(makeHeader())
     getOverview.mockResolvedValue(makeOverview())
+    getDataQuality.mockResolvedValue(makeDataQuality())
+    getFeatureDrift.mockResolvedValue(makeFeatureDrift())
+    getReferenceProfile.mockResolvedValue(makeReferenceProfile())
+    getTraces.mockResolvedValue(makeTraces())
   })
 
   it('renders the header and Overview from the contracts once loaded', async () => {
@@ -85,5 +105,40 @@ describe('App (dashboard shell)', () => {
 
     const tabs = wrapper.findAll('[data-testid^="tab-"]').map((tab) => tab.text())
     expect(tabs).toEqual(['Overview', 'Data quality', 'Feature drift'])
+  })
+
+  it('switches to the Data quality tab and renders its table and local Traces panel', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="tab-data-quality"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="data-quality-tab"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="overview-tab"]').exists()).toBe(false)
+    expect(wrapper.findAll('[data-testid="dq-row"]')).toHaveLength(2)
+    expect(wrapper.find('[data-testid="traces-panel"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="trace-row"]')).toHaveLength(2)
+  })
+
+  it('switches to the Feature drift tab and selecting a feature re-queries without re-launch', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    await wrapper.find('[data-testid="tab-feature-drift"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-testid="feature-drift-tab"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-testid="ranked-row"]')).toHaveLength(2)
+
+    getFeatureDrift.mockResolvedValue(makeFeatureDrift({ selected: makeFeatureDriftDetail() }))
+    const postMessage = vi.spyOn(window.parent, 'postMessage')
+
+    await wrapper.find('[data-testid="ranked-row"]').trigger('click')
+    await flushPromises()
+
+    expect(getFeatureDrift).toHaveBeenLastCalledWith(expect.objectContaining({ feature: 'income' }))
+    expect(wrapper.find('[data-testid="feature-detail"]').text()).toContain('income')
+    expect(wrapper.find('[data-testid="session-expired"]').exists()).toBe(false)
+    expect(postMessage).not.toHaveBeenCalled()
   })
 })

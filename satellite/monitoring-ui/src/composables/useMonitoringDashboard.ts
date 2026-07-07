@@ -6,13 +6,20 @@ import {
   ProfileStatus,
   SeverityFilter,
   Window,
+  type DataQualityResponse,
   type Dimensions,
+  type FeatureDriftResponse,
   type HeaderResponse,
   type OverviewResponse,
+  type ReferenceProfileResponse,
+  type TracesResponse,
 } from '@/api/types'
 
 /** Posted to the Platform parent frame on a 401 so it can offer a re-launch. */
 export const MONITORING_SESSION_EXPIRED_MESSAGE = 'monitoring:session-expired'
+
+/** Page size for the local Traces panel (bounded by the Query API's max limit). */
+export const TRACES_PAGE_SIZE = 20
 
 export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
@@ -41,10 +48,27 @@ export function useMonitoringDashboard() {
   const overview = ref<OverviewResponse | null>(null)
   const overviewStatus = ref<LoadStatus>('idle')
 
-  const isPlaceholderProfile = computed(
-    () =>
-      header.value?.profile_status === ProfileStatus.PLACEHOLDER ||
-      overview.value?.profile_status === ProfileStatus.PLACEHOLDER,
+  const dataQuality = ref<DataQualityResponse | null>(null)
+  const dataQualityStatus = ref<LoadStatus>('idle')
+
+  const traces = ref<TracesResponse | null>(null)
+  const tracesStatus = ref<LoadStatus>('idle')
+  const tracesOffset = ref(0)
+
+  const featureDrift = ref<FeatureDriftResponse | null>(null)
+  const featureDriftStatus = ref<LoadStatus>('idle')
+
+  const referenceProfile = ref<ReferenceProfileResponse | null>(null)
+  const referenceProfileStatus = ref<LoadStatus>('idle')
+
+  const isPlaceholderProfile = computed(() =>
+    [
+      header.value?.profile_status,
+      overview.value?.profile_status,
+      dataQuality.value?.profile_status,
+      featureDrift.value?.profile_status,
+      referenceProfile.value?.profile_status,
+    ].includes(ProfileStatus.PLACEHOLDER),
   )
 
   function reportSessionExpired(): void {
@@ -85,10 +109,47 @@ export function useMonitoringDashboard() {
     )
   }
 
+  function loadDataQuality(): Promise<void> {
+    // The table shows every feature; the selected feature only scopes Feature drift.
+    return run(
+      dataQualityStatus,
+      () => monitoringApi.getDataQuality({ ...dimensions, feature: null }),
+      (value) => (dataQuality.value = value),
+    )
+  }
+
+  function loadTraces(offset = 0): Promise<void> {
+    tracesOffset.value = offset
+    return run(
+      tracesStatus,
+      () => monitoringApi.getTraces({ ...dimensions }, { limit: TRACES_PAGE_SIZE, offset }),
+      (value) => (traces.value = value),
+    )
+  }
+
+  function loadFeatureDrift(): Promise<void> {
+    return run(
+      featureDriftStatus,
+      () => monitoringApi.getFeatureDrift({ ...dimensions }),
+      (value) => (featureDrift.value = value),
+    )
+  }
+
+  function loadReferenceProfile(): Promise<void> {
+    return run(
+      referenceProfileStatus,
+      () => monitoringApi.getReferenceProfile({ ...dimensions }),
+      (value) => (referenceProfile.value = value),
+    )
+  }
+
   /** Reload the window-scoped data for whichever tab is active (header is window-independent). */
   function reloadActiveTab(): Promise<void> {
     if (activeTab.value === 'overview') return loadOverview()
-    return Promise.resolve()
+    if (activeTab.value === 'data-quality') {
+      return Promise.all([loadDataQuality(), loadTraces(0)]).then(() => undefined)
+    }
+    return Promise.all([loadFeatureDrift(), loadReferenceProfile()]).then(() => undefined)
   }
 
   async function load(): Promise<void> {
@@ -117,6 +178,17 @@ export function useMonitoringDashboard() {
     await reloadActiveTab()
   }
 
+  /** Select (or clear) the feature that scopes the Feature drift detail and reference profile. */
+  async function setFeature(next: string | null): Promise<void> {
+    if (dimensions.feature === next) return
+    dimensions.feature = next
+    await Promise.all([loadFeatureDrift(), loadReferenceProfile()])
+  }
+
+  function setTracesPage(offset: number): Promise<void> {
+    return loadTraces(Math.max(0, offset))
+  }
+
   async function setActiveTab(next: TabKey): Promise<void> {
     if (activeTab.value === next) return
     activeTab.value = next
@@ -131,12 +203,23 @@ export function useMonitoringDashboard() {
     headerStatus,
     overview,
     overviewStatus,
+    dataQuality,
+    dataQualityStatus,
+    traces,
+    tracesStatus,
+    tracesOffset,
+    featureDrift,
+    featureDriftStatus,
+    referenceProfile,
+    referenceProfileStatus,
     isPlaceholderProfile,
     load,
     refresh,
     setWindow,
     setCompare,
     setSeverity,
+    setFeature,
+    setTracesPage,
     setActiveTab,
   }
 }
