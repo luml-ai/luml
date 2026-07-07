@@ -131,5 +131,5 @@ The nanosecond value is misdocumented as seconds in `sdk/python/sdk/luml/experim
   - [x] Replace falsy timestamp guards with absent-vs-zero checks and clamp offsets in `TraceSpan.vue`
   - [x] Make zero-range traces render deterministically and keep Infinity sentinels from escaping `getSpansTimes`/`ExperimentSnapshot.vue`
   - [x] Add geometry tests (zero range, zero minimum, empty span list, normal trace)
-- [ ] Correct execution_time unit annotations in the SDK
-  - [ ] Fix the seconds-vs-nanoseconds comments and docstring examples in `data_types.py`, `sqlite.py`, and `tracker.py`
+- [x] Correct execution_time unit annotations in the SDK
+  - [x] Fix the seconds-vs-nanoseconds comments and docstring examples in `data_types.py`, `sqlite.py`, and `tracker.py`
