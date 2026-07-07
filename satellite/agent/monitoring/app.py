@@ -1,4 +1,5 @@
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
@@ -9,6 +10,8 @@ from starlette.datastructures import MutableHeaders
 from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from agent.monitoring.api import build_query_router
+from agent.monitoring.query import MonitoringQueryService
 from agent.monitoring.session import (
     DEFAULT_SESSION_TTL_SECONDS,
     SESSION_COOKIE_NAME,
@@ -16,6 +19,7 @@ from agent.monitoring.session import (
     MonitoringSessionStore,
     require_monitoring_session,
 )
+from agent.monitoring.store import InMemoryMonitoringStore, MonitoringStore
 from agent.schemas.monitoring import (
     MONITORING_READ_SCOPE,
     MonitoringIntrospection,
@@ -127,13 +131,19 @@ def register_monitoring(
     session_ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
     static_dir: Path | None = None,
     session_store: MonitoringSessionStore | None = None,
+    data_store: MonitoringStore | None = None,
+    clock: Callable[[], float] = time.time,
     cookie_secure: bool = True,
 ) -> None:
     store = session_store or MonitoringSessionStore(ttl_seconds=session_ttl_seconds)
     app.state.monitoring_sessions = store
+    app.state.monitoring_query = MonitoringQueryService(
+        data_store or InMemoryMonitoringStore(), clock=clock
+    )
 
     app.add_middleware(FrameAncestorsMiddleware, csp_value=frame_ancestors_csp(frame_ancestors))
     app.include_router(_build_router(introspect, cookie_secure=cookie_secure))
+    app.include_router(build_query_router())
 
     static_root = static_dir or _DEFAULT_STATIC_DIR
     app.mount(
