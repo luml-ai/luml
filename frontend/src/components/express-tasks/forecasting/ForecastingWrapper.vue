@@ -46,6 +46,7 @@
         <forecast-setup
           v-if="currentStep === 2 && viewValues"
           v-model:frequency="frequency"
+          v-model:aggregation="aggregation"
           v-model:preview-end-date="previewEndDate"
           :has-known-future="hasKnownFuture"
           :last-historical-date="lastHistoricalDate"
@@ -189,6 +190,7 @@ const setupRows = computed(() => (viewValues.value ?? []) as Record<string, unkn
 const {
   targetCol,
   frequency,
+  aggregation,
   previewEndDate,
   hasKnownFuture,
   lastHistoricalDate,

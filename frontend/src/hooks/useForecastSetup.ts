@@ -1,5 +1,8 @@
 import { computed, ref, watch, type Ref } from 'vue'
-import type { ForecastingFrequency } from '@/lib/data-processing/interfaces'
+import type {
+  ForecastingAggregation,
+  ForecastingFrequency,
+} from '@/lib/data-processing/interfaces'
 import {
   detectDateColumns,
   isDateColumn,
@@ -19,6 +22,7 @@ export const useForecastSetup = (
   const auxCols = ref<string[]>([])
   const knownFutureCols = ref<string[]>([])
   const frequency = ref<ForecastingFrequency>('month')
+  const aggregation = ref<ForecastingAggregation>('mean')
   const previewEndDate = ref<Date | null>(null)
 
   const hasKnownFuture = computed(() => knownFutureCols.value.length > 0)
@@ -56,6 +60,7 @@ export const useForecastSetup = (
     known_future_cols: [...knownFutureCols.value],
     frequency: frequency.value,
     preview_horizon: previewHorizon.value,
+    aggregation: aggregation.value,
   }))
 
   function columnRole(column: string): ForecastColumnRole {
@@ -130,6 +135,7 @@ export const useForecastSetup = (
     auxCols,
     knownFutureCols,
     frequency,
+    aggregation,
     previewEndDate,
     hasKnownFuture,
     lastHistoricalDate,

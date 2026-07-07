@@ -1,4 +1,4 @@
-import type { ForecastingFrequency } from './interfaces'
+import type { ForecastingAggregation, ForecastingFrequency } from './interfaces'
 
 export interface ForecastSetupConfig {
   date_col: string
@@ -7,6 +7,7 @@ export interface ForecastSetupConfig {
   known_future_cols: string[]
   frequency: ForecastingFrequency
   preview_horizon: number | null
+  aggregation: ForecastingAggregation
 }
 
 const DATE_SAMPLE_SIZE = 25

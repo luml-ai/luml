@@ -86,13 +86,14 @@ const stubs = {
     name: 'ForecastSetup',
     props: [
       'frequency',
+      'aggregation',
       'previewEndDate',
       'hasKnownFuture',
       'lastHistoricalDate',
       'dateNotParseable',
       'previewDateInvalid',
     ],
-    emits: ['update:frequency', 'update:previewEndDate'],
+    emits: ['update:frequency', 'update:aggregation', 'update:previewEndDate'],
     template: '<div />',
   },
   ForecastColumnHeader: {

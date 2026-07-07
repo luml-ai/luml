@@ -108,11 +108,17 @@ export type PromptOptimizationModelMetadataPayload = PayloadData
 
 export type ForecastingFrequency = 'day' | 'week' | 'month' | 'quarter' | 'year'
 
+/** How rows sharing a period are combined before fitting. */
+export type ForecastingAggregation = 'mean' | 'sum'
+
 export interface ForecastingMetrics {
   MAE: number
   RMSE: number
   MAPE: number | null
   R2: number
+  /** Mean Absolute Scaled Error vs the seasonal-naive baseline (<1 beats naive). */
+  MASE?: number | null
+  /** Bounded [0,1] headline score = clamp(R²): share of variance explained on held-out data. */
   SC_SCORE: number
 }
 
@@ -128,12 +134,26 @@ export interface ForecastingSeriesConfig {
 export interface ForecastingModelConfig {
   frequency: ForecastingFrequency
   seasonal_period: number
+  aggregation: ForecastingAggregation
   date_col: string
   target_col: string
   aux_cols: string[]
   known_future_cols: string[]
   min_history: number
   series: Record<string, ForecastingSeriesConfig>
+}
+
+/**
+ * Registry model-card payload. `metrics`/`model_config` come from the bundle's
+ * `forecasting_metrics:v1` meta entry (only test/eval metrics are serialized —
+ * training metrics are not part of the exported model); `chart` comes from the
+ * separate `forecasting_chart:v1` entry (future preview stripped) and is null
+ * when the bundle carries no chart.
+ */
+export interface ForecastingModelMetadataPayload {
+  metrics: ForecastingMetrics
+  model_config: ForecastingModelConfig
+  chart: ForecastingChart | null
 }
 
 export type ForecastingTrainingTable = Record<string, (string | number)[]>
@@ -146,6 +166,7 @@ export interface ForecastingTrainPayload {
   known_future_cols?: string[]
   frequency: ForecastingFrequency
   preview_horizon?: number | null
+  aggregation: ForecastingAggregation
 }
 
 export interface ForecastPoint {

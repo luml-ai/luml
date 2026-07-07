@@ -3,6 +3,9 @@ import {
   type ClassificationMetrics,
   type RegressionMetrics,
   type TabularMetrics,
+  type ForecastingMetrics,
+  type ForecastingModelConfig,
+  type ForecastingChart,
 } from '../data-processing/interfaces'
 import type { Manifest, MetaEntry, Var } from '@fnnx-ai/common/dist/interfaces'
 import { fixNumber, getFormattedMetric, toPercent } from '@/helpers/helpers'
@@ -13,6 +16,8 @@ export enum FNNX_PRODUCER_TAGS_METADATA_ENUM {
   contains_regression_metrics_v1 = 'falcon.beastbyte.ai::tabular_regression_metrics:v1',
   contains_registry_metricss_v1 = 'dataforce.studio::registry_metrics:v1',
   contains_prompt_fusion_v1 = 'dataforce.studio/prompt-fusion::graph_fe_def:v1',
+  contains_forecasting_metrics_v1 = 'dataforce.studio::forecasting_metrics:v1',
+  contains_forecasting_chart_v1 = 'dataforce.studio::forecasting_chart:v1',
 }
 
 export enum FNNX_PRODUCER_TAGS_MANIFEST_ENUM {
@@ -86,6 +91,28 @@ class FnnxServiceClass {
     return this.getMetadataByTag(metadata, availableTags)
   }
 
+  getForecastingData(
+    metadata: Array<MetaEntry>,
+  ): { metrics: ForecastingMetrics; model_config: ForecastingModelConfig } | null {
+    const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_forecasting_metrics_v1]
+    return this.getMetadataByTag(metadata, availableTags) as {
+      metrics: ForecastingMetrics
+      model_config: ForecastingModelConfig
+    } | null
+  }
+
+  getForecastingChart(metadata: Array<MetaEntry>): ForecastingChart | null {
+    const availableTags = [FNNX_PRODUCER_TAGS_METADATA_ENUM.contains_forecasting_chart_v1]
+    return this.getMetadataByTag(metadata, availableTags) as ForecastingChart | null
+  }
+
+  // Formatted [MAE, RMSE, MAPE, R2] row matching getMetricsCards(forecasting_v1) titles.
+  getForecastingMetricsRow(metrics: ForecastingMetrics): string[] {
+    return [metrics.MAE, metrics.RMSE, metrics.MAPE, metrics.R2].map((value) =>
+      value === null || value === undefined ? '—' : getFormattedMetric(value),
+    )
+  }
+
   getTypeTag(manifest: Manifest) {
     // extracts the extract tag that is used to determine the type of the model
     const availableTags = Object.values(FNNX_PRODUCER_TAGS_MANIFEST_ENUM)
@@ -156,6 +183,10 @@ class FnnxServiceClass {
 
   isPromptOptimizationTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
     return [FNNX_PRODUCER_TAGS_MANIFEST_ENUM.prompt_optimization_v1].includes(tag)
+  }
+
+  isForecastingTag(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM) {
+    return [FNNX_PRODUCER_TAGS_MANIFEST_ENUM.forecasting_v1].includes(tag)
   }
 
   findHtmlCard(fileIndex: FileIndex) {

@@ -22,6 +22,7 @@ const trainingData: ForecastingTrainingData = {
   model_config: {
     frequency: 'month',
     seasonal_period: 12,
+    aggregation: 'mean',
     date_col: 'date',
     target_col: 'sales',
     aux_cols: [],

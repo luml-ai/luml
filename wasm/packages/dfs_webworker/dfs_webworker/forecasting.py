@@ -43,6 +43,10 @@ _SEASONAL_PERIOD: dict[Frequency, int] = {
 
 FREQUENCIES: tuple[Frequency, ...] = tuple(_PERIOD_CODE.keys())
 
+Aggregation = str
+AGGREGATIONS: tuple[Aggregation, ...] = ("mean", "sum")
+DEFAULT_AGGREGATION: Aggregation = "mean"
+
 MIN_TRAIN_ROWS = 12
 SEASONAL_STRENGTH_THRESHOLD = 0.64
 KPSS_SIGNIF = 0.05
@@ -51,6 +55,8 @@ MAX_SEASONAL = 1
 MAX_CANDIDATE_FITS = 25
 FIT_MAXITER = 50
 CV_FOLDS = 3
+# Back-test horizon for non-seasonal series (seasonal series use one full cycle).
+NONSEASONAL_CV_HORIZON = 8
 CHART_MAX_POINTS = 500
 CONF_ALPHA = 0.05
 
@@ -67,7 +73,15 @@ def _rmse(y: np.ndarray, yhat: np.ndarray) -> float:
 
 
 def _mape(y: np.ndarray, yhat: np.ndarray) -> float | None:
-    mask = y != 0
+    # Ignore periods whose magnitude is negligible relative to the series scale
+    # (e.g. holiday/closed-day near-zeros) so a tiny denominator cannot blow the
+    # percentage error up to hundreds of percent.
+    ay = np.abs(y)
+    positive = ay[ay > 0.0]
+    if not positive.size:
+        return None
+    threshold = 1e-3 * float(np.median(positive))
+    mask = ay > threshold
     if not mask.any():
         return None
     return float(np.mean(np.abs((y[mask] - yhat[mask]) / y[mask])) * 100.0)
@@ -81,24 +95,65 @@ def _r2(y: np.ndarray, yhat: np.ndarray) -> float:
     return 1.0 - ss_res / ss_tot
 
 
-def _metrics(y: np.ndarray, yhat: np.ndarray) -> dict[str, float | None]:
+def _baseline_lag(seasonal_order: tuple[int, int, int, int]) -> int:
+    """Naive-baseline lag for MASE.
+
+    Seasonal-naive (lag = period) only when the fitted model actually carries
+    seasonal structure; otherwise one-step naive (lag 1). Using a seasonal
+    baseline on a non-seasonal series would make the denominator artificially
+    large and inflate the skill score, so the baseline is tied to what the model
+    chose, not merely to the frequency.
+    """
+    seas_p, seas_d, seas_q, period = seasonal_order
+    if period > 0 and (seas_p > 0 or seas_d > 0 or seas_q > 0):
+        return period
+    return 1
+
+
+def _mase_scale(train: np.ndarray, m: int) -> float | None:
+    """In-sample mean absolute error of the (seasonal) naive forecast on ``train``.
+
+    Used as the MASE denominator. Falls back to the one-step naive (``m = 1``)
+    when the series is too short for a full seasonal lag. Returns ``None`` when a
+    stable positive scale cannot be computed (flat or too-short series).
+    """
+    train = np.asarray(train, dtype=float)
+    lag = m if (m >= 1 and len(train) > m) else 1
+    if len(train) <= lag:
+        return None
+    diffs = np.abs(train[lag:] - train[:-lag])
+    if not diffs.size:
+        return None
+    scale = float(np.mean(diffs))
+    if not math.isfinite(scale) or scale <= 0.0:
+        return None
+    return scale
+
+
+def _metrics(
+    y: np.ndarray, yhat: np.ndarray, scale: float | None = None
+) -> dict[str, float | None]:
     y = np.asarray(y, dtype=float)
     yhat = np.asarray(yhat, dtype=float)
+    mae = _mae(y, yhat)
     return {
-        "MAE": _mae(y, yhat),
+        "MAE": mae,
         "RMSE": _rmse(y, yhat),
         "MAPE": _mape(y, yhat),
         "R2": _r2(y, yhat),
+        "MASE": (mae / scale) if (scale is not None and scale > 0.0) else None,
     }
+
+
+_METRIC_KEYS = ("MAE", "RMSE", "MAPE", "R2", "MASE")
 
 
 def _aggregate_metrics(folds: list[dict[str, float | None]]) -> dict[str, float | None]:
     if not folds:
-        return {"MAE": None, "RMSE": None, "MAPE": None, "R2": None}
+        return {key: None for key in _METRIC_KEYS}
     out: dict[str, float | None] = {}
-    for key in ("MAE", "RMSE", "MAPE", "R2"):
-        raw = [f[key] for f in folds]
-        values = [v for v in raw if v is not None]
+    for key in _METRIC_KEYS:
+        values = [f[key] for f in folds if f.get(key) is not None]
         out[key] = float(np.mean(values)) if values else None
     return out
 
@@ -107,6 +162,30 @@ def _clamp01(value: float | None) -> float:
     if value is None:
         return 0.0
     return float(min(1.0, max(0.0, value)))
+
+
+def _clamp_to_history(
+    forecast: np.ndarray, history: np.ndarray, margin: float = 1.0
+) -> np.ndarray:
+    """Bound an auxiliary forecast to the range seen in its own history.
+
+    Auto-forecast auxiliary series feed the target model as exogenous regressors;
+    a diverging AR/MA fit can otherwise send them to ±1e9 and blow the target
+    forecast up (observed R² of -4e6). Clipping to ``[min, max]`` padded by
+    ``margin`` × range keeps the regressors physically plausible, and any
+    non-finite value falls back to the last observed level.
+    """
+    history = np.asarray(history, dtype=float)
+    forecast = np.asarray(forecast, dtype=float)
+    if not history.size:
+        return forecast
+    lo = float(np.min(history))
+    hi = float(np.max(history))
+    span = hi - lo
+    pad = margin * span if span > 0.0 else max(abs(hi), 1.0)
+    last = float(history[-1])
+    safe = np.where(np.isfinite(forecast), forecast, last)
+    return np.clip(safe, lo - pad, hi + pad)
 
 
 def _as_horizon(horizon: object) -> int:
@@ -174,6 +253,33 @@ def _validate_grid(dates: pd.Series, frequency: Frequency) -> None:
             f"History has a gap in the {frequency} grid between "
             f"{_fmt_date(dates.iloc[i])} and {_fmt_date(dates.iloc[i + 1])}"
         )
+
+
+def _aggregate_to_grid(
+    df: pd.DataFrame,
+    date_col: str,
+    value_cols: list[str],
+    frequency: Frequency,
+    aggregation: Aggregation,
+) -> pd.DataFrame:
+    """Collapse rows that share a period at ``frequency`` into a single row.
+
+    Numeric columns are combined with ``aggregation`` (``mean`` or ``sum``) and
+    the earliest original date in each period represents it. This is a no-op when
+    every period already holds exactly one row, so well-formed grids are left
+    untouched; it only merges the sub-period duplicates that would otherwise make
+    ``_validate_grid`` raise. Input is assumed already sorted by ``date_col``.
+    """
+    periods = pd.DatetimeIndex(df[date_col]).to_period(_PERIOD_CODE[frequency])
+    agg_map: dict[str, str] = {date_col: "first"}
+    for col in value_cols:
+        agg_map[col] = aggregation
+    grouped = (
+        df.assign(_period=np.asarray(periods.astype("int64")))
+        .groupby("_period", sort=True, as_index=False)
+        .agg(agg_map)
+    )
+    return grouped[[date_col, *value_cols]].reset_index(drop=True)
 
 
 def _generate_future_dates(
@@ -321,11 +427,13 @@ def _detect_trend_diff(y: np.ndarray, s: int, seasonal_d: int) -> int:
 
 def _starting_orders(d: int, seasonal_d: int, seasonal: bool) -> list[tuple]:
     seas_hi = 1 if seasonal else 0
+    p2, q2 = min(2, MAX_P), min(2, MAX_Q)
+    p1, q1 = min(1, MAX_P), min(1, MAX_Q)
     return [
-        (2, d, 2, seas_hi, seasonal_d, seas_hi),
+        (p2, d, q2, seas_hi, seasonal_d, seas_hi),
         (0, d, 0, 0, seasonal_d, 0),
-        (1, d, 0, seas_hi, seasonal_d, 0),
-        (0, d, 1, 0, seasonal_d, seas_hi),
+        (p1, d, 0, seas_hi, seasonal_d, 0),
+        (0, d, q1, 0, seasonal_d, seas_hi),
     ]
 
 
@@ -354,11 +462,13 @@ def _search_orders(
     tried: set[tuple] = set()
     best_state: tuple | None = None
     best_res = None
-    best_aicc = math.inf
+    # BIC penalises extra parameters more heavily than AICc (log(n)·k vs 2k),
+    # so the search prefers simpler models that generalise better out of sample.
+    best_bic = math.inf
     fits = 0
 
     def evaluate(state: tuple):
-        nonlocal fits, best_state, best_res, best_aicc
+        nonlocal fits, best_state, best_res, best_bic
         if state in tried or fits >= MAX_CANDIDATE_FITS:
             return
         tried.add(state)
@@ -371,11 +481,11 @@ def _search_orders(
             return
         finally:
             fits += 1
-        aicc = getattr(res, "aicc", math.inf)
-        if not math.isfinite(aicc):
+        bic = getattr(res, "bic", math.inf)
+        if not math.isfinite(bic):
             return
-        if aicc < best_aicc:
-            best_aicc = aicc
+        if bic < best_bic:
+            best_bic = bic
             best_state = state
             best_res = res
 
@@ -389,9 +499,9 @@ def _search_orders(
             break
         anchor = best_state
         for neighbor in _neighbors(anchor, s, seasonal):
-            before = best_aicc
+            before = best_bic
             evaluate(neighbor)
-            if best_aicc < before:
+            if best_bic < before:
                 improved = True
 
     if best_res is None or best_state is None:
@@ -435,18 +545,27 @@ def _auto_fit_series(
 # --------------------------------------------------------------------------- #
 # cross-validation folds
 # --------------------------------------------------------------------------- #
-def _make_folds(n: int, min_train: int, target_folds: int = CV_FOLDS) -> list[tuple[int, int]]:
-    for k in range(target_folds, 0, -1):
-        available = n - min_train
-        if available < k:
-            continue
-        h = available // k
-        if h < 1:
-            continue
-        splits = [(n - (k - i) * h, h) for i in range(k)]
-        if splits[0][0] >= min_train:
-            return splits
-    return []
+def _make_folds(
+    n: int, min_train: int, horizon: int, max_folds: int = CV_FOLDS
+) -> list[tuple[int, int]]:
+    """Rolling-origin folds with a fixed, realistic forecast horizon.
+
+    Each fold trains on an expanding prefix ``[0:train_end]`` and forecasts
+    ``horizon`` steps over a non-overlapping window, walking back from the end so
+    the most recent data is always tested. The horizon is capped so at least one
+    fold fits. The previous scheme split the whole series into ``k`` equal chunks,
+    which on a long series meant back-testing forecasts hundreds of steps ahead
+    (e.g. 123 months) and made every metric look terrible; a horizon of one
+    seasonal cycle keeps the evaluation meaningful.
+    """
+    horizon = max(1, min(int(horizon), n - min_train))
+    folds: list[tuple[int, int]] = []
+    train_end = n - horizon
+    while len(folds) < max_folds and train_end >= min_train:
+        folds.append((train_end, horizon))
+        train_end -= horizon
+    folds.reverse()
+    return folds
 
 
 def _downsample(points: list[dict], max_points: int = CHART_MAX_POINTS) -> list[dict]:
@@ -469,6 +588,7 @@ class ForecastingPipeline:
     target_model: SeriesModel
     aux_models: dict[str, SeriesModel]
     min_history: int
+    aggregation: Aggregation = DEFAULT_AGGREGATION
     train_metrics: dict[str, float | None] = field(default_factory=dict)
     test_metrics: dict[str, float | None] = field(default_factory=dict)
     series_test_metrics: dict[str, dict[str, float | None]] = field(default_factory=dict)
@@ -490,17 +610,21 @@ class ForecastingPipeline:
         known_future_cols: list[str] | None = None,
         frequency: Frequency = "month",
         preview_horizon: int | None = None,
+        aggregation: Aggregation = DEFAULT_AGGREGATION,
     ) -> "ForecastingPipeline":
         aux_cols = list(aux_cols or [])
         known_future_cols = list(known_future_cols or [])
         _validate_roles(date_col, target_col, aux_cols, known_future_cols, frequency)
+        aggregation = _validate_aggregation(aggregation)
         if preview_horizon is not None and known_future_cols:
             raise ValueError(
                 "A preview horizon cannot be used when known-future columns are "
                 "marked; their future values are supplied on the Evaluate screen."
             )
 
-        df = _clean_training_frame(data, date_col, target_col, aux_cols, frequency)
+        df = _clean_training_frame(
+            data, date_col, target_col, aux_cols, frequency, aggregation
+        )
         n = len(df)
         if n < MIN_TRAIN_ROWS:
             raise ValueError(
@@ -538,6 +662,7 @@ class ForecastingPipeline:
             target_model=target_model,
             aux_models=aux_models,
             min_history=min_history,
+            aggregation=aggregation,
         )
         pipeline._evaluate(df, target_res, aux_results, preview_horizon)
         return pipeline
@@ -551,6 +676,7 @@ class ForecastingPipeline:
             "aux_cols": list(self.aux_cols),
             "known_future_cols": list(self.known_future_cols),
             "frequency": self.frequency,
+            "aggregation": self.aggregation,
             "min_history": self.min_history,
             "target_model": self.target_model.to_dict(),
             "aux_models": {k: v.to_dict() for k, v in self.aux_models.items()},
@@ -569,6 +695,7 @@ class ForecastingPipeline:
                 k: SeriesModel.from_dict(v) for k, v in spec["aux_models"].items()
             },
             min_history=int(spec["min_history"]),
+            aggregation=spec.get("aggregation", DEFAULT_AGGREGATION),
         )
 
     def model_config(self) -> dict:
@@ -578,6 +705,7 @@ class ForecastingPipeline:
         return {
             "frequency": self.frequency,
             "seasonal_period": _SEASONAL_PERIOD[self.frequency],
+            "aggregation": self.aggregation,
             "date_col": self.date_col,
             "target_col": self.target_col,
             "aux_cols": list(self.aux_cols),
@@ -649,7 +777,8 @@ class ForecastingPipeline:
         res = _build_sarimax(
             endog, model.order, model.seasonal_order, model.trend
         ).filter(np.asarray(model.params, dtype=float))
-        return np.asarray(res.get_forecast(steps=horizon).predicted_mean, dtype=float)
+        forecast = np.asarray(res.get_forecast(steps=horizon).predicted_mean, dtype=float)
+        return _clamp_to_history(forecast, endog)
 
     def _validate_history(self, history: object) -> pd.DataFrame:
         df = _to_frame(history)
@@ -664,6 +793,9 @@ class ForecastingPipeline:
         for col in [self.target_col, *self.aux_cols]:
             df[col] = _to_numeric(df[col], col)
         df = df.sort_values(self.date_col).reset_index(drop=True)
+        df = _aggregate_to_grid(
+            df, self.date_col, [self.target_col, *self.aux_cols], self.frequency, self.aggregation
+        )
         _validate_grid(df[self.date_col], self.frequency)
         if len(df) < self.min_history:
             raise ValueError(
@@ -711,6 +843,10 @@ class ForecastingPipeline:
         fdf = fdf.assign(**{self.date_col: dates})
         for col in self.known_future_cols:
             fdf[col] = _to_numeric(fdf[col], col)
+        fdf = fdf.sort_values(self.date_col).reset_index(drop=True)
+        fdf = _aggregate_to_grid(
+            fdf, self.date_col, list(self.known_future_cols), self.frequency, self.aggregation
+        )
 
         expected = pd.DatetimeIndex(forecast_dates).to_period(
             _PERIOD_CODE[self.frequency]
@@ -763,6 +899,9 @@ class ForecastingPipeline:
         cv = self._cross_validate(df, target, exog)
         self.series_test_metrics = cv["series_metrics"]
         self.test_metrics = dict(cv["series_metrics"].get(self.target_col, {}))
+        # Headline score = variance explained (R²). MASE is kept in the metrics as
+        # a separate "does it beat seasonal-naive?" signal, but a genuinely
+        # accurate model that merely matches naive should not read as 0%.
         target_r2 = self.test_metrics.get("R2")
         if target_r2 is None:
             target_r2 = self.train_metrics.get("R2")
@@ -775,7 +914,9 @@ class ForecastingPipeline:
     ) -> dict:
         n = len(target)
         min_train = max(self.min_history, MIN_TRAIN_ROWS // 2 + 2)
-        folds = _make_folds(n, min_train)
+        period = _SEASONAL_PERIOD[self.frequency]
+        horizon = period if period > 0 else NONSEASONAL_CV_HORIZON
+        folds = _make_folds(n, min_train, horizon)
         series_folds: dict[str, list[dict]] = {self.target_col: []}
         for col in self.auto_forecast_cols:
             series_folds[col] = []
@@ -831,16 +972,30 @@ class ForecastingPipeline:
                     forecast = np.asarray(
                         res.get_forecast(steps=h).predicted_mean, dtype=float
                     )
+                    # Keep the regressor plausible so a diverging aux fit cannot
+                    # explode the target forecast it feeds.
+                    forecast = _clamp_to_history(forecast, actual[:train_end])
                     aux_fold_forecasts[col] = forecast
                     future_cols.append(forecast)
                     series_folds[col].append(
-                        _metrics(actual[train_end : train_end + h], forecast)
+                        _metrics(
+                            actual[train_end : train_end + h],
+                            forecast,
+                            _mase_scale(actual[:train_end], _baseline_lag(model.seasonal_order)),
+                        )
                     )
             future_exog = np.column_stack(future_cols) if future_cols else None
             forecast = target_res.get_forecast(steps=h, exog=future_exog)
             target_forecast = np.asarray(forecast.predicted_mean, dtype=float)
             series_folds[self.target_col].append(
-                _metrics(target[train_end : train_end + h], target_forecast)
+                _metrics(
+                    target[train_end : train_end + h],
+                    target_forecast,
+                    _mase_scale(
+                        target[:train_end],
+                        _baseline_lag(self.target_model.seasonal_order),
+                    ),
+                )
             )
         except Exception:
             return None
@@ -906,7 +1061,7 @@ class ForecastingPipeline:
     ) -> None:
         records = self.predict(df, horizon)
         for record in records:
-            date = record["date"]
+            date = record[self.date_col]
             target_series = series[self.target_col].setdefault("future", [])
             target_series.append(
                 {
@@ -935,7 +1090,9 @@ def _in_sample_metrics(
     actual = np.asarray(y, dtype=float)[burn:]
     predicted = predicted[burn:]
     mask = np.isfinite(predicted)
-    return _metrics(actual[mask], predicted[mask])
+    return _metrics(
+        actual[mask], predicted[mask], _mase_scale(y, _baseline_lag(model.seasonal_order))
+    )
 
 
 def _validate_roles(
@@ -965,12 +1122,22 @@ def _validate_roles(
         )
 
 
+def _validate_aggregation(aggregation: Aggregation) -> Aggregation:
+    if aggregation not in AGGREGATIONS:
+        raise ValueError(
+            f"Unsupported aggregation '{aggregation}'. Choose one of "
+            f"{', '.join(AGGREGATIONS)}"
+        )
+    return aggregation
+
+
 def _clean_training_frame(
     data: object,
     date_col: str,
     target_col: str,
     aux_cols: list[str],
     frequency: Frequency,
+    aggregation: Aggregation,
 ) -> pd.DataFrame:
     df = _to_frame(data)
     required = [date_col, target_col, *aux_cols]
@@ -985,6 +1152,7 @@ def _clean_training_frame(
         df[col] = pd.to_numeric(df[col], errors="coerce")
     df = df.dropna(subset=[target_col, *aux_cols]).reset_index(drop=True)
     df = df.sort_values(date_col).reset_index(drop=True)
+    df = _aggregate_to_grid(df, date_col, [target_col, *aux_cols], frequency, aggregation)
     _validate_grid(df[date_col], frequency)
     return df
 
@@ -1000,6 +1168,7 @@ def forecasting_train(
     known_future_cols: list[str] | None = None,
     frequency: Frequency = "month",
     preview_horizon: int | None = None,
+    aggregation: Aggregation = DEFAULT_AGGREGATION,
 ) -> dict:
     # Local import breaks the forecasting <-> forecasting_serialization cycle.
     from dfs_webworker.forecasting_serialization import serialize
@@ -1012,6 +1181,7 @@ def forecasting_train(
         known_future_cols=known_future_cols,
         frequency=frequency,
         preview_horizon=preview_horizon,
+        aggregation=aggregation,
     )
     model_config = pipeline.model_config()
     model_bytes = serialize(

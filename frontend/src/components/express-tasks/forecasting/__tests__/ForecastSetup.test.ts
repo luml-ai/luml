@@ -11,6 +11,7 @@ const modelStub = (name: string) => ({
 
 const defaults = {
   frequency: 'month' as const,
+  aggregation: 'mean' as const,
   previewEndDate: null,
   hasKnownFuture: false,
   lastHistoricalDate: new Date('2020-03-01'),

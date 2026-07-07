@@ -30,6 +30,7 @@ import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 const baseConfig: ForecastingModelConfig = {
   frequency: 'month',
   seasonal_period: 12,
+  aggregation: 'mean',
   date_col: 'date',
   target_col: 'sales',
   aux_cols: [],

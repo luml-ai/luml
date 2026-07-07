@@ -38,6 +38,10 @@
             <dd>{{ seasonalPeriodLabel }}</dd>
           </div>
           <div>
+            <dt>Aggregation</dt>
+            <dd data-testid="aggregation">{{ aggregationLabel }}</dd>
+          </div>
+          <div>
             <dt>Minimum history</dt>
             <dd data-testid="min-history">{{ modelConfig.min_history }} rows</dd>
           </div>
@@ -126,7 +130,11 @@
         />
 
         <div class="reforecast-actions">
-          <d-button :disabled="!canForecast" data-testid="run-forecast" @click="runForecast">
+          <d-button
+            :disabled="!canForecast || isForecasting"
+            data-testid="run-forecast"
+            @click="runForecast"
+          >
             Forecast
           </d-button>
           <d-button
@@ -138,6 +146,9 @@
             Download predictions
           </d-button>
         </div>
+        <p v-if="isForecasting" class="forecast-status" data-testid="forecast-status">
+          generating forecast…
+        </p>
       </section>
     </div>
   </div>
@@ -223,6 +234,7 @@ const MODES = [
 
 const endDate = ref<Date | null>(null)
 const mode = ref<'single' | 'whole'>('whole')
+const isForecasting = ref(false)
 const rawForecast = ref<ForecastPredictedRecord[]>([])
 const rawFuture = ref<ForecastingRecord[]>([])
 const futureState = ref<{ complete: boolean; future: ForecastingRecord[] }>({
@@ -237,6 +249,9 @@ const knownFutureLabel = computed(() =>
 )
 const seasonalPeriodLabel = computed(() =>
   props.modelConfig.seasonal_period > 0 ? String(props.modelConfig.seasonal_period) : 'None',
+)
+const aggregationLabel = computed(() =>
+  props.modelConfig.aggregation === 'sum' ? 'Sum' : 'Average',
 )
 
 function formatOrder(order: [number, number, number]): string {
@@ -299,17 +314,22 @@ function onFutureChange(state: { complete: boolean; future: ForecastingRecord[] 
 }
 
 async function runForecast(): Promise<void> {
-  if (!canForecast.value) return
+  if (!canForecast.value || isForecasting.value) return
   const request: ForecastingPredictRequest = {
     model_id: props.modelId,
     history: props.history,
     horizon: horizon.value,
   }
   if (hasKnownFuture.value) request.future = futureState.value.future
-  const result = await props.predict(request)
-  if (!result) return
-  rawForecast.value = result.forecast
-  rawFuture.value = hasKnownFuture.value ? futureState.value.future : []
+  isForecasting.value = true
+  try {
+    const result = await props.predict(request)
+    if (!result) return
+    rawForecast.value = result.forecast
+    rawFuture.value = hasKnownFuture.value ? futureState.value.future : []
+  } finally {
+    isForecasting.value = false
+  }
 }
 
 function downloadPredictions(): void {
@@ -475,6 +495,11 @@ watch(endDate, () => {
 .reforecast-actions {
   display: flex;
   gap: 12px;
+}
+
+.forecast-status {
+  font-size: 13px;
+  color: var(--p-text-muted-color);
 }
 
 @media (max-width: 1200px) {

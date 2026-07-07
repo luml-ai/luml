@@ -21,6 +21,22 @@
         />
       </label>
 
+      <label class="field">
+        <span class="label">Aggregation</span>
+        <d-select
+          ref="aggregationSelect"
+          v-model="aggregation"
+          :options="AGGREGATIONS"
+          option-label="label"
+          option-value="value"
+          fluid
+        />
+        <small class="hint">
+          Combines rows that fall in the same {{ frequency }} — sum for totals (sales,
+          counts), average for levels (price, rate).
+        </small>
+      </label>
+
       <label v-if="!hasKnownFuture" class="field">
         <span class="label">Training preview up to (optional)</span>
         <date-picker
@@ -51,7 +67,10 @@
 
 <script setup lang="ts">
 import DatePicker from 'primevue/datepicker'
-import type { ForecastingFrequency } from '@/lib/data-processing/interfaces'
+import type {
+  ForecastingAggregation,
+  ForecastingFrequency,
+} from '@/lib/data-processing/interfaces'
 
 type Props = {
   hasKnownFuture: boolean
@@ -62,6 +81,7 @@ type Props = {
 
 defineProps<Props>()
 const frequency = defineModel<ForecastingFrequency>('frequency', { required: true })
+const aggregation = defineModel<ForecastingAggregation>('aggregation', { required: true })
 const previewEndDate = defineModel<Date | null>('previewEndDate', { required: true })
 
 const FREQUENCIES: { label: string; value: ForecastingFrequency }[] = [
@@ -70,6 +90,11 @@ const FREQUENCIES: { label: string; value: ForecastingFrequency }[] = [
   { label: 'Month', value: 'month' },
   { label: 'Quarter', value: 'quarter' },
   { label: 'Year', value: 'year' },
+]
+
+const AGGREGATIONS: { label: string; value: ForecastingAggregation }[] = [
+  { label: 'Average', value: 'mean' },
+  { label: 'Sum', value: 'sum' },
 ]
 </script>
 
@@ -98,8 +123,9 @@ const FREQUENCIES: { label: string; value: ForecastingFrequency }[] = [
 
 .controls {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 320px));
+  grid-template-columns: repeat(3, minmax(0, 280px));
   gap: 16px;
+  align-items: start;
 }
 
 .field {
@@ -121,6 +147,12 @@ const FREQUENCIES: { label: string; value: ForecastingFrequency }[] = [
 .hint {
   color: var(--p-text-muted-color);
   font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .controls {
+    grid-template-columns: repeat(2, minmax(0, 280px));
+  }
 }
 
 @media (max-width: 768px) {

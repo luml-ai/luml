@@ -80,7 +80,8 @@ export const useForecastingTraining = () => {
   async function startPredict(
     request: ForecastingPredictRequest,
   ): Promise<ForecastingPredictSuccess | undefined> {
-    isLoading.value = true
+    // Re-forecast is a fixed-parameter predict, not training — it must not raise
+    // the shared `isLoading` training modal. Callers show their own light status.
     try {
       const result = await DataProcessingWorker.startPredict<ForecastingPredictResponse>(
         JSON.parse(JSON.stringify(request)),
@@ -94,8 +95,6 @@ export const useForecastingTraining = () => {
       }
     } catch (error) {
       toast.add(predictErrorToast(error instanceof Error ? error.message : String(error)))
-    } finally {
-      isLoading.value = false
     }
   }
 
