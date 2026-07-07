@@ -515,15 +515,15 @@ are treated here as existing inputs.
         reused token refused; session scoped to one deployment (A cannot read B); `401`
         on expired session; framing refused for a disallowed origin.
 
-- [ ] **Task 4 — Satellite Query API: header, Overview, Runtime, Data quality**
-  - [ ] Add read-only, session-scoped endpoints returning chart-ready **header/context**,
+- [x] **Task 4 — Satellite Query API: header, Overview, Runtime, Data quality**
+  - [x] Add read-only, session-scoped endpoints returning chart-ready **header/context**,
         **Overview** (cards, alert banners, runtime series, top drifted features),
         **Runtime** rollups from `inference_events` + runtime metric tables, and the
         **Data quality** per-feature table from `monitoring_results`.
-  - [ ] Honor the common query dimensions (window, granularity, compare, severity, feature)
+  - [x] Honor the common query dimensions (window, granularity, compare, severity, feature)
         and carry `profile_status`; return "not computed yet" empty shapes when the worker
         has no result for the window.
-  - [ ] Tests: contracts return aggregated (never raw) values scoped to the session's
+  - [x] Tests: contracts return aggregated (never raw) values scoped to the session's
         deployment; window/compare/severity change the result; missing results yield the
         empty shape; GreptimeDB unavailable yields an unavailable status, not a crash.
 
