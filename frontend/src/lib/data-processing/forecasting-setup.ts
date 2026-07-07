@@ -64,8 +64,11 @@ export function lastDate(rows: Record<string, unknown>[], column: string): Date 
 }
 
 function monthsBetween(from: Date, to: Date): number {
-  const base = (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth())
-  const withPartial = to.getDate() > from.getDate() ? base + 1 : base
+  // UTC getters to stay consistent with forecastDate/periodKey, otherwise the
+  // horizon can be off by one around timezone/DST boundaries.
+  const base =
+    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth())
+  const withPartial = to.getUTCDate() > from.getUTCDate() ? base + 1 : base
   return Math.max(1, withPartial)
 }
 
