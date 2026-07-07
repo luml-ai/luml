@@ -547,16 +547,16 @@ are treated here as existing inputs.
   - [x] Tests: Alerts are read-only and correctly grouped/filtered by severity; Traces
         paginate and are session-scoped.
 
-- [ ] **Task 7 — Satellite Monitoring UI: shell, header, controls, Overview**
-  - [ ] Scaffold the Vue 3 SPA reusing the Luml design system and ApexCharts, built to
+- [x] **Task 7 — Satellite Monitoring UI: shell, header, controls, Overview**
+  - [x] Scaffold the Vue 3 SPA reusing the Luml design system and ApexCharts, built to
         static assets served by the Agent, calling the Query API same-origin with the
         session cookie.
-  - [ ] Implement the header, global controls (Window 24h/7d/30d, compare, severity/feature
+  - [x] Implement the header, global controls (Window 24h/7d/30d, compare, severity/feature
         filters, refresh) with the specified defaults, and the **Overview** tab (cards,
         alert banners, runtime series, top drifted features).
-  - [ ] Implement loading skeletons, the placeholder-profile warning, section errors, and
+  - [x] Implement loading skeletons, the placeholder-profile warning, section errors, and
         the `401`/re-launch state.
-  - [ ] Tests: Overview renders from the contracts; changing the window re-queries and
+  - [x] Tests: Overview renders from the contracts; changing the window re-queries and
         re-renders without re-launch; `401` shows the re-launch state; placeholder warning
         appears when `profile_status` is placeholder.
 
