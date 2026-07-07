@@ -81,6 +81,30 @@ class StoredAlert:
     message: str | None = None
 
 
+@dataclass(frozen=True)
+class ReferenceFeatureProfile:
+    """A single feature's training-time baseline: summary stats plus its reference shape."""
+
+    feature: str
+    kind: str  # "numeric" | "categorical"
+    summary: dict[str, float] = field(default_factory=dict)
+    bin_edges: list[float] | None = None  # numeric histogram edges
+    histogram: list[float] | None = None  # numeric reference density per bin
+    categories: list[str] | None = None  # categorical labels
+    category_probabilities: list[float] | None = None  # categorical reference probabilities
+
+
+@dataclass(frozen=True)
+class ReferenceProfile:
+    """The per-deployment reference profile part 2 loads on the deploy path."""
+
+    deployment_id: UUID
+    status: str = "ready"  # ready | placeholder
+    baseline_label: str | None = None
+    computed_at: datetime | None = None
+    features: dict[str, ReferenceFeatureProfile] = field(default_factory=dict)
+
+
 class MonitoringStore(Protocol):
     """Deployment-scoped read access to the monitoring datasets.
 
@@ -101,6 +125,8 @@ class MonitoringStore(Protocol):
 
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]: ...
 
+    async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None: ...
+
     async def profile_status(self, deployment_id: UUID) -> str: ...
 
 
@@ -114,6 +140,7 @@ class InMemoryMonitoringStore:
     _results: dict[tuple[UUID, str, str], StoredMetricResult] = field(default_factory=dict)
     _alerts: list[StoredAlert] = field(default_factory=list)
     _profiles: dict[UUID, str] = field(default_factory=dict)
+    _profile_data: dict[UUID, ReferenceProfile] = field(default_factory=dict)
 
     def add_deployment(self, descriptor: DeploymentDescriptor) -> None:
         self._meta[descriptor.deployment_id] = descriptor
@@ -129,6 +156,10 @@ class InMemoryMonitoringStore:
 
     def set_profile_status(self, deployment_id: UUID, status: str) -> None:
         self._profiles[deployment_id] = status
+
+    def add_profile(self, profile: ReferenceProfile) -> None:
+        self._profile_data[profile.deployment_id] = profile
+        self._profiles[profile.deployment_id] = profile.status
 
     def _guard(self) -> None:
         if self.unavailable:
@@ -168,6 +199,10 @@ class InMemoryMonitoringStore:
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]:
         self._guard()
         return [a for a in self._alerts if a.deployment_id == deployment_id and a.state == "open"]
+
+    async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None:
+        self._guard()
+        return self._profile_data.get(deployment_id)
 
     async def profile_status(self, deployment_id: UUID) -> str:
         self._guard()

@@ -6,9 +6,11 @@ from agent.monitoring.session import MonitoringSession, require_monitoring_sessi
 from agent.schemas.monitoring_query import (
     Compare,
     DataQualityResponse,
+    FeatureDriftResponse,
     Granularity,
     HeaderResponse,
     OverviewResponse,
+    ReferenceProfileResponse,
     RuntimeResponse,
     SeverityFilter,
     Window,
@@ -70,5 +72,21 @@ def build_query_router() -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> DataQualityResponse:
         return await service.data_quality(session.deployment_id, dims)
+
+    @router.get("/feature-drift", response_model=FeatureDriftResponse)
+    async def feature_drift(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> FeatureDriftResponse:
+        return await service.feature_drift(session.deployment_id, dims)
+
+    @router.get("/reference-profile", response_model=ReferenceProfileResponse)
+    async def reference_profile(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> ReferenceProfileResponse:
+        return await service.reference_profile(session.deployment_id, dims)
 
     return router
