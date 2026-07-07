@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/luml-design-system-e2a12de5-73c8-4fe2-badf-40c2fbc089a1/colors_and_type.css">
+  <script src="_ds/luml-design-system-e2a12de5-73c8-4fe2-badf-40c2fbc089a1/_ds_bundle.js"></script>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%}
+    #mon-main::-webkit-scrollbar{width:11px;height:11px}
+    #mon-main::-webkit-scrollbar-thumb{background:#e2e8f0;border-radius:6px;border:3px solid #f8fafc}
+    #mon-main::-webkit-scrollbar-thumb:hover{background:#cbd5e1}
+    .nv:hover{background:#f1f5f9 !important;color:#1e293b !important}
+    .qr:hover{background:#f8fafc !important}
+    @keyframes lumlFade{from{opacity:0}to{opacity:1}}
+    @keyframes lumlPop{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}
+  </style>
+</helmet>
+<div style="display:grid;grid-template-columns:180px 1fr;grid-template-rows:64px 1fr;height:100vh;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#334155;background:#f8fafc">
+
+  <header style="grid-column:1/-1;height:64px;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;padding:0 18px;gap:18px;z-index:5">
+    <div style="display:flex;align-items:center;width:150px"><img src="assets/logo-full-light.svg" alt="LUML" style="height:26px"></div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748b;flex:1">
+      <span>dataforce-org</span><span style="opacity:.4">/</span><span>insurance-pricing</span><span style="opacity:.4">/</span><span>Deployments</span><span style="opacity:.4">/</span><span style="color:#1e293b;font-weight:500">Monitoring</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="height:32px;padding:0 12px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:500;color:#334155">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 .3a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2c-3.4.7-4.1-1.6-4.1-1.6-.6-1.5-1.4-1.9-1.4-1.9-1.1-.8.1-.8.1-.8 1.2.1 1.9 1.3 1.9 1.3 1.1 1.9 3 1.4 3.7 1 .1-.8.4-1.4.8-1.7-2.7-.3-5.6-1.4-5.6-6 0-1.3.5-2.4 1.3-3.2-.1-.3-.6-1.6.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.7 1.6.2 2.9.1 3.2.8.8 1.3 1.9 1.3 3.2 0 4.6-2.9 5.7-5.6 6 .4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .3"/></svg>
+        Star<span style="color:#eab308">★</span> 2.4k
+      </div>
+      <button class="nv" style="width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#64748b;cursor:pointer;background:transparent;border:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(226deg,#add8fb 28%,#dfa3f0 98.72%);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:12px">EK</div>
+    </div>
+  </header>
+
+  <aside style="background:#fff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;padding:14px 10px;gap:2px">
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;padding:12px 8px 6px;text-transform:uppercase;letter-spacing:.04em">Workspace</div>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>Express tasks</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="10" ry="4.5"/><ellipse cx="12" cy="12" rx="4.5" ry="10"/></svg>Registry</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5 3 21l4.5-1.5"/><path d="m9 12 6 6"/><path d="M12.5 2 22 11.5 11.5 22 2 12.5 12.5 2Z"/></svg>Satellites</a>
+    <a style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;color:#1e293b;font-size:14px;font-weight:500;cursor:pointer;height:34px;background:#fff;box-shadow:0 1px 3px rgba(28,43,64,.06),0 4px 5px rgba(28,43,64,.03);border:1px solid #e2e8f0"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22 22 0 0 1-4 2Z"/></svg>Deployments</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/></svg>Data Agent</a>
+    <div style="font-size:11px;font-weight:600;color:#94a3b8;padding:14px 8px 6px;text-transform:uppercase;letter-spacing:.04em">Observability</div>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>LLM traces</a>
+    <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20h20"/><path d="M5 20V10"/><path d="M10 20V4"/><path d="M15 20v-7"/><path d="M20 20v-4"/></svg>Experiments</a>
+    <div style="margin-top:auto;display:flex;flex-direction:column;gap:2px;padding-top:8px;border-top:1px solid #e2e8f0">
+      <a class="nv" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:4px;color:#475569;font-size:14px;font-weight:500;cursor:pointer;height:34px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>Help &amp; docs</a>
+    </div>
+  </aside>
+
+  <main id="mon-main" style="overflow:auto">
+
+    <!-- ═══════════ DEPLOYMENTS LIST ═══════════ -->
+    <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+      <div style="padding:26px 36px 64px;max-width:1340px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+          <h1 style="font-size:24px;font-weight:500;letter-spacing:-0.48px;color:#1e293b;margin:0;display:flex;align-items:center;gap:11px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22 22 0 0 1-4 2Z"/></svg>Deployments</h1>
+          <button class="nv" style="height:38px;padding:0 16px;border-radius:8px;background:#2673fd;border:1px solid #2673fd;color:#fff;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>Create deployment</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:18px">
+          <span style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;background:#eff6ff;border:1px solid #bfdbfe;color:#2673fd;font-size:13px;font-weight:500"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09Z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22 22 0 0 1-4 2Z"/></svg>Deployments</span>
+          <span class="nv" style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;color:#64748b;font-size:13px;font-weight:500;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Secrets</span>
+          <span class="nv" style="display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:8px;color:#64748b;font-size:13px;font-weight:500;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5 3 21l4.5-1.5"/><path d="m9 12 6 6"/><path d="M12.5 2 22 11.5 11.5 22 2 12.5 12.5 2Z"/></svg>Satellites</span>
+        </div>
+        <div style="display:flex;align-items:flex-start;gap:9px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 15px;margin-bottom:16px;font-size:13px;color:#1e40af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.9" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>In order to use the inference URL, please authorize with your API key in account settings.</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #e2e8f0">
+            <span style="font-size:13px;font-weight:600;color:#334155">{{ depCount }} Deployments</span>
+            <div style="display:flex;align-items:center;gap:8px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 11px;width:240px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg><span style="color:#94a3b8;font-size:13px">Search</span></div>
+          </div>
+          <div style="overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:1000px">
+            <thead><tr>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Deployment name</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Model</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Satellite</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Inference URL</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Status</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Creation time</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Created by</th>
+              <th style="text-align:left;padding:11px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Tags</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ depRows }}" as="row" hint-placeholder-count="5">
+                <tr class="qr" onClick="{{ row.open }}" style="cursor:pointer">
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#2673fd;font-weight:500;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ row.name }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#2673fd;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ row.model }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#2673fd;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ row.satellite }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#64748b;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ row.url }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:{{ row.statusBg }};color:{{ row.statusFg }};font-size:12px;font-weight:500;white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:{{ row.statusDot }}"></span>{{ row.statusText }}</span></td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">{{ row.created }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9;color:#475569;white-space:nowrap">{{ row.createdBy }}</td>
+                  <td style="padding:14px 18px;border-bottom:1px solid #f1f5f9"><div style="display:flex;gap:5px;flex-wrap:wrap"><sc-for list="{{ row.tags }}" as="t" hint-placeholder-count="2"><span style="padding:2px 8px;border-radius:5px;background:#f1f5f9;color:#475569;font-size:11px;font-weight:500;white-space:nowrap">{{ t.label }}</span></sc-for></div></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ═══════════ DEPLOYMENT DETAIL ═══════════ -->
+    <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+    <div style="padding:22px 36px 0">
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#64748b;margin-bottom:16px">
+        <span onClick="{{ backToList }}" class="nv" style="cursor:pointer;padding:3px 8px;border-radius:5px;margin-left:-8px;display:inline-flex;align-items:center;gap:5px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>Deployments</span><span style="opacity:.4">/</span><span style="color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ deploymentName }}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap">
+        <div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:38px;height:38px;border-radius:9px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><img src="assets/task-icons/tabular-regression.svg" style="width:30px;height:30px"></div>
+            <h1 style="font-size:24px;font-weight:500;letter-spacing:-0.48px;line-height:1.2;color:#1e293b;margin:0;font-family:var(--luml-font-mono),monospace">{{ deploymentName }}</h1>
+            <span style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:20px;background:{{ depStatusBg }};color:{{ depStatusFg }};font-size:12px;font-weight:500"><span style="width:7px;height:7px;border-radius:50%;background:{{ depStatusDot }};box-shadow:0 0 0 3px {{ depStatusDot }}33"></span>{{ depStatus }}</span>
+          </div>
+          <div style="font-size:13px;color:#64748b;margin-top:8px;padding-left:50px">{{ depTask }} · bound to satellite <span style="font-family:var(--luml-font-mono),monospace">{{ depSatellite }}</span> · model <span style="font-family:var(--luml-font-mono),monospace">{{ depModel }}</span> · created {{ depCreated }} · last prediction 2m ago</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;color:#94a3b8;font-weight:500">Window</span>
+          {{ windowToggle }}
+          <button class="nv" style="height:38px;padding:0 16px;border-radius:8px;background:#fff;border:1px solid #e2e8f0;color:#334155;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-family:inherit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Inference URL</button>
+        </div>
+      </div>
+      <div style="margin-top:18px">{{ tabNav }}</div>
+    </div>
+
+    <!-- sticky section nav (monitoring only) -->
+    <sc-if value="{{ monitoringNav }}" hint-placeholder-val="{{ false }}">
+    <div style="position:sticky;top:0;z-index:4;background:#f8fafc;padding:14px 36px 0;margin-top:8px;border-bottom:1px solid #e2e8f0">{{ sectionNav }}</div>
+    </sc-if>
+
+    <div style="padding:28px 36px 64px;display:flex;flex-direction:column;gap:44px;max-width:1280px">
+
+      <sc-if value="{{ tabIsOverview }}" hint-placeholder-val="{{ true }}">
+      <!-- ════ OVERVIEW ════ -->
+      <section id="overview" data-screen-label="Overview" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Overview</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Deployment details and runtime health for the selected window.</p></div>
+
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px 20px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);margin-bottom:18px">
+          <div style="display:flex;align-items:center;gap:11px;margin-bottom:16px">
+            <div style="width:34px;height:34px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></div>
+            <div style="font-size:14px;font-weight:600;color:#1e293b">Deployment details</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px 24px">
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Name</div><div style="font-size:13.5px;color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace;overflow:hidden;text-overflow:ellipsis">{{ deploymentName }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Status</div><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:{{ depStatusBg }};color:{{ depStatusFg }};font-size:12px;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:{{ depStatusDot }}"></span>{{ depStatus }}</span></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Task</div><div style="font-size:13.5px;color:#334155;font-weight:500">{{ depTask }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Model</div><div style="font-size:13.5px;color:#2673fd;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ depModel }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Satellite</div><div style="font-size:13.5px;color:#2673fd;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ depSatellite }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Created</div><div style="font-size:13.5px;color:#334155;font-family:var(--luml-font-mono),monospace">{{ depCreated }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Last updated</div><div style="font-size:13.5px;color:#334155;font-family:var(--luml-font-mono),monospace">{{ depUpdated }}</div></div>
+            <div><div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:5px">Created by</div><div style="font-size:13.5px;color:#334155;font-weight:500">{{ depCreatedBy }}</div></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:14px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Requests</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">12,430</div><div style="font-size:12px;color:#15803d;margin-top:4px">↑ 8.2% vs prev</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Error rate</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">0.3%</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 0.1pp vs prev</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Latency p95</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">180 ms</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 18 ms vs prev</div></div>
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Active alerts</div><div style="font-size:25px;font-weight:500;color:#b91c1c;letter-spacing:-.02em;margin-top:7px">2</div><div style="font-size:12px;color:#b91c1c;margin-top:4px">2 critical</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Drifted features</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">2</div><div style="font-size:12px;color:#64748b;margin-top:4px;font-family:var(--luml-font-mono),monospace">smoker, bmi</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Latest RMSE</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px">{{ latestRmseVal }}</div><div style="font-size:12px;color:#64748b;margin-top:4px">{{ latestRmseSub }}</div></div>
+        </div>
+
+        <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:16px 18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);margin-top:18px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:flex-start;gap:11px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div><span style="font-weight:600;color:#1e293b;font-size:13.5px">Prediction drift critical</span><span style="font-size:13px;color:#64748b;margin-left:8px">y_pred PSI 0.28 — current median 17,000 vs 9,500 reference. Model is predicting materially higher charges.</span></div>
+          </div>
+          <div style="display:flex;align-items:flex-start;gap:11px;border-top:1px solid #f1f5f9;padding-top:12px">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="margin-top:1px;flex-shrink:0"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            <div><span style="font-weight:600;color:#1e293b;font-size:13.5px">Feature drift critical — smoker</span><span style="font-size:13px;color:#64748b;margin-left:8px">PSI 0.31 — share of <span style="font-family:var(--luml-font-mono),monospace">yes</span> moved 20.5% → 45%. Check the upstream intake form.</span></div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:18px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Requests over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">prediction calls per interval</div><div data-cw="requests" style="width:100%;overflow:hidden;margin-top:8px">{{ requestsChart }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Error rate over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">4xx / 5xx share of calls</div><div data-cw="error" style="width:100%;overflow:hidden;margin-top:8px">{{ errorChart }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Latency p95 over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">95th percentile response time</div><div data-cw="latency" style="width:100%;overflow:hidden;margin-top:8px">{{ latencyChart }}</div></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:16px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="font-size:14px;font-weight:600;color:#1e293b">Top drifted features</div><div style="font-size:12px;color:#64748b;margin-top:2px;margin-bottom:14px">population stability index (PSI)</div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <sc-for list="{{ topDriftRows }}" as="row" hint-placeholder-count="4">
+                <div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:13px;font-weight:500;color:#334155;font-family:var(--luml-font-mono),monospace">{{ row.name }}</span><span style="font-size:12px;color:#64748b">PSI <span style="font-weight:600;color:#1e293b">{{ row.psiText }}</span></span></div>
+                  <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;border-radius:4px;width:{{ row.barW }};background:{{ row.barColor }}"></div></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;justify-content:space-between;align-items:baseline"><div><div style="font-size:14px;font-weight:600;color:#1e293b">Prediction drift</div><div style="font-size:12px;color:#64748b;margin-top:2px">y_pred median with p05–p95 band</div></div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#a855f7"></span>median</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#a855f7;opacity:.18"></span>p05–p95</span></div></div>
+            <div data-cw="predband" style="width:100%;overflow:hidden;margin-top:8px">{{ predBandChart }}</div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ tabIsConfiguration }}" hint-placeholder-val="{{ false }}">
+      <!-- ════ CONFIGURATION ════ -->
+      <section id="configuration" data-screen-label="Configuration" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Configuration</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Binding, endpoint and runtime settings for this deployment.</p></div>
+        <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:6px 18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Model</span><span style="font-size:13px;color:#2673fd;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ depModel }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Task</span><span style="font-size:13px;color:#334155;font-weight:500">{{ depTask }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Satellite</span><span style="font-size:13px;color:#2673fd;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ depSatellite }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b;flex-shrink:0">Inference URL</span><span style="font-size:12.5px;color:#475569;font-family:var(--luml-font-mono),monospace;display:inline-flex;align-items:center;gap:7px;min-width:0"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ depUrl }}</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" style="flex-shrink:0;cursor:pointer"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Status</span><span style="display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:20px;background:{{ depStatusBg }};color:{{ depStatusFg }};font-size:12px;font-weight:500"><span style="width:6px;height:6px;border-radius:50%;background:{{ depStatusDot }}"></span>{{ depStatus }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #f1f5f9"><span style="font-size:13px;color:#64748b">Created by</span><span style="font-size:13px;color:#334155;font-weight:500">{{ depCreatedBy }}</span></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0"><span style="font-size:13px;color:#64748b">Creation time</span><span style="font-size:13px;color:#334155;font-family:var(--luml-font-mono),monospace">{{ depCreated }}</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+              <div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:8px">Description</div>
+              <p style="font-size:13.5px;color:#475569;line-height:1.55;margin:0">{{ depDesc }}</p>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:14px"><sc-for list="{{ depTags }}" as="t" hint-placeholder-count="3"><span style="padding:3px 9px;border-radius:5px;background:#f1f5f9;color:#475569;font-size:11.5px;font-weight:500">{{ t.label }}</span></sc-for></div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+              <div style="font-size:14px;font-weight:600;color:#1e293b;margin-bottom:12px">Environment variables</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ depEnv }}" as="v" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:8px;font-family:var(--luml-font-mono),monospace;font-size:12.5px"><span style="color:#0f766e;background:#f0fdfa;border:1px solid #ccfbf1;border-radius:5px;padding:3px 8px">{{ v.k }}</span><span style="color:#94a3b8">=</span><span style="color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;flex:1">{{ v.v }}</span></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ tabIsMonitoring }}" hint-placeholder-val="{{ false }}">
+        {{ judgeModal }}
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:14px 18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:34px;height:34px;border-radius:8px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 3-3 3 2 4-5"/></svg></div>
+            <div><div style="font-size:14px;font-weight:600;color:#1e293b">Model monitoring</div><div style="font-size:12px;color:#64748b">drift, data quality and performance against the training reference</div></div>
+          </div>
+          {{ monToggle }}
+        </div>
+        <sc-if value="{{ monIsLLM }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:flex-start;gap:10px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:12px;padding:14px 16px;font-size:13px;color:#6b21a8;margin-top:-28px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9333ea" stroke-width="1.9" style="flex-shrink:0;margin-top:1px"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>LLM observability — operational <b>Traces</b> and judge-based <b>Quality metrics</b>. Attach one or more LLM-as-a-judge evaluators to start scoring responses.</span></div>
+        </sc-if>
+
+      <!-- ════ TRACES ════ -->
+      <section id="traces" data-screen-label="Traces" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Traces</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Recent inference calls in the selected window — the raw request log behind every metric.</p></div>
+        <sc-if value="{{ monIsClassic }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Time</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Request</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Features</th>
+                <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Prediction</th>
+                <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Latency</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Status</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ reqLogRows }}" as="r" hint-placeholder-count="8">
+                  <tr class="qr">
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#64748b;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ r.time }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#2673fd;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ r.id }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:var(--luml-font-mono),monospace">{{ r.feat }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;text-align:right;color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ r.pred }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;font-family:var(--luml-font-mono),monospace">{{ r.lat }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ r.statusBg }};color:{{ r.statusFg }}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>{{ r.status }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+        </sc-if>
+        <sc-if value="{{ monIsLLM }}" hint-placeholder-val="{{ false }}">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead><tr>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Time</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Trace</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Prompt</th>
+                <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Latency</th>
+                <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Tokens</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Quality</th>
+                <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Status</th>
+              </tr></thead>
+              <tbody>
+                <sc-for list="{{ llmTraceRows }}" as="r" hint-placeholder-count="6">
+                  <tr class="qr">
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#64748b;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ r.time }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#2673fd;font-family:var(--luml-font-mono),monospace;white-space:nowrap">{{ r.id }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;color:#475569;max-width:360px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.q }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;font-family:var(--luml-font-mono),monospace">{{ r.lat }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9;text-align:right;color:#475569;font-family:var(--luml-font-mono),monospace">{{ r.tok }}</td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9"><sc-if value="{{ r.hasRel }}" hint-placeholder-val="{{ false }}"><span style="font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:7px;background:{{ r.relBg }};color:{{ r.relFg }}">{{ r.relText }}</span></sc-if><sc-if value="{{ tracesNoJudge }}" hint-placeholder-val="{{ true }}"><span style="font-size:12px;color:#cbd5e1">—</span></sc-if></td>
+                    <td style="padding:12px 18px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ r.statusBg }};color:{{ r.statusFg }}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>{{ r.statusText }}</span></td>
+                  </tr>
+                </sc-for>
+              </tbody>
+            </table>
+          </div>
+          <sc-if value="{{ tracesNoJudge }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:9px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 15px;margin-top:12px;font-size:13px;color:#1e40af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.9" style="flex-shrink:0"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg><span>Responses aren't scored yet. Attach a judge under <b>Quality metrics</b> to add a per-trace quality score.</span></div>
+          </sc-if>
+        </sc-if>
+      </section>
+
+      <sc-if value="{{ monIsClassic }}" hint-placeholder-val="{{ true }}">
+      <!-- ════ DATA QUALITY ════ -->
+      <section id="data-quality" data-screen-label="Data quality" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Data quality</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Are incoming features well-formed, or did an upstream pipeline break?</p></div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <table style="width:100%;border-collapse:collapse;font-size:13px">
+            <thead><tr>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Feature</th>
+              <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Missing</th>
+              <th style="text-align:right;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Type errors</th>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Range / unseen</th>
+              <th style="text-align:left;padding:12px 18px;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.04em;background:#f8fafc;border-bottom:1px solid #e2e8f0">Status</th>
+            </tr></thead>
+            <tbody>
+              <sc-for list="{{ dqRows }}" as="row" hint-placeholder-count="6">
+                <tr class="qr">
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ row.feature }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:var(--luml-font-mono),monospace;color:{{ row.missingColor }}">{{ row.missing }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;text-align:right;font-family:var(--luml-font-mono),monospace;color:#334155">{{ row.type }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:var(--luml-font-mono),monospace">{{ row.range }}</td>
+                  <td style="padding:13px 18px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ row.statusBg }};color:{{ row.statusFg }}"><span style="width:6px;height:6px;border-radius:50%;background:currentColor"></span>{{ row.status }}</span></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ════ FEATURE DRIFT ════ -->
+      <section id="feature-drift" data-screen-label="Feature drift" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Feature drift</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">How far the live input distribution has moved from the training reference. Select a feature for detail.</p></div>
+        <div style="display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:8px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <sc-for list="{{ featureRows }}" as="row" hint-placeholder-count="6">
+              <div onClick="{{ row.onClick }}" style="display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:8px;cursor:pointer;background:{{ row.rowBg }}">
+                <span style="width:3px;height:30px;border-radius:2px;background:{{ row.accent }};flex-shrink:0"></span>
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13.5px;font-weight:500;color:{{ row.nameColor }};font-family:var(--luml-font-mono),monospace">{{ row.name }}</span><span style="font-size:12px;color:#64748b">PSI <span style="font-weight:600;color:#1e293b">{{ row.psiText }}</span></span></div>
+                  <div style="height:6px;background:#f1f5f9;border-radius:3px;overflow:hidden;margin-top:7px"><div style="height:100%;border-radius:3px;width:{{ row.barW }};background:{{ row.barColor }}"></div></div>
+                </div>
+                <span style="display:inline-flex;align-items:center;padding:3px 8px;border-radius:6px;font-size:10.5px;font-weight:500;background:{{ row.statusBg }};color:{{ row.statusFg }};flex-shrink:0">{{ row.statusLabel }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:4px">
+              <div style="display:flex;align-items:center;gap:12px"><span style="font-size:16px;font-weight:600;color:#1e293b;font-family:var(--luml-font-mono),monospace">{{ featName }}</span><span style="font-size:12px;color:#64748b;background:#f1f5f9;padding:2px 8px;border-radius:5px">{{ featType }}</span><span style="display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:{{ featStatusBg }};color:{{ featStatusFg }}">{{ featStatus }} · PSI {{ featPsi }}</span></div>
+              <button onClick="{{ openInfo }}" class="nv" style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer;flex-shrink:0">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.9"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Reference profile
+              </button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr;gap:18px;margin-top:14px">
+              <div>
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px"><div style="font-size:13px;font-weight:600;color:#1e293b">Reference vs current distribution</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#cbd5e1"></span>Reference</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#2673fd"></span>Current</span></div></div>
+                <div data-cw="featdist" style="width:100%;overflow:hidden">{{ featDistChart }}</div>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#1e293b;margin-bottom:4px">PSI over time</div>
+                <div data-cw="featpsi" style="width:100%;overflow:hidden">{{ featPsiChart }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1.05fr;gap:16px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><span style="font-size:14px;font-weight:600;color:#1e293b">Multivariate drift (PCA)</span><span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:11px;font-weight:500;background:#ffedd5;color:#c2410c">Warning</span></div>
+            <div style="font-size:12px;color:#64748b;margin-bottom:14px">PC1 × PC2 projection · reference vs logged, from the training PCA basis</div>
+            <svg viewBox="0 0 320 190" style="width:100%;height:200px">
+              <line x1="20" y1="95" x2="312" y2="95" stroke="#f1f5f9" stroke-width="1"/>
+              <line x1="160" y1="10" x2="160" y2="180" stroke="#f1f5f9" stroke-width="1"/>
+              <ellipse cx="160" cy="95" rx="62" ry="46" fill="rgba(148,163,184,.10)" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4 3"/>
+              <ellipse cx="230" cy="62" rx="58" ry="44" fill="rgba(249,115,22,.09)" stroke="#f97316" stroke-width="1.2" stroke-dasharray="4 3"/>
+              <sc-for list="{{ pcaRef }}" as="p" hint-placeholder-count="12"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3" fill="#94a3b8" fill-opacity="0.7"></circle></sc-for>
+              <sc-for list="{{ pcaCur }}" as="p" hint-placeholder-count="12"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3.2" fill="#f97316"></circle></sc-for>
+            </svg>
+            <div style="display:flex;gap:18px;margin-top:8px;font-size:12px;color:#64748b">
+              <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#94a3b8"></span>Reference (training)</span>
+              <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#f97316"></span>Logged (current window)</span>
+            </div>
+          </div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:18px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);display:flex;flex-direction:column">
+            <div style="margin-bottom:14px;font-size:14px;font-weight:600;color:#1e293b">How drift is measured</div>
+            <div style="display:flex;flex-direction:column;gap:13px">
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Mahalanobis shift</div><div style="font-size:12px;color:#94a3b8">distance between population centroids</div></div><span style="font-family:var(--luml-font-mono),monospace;font-size:14px;color:#c2410c;font-weight:600">1.84 σ</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Per-feature PSI</div><div style="font-size:12px;color:#94a3b8">log-bins vs training reference probabilities</div></div><span style="font-family:var(--luml-font-mono),monospace;font-size:14px;color:#475569;font-weight:600">2 / 6 ≥ 0.2</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Explained variance</div><div style="font-size:12px;color:#94a3b8">2 components retained at training</div></div><span style="font-family:var(--luml-font-mono),monospace;font-size:14px;color:#475569;font-weight:600">94.1%</span></div>
+            </div>
+            <div style="margin-top:auto;padding-top:14px;font-size:12px;color:#64748b;line-height:1.5;border-top:1px solid #f1f5f9">Each logged batch is scaled and projected with the PCA basis stored at training, then compared to the reference Gaussian. Per-feature distributions use the histogram bins computed during training.</div>
+          </div>
+        </div>
+
+        <!-- Reference-profile drawer -->
+        <sc-if value="{{ infoOpen }}" hint-placeholder-val="{{ false }}">
+          <div onClick="{{ closeInfo }}" style="position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;animation:lumlFade .14s ease"></div>
+          <div style="position:fixed;top:0;right:0;bottom:0;width:432px;background:#fff;z-index:51;box-shadow:-12px 0 40px rgba(15,23,42,.16);display:flex;flex-direction:column;animation:lumlPop .18s ease">
+            <div style="padding:20px 22px;border-bottom:1px solid #f1f5f9">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Reference profile
+                </span>
+                <button onClick="{{ closeInfo }}" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <h3 style="margin:0;font-size:19px;font-weight:600;color:#1e293b;font-family:var(--luml-font-mono),monospace">{{ featName }}</h3>
+                <span style="background:#f1f5f9;color:#64748b;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600">{{ featType }}</span>
+              </div>
+              <div style="margin-top:7px;font-size:12.5px;color:#94a3b8">Computed at training · baseline <span style="color:#2673fd;font-family:var(--luml-font-mono),monospace">eval_cv_v3</span></div>
+            </div>
+            <div style="flex:1;overflow-y:auto;padding:20px 22px">
+              <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Summary statistics</div>
+              <div style="border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;margin-bottom:22px">
+                <sc-for list="{{ infoRows }}" as="r" hint-placeholder-count="8">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #f1f5f9">
+                    <span style="font-size:13px;color:#475569">{{ r.k }}</span>
+                    <span style="font-size:13px;color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ r.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <sc-if value="{{ infoIsNumeric }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Histogram bin edges</div>
+                <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px;font-family:var(--luml-font-mono),monospace;font-size:12.5px;color:#334155;margin-bottom:22px">{{ infoEdges }}</div>
+              </sc-if>
+              <sc-if value="{{ infoIsCategorical }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Reference category probabilities</div>
+                <div style="margin-bottom:22px">
+                  <sc-for list="{{ infoCats }}" as="c" hint-placeholder-count="4">
+                    <div style="margin-bottom:11px">
+                      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:#475569;font-family:var(--luml-font-mono),monospace">{{ c.name }}</span><span style="color:#1e293b;font-weight:500;font-family:var(--luml-font-mono),monospace">{{ c.p }}</span></div>
+                      <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ c.p }};background:#2673fd;border-radius:4px"></div></div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:9px;padding:13px 15px;font-size:12.5px;color:#1e40af;line-height:1.55">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                This profile is the training baseline. Each logged production batch is binned with these edges and compared against the reference probabilities to compute the feature's PSI drift score.
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+      <section id="prediction-drift" data-screen-label="Prediction drift" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Prediction drift</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Has the model's output distribution shifted? <span style="font-family:var(--luml-font-mono),monospace">y_pred</span> = predicted insurance charge.</p></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Reference median</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px;font-family:var(--luml-font-mono),monospace">9,500</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Current median</div><div style="font-size:25px;font-weight:500;color:#1e293b;letter-spacing:-.02em;margin-top:7px;font-family:var(--luml-font-mono),monospace">17,000</div><div style="font-size:12px;color:#c2410c;margin-top:4px">↑ 79% vs reference</div></div>
+          <div style="background:#fff;border:1px solid #fecaca;border-radius:12px;padding:15px 16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#b91c1c;text-transform:uppercase;letter-spacing:.04em;font-weight:600">Prediction PSI</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:25px;font-weight:500;color:#b91c1c;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">0.28</div><span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500;background:#fee2e2;color:#b91c1c">Critical</span></div></div>
+        </div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)">
+          <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:14px;font-weight:600;color:#1e293b">Reference vs current y_pred histogram</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#cbd5e1"></span>Reference</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:8px;border-radius:2px;background:#2673fd"></span>Current</span></div></div>
+          <div data-cw="ypredhist" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredHist }}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:16px">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-size:14px;font-weight:600;color:#1e293b">y_pred mean / median over time</div><div style="display:flex;gap:14px;font-size:11px;color:#64748b"><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#2673fd"></span>median</span><span style="display:inline-flex;align-items:center;gap:5px"><span style="width:10px;height:3px;border-radius:2px;background:#a855f7"></span>mean</span></div></div><div data-cw="ypredlines" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredLines }}</div></div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">y_pred p05–p95 band over time</div><div style="font-size:12px;color:#64748b;margin-top:2px">spread of predictions widening</div><div data-cw="ypredband" style="width:100%;overflow:hidden;margin-top:8px">{{ ypredBand }}</div></div>
+        </div>
+      </section>
+
+      <!-- ════ PERFORMANCE ════ -->
+      <section id="performance" data-screen-label="Performance" style="scroll-margin-top:60px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+          <div><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Performance</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Accuracy against ground-truth labels — available once <span style="font-family:var(--luml-font-mono),monospace">y_true</span> arrives.</p></div>
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-size:12px;color:#94a3b8;font-weight:500">Targets</span>{{ perfToggle }}</div>
+        </div>
+
+        <sc-if value="{{ notTargets }}" hint-placeholder-val="{{ true }}">
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:40px 32px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02);display:flex;align-items:center;gap:22px">
+            <div style="width:52px;height:52px;border-radius:12px;background:#eff6ff;display:flex;align-items:center;justify-content:center;flex-shrink:0"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div>
+            <div><div style="font-size:16px;font-weight:600;color:#1e293b">Waiting for targets</div><div style="font-size:13.5px;color:#64748b;margin-top:5px;max-width:560px;line-height:1.5">Ground-truth labels haven't landed yet, so RMSE / MAE / R² can't be computed. Runtime health, data quality, feature drift, and prediction drift are available above and stay current.</div></div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ targets }}" hint-placeholder-val="{{ false }}">
+          <div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">RMSE</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">5,100</div><span style="font-size:12px;color:#c2410c">↑ 5.7%</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">4,824</span></div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">MAE</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">2,950</div><span style="font-size:12px;color:#c2410c">↑ 3.9%</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">2,838</span></div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.04em;font-weight:600">R²</div><div style="display:flex;align-items:baseline;gap:9px;margin-top:7px"><div style="font-size:26px;font-weight:500;color:#1e293b;letter-spacing:-.02em;font-family:var(--luml-font-mono),monospace">0.79</div><span style="font-size:12px;color:#c2410c">↓ 0.044</span></div><div style="font-size:12px;color:#64748b;margin-top:5px">baseline eval CV <span style="color:#334155;font-weight:500">0.834</span></div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">RMSE over time</div><div data-cw="rmse" style="width:100%;overflow:hidden;margin-top:8px">{{ rmseChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">MAE over time</div><div data-cw="mae" style="width:100%;overflow:hidden;margin-top:8px">{{ maeChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">R² over time</div><div data-cw="r2" style="width:100%;overflow:hidden;margin-top:8px">{{ r2Chart }}</div></div>
+            </div>
+            <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;margin-top:16px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Predicted vs actual</div><div style="font-size:12px;color:#64748b;margin-top:2px">points above the diagonal = over-prediction</div><div data-cw="scatter" style="width:100%;overflow:hidden;margin-top:8px">{{ scatterChart }}</div></div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:16px;box-shadow:0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)"><div style="font-size:14px;font-weight:600;color:#1e293b">Residual distribution</div><div style="font-size:12px;color:#64748b;margin-top:2px">actual − predicted, % of labelled calls</div><div data-cw="resid" style="width:100%;overflow:hidden;margin-top:8px">{{ residChart }}</div></div>
+            </div>
+          </div>
+        </sc-if>
+      </section>
+
+      <!-- ════ CUSTOM METRICS (judge evaluator) ════ -->
+      <section id="custom-metric" data-screen-label="Custom metrics" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Custom metrics</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Track a bespoke quality signal by attaching an LLM-as-a-judge evaluator. Connect several to track multiple dimensions side by side.</p></div>
+        {{ evaluatorBlock }}
+      </section>
+      </sc-if>
+
+      <sc-if value="{{ monIsLLM }}" hint-placeholder-val="{{ false }}">
+      <!-- ════ QUALITY METRICS (judge evaluator) ════ -->
+      <section id="quality" data-screen-label="Quality metrics" style="scroll-margin-top:60px">
+        <div style="margin-bottom:18px"><h2 style="font-size:18px;font-weight:600;color:#1e293b;letter-spacing:-0.3px;margin:0">Quality metrics</h2><p style="font-size:13px;color:#64748b;margin:4px 0 0">Score responses with one or more LLM-as-a-judge evaluators. Each connected judge becomes its own tracked quality metric.</p></div>
+        {{ evaluatorBlock }}
+      </section>
+      </sc-if>
+      </sc-if>
+
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1380,&quot;height&quot;:920},&quot;deploymentName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;tabular_regression_1781778223788&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;defaultWindow&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;24h&quot;,&quot;7d&quot;,&quot;30d&quot;],&quot;default&quot;:&quot;7d&quot;,&quot;tsType&quot;:&quot;'24h'|'7d'|'30d'&quot;},&quot;targetsArrived&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { widths: {}, hover: null, infoOpen: false, view: 'list', tab: 'overview', monType: 'classic', selDep: 0, attachedJudges: null, samplePct: null, traceIdx: 0 };
+
+  // ── lifecycle ──
+  componentDidMount() {
+    this._m = () => this.measure();
+    requestAnimationFrame(this._m);
+    setTimeout(this._m, 140);
+    window.addEventListener('resize', this._m);
+    this._main = document.getElementById('mon-main');
+    if (this._main) { this._scroll = () => this.scrollSpy(); this._main.addEventListener('scroll', this._scroll, { passive: true }); }
+  }
+  componentDidUpdate() { this.measure(); }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this._m);
+    if (this._main && this._scroll) this._main.removeEventListener('scroll', this._scroll);
+  }
+  measure() {
+    const cur = this.state.widths || {}; const w = {}; let changed = false;
+    document.querySelectorAll('[data-cw]').forEach(el => { const id = el.getAttribute('data-cw'); const x = el.clientWidth; w[id] = x; if (cur[id] !== x) changed = true; });
+    if (Object.keys(w).length !== Object.keys(cur).length) changed = true;
+    if (changed) this.setState({ widths: w });
+  }
+  scrollSpy() {
+    const ids = this.dtab() === 'monitoring' ? (this.monType() === 'llm' ? ['traces', 'quality'] : ['traces', 'data-quality', 'feature-drift', 'prediction-drift', 'performance', 'custom-metric']) : [this.dtab()];
+    const probe = this._main.scrollTop + 160; let cur = ids[0];
+    for (const id of ids) { const el = document.getElementById(id); if (el && el.offsetTop <= probe) cur = id; }
+    if (this.state.sec !== cur) this.setState({ sec: cur });
+  }
+  cw(id, fb) { const w = this.state.widths && this.state.widths[id]; return (w && w > 24) ? w : (fb || 520); }
+
+  // ── selectors ──
+  win() { return this.state.win != null ? this.state.win : (this.props.defaultWindow || '7d'); }
+  feat() { return this.state.feat != null ? this.state.feat : 'smoker'; }
+  perfTargets() { return this.state.perfTargets != null ? this.state.perfTargets : !!this.props.targetsArrived; }
+  dtab() { return this.state.tab || 'overview'; }
+  monType() { return this.state.monType || 'classic'; }
+  dep() { const d = this.deployments(); return d[this.state.selDep || 0] || d[0]; }
+  statusColor(s) {
+    return s === 'Active' ? { dot: '#22c55e', bg: '#dcfce7', fg: '#15803d' }
+      : s === 'Pending' ? { dot: '#eab308', bg: '#fef9c3', fg: '#a16207' }
+      : s === 'Shutting down' ? { dot: '#f97316', bg: '#ffedd5', fg: '#c2410c' }
+      : { dot: '#ef4444', bg: '#fee2e2', fg: '#b91c1c' };
+  }
+  deployments() {
+    return [
+      { name: 'tabular_regression_1781778223788', task: 'Tabular Regression', model: 'lin_reg-v3', satellite: 'eu-west-sat-2', url: 'https://eu-west.luml.app/inf/insur-v3', status: 'Active', created: '2026/06/14 10:21', createdBy: 'Darina Usanova', tags: ['regression', 'insurance', 'prod'], mon: 'classic', desc: 'Production deployment predicting individual insurance charges from demographic and health features.', env: [['MODEL_VERSION', 'v3'], ['MAX_BATCH', '64'], ['LOG_PREDICTIONS', 'true']] },
+      { name: 'claims_llm_assistant', task: 'LLM · text-generation', model: 'mistral-7b-ft', satellite: 'gpu-sat-1', url: 'https://eu-west.luml.app/inf/claims-llm', status: 'Active', created: '2026/06/12 09:03', createdBy: 'Nikita Petrov', tags: ['llm', 'support'], mon: 'llm', desc: 'Claims assistant fine-tuned on internal support transcripts. Serves chat completions for the claims portal.', env: [['MODEL_VERSION', 'ft-2026-06'], ['MAX_TOKENS', '1024'], ['TEMPERATURE', '0.2']] },
+      { name: 'fraud_classifier', task: 'Tabular Classification', model: 'xgb-v7', satellite: 'eu-west-sat-2', url: 'https://eu-west.luml.app/inf/fraud-v7', status: 'Pending', created: '2026/06/18 16:47', createdBy: 'Michael Scott', tags: ['classification', 'risk'], mon: 'classic', desc: 'Real-time fraud scoring for inbound claims. Awaiting satellite capacity before going live.', env: [['MODEL_VERSION', 'v7'], ['THRESHOLD', '0.62']] },
+      { name: 'doc_embedder', task: 'Embedding', model: 'bge-large-en', satellite: 'gpu-sat-2', url: 'https://eu-west.luml.app/inf/doc-embed', status: 'Shutting down', created: '2026/05/30 19:47', createdBy: 'Irina Sokolova', tags: ['embedding', 'rag'], mon: 'llm', desc: 'Document embedding service for the policy RAG index. Being decommissioned in favour of doc_embedder_v2.', env: [['MODEL_VERSION', 'bge-1.5'], ['POOLING', 'mean']] },
+      { name: 'legacy_pricing', task: 'Tabular Regression', model: 'lin_reg-v1', satellite: 'eu-west-sat-1', url: 'https://eu-west.luml.app/inf/insur-v1', status: 'Failed', created: '2026/03/20 13:02', createdBy: 'Irina Sokolova', tags: ['regression', 'deprecated'], mon: 'classic', desc: 'Original pricing model. Failed health checks after the satellite runtime upgrade.', env: [['MODEL_VERSION', 'v1']] }
+    ].concat(this.judges().map(j => ({
+      name: j.id, judgeId: j.id, task: 'LLM · judge', model: j.name + ' ' + j.ver, satellite: j.provider === 'ollama' ? 'gpu-sat-1' : 'managed', url: 'https://eu-west.luml.app/inf/' + j.id, status: 'Active', created: '2026/06/10 08:30', createdBy: 'Darina Usanova', tags: ['judge', 'evaluator', j.provider], mon: 'llm', desc: 'LLM-as-a-judge evaluator producing the “' + j.measures + '” quality score. ' + j.desc + '.', env: [['BASE_MODEL', j.name], ['PROVIDER', j.provider], ['OUTPUT_METRIC', j.measures]] })));
+  }
+  openDep(i) { const r = this.deployments()[i]; this.setState({ view: 'detail', tab: 'overview', selDep: i, monType: r.mon, sec: 'overview', hover: null }); if (this._main) this._main.scrollTop = 0; }
+  openJudgeDep(id) { const name = id && id.indexOf('dep:') === 0 ? id.slice(4) : id; const i = this.deployments().findIndex(d => d.judgeId === id || d.name === name); if (i >= 0) this.openDep(i); }
+  backToList() { this.setState({ view: 'list', hover: null }); if (this._main) this._main.scrollTop = 0; }
+  goTab(t) { this.setState({ tab: t, sec: t === 'monitoring' ? 'data-quality' : t, hover: null }); if (this._main) this._main.scrollTop = 0; requestAnimationFrame(() => this.measure()); }
+
+  // ── data ──
+  hourLabels() { const o = []; for (let i = 0; i < 24; i++) o.push((i < 10 ? '0' : '') + i + ':00'); return o; }
+  dateLabels(n) { const end = new Date(2026, 5, 14); const o = []; for (let i = n - 1; i >= 0; i--) { const d = new Date(end.getTime()); d.setDate(end.getDate() - i); o.push(d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })); } return o; }
+
+  winData(win) {
+    this._wc = this._wc || {};
+    if (this._wc[win]) return this._wc[win];
+    let n, labels;
+    if (win === '24h') { n = 24; labels = this.hourLabels(); }
+    else if (win === '7d') { n = 7; labels = this.dateLabels(7); }
+    else { n = 30; labels = this.dateLabels(30); }
+    const t = i => n > 1 ? i / (n - 1) : 0;
+    const wob = (i, a) => Math.sin(i * 1.7) * a + Math.sin(i * 0.6) * a * 0.55;
+    const reqBase = win === '24h' ? 470 : win === '7d' ? 11200 : 10600;
+    const reqAmp = win === '24h' ? 150 : 900;
+    const requests = labels.map((lb, i) => Math.round(reqBase * (1 + 0.12 * Math.sin(i / n * Math.PI * 2 * (win === '24h' ? 1 : 2))) + wob(i, reqAmp * 0.25) + reqBase * 0.18 * t(i)));
+    const errorRate = labels.map((lb, i) => { let v = 0.09 + 0.30 * Math.pow(t(i), 1.6) + wob(i, 0.015); if (i >= n - 2) v += 0.12; return Math.max(0.02, +v.toFixed(3)); });
+    const latency = labels.map((lb, i) => { let v = 150 + 40 * t(i) + wob(i, 6); if (i === n - 2) v += 22; return Math.round(v); });
+    const ypredMed = labels.map((lb, i) => Math.round(9500 + 7500 * Math.pow(t(i), 1.15) + wob(i, 260)));
+    const ypredMean = labels.map((lb, i) => Math.round(10100 + 7700 * Math.pow(t(i), 1.15) + wob(i, 280)));
+    const ypredLo = labels.map((lb, i) => Math.round(3000 + 2200 * t(i) + wob(i, 120)));
+    const ypredHi = labels.map((lb, i) => Math.round(18000 + 16000 * Math.pow(t(i), 1.2) + wob(i, 500)));
+    const rmse = labels.map((lb, i) => Math.round(4824 + 300 * Math.pow(t(i), 1.3) + wob(i, 28)));
+    const mae = labels.map((lb, i) => Math.round(2838 + 130 * Math.pow(t(i), 1.3) + wob(i, 16)));
+    const r2 = labels.map((lb, i) => +(0.834 - 0.05 * Math.pow(t(i), 1.2) + wob(i, 0.004)).toFixed(3));
+    const psiEnds = { smoker: 0.31, bmi: 0.18, region: 0.09, age: 0.05, sex: 0.02, children: 0.01 };
+    const psiBy = {};
+    Object.keys(psiEnds).forEach(k => { const end = psiEnds[k]; psiBy[k] = labels.map((lb, i) => +Math.max(0.005, end * (0.18 + 0.82 * Math.pow(t(i), 1.5)) + wob(i, end * 0.04)).toFixed(3)); });
+    const out = { n, labels, requests, errorRate, latency, ypredMed, ypredMean, ypredLo, ypredHi, rmse, mae, r2, psiBy };
+    this._wc[win] = out; return out;
+  }
+  scatterPts() {
+    if (this._sp) return this._sp;
+    const pts = []; let s = 12345; const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; };
+    for (let i = 0; i < 90; i++) { const a = 2000 + 36000 * rnd(); const pred = a * 0.93 + 2600 + (rnd() - 0.5) * 5200; pts.push({ x: a, y: Math.max(200, pred) }); }
+    this._sp = pts; return pts;
+  }
+  featMeta() {
+    return {
+      smoker: { label: 'smoker', type: 'Categorical', psi: 0.31, status: 'Critical', cats: ['no', 'yes'], ref: [79.5, 20.5], cur: [55, 45] },
+      bmi: { label: 'bmi', type: 'Numeric', psi: 0.18, status: 'Warning', cats: ['15–20', '20–25', '25–30', '30–35', '35–40', '40+'], ref: [5, 22, 30, 25, 12, 6], cur: [3, 15, 26, 28, 18, 10] },
+      region: { label: 'region', type: 'Categorical', psi: 0.09, status: 'OK', cats: ['NE', 'NW', 'SE', 'SW'], ref: [25, 25, 27, 23], cur: [22, 24, 30, 24] },
+      age: { label: 'age', type: 'Numeric', psi: 0.05, status: 'OK', cats: ['18–30', '30–40', '40–50', '50–60', '60+'], ref: [22, 24, 22, 18, 14], cur: [20, 23, 22, 19, 16] },
+      sex: { label: 'sex', type: 'Categorical', psi: 0.02, status: 'OK', cats: ['female', 'male'], ref: [49.5, 50.5], cur: [48, 52] },
+      children: { label: 'children', type: 'Numeric', psi: 0.01, status: 'OK', cats: ['0', '1', '2', '3', '4', '5'], ref: [42, 24, 18, 9, 5, 2], cur: [40, 25, 18, 10, 5, 2] }
+    };
+  }
+
+  // ── interaction helpers ──
+  mkMove(id, n) { return (ev) => { const r = ev.currentTarget.getBoundingClientRect(); const rx = (ev.clientX - r.left) / r.width; let idx = Math.round(rx * (n - 1)); idx = Math.max(0, Math.min(n - 1, idx)); const h = this.state.hover; if (!h || h.id !== id || h.idx !== idx) this.setState({ hover: { id, idx } }); }; }
+  mkLeave() { return () => { if (this.state.hover) this.setState({ hover: null }); }; }
+
+  segmented(opts, active, onPick) {
+    const e = React.createElement;
+    return e('div', { style: { display: 'inline-flex', gap: 2, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 3 } },
+      opts.map(([k, lb], i) => { const on = k === active; return e('button', { key: i, onClick: () => onPick(k), style: { border: 'none', background: on ? '#2673fd' : 'transparent', color: on ? '#fff' : '#475569', padding: '6px 13px', borderRadius: 6, fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'background .15s' } }, lb); }));
+  }
+
+  // ── line / band chart ──
+  plot(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 150;
+    const series = o.series, band = o.band, n = series[0].data.length;
+    const pL = 8, pR = 12, pT = 12, pB = 22;
+    const px = i => pL + (n > 1 ? i / (n - 1) * (W - pL - pR) : (W - pL - pR) / 2);
+    let vals = []; series.forEach(s => s.data.forEach(d => vals.push(d.y)));
+    if (band) { band.lo.forEach(v => vals.push(v)); band.hi.forEach(v => vals.push(v)); }
+    if (o.thresholds) o.thresholds.forEach(t => vals.push(t.v));
+    let mn = o.yMin != null ? o.yMin : Math.min.apply(null, vals);
+    let mx = o.yMax != null ? o.yMax : Math.max.apply(null, vals);
+    if (mn === mx) mx = mn + 1;
+    const pad = (mx - mn) * 0.12; if (o.yMin == null) mn -= pad; if (o.yMax == null) mx += pad;
+    const py = v => pT + (H - pT - pB) - (v - mn) / (mx - mn) * (H - pT - pB);
+    const L = [];
+    for (let g = 0; g <= 3; g++) { const vy = pT + (H - pT - pB) * g / 3; L.push(e('line', { key: 'g' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9', strokeWidth: 1 })); }
+    if (o.thresholds) o.thresholds.forEach((t, ti) => { const vy = py(t.v); L.push(e('line', { key: 'th' + ti, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: t.color, strokeWidth: 1, strokeDasharray: '4 4', opacity: 0.65 })); L.push(e('text', { key: 'tht' + ti, x: W - pR, y: vy - 3, textAnchor: 'end', fontSize: 9, fill: t.color }, t.label)); });
+    if (band) {
+      let d = '';
+      for (let i = 0; i < n; i++) d += (i ? 'L' : 'M') + px(i) + ' ' + py(band.hi[i]) + ' ';
+      for (let i = n - 1; i >= 0; i--) d += 'L' + px(i) + ' ' + py(band.lo[i]) + ' ';
+      d += 'Z';
+      L.push(e('path', { key: 'band', d: d, fill: band.color, opacity: 0.16, stroke: 'none' }));
+    }
+    series.forEach((s, si) => {
+      let dl = ''; s.data.forEach((dp, i) => { dl += (i ? 'L' : 'M') + px(i) + ' ' + py(dp.y) + ' '; });
+      if (o.area && si === 0 && !band) { const da = dl + 'L' + px(n - 1) + ' ' + (H - pB) + ' L' + px(0) + ' ' + (H - pB) + ' Z'; L.push(e('path', { key: 'a' + si, d: da, fill: s.color, opacity: 0.10, stroke: 'none' })); }
+      L.push(e('path', { key: 'l' + si, d: dl, fill: 'none', stroke: s.color, strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round' }));
+    });
+    const step = Math.max(1, Math.ceil(n / 5));
+    for (let i = 0; i < n; i++) { if (i % step === 0 || i === n - 1) L.push(e('text', { key: 'x' + i, x: px(i), y: H - 5, textAnchor: i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle'), fontSize: 9, fill: '#94a3b8' }, series[0].data[i].label)); }
+    const hv = this.state.hover; let tip = null;
+    if (hv && hv.id === id) {
+      const i = Math.max(0, Math.min(n - 1, hv.idx));
+      L.push(e('line', { key: 'hl', x1: px(i), x2: px(i), y1: pT, y2: H - pB, stroke: '#cbd5e1', strokeWidth: 1 }));
+      series.forEach((s, si) => L.push(e('circle', { key: 'hd' + si, cx: px(i), cy: py(s.data[i].y), r: 3.5, fill: '#fff', stroke: s.color, strokeWidth: 2 })));
+      const rows = series.map((s, si) => e('div', { key: si, style: { display: 'flex', alignItems: 'center', gap: 6 } }, e('span', { style: { width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 } }), e('span', { style: { color: '#64748b' } }, s.name), e('span', { style: { marginLeft: 'auto', fontWeight: 600, color: '#1e293b' } }, o.fmt ? o.fmt(s.data[i].y) : s.data[i].y)));
+      tip = e('div', { style: { position: 'absolute', left: Math.max(4, Math.min(W - 158, px(i) + 8)) + 'px', top: '4px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0px 4px 6px -1px #0000001a', padding: '7px 9px', fontSize: 11, pointerEvents: 'none', minWidth: '128px', zIndex: 5 } }, e('div', { style: { fontWeight: 600, marginBottom: 4, color: '#1e293b' } }, series[0].data[i].label), rows);
+    }
+    return e('div', { style: { position: 'relative' }, onMouseMove: this.mkMove(id, n), onMouseLeave: this.mkLeave() }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L), tip);
+  }
+
+  // ── grouped / single bar chart ──
+  gbars(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 160;
+    const cats = o.cats, series = o.series;
+    const pL = 8, pR = 10, pT = 12, pB = 24;
+    let mx = o.yMax != null ? o.yMax : Math.max.apply(null, [].concat.apply([], series.map(s => s.vals)));
+    mx *= 1.16; if (mx <= 0) mx = 1;
+    const plotW = W - pL - pR, plotH = H - pT - pB, groupW = plotW / cats.length;
+    const ns = series.length, barGap = 4, innerPad = groupW * 0.16;
+    const bw = Math.max(2, (groupW - innerPad * 2 - barGap * (ns - 1)) / ns);
+    const L = [];
+    for (let g = 0; g <= 3; g++) { const vy = pT + plotH * g / 3; L.push(e('line', { key: 'g' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9', strokeWidth: 1 })); }
+    const hv = this.state.hover;
+    cats.forEach((c, ci) => {
+      const gx = pL + groupW * ci + innerPad;
+      series.forEach((s, si) => { const v = s.vals[ci]; const bh = v / mx * plotH; const x = gx + si * (bw + barGap); const y = pT + plotH - bh; const active = hv && hv.id === id && hv.idx === ci; L.push(e('rect', { key: c + si, x: x, y: y, width: bw, height: Math.max(0, bh), rx: 3, fill: s.color, opacity: active ? 1 : 0.9 })); });
+      L.push(e('text', { key: 'x' + ci, x: gx + (groupW - innerPad * 2) / 2, y: H - 8, textAnchor: 'middle', fontSize: 9.5, fill: '#64748b' }, c));
+    });
+    let tip = null;
+    if (hv && hv.id === id) {
+      const ci = Math.max(0, Math.min(cats.length - 1, hv.idx)); const cx = pL + groupW * ci + groupW / 2;
+      const rows = series.map((s, si) => e('div', { key: si, style: { display: 'flex', alignItems: 'center', gap: 6 } }, e('span', { style: { width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 } }), e('span', { style: { color: '#64748b' } }, s.name), e('span', { style: { marginLeft: 'auto', fontWeight: 600, color: '#1e293b' } }, o.fmt ? o.fmt(s.vals[ci]) : s.vals[ci])));
+      tip = e('div', { style: { position: 'absolute', left: Math.max(4, Math.min(W - 138, cx - 60)) + 'px', top: '2px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 6, boxShadow: '0px 4px 6px -1px #0000001a', padding: '7px 9px', fontSize: 11, pointerEvents: 'none', minWidth: '116px', zIndex: 5 } }, e('div', { style: { fontWeight: 600, marginBottom: 4, color: '#1e293b' } }, cats[ci]), rows);
+    }
+    const move = (ev) => { const r = ev.currentTarget.getBoundingClientRect(); const rx = (ev.clientX - r.left) / r.width * W; let ci = Math.floor((rx - pL) / groupW); ci = Math.max(0, Math.min(cats.length - 1, ci)); const h = this.state.hover; if (!h || h.id !== id || h.idx !== ci) this.setState({ hover: { id, idx: ci } }); };
+    return e('div', { style: { position: 'relative' }, onMouseMove: move, onMouseLeave: this.mkLeave() }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L), tip);
+  }
+
+  // ── scatter ──
+  scatter(id, o) {
+    const e = React.createElement;
+    const W = this.cw(id, o.fb), H = o.height || 300;
+    const pts = o.pts, pL = 40, pR = 14, pT = 12, pB = 32;
+    const mn = 0, mx = Math.max.apply(null, [].concat(pts.map(p => p.x), pts.map(p => p.y))) * 1.05;
+    const X = v => pL + (v - mn) / (mx - mn) * (W - pL - pR);
+    const Y = v => pT + (H - pT - pB) - (v - mn) / (mx - mn) * (H - pT - pB);
+    const L = [];
+    for (let g = 0; g <= 4; g++) { const tt = g / 4; const vy = pT + (H - pT - pB) * tt; const vx = pL + (W - pL - pR) * tt; L.push(e('line', { key: 'gy' + g, x1: pL, x2: W - pR, y1: vy, y2: vy, stroke: '#f1f5f9' })); L.push(e('line', { key: 'gx' + g, x1: vx, x2: vx, y1: pT, y2: H - pB, stroke: '#f8fafc' })); const val = Math.round(mx * (1 - tt) / 1000); L.push(e('text', { key: 'ay' + g, x: pL - 5, y: vy + 3, textAnchor: 'end', fontSize: 8.5, fill: '#94a3b8' }, val + 'k')); }
+    L.push(e('line', { key: 'diag', x1: X(mn), y1: Y(mn), x2: X(mx), y2: Y(mx), stroke: '#94a3b8', strokeWidth: 1.5, strokeDasharray: '5 4' }));
+    pts.forEach((p, i) => L.push(e('circle', { key: i, cx: X(p.x), cy: Y(p.y), r: 3, fill: '#2673fd', opacity: 0.5 }, e('title', null, 'actual ' + Math.round(p.x).toLocaleString() + ' · pred ' + Math.round(p.y).toLocaleString()))));
+    L.push(e('text', { key: 'xl', x: W / 2, y: H - 4, textAnchor: 'middle', fontSize: 10, fill: '#64748b' }, 'Actual'));
+    L.push(e('text', { key: 'yl', x: 11, y: H / 2, textAnchor: 'middle', fontSize: 10, fill: '#64748b', transform: 'rotate(-90 11 ' + (H / 2) + ')' }, 'Predicted'));
+    return e('div', { style: { position: 'relative' } }, e('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, style: { display: 'block' } }, L));
+  }
+
+  // ── judges / evaluators (multi-attach) ──
+  judges() {
+    return [
+      { id: 'gpt-4o-relevancy-judge', name: 'gpt-4o-relevancy-judge', ver: 'v2', provider: 'open-ai', measures: 'Answer Relevancy', desc: 'Scores how directly the answer addresses the question', base: 0.86 },
+      { id: 'llama3-faithfulness-judge', name: 'llama3-faithfulness-judge', ver: 'v1', provider: 'ollama', measures: 'Faithfulness', desc: 'Checks the answer is grounded in the retrieved context', base: 0.81 },
+      { id: 'gpt-4o-groundedness-judge', name: 'gpt-4o-groundedness-judge', ver: 'v3', provider: 'gpt-model', measures: 'Context Groundedness', desc: 'Flags hallucinations against the source passages', base: 0.77 }
+    ];
+  }
+  judgeMeta(id) {
+    const j = this.judges().find(x => x.id === id); if (j) return j;
+    if (id && id.indexOf('dep:') === 0) {
+      const dep = this.deployments().find(d => d.name === id.slice(4));
+      if (dep) return { id: id, name: dep.name, ver: 'deployed', provider: (dep.tags.indexOf('ollama') >= 0 ? 'ollama' : 'gpt-model'), measures: dep.name + ' verdict', desc: 'Quality score from the deployed model ' + dep.name, base: 0.82, depName: dep.name };
+    }
+    return { id: id, name: id, ver: 'v1', provider: 'gpt-model', measures: 'Custom score', desc: 'Judge created from a custom rubric', base: 0.8 };
+  }
+  deployableModels() { return this.deployments().filter(d => !d.judgeId && d.mon === 'llm' && d.status === 'Active'); }
+  attachedJudges() { return this.state.attachedJudges || []; }
+  samplePct() { return this.state.samplePct != null ? this.state.samplePct : 10; }
+  traceIdx() { return this.state.traceIdx != null ? this.state.traceIdx : 0; }
+  connectJudge(id) { const a = this.attachedJudges(); if (!a.includes(id)) this.setState({ attachedJudges: a.concat([id]), judgeModalOpen: false }); else this.setState({ judgeModalOpen: false }); }
+  detachJudge(id) { this.setState({ attachedJudges: this.attachedJudges().filter(x => x !== id) }); }
+  openJudgeModal() { this.setState({ judgeModalOpen: true }); }
+  closeJudgeModal() { this.setState({ judgeModalOpen: false }); }
+  judgeModal() {
+    if (!this.state.judgeModalOpen) return null;
+    const e = React.createElement;
+    const attached = this.attachedJudges();
+    const sectionLabel = (icon, t, sub) => e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0 10px' } },
+      icon, e('span', { style: { fontSize: 12.5, fontWeight: 600, color: '#334155' } }, t), sub ? e('span', { style: { fontSize: 12, color: '#94a3b8' } }, sub) : null);
+    const overlay = e('div', { onClick: () => this.closeJudgeModal(), style: { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.34)', zIndex: 60, animation: 'lumlFade .14s ease' } });
+    const panel = e('div', { style: { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 'min(640px,92vw)', maxHeight: '86vh', background: '#fff', borderRadius: 16, zIndex: 61, boxShadow: '0 24px 60px rgba(15,23,42,.28)', display: 'flex', flexDirection: 'column', overflow: 'hidden', animation: 'lumlFade .16s ease' } },
+      e('div', { style: { padding: '20px 22px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'flex-start', gap: 13 } },
+        e('div', { style: { width: 40, height: 40, borderRadius: 11, background: 'linear-gradient(226deg,#add8fb 28%,#dfa3f0 98.72%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } }, e('svg', { width: 21, height: 21, viewBox: '0 0 24 24', fill: 'none', stroke: '#fff', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' }))),
+        e('div', { style: { flex: 1 } }, e('div', { style: { fontSize: 16, fontWeight: 600, color: '#1e293b', letterSpacing: '-0.2px' } }, 'Attach a judge'), e('div', { style: { fontSize: 13, color: '#64748b', marginTop: 2 } }, 'Pick a judge from your registry, or turn an active deployment into one. You can attach several.')),
+        e('button', { onClick: () => this.closeJudgeModal(), style: { background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4, display: 'flex' } }, e('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2 }, e('path', { d: 'M18 6L6 18M6 6l12 12' })))),
+      e('div', { style: { flex: 1, overflowY: 'auto', padding: '18px 22px' } },
+        sectionLabel(e('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: '#9333ea', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' })), 'Judges in your registry'),
+        e('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 18 } }, this.registryRows(attached)),
+        sectionLabel(e('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: '#64748b', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('ellipse', { cx: 12, cy: 5, rx: 9, ry: 3 }), e('path', { d: 'M3 5v14a9 3 0 0 0 18 0V5' }), e('path', { d: 'M3 12a9 3 0 0 0 18 0' })), 'Use a deployed model', '— turn any active deployment into a judge'),
+        e('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, this.deployedModelRows(attached))),
+      e('div', { style: { padding: '14px 22px', borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, background: '#f8fafc' } },
+        e('span', { style: { fontSize: 12.5, color: '#64748b' } }, 'Need a new scorer? Configure a judge from a prompt template.'),
+        e('button', { onClick: () => this.connectJudge('custom-rubric-judge'), style: { height: 36, padding: '0 15px', borderRadius: 8, background: '#2673fd', border: 'none', color: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 } }, e('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 5v14' }), e('path', { d: 'M5 12h14' })), 'Add a new judge')));
+    return e('div', null, overlay, panel);
+  }
+  judgeSeries(meta, d) { const t = i => d.n > 1 ? i / (d.n - 1) : 0; const wob = (i, a) => Math.sin(i * 1.7 + meta.base * 9) * a + Math.sin(i * 0.6) * a * 0.5; return d.labels.map((lb, i) => +Math.max(0.42, Math.min(0.98, meta.base - 0.06 * Math.pow(t(i), 1.2) + wob(i, 0.02))).toFixed(3)); }
+
+  reqLog() {
+    return [
+      { time: '12:04:51', id: 'req_8821', feat: 'age 42 · bmi 31.2 · smoker yes · SE', pred: '18,420', lat: '172 ms', status: 'OK' },
+      { time: '12:04:38', id: 'req_8820', feat: 'age 29 · bmi 24.1 · smoker no · NW', pred: '4,910', lat: '158 ms', status: 'OK' },
+      { time: '12:04:21', id: 'req_8819', feat: 'age 55 · bmi 36.8 · smoker yes · SW', pred: '24,180', lat: '188 ms', status: 'OK' },
+      { time: '12:04:06', id: 'req_8818', feat: 'age 34 · bmi 41.9 · smoker no · SE', pred: '7,640', lat: '201 ms', status: 'Warning' },
+      { time: '12:03:52', id: 'req_8817', feat: 'age 61 · bmi 27.4 · smoker no · NE', pred: '13,050', lat: '165 ms', status: 'OK' },
+      { time: '12:03:39', id: 'req_8816', feat: 'age 23 · bmi 19.8 · smoker no · NW', pred: '2,880', lat: '149 ms', status: 'OK' },
+      { time: '12:03:25', id: 'req_8815', feat: 'age 47 · bmi — · smoker yes · SE', pred: '—', lat: '—', status: 'Error' },
+      { time: '12:03:10', id: 'req_8814', feat: 'age 38 · bmi 29.0 · smoker yes · SW', pred: '19,260', lat: '177 ms', status: 'OK' }
+    ];
+  }
+  llmTraceList() {
+    return [
+      { time: '12:04:51', id: 'tr_9f2a1', q: 'How do I add a second driver to my policy?', lat: '1.84s', tok: '1,180', rel: 0.91, status: 'OK' },
+      { time: '12:04:33', id: 'tr_9f2b8', q: 'Is windscreen damage covered on third-party cover?', lat: '1.52s', tok: '980', rel: 0.88, status: 'OK' },
+      { time: '12:03:58', id: 'tr_9f3c0', q: 'What is the capital of France?', lat: '0.84s', tok: '420', rel: 0.21, status: 'OK' },
+      { time: '12:03:40', id: 'tr_9f3d5', q: 'Can I pause cover while travelling abroad for 3 months?', lat: '2.21s', tok: '1,340', rel: 0.79, status: 'OK' },
+      { time: '12:03:12', id: 'tr_9f4e2', q: 'My quote failed to load on checkout, what now?', lat: '—', tok: '0', rel: null, status: 'Error' },
+      { time: '12:02:47', id: 'tr_9f4f9', q: 'Do you offer multi-car discounts for a household?', lat: '1.68s', tok: '1,060', rel: 0.86, status: 'OK' }
+    ];
+  }
+
+  registryRows(exclude) {
+    const e = React.createElement;
+    const rows = this.judges().filter(j => exclude.indexOf(j.id) < 0).map(j => e('div', { key: j.id, style: { display: 'flex', alignItems: 'center', gap: 11, padding: '10px 11px', borderRadius: 8, border: '1px solid #e2e8f0' } },
+      e('img', { src: 'assets/providers/' + j.provider + '.svg', style: { width: 20, height: 20, flexShrink: 0 } }),
+      e('div', { style: { flex: 1, minWidth: 0 } },
+        e('div', { style: { display: 'flex', alignItems: 'center', gap: 7 } }, e('span', { onClick: () => this.openJudgeDep(j.id), title: 'Open judge deployment', style: { fontSize: 13, fontWeight: 500, color: '#2673fd', fontFamily: 'var(--luml-font-mono),monospace', cursor: 'pointer' } }, j.name), e('span', { style: { fontSize: 11, color: '#94a3b8', fontFamily: 'var(--luml-font-mono),monospace' } }, j.ver)),
+        e('div', { style: { fontSize: 12, color: '#64748b', marginTop: 2 } }, 'Produces ', e('span', { style: { color: '#9333ea', fontWeight: 500 } }, j.measures), ' · ', j.desc)),
+      e('button', { onClick: () => this.connectJudge(j.id), style: { flexShrink: 0, height: 32, padding: '0 14px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', color: '#334155', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' } }, 'Connect')));
+    if (!rows.length) rows.push(e('div', { key: 'none', style: { fontSize: 12.5, color: '#94a3b8', padding: '10px 11px' } }, 'All registry judges are attached.'));
+    return rows;
+  }
+  deployedModelRows(exclude) {
+    const e = React.createElement;
+    const rows = this.deployableModels().filter(d => exclude.indexOf('dep:' + d.name) < 0).map(d => {
+      const prov = d.tags.indexOf('ollama') >= 0 ? 'ollama' : 'gpt-model';
+      return e('div', { key: d.name, style: { display: 'flex', alignItems: 'center', gap: 11, padding: '10px 11px', borderRadius: 8, border: '1px solid #e2e8f0' } },
+        e('img', { src: 'assets/providers/' + prov + '.svg', style: { width: 20, height: 20, flexShrink: 0 } }),
+        e('div', { style: { flex: 1, minWidth: 0 } },
+          e('div', { style: { display: 'flex', alignItems: 'center', gap: 7 } }, e('span', { onClick: () => this.openJudgeDep('dep:' + d.name), title: 'Open deployment', style: { fontSize: 13, fontWeight: 500, color: '#2673fd', fontFamily: 'var(--luml-font-mono),monospace', cursor: 'pointer' } }, d.name), e('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#15803d', background: '#dcfce7', borderRadius: 5, padding: '1px 7px', fontWeight: 500 } }, 'Active')),
+          e('div', { style: { fontSize: 12, color: '#64748b', marginTop: 2 } }, d.task + ' · ', e('span', { style: { fontFamily: 'var(--luml-font-mono),monospace' } }, d.model))),
+        e('button', { onClick: () => this.connectJudge('dep:' + d.name), style: { flexShrink: 0, height: 32, padding: '0 14px', borderRadius: 8, background: '#fff', border: '1px solid #cbd5e1', color: '#334155', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' } }, 'Use as judge'));
+    });
+    if (!rows.length) rows.push(e('div', { key: 'none', style: { fontSize: 12.5, color: '#94a3b8', padding: '10px 11px' } }, 'No other active deployments available.'));
+    return rows;
+  }
+  deployedModelSection(exclude) {
+    const e = React.createElement;
+    return e('div', { style: { marginTop: 14, paddingTop: 14, borderTop: '1px solid #f1f5f9' } },
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 } },
+        e('svg', { width: 15, height: 15, viewBox: '0 0 24 24', fill: 'none', stroke: '#64748b', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('ellipse', { cx: 12, cy: 5, rx: 9, ry: 3 }), e('path', { d: 'M3 5v14a9 3 0 0 0 18 0V5' }), e('path', { d: 'M3 12a9 3 0 0 0 18 0' })),
+        e('span', { style: { fontSize: 12.5, fontWeight: 600, color: '#334155' } }, 'Or use a deployed model'),
+        e('span', { style: { fontSize: 12, color: '#94a3b8' } }, '— turn any active deployment into a judge')),
+      e('div', { style: { display: 'flex', flexDirection: 'column', gap: 8 } }, this.deployedModelRows(exclude)));
+  }
+  samplingControl() {
+    const e = React.createElement;
+    const pct = this.samplePct();
+    return e('div', { style: { display: 'flex', alignItems: 'center', gap: 14, marginTop: 16, padding: '14px 16px', background: '#f8fafc', border: '1px solid #f1f5f9', borderRadius: 10 } },
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 } },
+        e('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: '#64748b', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M3 6h18' }), e('path', { d: 'M7 12h10' }), e('path', { d: 'M11 18h2' })),
+        e('span', { style: { fontSize: 13, fontWeight: 500, color: '#334155' } }, 'Evaluate a sample of traffic')),
+      e('input', { type: 'range', min: 1, max: 100, value: pct, onChange: ev => this.setState({ samplePct: +ev.target.value }), style: { flex: 1, maxWidth: 240 } }),
+      e('span', { style: { fontSize: 13, fontWeight: 600, color: '#2673fd', width: 42, fontFamily: 'var(--luml-font-mono),monospace' } }, pct + '%'),
+      e('span', { style: { fontSize: 12, color: '#94a3b8', flex: 1 } }, 'Running a judge on every request is costly — sample to control spend.'));
+  }
+  emptyEvaluator() {
+    const e = React.createElement;
+    return e('div', { style: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 30, boxShadow: '0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)', textAlign: 'center' } },
+      e('div', { style: { width: 52, height: 52, borderRadius: 14, margin: '0 auto 16px', background: 'linear-gradient(226deg,#add8fb 28%,#dfa3f0 98.72%)', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+        e('svg', { width: 27, height: 27, viewBox: '0 0 24 24', fill: 'none', stroke: '#fff', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' }))),
+      e('div', { style: { fontSize: 17, fontWeight: 600, color: '#1e293b', letterSpacing: '-0.2px' } }, 'Start tracking quality with an evaluator'),
+      e('div', { style: { fontSize: 13.5, color: '#64748b', marginTop: 6, maxWidth: 520, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.55 } }, 'Attach one or more LLM-as-a-judge evaluators to score responses and turn their verdicts into tracked metrics. Every number stays labelled with the judge that produced it.'),
+      e('button', { onClick: () => this.openJudgeModal(), style: { marginTop: 18, height: 40, padding: '0 20px', borderRadius: 9, background: '#2673fd', border: 'none', color: '#fff', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 8 } },
+        e('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 5v14' }), e('path', { d: 'M5 12h14' })), 'Attach a judge'),
+      e('div', { style: { marginTop: 20, paddingTop: 18, borderTop: '1px solid #f1f5f9', maxWidth: 520, marginLeft: 'auto', marginRight: 'auto' } }, this.samplingControl()));
+  }
+  judgeCard(id, d, idx) {
+    const e = React.createElement;
+    const meta = this.judgeMeta(id);
+    const rel = this.judgeSeries(meta, d), n = rel.length;
+    const avg = rel.reduce((a, b) => a + b, 0) / n, last = rel[n - 1], first = rel[0];
+    const belowPct = Math.round(rel.filter(v => v < 0.7).length / n * 100);
+    const reqTotal = d.requests.reduce((a, b) => a + b, 0);
+    const judged = Math.round(reqTotal * this.samplePct() / 100);
+    const f2 = v => (+v).toFixed(2);
+    const kpi = (label, val, sub, col) => e('div', { style: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '13px 14px' } },
+      e('div', { style: { fontSize: 11, color: '#64748b', textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 } }, label),
+      e('div', { style: { fontSize: 23, fontWeight: 500, color: '#1e293b', letterSpacing: '-.02em', marginTop: 6, fontFamily: 'var(--luml-font-mono),monospace' } }, val),
+      e('div', { style: { fontSize: 12, color: col || '#64748b', marginTop: 4 } }, sub));
+    const hasDep = this.deployments().some(dp => dp.judgeId === id || dp.name === (id && id.indexOf('dep:') === 0 ? id.slice(4) : null));
+    const judgePill = e('button', { onClick: hasDep ? () => this.openJudgeDep(id) : null, title: hasDep ? 'Open judge deployment' : null, style: { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 11px', borderRadius: 20, background: '#faf5ff', color: '#9333ea', fontSize: 12, fontWeight: 500, border: '1px solid #f0d9ff', cursor: hasDep ? 'pointer' : 'default', fontFamily: 'inherit' } }, e('img', { src: 'assets/providers/' + meta.provider + '.svg', style: { width: 14, height: 14 } }), 'via judge · ' + meta.name + ' ' + meta.ver, hasDep ? e('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M7 17 17 7' }), e('path', { d: 'M7 7h10v10' })) : null);
+    const header = e('div', { style: { display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 14 } },
+      e('div', { style: { width: 40, height: 40, borderRadius: 10, background: '#faf5ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } }, e('svg', { width: 21, height: 21, viewBox: '0 0 24 24', fill: 'none', stroke: '#9333ea', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z' }))),
+      e('div', null, e('div', { style: { fontSize: 16, fontWeight: 600, color: '#1e293b', letterSpacing: '-0.2px' } }, meta.measures), e('div', { style: { fontSize: 12.5, color: '#64748b', marginTop: 2 } }, 'Average judge score over the selected window')),
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' } },
+        judgePill,
+        e('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, background: '#f1f5f9', color: '#475569', fontSize: 12, fontWeight: 500 } }, 'Judging ' + this.samplePct() + '% of traffic'),
+        e('button', { onClick: () => this.detachJudge(id), style: { height: 32, padding: '0 13px', borderRadius: 8, background: '#fff', border: '1px solid #e2e8f0', color: '#64748b', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' } }, 'Detach')));
+    const kpis = e('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, marginBottom: 14 } },
+      kpi(meta.measures, f2(last), (last - first >= 0 ? '↑ ' : '↓ ') + Math.abs(last - first).toFixed(2) + ' vs start', last - first >= 0 ? '#15803d' : '#c2410c'),
+      kpi('Window average', f2(avg), 'across judged calls'),
+      kpi('Below 0.7', belowPct + '%', 'of judged responses', belowPct > 10 ? '#c2410c' : '#64748b'),
+      kpi('Calls judged', judged.toLocaleString(), this.samplePct() + '% of ' + reqTotal.toLocaleString()));
+    const chartId = 'jc_' + idx;
+    const chart = e('div', { style: { background: '#fff', border: '1px solid #f1f5f9', borderRadius: 10, padding: 14 } },
+      e('div', { style: { fontSize: 13, fontWeight: 600, color: '#1e293b', marginBottom: 2 } }, meta.measures + ' over time'),
+      e('div', { style: { fontSize: 12, color: '#64748b' } }, 'mean judge score per interval'),
+      e('div', { 'data-cw': chartId, style: { width: '100%', overflow: 'hidden', marginTop: 8 } }, this.plot(chartId, { series: [{ name: meta.measures, color: '#a855f7', data: d.labels.map((lb, i) => ({ label: lb, y: rel[i] })) }], height: 180, fmt: f2, yMin: 0.4, yMax: 1, fb: 560, thresholds: [{ v: 0.7, color: '#f97316', label: 'target 0.70' }] })));
+    return e('div', { key: id, style: { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)' } }, header, kpis, chart);
+  }
+  configuredMetrics(d) {
+    const e = React.createElement;
+    const attached = this.attachedJudges();
+    const cards = attached.map((id, i) => this.judgeCard(id, d, i));
+    const remaining = this.judges().filter(j => attached.indexOf(j.id) < 0);
+    const more = e('div', { key: 'more', style: { background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 12, padding: 18, boxShadow: '0 1px 3px rgba(28,43,64,.04),0 5px 5px rgba(28,43,64,.02)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' } },
+      e('div', { style: { display: 'flex', alignItems: 'center', gap: 11 } },
+        e('div', { style: { width: 36, height: 36, borderRadius: 9, background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } }, e('svg', { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: '#2673fd', strokeWidth: 1.9, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 5v14' }), e('path', { d: 'M5 12h14' }))),
+        e('div', null, e('div', { style: { fontSize: 14, fontWeight: 600, color: '#1e293b' } }, 'Attach another judge'), e('div', { style: { fontSize: 12.5, color: '#64748b', marginTop: 2 } }, 'Track more than one quality dimension side by side'))),
+      e('button', { onClick: () => this.openJudgeModal(), style: { height: 38, padding: '0 16px', borderRadius: 8, background: '#fff', border: '1px solid #2673fd', color: '#2673fd', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 7, flexShrink: 0 } }, e('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' }, e('path', { d: 'M12 5v14' }), e('path', { d: 'M5 12h14' })), 'Attach a judge'));
+    return e('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } }, cards.concat([more, e('div', { key: 'samp' }, this.samplingControl())]));
+  }
+  evaluatorBlock(d) { return this.attachedJudges().length ? this.configuredMetrics(d) : this.emptyEvaluator(); }
+
+  renderVals() {
+    const C = { brand: '#2673fd', help: '#a855f7', warn: '#f97316', info: '#0ea5e9', ref: '#cbd5e1', danger: '#ef4444', success: '#22c55e' };
+    const win = this.win(), d = this.winData(win), feat = this.feat(), meta = this.featMeta(), fm = meta[feat], targets = this.perfTargets();
+    const fmtInt = v => Math.round(v).toLocaleString('en-US');
+    const fmtPct = v => (+v).toFixed(2) + '%';
+    const fmtMs = v => Math.round(v) + ' ms';
+    const fmtPsi = v => (+v).toFixed(2);
+    const fmt3 = v => (+v).toFixed(3);
+    const mk = arr => d.labels.map((lb, i) => ({ label: lb, y: arr[i] }));
+
+    const stColor = s => s === 'Critical' ? { bg: '#fee2e2', fg: '#b91c1c' } : s === 'Warning' ? { bg: '#ffedd5', fg: '#c2410c' } : { bg: '#dcfce7', fg: '#15803d' };
+    const order = ['smoker', 'bmi', 'region', 'age', 'sex', 'children'];
+    const featureRows = order.map(k => {
+      const m = meta[k], sc = stColor(m.status), sel = k === feat;
+      return { name: m.label, psiText: m.psi.toFixed(2), statusLabel: m.status, statusBg: sc.bg, statusFg: sc.fg, barW: Math.round(m.psi / 0.31 * 100) + '%', barColor: m.status === 'Critical' ? C.danger : m.status === 'Warning' ? C.warn : C.success, accent: sel ? C.brand : 'transparent', rowBg: sel ? '#f8fafc' : '#fff', nameColor: sel ? '#1e293b' : '#334155', onClick: () => this.setState({ hover: null, feat: k }) };
+    });
+    const topDriftRows = featureRows.slice(0, 4);
+
+    const dqRows = [
+      { feature: 'age', missing: '0.1%', type: '0%', range: '0.3% out of range', status: 'OK' },
+      { feature: 'bmi', missing: '3.8%', type: '0%', range: '1.2% out of range', status: 'Warning' },
+      { feature: 'sex', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'children', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'smoker', missing: '0%', type: '0%', range: '0% unseen', status: 'OK' },
+      { feature: 'region', missing: '0%', type: '0%', range: '0.5% unseen', status: 'Warning' }
+    ].map(r => { const sc = stColor(r.status); return Object.assign({}, r, { statusBg: sc.bg, statusFg: sc.fg, missingColor: parseFloat(r.missing) > 1 ? '#c2410c' : '#334155' }); });
+
+    const yh = { cats: ['0–5k', '5–10k', '10–15k', '15–20k', '20–25k', '25k+'], ref: [28, 34, 20, 11, 5, 2], cur: [10, 18, 22, 24, 16, 10] };
+    const rb = { cats: ['<-4k', '-4k…-2k', '-2k…0', '0…2k', '2k…4k', '4k…6k', '>6k'], vals: [4, 11, 19, 24, 18, 9, 4] };
+
+    const featStColor = stColor(fm.status);
+
+    // ── reference profiles (training baseline) for the drawer ──
+    const refStats = {
+      age: { edges: '[18, 27, 36, 45, 54, 64]', sum: [['Mean','39.2'],['Std dev','14.0'],['Min','18'],['Max','64'],['q05','19'],['q25','27'],['q50 (median)','39'],['q75','51'],['q95','62'],['Count','1,070'],['Missing','1 (0.1%)']] },
+      bmi: { edges: '[15.96, 22, 28, 34, 40, 46, 53.13]', sum: [['Mean','30.66'],['Std dev','6.10'],['Min','15.96'],['Max','53.13'],['q05','21.3'],['q25','26.3'],['q50 (median)','30.4'],['q75','34.7'],['q95','41.1'],['Count','1,029'],['Missing','41 (3.8%)']] },
+      children: { edges: '[0, 1, 2, 3, 4, 5]', sum: [['Mean','1.09'],['Std dev','1.21'],['Min','0'],['Max','5'],['q05','0'],['q25','0'],['q50 (median)','1'],['q75','2'],['q95','3'],['Count','1,070'],['Missing','0']] },
+      smoker: { unique: 2, count: '1,070', missing: '0' },
+      sex: { unique: 2, count: '1,070', missing: '0' },
+      region: { unique: 4, count: '1,070', missing: '0' }
+    };
+    const isNum = fm.type === 'Numeric';
+    const rp = refStats[feat] || refStats.age;
+    let infoRows;
+    if (isNum) {
+      infoRows = rp.sum.map(([k, v]) => ({ k, v }));
+    } else {
+      infoRows = [{ k: 'Unique categories', v: String(rp.unique) }, { k: 'Count', v: rp.count }, { k: 'Missing', v: rp.missing }]
+        .concat(fm.cats.map((c, i) => ({ k: 'P(' + c + ')', v: (fm.ref[i] / 100).toFixed(3) })));
+    }
+    const infoCats = isNum ? [] : fm.cats.map((c, i) => ({ name: c, p: fm.ref[i] + '%' }));
+
+    // ── multivariate (PCA) projection points ──
+    const pcaRefPts = [[0,0],[1,0.5],[-1,-0.4],[0.6,1.1],[-0.8,0.7],[0.3,-0.9],[1.4,0.3],[-1.3,0.2],[0.2,0.6],[-0.4,-1.0],[0.9,-0.5],[-0.6,1.2]];
+    const pcaCurPts = [[1.6,0.9],[2.2,1.4],[1.1,0.4],[2.6,1.9],[1.9,0.6],[2.9,1.2],[1.4,1.7],[2.3,0.3],[3.1,1.5],[1.7,1.1],[2.5,0.8],[2.0,1.9]];
+    const pcaRef = pcaRefPts.map(([x, y]) => ({ cx: (160 + x * 38).toFixed(1), cy: (95 - y * 38).toFixed(1) }));
+    const pcaCur = pcaCurPts.map(([x, y]) => ({ cx: (160 + x * 38).toFixed(1), cy: (95 - y * 38).toFixed(1) }));
+
+    // ── deployment list + selected deployment ──
+    const tab = this.dtab(), monT = this.monType();
+    const dep = this.dep();
+    const depRows = this.deployments().map((r, i) => {
+      const sc = this.statusColor(r.status);
+      return { name: r.name, model: r.model, satellite: r.satellite, url: r.url, created: r.created, createdBy: r.createdBy,
+        statusText: r.status, statusBg: sc.bg, statusFg: sc.fg, statusDot: sc.dot,
+        tags: r.tags.map(t => ({ label: t })), open: () => this.openDep(i) };
+    });
+    const depSc = this.statusColor(dep.status);
+    const depEnv = dep.env.map(([k, v]) => ({ k, v }));
+    const depTags = dep.tags.map(t => ({ label: t }));
+    // ── traces + evaluator ──
+    const trC = s => (s === 'Error' || s === 'Critical') ? { bg: '#fee2e2', fg: '#b91c1c' } : s === 'Warning' ? { bg: '#ffedd5', fg: '#c2410c' } : { bg: '#dcfce7', fg: '#15803d' };
+    const reqLogRows = this.reqLog().map(r => { const c = trC(r.status); return Object.assign({}, r, { statusBg: c.bg, statusFg: c.fg }); });
+    const relCol = v => v == null ? { bg: '#f1f5f9', fg: '#94a3b8' } : v >= 0.8 ? { bg: '#dcfce7', fg: '#15803d' } : v >= 0.6 ? { bg: '#ffedd5', fg: '#c2410c' } : { bg: '#fee2e2', fg: '#b91c1c' };
+    const tracesHaveJudge = this.attachedJudges().length > 0;
+    const llmTraceRows = this.llmTraceList().map(r => { const c = trC(r.status); const rc = relCol(r.rel); return { time: r.time, id: r.id, q: r.q, lat: r.lat, tok: r.tok, statusText: r.status, statusBg: c.bg, statusFg: c.fg, hasRel: tracesHaveJudge && r.rel != null, relText: r.rel != null ? r.rel.toFixed(2) : '—', relBg: rc.bg, relFg: rc.fg }; });
+    const evaluatorBlock = this.evaluatorBlock(d);
+
+    return {
+      deploymentName: dep.name,
+      isList: this.state.view === 'list', isDetail: this.state.view === 'detail',
+      tabIsOverview: tab === 'overview', tabIsConfiguration: tab === 'configuration', tabIsMonitoring: tab === 'monitoring', monitoringNav: tab === 'monitoring',
+      monIsClassic: monT === 'classic', monIsLLM: monT === 'llm',
+      evaluatorBlock, reqLogRows, llmTraceRows, tracesHaveJudge, tracesNoJudge: !tracesHaveJudge, judgeModal: this.judgeModal(),
+      tabNav: this.tabNav(), monToggle: this.segmented([['classic', 'ML Classic'], ['llm', 'LLM observability']], monT, k => this.setState({ monType: k })),
+      backToList: () => this.backToList(),
+      depRows, depCount: depRows.length,
+      depTask: dep.task, depModel: dep.model, depSatellite: dep.satellite, depUrl: dep.url, depCreated: dep.created, depCreatedBy: dep.createdBy,
+      depStatus: dep.status, depStatusBg: depSc.bg, depStatusFg: depSc.fg, depStatusDot: depSc.dot, depDesc: dep.desc, depEnv, depTags, depUpdated: dep.updated || '2026/06/20 04:12',
+      win,
+      windowToggle: this.segmented([['24h', '24h'], ['7d', '7d'], ['30d', '30d']], win, k => this.setState({ win: k })),
+      perfToggle: this.segmented([[false, 'Waiting'], [true, 'Arrived']], targets, k => this.setState({ perfTargets: k })),
+      sectionNav: this.sectionNav(),
+      targets, notTargets: !targets,
+      latestRmseVal: targets ? '5,100' : '—',
+      latestRmseSub: targets ? 'baseline CV 4,824' : 'waiting for targets',
+
+      requestsChart: this.plot('requests', { series: [{ name: 'Requests', color: C.brand, data: mk(d.requests) }], area: true, height: 150, fmt: fmtInt, fb: 300 }),
+      errorChart: this.plot('error', { series: [{ name: 'Error rate', color: C.warn, data: mk(d.errorRate) }], area: true, height: 150, fmt: fmtPct, yMin: 0, fb: 300 }),
+      latencyChart: this.plot('latency', { series: [{ name: 'Latency p95', color: C.info, data: mk(d.latency) }], area: true, height: 150, fmt: fmtMs, fb: 300 }),
+      predBandChart: this.plot('predband', { series: [{ name: 'Median', color: C.help, data: mk(d.ypredMed) }], band: { lo: d.ypredLo, hi: d.ypredHi, color: C.help }, height: 150, fmt: fmtInt, fb: 520 }),
+
+      featDistChart: this.gbars('featdist', { cats: fm.cats, series: [{ name: 'Reference', color: C.ref, vals: fm.ref }, { name: 'Current', color: C.brand, vals: fm.cur }], height: 170, fmt: v => v + '%', fb: 480 }),
+      featPsiChart: this.plot('featpsi', { series: [{ name: 'PSI', color: fm.status === 'Critical' ? C.danger : fm.status === 'Warning' ? C.warn : C.brand, data: mk(d.psiBy[feat]) }], area: true, height: 160, fmt: fmtPsi, yMin: 0, fb: 480, thresholds: [{ v: 0.1, color: '#f97316', label: 'warning 0.1' }, { v: 0.2, color: '#ef4444', label: 'critical 0.2' }] }),
+
+      ypredHist: this.gbars('ypredhist', { cats: yh.cats, series: [{ name: 'Reference', color: C.ref, vals: yh.ref }, { name: 'Current', color: C.brand, vals: yh.cur }], height: 190, fmt: v => v + '%', fb: 900 }),
+      ypredLines: this.plot('ypredlines', { series: [{ name: 'Median', color: C.brand, data: mk(d.ypredMed) }, { name: 'Mean', color: C.help, data: mk(d.ypredMean) }], height: 170, fmt: fmtInt, fb: 460 }),
+      ypredBand: this.plot('ypredband', { series: [{ name: 'Median', color: C.brand, data: mk(d.ypredMed) }], band: { lo: d.ypredLo, hi: d.ypredHi, color: C.brand }, height: 170, fmt: fmtInt, fb: 460 }),
+
+      rmseChart: this.plot('rmse', { series: [{ name: 'RMSE', color: C.brand, data: mk(d.rmse) }], area: true, height: 150, fmt: fmtInt, fb: 300, thresholds: [{ v: 4824, color: '#94a3b8', label: 'baseline 4824' }] }),
+      maeChart: this.plot('mae', { series: [{ name: 'MAE', color: C.info, data: mk(d.mae) }], area: true, height: 150, fmt: fmtInt, fb: 300, thresholds: [{ v: 2838, color: '#94a3b8', label: 'baseline 2838' }] }),
+      r2Chart: this.plot('r2', { series: [{ name: 'R²', color: C.help, data: mk(d.r2) }], height: 150, fmt: fmt3, fb: 300, thresholds: [{ v: 0.834, color: '#94a3b8', label: 'baseline 0.834' }] }),
+      scatterChart: this.scatter('scatter', { pts: this.scatterPts(), height: 300, fb: 520 }),
+      residChart: this.gbars('resid', { cats: rb.cats, series: [{ name: 'Residuals', color: C.brand, vals: rb.vals }], height: 220, fmt: v => v + '%', fb: 460 }),
+
+      featureRows, topDriftRows, dqRows,
+      featName: fm.label, featType: fm.type, featPsi: fm.psi.toFixed(2), featStatus: fm.status, featStatusBg: featStColor.bg, featStatusFg: featStColor.fg,
+      openInfo: () => this.setState({ infoOpen: true }), closeInfo: () => this.setState({ infoOpen: false }), infoOpen: this.state.infoOpen,
+      infoRows, infoCats, infoEdges: isNum ? rp.edges : '', infoIsNumeric: isNum, infoIsCategorical: !isNum,
+      pcaRef, pcaCur
+    };
+  }
+
+  tabNav() {
+    const e = React.createElement;
+    const tab = this.dtab();
+    const items = [['overview', 'Overview', 'M3 9 12 2l9 7 M5 9v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9'], ['configuration', 'Configuration', 'M4 21v-7 M4 10V3 M12 21v-9 M12 8V3 M20 21v-5 M20 12V3 M1 14h6 M9 8h6 M17 16h6'], ['monitoring', 'Monitoring', 'M3 3v18h18 M7 14l3-3 3 2 4-5']];
+    return e('div', { style: { display: 'inline-flex', gap: 6, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 4 } },
+      items.map(([id, lb, d]) => {
+        const on = id === tab;
+        return e('button', { key: id, onClick: () => this.goTab(id), style: { display: 'inline-flex', alignItems: 'center', gap: 8, border: '1px solid ' + (on ? '#bfdbfe' : 'transparent'), background: on ? '#eff6ff' : 'transparent', color: on ? '#2673fd' : '#64748b', padding: '8px 16px', borderRadius: 7, fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' } },
+          e('svg', { width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }, d.split(' M').map((seg, i) => e('path', { key: i, d: (i ? 'M' : '') + seg }))), lb);
+      }));
+  }
+  sectionNav() {
+    const e = React.createElement;
+    if (this.dtab() !== 'monitoring') return e('div', { style: { height: 0 } });
+    const items = this.monType() === 'llm'
+      ? [['traces', 'Traces'], ['quality', 'Quality metrics']]
+      : [['traces', 'Traces'], ['data-quality', 'Data quality'], ['feature-drift', 'Feature drift'], ['prediction-drift', 'Prediction drift'], ['performance', 'Performance'], ['custom-metric', 'Custom metrics']];
+    const sec = this.state.sec || 'traces';
+    return e('div', { style: { display: 'flex', gap: 4 } }, items.map(([id, lb]) => { const on = id === sec; return e('a', { key: id, href: '#' + id, style: { padding: '10px 16px', fontSize: 14, fontWeight: 500, color: on ? '#2673fd' : '#64748b', borderBottom: '2px solid ' + (on ? '#2673fd' : 'transparent'), marginBottom: '-1px', textDecoration: 'none', cursor: 'pointer' } }, lb); }));
+  }
+}
+</script>
+</body>
+</html>
