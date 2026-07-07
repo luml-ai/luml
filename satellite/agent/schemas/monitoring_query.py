@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Window(StrEnum):
@@ -141,3 +141,68 @@ class DataQualityResponse(BaseModel):
     profile_status: ProfileStatus = ProfileStatus.READY
     features: list[DataQualityFeatureRow] = []
     alerts: list[AlertBanner] = []
+
+
+class DistributionBin(BaseModel):
+    label: str
+    reference: float | None = None
+    current: float | None = None
+
+
+class FeatureDistribution(BaseModel):
+    kind: str  # "numeric" | "categorical"
+    bins: list[DistributionBin] = []
+
+
+class FeatureDriftDetail(BaseModel):
+    """Per-selected-feature drift detail: the reference-vs-current shape and PSI over time."""
+
+    feature: str
+    psi: float | None = None
+    status: Severity = Severity.OK
+    distribution: FeatureDistribution | None = None
+    psi_over_time: Series | None = None
+
+
+class PcaPoint(BaseModel):
+    x: float
+    y: float
+
+
+class MultivariatePanel(BaseModel):
+    state: SectionState = SectionState.EMPTY
+    status: Severity = Severity.OK
+    shift_value: float | None = None
+    shift_metric: str | None = None
+    explained_variance: list[float] = []
+    feature_psi: list[DriftedFeature] = []
+    reference_projection: list[PcaPoint] = []
+    current_projection: list[PcaPoint] = []
+
+
+class FeatureDriftResponse(BaseModel):
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    features: list[DriftedFeature] = []  # ranked PSI list with per-feature status
+    selected: FeatureDriftDetail | None = None
+    multivariate: MultivariatePanel = Field(default_factory=MultivariatePanel)
+    alerts: list[AlertBanner] = []
+
+
+class ReferenceProfileFeature(BaseModel):
+    feature: str
+    kind: str  # "numeric" | "categorical"
+    summary: dict[str, float] = {}
+    bin_edges: list[float] | None = None
+    histogram: list[float] | None = None
+    categories: list[str] | None = None
+    category_probabilities: list[float] | None = None
+
+
+class ReferenceProfileResponse(BaseModel):
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    baseline_label: str | None = None
+    computed_at: datetime | None = None
+    features: list[str] = []  # available feature names to select from
+    feature: ReferenceProfileFeature | None = None  # the selected feature's baseline
