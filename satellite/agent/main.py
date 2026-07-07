@@ -38,7 +38,10 @@ def _build_monitoring_worker() -> tuple[MonitoringWorker, GreptimeMonitoringStor
 
 async def run_async() -> None:
     async with PlatformClient(str(config.PLATFORM_URL), config.SATELLITE_TOKEN) as platform:
-        agent_app = create_agent_app(platform.authorize_inference_access)
+        agent_app = create_agent_app(
+            platform.authorize_inference_access,
+            platform.introspect_monitoring_token,
+        )
 
         uv_config = uvicorn.Config(
             agent_app,

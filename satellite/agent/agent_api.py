@@ -10,12 +10,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
+from agent.monitoring import IntrospectFn, register_monitoring
 from agent.schemas import (
     DeploymentInfo,
     Healthz,
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from agent.settings import config
 
 openapi_handler = OpenAPIHandler(ms_handler)
 
@@ -54,9 +56,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     # await model_server_handler.shutdown()
 
 
-def create_agent_app(authorize_access: Callable[[str], Awaitable[bool]]) -> FastAPI:
+def create_agent_app(
+    authorize_access: Callable[[str], Awaitable[bool]],
+    introspect_monitoring_token: IntrospectFn,
+) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     security = HTTPBearer()
+
+    register_monitoring(
+        app,
+        introspect=introspect_monitoring_token,
+        frame_ancestors=config.monitoring_frame_ancestors(),
+        session_ttl_seconds=config.MONITORING_SESSION_TTL_SECONDS,
+    )
 
     async def verify_token(
         credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
