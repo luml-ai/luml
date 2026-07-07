@@ -104,6 +104,18 @@
           </div>
         </template>
       </Column>
+      <Column header="Monitoring" field="monitoring">
+        <template #body="{ data }">
+          <div class="cell">
+            <router-link
+              :to="{ name: 'deployment-monitoring', params: { deploymentId: data.id } }"
+              class="link"
+            >
+              Monitoring
+            </router-link>
+          </div>
+        </template>
+      </Column>
       <Column>
         <template #body="{ data }">
           <Button severity="secondary" variant="text" @click="onSettingsClick(data)">
