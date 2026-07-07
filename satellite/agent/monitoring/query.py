@@ -5,6 +5,7 @@ metric math. ``deployment_id`` always comes from the caller (the dashboard sessi
 from client input.
 """
 
+import json
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,6 +24,8 @@ from agent.monitoring.query_store import (
 )
 from agent.schemas.monitoring_query import (
     AlertBanner,
+    AlertGroup,
+    AlertsResponse,
     Card,
     Compare,
     DataQualityFeatureRow,
@@ -46,6 +49,8 @@ from agent.schemas.monitoring_query import (
     SeriesPoint,
     Severity,
     SeverityFilter,
+    TraceRow,
+    TracesResponse,
     Window,
 )
 
@@ -66,6 +71,12 @@ _AUTO_BUCKET_SECONDS: dict[Window, int] = {
 }
 _BANNER_LIMIT = 5
 _TOP_DRIFTED_LIMIT = 5
+_ALERT_GROUP_ORDER = (GROUP_RUNTIME, GROUP_DATA_QUALITY, GROUP_FEATURE_DRIFT)
+
+TRACES_DEFAULT_LIMIT = 50
+TRACES_MAX_LIMIT = 200
+_TRACE_SUMMARY_MAX_LEN = 200
+_TRACE_SUMMARY_MAX_KEYS = 8
 
 
 @dataclass(frozen=True)
@@ -343,6 +354,44 @@ class MonitoringQueryService:
             feature=selected,
         )
 
+    async def alerts(self, deployment_id: UUID, dims: QueryDimensions) -> AlertsResponse:
+        try:
+            stored = await self._store.fetch_alerts(deployment_id)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return AlertsResponse(state=SectionState.UNAVAILABLE)
+        matching = [a for a in stored if _severity_matches(a.severity, dims.severity)]
+        return AlertsResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            groups=_group_alerts(matching),
+        )
+
+    async def traces(
+        self,
+        deployment_id: UUID,
+        dims: QueryDimensions,
+        *,
+        limit: int = TRACES_DEFAULT_LIMIT,
+        offset: int = 0,
+    ) -> TracesResponse:
+        try:
+            start, end = self._window_bounds(dims.window)
+            events = await self._store.fetch_events(deployment_id, start, end)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return TracesResponse(state=SectionState.UNAVAILABLE, limit=limit, offset=offset)
+        ordered = sorted(events, key=lambda e: e.ts, reverse=True)
+        page = ordered[offset : offset + limit]
+        return TracesResponse(
+            state=SectionState.OK if ordered else SectionState.EMPTY,
+            profile_status=profile,
+            rows=[_trace_row(e) for e in page],
+            total=len(ordered),
+            limit=limit,
+            offset=offset,
+        )
+
     async def _runtime(
         self, deployment_id: UUID, dims: QueryDimensions
     ) -> tuple[_Rollup, list[Series]]:
@@ -380,6 +429,19 @@ def _banner_order(alert: StoredAlert) -> tuple[int, float]:
     rank = 0 if alert.severity == Severity.CRITICAL else 1
     last_seen = alert.last_seen.timestamp() if alert.last_seen else 0.0
     return rank, -last_seen
+
+
+def _group_alerts(alerts: list[StoredAlert]) -> list[AlertGroup]:
+    by_group: dict[str, list[AlertBanner]] = {}
+    for alert in sorted(alerts, key=_banner_order):
+        by_group.setdefault(alert.group, []).append(_alert_banner(alert))
+    known = [
+        AlertGroup(group=group, alerts=by_group.pop(group))
+        for group in _ALERT_GROUP_ORDER
+        if group in by_group
+    ]
+    extra = [AlertGroup(group=group, alerts=items) for group, items in by_group.items()]
+    return known + extra
 
 
 def _drifted_features(values: dict) -> list[DriftedFeature]:
@@ -536,3 +598,44 @@ def _overview_cards(
             feature_names=drifted_names,
         ),
     ]
+
+
+def _trace_row(event: InferenceEvent) -> TraceRow:
+    return TraceRow(
+        event_id=event.event_id,
+        ts=event.ts,
+        features_summary=_preview(event.inputs),
+        prediction=_preview(event.output),
+        latency_ms=event.latency_ms,
+        status=event.status,
+        status_code=event.status_code,
+    )
+
+
+def _preview(raw: str | None) -> str | None:
+    """Condense a stored inputs/output JSON string into one bounded table-cell summary."""
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except ValueError:
+        return _truncate(raw, _TRACE_SUMMARY_MAX_LEN)
+    if isinstance(parsed, dict):
+        items = list(parsed.items())[:_TRACE_SUMMARY_MAX_KEYS]
+        summary = ", ".join(f"{key}={_scalar(value)}" for key, value in items)
+        if len(parsed) > _TRACE_SUMMARY_MAX_KEYS:
+            summary += ", …"
+        return _truncate(summary, _TRACE_SUMMARY_MAX_LEN)
+    return _truncate(_scalar(parsed), _TRACE_SUMMARY_MAX_LEN)
+
+
+def _scalar(value: object) -> str:
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, (str, int)):
+        return str(value)
+    return json.dumps(value, separators=(",", ":"))
+
+
+def _truncate(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[: limit - 1] + "…"

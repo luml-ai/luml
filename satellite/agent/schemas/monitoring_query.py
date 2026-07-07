@@ -206,3 +206,37 @@ class ReferenceProfileResponse(BaseModel):
     computed_at: datetime | None = None
     features: list[str] = []  # available feature names to select from
     feature: ReferenceProfileFeature | None = None  # the selected feature's baseline
+
+
+class AlertGroup(BaseModel):
+    """Open alerts for one metric group (runtime, data quality, feature drift)."""
+
+    group: str
+    alerts: list[AlertBanner] = []
+
+
+class AlertsResponse(BaseModel):
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    groups: list[AlertGroup] = []  # read-only; no acknowledge/resolve in this slice
+
+
+class TraceRow(BaseModel):
+    """One recent inference call. Local-only: served only into the same-origin iframe."""
+
+    event_id: str
+    ts: datetime
+    features_summary: str | None = None
+    prediction: str | None = None
+    latency_ms: float
+    status: str
+    status_code: int
+
+
+class TracesResponse(BaseModel):
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    rows: list[TraceRow] = []
+    total: int = 0  # matching rows across all pages, so the UI can paginate
+    limit: int = 50
+    offset: int = 0
