@@ -17,7 +17,9 @@ from agent.monitoring.store import (
     InferenceEvent,
     MonitoringStore,
     MonitoringStoreUnavailable,
+    ReferenceFeatureProfile,
     StoredAlert,
+    StoredMetricResult,
 )
 from agent.schemas.monitoring_query import (
     AlertBanner,
@@ -25,11 +27,19 @@ from agent.schemas.monitoring_query import (
     Compare,
     DataQualityFeatureRow,
     DataQualityResponse,
+    DistributionBin,
     DriftedFeature,
+    FeatureDistribution,
+    FeatureDriftDetail,
+    FeatureDriftResponse,
     Granularity,
     HeaderResponse,
+    MultivariatePanel,
     OverviewResponse,
+    PcaPoint,
     ProfileStatus,
+    ReferenceProfileFeature,
+    ReferenceProfileResponse,
     RuntimeResponse,
     SectionState,
     Series,
@@ -42,6 +52,7 @@ from agent.schemas.monitoring_query import (
 GROUP_RUNTIME = "runtime"
 GROUP_DATA_QUALITY = "data_quality"
 GROUP_FEATURE_DRIFT = "feature_drift"
+GROUP_MULTIVARIATE = "multivariate"
 
 _WINDOW_SECONDS: dict[Window, int] = {
     Window.H24: 24 * 3600,
@@ -275,6 +286,63 @@ class MonitoringQueryService:
             state=SectionState.OK, profile_status=profile, features=rows, alerts=alerts
         )
 
+    async def feature_drift(
+        self, deployment_id: UUID, dims: QueryDimensions
+    ) -> FeatureDriftResponse:
+        try:
+            drift = await self._store.fetch_result(
+                deployment_id, GROUP_FEATURE_DRIFT, dims.window.value
+            )
+            multivariate = await self._store.fetch_result(
+                deployment_id, GROUP_MULTIVARIATE, dims.window.value
+            )
+            alerts = await self._banners(deployment_id, dims.severity, group=GROUP_FEATURE_DRIFT)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return FeatureDriftResponse(state=SectionState.UNAVAILABLE)
+
+        panel = _multivariate_panel(multivariate)
+        if drift is None:
+            return FeatureDriftResponse(
+                state=SectionState.EMPTY,
+                profile_status=profile,
+                multivariate=panel,
+                alerts=alerts,
+            )
+        ranked = sorted(_drifted_features(drift.values), key=lambda d: d.psi, reverse=True)
+        return FeatureDriftResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            features=ranked,
+            selected=_feature_detail(drift.values, dims.feature),
+            multivariate=panel,
+            alerts=alerts,
+        )
+
+    async def reference_profile(
+        self, deployment_id: UUID, dims: QueryDimensions
+    ) -> ReferenceProfileResponse:
+        try:
+            profile = await self._store.fetch_profile(deployment_id)
+            status = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return ReferenceProfileResponse(state=SectionState.UNAVAILABLE)
+        if profile is None:
+            return ReferenceProfileResponse(state=SectionState.EMPTY, profile_status=status)
+        selected = None
+        if dims.feature is not None:
+            entry = profile.features.get(dims.feature)
+            if entry is not None:
+                selected = _reference_feature(entry)
+        return ReferenceProfileResponse(
+            state=SectionState.OK,
+            profile_status=status,
+            baseline_label=profile.baseline_label,
+            computed_at=profile.computed_at,
+            features=sorted(profile.features),
+            feature=selected,
+        )
+
     async def _runtime(
         self, deployment_id: UUID, dims: QueryDimensions
     ) -> tuple[_Rollup, list[Series]]:
@@ -329,6 +397,79 @@ def _drifted_features(values: dict) -> list[DriftedFeature]:
             )
         )
     return drifted
+
+
+def _maybe_float(value: float | int | str | None) -> float | None:
+    return None if value is None else float(value)
+
+
+def _feature_detail(values: dict, feature: str | None) -> FeatureDriftDetail | None:
+    if feature is None:
+        return None
+    entry = values.get("features", {}).get(feature)
+    if entry is None:
+        return None
+    return FeatureDriftDetail(
+        feature=feature,
+        psi=_maybe_float(entry.get("psi")),
+        status=Severity(entry.get("status", Severity.OK)),
+        distribution=_distribution(entry.get("distribution")),
+        psi_over_time=_psi_series(feature, entry.get("psi_series")),
+    )
+
+
+def _distribution(raw: dict | None) -> FeatureDistribution | None:
+    if not raw:
+        return None
+    bins = [
+        DistributionBin(
+            label=str(b.get("label")),
+            reference=_maybe_float(b.get("reference")),
+            current=_maybe_float(b.get("current")),
+        )
+        for b in raw.get("bins", [])
+    ]
+    return FeatureDistribution(kind=raw.get("kind", "numeric"), bins=bins)
+
+
+def _psi_series(feature: str, raw: list | None) -> Series | None:
+    if not raw:
+        return None
+    points = [SeriesPoint(t=p["t"], value=_maybe_float(p.get("value"))) for p in raw]
+    return Series(key="psi", label=f"PSI · {feature}", points=points)
+
+
+def _points(raw: list) -> list[PcaPoint]:
+    return [PcaPoint(x=float(p[0]), y=float(p[1])) for p in raw]
+
+
+def _multivariate_panel(result: StoredMetricResult | None) -> MultivariatePanel:
+    if result is None:
+        return MultivariatePanel(state=SectionState.EMPTY)
+    values = result.values
+    projection = values.get("projection", {})
+    return MultivariatePanel(
+        state=SectionState.OK,
+        status=Severity(values.get("status", result.severity or Severity.OK)),
+        shift_value=_maybe_float(values.get("shift_value")),
+        shift_metric=values.get("shift_metric"),
+        explained_variance=[float(v) for v in values.get("explained_variance", [])],
+        feature_psi=sorted(_drifted_features(values), key=lambda d: d.psi, reverse=True),
+        reference_projection=_points(projection.get("reference", [])),
+        current_projection=_points(projection.get("current", [])),
+    )
+
+
+def _reference_feature(entry: ReferenceFeatureProfile) -> ReferenceProfileFeature:
+    return ReferenceProfileFeature(
+        feature=entry.feature,
+        kind=entry.kind,
+        summary=entry.summary,
+        bin_edges=entry.bin_edges,
+        histogram=entry.histogram,
+        categories=entry.categories,
+        category_probabilities=entry.category_probabilities,
+    )
 
 
 def _data_quality_rows(values: dict, feature: str | None) -> list[DataQualityFeatureRow]:

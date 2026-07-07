@@ -17,6 +17,8 @@ from agent.monitoring.store import (
     InMemoryMonitoringStore,
     MonitoringStore,
     MonitoringStoreUnavailable,
+    ReferenceFeatureProfile,
+    ReferenceProfile,
     StoredAlert,
     StoredMetricResult,
 )
@@ -33,6 +35,8 @@ __all__ = [
     "MonitoringStore",
     "MonitoringStoreUnavailable",
     "QueryDimensions",
+    "ReferenceFeatureProfile",
+    "ReferenceProfile",
     "SESSION_COOKIE_NAME",
     "StoredAlert",
     "StoredMetricResult",

@@ -527,14 +527,14 @@ are treated here as existing inputs.
         deployment; window/compare/severity change the result; missing results yield the
         empty shape; GreptimeDB unavailable yields an unavailable status, not a crash.
 
-- [ ] **Task 5 — Satellite Query API: Feature drift + Reference profile**
-  - [ ] Add the **Feature drift** endpoints (ranked PSI list; per-feature reference-vs-
+- [x] **Task 5 — Satellite Query API: Feature drift + Reference profile**
+  - [x] Add the **Feature drift** endpoints (ranked PSI list; per-feature reference-vs-
         current distribution and PSI-over-time; multivariate PCA panel) and the **Reference
         profile** panel contract, from `monitoring_results` and the loaded profile.
-  - [ ] Honor the common query dimensions and carry `profile_status`; degrade gracefully
+  - [x] Honor the common query dimensions and carry `profile_status`; degrade gracefully
         for a placeholder/absent profile and return the "not computed yet" empty shape when
         the worker has no result for the window.
-  - [ ] Tests: feature drift reflects materialized PSI and severity; the PCA panel returns
+  - [x] Tests: feature drift reflects materialized PSI and severity; the PCA panel returns
         its shift/variance/projection values; placeholder profile degrades gracefully;
         missing results yield the empty shape.
 
