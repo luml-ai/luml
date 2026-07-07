@@ -27,7 +27,9 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
 pythonpath = ["."]
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 target-version = "py314"

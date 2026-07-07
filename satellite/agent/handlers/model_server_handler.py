@@ -15,6 +15,7 @@ from agent.schemas import (
     DeploymentUpdate,
     LocalDeployment,
     Secret,
+    usable_reference_profile,
 )
 from agent.settings import config
 
@@ -39,10 +40,12 @@ class ModelServerHandler:
     ) -> None:
         manifest = None
         openapi_schema = None
+        reference_profile = None
         try:
             async with ModelServerClient() as client:
                 manifest = await client.get_manifest(deployment_id)
                 openapi_schema = await client.get_openapi_schema(deployment_id)
+                reference_profile = await client.get_reference_profile(deployment_id)
         except Exception as e:
             logger.warning(
                 f"[add_single_deployment] Could not fetch manifest/schema for {deployment_id}: {e}"
@@ -54,6 +57,7 @@ class ModelServerHandler:
             manifest=manifest,
             openapi_schema=openapi_schema,
             monitoring_enabled=monitoring_enabled,
+            reference_profile=usable_reference_profile(reference_profile),
         )
 
     @staticmethod

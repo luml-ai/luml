@@ -54,7 +54,21 @@ class LocalDeployment(BaseModel):
     dynamic_attributes_secrets: dict[str, str] | None = {}
     manifest: dict | None = None
     openapi_schema: dict | None = None
+    reference_profile: dict | None = None
     monitoring_enabled: bool = False
+
+
+def usable_reference_profile(profile: dict | None) -> dict | None:
+    """Return the profile only when it is present and marked ready.
+
+    A missing or placeholder profile is treated as "no profile" so callers can key
+    off ``None`` instead of trusting a baseline that was never generated.
+    """
+    if not profile:
+        return None
+    if profile.get("profile_status") != "ready":
+        return None
+    return profile
 
 
 class Secret(BaseModel):
