@@ -117,9 +117,9 @@ The nanosecond value is misdocumented as seconds in `sdk/python/sdk/luml/experim
 - [x] Add vitest tooling to the experiments package
   - [x] Add vitest config, jsdom environment, and a `test` script to `extras/js/packages/experiments`, following `frontend/vitest.config.ts` conventions
   - [x] Add a smoke test for an existing pure helper to prove the setup runs
-- [ ] Render metric lines without spline smoothing
-  - [ ] Change the Plotly line config in `DynamicMetricsItem.vue` to linear with no smoothing
-  - [ ] Add a test asserting the computed trace config uses a linear line shape and carries the exact input x/y values
+- [x] Render metric lines without spline smoothing
+  - [x] Change the Plotly line config in `DynamicMetricsItem.vue` to linear with no smoothing
+  - [x] Add a test asserting the computed trace config uses a linear line shape and carries the exact input x/y values
 - [ ] Surface metric downsampling and order snapshot points
   - [ ] Propagate the API `subsampled` flag into `aggregated` in `ExperimentSnapshotApiProvider.prepareMetricData`
   - [ ] Add ascending step ordering to the metric query in `ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData`
