@@ -19,6 +19,10 @@ class DeploymentOrm(TimestampMixin, Base):
             "'deletion_pending', 'not_responding', 'deletion_failed')",
             name="deployments_status_check",
         ),
+        CheckConstraint(
+            "monitoring_mode in ('off','full')",
+            name="deployments_monitoring_mode_check",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -56,6 +60,9 @@ class DeploymentOrm(TimestampMixin, Base):
     )
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="pending", server_default="pending"
+    )
+    monitoring_mode: Mapped[str] = mapped_column(
+        String, nullable=False, default="off", server_default="off"
     )
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     dynamic_attributes_secrets: Mapped[dict[str, str]] = mapped_column(

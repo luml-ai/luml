@@ -19,6 +19,11 @@ class DeploymentStatus(StrEnum):
     NOT_RESPONDING = "not_responding"
 
 
+class MonitoringMode(StrEnum):
+    OFF = "off"
+    FULL = "full"
+
+
 class DeploymentBase(BaseModel, BaseOrmConfig):
     id: UUID
     name: str
@@ -37,6 +42,7 @@ class Deployment(DeploymentBase):
     collection_id: UUID
     inference_url: str | None = None
     status: DeploymentStatus
+    monitoring_mode: MonitoringMode = MonitoringMode.OFF
     satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] = Field(default_factory=dict)

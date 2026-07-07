@@ -475,18 +475,18 @@ The reference profile, `monitoring_results`, `monitoring_alerts`, `inference_eve
 `monitoring_enabled` flag, and the monitoring capability are produced by parts 1 and 2 and
 are treated here as existing inputs.
 
-- [ ] **Task 1 — Platform: launch token mint + introspection**
-  - [ ] Add a Platform endpoint that, for a deployment the caller may access, mints a
+- [x] **Task 1 — Platform: launch token mint + introspection**
+  - [x] Add a Platform endpoint that, for a deployment the caller may access, mints a
         short-lived, single-use `monitoring:read` launch token scoped to
         `deployment_id` + `satellite_id` + `user_id` (reusing the existing
         deployment-access permission as the gate), near
         `backend/luml/api/orbits/orbit_deployments.py`.
-  - [ ] Add a Platform introspection endpoint the Satellite calls to validate a token and
+  - [x] Add a Platform introspection endpoint the Satellite calls to validate a token and
         receive its claims, marking the `jti` consumed on first use so reuse is rejected.
-  - [ ] Expose, for the deployment, whether monitoring is eligible (mode `full` +
+  - [x] Expose, for the deployment, whether monitoring is eligible (mode `full` +
         Satellite advertises the monitoring capability) and the Satellite `base_url` for
         the iframe.
-  - [ ] Tests: token minted only with deployment access; token carries the right scope and
+  - [x] Tests: token minted only with deployment access; token carries the right scope and
         claims and expires; single-use enforced (second introspection rejected); eligibility
         reflects mode + capability.
 
