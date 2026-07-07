@@ -503,15 +503,15 @@ are treated here as existing inputs.
   - [x] Tests: disabled state for `off` / missing capability; unavailable state when the
         launch URL fails; active state renders the iframe with a freshly minted token.
 
-- [ ] **Task 3 — Satellite: launch validation, dashboard session, embedding, hosting**
-  - [ ] Add `GET /monitoring/launch` that validates the token via Platform introspection,
+- [x] **Task 3 — Satellite: launch validation, dashboard session, embedding, hosting**
+  - [x] Add `GET /monitoring/launch` that validates the token via Platform introspection,
         issues a deployment-scoped `monitoring:read` dashboard session as an httpOnly
         path-scoped cookie, and redirects to a clean dashboard URL without the token.
-  - [ ] Enforce that every monitoring request derives `deployment_id` from the session and
+  - [x] Enforce that every monitoring request derives `deployment_id` from the session and
         rejects cross-deployment access; expire the session and return `401` when invalid.
-  - [ ] Set `Content-Security-Policy: frame-ancestors` to the allowed Platform origin(s)
+  - [x] Set `Content-Security-Policy: frame-ancestors` to the allowed Platform origin(s)
         on monitoring responses; serve the Monitoring UI static bundle from the Agent.
-  - [ ] Tests: valid token → session + redirect with no token in URL; invalid/expired/
+  - [x] Tests: valid token → session + redirect with no token in URL; invalid/expired/
         reused token refused; session scoped to one deployment (A cannot read B); `401`
         on expired session; framing refused for a disallowed origin.
 
