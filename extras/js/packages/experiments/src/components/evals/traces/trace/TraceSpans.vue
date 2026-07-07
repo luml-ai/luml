@@ -27,8 +27,8 @@ type Props = {
   tree: TraceSpanType[]
   selectedSpanId: string | undefined
   count: number
-  maxSpanTime: number
-  minSpanTime: number
+  maxSpanTime: number | null
+  minSpanTime: number | null
 }
 
 type Emits = {

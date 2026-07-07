@@ -127,9 +127,9 @@ The nanosecond value is misdocumented as seconds in `sdk/python/sdk/luml/experim
 - [x] Fix span duration formatting
   - [x] Rework `getFormattedExecutionTime`/`getFormattedTime` in `helpers.ts` per the formatting contract (µs tier, "<1µs" floor, negative/fractional input, no boundary artifacts)
   - [x] Add exhaustive formatter unit tests covering every tier and boundary from the scenarios
-- [ ] Harden span waterfall geometry
-  - [ ] Replace falsy timestamp guards with absent-vs-zero checks and clamp offsets in `TraceSpan.vue`
-  - [ ] Make zero-range traces render deterministically and keep Infinity sentinels from escaping `getSpansTimes`/`ExperimentSnapshot.vue`
-  - [ ] Add geometry tests (zero range, zero minimum, empty span list, normal trace)
+- [x] Harden span waterfall geometry
+  - [x] Replace falsy timestamp guards with absent-vs-zero checks and clamp offsets in `TraceSpan.vue`
+  - [x] Make zero-range traces render deterministically and keep Infinity sentinels from escaping `getSpansTimes`/`ExperimentSnapshot.vue`
+  - [x] Add geometry tests (zero range, zero minimum, empty span list, normal trace)
 - [ ] Correct execution_time unit annotations in the SDK
   - [ ] Fix the seconds-vs-nanoseconds comments and docstring examples in `data_types.py`, `sqlite.py`, and `tracker.py`
