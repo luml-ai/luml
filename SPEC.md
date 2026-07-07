@@ -120,10 +120,10 @@ The nanosecond value is misdocumented as seconds in `sdk/python/sdk/luml/experim
 - [x] Render metric lines without spline smoothing
   - [x] Change the Plotly line config in `DynamicMetricsItem.vue` to linear with no smoothing
   - [x] Add a test asserting the computed trace config uses a linear line shape and carries the exact input x/y values
-- [ ] Surface metric downsampling and order snapshot points
-  - [ ] Propagate the API `subsampled` flag into `aggregated` in `ExperimentSnapshotApiProvider.prepareMetricData`
-  - [ ] Add ascending step ordering to the metric query in `ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData`
-  - [ ] Add tests for the flag mapping and the ordering
+- [x] Surface metric downsampling and order snapshot points
+  - [x] Propagate the API `subsampled` flag into `aggregated` in `ExperimentSnapshotApiProvider.prepareMetricData`
+  - [x] Add ascending step ordering to the metric query in `ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData`
+  - [x] Add tests for the flag mapping and the ordering
 - [ ] Fix span duration formatting
   - [ ] Rework `getFormattedExecutionTime`/`getFormattedTime` in `helpers.ts` per the formatting contract (µs tier, "<1µs" floor, negative/fractional input, no boundary artifacts)
   - [ ] Add exhaustive formatter unit tests covering every tier and boundary from the scenarios

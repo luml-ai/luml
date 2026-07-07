@@ -780,7 +780,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
 
   private getModelDynamicMetricData(database: Database, metricName: string, modelId: string) {
     const queryResult = database.exec(
-      `SELECT value, step FROM dynamic_metrics WHERE key = '${metricName}'`,
+      `SELECT value, step FROM dynamic_metrics WHERE key = '${metricName}' ORDER BY step ASC`,
     )
     const rows = queryResult[0]?.values || []
     const total = rows.length
