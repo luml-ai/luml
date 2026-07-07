@@ -41,6 +41,12 @@ export function cardTone(card: Card): Tone {
   return 'neutral'
 }
 
+/** A 0..1 rate as a percentage, or an em dash when the metric was not computed. */
+export function formatRate(value: number | null | undefined): string {
+  if (value == null) return '—'
+  return `${(value * 100).toFixed(1)}%`
+}
+
 export function formatTimestamp(value: string | null | undefined): string | null {
   if (!value) return null
   const date = new Date(value)

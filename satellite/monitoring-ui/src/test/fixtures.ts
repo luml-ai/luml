@@ -3,8 +3,13 @@ import {
   ProfileStatus,
   SectionState,
   Severity,
+  type DataQualityResponse,
+  type FeatureDriftDetail,
+  type FeatureDriftResponse,
   type HeaderResponse,
   type OverviewResponse,
+  type ReferenceProfileResponse,
+  type TracesResponse,
 } from '@/api/types'
 
 export function makeHeader(overrides: Partial<HeaderResponse> = {}): HeaderResponse {
@@ -84,6 +89,145 @@ export function makeOverview(overrides: Partial<OverviewResponse> = {}): Overvie
       { feature: 'smoker', psi: 0.31, severity: Severity.CRITICAL },
       { feature: 'bmi', psi: 0.12, severity: Severity.WARNING },
     ],
+    ...overrides,
+  }
+}
+
+export function makeDataQuality(overrides: Partial<DataQualityResponse> = {}): DataQualityResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    features: [
+      {
+        feature: 'age',
+        missing_rate: 0.01,
+        type_error_rate: 0.0,
+        range_unseen_rate: 0.02,
+        status: Severity.OK,
+      },
+      {
+        feature: 'income',
+        missing_rate: 0.2,
+        type_error_rate: 0.05,
+        range_unseen_rate: 0.1,
+        status: Severity.CRITICAL,
+      },
+    ],
+    alerts: [],
+    ...overrides,
+  }
+}
+
+export function makeFeatureDriftDetail(
+  overrides: Partial<FeatureDriftDetail> = {},
+): FeatureDriftDetail {
+  return {
+    feature: 'income',
+    psi: 0.31,
+    status: Severity.CRITICAL,
+    distribution: {
+      kind: 'numeric',
+      bins: [
+        { label: '[0,10k)', reference: 0.5, current: 0.2 },
+        { label: '[10k,20k)', reference: 0.3, current: 0.3 },
+        { label: '[20k,inf)', reference: 0.2, current: 0.5 },
+      ],
+    },
+    psi_over_time: {
+      key: 'psi',
+      label: 'PSI · income',
+      points: [
+        { t: '2026-07-07T09:00:00Z', value: 0.1 },
+        { t: '2026-07-07T10:00:00Z', value: 0.22 },
+        { t: '2026-07-07T11:00:00Z', value: 0.31 },
+      ],
+    },
+    ...overrides,
+  }
+}
+
+export function makeFeatureDrift(
+  overrides: Partial<FeatureDriftResponse> = {},
+): FeatureDriftResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    features: [
+      { feature: 'income', psi: 0.31, severity: Severity.CRITICAL },
+      { feature: 'age', psi: 0.05, severity: Severity.OK },
+    ],
+    selected: null,
+    multivariate: {
+      state: SectionState.OK,
+      status: Severity.WARNING,
+      shift_value: 3.4,
+      shift_metric: 'reconstruction_error',
+      explained_variance: [0.6, 0.25, 0.15],
+      feature_psi: [
+        { feature: 'income', psi: 0.31, severity: Severity.CRITICAL },
+        { feature: 'age', psi: 0.05, severity: Severity.OK },
+      ],
+      reference_projection: [
+        { x: 0.1, y: 0.2 },
+        { x: -0.3, y: 0.4 },
+      ],
+      current_projection: [
+        { x: 1.1, y: 1.2 },
+        { x: 0.9, y: -0.4 },
+      ],
+    },
+    alerts: [],
+    ...overrides,
+  }
+}
+
+export function makeReferenceProfile(
+  overrides: Partial<ReferenceProfileResponse> = {},
+): ReferenceProfileResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    baseline_label: 'training set (2026-01-05)',
+    computed_at: '2026-06-07T12:00:00Z',
+    features: ['income', 'region'],
+    feature: {
+      feature: 'income',
+      kind: 'numeric',
+      summary: { mean: 52000, std: 12000, min: 10000, max: 200000 },
+      bin_edges: [0, 10000, 20000, 200000],
+      histogram: [0.5, 0.3, 0.2],
+    },
+    ...overrides,
+  }
+}
+
+export function makeTraces(overrides: Partial<TracesResponse> = {}): TracesResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    rows: [
+      {
+        event_id: 'evt-100',
+        ts: '2026-07-07T11:58:00Z',
+        features_summary: 'age=30, income=52000',
+        prediction: 'prediction=0.87',
+        latency_ms: 12,
+        status: 'success',
+        status_code: 200,
+      },
+      {
+        event_id: 'evt-200',
+        ts: '2026-07-07T11:55:00Z',
+        features_summary: 'age=41, income=61000',
+        prediction: 'prediction=0.55',
+        latency_ms: 18,
+        status: 'error',
+        status_code: 500,
+      },
+    ],
+    total: 2,
+    limit: 20,
+    offset: 0,
     ...overrides,
   }
 }

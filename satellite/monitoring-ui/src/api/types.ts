@@ -101,6 +101,103 @@ export interface OverviewResponse {
   top_drifted_features: DriftedFeature[]
 }
 
+export interface DataQualityFeatureRow {
+  feature: string
+  missing_rate?: number | null
+  type_error_rate?: number | null
+  range_unseen_rate?: number | null
+  status: Severity
+}
+
+export interface DataQualityResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  features: DataQualityFeatureRow[]
+  alerts: AlertBanner[]
+}
+
+export interface DistributionBin {
+  label: string
+  reference?: number | null
+  current?: number | null
+}
+
+export interface FeatureDistribution {
+  kind: string // "numeric" | "categorical"
+  bins: DistributionBin[]
+}
+
+export interface FeatureDriftDetail {
+  feature: string
+  psi?: number | null
+  status: Severity
+  distribution?: FeatureDistribution | null
+  psi_over_time?: Series | null
+}
+
+export interface PcaPoint {
+  x: number
+  y: number
+}
+
+export interface MultivariatePanel {
+  state: SectionState
+  status: Severity
+  shift_value?: number | null
+  shift_metric?: string | null
+  explained_variance: number[]
+  feature_psi: DriftedFeature[]
+  reference_projection: PcaPoint[]
+  current_projection: PcaPoint[]
+}
+
+export interface FeatureDriftResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  features: DriftedFeature[]
+  selected?: FeatureDriftDetail | null
+  multivariate: MultivariatePanel
+  alerts: AlertBanner[]
+}
+
+export interface ReferenceProfileFeature {
+  feature: string
+  kind: string // "numeric" | "categorical"
+  summary: Record<string, number>
+  bin_edges?: number[] | null
+  histogram?: number[] | null
+  categories?: string[] | null
+  category_probabilities?: number[] | null
+}
+
+export interface ReferenceProfileResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  baseline_label?: string | null
+  computed_at?: string | null
+  features: string[]
+  feature?: ReferenceProfileFeature | null
+}
+
+export interface TraceRow {
+  event_id: string
+  ts: string
+  features_summary?: string | null
+  prediction?: string | null
+  latency_ms: number
+  status: string
+  status_code: number
+}
+
+export interface TracesResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  rows: TraceRow[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export interface Dimensions {
   window: Window
   compare: Compare
