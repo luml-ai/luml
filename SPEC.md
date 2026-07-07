@@ -124,9 +124,9 @@ The nanosecond value is misdocumented as seconds in `sdk/python/sdk/luml/experim
   - [x] Propagate the API `subsampled` flag into `aggregated` in `ExperimentSnapshotApiProvider.prepareMetricData`
   - [x] Add ascending step ordering to the metric query in `ExperimentSnapshotDatabaseProvider.getModelDynamicMetricData`
   - [x] Add tests for the flag mapping and the ordering
-- [ ] Fix span duration formatting
-  - [ ] Rework `getFormattedExecutionTime`/`getFormattedTime` in `helpers.ts` per the formatting contract (µs tier, "<1µs" floor, negative/fractional input, no boundary artifacts)
-  - [ ] Add exhaustive formatter unit tests covering every tier and boundary from the scenarios
+- [x] Fix span duration formatting
+  - [x] Rework `getFormattedExecutionTime`/`getFormattedTime` in `helpers.ts` per the formatting contract (µs tier, "<1µs" floor, negative/fractional input, no boundary artifacts)
+  - [x] Add exhaustive formatter unit tests covering every tier and boundary from the scenarios
 - [ ] Harden span waterfall geometry
   - [ ] Replace falsy timestamp guards with absent-vs-zero checks and clamp offsets in `TraceSpan.vue`
   - [ ] Make zero-range traces render deterministically and keep Infinity sentinels from escaping `getSpansTimes`/`ExperimentSnapshot.vue`
