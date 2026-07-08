@@ -14,6 +14,12 @@ class Settings(BaseSettings):
 
     OTEL_EXPORTER_OTLP_ENDPOINT: str | None = None
     MONITORING_ENABLED: bool = True
+    MONITORING_INTERVAL_SEC: float = 60.0
+    MONITORING_WINDOW_SEC: float = 300.0
+    MONITORING_LATENCY_P95_THRESHOLD_MS: float = 1000.0
+    GREPTIMEDB_HOST: str = "localhost"
+    GREPTIMEDB_HTTP_PORT: int = 4000
+    GREPTIMEDB_DATABASE: str = "public"
 
     model_config = SettingsConfigDict(
         env_file=".env",

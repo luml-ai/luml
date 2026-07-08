@@ -51,6 +51,7 @@ class ModelHandler:
             "model_name": os.getenv("MODEL_NAME", ""),
             "manifest": self._get_manifest(),
             "dtypes_schemas": self._load_dtypes_schemas(),
+            "reference_profile": self._get_reference_profile(),
             "model_path": self.extracted_path,
         }
 
@@ -105,6 +106,13 @@ class ModelHandler:
         manifest_path = Path(self.extracted_path) / "manifest.json"
         if manifest_path.exists():
             with open(manifest_path) as f:
+                return json.load(f)
+        return {}
+
+    def _get_reference_profile(self) -> dict[str, Any]:
+        profile_path = Path(self.extracted_path) / "reference_profile.json"
+        if profile_path.exists():
+            with open(profile_path) as f:
                 return json.load(f)
         return {}
 
