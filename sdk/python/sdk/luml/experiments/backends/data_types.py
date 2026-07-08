@@ -133,7 +133,7 @@ class SpanRecord:
 @dataclass
 class TraceRecord:
     trace_id: str
-    execution_time: float  # seconds
+    execution_time: float  # nanoseconds
     span_count: int
     created_at: datetime  # when the first span written to DB
     state: TraceState = TraceState.STATE_UNSPECIFIED

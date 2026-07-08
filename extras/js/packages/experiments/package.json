@@ -11,6 +11,8 @@
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
+    "test": "vitest",
+    "test:ci": "vitest run",
     "lint": "eslint . --fix --cache",
     "format": "prettier --write --experimental-cli src/",
     "style": "npx style-dictionary build --config style-dictionary.config.mjs"

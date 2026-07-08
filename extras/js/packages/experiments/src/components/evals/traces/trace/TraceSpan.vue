@@ -75,8 +75,8 @@ type Props = {
   nesting: number
   selectedSpanId: string | undefined
   allOpened: boolean
-  maxSpanTime: number
-  minSpanTime: number
+  maxSpanTime: number | null
+  minSpanTime: number | null
 }
 
 type Emits = {
@@ -96,19 +96,21 @@ const time = computed(() => {
   return getFormattedTime(props.data.start_time_unix_nano, props.data.end_time_unix_nano)
 })
 
-const startProgress = computed(() => {
-  if (!props.minSpanTime || !props.maxSpanTime) return 0
-  const result =
-    (props.data.start_time_unix_nano - props.minSpanTime) / (props.maxSpanTime - props.minSpanTime)
-  return result * 100
-})
+// Offset (start) and fill (end) as percentages of the trace's time range. An absent or
+// zero range has no meaningful offset, so bars fall back to zero offset / full width
+// rather than dividing by zero; a legitimate min/max of 0 is used, not treated as missing.
+// Percentages are clamped so rounding-noisy timestamps can't push a bar outside the track.
+function spanProgress(timeNano: number, fallback: number): number {
+  const { minSpanTime, maxSpanTime } = props
+  if (minSpanTime === null || maxSpanTime === null) return fallback
+  const range = maxSpanTime - minSpanTime
+  if (range <= 0) return fallback
+  const percent = ((timeNano - minSpanTime) / range) * 100
+  return Math.min(100, Math.max(0, percent))
+}
 
-const endProgress = computed(() => {
-  if (!props.minSpanTime || !props.maxSpanTime) return 0
-  const result =
-    (props.data.end_time_unix_nano - props.minSpanTime) / (props.maxSpanTime - props.minSpanTime)
-  return result * 100
-})
+const startProgress = computed(() => spanProgress(props.data.start_time_unix_nano, 0))
+const endProgress = computed(() => spanProgress(props.data.end_time_unix_nano, 100))
 
 watch(
   () => props.allOpened,

@@ -59,33 +59,33 @@ export const getFormattedTime = (startNs: number, endNs: number) => {
 }
 
 export const getFormattedExecutionTime = (ns: number) => {
-  if (ns < 1_000) return `${ns}ns`
+  // Sub-microsecond magnitudes are precision noise from epoch-ns subtraction and
+  // can even be negative after float64 rounding; never present them as exact.
+  if (ns < 1_000) return '<1µs'
 
-  const ms = ns / 1_000_000
-  if (ms < 1000) {
-    return `${ms.toFixed()}ms`
-  }
+  // Round to each tier's displayed precision, then let a value sitting just under
+  // a tier edge (e.g. 999,999ns) promote into the next tier instead of rendering
+  // an artifact like "1000µs", "1000ms", or "60.00s".
+  const micros = Math.round(ns / 1_000)
+  if (micros < 1_000) return `${micros}µs`
 
-  const seconds = ms / 1000
-  if (seconds < 60) {
-    return `${seconds.toFixed(2)}s`
-  }
+  const millis = Math.round(ns / 1_000_000)
+  if (millis < 1_000) return `${millis}ms`
 
-  const minutes = Math.floor(seconds / 60)
-  const remainingSec = Math.floor(seconds % 60)
-  if (minutes < 60) {
-    return `${minutes}min ${remainingSec}s`
-  }
+  const secondsStr = (ns / 1_000_000_000).toFixed(2)
+  if (Number(secondsStr) < 60) return `${secondsStr}s`
 
-  const hours = Math.floor(minutes / 60)
-  const remainingMin = Math.floor(minutes % 60)
-  if (hours < 24) {
-    return `${hours}h ${remainingMin}min`
-  }
+  const totalSeconds = Math.round(ns / 1_000_000_000)
+  const minutes = Math.floor(totalSeconds / 60)
+  if (minutes < 60) return `${minutes}min ${totalSeconds % 60}s`
 
-  const days = Math.floor(hours / 24)
-  const remainingHours = hours % 24
-  return `${days}d ${remainingHours}h`
+  const totalMinutes = Math.round(ns / 60_000_000_000)
+  const hours = Math.floor(totalMinutes / 60)
+  if (hours < 24) return `${hours}h ${totalMinutes % 60}min`
+
+  const totalHours = Math.round(ns / 3_600_000_000_000)
+  const days = Math.floor(totalHours / 24)
+  return `${days}d ${totalHours % 24}h`
 }
 
 export const getErrorMessage = (error: any, message = 'Something went wrong') => {
