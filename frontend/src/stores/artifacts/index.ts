@@ -1,8 +1,4 @@
 import type { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
-import type {
-  PromptOptimizationModelMetadataPayload,
-  TabularModelMetadataPayload,
-} from '@/lib/data-processing/interfaces'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import type {
   Artifact,
@@ -132,9 +128,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     currentModelTag.value = null
   }
 
-  function setCurrentModelMetadata(
-    metadata: TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload,
-  ) {
+  function setCurrentModelMetadata(metadata: ModelMetadata) {
     currentModelMetadata.value = metadata
   }
 

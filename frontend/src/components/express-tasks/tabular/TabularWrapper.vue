@@ -83,7 +83,7 @@
       </StepPanel>
     </StepPanels>
   </Stepper>
-  <ui-training v-model="isLoading" :time="8" />
+  <ui-training v-model="isLoading" />
 </template>
 
 <script setup lang="ts">
@@ -112,7 +112,7 @@ type Step = {
 
 type TProps = {
   steps: Step[]
-  task: Tasks
+  task: Tasks.TABULAR_CLASSIFICATION | Tasks.TABULAR_REGRESSION
 }
 
 const { setGuard } = useRouteLeaveConfirm(dashboardFinishConfirmOptions(() => {}))
