@@ -413,17 +413,17 @@ includes only the numerical columns.
 
 # Tasks
 
-- [ ] **Task 1 — Canonical profile module: feature and output summaries**
-  - [ ] Create a dependency-light module (numpy / scikit-learn / pandas only — no
+- [x] **Task 1 — Canonical profile module: feature and output summaries**
+  - [x] Create a dependency-light module (numpy / scikit-learn / pandas only — no
         `luml`/`fnnx`/`falcon` imports) that computes per-feature **numerical** and
         **categorical** summaries from a training feature set, and **output summaries**
         from model predictions, placing outputs under `numerical_outputs` for
         regression or `categorical_outputs` for classification. It accepts the training
         features, the task type, and a way to obtain predictions.
-  - [ ] Assemble these into the `feature_summaries` + `output_summaries` portions of
+  - [x] Assemble these into the `feature_summaries` + `output_summaries` portions of
         the profile as **plain JSON-serializable** Python structures (native numbers,
         nested lists — no numpy scalars/arrays, no pickled objects).
-  - [ ] Tests: summaries for a regression and a classification input; probabilities sum
+  - [x] Tests: summaries for a regression and a classification input; probabilities sum
         to ~1 and histogram arrays are aligned (edges/centres/frequencies/probabilities
         lengths match); mixed numerical + categorical columns land in the correct group;
         `json.dumps` of the result succeeds with no custom encoder.
