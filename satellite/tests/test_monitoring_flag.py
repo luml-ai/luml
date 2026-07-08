@@ -40,11 +40,17 @@ class TestReadMonitoringEnabled:
     def test_false_when_none_params(self) -> None:
         assert ModelServerHandler._read_monitoring_enabled(None) is False
 
-    def test_false_when_string_true(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": "true"}) is False
+    def test_true_when_string_true(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": "true"}) is True
 
-    def test_false_when_integer_one(self) -> None:
-        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": 1}) is False
+    def test_true_when_integer_one(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": 1}) is True
+
+    def test_false_when_string_falsey(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": "off"}) is False
+
+    def test_false_when_integer_zero(self) -> None:
+        assert ModelServerHandler._read_monitoring_enabled({"monitoring_enabled": 0}) is False
 
 
 class TestLocalDeploymentMonitoringDefault:
@@ -79,7 +85,7 @@ class TestAddDeploymentCarriesFlag:
     @respx.mock
     async def test_monitoring_invalid_value_treated_as_off(self, mock_model_server: None) -> None:
         handler = ModelServerHandler()
-        dep = _make_deployment(monitoring_enabled="yes")
+        dep = _make_deployment(monitoring_enabled="garbage")
         await handler.add_deployment(dep)
 
         local = handler.deployments[dep.id]
