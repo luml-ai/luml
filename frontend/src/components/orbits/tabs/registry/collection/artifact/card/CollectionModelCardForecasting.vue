@@ -75,11 +75,7 @@
 
       <section v-if="chart" class="chart card" data-testid="forecasting-card-chart">
         <h3 class="card-title">Forecast</h3>
-        <ForecastChart
-          :chart="chart"
-          :target-col="modelConfig.target_col"
-          :known-future-cols="modelConfig.known_future_cols"
-        />
+        <ForecastChart :chart="chart" :target-col="modelConfig.target_col" />
       </section>
     </div>
   </div>

@@ -144,7 +144,6 @@ describe('buildForecastSegments overlays', () => {
   it('draws supplied known-future values as a distinct marked segment', () => {
     const segments = buildForecastSegments(chart, {
       targetCol: 'sales',
-      knownFutureCols: ['promo'],
       supplied: { promo: [{ date: '2020-05-01', value: 1 }] },
     })
 

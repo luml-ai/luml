@@ -102,7 +102,7 @@ const stubs = {
   },
   ForecastChart: {
     name: 'ForecastChart',
-    props: ['chart', 'targetCol', 'knownFutureCols', 'prediction', 'supplied'],
+    props: ['chart', 'targetCol', 'prediction', 'supplied'],
     template: '<div data-testid="forecast-chart" />',
   },
   FutureValuesEditor: {
@@ -282,6 +282,41 @@ describe('Forecasting evaluate — re-forecast', () => {
       wrapper.find('[data-testid="download-predictions"]').attributes('disabled'),
     ).toBeDefined()
     expect(wrapper.find('[data-testid="forecasting-evaluate"]').exists()).toBe(true)
+  })
+
+  it('invalidates a stale forecast when a future value is edited', async () => {
+    const config: ForecastingModelConfig = {
+      ...baseConfig,
+      aux_cols: ['promo'],
+      known_future_cols: ['promo'],
+    }
+    const { wrapper } = mountEvaluate({ modelConfig: config })
+    await setEndDate(wrapper, new Date('2020-06-01'))
+
+    const editor = wrapper.findComponent({ name: 'FutureValuesEditor' })
+    const future = [
+      { date: '2020-04-01', promo: 1 },
+      { date: '2020-05-01', promo: 1 },
+      { date: '2020-06-01', promo: 1 },
+    ]
+    editor.vm.$emit('change', { complete: true, future })
+    await nextTick()
+    await wrapper.find('[data-testid="run-forecast"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findComponent({ name: 'ForecastChart' }).props('prediction')).not.toBeNull()
+
+    editor.vm.$emit('change', {
+      complete: true,
+      future: future.map((row) => ({ ...row, promo: 2 })),
+    })
+    await nextTick()
+
+    expect(wrapper.findComponent({ name: 'ForecastChart' }).props('prediction')).toBeNull()
+    expect(wrapper.findComponent({ name: 'ForecastChart' }).props('supplied')).toBeNull()
+    expect(
+      wrapper.find('[data-testid="download-predictions"]').attributes('disabled'),
+    ).toBeDefined()
+    expect(wrapper.find('[data-testid="run-forecast"]').attributes('disabled')).toBeUndefined()
   })
 
   it('invalidates a stale forecast when the horizon changes', async () => {

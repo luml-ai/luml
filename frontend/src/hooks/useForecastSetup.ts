@@ -6,8 +6,10 @@ import type {
 import {
   detectDateColumns,
   isDateColumn,
+  isNumericColumn,
   lastDate,
   periodsBetween,
+  toUtcDay,
   type ForecastSetupConfig,
 } from '@/lib/data-processing/forecasting-setup'
 
@@ -32,18 +34,22 @@ export const useForecastSetup = (
   const dateNotParseable = computed(
     () => !dateCol.value || !isDateColumn(rows.value, dateCol.value),
   )
+  const targetNotNumeric = computed(
+    () => !!targetCol.value && !isNumericColumn(rows.value, targetCol.value),
+  )
   const previewDateInvalid = computed(
     () =>
       !hasKnownFuture.value &&
       !!previewEndDate.value &&
       !!lastHistoricalDate.value &&
-      previewEndDate.value.getTime() <= lastHistoricalDate.value.getTime(),
+      toUtcDay(previewEndDate.value).getTime() <= toUtcDay(lastHistoricalDate.value).getTime(),
   )
   const isValid = computed(
     () =>
       !dateNotParseable.value &&
       !!targetCol.value &&
       targetCol.value !== dateCol.value &&
+      !targetNotNumeric.value &&
       !previewDateInvalid.value,
   )
 
@@ -71,13 +77,15 @@ export const useForecastSetup = (
     return null
   }
 
+  // Assigning one role's column to the other swaps the two roles, so the date
+  // and target columns can be reassigned directly from their own header menus.
   function setDateColumn(column: string) {
-    if (column === targetCol.value) return
+    if (column === targetCol.value) targetCol.value = dateCol.value
     dateCol.value = column
   }
 
   function setTargetColumn(column: string) {
-    if (column === dateCol.value) return
+    if (column === dateCol.value) dateCol.value = targetCol.value
     targetCol.value = column
   }
 
@@ -122,7 +130,8 @@ export const useForecastSetup = (
       }
       if (!cols.includes(targetCol.value) || targetCol.value === dateCol.value) {
         const nonDate = cols.filter((column) => column !== dateCol.value)
-        targetCol.value = nonDate[0] ?? ''
+        targetCol.value =
+          nonDate.find((column) => isNumericColumn(rows.value, column)) ?? nonDate[0] ?? ''
       }
       auxCols.value = auxCols.value.filter((column) => cols.includes(column))
     },
@@ -140,6 +149,7 @@ export const useForecastSetup = (
     hasKnownFuture,
     lastHistoricalDate,
     dateNotParseable,
+    targetNotNumeric,
     previewDateInvalid,
     previewHorizon,
     isValid,

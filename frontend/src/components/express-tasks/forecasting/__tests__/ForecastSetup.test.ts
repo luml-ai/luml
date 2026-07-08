@@ -16,6 +16,7 @@ const defaults = {
   hasKnownFuture: false,
   lastHistoricalDate: new Date('2020-03-01'),
   dateNotParseable: false,
+  targetNotNumeric: false,
   previewDateInvalid: false,
 }
 
@@ -47,8 +48,18 @@ describe('ForecastSetup bar', () => {
   })
 
   it('shows validation errors', () => {
-    const wrapper = mountSetup({ dateNotParseable: true, previewDateInvalid: true })
+    const wrapper = mountSetup({
+      dateNotParseable: true,
+      targetNotNumeric: true,
+      previewDateInvalid: true,
+    })
     expect(wrapper.find('[data-testid="error-date-parseable"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="error-target-numeric"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="error-preview-date"]').exists()).toBe(true)
+  })
+
+  it('shows no errors for a valid setup', () => {
+    const wrapper = mountSetup()
+    expect(wrapper.find('[data-testid="error-target-numeric"]').exists()).toBe(false)
   })
 })

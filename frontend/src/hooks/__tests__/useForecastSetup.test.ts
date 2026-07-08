@@ -27,6 +27,18 @@ describe('useForecastSetup defaults', () => {
     expect(setup.isValid.value).toBe(true)
   })
 
+  it('prefers a numeric column as the default target', () => {
+    const { setup } = createSetup(
+      ['date', 'region', 'sales'],
+      [
+        { date: new Date('2020-01-01'), region: 'north', sales: 1000 },
+        { date: new Date('2020-02-01'), region: 'south', sales: 1100 },
+      ],
+    )
+    expect(setup.targetCol.value).toBe('sales')
+    expect(setup.isValid.value).toBe(true)
+  })
+
   it('is invalid when no column parses as dates', () => {
     const { setup } = createSetup(
       ['a', 'b'],
@@ -37,6 +49,35 @@ describe('useForecastSetup defaults', () => {
     )
     expect(setup.dateNotParseable.value).toBe(true)
     expect(setup.isValid.value).toBe(false)
+  })
+
+  it('is invalid when the target column is not numeric', () => {
+    const { setup } = createSetup(
+      ['date', 'region', 'sales'],
+      [
+        { date: new Date('2020-01-01'), region: 'north', sales: 1000 },
+        { date: new Date('2020-02-01'), region: 'south', sales: 1100 },
+      ],
+    )
+    setup.setTargetColumn('region')
+    expect(setup.targetNotNumeric.value).toBe(true)
+    expect(setup.isValid.value).toBe(false)
+
+    setup.setTargetColumn('sales')
+    expect(setup.targetNotNumeric.value).toBe(false)
+    expect(setup.isValid.value).toBe(true)
+  })
+
+  it('accepts numeric-string targets like CSV imports produce', () => {
+    const { setup } = createSetup(
+      ['date', 'sales'],
+      [
+        { date: '2020-01-01', sales: '1000.5' },
+        { date: '2020-02-01', sales: '1100' },
+      ],
+    )
+    expect(setup.targetNotNumeric.value).toBe(false)
+    expect(setup.isValid.value).toBe(true)
   })
 })
 
@@ -49,12 +90,18 @@ describe('useForecastSetup role actions', () => {
     expect(setup.columnRole('sales')).toBeNull()
   })
 
-  it('ignores assigning the date role to the target column and vice versa', () => {
+  it('swaps the roles when the date role is assigned to the target column', () => {
     const { setup } = createSetup()
     setup.setDateColumn('sales')
+    expect(setup.dateCol.value).toBe('sales')
+    expect(setup.targetCol.value).toBe('date')
+  })
+
+  it('swaps the roles when the target role is assigned to the date column', () => {
+    const { setup } = createSetup()
     setup.setTargetColumn('date')
-    expect(setup.dateCol.value).toBe('date')
-    expect(setup.targetCol.value).toBe('sales')
+    expect(setup.targetCol.value).toBe('date')
+    expect(setup.dateCol.value).toBe('sales')
   })
 
   it('toggles auxiliary and known-future roles', () => {

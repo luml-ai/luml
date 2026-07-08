@@ -84,7 +84,6 @@
         <forecast-chart
           :chart="chart"
           :target-col="modelConfig.target_col"
-          :known-future-cols="knownFutureCols"
           :prediction="overlay"
           :supplied="supplied"
         />
@@ -309,8 +308,12 @@ const supplied = computed<Record<string, ForecastPoint[]> | null>(() => {
   return result
 })
 
+// Editing a future value invalidates any prior forecast the same way a changed
+// horizon does — otherwise the chart overlay and download keep the old inputs.
 function onFutureChange(state: { complete: boolean; future: ForecastingRecord[] }): void {
   futureState.value = state
+  rawForecast.value = []
+  rawFuture.value = []
 }
 
 async function runForecast(): Promise<void> {

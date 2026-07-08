@@ -111,6 +111,23 @@ def test_rows_with_missing_target_are_dropped_below_floor():
         ForecastingPipeline.fit({"date": d, "y": y}, "date", "y", frequency="month")
 
 
+def test_aux_named_like_target_interval_columns_is_rejected():
+    # predicted_<target>_lower/_upper would collide with predicted_<aux> for an
+    # auxiliary literally named "<target>_lower"/"<target>_upper".
+    n = 24
+    d = synth.dates(n, "MS")
+    y = synth.trend(n, seed=0)
+    for clash in ("y_lower", "y_upper"):
+        with pytest.raises(ValueError, match=clash):
+            ForecastingPipeline.fit(
+                {"date": d, "y": y, clash: y},
+                "date",
+                "y",
+                aux_cols=[clash],
+                frequency="month",
+            )
+
+
 def test_min_history_matches_formula():
     n = 48
     d = synth.dates(n, "MS")

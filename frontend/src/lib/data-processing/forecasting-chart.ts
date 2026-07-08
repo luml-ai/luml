@@ -51,7 +51,6 @@ export interface ForecastChartSegment {
 
 export interface ForecastChartOverlays {
   targetCol: string
-  knownFutureCols?: string[]
   /** Normalized re-forecast result, per column (target carries bounds). */
   prediction?: Record<string, ForecastPoint[]> | null
   /** Caller-supplied known-future values, drawn as a distinct segment. */

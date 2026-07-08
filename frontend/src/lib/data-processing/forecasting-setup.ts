@@ -28,13 +28,44 @@ export function isDateLike(value: unknown): boolean {
   return !Number.isNaN(Date.parse(trimmed))
 }
 
+const ISO_DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/
+const EXPLICIT_UTC_OFFSET = /(?:Z|[+-]\d{2}:\d{2})$/i
+const MS_PER_DAY = 86_400_000
+
+function utcDayFromLocal(date: Date): Date {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
+}
+
+/**
+ * UTC midnight of the calendar day `date` represents. Exact UTC midnights
+ * (ISO-parsed date-only values) pass through; anything else — notably the
+ * local-midnight Dates the DatePicker produces — is read in local time so the
+ * day the user saw survives regardless of the runtime timezone.
+ */
+export function toUtcDay(date: Date): Date {
+  return date.getTime() % MS_PER_DAY === 0 ? date : utcDayFromLocal(date)
+}
+
+/**
+ * All downstream arithmetic (`periodsBetween`/`periodKey`/`forecastDate`) is
+ * UTC, but `Date.parse` reads only date-only ISO strings as UTC — non-ISO
+ * strings ("02/01/2020") and offset-less date-times parse in *local* time, so
+ * they must be re-anchored to UTC midnight or a date near a period boundary
+ * shifts a period in non-UTC browsers.
+ */
 function toDate(value: unknown): Date | null {
-  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : toUtcDay(value)
   if (typeof value !== 'string') return null
   const trimmed = value.trim()
   if (!trimmed || NUMERIC_STRING.test(trimmed)) return null
   const ms = Date.parse(trimmed)
-  return Number.isNaN(ms) ? null : new Date(ms)
+  if (Number.isNaN(ms)) return null
+  const parsed = new Date(ms)
+  if (ISO_DATE_ONLY.test(trimmed)) return parsed
+  if (EXPLICIT_UTC_OFFSET.test(trimmed)) {
+    return new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth(), parsed.getUTCDate()))
+  }
+  return utcDayFromLocal(parsed)
 }
 
 /** True when a strong majority of the column's sampled values look like dates. */
@@ -53,6 +84,30 @@ export function detectDateColumns(rows: Record<string, unknown>[], columns: stri
   return columns.filter((column) => isDateColumn(rows, column))
 }
 
+function isNumericValue(value: unknown): boolean {
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (typeof value !== 'string') return false
+  const trimmed = value.trim()
+  return trimmed !== '' && Number.isFinite(Number(trimmed))
+}
+
+/**
+ * True when a strong majority of the column's sampled values are numbers,
+ * mirroring the engine's `pd.to_numeric` coercion of the target: a mostly
+ * non-numeric target would only fail server-side with an opaque
+ * "not enough data" error after dropping the unparseable rows.
+ */
+export function isNumericColumn(rows: Record<string, unknown>[], column: string): boolean {
+  const sample = rows.slice(0, DATE_SAMPLE_SIZE)
+  const present = sample.filter((row) => {
+    const value = row[column]
+    return value !== null && value !== undefined && value !== ''
+  })
+  if (!present.length) return false
+  const numeric = present.filter((row) => isNumericValue(row[column])).length
+  return numeric / present.length >= DATE_COLUMN_THRESHOLD
+}
+
 /** The most recent parseable date in `column`, or `null` when none parse. */
 export function lastDate(rows: Record<string, unknown>[], column: string): Date | null {
   let latest: Date | null = null
@@ -63,35 +118,39 @@ export function lastDate(rows: Record<string, unknown>[], column: string): Date 
   return latest
 }
 
-function monthsBetween(from: Date, to: Date): number {
-  // UTC getters to stay consistent with forecastDate/periodKey, otherwise the
-  // horizon can be off by one around timezone/DST boundaries.
-  const base =
-    (to.getUTCFullYear() - from.getUTCFullYear()) * 12 + (to.getUTCMonth() - from.getUTCMonth())
-  const withPartial = to.getUTCDate() > from.getUTCDate() ? base + 1 : base
-  return Math.max(1, withPartial)
+function periodOrdinal(date: Date, frequency: 'month' | 'quarter' | 'year'): number {
+  const year = date.getUTCFullYear()
+  switch (frequency) {
+    case 'month':
+      return year * 12 + date.getUTCMonth()
+    case 'quarter':
+      return year * 4 + Math.floor(date.getUTCMonth() / 3)
+    case 'year':
+      return year
+  }
 }
 
-const MS_PER_DAY = 86_400_000
-
 /**
- * Number of whole forecast periods between the last history date and a chosen
- * future end date, at the model frequency. Partial periods round up so the
- * horizon always reaches the selected date. Returns 0 when `end <= from`.
+ * Number of forecast periods between the last history date and a chosen future
+ * end date, at the model frequency. Month/quarter/year count calendar-period
+ * boundaries crossed (mirroring the engine's period-start snapping), so the
+ * result is independent of either date's day within its period; day/week count
+ * fixed steps, rounding partial weeks up. Returns 0 when `end` is not after
+ * `from`; otherwise at least 1 so the horizon reaches the selected date.
  */
 export function periodsBetween(from: Date, end: Date, frequency: ForecastingFrequency): number {
-  if (end.getTime() <= from.getTime()) return 0
+  const fromDay = toUtcDay(from)
+  const endDay = toUtcDay(end)
+  if (endDay.getTime() <= fromDay.getTime()) return 0
   switch (frequency) {
     case 'day':
-      return Math.ceil((end.getTime() - from.getTime()) / MS_PER_DAY)
+      return Math.round((endDay.getTime() - fromDay.getTime()) / MS_PER_DAY)
     case 'week':
-      return Math.ceil((end.getTime() - from.getTime()) / (7 * MS_PER_DAY))
+      return Math.ceil((endDay.getTime() - fromDay.getTime()) / (7 * MS_PER_DAY))
     case 'month':
-      return monthsBetween(from, end)
     case 'quarter':
-      return Math.ceil(monthsBetween(from, end) / 3)
     case 'year':
-      return Math.ceil(monthsBetween(from, end) / 12)
+      return Math.max(1, periodOrdinal(endDay, frequency) - periodOrdinal(fromDay, frequency))
   }
 }
 

@@ -84,6 +84,17 @@
   </div>
 </template>
 
+<script lang="ts">
+// Date objects otherwise render via Date.toString() ("Wed Jan 01 2020 01:00:00 GMT+0100 ...").
+// An Invalid Date must pass through untouched: toISOString() would throw and
+// take the whole table render down with it.
+export function formatCellValue(value: unknown): unknown {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value
+  const iso = value.toISOString()
+  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 16).replace('T', ' ')
+}
+</script>
+
 <script setup lang="ts">
 import type { FilterItem } from '@/lib/data-table/interfaces'
 import type { ColumnType, PromptFusionColumn } from '@/hooks/useDataTable'
@@ -135,13 +146,6 @@ const dataForFilters = computed(() => {
     type: (props.columnTypes[key] === 'number' ? 'number' : 'string') as 'number' | 'string',
   }))
 })
-
-// Date objects otherwise render via Date.toString() ("Wed Jan 01 2020 01:00:00 GMT+0100 ...").
-function formatCellValue(value: unknown): unknown {
-  if (!(value instanceof Date)) return value
-  const iso = value.toISOString()
-  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 16).replace('T', ' ')
-}
 
 function calcTableHeight() {
   let minusValue = 0

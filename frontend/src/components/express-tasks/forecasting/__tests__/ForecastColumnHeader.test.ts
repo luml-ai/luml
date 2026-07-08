@@ -45,10 +45,19 @@ describe('ForecastColumnHeader menu', () => {
     expect(menuLabels(wrapper)).toEqual(['Set as date column', 'Set as target', 'Set as auxiliary'])
   })
 
-  it('offers no menu for the date and target columns', () => {
-    expect(menuLabels(mountHeader('date'))).toEqual([])
-    expect(mountHeader('date').find('button').exists()).toBe(false)
-    expect(menuLabels(mountHeader('target'))).toEqual([])
+  it('offers only the opposite role for the date and target columns', () => {
+    expect(menuLabels(mountHeader('date'))).toEqual(['Set as target'])
+    expect(menuLabels(mountHeader('target'))).toEqual(['Set as date column'])
+  })
+
+  it('emits the swap events from the date and target column menus', () => {
+    const dateWrapper = mountHeader('date')
+    runCommand(dateWrapper, 'Set as target')
+    expect(dateWrapper.emitted('setTarget')).toEqual([['sales']])
+
+    const targetWrapper = mountHeader('target')
+    runCommand(targetWrapper, 'Set as date column')
+    expect(targetWrapper.emitted('setDate')).toEqual([['sales']])
   })
 
   it('offers known-future toggling for auxiliary columns', () => {

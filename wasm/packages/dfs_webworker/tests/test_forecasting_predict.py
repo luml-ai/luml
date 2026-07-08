@@ -85,6 +85,15 @@ def test_json_spec_roundtrip_predicts_identically():
     assert "actuals" not in blob
 
 
+def test_unsupported_spec_version_is_rejected():
+    pipe, _, _ = _univariate()
+    spec = pipe.to_dict()
+    assert spec["version"] == 1
+    spec["version"] = 2
+    with pytest.raises(ValueError, match="version"):
+        ForecastingPipeline.from_dict(spec)
+
+
 def test_forecast_dates_are_consecutive_periods_after_last():
     pipe, d, y = _univariate()
     out = pipe.predict(synth.records(d, y=y), horizon=4)
@@ -126,12 +135,13 @@ def test_history_gap_is_rejected():
         pipe.predict(rows, horizon=3)
 
 
-def test_history_duplicate_date_is_rejected():
+def test_history_duplicate_dates_are_aggregated_not_rejected():
+    # Sub-period duplicates are merged onto the grid by the model's aggregation
+    # (mean by default), so a duplicated row must not change the forecast.
     pipe, d, y = _univariate()
     rows = synth.records(d, y=y)
-    rows.append(dict(rows[-1]))
-    with pytest.raises(ValueError, match="[Dd]uplicate"):
-        pipe.predict(rows, horizon=3)
+    with_dup = rows + [dict(rows[-1])]
+    assert pipe.predict(with_dup, horizon=3) == pipe.predict(rows, horizon=3)
 
 
 def test_missing_aux_column_is_rejected():

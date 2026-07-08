@@ -1,12 +1,14 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import {
   detectDateColumns,
   generateForecastDates,
   isDateColumn,
   isDateLike,
+  isNumericColumn,
   lastDate,
   periodKey,
   periodsBetween,
+  toUtcDay,
 } from '../forecasting-setup'
 
 describe('isDateLike', () => {
@@ -105,8 +107,19 @@ describe('periodsBetween', () => {
     expect(periodsBetween(new Date('2020-01-15'), new Date('2023-01-15'), 'year')).toBe(3)
   })
 
-  it('rounds partial periods up so the horizon reaches the end date', () => {
+  it('reports at least one period for a later date inside the same period', () => {
     expect(periodsBetween(new Date('2020-01-15'), new Date('2020-01-20'), 'month')).toBe(1)
+  })
+
+  it('counts period boundaries regardless of either date`s day of month', () => {
+    // The engine snaps month/quarter/year forecasts to the period start, so
+    // the horizon must not depend on the (arbitrary) day of the last history
+    // row after aggregation.
+    expect(periodsBetween(new Date('2020-01-01'), new Date('2020-02-28'), 'month')).toBe(1)
+    expect(periodsBetween(new Date('2020-01-31'), new Date('2020-02-28'), 'month')).toBe(1)
+    expect(periodsBetween(new Date('2020-01-01'), new Date('2020-03-01'), 'month')).toBe(2)
+    expect(periodsBetween(new Date('2020-01-15'), new Date('2020-06-10'), 'quarter')).toBe(1)
+    expect(periodsBetween(new Date('2020-06-01'), new Date('2021-12-15'), 'year')).toBe(1)
   })
 
   it('returns 0 when the end is not after the start', () => {
@@ -164,5 +177,84 @@ describe('periodKey', () => {
   it('returns null for values that are not dates', () => {
     expect(periodKey('not a date', 'month')).toBeNull()
     expect(periodKey(1500, 'month')).toBeNull()
+  })
+})
+
+describe('isNumericColumn', () => {
+  it('accepts number and numeric-string columns', () => {
+    const rows = [
+      { n: 1, s: '10.5', d: new Date('2020-01-01'), t: 'north' },
+      { n: 2.5, s: '-3', d: new Date('2020-02-01'), t: 'south' },
+    ]
+    expect(isNumericColumn(rows, 'n')).toBe(true)
+    expect(isNumericColumn(rows, 's')).toBe(true)
+  })
+
+  it('rejects text, date, and empty columns', () => {
+    const rows = [
+      { d: new Date('2020-01-01'), t: 'north', e: null },
+      { d: new Date('2020-02-01'), t: 'south', e: '' },
+    ]
+    expect(isNumericColumn(rows, 't')).toBe(false)
+    expect(isNumericColumn(rows, 'd')).toBe(false)
+    expect(isNumericColumn(rows, 'e')).toBe(false)
+  })
+})
+
+describe('toUtcDay', () => {
+  it('passes exact UTC midnights through untouched', () => {
+    const utcMidnight = new Date('2020-03-01T00:00:00Z')
+    expect(toUtcDay(utcMidnight)).toBe(utcMidnight)
+  })
+
+  it('truncates intraday timestamps to their UTC day', () => {
+    // In a UTC test runner local time == UTC; the timezone-sensitive branch is
+    // covered by the timezone-independence suite below.
+    expect(toUtcDay(new Date('2020-03-01T15:30:00Z')).toISOString()).toBe(
+      '2020-03-01T00:00:00.000Z',
+    )
+  })
+})
+
+// Node re-reads process.env.TZ on date operations, so these run the same
+// parsing paths a browser in that zone would. Etc/GMT signs are inverted:
+// Etc/GMT-14 is UTC+14 (Kiritimati), Etc/GMT+12 is UTC-12.
+describe.each(['Etc/GMT-14', 'Etc/GMT+12'])('timezone independence (%s)', (tz) => {
+  const originalTZ = process.env.TZ
+
+  afterEach(() => {
+    if (originalTZ === undefined) delete process.env.TZ
+    else process.env.TZ = originalTZ
+  })
+
+  it('buckets non-ISO date strings into the calendar period the user sees', () => {
+    process.env.TZ = tz
+    // Date.parse reads "02/01/2020" as local midnight; without UTC re-anchoring
+    // the month key would shift to 2020-01 east of UTC.
+    expect(periodKey('02/01/2020', 'month')).toBe('2020-02')
+    expect(periodKey('02/01/2020', 'day')).toBe('2020-02-01')
+    expect(periodKey('Mar 31, 2020', 'quarter')).toBe('2020-Q1')
+  })
+
+  it('anchors lastDate for non-ISO strings to UTC midnight of the visible day', () => {
+    process.env.TZ = tz
+    const rows = [{ date: '01/31/2020' }, { date: '01/15/2020' }]
+    expect(lastDate(rows, 'date')?.toISOString()).toBe('2020-01-31T00:00:00.000Z')
+  })
+
+  it('computes exact day horizons from local-midnight picker dates', () => {
+    process.env.TZ = tz
+    const from = new Date('2020-01-31') // ISO date-only: UTC midnight
+    const picked = new Date(2020, 1, 5) // DatePicker yields local midnight
+    expect(periodsBetween(from, picked, 'day')).toBe(5)
+    expect(periodsBetween(from, picked, 'month')).toBe(1)
+  })
+
+  it('generates the same forecast grid the engine will validate against', () => {
+    process.env.TZ = tz
+    const from = lastDate([{ date: '12/31/2020' }], 'date')
+    expect(from).not.toBeNull()
+    expect(generateForecastDates(from as Date, 2, 'month')).toEqual(['2021-01-01', '2021-02-01'])
+    expect(generateForecastDates(from as Date, 2, 'day')).toEqual(['2021-01-01', '2021-01-02'])
   })
 })

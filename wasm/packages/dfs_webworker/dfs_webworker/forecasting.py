@@ -687,6 +687,12 @@ class ForecastingPipeline:
 
     @classmethod
     def from_dict(cls, spec: dict) -> "ForecastingPipeline":
+        version = spec.get("version", 1)
+        if version != 1:
+            raise ValueError(
+                f"Unsupported forecasting pipeline version: {version!r} "
+                f"(this runtime supports version 1)"
+            )
         return cls(
             date_col=spec["date_col"],
             target_col=spec["target_col"],
@@ -912,11 +918,29 @@ class ForecastingPipeline:
         self.split_date = cv["split_date"]
         self.chart = self._build_chart(df, cv, preview_horizon)
 
+    def _seasonal_train_floor(self) -> int:
+        """Smallest training prefix on which the fold refits are meaningful.
+
+        ``_auto_fit_series`` only admits seasonal structure when the series has
+        at least two full cycles (``2 * period + 1``); a CV fold that refits
+        those same seasonal orders on a shorter prefix produces degenerate
+        boundary fits (seasonal AR/MA at ±1) with wildly biased coefficients,
+        so folds must obey the same floor.
+        """
+        floor = 0
+        for model in [self.target_model, *self.aux_models.values()]:
+            seas_p, seas_d, seas_q, s = model.seasonal_order
+            if s > 0 and (seas_p or seas_d or seas_q):
+                floor = max(floor, 2 * s + 1)
+        return floor
+
     def _cross_validate(
         self, df: pd.DataFrame, target: np.ndarray, exog: np.ndarray | None
     ) -> dict:
         n = len(target)
-        min_train = max(self.min_history, MIN_TRAIN_ROWS // 2 + 2)
+        min_train = max(
+            self.min_history, MIN_TRAIN_ROWS // 2 + 2, self._seasonal_train_floor()
+        )
         period = _SEASONAL_PERIOD[self.frequency]
         horizon = period if period > 0 else NONSEASONAL_CV_HORIZON
         folds = _make_folds(n, min_train, horizon)
@@ -1118,6 +1142,16 @@ def _validate_roles(
         )
     if len(set(aux_cols)) != len(aux_cols):
         raise ValueError("Auxiliary columns must be unique")
+    # predict() emits predicted_<target>_lower/_upper alongside predicted_<aux>,
+    # so these two auxiliary names would silently overwrite the target's interval.
+    reserved = {f"{target_col}_lower", f"{target_col}_upper"}
+    clashing = [c for c in aux_cols if c in reserved]
+    if clashing:
+        raise ValueError(
+            "Auxiliary column name(s) collide with the target's prediction "
+            f"interval columns: {', '.join(clashing)}. Rename the column(s) "
+            "or the target."
+        )
     unknown = [c for c in known_future_cols if c not in aux_cols]
     if unknown:
         raise ValueError(

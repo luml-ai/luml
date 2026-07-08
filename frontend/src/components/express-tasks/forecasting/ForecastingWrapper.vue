@@ -51,6 +51,7 @@
           :has-known-future="hasKnownFuture"
           :last-historical-date="lastHistoricalDate"
           :date-not-parseable="dateNotParseable"
+          :target-not-numeric="targetNotNumeric"
           :preview-date-invalid="previewDateInvalid"
         />
         <table-view
@@ -195,6 +196,7 @@ const {
   hasKnownFuture,
   lastHistoricalDate,
   dateNotParseable,
+  targetNotNumeric,
   previewDateInvalid,
   isValid,
   config,

@@ -46,7 +46,6 @@ import {
 type Props = {
   chart: ForecastingChart
   targetCol: string
-  knownFutureCols?: string[]
   prediction?: Record<string, ForecastPoint[]> | null
   supplied?: Record<string, ForecastPoint[]> | null
 }
@@ -56,7 +55,6 @@ const props = defineProps<Props>()
 const segments = computed(() =>
   buildForecastSegments(props.chart, {
     targetCol: props.targetCol,
-    knownFutureCols: props.knownFutureCols,
     prediction: props.prediction,
     supplied: props.supplied,
   }),

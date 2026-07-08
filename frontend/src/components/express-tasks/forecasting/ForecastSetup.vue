@@ -55,6 +55,9 @@
     <small v-if="dateNotParseable" class="error" data-testid="error-date-parseable">
       The date column doesn't contain recognizable dates — pick another one from its column menu.
     </small>
+    <small v-if="targetNotNumeric" class="error" data-testid="error-target-numeric">
+      The target column doesn't contain numeric values — pick another one from its column menu.
+    </small>
     <small v-if="previewDateInvalid" class="error" data-testid="error-preview-date">
       The preview end date must be after the last historical date.
     </small>
@@ -76,6 +79,7 @@ type Props = {
   hasKnownFuture: boolean
   lastHistoricalDate: Date | null
   dateNotParseable: boolean
+  targetNotNumeric: boolean
   previewDateInvalid: boolean
 }
 

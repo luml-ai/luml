@@ -112,7 +112,24 @@ const menuItems = computed<MenuItem[]>(() => {
   const { role } = props
   const items: MenuItem[] = []
 
-  if (role !== 'date' && role !== 'target') {
+  // The date and target columns offer the opposite role, which swaps the two
+  // (see useForecastSetup): without it these roles could only be moved by
+  // reassigning them from some other column's menu.
+  if (role === 'date') {
+    items.push({
+      label: 'Set as target',
+      iconComponent: Target,
+      iconColor: TARGET_COLOR,
+      command: () => emit('setTarget', props.column),
+    })
+  } else if (role === 'target') {
+    items.push({
+      label: 'Set as date column',
+      iconComponent: CalendarCheck,
+      iconColor: DATE_COLOR,
+      command: () => emit('setDate', props.column),
+    })
+  } else {
     items.push({
       label: 'Set as date column',
       iconComponent: CalendarCheck,

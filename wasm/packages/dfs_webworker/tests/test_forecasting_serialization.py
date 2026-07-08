@@ -7,8 +7,11 @@ inspecting the tar directly (the pydantic-based ``fnnx.extras.reader.Reader`` is
 unavailable in this env).
 """
 
+import importlib
 import json
+import sys
 import tarfile
+from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
@@ -185,6 +188,47 @@ def test_prediction_is_deterministic_across_calls(univariate, tmp_path):
     first = runtime.compute({"in": {"history": history, "horizon": 6}}, {})
     second = runtime.compute({"in": {"history": history, "horizon": 6}}, {})
     assert first["out"]["forecast"] == second["out"]["forecast"]
+
+
+@contextmanager
+def _dfs_webworker_unimportable():
+    """Simulate the fnnx serve environment, where dfs_webworker is absent.
+
+    Every cached dfs_webworker module is dropped (plus any previously loaded
+    bundled ``forecasting`` module, so the import inside the bundle re-runs)
+    and the package is poisoned: ``sys.modules[name] = None`` makes any import
+    attempt raise ImportError immediately.
+    """
+    saved = {
+        name: sys.modules.pop(name)
+        for name in list(sys.modules)
+        if name == "forecasting"
+        or name == "dfs_webworker"
+        or name.startswith("dfs_webworker.")
+    }
+    sys.modules["dfs_webworker"] = None  # type: ignore[assignment]
+    try:
+        yield
+    finally:
+        del sys.modules["dfs_webworker"]
+        sys.modules.pop("forecasting", None)
+        sys.modules.update(saved)
+
+
+def test_bundle_runs_standalone_without_dfs_webworker(univariate, tmp_path):
+    # The bundled forecasting module must not import dfs_webworker at module
+    # level: in-process tests would never catch such a regression because the
+    # package is importable here, so it is explicitly made unimportable.
+    pipe, history = univariate
+    blob = _serialize(pipe)
+    with _dfs_webworker_unimportable():
+        with pytest.raises(ImportError):
+            importlib.import_module("dfs_webworker.store")
+        runtime = _runtime(blob, tmp_path)
+        result = runtime.compute({"in": {"history": history, "horizon": 4}}, {})
+    forecast = result["out"]["forecast"]
+    assert len(forecast) == 4
+    _assert_forecast_close(forecast, pipe.predict(history, 4))
 
 
 # --------------------------------------------------------------------------- #
