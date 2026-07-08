@@ -4,8 +4,13 @@ from falcon.task_configurations import get_task_configuration
 import numpy as np
 from dfs_webworker.constants import (
     PRODUCER,
+    REFERENCE_PROFILE_TAG,
     TABULAR_CLASSIFICATION,
     TABULAR_REGRESSION,
+)
+from dfs_webworker.profiling import (
+    build_tabular_reference_profile,
+    embed_reference_profile,
 )
 from dfs_webworker.store import Store
 from dfs_webworker.utils import success
@@ -36,7 +41,11 @@ def tabular_train(task: str, data: dict, target: str) -> dict:
 
     importances = m.get_permutation_importance()  # type: ignore
 
-    fnnx_model = m.save_model(extra_tags=tabular_tasks[task])
+    profile = build_tabular_reference_profile(
+        data, m.feature_names_to_save, task, m.predict
+    )
+    fnnx_model = m.save_model(extra_tags=tabular_tasks[task] + [REFERENCE_PROFILE_TAG])
+    fnnx_model = embed_reference_profile(fnnx_model, profile)
 
     metrics = m._cached_metrics["performance"]
 

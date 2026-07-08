@@ -452,18 +452,18 @@ includes only the numerical columns.
         and carry the `reference_profile:v1` tag; without reference data neither the
         file nor the tag is present; the embedded file parses as plain JSON.
 
-- [ ] **Task 4 — Express Tasks web-worker integration**
-  - [ ] Vendor a **byte-identical copy** of the canonical module into
+- [x] **Task 4 — Express Tasks web-worker integration**
+  - [x] Vendor a **byte-identical copy** of the canonical module into
         `wasm/packages/dfs_webworker/dfs_webworker/` and add a drift check (byte
         comparison against the SDK canonical copy) to the test suite.
-  - [ ] In `dfs_webworker/tabular.py::tabular_train`, for both `tabular_classification`
+  - [x] In `dfs_webworker/tabular.py::tabular_train`, for both `tabular_classification`
         and `tabular_regression`, generate the full profile from the training data using
         the vendored module; call `m.save_model(extra_tags=[..., "reference_profile:v1"])`
         so the tag lands in the manifest, then add a single `reference_profile.json`
         member to the returned uncompressed tar and return the repacked bytes.
-  - [ ] Rebuild the `dfs_webworker` wheel shipped at
+  - [x] Rebuild the `dfs_webworker` wheel shipped at
         `frontend/public/dfs_webworker-0.1.0-py3-none-any.whl` (and `frontend/dist`).
-  - [ ] Tests: for both tasks, the produced artifact contains `reference_profile.json`
+  - [x] Tests: for both tasks, the produced artifact contains `reference_profile.json`
         (full profile) and its manifest producer tags include `reference_profile:v1`
         alongside the existing `dataforce.studio::{task}:v1` tag; the profile is
         JSON-only; the vendored copy matches the SDK canonical copy byte-for-byte.

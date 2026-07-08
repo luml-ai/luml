@@ -18,3 +18,15 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[dependency-groups]
+dev = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "pytest>=8.0",
+    "scikit-learn>=1.4",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
