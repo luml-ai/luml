@@ -21,8 +21,11 @@ from statsmodels.tsa.seasonal import STL
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.stattools import kpss
 
-from dfs_webworker.store import Store
-from dfs_webworker.utils import success
+# NB: dfs_webworker.store / .utils are imported lazily inside the worker routes
+# below. They must not be imported at module level: this module is bundled on its
+# own into exported .luml models and run by the fnnx runtime, where the
+# dfs_webworker package is absent — a top-level import would break standalone
+# inference (only ForecastingPipeline is used there, never Store/success).
 
 Frequency = str
 
@@ -1170,8 +1173,12 @@ def forecasting_train(
     preview_horizon: int | None = None,
     aggregation: Aggregation = DEFAULT_AGGREGATION,
 ) -> dict:
-    # Local import breaks the forecasting <-> forecasting_serialization cycle.
+    # Local imports: keep dfs_webworker off the module top level so the bundled
+    # copy stays importable standalone (see note near the imports). serialize is
+    # also local to break the forecasting <-> forecasting_serialization cycle.
     from dfs_webworker.forecasting_serialization import serialize
+    from dfs_webworker.store import Store
+    from dfs_webworker.utils import success
 
     pipeline = ForecastingPipeline.fit(
         data,
@@ -1204,6 +1211,9 @@ def forecasting_predict(
     horizon: int,
     future: object | None = None,
 ) -> dict:
+    from dfs_webworker.store import Store
+    from dfs_webworker.utils import success
+
     pipeline = Store.get(model_id)
     if not isinstance(pipeline, ForecastingPipeline):
         raise ValueError(f"Model {model_id} is not a forecasting model")
@@ -1212,5 +1222,8 @@ def forecasting_predict(
 
 
 def forecasting_deallocate(model_id: str) -> dict:
+    from dfs_webworker.store import Store
+    from dfs_webworker.utils import success
+
     Store.delete(model_id)
     return success()

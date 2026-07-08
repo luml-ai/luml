@@ -26,60 +26,62 @@
       </div>
     </section>
 
-    <section class="config card" data-testid="forecasting-card-config">
-      <h3 class="card-title">Model configuration</h3>
-      <dl class="config-summary">
-        <div>
-          <dt>Frequency</dt>
-          <dd>{{ modelConfig.frequency }}</dd>
-        </div>
-        <div>
-          <dt>Seasonal period</dt>
-          <dd>{{ seasonalPeriodLabel }}</dd>
-        </div>
-        <div>
-          <dt>Aggregation</dt>
-          <dd>{{ aggregationLabel }}</dd>
-        </div>
-        <div>
-          <dt>Minimum history</dt>
-          <dd>{{ modelConfig.min_history }} rows</dd>
-        </div>
-        <div>
-          <dt>Known-future columns</dt>
-          <dd>{{ knownFutureLabel }}</dd>
-        </div>
-      </dl>
-      <table class="config-table">
-        <thead>
-          <tr>
-            <th>Series</th>
-            <th>Order (p, d, q)</th>
-            <th>Seasonal (P, D, Q)</th>
-            <th>Trend</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(cfg, col) in modelConfig.series" :key="col">
-            <td>
-              {{ col }}<span v-if="col === modelConfig.target_col" class="tag">target</span>
-            </td>
-            <td>{{ formatOrder(cfg.order) }}</td>
-            <td>{{ formatSeasonal(cfg.seasonal_order) }}</td>
-            <td>{{ cfg.trend || '—' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </section>
+    <div class="side-column">
+      <section class="config card" data-testid="forecasting-card-config">
+        <h3 class="card-title">Model configuration</h3>
+        <dl class="config-summary">
+          <div>
+            <dt>Frequency</dt>
+            <dd>{{ modelConfig.frequency }}</dd>
+          </div>
+          <div>
+            <dt>Seasonal period</dt>
+            <dd>{{ seasonalPeriodLabel }}</dd>
+          </div>
+          <div>
+            <dt>Aggregation</dt>
+            <dd>{{ aggregationLabel }}</dd>
+          </div>
+          <div>
+            <dt>Minimum history</dt>
+            <dd>{{ modelConfig.min_history }} rows</dd>
+          </div>
+          <div>
+            <dt>Known-future columns</dt>
+            <dd>{{ knownFutureLabel }}</dd>
+          </div>
+        </dl>
+        <table class="config-table">
+          <thead>
+            <tr>
+              <th>Series</th>
+              <th>Order (p, d, q)</th>
+              <th>Seasonal (P, D, Q)</th>
+              <th>Trend</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(cfg, col) in modelConfig.series" :key="col">
+              <td>
+                {{ col }}<span v-if="col === modelConfig.target_col" class="tag">target</span>
+              </td>
+              <td>{{ formatOrder(cfg.order) }}</td>
+              <td>{{ formatSeasonal(cfg.seasonal_order) }}</td>
+              <td>{{ cfg.trend || '—' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
 
-    <section v-if="chart" class="chart card" data-testid="forecasting-card-chart">
-      <h3 class="card-title">Forecast</h3>
-      <ForecastChart
-        :chart="chart"
-        :target-col="modelConfig.target_col"
-        :known-future-cols="modelConfig.known_future_cols"
-      />
-    </section>
+      <section v-if="chart" class="chart card" data-testid="forecasting-card-chart">
+        <h3 class="card-title">Forecast</h3>
+        <ForecastChart
+          :chart="chart"
+          :target-col="modelConfig.target_col"
+          :known-future-cols="modelConfig.known_future_cols"
+        />
+      </section>
+    </div>
   </div>
 </template>
 
@@ -202,8 +204,11 @@ function formatSeasonal(seasonal: [number, number, number, number]): string {
   gap: 12px;
 }
 
-.chart {
-  grid-column: 1 / -1;
+.side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
 }
 
 .config-summary {
