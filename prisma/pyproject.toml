@@ -16,6 +16,8 @@ dependencies = [
 luml-prisma = "luml_prisma.server:main"
 mock-agent = "luml_prisma.mock_agent:main"
 luml-inspect = "luml_prisma.cli.inspect:main"
+prisma-demo-agent = "luml_prisma.demo.agent:main"
+prisma-demo = "luml_prisma.demo.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -26,6 +28,7 @@ packages = ["src/luml_prisma"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/luml_prisma/data/guide.md" = "luml_prisma/data/guide.md"
+"src/luml_prisma/demo/scenarios" = "luml_prisma/demo/scenarios"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -49,6 +52,8 @@ dev = [
 line-length = 88
 indent-width = 4
 target-version = "py312"
+# Scenario payloads are demo-repo content replayed into worktrees, not package code
+extend-exclude = ["src/luml_prisma/demo/scenarios"]
 
 [tool.ruff.lint]
 select = [
@@ -84,6 +89,7 @@ quote-style = "double"
 [tool.mypy]
 strict = true
 python_version = "3.12"
+exclude = 'src/luml_prisma/demo/scenarios/'
 
 [[tool.mypy.overrides]]
 module = ["luml.*"]
