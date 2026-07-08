@@ -13,6 +13,7 @@ from luml.utils.reference_profile import (
     build_reference_profile,
     compute_feature_summaries,
     compute_output_summaries,
+    compute_pca_profile,
 )
 
 NUMERIC = ["age", "bmi"]
@@ -235,3 +236,99 @@ def test_numpy_array_features_without_column_names() -> None:
 
     assert set(summaries["numerical_features"]) == {"x0", "x1"}
     assert summaries["categorical_features"] == {}
+
+
+def test_pca_profile_covers_numerical_features_in_order() -> None:
+    profile = compute_pca_profile(_mixed_frame())
+
+    assert profile["pca"]["feature_names"] == ["age", "bmi"]
+    assert profile["pca"]["n_features"] == 2
+    assert profile["scaler"]["n_features"] == 2
+    for key in ("mean_", "scale_", "var_"):
+        assert len(profile["scaler"][key]) == 2
+
+
+def test_pca_component_matrix_shape_matches_components_by_features() -> None:
+    profile = compute_pca_profile(_mixed_frame())
+    pca = profile["pca"]
+
+    components = pca["components"]
+    assert len(components) == pca["n_components"]
+    assert all(len(row) == pca["n_features"] for row in components)
+    assert len(pca["mean_"]) == pca["n_features"]
+
+
+def test_reference_distribution_has_mean_vector_and_square_covariance() -> None:
+    frame = _mixed_frame()
+
+    ref = compute_pca_profile(frame)["reference_distribution"]
+
+    n_components = ref["n_components"]
+    assert len(ref["mean"]) == n_components
+    assert len(ref["covariance"]) == n_components
+    assert all(len(row) == n_components for row in ref["covariance"])
+    assert ref["n_samples"] == len(frame)
+
+
+def test_pca_excludes_categorical_columns() -> None:
+    frame = _mixed_frame()
+
+    assert set(compute_pca_profile(frame)["pca"]["feature_names"]) == {"age", "bmi"}
+
+    overridden = compute_pca_profile(frame, categorical_features={"age": ["18", "19"]})
+    assert overridden["pca"]["feature_names"] == ["bmi"]
+
+
+def test_pca_profile_empty_without_numerical_features() -> None:
+    frame = pd.DataFrame({"sex": ["m", "f", "m"], "region": ["a", "b", "a"]})
+
+    assert compute_pca_profile(frame) == {}
+
+
+def test_single_numerical_feature_gives_1x1_covariance() -> None:
+    frame = pd.DataFrame({"x": np.linspace(0.0, 10.0, 50), "cat": ["a", "b"] * 25})
+
+    profile = compute_pca_profile(frame)
+
+    assert profile["pca"]["feature_names"] == ["x"]
+    ref = profile["reference_distribution"]
+    assert ref["n_components"] == 1
+    assert len(ref["covariance"]) == 1
+    assert len(ref["covariance"][0]) == 1
+
+
+def test_pca_profile_drops_rows_with_missing_numerical_values() -> None:
+    frame = pd.DataFrame(
+        {
+            "a": [1.0, 2.0, np.nan, 4.0, 5.0],
+            "b": [5.0, 4.0, 3.0, 2.0, 1.0],
+        }
+    )
+
+    ref = compute_pca_profile(frame)["reference_distribution"]
+
+    assert ref["n_samples"] == 4
+
+
+def test_pca_profile_is_json_only() -> None:
+    profile = compute_pca_profile(_mixed_frame())
+
+    assert json.loads(json.dumps(profile)) == profile
+    _assert_json_native(profile)
+
+
+def test_pca_profile_is_deterministic() -> None:
+    frame = _mixed_frame()
+
+    assert compute_pca_profile(frame) == compute_pca_profile(frame)
+
+
+def test_build_profile_includes_pca_over_numerical_features() -> None:
+    frame = _mixed_frame()
+    target = 200.0 * frame["age"] + 300.0 * frame["bmi"]
+    pipe = _fit_pipeline(frame, target.to_numpy(), LinearRegression())
+
+    profile = build_reference_profile(frame, "regression", pipe.predict)
+
+    assert {"feature_summaries", "output_summaries", "pca_profile"} <= set(profile)
+    assert profile["pca_profile"]["pca"]["feature_names"] == ["age", "bmi"]

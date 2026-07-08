@@ -16,6 +16,8 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from sklearn.decomposition import PCA  # type: ignore[import-untyped]
+from sklearn.preprocessing import StandardScaler  # type: ignore[import-untyped]
 
 TaskType = Literal["regression", "classification"]
 
@@ -102,6 +104,64 @@ def compute_output_summaries(
     return summaries
 
 
+def compute_pca_profile(
+    features: Any,  # noqa: ANN401
+    *,
+    feature_names: list[str] | None = None,
+    categorical_features: Mapping[str, list[str]] | None = None,
+    random_state: int = 0,
+) -> dict[str, Any]:
+    """Fit a scaler + PCA on the numerical features and summarize the score cloud.
+
+    Only numerical features participate (matching how multivariate drift is computed);
+    categorical columns are excluded. The scaler and PCA parameters are stored as
+    nested lists of native numbers, and the mean vector and covariance matrix of the
+    training PCA scores are stored as ``reference_distribution`` — the reference the
+    worker measures Mahalanobis distance against. Rows with any missing numerical value
+    are dropped before fitting. Returns an empty dict when there are no numerical
+    features (or too few rows to fit), which the worker reads defensively.
+    """
+    frame = _as_frame(features, feature_names)
+    numerical_names = _numerical_feature_names(
+        frame, _override_names(categorical_features)
+    )
+    if not numerical_names:
+        return {}
+
+    matrix = frame[numerical_names].to_numpy(dtype=float)
+    matrix = matrix[~np.isnan(matrix).any(axis=1)]
+    n_samples, n_features = matrix.shape
+    if n_samples < 2:
+        return {}
+
+    n_components = min(n_features, n_samples)
+    scaler = StandardScaler().fit(matrix)
+    pca = PCA(n_components=n_components, random_state=random_state)
+    scores = pca.fit_transform(scaler.transform(matrix))
+
+    return {
+        "scaler": {
+            "mean_": _to_vector(scaler.mean_),
+            "scale_": _to_vector(scaler.scale_),
+            "var_": _to_vector(scaler.var_),
+            "n_features": n_features,
+        },
+        "pca": {
+            "n_components": int(pca.n_components_),
+            "n_features": n_features,
+            "components": _to_matrix(pca.components_),
+            "mean_": _to_vector(pca.mean_),
+            "feature_names": numerical_names,
+        },
+        "reference_distribution": {
+            "mean": _to_vector(scores.mean(axis=0)),
+            "covariance": _to_matrix(np.cov(scores, rowvar=False)),
+            "n_samples": n_samples,
+            "n_components": int(pca.n_components_),
+        },
+    }
+
+
 def build_reference_profile(
     features: Any,  # noqa: ANN401
     task_type: TaskType,
@@ -113,7 +173,7 @@ def build_reference_profile(
     predict_proba: Callable[[Any], Any] | None = None,
     bins: int = DEFAULT_BINS,
 ) -> dict[str, Any]:
-    """Assemble the feature and output summaries of the reference profile.
+    """Assemble the full reference profile: feature + output summaries and PCA profile.
 
     ``predict`` is the way to obtain predictions from the model; when
     ``predict_proba`` is supplied for a classification task, its per-sample confidence
@@ -138,9 +198,16 @@ def build_reference_profile(
         bins=bins,
     )
 
+    pca_profile = compute_pca_profile(
+        features,
+        feature_names=feature_names,
+        categorical_features=categorical_features,
+    )
+
     return {
         "feature_summaries": feature_summaries,
         "output_summaries": output_summaries,
+        "pca_profile": pca_profile,
     }
 
 
@@ -277,6 +344,30 @@ def _is_numerical(series: pd.Series) -> bool:
     return bool(
         pd.api.types.is_numeric_dtype(dtype) and not pd.api.types.is_bool_dtype(dtype)
     )
+
+
+def _override_names(categorical_features: Mapping[str, list[str]] | None) -> set[str]:
+    return {str(name) for name in (categorical_features or {})}
+
+
+def _numerical_feature_names(
+    frame: pd.DataFrame, override_names: set[str]
+) -> list[str]:
+    """Ordered numerical columns, applying the same classification as the summaries."""
+    return [
+        str(column)
+        for column in frame.columns
+        if str(column) not in override_names and _is_numerical(frame[column])
+    ]
+
+
+def _to_vector(array: np.ndarray) -> list[float]:
+    return [float(value) for value in np.asarray(array, dtype=float).ravel()]
+
+
+def _to_matrix(array: np.ndarray) -> list[list[float]]:
+    matrix = np.atleast_2d(np.asarray(array, dtype=float))
+    return [[float(value) for value in row] for row in matrix]
 
 
 def _confidence_scores(proba: Any) -> np.ndarray:  # noqa: ANN401

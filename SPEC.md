@@ -428,14 +428,14 @@ includes only the numerical columns.
         lengths match); mixed numerical + categorical columns land in the correct group;
         `json.dumps` of the result succeeds with no custom encoder.
 
-- [ ] **Task 2 — Canonical profile module: PCA profile**
-  - [ ] In the same module, fit a scaler and PCA on the numerical features; transform
+- [x] **Task 2 — Canonical profile module: PCA profile**
+  - [x] In the same module, fit a scaler and PCA on the numerical features; transform
         the training data to PCA scores and store their mean vector and covariance
         matrix as `reference_distribution` (with `n_samples`); store the scaler and PCA
         parameters (components, centering, ordered feature names) as nested lists of
         native numbers. Assemble the full profile (`feature_summaries`,
         `output_summaries`, `pca_profile`).
-  - [ ] Tests: PCA profile present and consistent (feature names match numerical
+  - [x] Tests: PCA profile present and consistent (feature names match numerical
         features in order, component-matrix shape matches); `reference_distribution` has
         a mean vector and a square covariance of size `n_components`; numerical-only
         coverage; whole profile is JSON-serializable.
