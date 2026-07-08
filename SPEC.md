@@ -440,15 +440,15 @@ includes only the numerical columns.
         a mean vector and a square covariance of size `n_components`; numerical-only
         coverage; whole profile is JSON-serializable.
 
-- [ ] **Task 3 — SDK packaging integration + presence tag**
-  - [ ] On the SDK packaging path (`sdk/python/sdk/luml/utils/packaging.py`), when
+- [x] **Task 3 — SDK packaging integration + presence tag**
+  - [x] On the SDK packaging path (`sdk/python/sdk/luml/utils/packaging.py`), when
         reference data is provided, call the canonical module, write the result as
         `reference_profile.json` into the artifact via the `PyfuncBuilder` file API
         (next to `manifest.json`/`dtypes.json`), and add `reference_profile:v1` to the
         manifest producer tags (`set_producer_info(tags=...)`).
-  - [ ] When no reference data is provided: write no `reference_profile.json` and do
+  - [x] When no reference data is provided: write no `reference_profile.json` and do
         not add the tag; packaging still succeeds.
-  - [ ] Tests: regression and classification artifacts contain `reference_profile.json`
+  - [x] Tests: regression and classification artifacts contain `reference_profile.json`
         and carry the `reference_profile:v1` tag; without reference data neither the
         file nor the tag is present; the embedded file parses as plain JSON.
 

@@ -12,10 +12,13 @@ from luml.artifacts.model import ModelReference
 from luml.integrations.sklearn.packaging._template import SKlearnPyFunc
 from luml.utils.deps import find_dependencies, has_dependency
 from luml.utils.imports import get_version
+from luml.utils.packaging import REFERENCE_PROFILE_TAG, add_reference_profile
 from luml.utils.time import get_epoch
 
 if TYPE_CHECKING:
     from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
+
+    from luml.utils.reference_profile import TaskType
 
 try:
     import pandas as pd  # type: ignore[import-untyped]
@@ -153,6 +156,7 @@ def save_sklearn(  # noqa: C901
     manifest_model_version: str | None = None,
     manifest_model_description: str | None = None,
     manifest_extra_producer_tags: list[str] | None = None,
+    reference_data: Any = None,  # noqa: ANN401
 ) -> ModelReference:
     """
     Save scikit-learn model to LUML format for deployment.
@@ -178,6 +182,10 @@ def save_sklearn(  # noqa: C901
         manifest_model_version: Model version for metadata.
         manifest_model_description: Model description for metadata.
         manifest_extra_producer_tags: Additional tags for model metadata.
+        reference_data: Training features used to compute the monitoring reference
+            profile. When provided, a `reference_profile.json` is embedded and the
+            `reference_profile:v1` producer tag is stamped on the manifest. When
+            omitted, packaging succeeds with no profile and no tag.
 
     Returns:
         ModelReference: Reference to the saved model package.
@@ -205,7 +213,10 @@ def save_sklearn(  # noqa: C901
     ```
     """
     import cloudpickle  # type: ignore[import-untyped]
-    from sklearn.base import BaseEstimator  # type: ignore[import-untyped]
+    from sklearn.base import (  # type: ignore[import-untyped]
+        BaseEstimator,
+        is_classifier,
+    )
 
     if not isinstance(estimator, BaseEstimator):
         raise TypeError(
@@ -236,10 +247,14 @@ def save_sklearn(  # noqa: C901
         model_description=manifest_model_description,
     )
 
+    tags = _get_default_tags() + (manifest_extra_producer_tags or [])
+    if reference_data is not None:
+        tags = tags + [REFERENCE_PROFILE_TAG]
+
     builder.set_producer_info(
         name=FNNX_PRODUCER_NAME,
         version=get_version("luml"),
-        tags=_get_default_tags() + (manifest_extra_producer_tags or []),
+        tags=tags,
     )
 
     _add_io(builder, estimator, inputs)
@@ -250,7 +265,26 @@ def save_sklearn(  # noqa: C901
         estimator_path = tmp.name
     builder.add_file(estimator_path, "estimator.pkl")
 
+    profile_path: str | None = None
+    if reference_data is not None:
+        classifier = is_classifier(estimator)
+        task_type: TaskType = "classification" if classifier else "regression"
+        predict_proba = (
+            estimator.predict_proba
+            if classifier and hasattr(estimator, "predict_proba")
+            else None
+        )
+        profile_path = add_reference_profile(
+            builder,
+            reference_data,
+            task_type,
+            estimator.predict,
+            predict_proba=predict_proba,
+        )
+
     builder.save(path)
 
     os.remove(estimator_path)
+    if profile_path is not None:
+        os.remove(profile_path)
     return ModelReference(path)
