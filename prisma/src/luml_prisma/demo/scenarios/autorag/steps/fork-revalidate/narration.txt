@@ -1,0 +1,8 @@
+● Analyzing branch results with luml-inspect...
+@sleep 1.0
+$ luml-inspect list --group autorag
+  the hybrid BM25 + RRF branch leads on recall_at_3
+@sleep 1.2
+● No further promising directions at this depth — proposing a
+  re-validation of the winning hybrid configuration.
+● Write .prisma/fork.json (1 proposal)

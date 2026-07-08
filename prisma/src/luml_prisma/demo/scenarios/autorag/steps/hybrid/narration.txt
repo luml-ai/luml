@@ -1,0 +1,21 @@
+● Task: hybrid retrieval — BM25 + character n-grams fused with RRF
+@sleep 1.0
+$ luml-inspect params <parent-experiment>
+  chunking=fixed  chunk_size=200  vectorizer=word-tfidf
+@sleep 1.2
+● Design
+  BM25 (k1=1.5, b=0.75)      exact rare tokens: config keys, endpoints
+  char TF-IDF (3–5 grams)    tolerant to word-form variation
+  RRF fusion (rrf_k=60)      rank-based, no score calibration needed
+  paragraph-aligned chunks   one intact idea per chunk
+@sleep 1.8
+● Write rag/retrieval.py
+  BM25 implementation over tokenized paragraph chunks
+  TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5))
+  reciprocal-rank fusion of both rankings
+@sleep 1.4
+● Traces now show three retrieval sub-spans per query:
+  bm25.search → chargram.search → rrf.fuse
+@sleep 1.0
+● Metric unchanged: recall_at_3 (same eval harness, same tracking)
+Done. Handing over to the run command.

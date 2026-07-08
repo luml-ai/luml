@@ -1,0 +1,175 @@
+{
+  "dataset_id": "nimbus-support-v1",
+  "questions": [
+    {
+      "id": "q-01",
+      "question": "Which scopes such as ingest:write can be attached to an API key?",
+      "relevant_doc_ids": [
+        "doc-api-keys"
+      ]
+    },
+    {
+      "id": "q-02",
+      "question": "What does the FUNNEL verb do in NQL?",
+      "relevant_doc_ids": [
+        "doc-nql"
+      ]
+    },
+    {
+      "id": "q-03",
+      "question": "What does session.timeout_minutes control?",
+      "relevant_doc_ids": [
+        "doc-sessions"
+      ]
+    },
+    {
+      "id": "q-04",
+      "question": "How do I use query.cache_ttl_seconds to serve stale results?",
+      "relevant_doc_ids": [
+        "doc-config",
+        "doc-performance"
+      ]
+    },
+    {
+      "id": "q-05",
+      "question": "Can the platform be restored from snapshots after a failed upgrade?",
+      "relevant_doc_ids": [
+        "doc-backup",
+        "doc-upgrades"
+      ]
+    },
+    {
+      "id": "q-06",
+      "question": "Is re-weighting applied so sampled streams stay unbiased?",
+      "relevant_doc_ids": [
+        "doc-sampling"
+      ]
+    },
+    {
+      "id": "q-07",
+      "question": "Who gets notified when a webhook subscription keeps failing?",
+      "relevant_doc_ids": [
+        "doc-webhooks"
+      ]
+    },
+    {
+      "id": "q-08",
+      "question": "What happens to digests that repeatedly fail rendering?",
+      "relevant_doc_ids": [
+        "doc-email-digests"
+      ]
+    },
+    {
+      "id": "q-09",
+      "question": "How are merges of anonymous identities capped?",
+      "relevant_doc_ids": [
+        "doc-identity"
+      ]
+    },
+    {
+      "id": "q-10",
+      "question": "How do I wipe one person's information from the platform?",
+      "relevant_doc_ids": [
+        "doc-privacy"
+      ]
+    },
+    {
+      "id": "q-11",
+      "question": "The charts feel sluggish \u2014 any way to make them faster?",
+      "relevant_doc_ids": [
+        "doc-performance"
+      ]
+    },
+    {
+      "id": "q-12",
+      "question": "How does Nimbus spot unusual spikes in a metric?",
+      "relevant_doc_ids": [
+        "doc-anomaly"
+      ]
+    },
+    {
+      "id": "q-13",
+      "question": "What happens when my plan's monthly allowance runs out?",
+      "relevant_doc_ids": [
+        "doc-billing"
+      ]
+    },
+    {
+      "id": "q-14",
+      "question": "What groups a user's clicks into one browsing period?",
+      "relevant_doc_ids": [
+        "doc-sessions"
+      ]
+    },
+    {
+      "id": "q-15",
+      "question": "How do I install Nimbus with Docker Compose?",
+      "relevant_doc_ids": [
+        "doc-install"
+      ]
+    },
+    {
+      "id": "q-16",
+      "question": "How do I subscribe to a realtime stream of events?",
+      "relevant_doc_ids": [
+        "doc-realtime"
+      ]
+    },
+    {
+      "id": "q-17",
+      "question": "How is usage-based billing calculated against the event quota?",
+      "relevant_doc_ids": [
+        "doc-billing"
+      ]
+    },
+    {
+      "id": "q-18",
+      "question": "What is adaptive sampling?",
+      "relevant_doc_ids": [
+        "doc-sampling"
+      ]
+    },
+    {
+      "id": "q-19",
+      "question": "How do funnels handle strict ordering of steps?",
+      "relevant_doc_ids": [
+        "doc-funnels"
+      ]
+    },
+    {
+      "id": "q-20",
+      "question": "What OAuth scopes does the Slack integration need?",
+      "relevant_doc_ids": [
+        "doc-slack"
+      ]
+    },
+    {
+      "id": "q-21",
+      "question": "Can a public dashboard link be protected with a passphrase?",
+      "relevant_doc_ids": [
+        "doc-dashboards"
+      ]
+    },
+    {
+      "id": "q-22",
+      "question": "Which config keys control batch size, cache TTL, and compaction?",
+      "relevant_doc_ids": [
+        "doc-config"
+      ]
+    },
+    {
+      "id": "q-23",
+      "question": "How do snapshots, keep_last, and the backup destination relate?",
+      "relevant_doc_ids": [
+        "doc-backup"
+      ]
+    },
+    {
+      "id": "q-24",
+      "question": "What sequence moves a partition from live to cold storage to deletion?",
+      "relevant_doc_ids": [
+        "doc-retention"
+      ]
+    }
+  ]
+}

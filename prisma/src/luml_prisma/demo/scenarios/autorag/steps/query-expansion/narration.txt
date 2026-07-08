@@ -1,0 +1,17 @@
+● Task: synonym-based query expansion
+@sleep 1.0
+$ luml-inspect evals <parent-experiment>
+  paraphrased questions dominate the misses — vocabulary gap
+@sleep 1.2
+● Design
+  hand-curated synonym dictionary: question wording → docs wording
+  ("keep" → "retained", "visit" → "session", "spot" → "anomaly", ...)
+  expansion terms weighted by corpus IDF so rare terms dominate
+  chunking unchanged (fixed 200-char windows)
+@sleep 1.6
+● Write rag/retrieval.py
+  QueryExpansionRetriever — expand(query) → TF-IDF search
+  IDF-weighted repeats for high-signal expansion terms
+@sleep 1.0
+● Metric unchanged: recall_at_3 (same eval harness, same tracking)
+Done. Handing over to the run command.

@@ -1,0 +1,104 @@
+[scenario]
+name = "autorag"
+title = "AutoRAG — LangGraph retrieval iteration"
+agent_id = "demo-autorag"
+agent_name = "Demo Agent — AutoRAG"
+run_command = "uv run main.py"
+objective = """
+Improve retrieval quality of the Nimbus Analytics support RAG pipeline.
+The repository contains the documentation corpus (data/corpus.json) and an
+eval set of support questions (data/eval.json). Build a LangGraph retrieval
+pipeline, evaluate it against the eval set with recall@3 as the primary
+metric, track every experiment with luml-sdk (params, metrics, traces, eval
+samples), and iterate on the retrieval strategy to maximize the metric.
+Package the best pipeline as a LUML artifact."""
+
+[playback]
+line_delay_ms = 140
+jitter_ms = 120
+char_delay_ms = 4
+
+[[steps]]
+id = "baseline"
+type = "implement"
+root = true
+variant = "baseline"
+files = "steps/baseline/files"
+narration = "steps/baseline/narration.txt"
+
+[[steps]]
+id = "fork-1"
+type = "fork"
+after_variant = "baseline"
+narration = "steps/fork-1/narration.txt"
+
+[[steps.proposals]]
+title = "hybrid-bm25-rrf"
+prompt = """Replace the dense-only retriever with a hybrid retriever: \
+keyword BM25 plus character n-gram TF-IDF, fused with Reciprocal Rank Fusion \
+(rrf_k=60). Split documents into paragraph chunks. BM25 should catch \
+exact rare tokens (config keys, endpoint paths) while character n-grams \
+tolerate morphological variation. Keep the same eval harness and metric \
+(recall_at_3, higher is better) and the same experiment tracking."""
+
+[[steps.proposals]]
+title = "paragraph-chunking"
+prompt = """Keep the word-level TF-IDF retriever but change chunking from \
+fixed 200-character windows to paragraph-aligned chunks so each chunk carries \
+one intact idea. Prepend the document title to every chunk. Keep the same \
+eval harness and metric (recall_at_3, higher is better) and the same \
+experiment tracking."""
+
+[[steps.proposals]]
+title = "query-expansion"
+prompt = """Add a synonym dictionary in front of the TF-IDF retriever to \
+bridge the vocabulary gap between user questions and documentation wording \
+(e.g. 'keep' -> 'retained'). Expand query tokens with their mapped synonyms, \
+weighting rare expansion terms by corpus IDF. Keep fixed chunking and the \
+same eval harness and metric (recall_at_3, higher is better)."""
+
+[[steps]]
+id = "hybrid"
+type = "implement"
+proposal = "Reciprocal Rank Fusion"
+variant = "hybrid"
+files = "steps/hybrid/files"
+narration = "steps/hybrid/narration.txt"
+
+[[steps]]
+id = "chunking"
+type = "implement"
+proposal = "paragraph-aligned chunks"
+variant = "chunking"
+files = "steps/chunking/files"
+narration = "steps/chunking/narration.txt"
+
+[[steps]]
+id = "query-expansion"
+type = "implement"
+proposal = "synonym dictionary"
+variant = "query-expansion"
+files = "steps/query-expansion/files"
+narration = "steps/query-expansion/narration.txt"
+
+[[steps]]
+id = "query-expansion-debug"
+type = "debug"
+after_variant = "query-expansion"
+files = "steps/query-expansion-debug/files"
+narration = "steps/query-expansion-debug/narration.txt"
+
+# Safety net for runs configured deeper than the scripted story (max_depth > 2):
+# every extra fork re-validates the winning hybrid branch.
+[[steps]]
+id = "fork-revalidate"
+type = "fork"
+after_variant = "*"
+narration = "steps/fork-revalidate/narration.txt"
+
+[[steps.proposals]]
+title = "revalidate-hybrid"
+prompt = """Re-validate the best-performing approach: the hybrid retriever \
+with BM25 plus character n-gram TF-IDF fused via Reciprocal Rank Fusion \
+(rrf_k=60) over paragraph chunks. Re-run the eval to confirm recall_at_3 \
+is stable."""

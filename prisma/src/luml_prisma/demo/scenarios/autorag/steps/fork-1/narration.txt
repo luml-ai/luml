@@ -1,0 +1,21 @@
+● Analyzing the parent experiment with luml-inspect...
+@sleep 1.0
+$ luml-inspect list --group autorag
+  autorag-tfidf-fixed-chunks   completed   recall_at_3=0.708  mrr=0.715
+@sleep 1.2
+$ luml-inspect evals <parent-experiment>
+  7 of 24 questions miss the relevant doc in the top-3
+@sleep 1.0
+● Failure clusters
+  1. paraphrased questions — user wording ≠ documentation wording
+     ("keep my data around" vs "retained", "visit" vs "session")
+  2. exact rare tokens diluted by fixed 200-char windows
+     (config keys and endpoint paths split across chunk boundaries)
+  3. mid-paragraph facts fragmented — chunk carries half an idea
+@sleep 1.8
+● Proposing 3 diverse directions
+  1. hybrid-bm25-rrf      BM25 + char n-gram TF-IDF, RRF fusion, paragraph chunks
+  2. paragraph-chunking   align chunks to paragraphs, keep the TF-IDF ranker
+  3. query-expansion      synonym dictionary bridging user vocabulary
+@sleep 1.2
+● Write .prisma/fork.json (3 proposals, metric preserved: recall_at_3)

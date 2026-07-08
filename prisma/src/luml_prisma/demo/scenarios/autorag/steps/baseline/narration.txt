@@ -1,0 +1,34 @@
+● Reading repository structure...
+@sleep 0.8
+  data/corpus.json     61 documents — Nimbus Analytics product docs
+  data/eval.json       24 support questions · dataset nimbus-support-v1
+  pyproject.toml       langgraph, luml-sdk, scikit-learn
+@sleep 1.4
+● Plan
+  1. LangGraph pipeline: retrieve → generate (extractive answer)
+  2. Retrieval v1: word-level TF-IDF over fixed 200-char chunks
+  3. Eval: recall@3 (primary, higher is better), recall@5, MRR
+  4. Track params/metrics/traces/eval samples with luml-sdk
+  5. Package the compiled graph with save_langgraph → .prisma/artifact.luml
+@sleep 1.8
+● Write rag/text.py
+  tokenizer + two chunking strategies (fixed windows, paragraphs)
+@sleep 1.1
+● Write rag/retrieval.py
+  TfidfRetriever — TfidfVectorizer(stop_words="english", sublinear_tf=True)
+  chunk_size=200, cosine similarity, top-k chunks
+@sleep 1.3
+● Write rag/pipeline.py
+  StateGraph(RAGState): START → retrieve → generate → END
+  nodes record span timings into state for tracing
+@sleep 1.3
+● Write main.py
+  eval harness: per-question scoring, ExperimentTracker(sqlite://~/.prisma/experiments)
+  logs one trace per question (retrieve/generate spans), eval samples linked to traces
+  writes .prisma/result.json + packages .prisma/artifact.luml
+@sleep 1.6
+● Sanity check
+  imports resolve, data paths exist, entrypoint matches run command `uv run main.py`
+@sleep 0.9
+Done. The orchestrator executes the run command next.
+# Metric: recall_at_3 — share of relevant docs in top-3 retrieved, higher is better.

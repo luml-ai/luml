@@ -1,0 +1,19 @@
+● Reading the failure logs...
+@sleep 1.2
+  KeyError: 'alerted'
+    at rag/retrieval.py, expand() — weight = self.idf[synonym]
+  raised inside the LangGraph 'retrieve' node on question q-07
+@sleep 1.4
+● Root cause
+  expand() assumes every synonym exists in the corpus vocabulary.
+  'notified' maps to 'alerted', which never occurs in the docs, so the
+  IDF lookup raises on the first question containing 'notified'.
+@sleep 1.6
+● Fix
+  weight = self.idf.get(synonym)   # skip out-of-vocabulary synonyms
+  if weight is None: continue      # they carry no retrieval signal anyway
+@sleep 1.0
+● Write rag/retrieval.py (guarded lookup, behavior otherwise unchanged)
+@sleep 0.8
+● Experiment tracking code untouched — metric stays recall_at_3.
+Done. The orchestrator will re-run the eval.
