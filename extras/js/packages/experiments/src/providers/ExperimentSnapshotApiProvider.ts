@@ -422,7 +422,7 @@ export class ExperimentSnapshotApiProvider implements ExperimentSnapshotProvider
       x: [],
       y: [],
       modelId: metricHistory.experiment_id,
-      aggregated: false,
+      aggregated: metricHistory.subsampled ?? false,
     }
     return metricHistory.history.reduce((acc, point) => {
       acc.x.push(point.step)

@@ -13,6 +13,20 @@ import { useToast } from 'primevue'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { getErrorMessage } from '@/helpers/helpers'
 
+export function getSpansTimes(spans: Omit<TraceSpan, 'children'>[]): {
+  minTime: number | null
+  maxTime: number | null
+} {
+  if (!spans.length) return { minTime: null, maxTime: null }
+  return spans.reduce(
+    (acc, span) => ({
+      minTime: Math.min(acc.minTime, span.start_time_unix_nano),
+      maxTime: Math.max(acc.maxTime, span.end_time_unix_nano),
+    }),
+    { minTime: Infinity, maxTime: -Infinity },
+  )
+}
+
 export const useEvalsStore = defineStore('evals', () => {
   const annotationsStore = useAnnotationsStore()
   const toast = useToast()
@@ -64,16 +78,6 @@ export const useEvalsStore = defineStore('evals', () => {
     const { minTime, maxTime } = getSpansTimes(spansList)
     const tree = await getProvider.value.buildSpanTree(spansList)
     return { count, minTime, maxTime, tree, traceId }
-  }
-
-  function getSpansTimes(spans: Omit<TraceSpan, 'children'>[]) {
-    return spans.reduce(
-      (acc, span: Omit<TraceSpan, 'children'>) => ({
-        minTime: Math.min(acc.minTime, span.start_time_unix_nano),
-        maxTime: Math.max(acc.maxTime, span.end_time_unix_nano),
-      }),
-      { minTime: Infinity, maxTime: -Infinity },
-    )
   }
 
   function setSelectedTrace(trace: BaseTraceInfo, artifactId: string) {
