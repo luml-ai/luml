@@ -152,14 +152,39 @@ class DeploymentRepository(RepositoryBase, CrudMixin):
         update: DeploymentDetailsUpdate,
     ) -> Deployment | None:
         async with self._get_session() as session:
-            db_dep = await self.update_model_where(
-                session,
-                DeploymentOrm,
-                update,
-                DeploymentOrm.id == deployment_id,
-                DeploymentOrm.orbit_id == orbit_id,
+            result = await session.execute(
+                select(DeploymentOrm).where(
+                    DeploymentOrm.id == deployment_id,
+                    DeploymentOrm.orbit_id == orbit_id,
+                )
             )
-            return db_dep.to_deployment() if db_dep else None
+            db_dep = result.scalar_one_or_none()
+            if not db_dep:
+                return None
+
+            fields_to_update = update.model_dump(exclude_unset=True, exclude={"id"})
+            monitoring_changed = (
+                "monitoring_mode" in fields_to_update
+                and fields_to_update["monitoring_mode"] is not None
+                and fields_to_update["monitoring_mode"] != db_dep.monitoring_mode
+            )
+
+            for field, value in fields_to_update.items():
+                setattr(db_dep, field, value)
+
+            if monitoring_changed:
+                session.add(
+                    SatelliteQueueOrm(
+                        satellite_id=db_dep.satellite_id,
+                        orbit_id=db_dep.orbit_id,
+                        type=SatelliteTaskType.RECONCILE,
+                        payload={"deployment_id": str(db_dep.id)},
+                    )
+                )
+
+            await session.commit()
+            await session.refresh(db_dep)
+            return db_dep.to_deployment()
 
     async def enqueue_undeploy_task(
         self, deployment_id: UUID

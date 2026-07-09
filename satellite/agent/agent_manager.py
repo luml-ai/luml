@@ -21,16 +21,7 @@ class SatelliteManager:
                 "version": 1,
                 "supported_variants": ["pyfunc", "pipeline"],
                 "supported_tags_combinations": None,
-                "extra_fields_form_spec": [
-                    {
-                        "name": "monitoring_enabled",
-                        "type": "boolean",
-                        "values": None,
-                        "required": False,
-                        "validators": [],
-                        "conditions": [],
-                    }
-                ],
+                "extra_fields_form_spec": [],
             },
             "monitoring": {
                 "version": 1,

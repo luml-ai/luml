@@ -48,9 +48,15 @@
       </template>
     </MonitoringStatePanel>
 
+    <!--
+      The Platform page is cross-origin isolated (COEP: require-corp, needed for pyodide's
+      SharedArrayBuffer). `credentialless` lets us embed the cross-origin, non-COEP Satellite
+      dashboard iframe without relaxing the parent's isolation.
+    -->
     <iframe
       v-else-if="store.status === 'active' && store.launchUrl"
       :src="store.launchUrl"
+      credentialless
       class="monitoring-frame"
       title="Deployment monitoring dashboard"
       data-testid="monitoring-iframe"
