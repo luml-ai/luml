@@ -23,8 +23,8 @@ import TraceBody from './body/TraceBody.vue'
 type Props = {
   tree: TraceSpan[]
   count: number
-  maxSpanTime: number
-  minSpanTime: number
+  maxSpanTime: number | null
+  minSpanTime: number | null
   artifactId: string
   traceId: string
 }

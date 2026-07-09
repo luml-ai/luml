@@ -123,6 +123,9 @@ export interface ApiServiceInterface {
 
 export interface ExperimentMetricHistory {
   experiment_id: string
+  // Optional so consuming apps whose local response type predates the flag stay
+  // assignable to ApiServiceInterface; the server always sends it at runtime.
+  subsampled?: boolean
   history: { step: number; value: number }[]
 }
 

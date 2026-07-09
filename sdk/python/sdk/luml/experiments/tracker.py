@@ -1198,7 +1198,7 @@ class ExperimentTracker:
         tracker = ExperimentTracker()
         page = tracker.get_experiment_traces("exp-1", limit=10)
         for trace in page.items:
-            print(trace.trace_id, trace.execution_time_ms)
+            print(trace.trace_id, trace.execution_time)
         ```
         """
         return self.backend.get_experiment_traces(

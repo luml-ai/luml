@@ -64,7 +64,7 @@ const plotlyData = computed(() => {
         type: 'scatter',
         mode: item.x.length > 1 ? 'lines' : 'markers',
         name: props.metricName,
-        line: { color: color, width: 2, shape: 'spline', smoothing: 1.2 },
+        line: { color: color, width: 2, shape: 'linear' },
         hovertemplate: '<b>Value:</b> %{y}<br>' + `<b>Model:</b> ${modelName}<extra></extra>`,
       }
     })

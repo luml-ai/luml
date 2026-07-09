@@ -2474,7 +2474,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Retrieve paginated trace summaries for a given experiment.
 
         Returns an aggregated summary per trace: trace_id, execution_time
-        (MAX(end) - MIN(start) across all spans in seconds), span_count,
+        (MAX(end) - MIN(start) across all spans in nanoseconds), span_count,
         created_at, state, and linked eval IDs. Supports filtering by trace_id
         substring and state, sorting by execution_time, span_count or created_at,
         and cursor-based pagination.
@@ -2503,7 +2503,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
                 items=[
                     TraceRecord(
                         trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-                        execution_time=15.442,
+                        execution_time=15442000000,
                         span_count=6,
                         created_at=datetime(2024, 6, 1, 12, 0, 1),
                         state=TraceState.OK,
@@ -2640,7 +2640,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
         Retrieve paginated trace summaries for a given experiment.
 
         Returns an aggregated summary per trace: trace_id, execution_time
-        (MAX(end) - MIN(start) across all spans in seconds), span_count,
+        (MAX(end) - MIN(start) across all spans in nanoseconds), span_count,
         created_at, state, and linked eval IDs. Supports filtering by trace_id
         substring and state, sorting by execution_time, span_count or created_at,
         and cursor-based pagination.
@@ -2666,7 +2666,7 @@ class SQLiteBackend(Backend, SQLitePaginationMixin):
             [
                 TraceRecord(
                     trace_id="4bf92f3577b34da6a3ce929d0e0e4736",
-                    execution_time=15.442,
+                    execution_time=15442000000,
                     span_count=6,
                     created_at=datetime(2024, 6, 1, 12, 0, 1),
                     state=TraceState.OK,
