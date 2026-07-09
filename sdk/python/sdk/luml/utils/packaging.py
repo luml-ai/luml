@@ -1,4 +1,8 @@
-from typing import Any, Literal
+import json
+import os
+import tempfile
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 import scipy.sparse as sp
@@ -19,6 +23,12 @@ from luml.utils.imports import (
     extract_top_level_modules,
     get_version,
 )
+
+if TYPE_CHECKING:
+    from luml.utils.reference_profile import TaskType
+
+REFERENCE_PROFILE_TAG = "reference_profile:v1"
+REFERENCE_PROFILE_FILENAME = "reference_profile.json"
 
 
 def resolve_dtype(dtype: Any) -> str:  # noqa: ANN401
@@ -208,3 +218,34 @@ def is_sklearn_estimator(obj: object, estimator_cls: type | None) -> bool:
     if estimator_cls is None:
         return False
     return isinstance(obj, estimator_cls)
+
+
+def add_reference_profile(
+    builder: PyfuncBuilder,
+    reference_data: Any,  # noqa: ANN401
+    task_type: "TaskType",
+    predict: Callable[[Any], Any],
+    *,
+    predict_proba: Callable[[Any], Any] | None = None,
+) -> str:
+    """Compute the monitoring reference profile and embed it as JSON in the artifact.
+
+    Runs the canonical, dependency-light profile computation over ``reference_data``
+    (the training features), serializes the plain-JSON result to a temporary file, and
+    registers it under ``reference_profile.json`` via the builder's file API. The
+    temporary path is returned so the caller can remove it after ``builder.save``. The
+    caller is responsible for adding ``REFERENCE_PROFILE_TAG`` to the producer tags.
+
+    The pandas-dependent canonical module is imported lazily so importing this module
+    (and packaging without ``reference_data``) stays pandas-optional.
+    """
+    from luml.utils.reference_profile import build_reference_profile
+
+    profile = build_reference_profile(
+        reference_data, task_type, predict, predict_proba=predict_proba
+    )
+    fd, tmp_path = tempfile.mkstemp(suffix=".json")
+    with os.fdopen(fd, "w") as tmp:
+        json.dump(profile, tmp)
+    builder.add_file(tmp_path, REFERENCE_PROFILE_FILENAME)
+    return tmp_path
