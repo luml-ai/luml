@@ -83,7 +83,7 @@ async def _lifespan(
     registry = register_all_handlers()
 
     global_dir = ensure_global_luml_dir()
-    upload_queue = UploadQueue(global_dir / "uploads.db")
+    upload_queue = UploadQueue(global_dir / "prisma" / "uploads.db")
 
     engine = OrchestratorEngine(
         db=db, pty=pty, registry=registry,

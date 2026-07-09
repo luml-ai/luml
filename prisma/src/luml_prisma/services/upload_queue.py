@@ -74,7 +74,7 @@ def _row_to_upload(row: sqlite3.Row) -> PendingUpload:
 class UploadQueue:
     def __init__(self, db_path: str | Path | None = None) -> None:
         if db_path is None:
-            db_path = Path.home() / ".prisma" / "uploads.db"
+            db_path = Path.home() / ".luml" / "prisma" / "uploads.db"
         path = Path(db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self._db_path = str(path)

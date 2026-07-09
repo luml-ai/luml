@@ -69,7 +69,7 @@ _DEBUG_ONLY_AGENT_IDS: frozenset[str] = frozenset({"mock"})
 
 
 def _custom_agents_path() -> Path:
-    return Path.home() / ".luml-prisma" / "coding-clis.json"
+    return Path.home() / ".luml" / "prisma" / "coding-clis.json"
 
 
 def _coerce_str(v: object) -> str | None:

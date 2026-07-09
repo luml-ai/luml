@@ -60,7 +60,7 @@ Each phase has its own timeout. **Implement timeout** defaults to `3600` seconds
 
 The agent is given a working directory inside a Git worktree and a `.prisma/` directory it is expected to use as a scratchpad and reporting channel. The full contract — including the schema for `.prisma/result.json`, conventions for `.prisma/fork.json`, the location of the experiment database, and the `luml-inspect` CLI for exploring it — is shipped with the package as `luml_prisma/data/guide.md`. The same file is provided to the agent at run time, so the model and the runtime share a single source of truth.
 
-The training code is expected to integrate with the [`luml-sdk`](https://pypi.org/project/luml-sdk/) `ExperimentTracker`, which writes per-step parameters and metrics to a shared SQLite database under `~/.prisma/experiments/`. The bundled `luml-inspect` CLI reads that database and supports listing, inspecting, and comparing experiments across runs.
+The training code is expected to integrate with the [`luml-sdk`](https://pypi.org/project/luml-sdk/) `ExperimentTracker`, which writes per-step parameters and metrics to a shared SQLite database under `~/.luml/experiments/`. The bundled `luml-inspect` CLI reads that database and supports listing, inspecting, and comparing experiments across runs.
 
 ## Merging
 

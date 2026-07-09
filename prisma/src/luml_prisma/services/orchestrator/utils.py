@@ -24,8 +24,9 @@ def ensure_luml_prisma_dir(worktree_path: str) -> Path:
 
 
 def ensure_global_luml_dir() -> Path:
-    home = Path.home() / ".prisma"
+    home = Path.home() / ".luml"
     (home / "experiments").mkdir(parents=True, exist_ok=True)
+    (home / "prisma").mkdir(parents=True, exist_ok=True)
     return home
 
 
