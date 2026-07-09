@@ -28,6 +28,16 @@
         :showTitle="false"
         class="base-settings"
       ></DeploymentsFormBasicsSettings>
+      <div class="monitoring-field">
+        <div class="monitoring-header">
+          <label class="label">Live monitoring</label>
+          <ToggleSwitch v-model="initialValues.monitoringEnabled" name="monitoringEnabled" />
+        </div>
+        <p class="monitoring-hint">
+          Record inference telemetry and enable the monitoring dashboard for this deployment. Changes
+          are applied by the satellite shortly after saving.
+        </p>
+      </div>
       <Accordion v-if="initialValues.secretDynamicAttributes.length" style="margin-bottom: 12px">
         <template #expandicon>
           <ChevronDown :size="20"></ChevronDown>
@@ -112,9 +122,11 @@ import {
   AccordionPanel,
   AccordionHeader,
   AccordionContent,
+  ToggleSwitch,
 } from 'primevue'
 import {
   DeploymentStatusEnum,
+  MonitoringMode,
   type Deployment,
   type UpdateDeploymentPayload,
 } from '@/lib/api/deployments/interfaces'
@@ -147,6 +159,7 @@ interface FormValues {
   tags: string[]
   collectionId: string
   modelId: string
+  monitoringEnabled: boolean
   secretDynamicAttributes: FieldInfo[]
 }
 
@@ -173,6 +186,7 @@ const initialValues = ref<FormValues>({
   tags: props.data.tags,
   collectionId: props.data.collection_id,
   modelId: props.data.artifact_id,
+  monitoringEnabled: props.data.monitoring_mode === MonitoringMode.full,
   secretDynamicAttributes: [],
 })
 
@@ -203,6 +217,9 @@ async function saveChanges() {
       description: initialValues.value.description,
       tags: initialValues.value.tags,
       dynamic_attributes_secrets,
+      monitoring_mode: initialValues.value.monitoringEnabled
+        ? MonitoringMode.full
+        : MonitoringMode.off,
     }
     await deploymentsStore.update(organizationId.value, props.data.orbit_id, props.data.id, payload)
     toast.add(simpleSuccessToast('Deployment changes saved successfully.'))
@@ -290,6 +307,33 @@ onBeforeMount(async () => {
 
 .model-settings {
   margin: -20px;
+}
+
+.monitoring-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.monitoring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monitoring-header .label {
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--p-text-color);
+}
+
+.monitoring-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-button-text-secondary-color);
+  margin: 0;
 }
 
 .accordion-title {

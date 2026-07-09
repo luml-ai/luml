@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from agent.monitoring.api import build_query_router
 from agent.monitoring.query import MonitoringQueryService
+from agent.monitoring.query_store import InMemoryMonitoringStore, MonitoringStore
 from agent.monitoring.session import (
     DEFAULT_SESSION_TTL_SECONDS,
     SESSION_COOKIE_NAME,
@@ -19,7 +20,6 @@ from agent.monitoring.session import (
     MonitoringSessionStore,
     require_monitoring_session,
 )
-from agent.monitoring.query_store import InMemoryMonitoringStore, MonitoringStore
 from agent.schemas.monitoring import (
     MONITORING_READ_SCOPE,
     MonitoringIntrospection,

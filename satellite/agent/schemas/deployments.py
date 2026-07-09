@@ -36,6 +36,7 @@ class Deployment(BaseModel):
     collection_id: str
     inference_url: str | None = None
     status: str
+    monitoring_mode: str = "off"
     satellite_parameters: dict[str, bool | int | str] | None = {}
     description: str | None = None
     dynamic_attributes_secrets: dict[str, str] | None = {}
