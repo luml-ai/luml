@@ -192,9 +192,7 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
   }): Promise<{ items: EvalsInfo[]; cursor: string | null }> {
     const limit = params.limit ?? 20
     const snapshots = params.experiment_ids
-      ? this.modelsSnapshots.filter((snapshot) =>
-          params.experiment_ids!.includes(snapshot.modelId),
-        )
+      ? this.modelsSnapshots.filter((snapshot) => params.experiment_ids!.includes(snapshot.modelId))
       : this.modelsSnapshots
 
     const { hasMore, pageIds } = this.getBatchPageIds(snapshots, {
@@ -965,14 +963,14 @@ export class ExperimentSnapshotDatabaseProvider implements ExperimentSnapshotPro
     annotations: AnnotationSummary | null
   }) {
     return {
-      id: safeParse(id) || '',
-      dataset_id: safeParse(dataset_id) || '',
+      id: id?.toString() ?? '',
+      dataset_id: dataset_id?.toString() ?? '',
       inputs: safeParse(inputs) || {},
       outputs: safeParse(outputs) || {},
       refs: safeParse(refs) || {},
       scores: safeParse(scores) || {},
       metadata: safeParse(metadata) || {},
-      modelId: safeParse(modelId) || '',
+      modelId: modelId,
       annotations,
     }
   }

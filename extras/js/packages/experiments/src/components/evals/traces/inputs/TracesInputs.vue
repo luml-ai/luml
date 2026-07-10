@@ -113,11 +113,11 @@ watch(
   width: 120px;
 }
 .list {
-  padding: 0 20px;
+  padding: 0 20px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  height: 100%;
+  height: calc(100% - 63px);
   overflow-y: auto;
 }
 

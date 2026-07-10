@@ -138,7 +138,7 @@ watch(
 <style scoped>
 .row {
   display: grid;
-  grid-template-columns: 180px 80px 180px 35px;
+  grid-template-columns: 160px 120px 160px 35px;
   gap: 13px;
   align-items: flex-end;
 }
