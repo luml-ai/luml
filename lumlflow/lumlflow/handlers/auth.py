@@ -61,15 +61,24 @@ class AuthHandler:
             raise
 
     def set_api_key(self, data: SetApiKey) -> None:
+        base_url = get_config().LUML_BASE_URL
         try:
             with httpx.Client() as client:
                 response = client.get(
-                    f"{get_config().LUML_BASE_URL}/v1/auth/api-keys/validate",
+                    f"{base_url}/v1/auth/api-keys/validate",
                     headers={"Authorization": f"Bearer {data.api_key}"},
                     timeout=10,
                 )
         except Exception as e:
-            raise ApplicationError("Could not reach LUML platform", 502) from e
+            # Keep the target URL and the underlying error visible —
+            # "unreachable" is usually a stale LUML_BASE_URL override, a
+            # proxy env var, or a malformed pasted key, and the user can
+            # only tell those apart from the cause.
+            raise ApplicationError(
+                f"Could not reach LUML platform at {base_url} "
+                f"({type(e).__name__}: {e})",
+                502,
+            ) from e
 
         if response.status_code == 204:
             self.save_credentials(data.api_key)

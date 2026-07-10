@@ -13,14 +13,20 @@ class LumlHandler(BaseLumlHandler):
     def get_luml_organizations(self) -> list[Organization]:
         luml = self._get_luml_client()
         try:
-            return luml.organizations.list()
+            return [
+                Organization.model_validate(org.model_dump())
+                for org in luml.organizations.list()
+            ]
         except Exception as e:
             raise ApplicationError(f"Failed to get luml organizations: {str(e)}") from e
 
     def get_luml_orbits(self, organization_id: str) -> list[Orbit]:
         luml = self._get_luml_client(organization_id)
         try:
-            return luml.orbits.list()
+            return [
+                Orbit.model_validate(orbit.model_dump())
+                for orbit in luml.orbits.list()
+            ]
         except Exception as e:
             raise ApplicationError(f"Failed to get luml orbits: {str(e)}") from e
 

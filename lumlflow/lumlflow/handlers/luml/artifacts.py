@@ -13,6 +13,8 @@ from lumlflow.infra.progress_store import ProgressStore
 from lumlflow.schemas.luml import (
     Artifact,
     UploadArtifactForm,
+    UploadFileForm,
+    UploadModelForm,
     UploadType,
 )
 
@@ -27,7 +29,7 @@ class ArtifactHandler(BaseLumlHandler):
 
     def _upload_model(
         self,
-        data: UploadArtifactForm,
+        data: UploadArtifactForm | UploadModelForm,
         model: DbModel,
         embed: bool,
         on_progress,
@@ -150,3 +152,58 @@ class ArtifactHandler(BaseLumlHandler):
             return
 
         self.progress_store.set_complete(job_id, [r.model_dump() for r in results])
+
+    def upload_model(self, data: UploadModelForm, job_id: str) -> None:
+        """Upload one specific linked model as a cloud artifact.
+
+        Unlike `upload_artifact` with type=model (which pushes every
+        linked model), this targets a single model row — the TUI's
+        per-model publish. Embedding bundles the experiment into a
+        temp copy of the model file, exactly like the bulk path.
+        """
+
+        try:
+            models = self.tracker.get_models(data.experiment_id)
+            model = next(
+                (m for m in models if m.id == data.model_id), None
+            )
+            if model is None:
+                raise NotFound(f"Model not found: {data.model_id}")
+            on_progress = self.progress_store.make_handler(job_id, 0, 1)
+            artifact = self._upload_model(
+                data, model, embed=data.embed_experiment, on_progress=on_progress
+            )
+        except Exception as e:
+            self.progress_store.set_error(job_id, str(e))
+            return
+
+        self.progress_store.set_complete(job_id, [artifact.model_dump()])
+
+    def upload_file(self, data: UploadFileForm, job_id: str) -> None:
+        """Upload a user-chosen file from disk as a cloud artifact.
+
+        The manual counterpart of `upload_artifact`: nothing is derived
+        from a tracked experiment — the payload is exactly the file at
+        `data.file_path`. Progress / completion / errors are reported
+        through the shared progress store, same as experiment uploads.
+        """
+
+        try:
+            path = Path(data.file_path).expanduser()
+            if not path.is_file():
+                raise NotFound(f"File not found: {path}")
+            on_progress = self.progress_store.make_handler(job_id, 0, 1)
+            luml = self._get_luml_client(data.organization_id, data.orbit_id)
+            artifact = luml.artifacts.upload(
+                file_path=str(path),
+                name=data.artifact.name or path.stem,
+                description=data.artifact.description,
+                tags=data.artifact.tags,
+                collection_id=data.collection_id,
+                on_progress=on_progress,
+            )
+        except Exception as e:
+            self.progress_store.set_error(job_id, str(e))
+            return
+
+        self.progress_store.set_complete(job_id, [artifact.model_dump()])
