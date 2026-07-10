@@ -83,7 +83,6 @@ const modelStub = (name: string) => ({
 const stubs = {
   apexchart: true,
   DatePicker: modelStub('DatePicker'),
-  SelectButton: modelStub('SelectButton'),
   SplitButton: {
     name: 'SplitButton',
     props: ['label', 'model', 'severity'],
@@ -248,26 +247,24 @@ describe('Forecasting evaluate — re-forecast', () => {
     )
   })
 
-  it('displays and exports only the final date in single-date mode', async () => {
+  it('displays and exports the whole forecast period', async () => {
     const { wrapper } = mountEvaluate()
     await setEndDate(wrapper, new Date('2020-06-01'))
-    wrapper.findComponent({ name: 'SelectButton' }).vm.$emit('update:modelValue', 'single')
-    await nextTick()
 
     await wrapper.find('[data-testid="run-forecast"]').trigger('click')
     await flushPromises()
 
-    // engine forecast all 3 periods, but the overlay shows only the last
+    // engine forecasts all 3 periods and the overlay shows every one of them
     expect(
       wrapper.findComponent({ name: 'ForecastChart' }).props('prediction')?.sales,
-    ).toHaveLength(1)
+    ).toHaveLength(3)
 
     downloadMock.mockClear()
     await wrapper.find('[data-testid="download-predictions"]').trigger('click')
     const blob = downloadMock.mock.calls[0][0] as Blob
     const csv = await readBlob(blob)
+    expect(csv).toContain('2020-04-01')
     expect(csv).toContain('2020-06-01')
-    expect(csv).not.toContain('2020-04-01')
   })
 
   it('stays on the evaluate step with no overlay when the re-forecast fails', async () => {

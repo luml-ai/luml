@@ -107,16 +107,6 @@
               data-testid="reforecast-date"
             />
           </label>
-          <label class="field">
-            <span class="label">Display</span>
-            <select-button
-              v-model="mode"
-              :options="MODES"
-              option-label="label"
-              option-value="value"
-              :allow-empty="false"
-            />
-          </label>
         </div>
 
         <future-values-editor
@@ -163,7 +153,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import DatePicker from 'primevue/datepicker'
-import SelectButton from 'primevue/selectbutton'
 import { SplitButton } from 'primevue'
 import { LogOut } from 'lucide-vue-next'
 import ForecastChart from './ForecastChart.vue'
@@ -226,13 +215,7 @@ const EXPORT_ITEMS = [
   },
 ]
 
-const MODES = [
-  { label: 'Whole period', value: 'whole' as const },
-  { label: 'Selected date only', value: 'single' as const },
-]
-
 const endDate = ref<Date | null>(null)
-const mode = ref<'single' | 'whole'>('whole')
 const isForecasting = ref(false)
 const rawForecast = ref<ForecastPredictedRecord[]>([])
 const rawFuture = ref<ForecastingRecord[]>([])
@@ -277,10 +260,7 @@ const canForecast = computed(
   () => horizon.value > 0 && (!hasKnownFuture.value || futureState.value.complete),
 )
 
-const displayRecords = computed<ForecastPredictedRecord[]>(() => {
-  if (!rawForecast.value.length) return []
-  return mode.value === 'single' ? rawForecast.value.slice(-1) : rawForecast.value
-})
+const displayRecords = computed<ForecastPredictedRecord[]>(() => rawForecast.value)
 
 const overlay = computed(() =>
   displayRecords.value.length
@@ -358,7 +338,7 @@ function finishConfirm(): void {
   router.push({ name: 'home' })
 }
 
-// A changed horizon invalidates any prior forecast; toggling display mode reuses it.
+// A changed horizon invalidates any prior forecast.
 watch(endDate, () => {
   rawForecast.value = []
   rawFuture.value = []
