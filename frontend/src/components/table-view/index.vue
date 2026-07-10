@@ -59,18 +59,23 @@
           :field="column"
           style="min-width: 13rem"
         >
+          <template #body="{ data }">
+            {{ formatCellValue(data[column]) }}
+          </template>
           <template #header>
-            <table-column-header
-              :values="value"
-              :column="column"
-              :group="group"
-              :target="target"
-              :column-type="columnTypes[column]"
-              :show-menu="showColumnHeaderMenu"
-              :inputs-outputs-columns="inputsOutputsColumns"
-              @change-group="(event) => $emit('changeGroup', event)"
-              @set-target="(event) => $emit('setTarget', event)"
-            />
+            <slot name="column-header" :column="column">
+              <table-column-header
+                :values="value"
+                :column="column"
+                :group="group"
+                :target="target"
+                :column-type="columnTypes[column]"
+                :show-menu="showColumnHeaderMenu"
+                :inputs-outputs-columns="inputsOutputsColumns"
+                @change-group="(event) => $emit('changeGroup', event)"
+                @set-target="(event) => $emit('setTarget', event)"
+              />
+            </slot>
           </template>
         </Column>
       </DataTable>
@@ -78,6 +83,17 @@
     </div>
   </div>
 </template>
+
+<script lang="ts">
+// Date objects otherwise render via Date.toString() ("Wed Jan 01 2020 01:00:00 GMT+0100 ...").
+// An Invalid Date must pass through untouched: toISOString() would throw and
+// take the whole table render down with it.
+export function formatCellValue(value: unknown): unknown {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) return value
+  const iso = value.toISOString()
+  return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : iso.slice(0, 16).replace('T', ' ')
+}
+</script>
 
 <script setup lang="ts">
 import type { FilterItem } from '@/lib/data-table/interfaces'
@@ -104,6 +120,7 @@ type Props = {
   columnTypes: Record<string, ColumnType>
   showColumnHeaderMenu?: boolean
   inputsOutputsColumns?: PromptFusionColumn[]
+  heightOffset?: number
 }
 
 type Emits = {
@@ -115,6 +132,7 @@ type Emits = {
 
 const props = withDefaults(defineProps<Props>(), {
   showColumnHeaderMenu: false,
+  heightOffset: 0,
 })
 defineEmits<Emits>()
 
@@ -136,7 +154,7 @@ function calcTableHeight() {
   else {
     minusValue = 300
   }
-  tableHeight.value = document.documentElement.clientHeight - minusValue
+  tableHeight.value = document.documentElement.clientHeight - minusValue - props.heightOffset
 }
 
 onBeforeMount(() => {

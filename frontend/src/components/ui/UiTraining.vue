@@ -18,7 +18,6 @@
             10 minutes.
           </div>
           <progress-bar mode="indeterminate" style="height: 6px" />
-          <div class="info">Estimated loading time: {{ time }}m</div>
           <d-button v-if="isCancelAvailable" label="cancel" @click="$emit('cancel')" />
         </div>
       </div>
@@ -32,7 +31,6 @@ import UiLoader from '@/components/ui/UiLoader.vue'
 
 type Props = {
   modelValue: boolean
-  time: number
   isCancelAvailable?: boolean
 }
 defineEmits<{
@@ -64,15 +62,6 @@ defineProps<Props>()
   color: var(--p-text-muted-color);
   line-height: 1.18;
 }
-.info {
-  margin-top: 0.5rem;
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-}
-.info:not(:last-child) {
-  margin-bottom: 32px;
-}
-
 @media (max-width: 992px) {
   .wrapper {
     flex-direction: column;

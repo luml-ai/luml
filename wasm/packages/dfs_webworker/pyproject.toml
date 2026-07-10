@@ -18,3 +18,15 @@ classifiers = [
     "Operating System :: OS Independent",
 ]
 
+[tool.setuptools.packages.find]
+include = ["dfs_webworker*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::FutureWarning",
+    "ignore::RuntimeWarning",
+]
+

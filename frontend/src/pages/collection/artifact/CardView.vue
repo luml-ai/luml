@@ -4,7 +4,11 @@
   </div>
   <div v-else-if="artifactsStore.currentModelMetadata && artifactsStore.currentModelTag">
     <CollectionModelCardTabular
-      v-if="isTabular && 'metrics' in artifactsStore.currentModelMetadata"
+      v-if="
+        isTabular &&
+        'metrics' in artifactsStore.currentModelMetadata &&
+        !('model_config' in artifactsStore.currentModelMetadata)
+      "
       :metrics="artifactsStore.currentModelMetadata.metrics"
       :tag="artifactsStore.currentModelTag"
     ></CollectionModelCardTabular>
@@ -12,6 +16,12 @@
       v-else-if="isPromptOptimization && 'edges' in artifactsStore.currentModelMetadata"
       :data="artifactsStore.currentModelMetadata"
     ></CollectionModelCardPromptOptimization>
+    <CollectionModelCardForecasting
+      v-else-if="isForecasting && 'model_config' in artifactsStore.currentModelMetadata"
+      :metrics="artifactsStore.currentModelMetadata.metrics"
+      :model-config="artifactsStore.currentModelMetadata.model_config"
+      :chart="artifactsStore.currentModelMetadata.chart"
+    ></CollectionModelCardForecasting>
     <div v-else class="card">
       <header class="card-header">
         <h3 class="card-title card-title--medium">Inputs and outputs</h3>
@@ -38,6 +48,7 @@ import { ModelDownloader } from '@/lib/bucket-service'
 import JSZip from 'jszip'
 import CollectionModelCardTabular from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardTabular.vue'
 import CollectionModelCardPromptOptimization from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardPromptOptimization.vue'
+import CollectionModelCardForecasting from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardForecasting.vue'
 import CollectionModelCardHtml from '@/components/orbits/tabs/registry/collection/artifact/card/CollectionModelCardHtml.vue'
 
 const artifactsStore = useArtifactsStore()
@@ -52,6 +63,11 @@ const isPromptOptimization = computed(
     artifactsStore.currentModelTag &&
     FnnxService.isPromptOptimizationTag(artifactsStore.currentModelTag),
 )
+const isForecasting = computed(
+  () =>
+    artifactsStore.currentModelTag &&
+    FnnxService.isForecastingTag(artifactsStore.currentModelTag),
+)
 
 function setTabularMetadata(file: MetaEntry[]) {
   const metrics = FnnxService.getTabularMetrics(file)
@@ -61,6 +77,13 @@ function setTabularMetadata(file: MetaEntry[]) {
 function setPromptOptimizationMetadata(file: MetaEntry[]) {
   const data = FnnxService.getPromptOptimizationData(file) as PromptOptimizationModelMetadataPayload
   artifactsStore.setCurrentModelMetadata(data)
+}
+
+function setForecastingMetadata(file: MetaEntry[]) {
+  const data = FnnxService.getForecastingData(file)
+  if (!data) return
+  const chart = FnnxService.getForecastingChart(file)
+  artifactsStore.setCurrentModelMetadata({ ...data, chart })
 }
 
 async function setHtmlData(model: ModelArtifact) {
@@ -104,6 +127,8 @@ async function setLumlMetadata(tag: FNNX_PRODUCER_TAGS_MANIFEST_ENUM, model: Mod
     setTabularMetadata(file as MetaEntry[])
   } else if (FnnxService.isPromptOptimizationTag(tag)) {
     setPromptOptimizationMetadata(file as MetaEntry[])
+  } else if (FnnxService.isForecastingTag(tag)) {
+    setForecastingMetadata(file as MetaEntry[])
   }
 }
 

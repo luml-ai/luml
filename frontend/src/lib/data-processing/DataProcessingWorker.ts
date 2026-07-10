@@ -1,6 +1,8 @@
 import {
   WEBWORKER_ROUTES_ENUM,
   WebworkerMessage,
+  type ForecastingPredictRequest,
+  type ForecastingTrainPayload,
   type PredictRequestData,
   type PromptOptimizationData,
   type TaskPayload,
@@ -58,8 +60,11 @@ class DataProcessingWorkerClass {
   }
 
   async startTraining<T = unknown>(
-    data: TaskPayload | PromptOptimizationData,
-    route: WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN,
+    data: TaskPayload | PromptOptimizationData | ForecastingTrainPayload,
+    route:
+      | WEBWORKER_ROUTES_ENUM.TABULAR_TRAIN
+      | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_TRAIN
+      | WEBWORKER_ROUTES_ENUM.FORECASTING_TRAIN,
   ): Promise<T> {
     this.checkPyodideReady()
     const result = await this.sendMessage<T>(WebworkerMessage.INVOKE_ROUTE, route, data)
@@ -67,10 +72,11 @@ class DataProcessingWorkerClass {
   }
 
   async startPredict<T = unknown>(
-    data: PredictRequestData,
+    data: PredictRequestData | ForecastingPredictRequest,
     route:
       | WEBWORKER_ROUTES_ENUM.TABULAR_PREDICT
-      | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT,
+      | WEBWORKER_ROUTES_ENUM.PROMPT_OPTIMIZATION_PREDICT
+      | WEBWORKER_ROUTES_ENUM.FORECASTING_PREDICT,
   ): Promise<T> {
     this.checkPyodideReady()
     const predictResult = await this.sendMessage<T>(WebworkerMessage.INVOKE_ROUTE, route, data)
@@ -79,7 +85,10 @@ class DataProcessingWorkerClass {
 
   async deallocateModels(
     models: string[],
-    route: WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE | WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE,
+    route:
+      | WEBWORKER_ROUTES_ENUM.TABULAR_DEALLOCATE
+      | WEBWORKER_ROUTES_ENUM.STORE_DEALLOCATE
+      | WEBWORKER_ROUTES_ENUM.FORECASTING_DEALLOCATE,
   ) {
     const promises = models.map((model_id) =>
       this.sendMessage(WebworkerMessage.INVOKE_ROUTE, route, { model_id }),
