@@ -31,8 +31,9 @@ def test_ensure_global_luml_dir_creates_dirs(
 ) -> None:
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     result = ensure_global_luml_dir()
-    assert result == tmp_path / ".prisma"
-    assert (tmp_path / ".prisma" / "experiments").is_dir()
+    assert result == tmp_path / ".luml"
+    assert (tmp_path / ".luml" / "experiments").is_dir()
+    assert (tmp_path / ".luml" / "prisma").is_dir()
 
 
 def test_ensure_global_luml_dir_idempotent(
@@ -40,9 +41,9 @@ def test_ensure_global_luml_dir_idempotent(
 ) -> None:
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     ensure_global_luml_dir()
-    (tmp_path / ".prisma" / "uploads.db").write_text("")
+    (tmp_path / ".luml" / "prisma" / "uploads.db").write_text("")
     ensure_global_luml_dir()
-    assert (tmp_path / ".prisma" / "uploads.db").exists()
+    assert (tmp_path / ".luml" / "prisma" / "uploads.db").exists()
 
 
 def test_setup_gitignore_creates_new(tmp_path: Path) -> None:
@@ -125,7 +126,7 @@ def test_guide_md_contains_required_sections(tmp_path: Path) -> None:
     assert "result.json" in content
     assert "fork.json" in content
 
-    assert ".prisma/experiments" in content
+    assert ".luml/experiments" in content
 
     assert "Metric" in content
 

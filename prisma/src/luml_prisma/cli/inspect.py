@@ -11,7 +11,7 @@ from luml.experiments.tracker import ExperimentTracker
 
 app = typer.Typer(add_completion=False)
 
-DEFAULT_DB = str(Path.home() / ".prisma" / "experiments")
+DEFAULT_DB = str(Path.home() / ".luml" / "experiments")
 
 
 @dataclass

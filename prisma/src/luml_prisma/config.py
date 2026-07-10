@@ -29,13 +29,13 @@ class AppConfig:
 
 
 def get_data_dir() -> Path:
-    xdg = Path.home() / ".local" / "share" / "luml-prisma"
-    xdg.mkdir(parents=True, exist_ok=True)
-    return xdg
+    data_dir = Path.home() / ".luml" / "prisma"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir
 
 
 def get_config_path() -> Path:
-    return Path.home() / ".config" / "luml-prisma" / "config.toml"
+    return Path.home() / ".luml" / "prisma" / "config.toml"
 
 
 def load_config() -> AppConfig:
