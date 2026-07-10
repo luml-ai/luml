@@ -15,6 +15,12 @@ dependencies = [
     "keyring>=25.0.0",
 ]
 
+[project.optional-dependencies]
+tui = [
+    "textual>=8.2.7",
+    "textual-plotext>=1.0.1",
+]
+
 [dependency-groups]
 dev = [
     "fastapi>=0.115.0,<1.0.0",
@@ -25,6 +31,8 @@ dev = [
     "pydantic-settings>=2.12.0",
     "httpx>=0.28.0",
     "keyring>=25.0.0",
+    "textual>=8.2.7",
+    "textual-plotext>=1.0.1",
     "mypy>=1.15.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.26.0",
@@ -64,6 +72,13 @@ select = [
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
+
+[tool.mypy]
+# The luml SDK ships without a py.typed marker; treat its imports as
+# untyped instead of erroring on every `from luml...` import.
+[[tool.mypy.overrides]]
+module = "luml.*"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
