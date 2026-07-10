@@ -1,4 +1,9 @@
 from dfs_webworker.tabular import tabular_deallocate, tabular_predict, tabular_train
+from dfs_webworker.forecasting import (
+    forecasting_train,
+    forecasting_predict,
+    forecasting_deallocate,
+)
 from dfs_webworker.prompt_optimization import (
     prompt_optimization_train,
     prompt_optimization_predict,
@@ -24,6 +29,9 @@ class Router:
 Router.add_route("/tabular/train", tabular_train, sync=True)
 Router.add_route("/tabular/predict", tabular_predict, sync=True)
 Router.add_route("/tabular/deallocate", tabular_deallocate, sync=True)
+Router.add_route("/forecasting/train", forecasting_train, sync=True)
+Router.add_route("/forecasting/predict", forecasting_predict, sync=True)
+Router.add_route("/forecasting/deallocate", forecasting_deallocate, sync=True)
 Router.add_route("/prompt_optimization/train", prompt_optimization_train, sync=False)
 Router.add_route(
     "/prompt_optimization/predict", prompt_optimization_predict, sync=False

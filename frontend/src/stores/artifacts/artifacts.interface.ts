@@ -1,6 +1,7 @@
 import type {
   TabularModelMetadataPayload,
   PromptOptimizationModelMetadataPayload,
+  ForecastingModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
 
 export interface RequestInfo {
@@ -14,4 +15,7 @@ export interface DeleteArtifactsResult {
   failed: string[]
 }
 
-export type ModelMetadata = TabularModelMetadataPayload | PromptOptimizationModelMetadataPayload
+export type ModelMetadata =
+  | TabularModelMetadataPayload
+  | PromptOptimizationModelMetadataPayload
+  | ForecastingModelMetadataPayload

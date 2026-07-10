@@ -180,12 +180,12 @@ const appTasks: IAppTaskData[] = [
     title: 'Time Series Forecasting',
     description:
       'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
-    btnText: 'coming soon',
+    btnText: 'next',
+    linkName: 'forecasting',
     tooltipData:
       'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',
     isAvailable: true,
-    isDisabled: true,
-    analyticsTaskName: '',
+    analyticsTaskName: 'forecasting',
   },
 ]
 
@@ -221,6 +221,21 @@ export const regressionResources = [
   },
 ]
 
+export const forecastingResources = [
+  {
+    label: 'Data Cleaning Essentials',
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
+  },
+  {
+    label: 'Preparing Data for Forecasting',
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
+  },
+  {
+    label: 'Data Preparation Pitfalls',
+    link: `${import.meta.env.VITE_DOCS_URL}/data-preparation`,
+  },
+]
+
 export const promptFusionResources = [
   {
     label: 'How to format your file',
@@ -244,6 +259,21 @@ export const tabularSteps = [
   {
     id: 2,
     text: 'Data Preparation',
+  },
+  {
+    id: 3,
+    text: 'Model Evaluation',
+  },
+]
+
+export const forecastingSteps = [
+  {
+    id: 1,
+    text: 'Data Upload',
+  },
+  {
+    id: 2,
+    text: 'Forecast Setup',
   },
   {
     id: 3,
