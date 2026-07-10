@@ -35,7 +35,7 @@ import { computed, ref } from 'vue'
 import { useAnnotationsStore } from '@/store/annotations'
 import { useToast } from 'primevue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
-import { getErrorMessage } from '@/helpers/helpers'
+import { getErrorMessage, isEmpty } from '@/helpers/helpers'
 import AnnotationsViewHeader from './AnnotationsViewHeader.vue'
 import AnnotationsViewList from './AnnotationsViewList.vue'
 import AnnotationAddCard from './AnnotationAddCard.vue'
@@ -95,23 +95,23 @@ function onAddDialogVisibleUpdate(visible: boolean) {
 
 function openAddDialog() {
   try {
-    if (props.evalId) {
-      if (!props.artifactId || !props.datasetId || !props.evalId) {
+    if (!isEmpty(props.evalId)) {
+      if (isEmpty(props.artifactId) || isEmpty(props.datasetId) || isEmpty(props.evalId)) {
         throw new Error('Artifact ID, dataset ID and eval ID are required')
       }
       annotationsStore.openAddDialog({
-        artifactId: props.artifactId,
-        datasetId: props.datasetId,
-        evalId: props.evalId,
+        artifactId: String(props.artifactId),
+        datasetId: String(props.datasetId),
+        evalId: String(props.evalId),
       })
-    } else if (props.spanId) {
-      if (!props.artifactId || !props.traceId || !props.spanId) {
+    } else if (!isEmpty(props.spanId)) {
+      if (isEmpty(props.artifactId) || isEmpty(props.traceId) || isEmpty(props.spanId)) {
         throw new Error('Artifact ID, trace ID and span ID are required')
       }
       annotationsStore.openAddDialog({
-        artifactId: props.artifactId,
-        traceId: props.traceId,
-        spanId: props.spanId,
+        artifactId: String(props.artifactId),
+        traceId: String(props.traceId),
+        spanId: String(props.spanId),
       })
     }
   } catch (error) {

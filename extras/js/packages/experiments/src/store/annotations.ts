@@ -9,6 +9,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useEvalsStore } from './evals/index'
 import { useTraceStore } from './trace'
+import { isEmpty } from '@/helpers/helpers'
 
 export const useAnnotationsStore = defineStore('annotations', () => {
   const evalStore = useEvalsStore()
@@ -59,7 +60,7 @@ export const useAnnotationsStore = defineStore('annotations', () => {
 
     const { artifactId, datasetId, evalId } = addAnnotationData.value as AddEvalAnnotationParams
 
-    if (!artifactId || !datasetId || !evalId) {
+    if (isEmpty(artifactId) || isEmpty(datasetId) || isEmpty(evalId)) {
       throw new Error('Artifact ID, dataset ID and eval ID are required')
     }
 
