@@ -45,7 +45,7 @@ import { computed, ref } from 'vue'
 import { Select, Button } from 'primevue'
 import { Copy, CopyCheck } from 'lucide-vue-next'
 import { marked } from 'marked'
-import { isYamlLike, jsonToYaml } from '@/helpers/helpers'
+import { isYamlLike, jsonToYaml, tryParseJson } from '@/helpers/helpers'
 import DOMPurify from 'dompurify'
 import { ContentTypeEnum, type Props } from './interfaces'
 
@@ -79,7 +79,10 @@ const markdownText = computed(() => {
   return DOMPurify.sanitize(result as string)
 })
 
-const yamlText = computed(() => jsonToYaml(props.text))
+const yamlText = computed(() => {
+  const val = typeof props.text === 'string' ? (tryParseJson(props.text) ?? props.text) : props.text
+  return jsonToYaml(val)
+})
 
 function copy() {
   navigator.clipboard.writeText(
@@ -136,7 +139,10 @@ function copy() {
 }
 
 .yaml-body {
+  margin: 0;
   white-space: pre;
+  word-break: normal;
+  overflow-wrap: normal;
 }
 
 .markdown-body {

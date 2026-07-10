@@ -9,6 +9,7 @@ import {
 import { FNNX_PRODUCER_TAGS_MANIFEST_ENUM, FnnxService } from '@/lib/fnnx/FnnxService'
 import type { ProviderSetting } from '@/lib/promt-fusion/prompt-fusion.interfaces'
 import { z } from 'zod'
+import { dump } from 'js-yaml'
 
 export const getMetrics = (
   data: Pick<
@@ -190,29 +191,11 @@ export function isYamlLike(text: string) {
   return hasKeyColon || hasMultilineHyphen || hasYamlStart
 }
 
-export function jsonToYaml(obj: unknown, indent = 0): string {
-  const spaces = '  '.repeat(indent)
-  if (Array.isArray(obj)) {
-    return obj.map((v) => `${spaces}- ${jsonToYaml(v, indent + 1).trimStart()}`).join('\n')
-  } else if (obj && typeof obj === 'object') {
-    return Object.entries(obj)
-      .map(([k, v]) => {
-        if (Array.isArray(v)) {
-          const arrayYaml = jsonToYaml(v, indent + 1)
-          return `${spaces}${k}:\n${arrayYaml}`
-        } else if (v && typeof v === 'object') {
-          const nested = jsonToYaml(v, indent + 1)
-          return `${spaces}${k}:\n${nested}`
-        } else {
-          return `${spaces}${k}: ${v}`
-        }
-      })
-      .join('\n')
-  }
-  return String(obj)
+export function jsonToYaml(obj: unknown, indent = 2, lineWidth = 160): string {
+  return dump(obj, { indent, lineWidth })
 }
 
-function tryParseJson(text: string) {
+export function tryParseJson(text: string) {
   try {
     const trimmed = text.trim()
     if (!trimmed) return null
