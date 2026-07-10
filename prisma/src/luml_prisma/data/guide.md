@@ -8,7 +8,7 @@ This file documents the tools, output contracts, and conventions available in th
 
 `luml-inspect` is a read-only CLI for exploring experiment data. It is available on the system PATH.
 
-All commands accept `--db <path>` to override the experiment database location (default: `~/.prisma/experiments`).
+All commands accept `--db <path>` to override the experiment database location (default: `~/.luml/experiments`).
 
 ### `luml-inspect list`
 
@@ -193,7 +193,7 @@ from pathlib import Path
 from luml import ExperimentTracker
 from luml.integrations.sklearn import save_sklearn
 
-tracker = ExperimentTracker(f"sqlite://{Path.home()}/.prisma/experiments")
+tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml/experiments")
 exp_id = tracker.start_experiment(name="my-experiment")
 # ... training ...
 tracker.log_metrics({"accuracy": 0.92}, step=0)
@@ -245,13 +245,13 @@ Each element in the array:
 All experiments are stored in a shared global database at:
 
 ```
-~/.prisma/experiments/
+~/.luml/experiments/
 ```
 
 ### Connection String
 
 ```python
-f"sqlite://{Path.home()}/.prisma/experiments"
+f"sqlite://{Path.home()}/.luml/experiments"
 ```
 
 ### Usage in Training Code
@@ -260,7 +260,7 @@ f"sqlite://{Path.home()}/.prisma/experiments"
 from pathlib import Path
 from luml import ExperimentTracker
 
-tracker = ExperimentTracker(f"sqlite://{Path.home()}/.prisma/experiments")
+tracker = ExperimentTracker(f"sqlite://{Path.home()}/.luml/experiments")
 exp = tracker.create_experiment(name="my-experiment")
 exp.log_params({"learning_rate": 0.01, "batch_size": 32})
 
@@ -274,7 +274,7 @@ exp.set_status("completed")
 ### Database Structure
 
 ```
-~/.prisma/experiments/
+~/.luml/experiments/
 ├── meta.db              # experiment index (shared across all experiments)
 └── {experiment_id}/     # per-experiment data
     └── exp.db           # static params, dynamic metrics, evals

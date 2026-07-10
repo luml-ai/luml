@@ -43,7 +43,7 @@ def _link_experiments(model_path: str, experiment_ids: list[str]) -> None:
         from luml.artifacts.model import ModelReference
         from luml.experiments.tracker import ExperimentTracker
 
-        db_path = Path.home() / ".prisma" / "experiments"
+        db_path = Path.home() / ".luml" / "experiments"
         tracker = ExperimentTracker(f"sqlite://{db_path}")
         model_ref = ModelReference(model_path)
         for exp_id in experiment_ids:
