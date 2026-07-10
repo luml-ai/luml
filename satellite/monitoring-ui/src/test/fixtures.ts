@@ -9,6 +9,7 @@ import {
   type HeaderResponse,
   type OverviewResponse,
   type ReferenceProfileResponse,
+  type TraceDetail,
   type TracesResponse,
 } from '@/api/types'
 
@@ -228,6 +229,60 @@ export function makeTraces(overrides: Partial<TracesResponse> = {}): TracesRespo
     total: 2,
     limit: 20,
     offset: 0,
+    ...overrides,
+  }
+}
+
+/** A two-span trace: the root `inference` call and its nested `model.execute`. */
+export function makeTraceDetail(overrides: Partial<TraceDetail> = {}): TraceDetail {
+  const start = 1_000_000_000_000_000_000
+  return {
+    event_id: 'evt-100',
+    ts: '2026-07-07T11:58:00Z',
+    latency_ms: 36,
+    status: 'success',
+    status_code: 200,
+    trace_id: 'trc-1',
+    span_id: 'root',
+    inputs: { 'sepal.length': [[6.82]] },
+    output: { y_pred: ['Virginica'] },
+    spans: [
+      {
+        trace_id: 'trc-1',
+        span_id: 'root',
+        parent_span_id: null,
+        name: 'inference',
+        kind: 1,
+        start_time_unix_nano: start,
+        end_time_unix_nano: start + 36_000_000,
+        status_code: 1,
+        status_message: null,
+        attributes: {
+          'inference.inputs': { 'sepal.length': [[6.82]] },
+          'inference.output': { y_pred: ['Virginica'] },
+        },
+        events: [],
+        links: [],
+        dfs_span_type: null,
+        annotation_count: 0,
+      },
+      {
+        trace_id: 'trc-1',
+        span_id: 'child',
+        parent_span_id: 'root',
+        name: 'model.execute',
+        kind: 1,
+        start_time_unix_nano: start + 1_000_000,
+        end_time_unix_nano: start + 2_000_000,
+        status_code: 1,
+        status_message: null,
+        attributes: {},
+        events: [],
+        links: [],
+        dfs_span_type: null,
+        annotation_count: 0,
+      },
+    ],
     ...overrides,
   }
 }

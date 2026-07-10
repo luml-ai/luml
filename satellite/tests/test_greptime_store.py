@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 
 import httpx
 
-from agent.monitoring.greptime import GreptimeMonitoringStore
+from agent.monitoring.greptime import GreptimeMonitoringStore, _to_ns
 from agent.monitoring.models import Alert, AlertState, MetricResult, Severity, TimeWindow
 
 WINDOW = TimeWindow(
@@ -52,29 +52,18 @@ class Recorder:
 
 
 async def test_read_events_parses_records() -> None:
-    rows = [
-        [
-            "evt-1",
-            "dep-1",
-            "success",
-            200,
-            12.5,
-            '{"age": 30}',
-            "51000",
-            1767225600000,
-        ]
-    ]
-    columns = [
-        "event_id",
-        "deployment_id",
-        "status",
-        "status_code",
-        "latency_ms",
-        "inputs",
-        "output",
-        "ts",
-    ]
-    recorder = Recorder({"SELECT": _records(columns, rows)})
+    ns = int(datetime(2026, 1, 1, 0, 1, tzinfo=UTC).timestamp() * 1_000_000_000)
+    span_attributes = {
+        "inference.event_id": "evt-1",
+        "inference.deployment_id": "dep-1",
+        "inference.status": "success",
+        "inference.latency_ms": 12.5,
+        # A request carries a batch of observations per feature; read_events flattens them.
+        "inference.inputs": '{"inputs": {"age": [[30], [31]]}, "dynamic_attributes": {}}',
+        "inference.output": "51000",
+    }
+    rows = [[ns, span_attributes]]
+    recorder = Recorder({"SELECT": _records(["timestamp", "span_attributes"], rows)})
     store = recorder.store()
 
     events = await store.read_events("dep-1", WINDOW)
@@ -82,16 +71,18 @@ async def test_read_events_parses_records() -> None:
     assert len(events) == 1
     event = events[0]
     assert event.event_id == "evt-1"
+    assert event.deployment_id == "dep-1"
     assert event.status_code == 200
     assert event.latency_ms == 12.5
-    assert event.inputs == {"age": 30}
+    assert event.inputs == {"age": [30, 31]}
     assert event.output == 51000
     assert isinstance(event.timestamp, datetime)
 
     sql = recorder.statements[0]
     assert "FROM inference_events" in sql
-    assert "deployment_id = 'dep-1'" in sql
-    assert "2026-01-01T00:00:00+00:00" in sql
+    assert "json_get_string(span_attributes" in sql
+    assert "'dep-1'" in sql
+    assert str(_to_ns(WINDOW.start)) in sql
 
 
 async def test_read_events_empty_result() -> None:

@@ -42,13 +42,22 @@
 
     <AlertBannerList v-if="dataQuality?.alerts?.length" :banners="dataQuality.alerts" />
 
-    <TracesPanel :traces="traces" :status="tracesStatus" @page="$emit('traces-page', $event)" />
+    <TracesPanel
+      :traces="traces"
+      :status="tracesStatus"
+      :open-trace-id="openTraceId"
+      :trace-detail="traceDetail"
+      :trace-detail-status="traceDetailStatus"
+      @page="$emit('traces-page', $event)"
+      @open="$emit('trace-open', $event)"
+      @close-trace="$emit('trace-close')"
+    />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { DataQualityResponse, TracesResponse } from '@/api/types'
+import type { DataQualityResponse, TraceDetail, TracesResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { formatRate } from '@/lib/format'
@@ -62,9 +71,12 @@ const props = defineProps<{
   status: LoadStatus
   traces: TracesResponse | null
   tracesStatus: LoadStatus
+  openTraceId: string | null
+  traceDetail: TraceDetail | null
+  traceDetailStatus: LoadStatus
 }>()
 
-defineEmits<{ 'traces-page': [number] }>()
+defineEmits<{ 'traces-page': [number]; 'trace-open': [string]; 'trace-close': [] }>()
 
 const view = computed(() => sectionView(props.status, props.dataQuality?.state))
 </script>

@@ -60,16 +60,24 @@ class LocalDeployment(BaseModel):
 
 
 def usable_reference_profile(profile: dict | None) -> dict | None:
-    """Return the profile only when it is present and marked ready.
+    """Return the profile only when it carries a usable baseline.
 
-    A missing or placeholder profile is treated as "no profile" so callers can key
-    off ``None`` instead of trusting a baseline that was never generated.
+    An explicit ``placeholder`` status is treated as "no profile" so callers can key off
+    ``None`` instead of trusting a baseline that was never generated. A profile that omits
+    ``profile_status`` (as the model server currently serves it) but ships real
+    ``feature_summaries`` is considered ready — the summaries are the baseline.
     """
     if not profile:
         return None
-    if profile.get("profile_status") != "ready":
+    if profile.get("profile_status") == "placeholder":
         return None
-    return profile
+    summaries = profile.get("feature_summaries") or {}
+    has_summaries = bool(
+        summaries.get("numerical_features") or summaries.get("categorical_features")
+    )
+    if profile.get("profile_status") == "ready" or has_summaries:
+        return profile
+    return None
 
 
 class Secret(BaseModel):

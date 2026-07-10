@@ -64,60 +64,64 @@ class DataQualityMetric(Metric):
         signals: list[AlertSignal] = []
 
         for name, summary in numerical.items():
-            checks = self._numerical_checks(name, summary, data.events)
-            features[name] = _feature_values(len(data.events), checks)
-            signals.extend(self._signals(name, checks))
+            checks, total = self._numerical_checks(name, summary, data.events)
+            feature_signals = self._signals(name, checks)
+            features[name] = _feature_values(total, checks, feature_signals)
+            signals.extend(feature_signals)
 
         for name, summary in categorical.items():
-            checks = self._categorical_checks(name, summary, data.events)
-            features[name] = _feature_values(len(data.events), checks)
-            signals.extend(self._signals(name, checks))
+            checks, total = self._categorical_checks(name, summary, data.events)
+            feature_signals = self._signals(name, checks)
+            features[name] = _feature_values(total, checks, feature_signals)
+            signals.extend(feature_signals)
 
         severity = worst_severity(signal.severity for signal in signals)
         return MetricComputation(values={"features": features}, severity=severity, signals=signals)
 
     def _numerical_checks(
         self, name: str, summary: dict[str, Any], events: list[InferenceEvent]
-    ) -> dict[str, float]:
+    ) -> tuple[dict[str, float], int]:
         ref_min = summary.get("min")
         ref_max = summary.get("max")
-        missing = type_mismatch = range_violation = 0
+        missing = type_mismatch = range_violation = total = 0
         for event in events:
-            value = _live_value(event, name)
-            if _is_missing(value):
-                missing += 1
-            elif not _is_number(value):
-                type_mismatch += 1
-            elif (ref_min is not None and value < ref_min) or (
-                ref_max is not None and value > ref_max
-            ):
-                range_violation += 1
-        total = len(events)
-        return {
+            for value in _observations(event, name):
+                total += 1
+                if _is_missing(value):
+                    missing += 1
+                elif not _is_number(value):
+                    type_mismatch += 1
+                elif (ref_min is not None and value < ref_min) or (
+                    ref_max is not None and value > ref_max
+                ):
+                    range_violation += 1
+        checks = {
             "missing": _rate(missing, total),
             "type_mismatch": _rate(type_mismatch, total),
             "range_violation": _rate(range_violation, total),
         }
+        return checks, total
 
     def _categorical_checks(
         self, name: str, summary: dict[str, Any], events: list[InferenceEvent]
-    ) -> dict[str, float]:
+    ) -> tuple[dict[str, float], int]:
         categories = set(summary.get("categories") or [])
-        missing = type_mismatch = unseen = 0
+        missing = type_mismatch = unseen = total = 0
         for event in events:
-            value = _live_value(event, name)
-            if _is_missing(value):
-                missing += 1
-            elif not isinstance(value, str):
-                type_mismatch += 1
-            elif value not in categories:
-                unseen += 1
-        total = len(events)
-        return {
+            for value in _observations(event, name):
+                total += 1
+                if _is_missing(value):
+                    missing += 1
+                elif not isinstance(value, str):
+                    type_mismatch += 1
+                elif value not in categories:
+                    unseen += 1
+        checks = {
             "missing": _rate(missing, total),
             "type_mismatch": _rate(type_mismatch, total),
             "unseen_category": _rate(unseen, total),
         }
+        return checks, total
 
     def _signals(self, feature: str, checks: dict[str, float]) -> list[AlertSignal]:
         signals: list[AlertSignal] = []
@@ -130,12 +134,25 @@ class DataQualityMetric(Metric):
         return signals
 
 
-def _feature_values(total: int, checks: dict[str, float]) -> dict[str, Any]:
-    return {"count": total, **{f"{check}_rate": rate for check, rate in checks.items()}}
+def _feature_values(
+    total: int, checks: dict[str, float], signals: list[AlertSignal]
+) -> dict[str, Any]:
+    status = worst_severity(signal.severity for signal in signals)
+    return {
+        "count": total,
+        "status": status.value,
+        **{f"{check}_rate": rate for check, rate in checks.items()},
+    }
 
 
 def _live_value(event: InferenceEvent, name: str) -> Any:  # noqa: ANN401
     return event.inputs.get(name) if event.inputs else None
+
+
+def _observations(event: InferenceEvent, name: str) -> list[Any]:
+    """Per-observation values for a feature; one event may carry a batch (scalar => one)."""
+    raw = _live_value(event, name)
+    return raw if isinstance(raw, list) else [raw]
 
 
 def _is_missing(value: Any) -> bool:  # noqa: ANN401

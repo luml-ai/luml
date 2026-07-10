@@ -6,6 +6,7 @@ import type {
   HeaderResponse,
   OverviewResponse,
   ReferenceProfileResponse,
+  TraceDetailResponse,
   TracesResponse,
 } from './types'
 
@@ -47,4 +48,12 @@ export function getTraces(
     limit: String(page.limit),
     offset: String(page.offset),
   })
+}
+
+/** The window must match the table's: the API looks the event up inside it. */
+export function getTraceDetail(dims: Dimensions, eventId: string): Promise<TraceDetailResponse> {
+  return apiGet<TraceDetailResponse>(
+    `/traces/${encodeURIComponent(eventId)}`,
+    dimensionParams(dims),
+  )
 }

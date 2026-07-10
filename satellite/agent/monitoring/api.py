@@ -1,4 +1,4 @@
-from fastapi import Depends, Query, Request
+from fastapi import Depends, HTTPException, Query, Request
 from fastapi.routing import APIRouter
 
 from agent.monitoring.query import (
@@ -18,7 +18,9 @@ from agent.schemas.monitoring_query import (
     OverviewResponse,
     ReferenceProfileResponse,
     RuntimeResponse,
+    SectionState,
     SeverityFilter,
+    TraceDetailResponse,
     TracesResponse,
     Window,
 )
@@ -113,5 +115,17 @@ def build_query_router() -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> TracesResponse:
         return await service.traces(session.deployment_id, dims, limit=limit, offset=offset)
+
+    @router.get("/traces/{event_id}", response_model=TraceDetailResponse)
+    async def trace_detail(
+        event_id: str,
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> TraceDetailResponse:
+        detail = await service.trace_detail(session.deployment_id, dims, event_id)
+        if detail.state is SectionState.EMPTY:
+            raise HTTPException(status_code=404, detail="trace not found in this window")
+        return detail
 
     return router

@@ -30,7 +30,12 @@
       :status="dataQualityStatus"
       :traces="traces"
       :traces-status="tracesStatus"
+      :open-trace-id="openTraceId"
+      :trace-detail="traceDetail"
+      :trace-detail-status="traceDetailStatus"
       @traces-page="setTracesPage"
+      @trace-open="openTrace"
+      @trace-close="closeTrace"
     />
 
     <FeatureDriftTab
@@ -71,6 +76,11 @@ const {
   dataQualityStatus,
   traces,
   tracesStatus,
+  openTraceId,
+  traceDetail,
+  traceDetailStatus,
+  openTrace,
+  closeTrace,
   featureDrift,
   featureDriftStatus,
   referenceProfile,

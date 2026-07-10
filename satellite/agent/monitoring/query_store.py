@@ -57,6 +57,30 @@ class InferenceEvent:
 
 
 @dataclass(frozen=True)
+class SpanRecord:
+    """One OpenTelemetry span of an inference trace, as stored by the collector.
+
+    Mirrors the span shape the Platform's experiment-snapshot viewer renders, so the
+    Satellite dashboard can show the same tree: `parent_span_id` links the tree,
+    the nanosecond timestamps drive the waterfall bars.
+    """
+
+    span_id: str
+    trace_id: str
+    name: str
+    kind: int
+    start_time_unix_nano: int
+    end_time_unix_nano: int
+    parent_span_id: str | None = None
+    status_code: int | None = None
+    status_message: str | None = None
+    dfs_span_type: int | None = None
+    attributes: dict[str, Any] = field(default_factory=dict)
+    events: list[Any] = field(default_factory=list)
+    links: list[Any] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class StoredMetricResult:
     deployment_id: UUID
     group: str
@@ -119,6 +143,11 @@ class MonitoringStore(Protocol):
         self, deployment_id: UUID, start: datetime, end: datetime
     ) -> list[InferenceEvent]: ...
 
+    async def fetch_spans(self, trace_id: str) -> list[SpanRecord]:
+        """Every span of one trace. Callers must resolve ``trace_id`` from a
+        deployment-scoped event first, so this never widens the deployment scope."""
+        ...
+
     async def fetch_result(
         self, deployment_id: UUID, group: str, window: str
     ) -> StoredMetricResult | None: ...
@@ -137,6 +166,7 @@ class InMemoryMonitoringStore:
     unavailable: bool = False
     _meta: dict[UUID, DeploymentDescriptor] = field(default_factory=dict)
     _events: list[InferenceEvent] = field(default_factory=list)
+    _spans: list[SpanRecord] = field(default_factory=list)
     _results: dict[tuple[UUID, str, str], StoredMetricResult] = field(default_factory=dict)
     _alerts: list[StoredAlert] = field(default_factory=list)
     _profiles: dict[UUID, str] = field(default_factory=dict)
@@ -147,6 +177,9 @@ class InMemoryMonitoringStore:
 
     def add_event(self, event: InferenceEvent) -> None:
         self._events.append(event)
+
+    def add_span(self, span: SpanRecord) -> None:
+        self._spans.append(span)
 
     def add_result(self, result: StoredMetricResult) -> None:
         self._results[(result.deployment_id, result.group, result.window)] = result
@@ -189,6 +222,10 @@ class InMemoryMonitoringStore:
         return [
             e for e in self._events if e.deployment_id == deployment_id and start <= e.ts <= end
         ]
+
+    async def fetch_spans(self, trace_id: str) -> list[SpanRecord]:
+        self._guard()
+        return [s for s in self._spans if s.trace_id == trace_id]
 
     async def fetch_result(
         self, deployment_id: UUID, group: str, window: str

@@ -12,6 +12,7 @@ import {
   type HeaderResponse,
   type OverviewResponse,
   type ReferenceProfileResponse,
+  type TraceDetail,
   type TracesResponse,
 } from '@/api/types'
 
@@ -54,6 +55,11 @@ export function useMonitoringDashboard() {
   const traces = ref<TracesResponse | null>(null)
   const tracesStatus = ref<LoadStatus>('idle')
   const tracesOffset = ref(0)
+
+  // Non-null while a trace is open: drives the detail dialog over the traces table.
+  const openTraceId = ref<string | null>(null)
+  const traceDetail = ref<TraceDetail | null>(null)
+  const traceDetailStatus = ref<LoadStatus>('idle')
 
   const featureDrift = ref<FeatureDriftResponse | null>(null)
   const featureDriftStatus = ref<LoadStatus>('idle')
@@ -145,6 +151,8 @@ export function useMonitoringDashboard() {
 
   /** Reload the window-scoped data for whichever tab is active (header is window-independent). */
   function reloadActiveTab(): Promise<void> {
+    // An open trace belongs to the window it was opened from; the reload invalidates it.
+    closeTrace()
     if (activeTab.value === 'overview') return loadOverview()
     if (activeTab.value === 'data-quality') {
       return Promise.all([loadDataQuality(), loadTraces(0)]).then(() => undefined)
@@ -186,7 +194,25 @@ export function useMonitoringDashboard() {
   }
 
   function setTracesPage(offset: number): Promise<void> {
+    closeTrace()
     return loadTraces(Math.max(0, offset))
+  }
+
+  /** Open one call from the traces table and fetch its full payloads. */
+  function openTrace(eventId: string): Promise<void> {
+    openTraceId.value = eventId
+    traceDetail.value = null
+    return run(
+      traceDetailStatus,
+      () => monitoringApi.getTraceDetail({ ...dimensions }, eventId),
+      (value) => (traceDetail.value = value.trace),
+    )
+  }
+
+  function closeTrace(): void {
+    openTraceId.value = null
+    traceDetail.value = null
+    traceDetailStatus.value = 'idle'
   }
 
   async function setActiveTab(next: TabKey): Promise<void> {
@@ -208,6 +234,11 @@ export function useMonitoringDashboard() {
     traces,
     tracesStatus,
     tracesOffset,
+    openTraceId,
+    traceDetail,
+    traceDetailStatus,
+    openTrace,
+    closeTrace,
     featureDrift,
     featureDriftStatus,
     referenceProfile,

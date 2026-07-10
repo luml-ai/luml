@@ -158,3 +158,10 @@ async def test_client_returns_none_when_endpoint_missing() -> None:
         await client._session.aclose()
 
     assert result is None
+
+
+def test_usable_reference_profile_accepts_summaries_without_status() -> None:
+    # The model server serves the baseline without a profile_status; real feature_summaries
+    # make it usable.
+    profile = {"feature_summaries": {"numerical_features": {"age": {"min": 0, "max": 1}}}}
+    assert usable_reference_profile(profile) == profile

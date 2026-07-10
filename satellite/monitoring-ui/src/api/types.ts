@@ -198,6 +198,59 @@ export interface TracesResponse {
   offset: number
 }
 
+/** Span type as tagged by instrumentation; drives the icon, exactly as on the Platform. */
+export enum SpanTypeEnum {
+  DEFAULT = 0,
+  CHAT = 1,
+  AGENT = 2,
+  TOOL = 3,
+  EMBEDDER = 4,
+  RERANKER = 5,
+}
+
+/** One span of a trace. Field-for-field the Platform's span shape. */
+export interface TraceSpan {
+  trace_id: string
+  span_id: string
+  parent_span_id: string | null
+  name: string
+  kind: number
+  start_time_unix_nano: number
+  end_time_unix_nano: number
+  status_code: number | null
+  status_message: string | null
+  attributes: Record<string, unknown>
+  events: unknown[]
+  links: unknown[]
+  dfs_span_type: SpanTypeEnum | null
+  annotation_count: number
+}
+
+/** A span with its children resolved — the tree the viewer renders. */
+export interface TraceSpanNode extends TraceSpan {
+  children: TraceSpanNode[]
+}
+
+/** One call opened from the traces table: full payloads, not the truncated summaries. */
+export interface TraceDetail {
+  event_id: string
+  ts: string
+  latency_ms: number
+  status: string
+  status_code: number
+  trace_id?: string | null
+  span_id?: string | null
+  inputs?: unknown
+  output?: unknown
+  spans: TraceSpan[]
+}
+
+export interface TraceDetailResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  trace: TraceDetail | null
+}
+
 export interface Dimensions {
   window: Window
   compare: Compare

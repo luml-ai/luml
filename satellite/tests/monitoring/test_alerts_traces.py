@@ -7,6 +7,7 @@ from agent.monitoring.query_store import (
     EventStatus,
     InferenceEvent,
     InMemoryMonitoringStore,
+    SpanRecord,
     StoredAlert,
 )
 from agent.schemas.monitoring_query import SectionState, Severity, SeverityFilter, Window
@@ -140,6 +141,8 @@ def _trace_event(
     latency: float = 10.0,
     inputs: str | None = None,
     output: str | None = None,
+    trace_id: str | None = None,
+    span_id: str | None = None,
 ) -> InferenceEvent:
     return InferenceEvent(
         event_id=f"evt-{int(offset_s)}",
@@ -148,8 +151,31 @@ def _trace_event(
         status=status,
         status_code=200 if status is EventStatus.SUCCESS else 500,
         latency_ms=latency,
+        trace_id=trace_id,
+        span_id=span_id,
         inputs=inputs,
         output=output,
+    )
+
+
+def _span(
+    span_id: str,
+    trace_id: str,
+    name: str,
+    *,
+    start: int,
+    end: int,
+    parent: str | None = None,
+) -> SpanRecord:
+    return SpanRecord(
+        span_id=span_id,
+        trace_id=trace_id,
+        parent_span_id=parent,
+        name=name,
+        kind=1,
+        start_time_unix_nano=start,
+        end_time_unix_nano=end,
+        status_code=1,
     )
 
 
@@ -237,6 +263,140 @@ async def test_traces_empty_shape_when_no_events() -> None:
     assert result.state is SectionState.EMPTY
     assert result.rows == []
     assert result.total == 0
+
+
+async def test_trace_detail_returns_full_payloads_not_summaries() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(
+        _trace_event(
+            dep,
+            100,
+            inputs='{"sepal.length": [[6.82]], "sepal.width": [[4.12]]}',
+            output='{"y_pred": ["Virginica"]}',
+        )
+    )
+
+    result = await _service(store).trace_detail(dep, _dims(), "evt-100")
+
+    assert result.state is SectionState.OK
+    assert result.trace is not None
+    # decoded JSON, so the UI can pretty-print it — not the truncated table summary
+    assert result.trace.inputs == {"sepal.length": [[6.82]], "sepal.width": [[4.12]]}
+    assert result.trace.output == {"y_pred": ["Virginica"]}
+    assert result.trace.latency_ms == 10.0
+    assert result.trace.status_code == 200
+
+
+async def test_trace_detail_keeps_non_json_payload_as_text() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(dep, 100, inputs="not json at all"))
+
+    result = await _service(store).trace_detail(dep, _dims(), "evt-100")
+
+    assert result.trace is not None
+    assert result.trace.inputs == "not json at all"
+    assert result.trace.output is None
+
+
+async def test_trace_detail_missing_event_is_empty() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(dep, 100))
+
+    result = await _service(store).trace_detail(dep, _dims(), "evt-does-not-exist")
+
+    assert result.state is SectionState.EMPTY
+    assert result.trace is None
+
+
+async def test_trace_detail_returns_every_span_of_the_trace() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(dep, 100, trace_id="trc-1", span_id="root"))
+    store.add_span(_span("root", "trc-1", "inference", start=0, end=36_000_000))
+    store.add_span(
+        _span("child", "trc-1", "model.execute", start=1_000_000, end=2_000_000, parent="root")
+    )
+    store.add_span(_span("other", "trc-2", "inference", start=0, end=1))  # different trace
+
+    result = await _service(store).trace_detail(dep, _dims(), "evt-100")
+
+    assert result.trace is not None
+    spans = result.trace.spans
+    assert [s.name for s in spans] == ["inference", "model.execute"]
+    assert spans[0].parent_span_id is None
+    assert spans[1].parent_span_id == "root"  # the client builds the tree from this
+    assert spans[1].end_time_unix_nano - spans[1].start_time_unix_nano == 1_000_000
+
+
+async def test_trace_detail_attaches_payloads_to_the_root_span_only() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(
+        _trace_event(dep, 100, trace_id="trc-1", span_id="root", inputs='{"a": 1}', output='{"b": 2}')
+    )
+    store.add_span(_span("root", "trc-1", "inference", start=0, end=10))
+    store.add_span(_span("child", "trc-1", "model.execute", start=1, end=2, parent="root"))
+
+    spans = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace.spans
+
+    # the collector keeps payloads on the event, not the raw span
+    assert spans[0].attributes["inference.inputs"] == {"a": 1}
+    assert spans[0].attributes["inference.output"] == {"b": 2}
+    assert "inference.inputs" not in spans[1].attributes
+
+
+async def test_trace_detail_synthesizes_one_span_when_none_were_collected() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(dep, 100, latency=25.0))  # no spans stored
+
+    spans = (await _service(store).trace_detail(dep, _dims(), "evt-100")).trace.spans
+
+    assert len(spans) == 1
+    assert spans[0].name == "inference"
+    assert spans[0].parent_span_id is None
+    assert spans[0].end_time_unix_nano - spans[0].start_time_unix_nano == 25_000_000
+
+
+async def test_traces_only_show_the_sessions_deployment() -> None:
+    mine, other = uuid.uuid4(), uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(mine, 100))
+    store.add_event(_trace_event(other, 200))
+    store.add_event(_trace_event(other, 300))
+
+    result = await _service(store).traces(mine, _dims())
+
+    assert result.total == 1
+    assert [r.event_id for r in result.rows] == ["evt-100"]
+
+
+async def test_trace_detail_cannot_open_another_deployments_call() -> None:
+    mine, other = uuid.uuid4(), uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(other, 200, inputs='{"secret": "other tenant"}'))
+
+    # event_ids are guessable, so scoping must come from the session's deployment_id
+    result = await _service(store).trace_detail(mine, _dims(), "evt-200")
+
+    assert result.state is SectionState.EMPTY
+    assert result.trace is None
+
+
+async def test_trace_detail_scoped_to_window() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_event(_trace_event(dep, 25 * 3600))  # outside 24h, inside 7d
+
+    svc = _service(store)
+    outside = await svc.trace_detail(dep, QueryDimensions(window=Window.H24), "evt-90000")
+    inside = await svc.trace_detail(dep, QueryDimensions(window=Window.D7), "evt-90000")
+
+    assert outside.state is SectionState.EMPTY
+    assert inside.state is SectionState.OK
 
 
 async def test_traces_scoped_to_deployment() -> None:

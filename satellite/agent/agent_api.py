@@ -11,6 +11,7 @@ from agent.clients import ModelServerError
 from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
+from agent.monitoring.greptime_query import GreptimeQueryStore
 from agent.schemas import (
     DeploymentInfo,
     Healthz,
@@ -53,7 +54,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
 
     yield
 
-    # await model_server_handler.shutdown()
+    data_store = getattr(app.state, "monitoring_data_store", None)
+    if data_store is not None:
+        await data_store.aclose()
 
 
 def create_agent_app(
@@ -63,11 +66,25 @@ def create_agent_app(
     app = FastAPI(lifespan=lifespan)
     security = HTTPBearer()
 
+    # In full mode the dashboard Query API reads live telemetry from GreptimeDB; otherwise
+    # register_monitoring falls back to an empty in-memory store.
+    data_store = (
+        GreptimeQueryStore(
+            host=config.GREPTIMEDB_HOST,
+            port=config.GREPTIMEDB_HTTP_PORT,
+            database=config.GREPTIMEDB_DATABASE,
+        )
+        if config.MONITORING_ENABLED
+        else None
+    )
+    app.state.monitoring_data_store = data_store
+
     register_monitoring(
         app,
         introspect=introspect_monitoring_token,
         frame_ancestors=config.monitoring_frame_ancestors(),
         session_ttl_seconds=config.MONITORING_SESSION_TTL_SECONDS,
+        data_store=data_store,
     )
 
     async def verify_token(
