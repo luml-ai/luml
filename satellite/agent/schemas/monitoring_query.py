@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -240,3 +241,52 @@ class TracesResponse(BaseModel):
     total: int = 0  # matching rows across all pages, so the UI can paginate
     limit: int = 50
     offset: int = 0
+
+
+class TraceSpan(BaseModel):
+    """One span of an inference trace.
+
+    Field-for-field the span shape the Platform's experiment-snapshot viewer renders,
+    so the Satellite dashboard can reuse the same tree + waterfall + details screen.
+    The tree is built client-side from `parent_span_id`, exactly as the Platform does.
+    """
+
+    trace_id: str
+    span_id: str
+    parent_span_id: str | None = None
+    name: str
+    kind: int
+    start_time_unix_nano: int
+    end_time_unix_nano: int
+    status_code: int | None = None
+    status_message: str | None = None
+    attributes: dict[str, Any] = {}
+    events: list[Any] = []
+    links: list[Any] = []
+    dfs_span_type: int | None = None
+    annotation_count: int = 0  # no annotations on the Satellite; kept for shape parity
+
+
+class TraceDetail(BaseModel):
+    """One inference call, opened from the traces table.
+
+    Unlike :class:`TraceRow`, `inputs` and `output` are the full payloads (decoded
+    from their stored JSON when possible), not the truncated table-cell summaries.
+    """
+
+    event_id: str
+    ts: datetime
+    latency_ms: float
+    status: str
+    status_code: int
+    trace_id: str | None = None
+    span_id: str | None = None
+    inputs: Any = None
+    output: Any = None
+    spans: list[TraceSpan] = []
+
+
+class TraceDetailResponse(BaseModel):
+    state: SectionState
+    profile_status: ProfileStatus = ProfileStatus.READY
+    trace: TraceDetail | None = None

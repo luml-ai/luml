@@ -13,6 +13,8 @@ services:
       - satellite-network
     volumes:
       - greptimedb-data:/tmp/greptimedb
+    ports:
+      - "4000:4000"
     restart: unless-stopped
 
   otel-collector:
@@ -50,6 +52,7 @@ services:
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-2}
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       MONITORING_ENABLED: "true"
+      GREPTIMEDB_HOST: greptimedb
       MONITORING_FRAME_ANCESTORS: ${MONITORING_FRAME_ANCESTORS:-http://localhost:5173}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock

@@ -38,7 +38,18 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in traces.rows" :key="row.event_id" data-testid="trace-row">
+            <tr
+              v-for="row in traces.rows"
+              :key="row.event_id"
+              class="row"
+              data-testid="trace-row"
+              tabindex="0"
+              role="button"
+              :aria-label="`Open call ${row.event_id}`"
+              @click="$emit('open', row.event_id)"
+              @keydown.enter.prevent="$emit('open', row.event_id)"
+              @keydown.space.prevent="$emit('open', row.event_id)"
+            >
               <td class="nowrap">{{ formatTimestamp(row.ts) ?? '—' }}</td>
               <td class="mono id">{{ row.event_id }}</td>
               <td class="mono summary">{{ row.features_summary ?? '—' }}</td>
@@ -74,20 +85,35 @@
         </div>
       </div>
     </template>
+
+    <TraceDetailDialog
+      v-if="openTraceId"
+      :event-id="openTraceId"
+      :trace="traceDetail"
+      :status="traceDetailStatus"
+      @close="$emit('close-trace')"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ShieldCheck } from 'lucide-vue-next'
-import type { TracesResponse } from '@/api/types'
+import type { TraceDetail, TracesResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import { formatTimestamp } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
+import TraceDetailDialog from '@/components/TraceDetailDialog.vue'
 
-const props = defineProps<{ traces: TracesResponse | null; status: LoadStatus }>()
-defineEmits<{ page: [number] }>()
+const props = defineProps<{
+  traces: TracesResponse | null
+  status: LoadStatus
+  openTraceId: string | null
+  traceDetail: TraceDetail | null
+  traceDetailStatus: LoadStatus
+}>()
+defineEmits<{ page: [number]; open: [string]; 'close-trace': [] }>()
 
 const view = computed(() => sectionView(props.status, props.traces?.state))
 
@@ -157,6 +183,14 @@ function statusClass(statusCode: number): string {
 }
 .traces .num {
   text-align: right;
+}
+.row {
+  cursor: pointer;
+}
+.row:hover,
+.row:focus-visible {
+  background: var(--luml-bg-hover);
+  outline: none;
 }
 .nowrap {
   white-space: nowrap;

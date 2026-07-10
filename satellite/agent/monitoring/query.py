@@ -19,6 +19,7 @@ from agent.monitoring.query_store import (
     MonitoringStore,
     MonitoringStoreUnavailable,
     ReferenceFeatureProfile,
+    SpanRecord,
     StoredAlert,
     StoredMetricResult,
 )
@@ -49,7 +50,10 @@ from agent.schemas.monitoring_query import (
     SeriesPoint,
     Severity,
     SeverityFilter,
+    TraceDetail,
+    TraceDetailResponse,
     TraceRow,
+    TraceSpan,
     TracesResponse,
     Window,
 )
@@ -392,6 +396,39 @@ class MonitoringQueryService:
             offset=offset,
         )
 
+    async def trace_detail(
+        self, deployment_id: UUID, dims: QueryDimensions, event_id: str
+    ) -> TraceDetailResponse:
+        """One call from the traces table, with its full inputs/output payloads.
+
+        Scoped to the same window as the table it was opened from: an event that
+        scrolled out of the window is reported as missing (`trace=None` -> 404).
+        """
+        try:
+            start, end = self._window_bounds(dims.window)
+            events = await self._store.fetch_events(deployment_id, start, end)
+            profile = await self._profile_status(deployment_id)
+        except MonitoringStoreUnavailable:
+            return TraceDetailResponse(state=SectionState.UNAVAILABLE)
+        event = next((e for e in events if e.event_id == event_id), None)
+        if event is None:
+            return TraceDetailResponse(state=SectionState.EMPTY, profile_status=profile)
+
+        # trace_id comes from an event we already scoped to this deployment, so pulling
+        # its spans by trace_id cannot reach another deployment's data.
+        spans: list[SpanRecord] = []
+        if event.trace_id:
+            try:
+                spans = await self._store.fetch_spans(event.trace_id)
+            except MonitoringStoreUnavailable:
+                return TraceDetailResponse(state=SectionState.UNAVAILABLE)
+
+        return TraceDetailResponse(
+            state=SectionState.OK,
+            profile_status=profile,
+            trace=_trace_detail(event, spans),
+        )
+
     async def _runtime(
         self, deployment_id: UUID, dims: QueryDimensions
     ) -> tuple[_Rollup, list[Series]]:
@@ -610,6 +647,90 @@ def _trace_row(event: InferenceEvent) -> TraceRow:
         status=event.status,
         status_code=event.status_code,
     )
+
+
+def _trace_detail(event: InferenceEvent, spans: list[SpanRecord]) -> TraceDetail:
+    return TraceDetail(
+        event_id=event.event_id,
+        ts=event.ts,
+        latency_ms=event.latency_ms,
+        status=event.status,
+        status_code=event.status_code,
+        trace_id=event.trace_id,
+        span_id=event.span_id,
+        inputs=_payload(event.inputs),
+        output=_payload(event.output),
+        spans=_trace_spans(event, spans),
+    )
+
+
+def _trace_spans(event: InferenceEvent, spans: list[SpanRecord]) -> list[TraceSpan]:
+    """Spans of the trace, with the request payloads attached to its root.
+
+    The collector keeps inputs/output on the `inference_events` row, not on the raw
+    OTel span, so the root span would otherwise open with almost no attributes.
+    When no spans were collected, the call still renders as a single synthetic span.
+    """
+    if not spans:
+        return [_synthetic_span(event)]
+
+    ids = {s.span_id for s in spans}
+    payload = {"inference.inputs": _payload(event.inputs), "inference.output": _payload(event.output)}
+    result = []
+    for span in spans:
+        is_root = span.parent_span_id is None or span.parent_span_id not in ids
+        attributes = {**span.attributes, **payload} if is_root else dict(span.attributes)
+        result.append(
+            TraceSpan(
+                trace_id=span.trace_id,
+                span_id=span.span_id,
+                parent_span_id=span.parent_span_id,
+                name=span.name,
+                kind=span.kind,
+                start_time_unix_nano=span.start_time_unix_nano,
+                end_time_unix_nano=span.end_time_unix_nano,
+                status_code=span.status_code,
+                status_message=span.status_message,
+                attributes=attributes,
+                events=span.events,
+                links=span.links,
+                dfs_span_type=span.dfs_span_type,
+            )
+        )
+    return result
+
+
+def _synthetic_span(event: InferenceEvent) -> TraceSpan:
+    """The call itself, for deployments whose traces the collector did not store."""
+    start_ns = int(event.ts.timestamp() * 1_000_000_000)
+    return TraceSpan(
+        trace_id=event.trace_id or "",
+        span_id=event.span_id or event.event_id,
+        parent_span_id=None,
+        name="inference",
+        kind=1,  # SPAN_KIND_INTERNAL
+        start_time_unix_nano=start_ns,
+        end_time_unix_nano=start_ns + int(event.latency_ms * 1_000_000),
+        status_code=2 if event.status_code >= 500 else 1,
+        status_message=None,
+        attributes={
+            "inference.event_id": event.event_id,
+            "inference.status": event.status,
+            "inference.latency_ms": event.latency_ms,
+            "inference.inputs": _payload(event.inputs),
+            "inference.output": _payload(event.output),
+        },
+    )
+
+
+def _payload(raw: str | None) -> object | None:
+    """Decode a stored inputs/output JSON string; keep it as text if it is not JSON."""
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return raw
 
 
 def _preview(raw: str | None) -> str | None:

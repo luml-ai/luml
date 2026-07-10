@@ -1,20 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DataQualityTab from './DataQualityTab.vue'
-import { SectionState, Severity, type DataQualityResponse, type TracesResponse } from '@/api/types'
+import {
+  SectionState,
+  Severity,
+  type DataQualityResponse,
+  type TraceDetail,
+  type TracesResponse,
+} from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
-import { makeDataQuality, makeTraces } from '@/test/fixtures'
+import { makeDataQuality, makeTraceDetail, makeTraces } from '@/test/fixtures'
 
 function mountTab(props: {
   dataQuality: DataQualityResponse | null
   status: LoadStatus
   traces?: TracesResponse | null
   tracesStatus?: LoadStatus
+  openTraceId?: string | null
+  traceDetail?: TraceDetail | null
+  traceDetailStatus?: LoadStatus
 }) {
   return mount(DataQualityTab, {
     props: {
       traces: makeTraces(),
       tracesStatus: 'ready',
+      openTraceId: null,
+      traceDetail: null,
+      traceDetailStatus: 'idle',
       ...props,
     },
     global: { stubs: { apexchart: true } },
@@ -112,5 +124,94 @@ describe('DataQualityTab', () => {
     expect(wrapper.find('[data-testid="traces-panel"] [data-testid="state-empty"]').exists()).toBe(
       true,
     )
+  })
+
+  it('emits trace-open with the clicked call id', async () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+
+    const row = wrapper.findAll('[data-testid="trace-row"]')[0]
+    await row.trigger('click')
+
+    expect(wrapper.emitted('trace-open')?.[0]).toEqual([makeTraces().rows[0].event_id])
+  })
+
+  it('renders no detail dialog until a trace is opened', () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+
+    expect(wrapper.find('[data-testid="trace-detail-dialog"]').exists()).toBe(false)
+  })
+
+  it('renders the span tree of the opened call, root first', () => {
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality(),
+      status: 'ready',
+      openTraceId: 'evt-1',
+      traceDetail: makeTraceDetail(),
+      traceDetailStatus: 'ready',
+    })
+
+    const spans = wrapper.findAll('[data-testid="trace-span-item"]')
+    expect(spans).toHaveLength(2)
+    expect(spans[0].text()).toContain('inference')
+    expect(spans[1].text()).toContain('model.execute')
+    expect(spans[1].text()).toContain('1ms') // child duration, formatted like the Platform
+  })
+
+  it('shows the root span attributes — the full payloads — in the details panel', () => {
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality(),
+      status: 'ready',
+      openTraceId: 'evt-1',
+      traceDetail: makeTraceDetail(),
+      traceDetailStatus: 'ready',
+    })
+
+    const body = wrapper.find('[data-testid="trace-span-body"]')
+    expect(body.text()).toContain('6.82')
+    expect(body.text()).toContain('Virginica')
+  })
+
+  it('selects a child span and shows its own details', async () => {
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality(),
+      status: 'ready',
+      openTraceId: 'evt-1',
+      traceDetail: makeTraceDetail(),
+      traceDetailStatus: 'ready',
+    })
+
+    await wrapper.findAll('[data-testid="trace-span-item"]')[1].trigger('click')
+
+    const body = wrapper.find('[data-testid="trace-span-body"]')
+    expect(body.text()).toContain('model.execute')
+    expect(body.text()).not.toContain('Virginica') // payloads live on the root span
+  })
+
+  it('exposes span metadata on the Metadata tab', async () => {
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality(),
+      status: 'ready',
+      openTraceId: 'evt-1',
+      traceDetail: makeTraceDetail(),
+      traceDetailStatus: 'ready',
+    })
+
+    await wrapper.find('[data-testid="trace-tab-metadata"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="trace-span-body"]').text()).toContain('trc-1')
+  })
+
+  it('emits trace-close from the dialog close button', async () => {
+    const wrapper = mountTab({
+      dataQuality: makeDataQuality(),
+      status: 'ready',
+      openTraceId: 'evt-1',
+      traceDetail: null,
+      traceDetailStatus: 'loading',
+    })
+
+    await wrapper.find('[data-testid="trace-detail-close"]').trigger('click')
+
+    expect(wrapper.emitted('trace-close')).toHaveLength(1)
   })
 })

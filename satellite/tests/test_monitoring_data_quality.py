@@ -97,6 +97,7 @@ def test_clean_inputs_stay_normal() -> None:
     age = result.values["features"]["age"]
     assert age == {
         "count": 10,
+        "status": "normal",
         "missing_rate": 0.0,
         "type_mismatch_rate": 0.0,
         "range_violation_rate": 0.0,
@@ -234,3 +235,15 @@ async def test_data_quality_alert_resolves_when_inputs_recover() -> None:
     assert "data_quality:region.unseen_category" not in active
     resolved = store.alerts[("dep", "data_quality:region.unseen_category")]
     assert resolved.state == AlertState.RESOLVED
+
+def test_batched_observations_counted_individually() -> None:
+    # One event carrying a batch of 4 (as read_events normalizes inputs to arrays): one
+    # in-range, one below min, one above max, one wrong-typed.
+    events = [_event({"age": [30.0, 5.0, 100.0, "x"]})]
+
+    result = _compute(events, _profile(numerical=NUMERICAL))
+
+    age = result.values["features"]["age"]
+    assert age["count"] == 4  # observations, not events
+    assert age["range_violation_rate"] == 0.5  # 5.0 and 100.0
+    assert age["type_mismatch_rate"] == 0.25  # "x"
