@@ -7,8 +7,8 @@ requires-python = ">=3.12"
 dependencies = [
     "mlflow>=3.1,<4",
     "fnnx>=0.0.11",
-    "luml-sdk==0.1.0",
-    "luml-api==0.1.0",
+    "luml-sdk>=0.2.0,<0.3.0",
+    "luml-api>=0.2.0,<0.3.0",
     "typer>=0.15.0,<1.0.0",
     "pydantic-settings>=2.12.0",
 ]
