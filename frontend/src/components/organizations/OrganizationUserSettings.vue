@@ -8,7 +8,6 @@
     v-model:visible="visible"
     :icon="UserCog"
     title="User settings"
-    position="topright"
     :footer-actions="footerActions"
   >
     <div class="dialog-content">

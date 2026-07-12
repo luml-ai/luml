@@ -3,7 +3,6 @@
     variant="text"
     severity="secondary"
     v-tooltip="'Link to track'"
-    :footer-actions="footerActions"
     @click="visible = true"
   >
     <template #icon>

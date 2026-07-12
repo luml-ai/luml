@@ -57,7 +57,7 @@ const dialogPT = computed<DialogPassThroughOptions>(() => {
       style: 'font-weight: 500; text-transform: uppercase; font-size: 16px;',
     },
     root: {
-      style: `margin-top: 80px; height: calc(100% - 120px); width: ${props.maxWidth}`,
+      style: `margin-top: 80px; height: calc(100% - 120px); max-width: ${props.maxWidth}; width: 100%`,
     },
     transition: {
       enterFromClass: 'right-dialog-enter-from',

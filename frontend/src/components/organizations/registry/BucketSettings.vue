@@ -8,7 +8,6 @@
     v-model:visible="visible"
     :icon="Bolt"
     title="bucket settings"
-    position="topright"
     :footer-actions="footerActions"
   >
     <div class="dialog-content">
