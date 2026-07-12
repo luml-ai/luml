@@ -4,19 +4,13 @@
       <Bolt :size="14" />
     </template>
   </Button>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
+    :icon="Bolt"
+    title="Bucket settings"
     position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="popup-title">
-        <Bolt :size="20" class="popup-title-icon" />
-        <span>bucket settings</span>
-      </h2>
-    </template>
     <div class="dialog-content">
       <div class="bucket-form-wrapper">
         <S3BucketForm
@@ -38,13 +32,7 @@
       </div>
       <ConnectedOrbitsList v-if="props.bucket.orbits?.length" :orbits="props.bucket.orbits" />
     </div>
-    <template #footer>
-      <Button severity="warn" variant="outlined" :disabled="loading" @click="onDelete">
-        delete bucket
-      </Button>
-      <Button type="submit" :disabled="loading" form="bucketForm">save changes</Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 <script setup lang="ts">
 import {
@@ -55,7 +43,7 @@ import {
   type S3BucketFormData,
 } from '@/lib/api/bucket-secrets/interfaces'
 import { computed, ref } from 'vue'
-import { Button, Dialog, useConfirm, useToast } from 'primevue'
+import { Button, useConfirm, useToast } from 'primevue'
 import { BucketValidationError, useBucketsStore } from '@/stores/buckets'
 import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -64,12 +52,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import S3BucketForm from './S3BucketForm.vue'
 import AzureBucketForm from './AzureBucketForm.vue'
 import ConnectedOrbitsList from './connected-orbits/ConnectedOrbitsList.vue'
-
-const dialogPT = {
-  footer: {
-    class: 'organization-edit-footer',
-  },
-}
+import UiDialogRight, { type FooterActions } from '@/components/ui/dialogs/UiDialogRight.vue'
 
 type Props = {
   bucket: BucketSecret
@@ -82,6 +65,28 @@ const toast = useToast()
 
 const visible = ref(false)
 const loading = ref(false)
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Delete bucket',
+        severity: 'warn',
+        variant: 'outlined',
+        disabled: loading.value,
+        onClick: onDelete,
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'bucketForm',
+        loading: loading.value,
+      },
+    },
+  }
+})
 
 const initialData = computed<BucketFormData>(() => {
   switch (props.bucket.type) {

@@ -10,19 +10,7 @@
     <div class="id-row" v-if="organizationStore.currentOrganization?.id">
       <UiId :id="organizationStore.currentOrganization.id" variant="button"></UiId>
     </div>
-    <Dialog
-      v-model:visible="visible"
-      position="topright"
-      :draggable="false"
-      style="margin-top: 80px; height: 86%; width: 420px"
-      :pt="dialogPT"
-    >
-      <template #header>
-        <h2 class="popup-title">
-          <UserCog :size="20" class="popup-title-icon" />
-          <span>Organization settings</span>
-        </h2>
-      </template>
+    <UiDialogRight v-model:visible="visible" :icon="UserCog" title="Organization settings">
       <div class="dialog-content">
         <!--<ImageInput
           shape="square"
@@ -43,10 +31,12 @@
         </Form>
       </div>
       <template #footer>
-        <OrganizationDelete></OrganizationDelete>
-        <Button type="submit" form="editOrganizationForm">save changes</Button>
+        <div class="organization-edit-footer">
+          <OrganizationDelete></OrganizationDelete>
+          <Button type="submit" form="editOrganizationForm">Save changes</Button>
+        </div>
       </template>
-    </Dialog>
+    </UiDialogRight>
   </div>
 </template>
 
@@ -59,19 +49,14 @@ import { z } from 'zod'
 import { Form } from '@primevue/forms'
 import { PenLine, UserCog } from 'lucide-vue-next'
 import { useOrganizationStore } from '@/stores/organization'
-import { Avatar, Button, Dialog, useToast, InputText } from 'primevue'
+import { Avatar, Button, useToast, InputText } from 'primevue'
 import OrganizationDelete from './OrganizationDelete.vue'
 import UiId from '../ui/UiId.vue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
 
 const organizationStore = useOrganizationStore()
 const toast = useToast()
-
-const dialogPT = {
-  footer: {
-    class: 'organization-edit-footer',
-  },
-}
 
 const resolver = zodResolver(
   z.object({
@@ -169,18 +154,15 @@ onMounted(() => {
 .label {
   font-weight: 500;
 }
-@media (max-width: 768px) {
-  .name {
-    font-size: 16px;
-  }
-}
-</style>
-
-<style>
-:global(.organization-edit-footer) {
+.organization-edit-footer {
   display: flex;
   justify-content: space-between;
   width: 100%;
   margin-top: auto;
+}
+@media (max-width: 768px) {
+  .name {
+    font-size: 16px;
+  }
 }
 </style>

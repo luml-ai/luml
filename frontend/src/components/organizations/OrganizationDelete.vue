@@ -1,5 +1,5 @@
 <template>
-  <Button severity="warn" variant="outlined" @click="visible = true">delete organization</Button>
+  <Button severity="warn" variant="outlined" @click="visible = true">Delete organization</Button>
   <Dialog
     v-model:visible="visible"
     modal
@@ -18,14 +18,14 @@
       </div>
     </div>
     <template #footer>
-      <Button @click="visible = false" :disabled="loading">cancel</Button>
+      <Button @click="visible = false" :disabled="loading">Cancel</Button>
       <Button
         severity="warn"
         outlined
         :disabled="!accept"
         :loading="loading"
         @click="deleteOrganization"
-        >delete</Button
+        >Delete</Button
       >
     </template>
   </Dialog>

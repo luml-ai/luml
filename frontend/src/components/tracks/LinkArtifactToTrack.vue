@@ -1,49 +1,41 @@
 <template>
-  <Button variant="text" severity="secondary" v-tooltip="'Link to track'" @click="visible = true">
+  <Button
+    variant="text"
+    severity="secondary"
+    v-tooltip="'Link to track'"
+    :footer-actions="footerActions"
+    @click="visible = true"
+  >
     <template #icon>
       <TrainTrack :size="14" />
     </template>
   </Button>
-  <UiDialogRight v-model:visible="visible">
-    <template #header>
-      <div class="dialog-title">
-        <TrainTrack :size="20" color="var(--p-primary-color)" />
-        <span>LINK ARTIFACT TO TRACK</span>
-      </div>
-    </template>
-    <template #default>
-      <Form
-        ref="formRef"
-        id="link-artifact-to-track-form"
-        :initialValues
-        :resolver
-        class="form"
-        @submit="onSubmit"
-      >
-        <TracksSelect
-          name="track_id"
-          :disabled="false"
-          :organization-id="organizationId"
-          :orbit-id="orbitId"
-          required
-          :types="[props.artifactType]"
-          :hidden-tracks="props.existingTracks.map((track) => track.id)"
-        />
-        <StageSelect :options="tracksStore.trackStages" />
-        <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
-      </Form>
-    </template>
-    <template #footer>
-      <div class="footer-actions">
-        <Button
-          label="link to track"
-          type="submit"
-          form="link-artifact-to-track-form"
-          :loading="saveLoading"
-          :disabled="submitDisabled"
-        />
-      </div>
-    </template>
+  <UiDialogRight
+    v-model:visible="visible"
+    :icon="TrainTrack"
+    title="LINK ARTIFACT TO TRACK"
+    :footer-actions="footerActions"
+  >
+    <Form
+      ref="formRef"
+      id="link-artifact-to-track-form"
+      :initialValues
+      :resolver
+      class="form"
+      @submit="onSubmit"
+    >
+      <TracksSelect
+        name="track_id"
+        :disabled="false"
+        :organization-id="organizationId"
+        :orbit-id="orbitId"
+        required
+        :types="[props.artifactType]"
+        :hidden-tracks="props.existingTracks.map((track) => track.id)"
+      />
+      <StageSelect :options="tracksStore.trackStages" />
+      <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
+    </Form>
   </UiDialogRight>
 </template>
 
@@ -62,7 +54,7 @@ import { getErrorMessage } from '@/helpers/helpers'
 import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
 import z from 'zod'
 import TracksSelect from './TracksSelect.vue'
-import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 import StageSelect from './StageSelect.vue'
 import StageWarning from './StageWarning.vue'
 
@@ -90,6 +82,19 @@ const artifactLinksStore = useArtifactLinksStore()
 
 const organizationId = computed(() => String(route.params.organizationId))
 const orbitId = computed(() => String(route.params.id))
+const footerActions = computed<FooterActions>(() => {
+  return {
+    rightButton: {
+      props: {
+        label: 'Link to track',
+        type: 'submit',
+        form: 'link-artifact-to-track-form',
+        loading: saveLoading.value,
+        disabled: submitDisabled.value,
+      },
+    },
+  }
+})
 
 const formRef = ref<FormInstance>()
 

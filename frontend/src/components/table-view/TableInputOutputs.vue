@@ -1,5 +1,5 @@
 <template>
-  <d-button severity="secondary" rounded variant="outlined" @click="togglePopover">
+  <d-button severity="secondary" variant="outlined" @click="togglePopover">
     <span class="button-label">Output fields</span>
     <bolt width="14" height="14" />
   </d-button>
@@ -26,7 +26,7 @@
       </div>
       <d-divider class="divider" />
       <div class="popover-footer">
-        <d-button label="apply" severity="secondary" @click="apply" />
+        <d-button label="Apply" severity="secondary" @click="apply" />
       </div>
     </div>
   </d-popover>

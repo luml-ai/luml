@@ -4,19 +4,13 @@
       <Bolt :size="14" />
     </template>
   </Button>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
+    :icon="UserCog"
+    title="User settings"
     position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="popup-title">
-        <UserCog :size="20" class="popup-title-icon" />
-        <span>user settings</span>
-      </h2>
-    </template>
     <div class="dialog-content">
       <div class="user-info">
         <Avatar
@@ -42,19 +36,13 @@
         ></Select>
       </Form>
     </div>
-    <template #footer>
-      <Button severity="warn" variant="outlined" :disabled="loading" @click="onDelete">
-        delete user
-      </Button>
-      <Button type="submit" :disabled="loading" form="editOrganizationForm">save changes</Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 
 <script setup lang="ts">
 import type { Member } from '@/lib/api/api.interfaces'
-import { ref, watch } from 'vue'
-import { Button, Dialog, Avatar, Select, useConfirm, useToast } from 'primevue'
+import { computed, ref, watch } from 'vue'
+import { Button, Avatar, Select, useConfirm, useToast } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { useOrganizationStore } from '@/stores/organization'
 import { Bolt, UserCog } from 'lucide-vue-next'
@@ -64,6 +52,7 @@ import { z } from 'zod'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { removeOrganizationUserConfirmOptions } from '@/lib/primevue/data/confirm'
 import { getErrorMessage } from '@/helpers/helpers'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 
 const OPTIONS = [
   {
@@ -75,12 +64,6 @@ const OPTIONS = [
     value: OrganizationRoleEnum.member,
   },
 ]
-
-const dialogPT = {
-  footer: {
-    class: 'organization-edit-footer',
-  },
-}
 
 type Props = {
   member: Member
@@ -102,6 +85,28 @@ const resolver = zodResolver(
     role: z.string().min(1),
   }),
 )
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Delete user',
+        severity: 'warn',
+        variant: 'outlined',
+        disabled: loading.value,
+        onClick: onDelete,
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'editOrganizationForm',
+        loading: loading.value,
+      },
+    },
+  }
+})
 
 async function onFormSubmit({ values, valid }: FormSubmitEvent) {
   if (!valid) return

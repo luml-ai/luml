@@ -14,7 +14,7 @@
       </div>
     </div>
     <template #footer>
-      <Button @click="visible = false" :disabled="loading">cancel</Button>
+      <Button @click="visible = false" :disabled="loading">Cancel</Button>
       <Button
         severity="warn"
         outlined
@@ -22,7 +22,7 @@
         :loading="loading"
         @click="deleteSatellite"
       >
-        unpair
+        Unpair
       </Button>
     </template>
   </Dialog>
