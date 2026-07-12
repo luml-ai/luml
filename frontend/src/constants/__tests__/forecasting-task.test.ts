@@ -8,7 +8,7 @@ describe('forecasting task card', () => {
   it('is enabled and linked to the forecasting route', () => {
     expect(forecastingCard).toBeDefined()
     expect(forecastingCard?.isDisabled).toBeFalsy()
-    expect(forecastingCard?.btnText).toBe('next')
+    expect(forecastingCard?.btnText).toBe('Next')
     expect(forecastingCard?.linkName).toBe('forecasting')
     expect(forecastingCard?.analyticsTaskName).toBe('forecasting')
   })

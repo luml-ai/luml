@@ -342,9 +342,9 @@ describe('Forecasting evaluate — downloads', () => {
 
   it('offers a registry upload entry in the export menu', () => {
     const { wrapper } = mountEvaluate()
-    const items = wrapper
-      .findComponent({ name: 'SplitButton' })
-      .props('model') as Array<{ label: string }>
+    const items = wrapper.findComponent({ name: 'SplitButton' }).props('model') as Array<{
+      label: string
+    }>
     expect(items.map((item) => item.label)).toEqual(['Upload to Registry', 'Download model'])
   })
 

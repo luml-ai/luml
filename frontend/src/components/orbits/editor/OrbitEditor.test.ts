@@ -213,7 +213,7 @@ describe('OrbitSettingsDialog', () => {
 
     const deleteButton = wrapper.find('button[severity="warn"]')
     expect(deleteButton.exists()).toBe(true)
-    expect(deleteButton.text()).toBe('delete Orbit')
+    expect(deleteButton.attributes().label).toBe('Delete Orbit')
   })
 
   it('handles delete orbit action', async () => {
