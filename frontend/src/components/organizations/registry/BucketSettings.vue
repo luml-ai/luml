@@ -7,7 +7,7 @@
   <UiDialogRight
     v-model:visible="visible"
     :icon="Bolt"
-    title="Bucket settings"
+    title="bucket settings"
     position="topright"
     :footer-actions="footerActions"
   >

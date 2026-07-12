@@ -2,7 +2,7 @@
   <UiDialogRight
     v-model:visible="visible"
     :icon="Orbit"
-    title="Orbit settings"
+    title="orbit settings"
     :footer-actions="footerActions"
   >
     <Form
