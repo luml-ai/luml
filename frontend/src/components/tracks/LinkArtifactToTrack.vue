@@ -1,10 +1,5 @@
 <template>
-  <Button
-    variant="text"
-    severity="secondary"
-    v-tooltip="'Link to track'"
-    @click="visible = true"
-  >
+  <Button variant="text" severity="secondary" v-tooltip="'Link to track'" @click="visible = true">
     <template #icon>
       <TrainTrack :size="14" />
     </template>
