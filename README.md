@@ -1,13 +1,13 @@
-<h1 align="center">LUML</h1>
-
-<p align="center"><b>The agent-native MLOps platform.</b><br>Autonomous ML research agents, experiment tracking, and production deployment in one open-source stack, running on your infrastructure.</p>
-
 <p align="center">
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-blue.svg"></a>
-  <img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12%2B-blue.svg">
-  <a href="https://discord.com/invite/qVPPstSv9R"><img alt="Discord" src="https://img.shields.io/badge/chat-Discord-5865F2.svg?logo=discord&logoColor=white"></a>
-  <a href="https://docs.luml.ai"><img alt="Docs" src="https://img.shields.io/badge/docs-luml.ai-brightgreen.svg"></a>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_white.svg">
+    <source media="(prefers-color-scheme: light)" srcset="https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_black.svg">
+    <img alt="LUML" src="https://gist.githubusercontent.com/OKUA1/1d730de58b9c7ccc3010d4e118552c5d/raw/379005eb32b69b6281e2c0be70fd82e5ef7bd456/luml_logo_full_black.svg" width="240">
+  </picture>
 </p>
+
+
+<p align="center"><b>The agent-native MLOps platform.</b></p>
 
 <div align="center">
 
