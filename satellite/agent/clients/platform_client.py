@@ -7,6 +7,7 @@ from cashews import cache
 
 from agent.schemas import Deployment, DeploymentUpdate, SatelliteTaskStatus
 from agent.schemas.deployments import ErrorMessage
+from agent.schemas.monitoring import MonitoringIntrospection
 
 logger = logging.getLogger("satellite")
 
@@ -104,6 +105,15 @@ class PlatformClient:
         r.raise_for_status()
         data = r.json()
         return bool(data.get("authorized", False))
+
+    async def introspect_monitoring_token(self, token: str) -> MonitoringIntrospection:
+        assert self._session is not None
+        r = await self._session.post(
+            self._url("/satellites/v1/monitoring/introspect"),
+            json={"token": token},
+        )
+        r.raise_for_status()
+        return MonitoringIntrospection.model_validate(r.json())
 
     async def get_artifact_download_url(self, artifact_id: UUID) -> str:
         assert self._session is not None

@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class SatelliteTaskType(StrEnum):
     DEPLOY = "deploy"
     UNDEPLOY = "undeploy"
+    RECONCILE = "reconcile"
 
 
 class SatelliteTaskStatus(StrEnum):

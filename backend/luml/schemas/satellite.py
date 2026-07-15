@@ -16,6 +16,7 @@ class SatelliteCapability(StrEnum):
 class SatelliteTaskType(StrEnum):
     DEPLOY = "deploy"
     UNDEPLOY = "undeploy"
+    RECONCILE = "reconcile"
 
 
 class SatelliteTaskStatus(StrEnum):

@@ -6,7 +6,7 @@ from pydantic import ValidationError
 
 from agent.clients import DockerService, PlatformClient
 from agent.schemas import SatelliteQueueTask, SatelliteTaskStatus, SatelliteTaskType
-from agent.tasks import DeployTask, Task, UndeployTask
+from agent.tasks import DeployTask, ReconcileTask, Task, UndeployTask
 
 logger = logging.getLogger("satellite")
 
@@ -18,6 +18,7 @@ class TaskHandler:
         self._handlers: dict[SatelliteTaskType, Task] = {
             SatelliteTaskType.DEPLOY: DeployTask(platform=platform, docker=docker),
             SatelliteTaskType.UNDEPLOY: UndeployTask(platform=platform, docker=docker),
+            SatelliteTaskType.RECONCILE: ReconcileTask(platform=platform, docker=docker),
         }
 
     async def dispatch(self, raw_task: dict[str, Any]) -> None:
