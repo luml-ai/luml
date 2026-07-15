@@ -1,62 +1,48 @@
 <template>
-  <UiDialogRight :visible="tracksStore.editorVisible" @update:visible="updateVisible">
-    <template #header>
-      <div class="header-content">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>TRACK settings</span>
-      </div>
-    </template>
-    <template #default>
-      <Form id="track-edit-form" :initialValues :resolver class="form" @submit="submit">
-        <div class="inputs">
-          <div class="field">
-            <label for="name" class="label">Name</label>
-            <InputText id="name" name="name" placeholder="Name your track" fluid />
-          </div>
-          <div class="field">
-            <label for="description" class="label">Description</label>
-            <Textarea
-              name="description"
-              id="description"
-              placeholder="Describe your track"
-              class="textarea"
-              fluid
-            ></Textarea>
-          </div>
-          <div class="field">
-            <label for="stages" class="label">Stages</label>
-            <UiTagsSelect
-              v-model="initialValues.stages"
-              id="stages"
-              name="stages"
-              placeholder="Type to add stages"
-              disabled
-              :items="['Production', 'Pre-Production', 'Staging']"
-              :itemsTooltips="stagesTooltips"
-              :disabledValues="tracksStore.editableTrack?.lockedStages ?? []"
-            />
-          </div>
+  <UiDialogRight
+    :visible="tracksStore.editorVisible"
+    :icon="Bolt"
+    title="TRACK settings"
+    :footer-actions="footerActions"
+    @update:visible="updateVisible"
+  >
+    <Form id="track-edit-form" :initialValues :resolver class="form" @submit="submit">
+      <div class="inputs">
+        <div class="field">
+          <label for="name" class="label">Name</label>
+          <InputText id="name" name="name" placeholder="Name your track" fluid />
         </div>
-      </Form>
-    </template>
-    <template #footer>
-      <div class="footer-actions">
-        <Button
-          label="delete track"
-          severity="warn"
-          variant="outlined"
-          :loading="deleteLoading"
-          @click="onDeleteClick"
-        />
-        <Button label="save changes" type="submit" form="track-edit-form" :loading="saveLoading" />
+        <div class="field">
+          <label for="description" class="label">Description</label>
+          <Textarea
+            name="description"
+            id="description"
+            placeholder="Describe your track"
+            class="textarea"
+            fluid
+          ></Textarea>
+        </div>
+        <div class="field">
+          <label for="stages" class="label">Stages</label>
+          <UiTagsSelect
+            v-model="initialValues.stages"
+            id="stages"
+            name="stages"
+            placeholder="Type to add stages"
+            disabled
+            :items="['Production', 'Pre-Production', 'Staging']"
+            :itemsTooltips="stagesTooltips"
+            :disabledValues="tracksStore.editableTrack?.lockedStages ?? []"
+          />
+        </div>
       </div>
-    </template>
+    </Form>
   </UiDialogRight>
 </template>
 
 <script setup lang="ts">
 import type { TrackUpdateIn } from '@/lib/api/orbit-tracks/interfaces.js'
-import { Button, InputText, Textarea, useToast, useConfirm } from 'primevue'
+import { InputText, Textarea, useToast, useConfirm } from 'primevue'
 import { useTracksStore } from '@/stores/tracks'
 import { Bolt } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
@@ -66,7 +52,7 @@ import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts
 import { getErrorMessage } from '@/helpers/helpers'
 import { deleteTrackConfirmOptions } from '@/lib/primevue/data/confirm'
 import z from 'zod'
-import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 
 const tracksStore = useTracksStore()
@@ -81,6 +67,28 @@ const initialValues = ref<{ name: string; description: string; stages: string[] 
 
 const deleteLoading = ref(false)
 const saveLoading = ref(false)
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Delete track',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: deleteLoading.value,
+        onClick: onDeleteClick,
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'track-edit-form',
+        loading: saveLoading.value,
+      },
+    },
+  }
+})
 
 const resolver = zodResolver(
   z.object({
@@ -166,8 +174,6 @@ watch(
   gap: 10px;
   justify-content: space-between;
 }
-.form {
-}
 .inputs {
   display: flex;
   flex-direction: column;
@@ -179,10 +185,6 @@ watch(
   flex-direction: column;
   align-items: flex-start;
   gap: 7px;
-}
-.label {
-}
-.required {
 }
 .textarea {
   height: 72px;

@@ -1,19 +1,12 @@
 <template>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
-    position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :icon="Bolt"
+    title="Artifact settings"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="dialog-title">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>Artifact settings</span>
-      </h2>
-    </template>
     <Form
-      id="orbit-edit-form"
+      id="artifact-edit-form"
       :initialValues
       :resolver="artifactEditResolver"
       class="form"
@@ -47,30 +40,13 @@
         ></AutoComplete>
       </div>
     </Form>
-    <template #footer>
-      <div>
-        <Button
-          v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)"
-          variant="outlined"
-          severity="warn"
-          :disabled="loading"
-          @click="onDeleteClick"
-        >
-          delete artifact
-        </Button>
-      </div>
-      <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 
 <script setup lang="ts">
 import type { Artifact, UpdateArtifactPayload } from '@/lib/api/artifacts/interfaces'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
-  type DialogPassThroughOptions,
-  Dialog,
-  Button,
   InputText,
   Textarea,
   AutoComplete,
@@ -89,12 +65,8 @@ import { useArtifactsStore } from '@/stores/artifacts'
 import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
 import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces'
-
-const dialogPT: DialogPassThroughOptions = {
-  footer: {
-    style: 'display: flex; justify-content: space-between; width: 100%; margin-top: auto;',
-  },
-}
+import type { FooterActions, FooterButton } from '@/components/ui/dialogs/UiDialogRight.vue'
+import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
 
 type Props = {
   data: Artifact
@@ -125,6 +97,35 @@ const initialValues = ref({
 const loading = ref(false)
 const autocompleteItems = ref<string[]>([])
 
+const leftButton = computed<FooterButton | undefined>(() => {
+  if (orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)) {
+    return {
+      props: {
+        label: 'Delete artifact',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: loading.value,
+        onClick: onDeleteClick,
+      },
+    }
+  }
+  return undefined
+})
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: leftButton.value,
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'artifact-edit-form',
+        loading: loading.value,
+      },
+    },
+  }
+})
+
 function searchTags(event: AutoCompleteCompleteEvent) {
   autocompleteItems.value = getTagsByQuery(event.query)
 }
@@ -150,7 +151,7 @@ async function saveChanges() {
 }
 
 function onDeleteClick() {
-  const hasActiveDeployments = props.data.deployments.some(
+  const hasActiveDeployments = props.data.deployments?.some(
     (deployment) => deployment.status === DeploymentStatusEnum.active,
   )
   if (hasActiveDeployments) {

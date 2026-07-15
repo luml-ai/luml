@@ -1,19 +1,12 @@
 <template>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
-    position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :icon="Bolt"
+    title="Collection settings"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="dialog-title">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>Collection settings</span>
-      </h2>
-    </template>
     <Form
-      id="orbit-edit-form"
+      id="collection-edit-form"
       :initialValues
       :resolver="collectionEditorResolver"
       class="form"
@@ -47,30 +40,13 @@
         ></AutoComplete>
       </div>
     </Form>
-    <template #footer>
-      <div>
-        <Button
-          v-if="orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.delete)"
-          variant="outlined"
-          severity="warn"
-          :disabled="loading"
-          @click="onDeleteClick"
-        >
-          delete collection
-        </Button>
-      </div>
-      <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 
 <script setup lang="ts">
 import type { OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { computed, ref, watch } from 'vue'
 import {
-  type DialogPassThroughOptions,
-  Dialog,
-  Button,
   InputText,
   Textarea,
   AutoComplete,
@@ -86,12 +62,8 @@ import { useCollectionsStore } from '@/stores/collections'
 import { collectionEditorResolver } from '@/utils/forms/resolvers'
 import { useOrbitsStore } from '@/stores/orbits'
 import { PermissionEnum } from '@/lib/api/api.interfaces'
-
-const dialogPT: DialogPassThroughOptions = {
-  footer: {
-    style: 'display: flex; justify-content: space-between; width: 100%; margin-top: auto;',
-  },
-}
+import type { FooterActions, FooterButton } from '@/components/ui/dialogs/UiDialogRight.vue'
+import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
 
 type Props = {
   data: OrbitCollection
@@ -121,6 +93,35 @@ const existingTags = computed(() => {
   return Array.from(tagsSet)
 })
 const autocompleteItems = ref<string[]>([])
+
+const leftButton = computed<FooterButton | undefined>(() => {
+  if (orbitsStore.getCurrentOrbitPermissions?.collection.includes(PermissionEnum.delete)) {
+    return {
+      props: {
+        label: 'Delete collection',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: loading.value,
+        onClick: onDeleteClick,
+      },
+    }
+  }
+  return undefined
+})
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: leftButton.value,
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'collection-edit-form',
+        loading: loading.value,
+      },
+    },
+  }
+})
 
 function searchTags(event: AutoCompleteCompleteEvent) {
   autocompleteItems.value = [

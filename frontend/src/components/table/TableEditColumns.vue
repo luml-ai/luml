@@ -43,9 +43,9 @@
             binary
             @update:modelValue="onShowAllUpdate($event)"
           />
-          <label for="showAll"> show all </label>
+          <label for="showAll"> Show all </label>
         </div>
-        <Button label="apply" severity="secondary" @click="apply" />
+        <Button label="Apply" severity="secondary" @click="apply" />
       </div>
     </div>
   </Popover>

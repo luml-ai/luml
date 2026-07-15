@@ -68,7 +68,7 @@
           :disabled="loading"
           @click="onForceDeleteClick"
         >
-          force delete deployment
+          Force delete deployment
         </Button>
         <Button
           v-else
@@ -77,10 +77,10 @@
           :disabled="loading"
           @click="onDeleteClick"
         >
-          stop deployment
+          Stop deployment
         </Button>
       </div>
-      <Button type="submit" :loading="loading" form="createDeploymentForm">save changes</Button>
+      <Button type="submit" :loading="loading" form="createDeploymentForm">Save changes</Button>
     </template>
     <DeploymentsDelete
       v-if="isDeleting"

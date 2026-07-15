@@ -1,5 +1,5 @@
 <template>
-  <div v-tooltip="name" :style="columnBodyStyle + 'width: 180px'">
+  <div v-tooltip="name" class="name-title" :style="columnBodyStyle + 'width: 180px'">
     {{ name }}
   </div>
   <div class="id-row">
@@ -21,6 +21,10 @@ defineProps<Props>()
 </script>
 
 <style scoped>
+.name-title {
+  text-decoration: underline;
+}
+
 .id-row {
   font-size: 12px;
 }

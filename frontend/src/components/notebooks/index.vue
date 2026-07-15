@@ -74,5 +74,6 @@ onBeforeUnmount(() => {
   padding: 12px;
   border-radius: 8px;
   background-color: var(--p-card-background);
+  border: 1px solid var(--p-content-border-color);
 }
 </style>

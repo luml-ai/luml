@@ -46,6 +46,37 @@
           </div>
         </div>
       </div>
+      <div class="details__item">
+        <div class="details__label">Deployments</div>
+        <div class="details__value">
+          <div v-if="artifactsStore.currentArtifact.deployments?.length">
+            <span
+              v-for="(deployment, index) in artifactsStore.currentArtifact.deployments"
+              :key="deployment.id"
+            >
+              <RouterLink
+                :to="{
+                  name: 'orbit-deployments',
+                  params: {
+                    organizationId: route.params.organizationId,
+                    id: route.params.id,
+                  },
+                  query: {
+                    deployment: deployment.id,
+                  },
+                }"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="link"
+              >
+                {{ deployment.name }}
+              </RouterLink>
+              <span v-if="index < artifactsStore.currentArtifact.deployments.length - 1">, </span>
+            </span>
+          </div>
+          <span v-else>-</span>
+        </div>
+      </div>
       <div
         v-if="artifactsStore.currentArtifact?.manifest"
         class="details__item"
@@ -95,10 +126,12 @@ import { ArtifactStatusEnum } from '@/lib/api/artifacts/interfaces'
 import { getSizeText } from '@/helpers/helpers'
 import { ref } from 'vue'
 import { useArtifactsStore } from '@/stores/artifacts'
+import { useRoute } from 'vue-router'
 import ModelManifestModal from '@/components/model/ModelManifestModal.vue'
 import ArtifactTracks from '@/components/tracks/ArtifactTracks.vue'
 
 const artifactsStore = useArtifactsStore()
+const route = useRoute()
 
 const manifestVisible = ref(false)
 

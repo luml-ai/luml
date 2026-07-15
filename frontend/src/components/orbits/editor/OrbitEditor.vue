@@ -1,17 +1,10 @@
 <template>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
-    position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :icon="Orbit"
+    title="orbit settings"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="dialog-title">
-        <Orbit :size="20" color="var(--p-primary-color)" />
-        <span>orbit settings</span>
-      </h2>
-    </template>
     <Form
       id="orbit-edit-form"
       :initial-values="initialValues"
@@ -40,21 +33,7 @@
         </p>
       </div>
     </Form>
-    <template #footer>
-      <div>
-        <Button
-          v-if="orbit.permissions.orbit.includes(PermissionEnum.delete)"
-          variant="outlined"
-          severity="warn"
-          :disabled="loading"
-          @click="onDeleteClick"
-        >
-          delete Orbit
-        </Button>
-      </div>
-      <Button type="submit" :loading="loading" form="orbit-edit-form"> save changes </Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 
 <script setup lang="ts">
@@ -64,15 +43,7 @@ import {
   type UpdateOrbitPayload,
 } from '@/lib/api/api.interfaces'
 import { computed, ref, watch } from 'vue'
-import {
-  Dialog,
-  Button,
-  InputText,
-  Select,
-  type DialogPassThroughOptions,
-  useToast,
-  useConfirm,
-} from 'primevue'
+import { InputText, Select, useToast, useConfirm } from 'primevue'
 import { Orbit } from 'lucide-vue-next'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { z } from 'zod'
@@ -81,12 +52,8 @@ import { useBucketsStore } from '@/stores/buckets'
 import { useOrbitsStore } from '@/stores/orbits'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 import { deleteOrbitConfirmOptions } from '@/lib/primevue/data/confirm'
-
-const dialogPT: DialogPassThroughOptions = {
-  footer: {
-    style: 'display: flex; justify-content: space-between; width: 100%; margin-top: auto;',
-  },
-}
+import type { FooterActions, FooterButton } from '@/components/ui/dialogs/UiDialogRight.vue'
+import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
 
 const resolver = zodResolver(
   z.object({
@@ -112,6 +79,35 @@ const initialValues = computed(() => ({
   name: props.orbit.name,
   bucket_secret_id: props.orbit.bucket_secret_id,
 }))
+
+const leftButton = computed<FooterButton | undefined>(() => {
+  if (props.orbit.permissions.orbit.includes(PermissionEnum.delete)) {
+    return {
+      props: {
+        label: 'Delete Orbit',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: loading.value,
+        onClick: onDeleteClick,
+      },
+    }
+  }
+  return undefined
+})
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: leftButton.value,
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'orbit-edit-form',
+        loading: loading.value,
+      },
+    },
+  }
+})
 
 const loading = ref(false)
 

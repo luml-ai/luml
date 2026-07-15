@@ -229,7 +229,7 @@ test.describe('Deployments', () => {
       await expect(stopDialog).toBeVisible()
 
       await stopDialog.getByLabel('Yes, stop this deployment').check()
-      await stopDialog.getByRole('button', { name: 'stop', exact: true }).click()
+      await stopDialog.getByRole('button', { name: 'Stop', exact: true }).click()
 
       await expect.poll(() => deleteCalled).toBe(true)
       await expect(

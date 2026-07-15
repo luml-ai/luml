@@ -5,7 +5,7 @@
       <span>Back</span>
     </d-button>
     <d-button severity="secondary" @click="onFinishClick">
-      <span>exit</span>
+      <span>Exit</span>
       <log-out width="14" height="14" />
     </d-button>
   </div>

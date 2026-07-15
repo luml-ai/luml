@@ -577,7 +577,6 @@ button.header-cell-content {
   font: inherit;
   color: inherit;
   overflow: hidden;
-  color: var(--p-primary-color);
 }
 
 .id-cell > span {
