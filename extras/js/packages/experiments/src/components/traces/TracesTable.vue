@@ -254,8 +254,7 @@
       </Column>
       <Column v-if="selectedColumns.includes('evals')" field="evals" header="evals">
         <template #body="slotProps">
-          <div v-if="slotProps.data.evals?.length === 0">-</div>
-          <div v-else class="evals-container">
+          <div v-if="slotProps.data.evals?.length" class="evals-container">
             <button
               class="link cell evals-item"
               @click="showEval(slotProps.data.evals[0], slotProps.data.evals)"
@@ -266,6 +265,7 @@
               +{{ slotProps.data.evals.length - 1 }}
             </span>
           </div>
+          <div v-else>-</div>
         </template>
       </Column>
       <Column

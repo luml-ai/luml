@@ -144,12 +144,12 @@ export const useEvalsStore = defineStore('evals', () => {
     resetCurrentEvalData()
     resetDatasets()
     setLoading(false)
-    resetEvalsIdsList()
-    setCurrentEvalDataLoading(false)
   }
 
   function resetCurrentEvalData() {
     currentEvalData.value = null
+    resetEvalsIdsList()
+    setCurrentEvalDataLoading(false)
   }
 
   function resetSelectedTrace() {
