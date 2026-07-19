@@ -37,10 +37,16 @@ export const useEvalsStore = defineStore('evals', () => {
   const selectedTrace = ref<(BaseTraceInfo & { artifactId: string }) | null>(null)
   const datasets = ref<DatasetData[] | null>(null)
   const loading = ref(false)
+  const evalsIdsList = ref<string[]>([])
+  const currentEvalDataLoading = ref(false)
 
   const getProvider = computed(() => {
     if (!provider.value) throw new Error('Provider not found')
     return provider.value
+  })
+
+  const currentEvalId = computed(() => {
+    return selectedEval.value?.evalId ?? ''
   })
 
   function setProvider(newProvider: ExperimentSnapshotProvider) {
@@ -138,6 +144,8 @@ export const useEvalsStore = defineStore('evals', () => {
     resetCurrentEvalData()
     resetDatasets()
     setLoading(false)
+    resetEvalsIdsList()
+    setCurrentEvalDataLoading(false)
   }
 
   function resetCurrentEvalData() {
@@ -182,6 +190,18 @@ export const useEvalsStore = defineStore('evals', () => {
     return info?.params?.filters ?? []
   }
 
+  function setEvalsIdsList(evalsIds: string[]) {
+    evalsIdsList.value = evalsIds
+  }
+
+  function resetEvalsIdsList() {
+    evalsIdsList.value = []
+  }
+
+  function setCurrentEvalDataLoading(value: boolean) {
+    currentEvalDataLoading.value = value
+  }
+
   return {
     currentEvalData,
     setProvider,
@@ -205,5 +225,10 @@ export const useEvalsStore = defineStore('evals', () => {
     setLoading,
     refresh,
     getDatasetFilters,
+    setEvalsIdsList,
+    evalsIdsList,
+    currentEvalId,
+    currentEvalDataLoading,
+    setCurrentEvalDataLoading,
   }
 })
