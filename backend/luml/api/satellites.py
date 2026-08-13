@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 
 from luml.handlers.artifacts import ArtifactHandler
 from luml.handlers.deployments import DeploymentHandler
+from luml.handlers.monitoring import MonitoringHandler
 from luml.handlers.orbit_secrets import OrbitSecretHandler
 from luml.handlers.satellites import SatelliteHandler
 from luml.infra.dependencies import UserAuthentication
@@ -20,6 +21,10 @@ from luml.schemas.deployment import (
     InferenceAccessIn,
     InferenceAccessOut,
 )
+from luml.schemas.monitoring import (
+    MonitoringTokenIntrospectIn,
+    MonitoringTokenIntrospectOut,
+)
 from luml.schemas.orbit_secret import OrbitSecret
 from luml.schemas.satellite import (
     Satellite,
@@ -28,6 +33,7 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskUpdateIn,
 )
+from luml.settings import config
 
 satellite_worker_router = APIRouter(
     prefix="/satellites/v1",
@@ -39,6 +45,7 @@ satellite_handler = SatelliteHandler()
 deployment_handler = DeploymentHandler()
 orbit_secret_handler = OrbitSecretHandler()
 artifacts_handler = ArtifactHandler()
+monitoring_handler = MonitoringHandler(secret_key=config.AUTH_SECRET_KEY)
 
 
 @satellite_worker_router.post(
@@ -182,6 +189,18 @@ async def authorize_inference_access(
         request.user.orbit_id, data.api_key
     )
     return InferenceAccessOut(authorized=authorized)
+
+
+@satellite_worker_router.post(
+    "/monitoring/introspect",
+    responses=endpoint_responses,
+    response_model=MonitoringTokenIntrospectOut,
+)
+async def introspect_monitoring_token(
+    request: Request, data: MonitoringTokenIntrospectIn
+) -> MonitoringTokenIntrospectOut:
+    await satellite_handler.touch_last_seen(request.user.id)
+    return await monitoring_handler.introspect_token(request.user.id, data.token)
 
 
 @satellite_worker_router.get(

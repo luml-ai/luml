@@ -229,3 +229,17 @@ async def test_worker_runs_applicable_subset_with_feature_summaries() -> None:
     groups = {result.metric for result in store.results}
     assert {"runtime", "data_quality", "feature_drift"} <= groups
     assert "output_drift" not in groups
+
+def test_feature_drift_aggregates_batched_observations() -> None:
+    metric = FeatureDriftMetric()
+    # One event carrying a batch spread evenly across the four reference bins.
+    events = [_event({"age": [5.0, 15.0, 25.0, 35.0]})]
+    ctx = DeploymentContext(
+        deployment_id="dep", profile=_profile(numerical=NUM_REF), has_events=True
+    )
+
+    result = metric.compute(MetricInput(context=ctx, events=events, window=WINDOW))
+
+    age = result.values["features"]["age"]
+    assert age["count"] == 4  # all batch observations scored, not one per event
+    assert age["psi"] < 0.1  # matches reference distribution -> no drift

@@ -87,6 +87,7 @@ class DeploymentHandler:
                 satellite_id=data.satellite_id,
                 artifact_id=data.artifact_id,
                 name=data.name,
+                monitoring_mode=data.monitoring_mode,
                 satellite_parameters=data.satellite_parameters,
                 description=data.description,
                 dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(

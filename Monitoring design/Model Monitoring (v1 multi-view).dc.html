@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:8px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#94a3b8;background-clip:content-box}
+  @keyframes lumlFade{from{opacity:0}to{opacity:1}}
+  @keyframes lumlPop{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div style="display:flex;height:100vh;width:100%;overflow:hidden;font-family:Inter,sans-serif;background:#f8fafc;color:#334155;font-size:14px">
+
+  <!-- ============ SIDEBAR ============ -->
+  <aside style="width:232px;flex:none;background:#ffffff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;height:100%">
+    <div style="height:57px;flex:none;display:flex;align-items:center;gap:9px;padding:0 18px;border-bottom:1px solid #f1f5f9">
+      <img src="assets/luml-mark.svg" alt="Luml" style="width:21px;height:21px"/>
+      <span style="font-size:19px;font-weight:600;letter-spacing:-0.02em;color:#334155">Luml</span>
+    </div>
+    <nav style="flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:3px">
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></svg>
+        <span>Express tasks</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span>Data Agent</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.27 6.96L12 12.01l8.73-5.05M12 22.08V12"/></svg>
+        <span>Registry</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;background:#eff6ff;color:#2673fd;font-weight:500;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+        <span>Deployments</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.5" transform="rotate(45 12 12)"/></svg>
+        <span>Satellites</span>
+      </div>
+      <div style="margin:16px 12px 6px;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#94a3b8">Workspace</div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/></svg>
+        <span>Notebooks</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:7px;color:#64748b;cursor:pointer">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        <span>Lineage</span>
+      </div>
+    </nav>
+    <div style="flex:none;padding:12px;border-top:1px solid #f1f5f9;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;background:#f1f5f9;border-radius:8px;padding:3px">
+        <div style="flex:1;text-align:center;padding:5px;border-radius:6px;background:#fff;font-size:12px;font-weight:500;box-shadow:0 1px 2px rgba(28,43,64,.06)">☀ Light</div>
+        <div style="flex:1;text-align:center;padding:5px;font-size:12px;color:#94a3b8">Dark ☾</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;padding:4px 6px">
+        <div style="width:30px;height:30px;border-radius:50%;background:#7b68ee;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600">DU</div>
+        <div style="line-height:1.25;min-width:0">
+          <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Darina Usanova</div>
+          <div style="font-size:11px;color:#94a3b8">Data Team org</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN COLUMN ============ -->
+  <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100%">
+
+    <!-- NAVBAR -->
+    <header style="height:57px;flex:none;background:#fff;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:18px;padding:0 22px">
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 11px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;font-weight:500">
+        <span style="width:18px;height:18px;border-radius:5px;background:#1e293b;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px">D</span>
+        Data Team organization
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;color:#64748b;font-size:13px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><ellipse cx="12" cy="12" rx="10" ry="4.3" transform="rotate(45 12 12)"/></svg>
+        Orbit: <span style="color:#334155;font-weight:500">production</span>
+      </div>
+      <div style="flex:1"></div>
+      <div style="position:relative;width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#64748b">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span style="position:absolute;top:6px;right:7px;width:7px;height:7px;border-radius:50%;background:#ef4444;border:1.5px solid #fff"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:9px;padding:4px 9px 4px 5px;border:1px solid #e2e8f0;border-radius:9px">
+        <div style="width:26px;height:26px;border-radius:50%;background:#7b68ee;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600">DU</div>
+        <span style="font-size:13px;font-weight:500">Darina</span>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+      </div>
+    </header>
+
+    <!-- CONTENT -->
+    <main style="flex:1;overflow-y:auto;min-height:0">
+      <div style="max-width:1240px;margin:0 auto;padding:26px 30px 60px">
+
+        <!-- ===== LIST VIEWS (deployments / monitoring) ===== -->
+        <sc-if value="{{ isList }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:4px">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91 0z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg>
+                <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:-0.02em;color:#1e293b">Deployments</h1>
+              </div>
+              <p style="margin:7px 0 0;color:#64748b;font-size:13px;max-width:620px">Serve models behind endpoints and attach monitoring to track quality, traces, cost and drift in production.</p>
+            </div>
+            <sc-if value="{{ isMonitoring }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ openConnect }}" style="flex:none;display:flex;align-items:center;gap:7px;background:#2673fd;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px rgba(28,43,64,.12)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Connect monitoring
+              </button>
+            </sc-if>
+            <sc-if value="{{ isDeployments }}" hint-placeholder-val="{{ true }}">
+              <button style="flex:none;display:flex;align-items:center;gap:7px;background:#2673fd;color:#fff;border:none;border-radius:8px;padding:10px 15px;font-size:13px;font-weight:500;font-family:inherit;cursor:pointer;box-shadow:0 1px 2px rgba(28,43,64,.12)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+                Create deployment
+              </button>
+            </sc-if>
+          </div>
+
+          <!-- section tabs -->
+          <div style="display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin:20px 0 0">
+            <sc-for list="{{ sectionTabs }}" as="tab" hint-placeholder-count="2">
+              <button onClick="{{ tab.on }}" style="{{ tab.style }}">
+                <span style="display:inline-flex;align-items:center;gap:7px">{{ tab.label }}<span style="{{ tab.countStyle }}">{{ tab.count }}</span></span>
+              </button>
+            </sc-for>
+          </div>
+
+          <!-- toolbar -->
+          <div style="display:flex;align-items:center;gap:10px;margin:18px 0 14px">
+            <div style="flex:1;display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;max-width:300px">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+              <span style="color:#94a3b8;font-size:13px">{{ searchPlaceholder }}</span>
+            </div>
+            <div style="flex:1"></div>
+            <div style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;cursor:pointer">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54z"/></svg>
+              Filters
+            </div>
+            <div style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;color:#64748b;cursor:pointer">
+              Sort: {{ sortLabel }}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+
+          <!-- ===== DEPLOYMENTS TABLE ===== -->
+          <sc-if value="{{ isDeployments }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1.7fr 1.2fr 1fr .9fr 1.3fr .8fr;padding:11px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc;font-size:12px;font-weight:600;color:#64748b">
+                <div>Deployment</div><div>Model</div><div>Status</div><div>Monitoring</div><div>Created</div><div></div>
+              </div>
+              <sc-for list="{{ deployments }}" as="d" hint-placeholder-count="6">
+                <div style="display:grid;grid-template-columns:1.7fr 1.2fr 1fr .9fr 1.3fr .8fr;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center">
+                  <div style="min-width:0">
+                    <div style="display:flex;align-items:center;gap:8px">
+                      <span style="font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</span>
+                      <sc-if value="{{ d.judge }}" hint-placeholder-val="{{ true }}">
+                        <span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;color:#ea7317;border:1px solid #fed7aa;border-radius:5px;padding:2px 6px;font-size:11px;font-weight:600">⚖ Judge</span>
+                      </sc-if>
+                    </div>
+                    <div style="font-size:12px;color:#94a3b8;font-family:'Spline Sans Mono',monospace;margin-top:3px">{{ d.shortId }}</div>
+                  </div>
+                  <div style="color:#2673fd;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.model }}</div>
+                  <div><span style="display:inline-block;background:{{ d.statusBg }};color:{{ d.statusFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ d.status }}</span></div>
+                  <div>
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:{{ d.monBg }};color:{{ d.monFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ d.monText }}</span>
+                  </div>
+                  <div style="font-size:13px;color:#64748b;font-family:'Spline Sans Mono',monospace">{{ d.created }}</div>
+                  <div style="text-align:right;color:#94a3b8">⋯</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- ===== MONITORING TABLE ===== -->
+          <sc-if value="{{ isMonitoring }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1.7fr 1.1fr 1.3fr 1.2fr .7fr .9fr .5fr;padding:11px 18px;border-bottom:1px solid #e2e8f0;background:#f8fafc;font-size:12px;font-weight:600;color:#64748b">
+                <div>Monitor</div><div>Type</div><div>Target deployment</div><div>Judge / Reference</div><div>Scorers</div><div>Status</div><div></div>
+              </div>
+              <sc-for list="{{ monitors }}" as="m" hint-placeholder-count="4">
+                <div onClick="{{ m.open }}" style="display:grid;grid-template-columns:1.7fr 1.1fr 1.3fr 1.2fr .7fr .9fr .5fr;padding:14px 18px;border-bottom:1px solid #f1f5f9;align-items:center;cursor:pointer" style-hover="background:#f8fafc">
+                  <div style="min-width:0">
+                    <div style="font-weight:500;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</div>
+                    <div style="font-size:12px;color:#94a3b8;font-family:'Spline Sans Mono',monospace;margin-top:3px">{{ m.shortId }}</div>
+                  </div>
+                  <div><span style="display:inline-flex;align-items:center;gap:5px;background:{{ m.typeBg }};color:{{ m.typeFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ m.typeIcon }} {{ m.typeText }}</span></div>
+                  <div style="color:#2673fd;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.target }}</div>
+                  <div>
+                    <sc-if value="{{ m.isLLM }}" hint-placeholder-val="{{ true }}">
+                      <span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;color:#ea7317;border:1px solid #fed7aa;border-radius:5px;padding:3px 8px;font-size:12px;font-weight:500">⚖ {{ m.judge }}</span>
+                    </sc-if>
+                    <sc-if value="{{ m.isClassic }}" hint-placeholder-val="{{ true }}">
+                      <span style="font-size:13px;color:#64748b">{{ m.judge }}</span>
+                    </sc-if>
+                  </div>
+                  <div style="font-size:13px;color:#475569">{{ m.scorers }}</div>
+                  <div><span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:{{ m.statusFg }}"><span style="width:7px;height:7px;border-radius:50%;background:{{ m.statusFg }}"></span>{{ m.status }}</span></div>
+                  <div style="text-align:right"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></div>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:14px 2px 0;font-size:12px;color:#94a3b8">Monitors attach to a deployment. LLM monitors route traffic through a <span style="color:#ea7317;font-weight:500">Judge</span> deployment for scoring; Classic ML monitors compare live data against a reference window.</p>
+          </sc-if>
+        </sc-if>
+
+        <!-- ===== DASHBOARD ===== -->
+        <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#64748b;margin-bottom:12px">
+            <span onClick="{{ goMonitoring }}" style="cursor:pointer">Monitoring</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            <span style="color:#334155;font-weight:500">{{ mon.name }}</span>
+          </div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+            <div>
+              <div style="display:flex;align-items:center;gap:11px">
+                <h1 style="margin:0;font-size:23px;font-weight:600;letter-spacing:-0.02em;color:#1e293b">{{ mon.name }}</h1>
+                <span style="display:inline-flex;align-items:center;gap:5px;background:{{ mon.typeBg }};color:{{ mon.typeFg }};border-radius:6px;padding:3px 9px;font-size:12px;font-weight:600">{{ mon.typeIcon }} {{ mon.typeText }}</span>
+                <span style="display:inline-flex;align-items:center;gap:6px;font-size:13px;color:{{ mon.statusFg }}"><span style="width:7px;height:7px;border-radius:50%;background:{{ mon.statusFg }}"></span>{{ mon.status }}</span>
+              </div>
+              <div style="margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px;color:#64748b;flex-wrap:wrap">
+                <span>Target:</span><span style="color:#2673fd">{{ mon.target }}</span>
+                <sc-if value="{{ mon.isLLM }}" hint-placeholder-val="{{ true }}">
+                  <span style="color:#cbd5e1">•</span><span>Judge:</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;background:#fff7ed;color:#ea7317;border:1px solid #fed7aa;border-radius:5px;padding:2px 7px;font-size:12px;font-weight:500">⚖ {{ mon.judge }}</span>
+                </sc-if>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;position:relative">
+              <sc-if value="{{ mon.isLLM }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:3px">
+                  <sc-for list="{{ timeRanges }}" as="t" hint-placeholder-count="4">
+                    <button onClick="{{ t.on }}" style="{{ t.style }}">{{ t.label }}</button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <sc-if value="{{ mon.isClassic }}" hint-placeholder-val="{{ true }}">
+                <button onClick="{{ toggleCal }}" style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  {{ dateLabel }}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg>
+                </button>
+                <sc-if value="{{ calOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;top:46px;right:122px;z-index:30;display:flex;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 16px 40px rgba(15,23,42,.16);overflow:hidden;animation:lumlPop .14s ease">
+                    <div style="width:160px;border-right:1px solid #f1f5f9;padding:8px;display:flex;flex-direction:column;gap:2px">
+                      <sc-for list="{{ calPresets }}" as="p" hint-placeholder-count="4">
+                        <button onClick="{{ p.on }}" style="text-align:left;background:none;border:none;color:#475569;font-size:13px;font-family:inherit;padding:9px 11px;border-radius:7px;cursor:pointer" style-hover="background:#f8fafc">{{ p.label }}</button>
+                      </sc-for>
+                    </div>
+                    <div style="padding:14px 16px;width:262px">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.4"><path d="M15 18l-6-6 6-6"/></svg>
+                        <span style="font-weight:600;color:#1e293b;font-size:13.5px">{{ calMonth }}</span>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.4"><path d="M9 18l6-6-6-6"/></svg>
+                      </div>
+                      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px">
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">S</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">M</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">T</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">W</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">T</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">F</div>
+                        <div style="text-align:center;font-size:11px;color:#94a3b8;padding:4px 0">S</div>
+                      </div>
+                      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+                        <sc-for list="{{ calCells }}" as="c" hint-placeholder-count="35">
+                          <sc-if value="{{ c.blank }}" hint-placeholder-val="{{ false }}"><div></div></sc-if>
+                          <sc-if value="{{ c.d }}" hint-placeholder-val="{{ true }}"><button onClick="{{ c.on }}" style="{{ c.style }}">{{ c.d }}</button></sc-if>
+                        </sc-for>
+                      </div>
+                      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+                        <button onClick="{{ closeCal }}" style="background:#2673fd;border:none;color:#fff;font-size:13px;font-weight:500;font-family:inherit;padding:8px 16px;border-radius:7px;cursor:pointer">Apply</button>
+                      </div>
+                    </div>
+                  </div>
+                </sc-if>
+              </sc-if>
+              <button onClick="{{ goConfig }}" style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                Configure
+              </button>
+            </div>
+          </div>
+
+          <!-- dashboard sub-tabs -->
+          <div style="display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin:20px 0 22px">
+            <sc-for list="{{ dashTabs }}" as="tab" hint-placeholder-count="5">
+              <button onClick="{{ tab.on }}" style="{{ tab.style }}">{{ tab.label }}</button>
+            </sc-for>
+          </div>
+
+          <!-- METRICS / OVERVIEW -->
+          <sc-if value="{{ dashMetrics }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+              <sc-for list="{{ stats }}" as="s" hint-placeholder-count="5">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:15px 16px">
+                  <div style="font-size:12px;color:#64748b;margin-bottom:9px">{{ s.label }}</div>
+                  <div style="font-size:23px;font-weight:600;color:#1e293b;letter-spacing:-0.02em">{{ s.value }}</div>
+                  <div style="margin-top:7px;font-size:12px;font-weight:500;color:{{ s.deltaFg }}">{{ s.delta }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Trace volume & errors</span><span style="font-size:12px;color:#94a3b8">last 14 days</span></div>
+                <div style="display:flex;align-items:flex-end;gap:6px;height:150px">
+                  <sc-for list="{{ volBars }}" as="b" hint-placeholder-count="14">
+                    <div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;height:100%">
+                      <div style="height:{{ b.err }};background:#ef4444;border-radius:2px 2px 0 0"></div>
+                      <div style="height:{{ b.ok }};background:#2673fd;border-radius:0 0 2px 2px"></div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:18px;margin-top:14px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#2673fd"></span>Successful</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#ef4444"></span>Errors</span>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="margin-bottom:14px;font-weight:600;color:#1e293b">Latency</div>
+                <svg viewBox="0 0 320 110" preserveAspectRatio="none" style="width:100%;height:110px;overflow:visible">
+                  <path d="{{ latArea }}" fill="rgba(38,115,253,.08)"/>
+                  <polyline points="{{ latP95 }}" fill="none" stroke="#94a3b8" stroke-width="2" stroke-dasharray="4 3"/>
+                  <polyline points="{{ latP50 }}" fill="none" stroke="#2673fd" stroke-width="2.4"/>
+                </svg>
+                <div style="display:flex;gap:18px;margin-top:12px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:2.5px;background:#2673fd;border-radius:2px"></span>p50 1.24s</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:2.5px;background:#94a3b8;border-radius:2px"></span>p95 3.10s</span>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="margin-bottom:16px;font-weight:600;color:#1e293b">Score: helpfulness (avg)</div>
+                <svg viewBox="0 0 320 90" preserveAspectRatio="none" style="width:100%;height:90px">
+                  <path d="{{ scoreArea }}" fill="rgba(34,197,94,.1)"/>
+                  <polyline points="{{ scoreLine }}" fill="none" stroke="#16a34a" stroke-width="2.4"/>
+                </svg>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="margin-bottom:16px;font-weight:600;color:#1e293b">Cost by model</div>
+                <div onMouseLeave="{{ clearHov }}" style="position:relative;height:170px;margin-bottom:14px">
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                    <sc-for list="{{ costByModel }}" as="c" hint-placeholder-count="3">
+                      <polyline points="{{ c.pts }}" fill="none" stroke="{{ c.color }}" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                    </sc-for>
+                  </svg>
+                  <sc-for list="{{ costByModel }}" as="c" hint-placeholder-count="3">
+                    <sc-for list="{{ c.dots }}" as="d" hint-placeholder-count="14">
+                      <div onMouseEnter="{{ d.on }}" style="position:absolute;left:{{ d.left }};top:{{ d.top }};width:16px;height:16px;transform:translate(-50%,-50%);cursor:pointer;display:flex;align-items:center;justify-content:center">
+                        <span style="width:7px;height:7px;border-radius:50%;background:#fff;border:2px solid {{ d.color }}"></span>
+                      </div>
+                    </sc-for>
+                  </sc-for>
+                  <sc-if value="{{ hovCbm }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:{{ hov.left }};top:{{ hov.top }};transform:translate(-50%,-128%);background:#0f172a;color:#fff;border-radius:7px;padding:7px 10px;font-size:11px;white-space:nowrap;pointer-events:none;z-index:5;box-shadow:0 6px 18px rgba(15,23,42,.22)">
+                      <div style="display:flex;align-items:center;gap:6px;font-weight:600"><span style="width:8px;height:8px;border-radius:50%;background:{{ hov.color }}"></span>{{ hov.title }}</div>
+                      <div style="color:#94a3b8;margin-top:2px">{{ hov.sub }}</div>
+                      <div style="font-family:'Spline Sans Mono',monospace;font-weight:600;margin-top:1px">{{ hov.value }}</div>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <sc-for list="{{ cbmLegend }}" as="l" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:8px;font-size:12px">
+                      <span style="width:12px;height:3px;border-radius:2px;background:{{ l.color }};flex:none"></span>
+                      <span style="color:#475569;flex:1;font-family:'Spline Sans Mono',monospace">{{ l.model }}</span>
+                      <span style="color:#1e293b;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ l.total }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- TRACES (design-system datatable) -->
+          <sc-if value="{{ dashTraces }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+              <div style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 12px;flex:1;max-width:300px">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+                <span style="color:#94a3b8;font-size:13px">Search trace</span>
+              </div>
+              <div style="flex:1"></div>
+              <sc-for list="{{ traceTools }}" as="b" hint-placeholder-count="3">
+                <button style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:500;color:#475569;font-family:inherit;cursor:pointer" style-hover="background:#f8fafc">
+                  <sc-if value="{{ b.isFilter }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M3 4h18l-7 8v6l-4 2v-8z"/></svg></sc-if>
+                  <sc-if value="{{ b.isCols }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></svg></sc-if>
+                  <sc-if value="{{ b.isExport }}" hint-placeholder-val="{{ false }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></sc-if>
+                  {{ b.label }}
+                  <sc-if value="{{ b.isFilter }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4"><path d="M6 9l6 6 6-6"/></svg></sc-if>
+                </button>
+              </sc-for>
+            </div>
+
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow-x:auto">
+              <table style="border-collapse:collapse;width:100%;min-width:1180px;font-size:13px">
+                <thead>
+                  <tr>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;vertical-align:middle;white-space:nowrap">ID</th>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;white-space:nowrap">execution time</th>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">state</th>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0">spans</th>
+                    <th colspan="2" style="text-align:left;padding:9px 16px;font-weight:600;color:#334155;border-bottom:1px solid #f1f5f9;border-left:1px dashed #e2e8f0;background:#f8fafc">
+                      <span style="display:inline-flex;align-items:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.9"><path d="M3 3v18h18"/><path d="M7 14l3-3 3 2 4-5"/></svg>scores</span>
+                    </th>
+                    <th colspan="2" style="text-align:left;padding:9px 16px;font-weight:600;color:#334155;border-bottom:1px solid #f1f5f9;border-left:1px dashed #e2e8f0;background:#f8fafc">
+                      <span style="display:inline-flex;align-items:center;gap:7px;justify-content:space-between;width:100%"><span style="display:inline-flex;align-items:center;gap:7px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.9"><path d="M7 10v12M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88z"/></svg>feedback (2)</span><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4"><path d="M18 15l-6-6-6 6"/></svg></span>
+                    </th>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;border-left:1px dashed #e2e8f0;white-space:nowrap">cost</th>
+                    <th rowspan="2" style="text-align:left;padding:12px 16px;font-weight:600;color:#334155;border-bottom:1px solid #e2e8f0;border-left:1px dashed #e2e8f0;white-space:nowrap">creation time</th>
+                  </tr>
+                  <tr>
+                    <th style="text-align:left;padding:8px 16px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;border-left:1px dashed #e2e8f0;white-space:nowrap">helpfulness</th>
+                    <th style="text-align:left;padding:8px 16px;font-weight:600;color:#475569;border-bottom:1px solid #e2e8f0;white-space:nowrap">hallucination</th>
+                    <th style="padding:7px 16px;border-bottom:1px solid #e2e8f0;border-left:1px dashed #e2e8f0;vertical-align:bottom">
+                      <div style="font-weight:600;color:#475569;margin-bottom:5px">👍 user</div>
+                      <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:#f1f5f9;width:96px"><div style="background:#22c55e;width:{{ fbUserDist.trueW }}"></div><div style="background:#ef4444;width:{{ fbUserDist.falseW }}"></div></div>
+                      <div style="font-size:10.5px;color:#94a3b8;margin-top:4px;font-family:'Spline Sans Mono',monospace">True {{ fbUserDist.truePct }}</div>
+                    </th>
+                    <th style="padding:7px 16px;border-bottom:1px solid #e2e8f0;vertical-align:bottom">
+                      <div style="font-weight:600;color:#475569;margin-bottom:5px">✓ accuracy</div>
+                      <div style="display:flex;height:5px;border-radius:3px;overflow:hidden;background:#f1f5f9;width:96px"><div style="background:#22c55e;width:{{ fbAccDist.trueW }}"></div><div style="background:#ef4444;width:{{ fbAccDist.falseW }}"></div></div>
+                      <div style="font-size:10.5px;color:#94a3b8;margin-top:4px;font-family:'Spline Sans Mono',monospace">True {{ fbAccDist.truePct }}</div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <sc-for list="{{ traces }}" as="t" hint-placeholder-count="7">
+                    <tr onClick="{{ t.open }}" style="cursor:pointer;background:{{ t.rowBg }}" style-hover="background:#f5f8ff">
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;color:#334155;font-weight:500;font-family:'Spline Sans Mono',monospace;white-space:nowrap">{{ t.id }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:'Spline Sans Mono',monospace">{{ t.exec }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;background:{{ t.stateBg }};color:{{ t.stateFg }};border-radius:5px;padding:2px 9px;font-size:12px;font-weight:600">{{ t.stateText }}</span></td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;color:#475569;font-family:'Spline Sans Mono',monospace">{{ t.spans }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;border-left:1px dashed #f1f5f9;font-family:'Spline Sans Mono',monospace;font-weight:600;color:{{ t.helpfulFg }}">{{ t.helpful }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;font-family:'Spline Sans Mono',monospace;font-weight:600;color:{{ t.hallucFg }}">{{ t.halluc }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;border-left:1px dashed #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;background:{{ t.fbUser.bg }};color:{{ t.fbUser.fg }};border-radius:5px;padding:2px 8px;font-size:12px;font-weight:500">{{ t.fbUser.ic }} {{ t.fbUser.txt }}</span></td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9"><span style="display:inline-flex;align-items:center;gap:5px;background:{{ t.fbAcc.bg }};color:{{ t.fbAcc.fg }};border-radius:5px;padding:2px 8px;font-size:12px;font-weight:500">{{ t.fbAcc.ic }} {{ t.fbAcc.txt }}</span></td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;border-left:1px dashed #f1f5f9;color:#475569;font-family:'Spline Sans Mono',monospace;white-space:nowrap">{{ t.cost }}</td>
+                      <td style="padding:13px 16px;border-bottom:1px solid #f1f5f9;border-left:1px dashed #f1f5f9;color:#64748b;font-family:'Spline Sans Mono',monospace;white-space:nowrap">{{ t.created }}</td>
+                    </tr>
+                  </sc-for>
+                </tbody>
+              </table>
+            </div>
+          </sc-if>
+
+          <!-- SCORES -->
+          <sc-if value="{{ dashScores }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <sc-for list="{{ scoreCards }}" as="sc" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <span style="font-weight:600;color:#1e293b">{{ sc.name }}</span>
+                    <span style="background:#f1f5f9;color:#64748b;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ sc.type }}</span>
+                  </div>
+                  <div style="font-size:12px;color:#94a3b8;margin-bottom:16px">{{ sc.source }}</div>
+                  <div style="display:flex;align-items:flex-end;gap:7px;height:96px">
+                    <sc-for list="{{ sc.bars }}" as="b" hint-placeholder-count="5">
+                      <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end">
+                        <div style="width:100%;height:{{ b.h }};background:{{ b.color }};border-radius:3px 3px 0 0"></div>
+                        <span style="font-size:10px;color:#94a3b8;white-space:nowrap">{{ b.label }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="margin-top:14px;padding-top:13px;border-top:1px solid #f1f5f9;display:flex;justify-content:space-between;font-size:13px"><span style="color:#64748b">{{ sc.aggLabel }}</span><span style="font-weight:600;color:#1e293b;font-family:'Spline Sans Mono',monospace">{{ sc.aggValue }}</span></div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- USAGE -->
+          <sc-if value="{{ dashUsage }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+              <sc-for list="{{ usageStats }}" as="s" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:15px 16px">
+                  <div style="font-size:12px;color:#64748b;margin-bottom:9px">{{ s.label }}</div>
+                  <div style="font-size:22px;font-weight:600;color:#1e293b;letter-spacing:-0.02em">{{ s.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Token usage</span><span style="font-size:12px;color:#94a3b8">input vs output, last 14 days</span></div>
+              <div onMouseLeave="{{ clearHov }}" style="position:relative;display:flex;align-items:flex-end;gap:6px;height:160px">
+                <sc-for list="{{ tokenBars }}" as="b" hint-placeholder-count="14">
+                  <div onMouseEnter="{{ b.on }}" style="position:relative;flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;height:100%;cursor:pointer">
+                    <div style="height:{{ b.out }};background:#7b68ee;border-radius:2px 2px 0 0"></div>
+                    <div style="height:{{ b.in }};background:#c7befb;border-radius:0 0 2px 2px"></div>
+                  </div>
+                </sc-for>
+                <sc-if value="{{ hovTok }}" hint-placeholder-val="{{ false }}">
+                  <div style="position:absolute;left:50%;top:-6px;transform:translate(-50%,-100%);background:#0f172a;color:#fff;border-radius:7px;padding:8px 11px;font-size:11px;white-space:nowrap;pointer-events:none;z-index:5;box-shadow:0 6px 18px rgba(15,23,42,.22)">
+                    <div style="font-weight:600;margin-bottom:3px">{{ hov.day }}</div>
+                    <div style="display:flex;align-items:center;gap:6px;color:#cbd5e1"><span style="width:8px;height:8px;border-radius:2px;background:#c7befb"></span>Input <b style="color:#fff;font-family:'Spline Sans Mono',monospace;margin-left:auto;padding-left:10px">{{ hov.inTok }}</b></div>
+                    <div style="display:flex;align-items:center;gap:6px;color:#cbd5e1;margin-top:2px"><span style="width:8px;height:8px;border-radius:2px;background:#7b68ee"></span>Output <b style="color:#fff;font-family:'Spline Sans Mono',monospace;margin-left:auto;padding-left:10px">{{ hov.outTok }}</b></div>
+                    <div style="border-top:1px solid #334155;margin-top:5px;padding-top:4px;display:flex;gap:10px;color:#cbd5e1">Total <b style="color:#fff;font-family:'Spline Sans Mono',monospace;margin-left:auto">{{ hov.totTok }}</b></div>
+                  </div>
+                </sc-if>
+              </div>
+              <div style="display:flex;gap:18px;margin-top:14px;font-size:12px;color:#64748b">
+                <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#c7befb"></span>Input tokens</span>
+                <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#7b68ee"></span>Output tokens</span>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- COST -->
+          <sc-if value="{{ dashCost }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Daily cost</span><span style="font-size:13px;font-weight:600;color:#1e293b;font-family:'Spline Sans Mono',monospace">{{ costTotalLabel }}</span></div>
+                <div onMouseLeave="{{ clearHov }}" style="position:relative;height:180px">
+                  <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+                    <path d="{{ costArea }}" fill="rgba(38,115,253,.08)"></path>
+                    <polyline points="{{ costLinePts }}" fill="none" stroke="#2673fd" stroke-width="2.2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"></polyline>
+                  </svg>
+                  <sc-for list="{{ costDots }}" as="d" hint-placeholder-count="14">
+                    <div style="position:absolute;left:{{ d.left }};top:{{ d.labelTop }};transform:translate(-50%,-100%);font-size:10px;color:#64748b;font-family:'Spline Sans Mono',monospace;pointer-events:none;white-space:nowrap">{{ d.label }}</div>
+                    <div onMouseEnter="{{ d.on }}" style="position:absolute;left:{{ d.left }};top:{{ d.top }};width:18px;height:18px;transform:translate(-50%,-50%);cursor:pointer;display:flex;align-items:center;justify-content:center">
+                      <span style="width:7px;height:7px;border-radius:50%;background:#fff;border:2px solid #2673fd"></span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ hovCost }}" hint-placeholder-val="{{ false }}">
+                    <div style="position:absolute;left:{{ hov.left }};top:{{ hov.top }};transform:translate(-50%,-128%);background:#0f172a;color:#fff;border-radius:7px;padding:7px 10px;font-size:11px;white-space:nowrap;pointer-events:none;z-index:5;box-shadow:0 6px 18px rgba(15,23,42,.22)">
+                      <div style="font-weight:600">{{ hov.title }}</div>
+                      <div style="color:#94a3b8;margin-top:1px">{{ hov.sub }}</div>
+                      <div style="font-family:'Spline Sans Mono',monospace;font-weight:600;margin-top:1px">{{ hov.value }}</div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="margin-bottom:16px;font-weight:600;color:#1e293b">Top users by cost</div>
+                <sc-for list="{{ costByUser }}" as="u" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid #f1f5f9">
+                    <div style="width:28px;height:28px;border-radius:50%;background:{{ u.color }};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:none">{{ u.initials }}</div>
+                    <div style="flex:1;min-width:0"><div style="font-size:13px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ u.user }}</div><div style="font-size:11px;color:#94a3b8;font-family:'Spline Sans Mono',monospace">{{ u.reqs }} traces</div></div>
+                    <div style="font-size:13px;font-weight:600;color:#1e293b;font-family:'Spline Sans Mono',monospace">{{ u.cost }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- DRIFT OVERVIEW (classic) -->
+          <sc-if value="{{ driftOverview }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+              <sc-for list="{{ driftStats }}" as="s" hint-placeholder-count="5">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:15px 16px">
+                  <div style="font-size:12px;color:#64748b;margin-bottom:9px">{{ s.label }}</div>
+                  <div style="font-size:23px;font-weight:600;color:#1e293b;letter-spacing:-0.02em">{{ s.value }}</div>
+                  <div style="margin-top:7px;font-size:12px;font-weight:500;color:{{ s.deltaFg }}">{{ s.delta }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:14px;margin-bottom:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Max feature PSI over time</span><span style="font-size:12px;color:#94a3b8">threshold 0.20 · last 14 days</span></div>
+                <svg viewBox="0 0 320 120" preserveAspectRatio="none" style="width:100%;height:130px;overflow:visible">
+                  <line x1="0" y1="{{ psiThreshY }}" x2="320" y2="{{ psiThreshY }}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5 4"/>
+                  <path d="{{ psiArea }}" fill="rgba(234,115,23,.1)"/>
+                  <polyline points="{{ psiLine }}" fill="none" stroke="#ea7317" stroke-width="2.4"/>
+                </svg>
+                <div style="display:flex;gap:18px;margin-top:12px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:2.5px;background:#ea7317;border-radius:2px"></span>Max feature PSI</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:2px;background:#ef4444;border-radius:2px"></span>Drift threshold 0.20</span>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px;display:flex;flex-direction:column">
+                <div style="margin-bottom:14px;font-weight:600;color:#1e293b">Feature status</div>
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
+                  <svg width="92" height="92" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15.9" fill="none" stroke="#f1f5f9" stroke-width="3.4"/><circle cx="18" cy="18" r="15.9" fill="none" stroke="#ef4444" stroke-width="3.4" stroke-dasharray="{{ driftDash }}" transform="rotate(-90 18 18)" stroke-linecap="round"/></svg>
+                  <div>
+                    <div style="font-size:26px;font-weight:600;color:#1e293b;letter-spacing:-.02em">2<span style="color:#94a3b8;font-size:18px"> / 8</span></div>
+                    <div style="font-size:12px;color:#64748b">features drifted</div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:9px;font-size:13px">
+                  <div style="display:flex;align-items:center;justify-content:space-between"><span style="display:inline-flex;align-items:center;gap:7px;color:#475569"><span style="width:8px;height:8px;border-radius:50%;background:#ef4444"></span>Drifted</span><span style="color:#1e293b;font-weight:500">2</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between"><span style="display:inline-flex;align-items:center;gap:7px;color:#475569"><span style="width:8px;height:8px;border-radius:50%;background:#eab308"></span>Watch</span><span style="color:#1e293b;font-weight:500">1</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between"><span style="display:inline-flex;align-items:center;gap:7px;color:#475569"><span style="width:8px;height:8px;border-radius:50%;background:#16a34a"></span>Stable</span><span style="color:#1e293b;font-weight:500">5</span></div>
+                </div>
+              </div>
+            </div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid #f1f5f9"><span style="font-weight:600;color:#1e293b">Top drifted features</span><span onClick="{{ goFeatures }}" style="font-size:13px;color:#2673fd;cursor:pointer">View all features →</span></div>
+              <sc-for list="{{ topDrift }}" as="f" hint-placeholder-count="3">
+                <div style="display:grid;grid-template-columns:1.4fr .8fr 1.4fr .8fr;padding:13px 18px;border-bottom:1px solid #f1f5f9;align-items:center">
+                  <div><div style="font-weight:500;color:#1e293b">{{ f.name }}</div><div style="font-size:11px;color:#94a3b8;font-family:'Spline Sans Mono',monospace">{{ f.dtype }}</div></div>
+                  <div style="font-family:'Spline Sans Mono',monospace;font-size:13px;color:#1e293b">PSI {{ f.psi }}</div>
+                  <div style="display:flex;align-items:flex-end;gap:4px;height:36px">
+                    <sc-for list="{{ f.dist }}" as="b" hint-placeholder-count="6">
+                      <div style="flex:1;display:flex;align-items:flex-end;gap:1px;height:100%">
+                        <div style="flex:1;height:{{ b.ref }};background:#cbd5e1;border-radius:1px"></div>
+                        <div style="flex:1;height:{{ b.cur }};background:{{ f.barColor }};border-radius:1px"></div>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="text-align:right"><span style="display:inline-flex;align-items:center;gap:5px;background:{{ f.badgeBg }};color:{{ f.badgeFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ f.status }}</span></div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:14px;margin-top:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px"><span style="font-weight:600;color:#1e293b">Multivariate drift (PCA)</span><span style="display:inline-flex;align-items:center;gap:5px;background:#fef9c3;color:#a16207;border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">Watch</span></div>
+                <div style="font-size:12px;color:#94a3b8;margin-bottom:14px">PC1 × PC2 projection · reference vs logged, computed from the training PCA profile</div>
+                <svg viewBox="0 0 320 190" style="width:100%;height:200px">
+                  <line x1="20" y1="95" x2="312" y2="95" stroke="#f1f5f9" stroke-width="1"/>
+                  <line x1="160" y1="10" x2="160" y2="180" stroke="#f1f5f9" stroke-width="1"/>
+                  <ellipse cx="160" cy="95" rx="62" ry="46" fill="rgba(148,163,184,.10)" stroke="#cbd5e1" stroke-width="1.2" stroke-dasharray="4 3"/>
+                  <ellipse cx="230" cy="62" rx="58" ry="44" fill="rgba(234,115,23,.08)" stroke="#ea7317" stroke-width="1.2" stroke-dasharray="4 3"/>
+                  <sc-for list="{{ pcaRef }}" as="p" hint-placeholder-count="12"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3" fill="#94a3b8" fill-opacity="0.7"></circle></sc-for>
+                  <sc-for list="{{ pcaCur }}" as="p" hint-placeholder-count="12"><circle cx="{{ p.cx }}" cy="{{ p.cy }}" r="3.2" fill="#ea7317"></circle></sc-for>
+                </svg>
+                <div style="display:flex;gap:18px;margin-top:8px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#94a3b8"></span>Reference (training)</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:50%;background:#ea7317"></span>Logged (current window)</span>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px;display:flex;flex-direction:column">
+                <div style="margin-bottom:14px;font-weight:600;color:#1e293b">How drift is measured</div>
+                <div style="display:flex;flex-direction:column;gap:13px">
+                  <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Mahalanobis shift</div><div style="font-size:12px;color:#94a3b8">distance between population centroids</div></div><span style="font-family:'Spline Sans Mono',monospace;font-size:14px;color:#a16207;font-weight:600">1.84 σ</span></div>
+                  <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Per-feature PSI</div><div style="font-size:12px;color:#94a3b8">log-bins vs training reference probabilities</div></div><span style="font-family:'Spline Sans Mono',monospace;font-size:14px;color:#475569;font-weight:600">2 / 8 ≥ 0.2</span></div>
+                  <div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-size:13px;color:#334155;font-weight:500">Explained variance</div><div style="font-size:12px;color:#94a3b8">2 components retained at training</div></div><span style="font-family:'Spline Sans Mono',monospace;font-size:14px;color:#475569;font-weight:600">96.3%</span></div>
+                </div>
+                <div style="margin-top:auto;padding-top:14px;font-size:12px;color:#64748b;line-height:1.5;border-top:1px solid #f1f5f9">Each logged batch is scaled and projected with the PCA basis stored at training, then compared to the reference Gaussian. Per-feature distributions use the histogram bins computed during training.</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- FEATURE ANALYSIS (classic) -->
+          <sc-if value="{{ driftFeatures }}" hint-placeholder-val="{{ true }}">
+            <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">Filter by feature</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:18px">
+              <sc-for list="{{ featChips }}" as="c" hint-placeholder-count="8">
+                <button onClick="{{ c.on }}" style="{{ c.style }}"><span style="width:8px;height:8px;border-radius:50%;background:{{ c.dot }}"></span>{{ c.name }}</button>
+              </sc-for>
+            </div>
+
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px 10px 0 0;border-bottom:none;padding:16px 18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+              <div style="display:flex;align-items:center;gap:11px">
+                <h3 style="margin:0;font-size:17px;font-weight:600;color:#1e293b;font-family:'Spline Sans Mono',monospace">{{ fSel.name }}</h3>
+                <span style="background:#f1f5f9;color:#64748b;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ fSel.dtype }}</span>
+                <span style="display:inline-flex;align-items:center;gap:5px;background:{{ fSel.badgeBg }};color:{{ fSel.badgeFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ fSel.status }}</span>
+                <span style="font-size:13px;color:#64748b">PSI <b style="color:{{ fSel.psiFg }};font-family:'Spline Sans Mono',monospace">{{ fSel.psi }}</b> · threshold 0.20</span>
+              </div>
+              <button onClick="{{ fSel.openInfo }}" style="display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer" style-hover="background:#f8fafc">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="1.9"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                Reference profile
+              </button>
+            </div>
+            <div style="display:grid;grid-template-columns:1.25fr 1fr;background:#fff;border:1px solid #e2e8f0;border-top:1px solid #f1f5f9">
+              <!-- bar chart: ref vs current distribution -->
+              <div style="padding:18px;border-right:1px solid #f1f5f9">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><span style="font-weight:600;color:#1e293b">Distribution</span><span style="font-size:12px;color:#94a3b8">reference vs current window</span></div>
+                <div style="display:flex;align-items:flex-end;gap:14px;height:170px">
+                  <sc-for list="{{ distBars }}" as="b" hint-placeholder-count="6">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;height:100%;justify-content:flex-end">
+                      <div style="width:100%;display:flex;align-items:flex-end;justify-content:center;gap:4px;height:100%">
+                        <div style="flex:1;max-width:18px;height:{{ b.ref }};background:#cbd5e1;border-radius:3px 3px 0 0"></div>
+                        <div style="flex:1;max-width:18px;height:{{ b.cur }};background:{{ fSel.barColor }};border-radius:3px 3px 0 0"></div>
+                      </div>
+                      <span style="font-size:10.5px;color:#94a3b8;white-space:nowrap;text-align:center">{{ b.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:18px;margin-top:14px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#cbd5e1"></span>Reference (training)</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:{{ fSel.barColor }}"></span>Current</span>
+                </div>
+              </div>
+              <!-- line chart: PSI over time -->
+              <div style="padding:18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px"><span style="font-weight:600;color:#1e293b">PSI over time</span><span style="font-size:12px;color:#94a3b8">selected window</span></div>
+                <svg viewBox="0 0 320 120" preserveAspectRatio="none" style="width:100%;height:170px;overflow:visible">
+                  <line x1="0" y1="{{ fThreshY }}" x2="320" y2="{{ fThreshY }}" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5 4"/>
+                  <path d="{{ fpsiArea }}" fill="rgba(38,115,253,.08)"/>
+                  <polyline points="{{ fpsiLine }}" fill="none" stroke="{{ fSel.barColor }}" stroke-width="2.4"/>
+                </svg>
+                <div style="display:flex;gap:18px;margin-top:14px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;height:2.5px;background:#2673fd;border-radius:2px"></span>Feature PSI</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:14px;border-top:2px dashed #ef4444"></span>Threshold 0.20</span>
+                </div>
+              </div>
+            </div>
+            <!-- stats comparison -->
+            <div style="background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 10px 10px;overflow:hidden">
+              <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;padding:11px 18px;border-bottom:1px solid #f1f5f9;background:#f8fafc;font-size:12px;font-weight:600;color:#64748b">
+                <div>Statistic</div><div>Reference</div><div>Current</div><div>Δ</div>
+              </div>
+              <sc-for list="{{ statRows }}" as="r" hint-placeholder-count="5">
+                <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;padding:11px 18px;border-bottom:1px solid #f1f5f9;font-size:13px;align-items:center">
+                  <div style="color:#475569">{{ r.label }}</div>
+                  <div style="color:#94a3b8;font-family:'Spline Sans Mono',monospace">{{ r.ref }}</div>
+                  <div style="color:#1e293b;font-weight:500;font-family:'Spline Sans Mono',monospace">{{ r.cur }}</div>
+                  <div style="color:{{ r.deltaFg }};font-family:'Spline Sans Mono',monospace">{{ r.delta }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- PREDICTIONS (classic) -->
+          <sc-if value="{{ driftPredictions }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+              <sc-for list="{{ predStats }}" as="s" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:15px 16px">
+                  <div style="font-size:12px;color:#64748b;margin-bottom:9px">{{ s.label }}</div>
+                  <div style="font-size:22px;font-weight:600;color:#1e293b;letter-spacing:-0.02em">{{ s.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="margin-bottom:18px;font-weight:600;color:#1e293b">Prediction distribution</div>
+                <div style="display:flex;align-items:flex-end;gap:14px;height:120px">
+                  <sc-for list="{{ predDist }}" as="b" hint-placeholder-count="5">
+                    <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;height:100%;justify-content:flex-end">
+                      <div style="width:100%;display:flex;align-items:flex-end;gap:3px;height:100%">
+                        <div style="flex:1;height:{{ b.ref }};background:#cbd5e1;border-radius:2px 2px 0 0"></div>
+                        <div style="flex:1;height:{{ b.cur }};background:#2673fd;border-radius:2px 2px 0 0"></div>
+                      </div>
+                      <span style="font-size:10px;color:#94a3b8;white-space:nowrap">{{ b.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:18px;margin-top:14px;font-size:12px;color:#64748b">
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#cbd5e1"></span>Reference</span>
+                  <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:2px;background:#2673fd"></span>Current</span>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Prediction PSI over time</span><span style="font-size:12px;color:#94a3b8">last 14 days</span></div>
+                <svg viewBox="0 0 320 90" preserveAspectRatio="none" style="width:100%;height:110px">
+                  <path d="{{ predPsiArea }}" fill="rgba(38,115,253,.08)"/>
+                  <polyline points="{{ predPsiLine }}" fill="none" stroke="#2673fd" stroke-width="2.4"/>
+                </svg>
+                <div style="margin-top:12px;font-size:12px;color:#64748b">Current <b style="color:#334155;font-family:'Spline Sans Mono',monospace">PSI 0.12</b> · below drift threshold 0.20</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- DATA QUALITY (classic) -->
+          <sc-if value="{{ driftQuality }}" hint-placeholder-val="{{ true }}">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+              <sc-for list="{{ qualityStats }}" as="s" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:15px 16px">
+                  <div style="font-size:12px;color:#64748b;margin-bottom:9px">{{ s.label }}</div>
+                  <div style="font-size:22px;font-weight:600;color:#1e293b;letter-spacing:-0.02em">{{ s.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:17px 18px">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><span style="font-weight:600;color:#1e293b">Inference volume</span><span style="font-size:12px;color:#94a3b8">rows / day, last 14 days</span></div>
+                <div style="display:flex;align-items:flex-end;gap:6px;height:150px">
+                  <sc-for list="{{ qualBars }}" as="b" hint-placeholder-count="14">
+                    <div style="flex:1;height:{{ b.h }};background:linear-gradient(#0369a1,#38bdf8);border-radius:3px 3px 0 0"></div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px 18px">
+                <sc-for list="{{ qualityChecks }}" as="c" hint-placeholder-count="4">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid #f1f5f9">
+                    <div style="max-width:62%"><div style="font-size:13px;font-weight:500;color:#1e293b">{{ c.name }}</div><div style="font-size:12px;color:#94a3b8;margin-top:3px">{{ c.hint }}</div></div>
+                    <span style="display:inline-flex;align-items:center;gap:5px;background:{{ c.badgeBg }};color:{{ c.badgeFg }};border-radius:5px;padding:3px 9px;font-size:12px;font-weight:500">{{ c.status }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- REFERENCE-PROFILE DRAWER (classic) -->
+          <sc-if value="{{ infoOpen }}" hint-placeholder-val="{{ false }}">
+            <div onClick="{{ closeInfo }}" style="position:fixed;inset:0;background:rgba(15,23,42,.34);z-index:50;animation:lumlFade .14s ease"></div>
+            <div style="position:fixed;top:0;right:0;bottom:0;width:432px;background:#fff;z-index:51;box-shadow:-12px 0 40px rgba(15,23,42,.16);display:flex;flex-direction:column;animation:lumlPop .18s ease">
+              <div style="padding:20px 22px;border-bottom:1px solid #f1f5f9">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <span style="display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>Reference profile
+                  </span>
+                  <button onClick="{{ closeInfo }}" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:4px;display:flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <h3 style="margin:0;font-size:19px;font-weight:600;color:#1e293b;font-family:'Spline Sans Mono',monospace">{{ fSel.name }}</h3>
+                  <span style="background:#f1f5f9;color:#64748b;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ fSel.dtype }}</span>
+                </div>
+                <div style="margin-top:7px;font-size:12.5px;color:#94a3b8">Computed at training · baseline <span style="color:#2673fd;font-family:'Spline Sans Mono',monospace">train_baseline_v2</span></div>
+              </div>
+              <div style="flex:1;overflow-y:auto;padding:20px 22px">
+                <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Summary statistics</div>
+                <div style="border:1px solid #e2e8f0;border-radius:9px;overflow:hidden;margin-bottom:22px">
+                  <sc-for list="{{ infoRows }}" as="r" hint-placeholder-count="8">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid #f1f5f9">
+                      <span style="font-size:13px;color:#475569">{{ r.k }}</span>
+                      <span style="font-size:13px;color:#1e293b;font-weight:500;font-family:'Spline Sans Mono',monospace">{{ r.v }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <sc-if value="{{ fSel.isNumeric }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Histogram bin edges</div>
+                  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px;font-family:'Spline Sans Mono',monospace;font-size:12.5px;color:#334155;margin-bottom:22px">{{ fSel.edges }}</div>
+                </sc-if>
+
+                <sc-if value="{{ fSel.isCategorical }}" hint-placeholder-val="{{ true }}">
+                  <div style="font-size:12px;font-weight:600;color:#64748b;margin-bottom:10px">Reference category probabilities</div>
+                  <div style="margin-bottom:22px">
+                    <sc-for list="{{ infoCats }}" as="c" hint-placeholder-count="4">
+                      <div style="margin-bottom:11px">
+                        <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:5px"><span style="color:#475569;font-family:'Spline Sans Mono',monospace">{{ c.name }}</span><span style="color:#1e293b;font-weight:500;font-family:'Spline Sans Mono',monospace">{{ c.p }}</span></div>
+                        <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ c.p }};background:#2673fd;border-radius:4px"></div></div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+
+                <div style="background:#eff6ff;border:1px solid #dbeafe;border-radius:9px;padding:13px 15px;font-size:12.5px;color:#1e40af;line-height:1.55">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2673fd" stroke-width="2" style="vertical-align:-2px;margin-right:5px"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                  This profile is the training baseline. Each logged production batch is binned with these edges and compared against the reference probabilities to compute the feature's PSI drift score.
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </sc-if>
+
+        <!-- ===== SINGLE TRACE ===== -->
+        <sc-if value="{{ isTrace }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#64748b;margin-bottom:12px">
+            <span onClick="{{ goMonitoring }}" style="cursor:pointer">Monitoring</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            <span onClick="{{ backToDash }}" style="cursor:pointer">{{ mon.name }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            <span style="color:#334155;font-weight:500;font-family:'Spline Sans Mono',monospace">{{ trace.id }}</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+            <h1 style="margin:0;font-size:21px;font-weight:600;letter-spacing:-0.02em;color:#1e293b">{{ trace.name }}</h1>
+            <div style="display:flex;gap:18px;font-size:13px;color:#64748b">
+              <span>Latency <b style="color:#334155;font-family:'Spline Sans Mono',monospace">{{ trace.latency }}</b></span>
+              <span>Cost <b style="color:#334155;font-family:'Spline Sans Mono',monospace">{{ trace.cost }}</b></span>
+              <span>Tokens <b style="color:#334155;font-family:'Spline Sans Mono',monospace">{{ trace.tokens }}</b></span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:340px 1fr;gap:16px;align-items:start">
+            <!-- span tree -->
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;padding:4px 8px 10px">Observation tree</div>
+              <sc-for list="{{ spans }}" as="sp" hint-placeholder-count="5">
+                <div onClick="{{ sp.on }}" style="display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:7px;cursor:pointer;margin-bottom:2px;background:{{ sp.bg }};padding-left:{{ sp.indent }}">
+                  <span style="width:20px;height:20px;border-radius:5px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;background:{{ sp.iconBg }};color:{{ sp.iconFg }}">{{ sp.icon }}</span>
+                  <div style="flex:1;min-width:0"><div style="font-size:13px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:{{ sp.weight }}">{{ sp.name }}</div></div>
+                  <span style="font-size:11px;color:#94a3b8;font-family:'Spline Sans Mono',monospace">{{ sp.dur }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <!-- span detail -->
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+                <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #f1f5f9">
+                  <span style="font-weight:600;color:#1e293b">{{ span.name }}</span>
+                  <span style="background:{{ span.kindBg }};color:{{ span.kindFg }};border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600">{{ span.kind }}</span>
+                  <sc-if value="{{ span.model }}" hint-placeholder-val="model">
+                    <span style="font-size:12px;color:#64748b;font-family:'Spline Sans Mono',monospace">{{ span.model }}</span>
+                  </sc-if>
+                </div>
+                <div style="display:flex;gap:4px;padding:10px 14px;border-bottom:1px solid #f1f5f9">
+                  <sc-for list="{{ spanTabs }}" as="tab" hint-placeholder-count="4">
+                    <button onClick="{{ tab.on }}" style="{{ tab.style }}">{{ tab.label }}</button>
+                  </sc-for>
+                </div>
+                <div style="padding:16px 18px">
+                  <sc-if value="{{ spanIO }}" hint-placeholder-val="{{ true }}">
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Input</div>
+                    <pre style="margin:0 0 16px;background:#f8fafc;border:1px solid #f1f5f9;border-radius:8px;padding:13px 15px;font-family:'Spline Sans Mono',monospace;font-size:12.5px;line-height:1.6;color:#334155;white-space:pre-wrap;overflow-x:auto">{{ span.input }}</pre>
+                    <div style="font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Output</div>
+                    <pre style="margin:0;background:#f8fafc;border:1px solid #f1f5f9;border-radius:8px;padding:13px 15px;font-family:'Spline Sans Mono',monospace;font-size:12.5px;line-height:1.6;color:#334155;white-space:pre-wrap;overflow-x:auto">{{ span.output }}</pre>
+                  </sc-if>
+                  <sc-if value="{{ spanScores }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ span.scoreRows }}" as="r" hint-placeholder-count="3">
+                      <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #f1f5f9">
+                        <div><div style="font-size:13px;color:#334155;font-weight:500">{{ r.name }}</div><div style="font-size:11px;color:#94a3b8">{{ r.source }}</div></div>
+                        <span style="background:{{ r.bg }};color:{{ r.fg }};border-radius:6px;padding:4px 11px;font-size:13px;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ r.value }}</span>
+                      </div>
+                    </sc-for>
+                  </sc-if>
+                  <sc-if value="{{ spanMeta }}" hint-placeholder-val="{{ true }}">
+                    <sc-for list="{{ span.metaRows }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:13px"><span style="color:#64748b">{{ r.k }}</span><span style="color:#334155;font-family:'Spline Sans Mono',monospace">{{ r.v }}</span></div>
+                    </sc-for>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- ===== CONFIG ===== -->
+        <sc-if value="{{ isConfig }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#64748b;margin-bottom:12px">
+            <span onClick="{{ goMonitoring }}" style="cursor:pointer">Monitoring</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            <span onClick="{{ backToDash }}" style="cursor:pointer">{{ mon.name }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2.2"><path d="M9 18l6-6-6-6"/></svg>
+            <span style="color:#334155;font-weight:500">Configure</span>
+          </div>
+          <h1 style="margin:0 0 4px;font-size:21px;font-weight:600;letter-spacing:-0.02em;color:#1e293b">Configure monitor</h1>
+          <p style="margin:0 0 18px;color:#64748b;font-size:13px">{{ mon.name }} — {{ mon.typeText }}</p>
+          <div style="display:flex;gap:4px;border-bottom:1px solid #e2e8f0;margin-bottom:22px">
+            <sc-for list="{{ configTabs }}" as="tab" hint-placeholder-count="3">
+              <button onClick="{{ tab.on }}" style="{{ tab.style }}">{{ tab.label }}</button>
+            </sc-for>
+          </div>
+
+          <!-- LLM scorers -->
+          <sc-if value="{{ cfgScorers }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+              <div><div style="font-weight:600;color:#1e293b">Scorers</div><div style="font-size:12px;color:#64748b;margin-top:3px">Each scorer writes a Score onto every trace. LLM-as-judge runs on the Judge deployment; custom scorers run a Python function on the trace output.</div></div>
+              <button style="flex:none;display:flex;align-items:center;gap:7px;background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 13px;font-size:13px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Add scorer</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <sc-for list="{{ scorers }}" as="s" hint-placeholder-count="4">
+                <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:16px 18px">
+                  <div style="display:flex;align-items:center;gap:10px">
+                    <span style="width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:{{ s.iconBg }};color:{{ s.iconFg }};font-size:14px">{{ s.icon }}</span>
+                    <div style="flex:1">
+                      <div style="display:flex;align-items:center;gap:8px"><span style="font-weight:600;color:#1e293b">{{ s.name }}</span><span style="background:{{ s.kindBg }};color:{{ s.kindFg }};border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600">{{ s.kind }}</span><span style="background:#f1f5f9;color:#64748b;border-radius:5px;padding:2px 8px;font-size:11px;font-weight:600;font-family:'Spline Sans Mono',monospace">{{ s.scoreType }}</span></div>
+                      <div style="font-size:12px;color:#64748b;margin-top:4px">{{ s.desc }}</div>
+                    </div>
+                    <label style="position:relative;width:38px;height:22px;flex:none"><span style="position:absolute;inset:0;background:{{ s.toggleBg }};border-radius:11px;transition:.2s"></span><span style="position:absolute;top:3px;left:{{ s.toggleX }};width:16px;height:16px;background:#fff;border-radius:50%;box-shadow:0 1px 2px rgba(0,0,0,.2);transition:.2s"></span></label>
+                  </div>
+                  <sc-if value="{{ s.hasCode }}" hint-placeholder-val="{{ true }}">
+                    <div style="margin-top:14px;border:1px solid #e2e8f0;border-radius:9px;overflow:hidden">
+                      <div style="display:flex;align-items:center;justify-content:space-between;background:#1e293b;padding:8px 13px">
+                        <span style="font-size:12px;color:#cbd5e1;font-family:'Spline Sans Mono',monospace">{{ s.fileName }}</span>
+                        <span style="font-size:11px;color:#64748b">Python · runs in Satellite sandbox</span>
+                      </div>
+                      <pre style="margin:0;background:#0f172a;color:#e2e8f0;padding:14px 16px;font-family:'Spline Sans Mono',monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;white-space:pre">{{ s.code }}</pre>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ s.hasPrompt }}" hint-placeholder-val="{{ true }}">
+                    <div style="margin-top:14px;background:#f8fafc;border:1px solid #f1f5f9;border-radius:9px;padding:13px 15px">
+                      <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:7px">Judge prompt</div>
+                      <div style="font-size:13px;color:#334155;line-height:1.6;font-family:'Spline Sans Mono',monospace">{{ s.prompt }}</div>
+                    </div>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <!-- Prompt management -->
+          <sc-if value="{{ cfgPrompt }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid #f1f5f9">
+                <div style="display:flex;align-items:center;gap:10px"><span style="font-weight:600;color:#1e293b">judge_helpfulness</span><span style="background:#dcfce7;color:#16a34a;border-radius:5px;padding:2px 9px;font-size:11px;font-weight:600">production · v3</span></div>
+                <div style="display:flex;gap:8px">
+                  <button style="background:#fff;border:1px solid #e2e8f0;border-radius:7px;padding:7px 12px;font-size:12px;font-weight:500;color:#334155;font-family:inherit;cursor:pointer">Version history</button>
+                  <button style="background:#2673fd;border:none;border-radius:7px;padding:7px 14px;font-size:12px;font-weight:500;color:#fff;font-family:inherit;cursor:pointer">Save new version</button>
+                </div>
+              </div>
+              <div style="padding:18px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:8px">Template</div>
+                <pre style="margin:0;background:#f8fafc;border:1px solid #f1f5f9;border-radius:9px;padding:15px 16px;font-family:'Spline Sans Mono',monospace;font-size:13px;line-height:1.7;color:#334155;white-space:pre-wrap">{{ promptText }}</pre>
+                <div style="display:flex;gap:20px;margin-top:16px;font-size:13px;color:#64748b">
+                  <span>Model <b style="color:#334155">gpt-judge-v2</b></span>
+                  <span>Temperature <b style="color:#334155">0.0</b></span>
+                  <span>Variables <b style="color:#2673fd;font-family:'Spline Sans Mono',monospace">{{input}} {{output}}</b></span>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+
+          <!-- General / classic config -->
+          <sc-if value="{{ cfgGeneral }}" hint-placeholder-val="{{ true }}">
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:6px 18px">
+              <sc-for list="{{ generalRows }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid #f1f5f9">
+                  <div style="max-width:55%"><div style="font-size:14px;font-weight:500;color:#1e293b">{{ r.k }}</div><div style="font-size:12px;color:#94a3b8;margin-top:3px">{{ r.hint }}</div></div>
+                  <div style="font-size:13px;color:#334155;font-family:'Spline Sans Mono',monospace;text-align:right">{{ r.v }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </sc-if>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- ============ CONNECT MODAL ============ -->
+  <sc-if value="{{ connectOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeConnect }}" style="position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:50;animation:lumlFade .15s ease">
+      <div onClick="{{ stop }}" style="width:760px;max-width:94vw;max-height:90vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 24px 60px rgba(15,23,42,.3);animation:lumlPop .2s ease;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid #f1f5f9">
+          <div><div style="font-size:17px;font-weight:600;color:#1e293b">Connect monitoring</div><div style="font-size:13px;color:#64748b;margin-top:2px">Attach a monitor to a deployment</div></div>
+          <button onClick="{{ closeConnect }}" style="width:32px;height:32px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;color:#64748b;cursor:pointer;font-size:15px">✕</button>
+        </div>
+        <div style="display:flex;flex:1;min-height:0">
+          <!-- stepper -->
+          <div style="width:210px;flex:none;background:#f8fafc;border-right:1px solid #f1f5f9;padding:20px 18px;display:flex;flex-direction:column;gap:4px">
+            <sc-for list="{{ steps }}" as="st" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 8px;border-radius:8px;background:{{ st.bg }}">
+                <span style="width:24px;height:24px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:{{ st.numBg }};color:{{ st.numFg }}">{{ st.num }}</span>
+                <span style="font-size:13px;color:{{ st.fg }};font-weight:{{ st.weight }}">{{ st.label }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <!-- step body -->
+          <div style="flex:1;padding:24px;min-width:0">
+            <!-- step 1: target + type -->
+            <sc-if value="{{ step1 }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:9px">Deployment to monitor</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px;margin-bottom:22px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:30px;height:30px;border-radius:7px;background:#eff6ff;color:#2673fd;display:flex;align-items:center;justify-content:center">⊞</span><div><div style="font-size:13px;font-weight:500;color:#1e293b">customer_support_llm</div><div style="font-size:11px;color:#94a3b8;font-family:'Spline Sans Mono',monospace">id: 019c…91f2</div></div></div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.2"><path d="M6 9l6 6 6-6"/></svg>
+              </div>
+              <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:9px">Monitoring type</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div onClick="{{ pickLLM }}" style="border:2px solid {{ llmCardBorder }};background:{{ llmCardBg }};border-radius:11px;padding:16px;cursor:pointer">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px"><span style="font-size:22px">🧠</span><span style="width:18px;height:18px;border-radius:50%;border:2px solid {{ llmCardBorder }};display:flex;align-items:center;justify-content:center;background:{{ llmDotBg }}"><span style="width:7px;height:7px;border-radius:50%;background:#fff;opacity:{{ llmDotOp }}"></span></span></div>
+                  <div style="font-weight:600;color:#1e293b;margin-bottom:4px">LLM Observability</div>
+                  <div style="font-size:12px;color:#64748b;line-height:1.5">Traces, token usage, cost and LLM-as-judge scoring. Routes scoring through a Judge deployment.</div>
+                </div>
+                <div onClick="{{ pickClassic }}" style="border:2px solid {{ classicCardBorder }};background:{{ classicCardBg }};border-radius:11px;padding:16px;cursor:pointer">
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px"><span style="font-size:22px">📊</span><span style="width:18px;height:18px;border-radius:50%;border:2px solid {{ classicCardBorder }};display:flex;align-items:center;justify-content:center;background:{{ classicDotBg }}"><span style="width:7px;height:7px;border-radius:50%;background:#fff;opacity:{{ classicDotOp }}"></span></span></div>
+                  <div style="font-weight:600;color:#1e293b;margin-bottom:4px">Classic ML Drift</div>
+                  <div style="font-size:12px;color:#64748b;line-height:1.5">Feature & prediction drift vs a reference window (PSI, distributions). Surfaced in the drift dashboard.</div>
+                </div>
+              </div>
+            </sc-if>
+            <!-- step 2: judge / reference -->
+            <sc-if value="{{ step2 }}" hint-placeholder-val="{{ true }}">
+              <sc-if value="{{ connectIsLLM }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:5px">Judge deployment</div>
+                <div style="font-size:12px;color:#64748b;margin-bottom:13px">Pick a deployment marked as <span style="color:#ea7317;font-weight:500">Judge</span> to run the LLM-as-judge scorers.</div>
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <sc-for list="{{ judgeOptions }}" as="j" hint-placeholder-count="2">
+                    <div onClick="{{ j.on }}" style="display:flex;align-items:center;gap:11px;border:2px solid {{ j.border }};background:{{ j.bg }};border-radius:10px;padding:13px 14px;cursor:pointer">
+                      <span style="width:30px;height:30px;border-radius:7px;background:#fff7ed;color:#ea7317;display:flex;align-items:center;justify-content:center;flex:none">⚖</span>
+                      <div style="flex:1"><div style="font-size:13px;font-weight:500;color:#1e293b">{{ j.name }}</div><div style="font-size:11px;color:#94a3b8;font-family:'Spline Sans Mono',monospace">{{ j.model }}</div></div>
+                      <span style="width:18px;height:18px;border-radius:50%;border:2px solid {{ j.border }};display:flex;align-items:center;justify-content:center;background:{{ j.dotBg }}"><span style="width:7px;height:7px;border-radius:50%;background:#fff;opacity:{{ j.dotOp }}"></span></span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="margin-top:18px;display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:11px 13px">💡 No judge yet? <span style="color:#2673fd;font-weight:500;cursor:pointer">Deploy a model as Judge →</span></div>
+              </sc-if>
+              <sc-if value="{{ connectIsClassic }}" hint-placeholder-val="{{ true }}">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:13px">Reference window & drift metrics</div>
+                <div style="display:flex;flex-direction:column;gap:11px">
+                  <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px"><span style="font-size:13px;color:#334155">Reference dataset</span><span style="font-size:13px;color:#2673fd;font-family:'Spline Sans Mono',monospace">train_baseline_v2</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px"><span style="font-size:13px;color:#334155">Drift metric</span><span style="font-size:13px;color:#334155;font-family:'Spline Sans Mono',monospace">PSI · threshold 0.2</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #e2e8f0;border-radius:9px;padding:12px 14px"><span style="font-size:13px;color:#334155">Window</span><span style="font-size:13px;color:#334155;font-family:'Spline Sans Mono',monospace">rolling 7 days</span></div>
+                </div>
+              </sc-if>
+            </sc-if>
+            <!-- step 3: review -->
+            <sc-if value="{{ step3 }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#94a3b8;margin-bottom:13px">Review</div>
+              <div style="background:#f8fafc;border:1px solid #f1f5f9;border-radius:10px;padding:6px 16px;margin-bottom:18px">
+                <sc-for list="{{ reviewRows }}" as="r" hint-placeholder-count="4">
+                  <div style="display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #eef2f7;font-size:13px"><span style="color:#64748b">{{ r.k }}</span><span style="color:#334155;font-weight:500">{{ r.v }}</span></div>
+                </sc-for>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;font-size:13px;color:#16a34a;background:#dcfce7;border-radius:8px;padding:11px 13px">✓ Monitoring will start ingesting on connect. First traces appear within ~1 min.</div>
+            </sc-if>
+          </div>
+        </div>
+        <!-- modal footer -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid #f1f5f9">
+          <button onClick="{{ stepBack }}" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:9px 16px;font-size:13px;font-weight:500;color:{{ backFg }};font-family:inherit;cursor:pointer">Back</button>
+          <button onClick="{{ stepNext }}" style="background:#2673fd;border:none;border-radius:8px;padding:9px 18px;font-size:13px;font-weight:500;color:#fff;font-family:inherit;cursor:pointer;display:flex;align-items:center;gap:7px">{{ nextLabel }}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+class Component extends DCLogic {
+  state = {
+    view: 'monitoring',     // deployments | monitoring | dashboard | trace | config
+    dashTab: 'metrics',     // metrics | traces | scores | usage | cost
+    configTab: 'scorers',   // scorers | prompt | general
+    spanTab: 'io',          // io | scores | meta
+    timeRange: '24h',
+    selMonitor: 0,
+    selTrace: 0,
+    selSpan: 1,
+    connectOpen: false,
+    connectStep: 1,
+    connectType: 'LLM',
+    connectJudge: 0,
+    selFeature: 'age',      // classic feature deep-dive
+    calOpen: false,         // date-range calendar popover
+    infoOpen: false,        // reference-profile drawer
+    calStart: 4, calEnd: 18, calMode: 'start',
+    hov: {},                // chart hover tooltip
+  };
+
+  setHov(h){ this.setState({ hov: h }); }
+  clearHov(){ if (this.state.hov && this.state.hov.chart) this.setState({ hov: {} }); }
+
+  pickDay(d){
+    const s = this.state;
+    if (s.calMode === 'start') this.setState({ calStart:d, calEnd:d, calMode:'end' });
+    else if (d >= s.calStart) this.setState({ calEnd:d, calMode:'start' });
+    else this.setState({ calStart:d, calEnd:d, calMode:'end' });
+  }
+
+  // ---- palette helpers ----
+  tab(active){
+    return active
+      ? "background:none;border:none;border-bottom:2px solid #2673fd;color:#2673fd;font-weight:600;font-size:14px;font-family:inherit;padding:10px 14px;margin-bottom:-1px;cursor:pointer"
+      : "background:none;border:none;border-bottom:2px solid transparent;color:#64748b;font-weight:500;font-size:14px;font-family:inherit;padding:10px 14px;margin-bottom:-1px;cursor:pointer";
+  }
+  subtab(active){
+    return active
+      ? "background:#eff6ff;border:none;color:#2673fd;font-weight:600;font-size:13px;font-family:inherit;padding:7px 13px;border-radius:7px;cursor:pointer"
+      : "background:none;border:none;color:#64748b;font-weight:500;font-size:13px;font-family:inherit;padding:7px 13px;border-radius:7px;cursor:pointer";
+  }
+  pill(active){
+    return active
+      ? "background:#eff6ff;border:none;color:#2673fd;font-weight:600;font-size:12px;font-family:inherit;padding:6px 12px;border-radius:7px;cursor:pointer"
+      : "background:none;border:none;color:#64748b;font-weight:500;font-size:12px;font-family:inherit;padding:6px 12px;border-radius:7px;cursor:pointer";
+  }
+  trng(active){
+    return active
+      ? "background:#1e293b;border:none;color:#fff;font-weight:500;font-size:12px;font-family:inherit;padding:6px 11px;border-radius:6px;cursor:pointer"
+      : "background:none;border:none;color:#64748b;font-weight:500;font-size:12px;font-family:inherit;padding:6px 11px;border-radius:6px;cursor:pointer";
+  }
+
+  // ---- data ----
+  get monitorsData(){
+    return [
+      { id:'mon_8f21', name:'support-bot · production', type:'LLM', target:'customer_support_llm', judge:'gpt-judge-v2', scorers:'4 active', status:'Active',
+        stats:{ traces:'12,847', avgLat:'1.24s', p95:'3.10s', cost:'$418.20', err:'0.8%' } },
+      { id:'mon_3a07', name:'rag-search · production', type:'LLM', target:'rag_search_api', judge:'llama-eval-8b', scorers:'3 active', status:'Active',
+        stats:{ traces:'6,210', avgLat:'0.92s', p95:'2.05s', cost:'$184.50', err:'1.4%' } },
+      { id:'mon_b15c', name:'churn-classifier drift', type:'Classic', target:'churn_classifier', judge:'train_baseline_v2', scorers:'8 features', status:'Active',
+        stats:{ traces:'48,500', avgLat:'42ms', p95:'88ms', cost:'$12.10', err:'0.1%' } },
+      { id:'mon_d9e3', name:'image-tagger drift', type:'Classic', target:'image_encoder_v1', judge:'ref_imgnet_v1', scorers:'5 features', status:'Paused',
+        stats:{ traces:'—', avgLat:'—', p95:'—', cost:'—', err:'—' } },
+    ];
+  }
+
+  get deploymentsData(){
+    return [
+      { name:'customer_support_llm', shortId:'id: 019c…91f2', model:'mistral-7b-instruct', status:'Active', judge:false, mon:'LLM', created:'2025/03/12' },
+      { name:'rag_search_api', shortId:'id: 019c…4d0a', model:'bge-large-en', status:'Active', judge:false, mon:'LLM', created:'2025/03/15' },
+      { name:'gpt-judge-v2', shortId:'id: 019c…77b1', model:'gpt-4o', status:'Active', judge:true, mon:'none', created:'2025/03/08' },
+      { name:'llama-eval-8b', shortId:'id: 019c…2c6e', model:'llama-3.1-8b', status:'Active', judge:true, mon:'none', created:'2025/03/09' },
+      { name:'churn_classifier', shortId:'id: 019c…b3f8', model:'xgboost-v4', status:'Active', judge:false, mon:'Classic', created:'2025/02/28' },
+      { name:'sentence_transformers', shortId:'id: 019c…22d9', model:'all-MiniLM-L6', status:'Active', judge:false, mon:'none', created:'2025/03/12' },
+      { name:'image_encoder_v1', shortId:'id: 019c…7a41', model:'clip-vit-b32', status:'Failed', judge:false, mon:'none', created:'2025/03/20' },
+    ];
+  }
+
+  get tracesData(){
+    return [
+      { id:'0197649a-8f21', name:'support_chat', user:'user_4821', status:'ok', latency:'1.18s', cost:'$0.0042', tokens:'1,284', spans:8,
+        helpful:0.94, halluc:0.02, fbUser:'up', fbAcc:true, created:'Jun 18, 14:22:31',
+        scores:[{label:'helpful 0.94',k:'good'},{label:'no halluc.',k:'good'},{label:'billing',k:'cat'}] },
+      { id:'0197649a-7c30', name:'support_chat', user:'user_1190', status:'ok', latency:'0.87s', cost:'$0.0031', tokens:'902', spans:5,
+        helpful:0.71, halluc:0.08, fbUser:'up', fbAcc:true, created:'Jun 18, 14:19:02',
+        scores:[{label:'helpful 0.71',k:'mid'},{label:'technical',k:'cat'}] },
+      { id:'0197649a-6b44', name:'support_chat', user:'user_7733', status:'error', latency:'4.92s', cost:'$0.0118', tokens:'3,401', spans:12,
+        helpful:0.38, halluc:0.61, fbUser:'down', fbAcc:false, created:'Jun 18, 14:15:47',
+        scores:[{label:'helpful 0.38',k:'bad'},{label:'hallucinated',k:'bad'}] },
+      { id:'0197649a-5a09', name:'support_chat', user:'user_2048', status:'ok', latency:'1.02s', cost:'$0.0038', tokens:'1,140', spans:6,
+        helpful:0.88, halluc:0.04, fbUser:'up', fbAcc:true, created:'Jun 18, 14:11:20',
+        scores:[{label:'helpful 0.88',k:'good'},{label:'account',k:'cat'}] },
+      { id:'0197649a-4d12', name:'support_chat', user:'user_9921', status:'ok', latency:'1.44s', cost:'$0.0051', tokens:'1,560', spans:9,
+        helpful:0.82, halluc:0.05, fbUser:null, fbAcc:true, created:'Jun 18, 14:07:55',
+        scores:[{label:'helpful 0.82',k:'good'},{label:'billing',k:'cat'}] },
+      { id:'0197649a-3e77', name:'support_chat', user:'user_3312', status:'ok', latency:'0.79s', cost:'$0.0026', tokens:'780', spans:4,
+        helpful:0.90, halluc:0.03, fbUser:'up', fbAcc:null, created:'Jun 18, 14:03:08',
+        scores:[{label:'helpful 0.90',k:'good'},{label:'other',k:'cat'}] },
+      { id:'0197649a-2f30', name:'support_chat', user:'user_6604', status:'ok', latency:'2.11s', cost:'$0.0073', tokens:'2,090', spans:11,
+        helpful:0.65, halluc:0.12, fbUser:'down', fbAcc:false, created:'Jun 18, 13:58:41',
+        scores:[{label:'helpful 0.65',k:'mid'},{label:'technical',k:'cat'}] },
+    ];
+  }
+
+  scoreChip(k){
+    if(k==='good') return { bg:'#dcfce7', fg:'#16a34a' };
+    if(k==='bad') return { bg:'#fee2e2', fg:'#dc2626' };
+    if(k==='mid') return { bg:'#fef9c3', fg:'#a16207' };
+    return { bg:'#eff6ff', fg:'#2673fd' }; // cat
+  }
+
+  get spansData(){
+    return [
+      { name:'support_chat', kind:'TRACE', icon:'◉', dur:'1.18s', depth:0, iconBg:'#eff6ff', iconFg:'#2673fd', model:'',
+        input:'{\n  "user": "Why was I charged twice this month?",\n  "session": "sess_2f91",\n  "channel": "web"\n}',
+        output:'{\n  "reply": "I looked into your billing — the second charge\n  on Mar 14 is a pending auth that will drop off in\n  3–5 days. You were only charged once.",\n  "resolved": true\n}',
+        kindBg:'#eff6ff', kindFg:'#2673fd',
+        meta:[{k:'trace.id',v:'trc_a91f23'},{k:'user.id',v:'user_4821'},{k:'session.id',v:'sess_2f91'},{k:'tags',v:'billing, web'},{k:'environment',v:'production'}] },
+      { name:'retrieve_context', kind:'SPAN', icon:'⚲', dur:'0.21s', depth:1, iconBg:'#f1f5f9', iconFg:'#64748b', model:'',
+        input:'{\n  "query": "double charge billing",\n  "top_k": 4\n}',
+        output:'[\n  { "doc": "billing_faq#refunds", "score": 0.88 },\n  { "doc": "billing_faq#pending", "score": 0.81 }\n]',
+        kindBg:'#f1f5f9', kindFg:'#64748b',
+        meta:[{k:'vector.store',v:'pgvector'},{k:'latency',v:'214ms'},{k:'docs',v:'4'}] },
+      { name:'generation · llm_call', kind:'GENERATION', icon:'✦', dur:'0.81s', depth:1, iconBg:'#f3e8ff', iconFg:'#9333ea', model:'mistral-7b-instruct',
+        input:'system: You are a helpful billing assistant…\nuser: Why was I charged twice this month?\ncontext: [billing_faq#refunds, billing_faq#pending]',
+        output:'I looked into your billing — the second charge on\nMar 14 is a pending authorization that will drop off\nin 3–5 days. You were only charged once.',
+        kindBg:'#f3e8ff', kindFg:'#9333ea',
+        meta:[{k:'model',v:'mistral-7b-instruct'},{k:'tokens.in',v:'1,042'},{k:'tokens.out',v:'242'},{k:'cost',v:'$0.0042'},{k:'temperature',v:'0.3'}] },
+      { name:'judge · helpfulness', kind:'SCORE', icon:'⚖', dur:'0.32s', depth:1, iconBg:'#fff7ed', iconFg:'#ea7317', model:'gpt-judge-v2',
+        input:'Evaluate the assistant reply for helpfulness given the\nuser question and retrieved context. Return 0–1.',
+        output:'{ "score": 0.94, "reasoning": "Directly resolves the\nbilling concern with a concrete timeline." }',
+        kindBg:'#fff7ed', kindFg:'#ea7317',
+        scoreRows:[
+          {name:'helpfulness',source:'LLM-as-judge · gpt-judge-v2',value:'0.94',k:'good'},
+          {name:'hallucination',source:'LLM-as-judge · gpt-judge-v2',value:'false',k:'good'},
+          {name:'intent',source:'custom python scorer',value:'billing',k:'cat'},
+          {name:'response_length',source:'custom python scorer',value:'247',k:'mid'},
+        ],
+        meta:[{k:'judge.model',v:'gpt-judge-v2'},{k:'cost',v:'$0.0009'}] },
+    ];
+  }
+
+  get scorersData(){
+    return [
+      { name:'helpfulness', kind:'LLM-as-judge', scoreType:'NUMERIC 0–1', icon:'⚖', desc:'Rates how well the reply resolves the user request. Runs on gpt-judge-v2.', on:true, hasPrompt:true,
+        prompt:'Rate helpfulness 0–1 given {{input}} and {{output}}…' },
+      { name:'hallucination', kind:'LLM-as-judge', scoreType:'BOOLEAN', icon:'⚖', desc:'Flags claims not grounded in retrieved context. Runs on gpt-judge-v2.', on:true, hasPrompt:true,
+        prompt:'Return true if {{output}} contains claims unsupported by context…' },
+      { name:'response_length', kind:'Custom Python', scoreType:'NUMERIC', icon:'🐍', desc:'Token count of the response. Runs as a Python function in the Satellite sandbox.', on:true, hasCode:true, fileName:'response_length.py',
+        code:'def score(trace):\n    """Return word count of the LLM output."""\n    output = trace.observation.output\n    return {\n        "name": "response_length",\n        "value": len(output.split()),\n        "data_type": "NUMERIC",\n    }' },
+      { name:'intent', kind:'Custom Python', scoreType:'CATEGORICAL', icon:'🐍', desc:'Classifies the user message into a support intent. Runs a small local classifier.', on:false, hasCode:true, fileName:'intent_classifier.py',
+        code:'def score(trace):\n    text = trace.input["user"]\n    label = classify(text)  # billing|technical|account|other\n    return {\n        "name": "intent",\n        "value": label,\n        "data_type": "CATEGORICAL",\n    }' },
+    ];
+  }
+
+  renderVals(){
+    const s = this.state;
+    const view = s.view;
+    const isList = view==='deployments' || view==='monitoring';
+    const mons = this.monitorsData;
+    const mon = mons[s.selMonitor] || mons[0];
+    const monIsLLM = mon.type==='LLM';
+
+    // ---- monitor row helpers ----
+    const monTypeStyle = (t)=> t==='LLM'
+      ? { bg:'#f3e8ff', fg:'#9333ea', icon:'🧠', text:'LLM Observability' }
+      : { bg:'#e0f2fe', fg:'#0369a1', icon:'📊', text:'Classic ML Drift' };
+
+    const monitors = mons.map((m,i)=>{
+      const t = monTypeStyle(m.type);
+      return { ...m, isLLM:m.type==='LLM', isClassic:m.type==='Classic',
+        typeBg:t.bg, typeFg:t.fg, typeIcon:t.icon, typeText:t.text,
+        statusFg: m.status==='Active' ? '#16a34a' : '#94a3b8',
+        open: ()=> this.setState({ view:'dashboard', dashTab: m.type==='LLM'?'metrics':'drift', selMonitor:i }) };
+    });
+
+    // ---- deployments rows ----
+    const stTag = (st)=> st==='Active' ? {bg:'#dcfce7',fg:'#16a34a'} : st==='Failed' ? {bg:'#fee2e2',fg:'#dc2626'} : {bg:'#fef9c3',fg:'#a16207'};
+    const monTag = (m)=> m==='LLM' ? {bg:'#f3e8ff',fg:'#9333ea',text:'🧠 LLM'} : m==='Classic' ? {bg:'#e0f2fe',fg:'#0369a1',text:'📊 Classic'} : {bg:'#f1f5f9',fg:'#94a3b8',text:'— Not connected'};
+    const deployments = this.deploymentsData.map(d=>{
+      const st = stTag(d.status); const mt = monTag(d.mon);
+      return { ...d, statusBg:st.bg, statusFg:st.fg, monBg:mt.bg, monFg:mt.fg, monText:mt.text };
+    });
+
+    // ---- section tabs ----
+    const sectionTabs = [
+      { label:'Deployments', count:'7', on:()=>this.setState({view:'deployments'}),
+        style:this.tab(view==='deployments'), countStyle: this.countCss(view==='deployments') },
+      { label:'Monitoring', count:'4', on:()=>this.setState({view:'monitoring'}),
+        style:this.tab(view!=='deployments'), countStyle: this.countCss(view!=='deployments') },
+    ];
+
+    // ---- dashboard tabs (type-aware) ----
+    const dashKeys = monIsLLM ? ['metrics','traces','scores','usage','cost'] : ['drift','features','predictions','quality'];
+    const dashLabels = { metrics:'Metrics', traces:'Traces', scores:'Scores', usage:'Usage', cost:'Cost', drift:'Drift overview', features:'Feature analysis', predictions:'Predictions', quality:'Data quality' };
+    let curTab = dashKeys.includes(s.dashTab) ? s.dashTab : dashKeys[0];
+    const dashTabs = dashKeys.map(k=>({
+      label: dashLabels[k],
+      on: ()=>this.setState({dashTab:k}),
+      style: this.subtab(curTab===k),
+    }));
+    const timeRanges = ['1h','24h','7d','30d'].map(k=>({ label:k, on:()=>this.setState({timeRange:k}), style:this.trng(s.timeRange===k) }));
+
+    // ---- date-range calendar (classic) ----
+    const MON = 'Jun', YR = 2026;
+    const dateLabel = MON+' '+s.calStart+' – '+MON+' '+s.calEnd+', '+YR;
+    const firstDow = new Date(2026,5,1).getDay(); // 0=Sun
+    const calCells = [];
+    for (let i=0;i<firstDow;i++) calCells.push({ blank:true });
+    for (let d=1;d<=30;d++){
+      const inRange = d>=s.calStart && d<=s.calEnd;
+      const isEnd = d===s.calStart || d===s.calEnd;
+      calCells.push({ blank:false, d, on:()=>this.pickDay(d),
+        style:`height:30px;display:flex;align-items:center;justify-content:center;font-size:12.5px;border-radius:7px;cursor:pointer;font-family:inherit;border:none;`
+          + (isEnd ? 'background:#2673fd;color:#fff;font-weight:600;'
+             : inRange ? 'background:#eff6ff;color:#2673fd;' : 'background:none;color:#475569;') });
+    }
+    const calPresets = [['Last 24h',17,18],['Last 7 days',12,18],['Last 14 days',5,18],['Last 30 days',1,18]].map(([label,a,b])=>({
+      label, on:()=>this.setState({calStart:a, calEnd:b, calMode:'start'}) }));
+    const toggleCal = ()=>this.setState({calOpen:!s.calOpen});
+    const closeCal = ()=>this.setState({calOpen:false});
+
+    // ---- stats ----
+    const stats = [
+      { label:'Traces', value:mon.stats.traces, delta:'+8.2% vs prev', deltaFg:'#16a34a' },
+      { label:'Avg latency', value:mon.stats.avgLat, delta:'−120ms', deltaFg:'#16a34a' },
+      { label:'p95 latency', value:mon.stats.p95, delta:'+0.4s', deltaFg:'#dc2626' },
+      { label:'Total cost', value:mon.stats.cost, delta:'+$31 vs prev', deltaFg:'#64748b' },
+      { label:'Error rate', value:mon.stats.err, delta:'−0.3pp', deltaFg:'#16a34a' },
+    ];
+
+    // ---- charts ----
+    const volSeed = [62,48,70,55,80,66,90,72,58,84,76,95,68,88];
+    const volBars = volSeed.map(v=>{ const err = Math.round(v*0.08); return { ok:(v-err)+'%', err:err+'%' }; });
+    const mkPoints = (arr,w,h,max)=> arr.map((v,i)=> (i*(w/(arr.length-1))).toFixed(1)+','+(h-(v/max)*h).toFixed(1)).join(' ');
+    const p50 = [42,40,44,38,46,41,50,45,39,48,43,52,40,47];
+    const p95 = [88,82,90,80,96,86,104,92,82,100,90,108,84,98];
+    const W=320,H=110, MX=120;
+    const latP50 = mkPoints(p50,W,H,MX);
+    const latP95 = mkPoints(p95,W,H,MX);
+    const latArea = 'M0,'+H+' L'+ p50.map((v,i)=> (i*(W/(p50.length-1))).toFixed(1)+','+(H-(v/MX)*H).toFixed(1)).join(' L') +' L'+W+','+H+' Z';
+    const sc = [78,80,79,82,81,83,82,84,86,85,87,86,88,90];
+    const scoreLine = mkPoints(sc,W,90,100);
+    const scoreArea = 'M0,90 L'+ sc.map((v,i)=> (i*(W/(sc.length-1))).toFixed(1)+','+(90-(v/100)*90).toFixed(1)).join(' L') +' L'+W+',90 Z';
+
+    // ---- shared line-chart geometry (viewBox 0..100, % dots) ----
+    const days14 = Array.from({length:14}, (_,i)=>'Jun '+(5+i));
+    const lineGeom = (seed, max) => {
+      const n = seed.length, padTop = 12, padBot = 12;
+      const dots = seed.map((v,i)=>{
+        const x = n===1 ? 50 : (i/(n-1))*100;
+        const y = padTop + (1 - v/max)*(100-padTop-padBot);
+        return { x, y, v };
+      });
+      const pts = dots.map(d=>d.x.toFixed(2)+','+d.y.toFixed(2)).join(' ');
+      const area = 'M0,100 L'+dots.map(d=>d.x.toFixed(2)+','+d.y.toFixed(2)).join(' L')+' L100,100 Z';
+      return { dots, pts, area };
+    };
+
+    // ---- Cost by model (multi-line) ----
+    const cbmSrc = [
+      { model:'mistral-7b-instruct', total:'$262.10', color:'#2673fd', seed:[14.2,15.8,15.1,17.9,17.2,19.6,18.8,21.4,20.9,23.1,22.6,25.4,24.8,27.2] },
+      { model:'gpt-judge-v2 (judge)', total:'$121.40', color:'#ea7317', seed:[7.1,7.8,7.4,8.6,8.2,9.1,8.9,9.8,9.4,10.6,10.1,11.4,10.9,12.1] },
+      { model:'bge-large-en', total:'$34.70', color:'#7b68ee', seed:[1.9,2.1,2.6,2.2,2.7,2.5,2.9,3.4,3.0,3.6,3.3,4.1,3.8,4.6] },
+    ];
+    const cbmMax = Math.max(...cbmSrc.flatMap(s=>s.seed)) * 1.12;
+    const costByModel = cbmSrc.map((sm,si)=>{
+      const g = lineGeom(sm.seed, cbmMax);
+      return { model:sm.model, total:sm.total, color:sm.color, pts:g.pts,
+        dots: g.dots.map((d,i)=>({ left:d.x+'%', top:d.y+'%', color:sm.color,
+          on: ()=>this.setHov({ chart:'cbm', left:d.x+'%', top:d.y+'%', color:sm.color, title:sm.model, sub:days14[i], value:'$'+d.v.toFixed(2) }) })) };
+    });
+    const cbmLegend = cbmSrc.map(sm=>({ model:sm.model, total:sm.total, color:sm.color }));
+
+    // ---- traces (design-system datatable) ----
+    const numFg = (v,good)=> good ? (v>=0.8?'#16a34a':v>=0.6?'#a16207':'#dc2626') : (v<=0.1?'#16a34a':v<=0.3?'#a16207':'#dc2626');
+    const fbChip = (val)=> val===true||val==='up'
+      ? { txt:'True', ic:'👍', bg:'#dcfce7', fg:'#16a34a' }
+      : val===false||val==='down' ? { txt:'False', ic:'👎', bg:'#fee2e2', fg:'#dc2626' }
+      : { txt:'—', ic:'', bg:'transparent', fg:'#cbd5e1' };
+    const tracesRaw = this.tracesData;
+    const traces = tracesRaw.map((t,i)=>({
+      id:t.id, exec:t.latency, spans:t.spans, cost:t.cost, created:t.created,
+      name:t.name, latency:t.latency, tokens:t.tokens,
+      stateOk: t.status!=='error', stateText: t.status==='error'?'Error':'OK',
+      stateBg: t.status==='error'?'#fee2e2':'#dcfce7', stateFg: t.status==='error'?'#dc2626':'#16a34a',
+      helpful:t.helpful.toFixed(2), helpfulFg:numFg(t.helpful,true),
+      halluc:t.halluc.toFixed(2), hallucFg:numFg(t.halluc,false),
+      fbUser:fbChip(t.fbUser), fbAcc:fbChip(t.fbAcc),
+      rowBg: i%2 ? '#fcfdfe' : '#ffffff',
+      open: ()=>this.setState({ view:'trace', selTrace:i, selSpan:1, spanTab:'io' }),
+    }));
+    // feedback distribution (subheader bars)
+    const distOf = (key,truthy)=>{ const vals=tracesRaw.map(t=>t[key]).filter(v=>v!=null);
+      const tp = vals.length? Math.round(vals.filter(truthy).length/vals.length*100):0;
+      return { truePct: tp+'%', falsePct:(100-tp)+'%', trueW:tp+'%', falseW:(100-tp)+'%' }; };
+    const fbUserDist = distOf('fbUser', v=>v==='up');
+    const fbAccDist = distOf('fbAcc', v=>v===true);
+    const traceTools = [
+      { label:'Filters', isFilter:true },
+      { label:'Edit columns', isCols:true },
+      { label:'Export CSV', isExport:true },
+    ];
+
+    // ---- scores tab cards ----
+    const bar = (h,color,label)=>({ h:h+'%', color, label });
+    const scoreCards = [
+      { name:'helpfulness', type:'NUMERIC', source:'LLM-as-judge · gpt-judge-v2', aggLabel:'avg', aggValue:'0.86',
+        bars:[bar(20,'#86efac','0–.2'),bar(34,'#86efac','.2–.4'),bar(48,'#4ade80','.4–.6'),bar(78,'#22c55e','.6–.8'),bar(96,'#16a34a','.8–1')] },
+      { name:'hallucination', type:'BOOLEAN', source:'LLM-as-judge · gpt-judge-v2', aggLabel:'true rate', aggValue:'4.2%',
+        bars:[bar(96,'#22c55e','false'),bar(14,'#ef4444','true')] },
+      { name:'intent', type:'CATEGORICAL', source:'custom python scorer', aggLabel:'top class', aggValue:'billing 41%',
+        bars:[bar(82,'#2673fd','billing'),bar(58,'#5b94ff','tech'),bar(40,'#93c5fd','account'),bar(24,'#bfdbfe','other')] },
+      { name:'response_length', type:'NUMERIC', source:'custom python scorer', aggLabel:'median', aggValue:'186 tok',
+        bars:[bar(30,'#c7befb','<50'),bar(64,'#a78bfa','50–150'),bar(92,'#7b68ee','150–300'),bar(48,'#a78bfa','300–500'),bar(22,'#c7befb','500+')] },
+    ];
+
+    // ---- usage ----
+    const usageStats = [
+      { label:'Total tokens', value:'18.4M' },
+      { label:'Input tokens', value:'14.1M' },
+      { label:'Output tokens', value:'4.3M' },
+      { label:'Avg / trace', value:'1,432' },
+    ];
+    const inSeed=[55,48,60,52,68,58,74,62,50,70,64,80,58,72];
+    // input/output token counts (millions) per day
+    const tokenBars = inSeed.map((v,i)=>{
+      const inTok = Math.round(v*14000);   // ~ input tokens that day
+      const outTok = Math.round(v*0.32*14000);
+      const fmt = (n)=> (n/1000).toFixed(1)+'k';
+      return { in:v+'%', out:Math.round(v*0.32)+'%', day:days14[i],
+        on: ()=>this.setHov({ chart:'tok', i, day:days14[i],
+          inTok:fmt(inTok), outTok:fmt(outTok), totTok:fmt(inTok+outTok) }) };
+    });
+
+    // ---- cost (Daily cost line chart) ----
+    const costSeed=[24.8,19.4,28.6,22.7,33.1,27.4,38.2,31.0,25.1,41.7,32.2,42.9,28.6,38.1];
+    const costTotal = costSeed.reduce((a,b)=>a+b,0);
+    const costMax = Math.max(...costSeed) * 1.18;
+    const costG = lineGeom(costSeed, costMax);
+    const costLinePts = costG.pts;
+    const costArea = costG.area;
+    const costDots = costG.dots.map((d,i)=>({ left:d.x+'%', top:d.y+'%',
+      label:'$'+Math.round(d.v), labelTop:(d.y-9)+'%',
+      on: ()=>this.setHov({ chart:'cost', left:d.x+'%', top:d.y+'%', color:'#2673fd', title:days14[i], sub:'Daily cost', value:'$'+d.v.toFixed(2) }) }));
+    const costTotalLabel = '$'+costTotal.toFixed(2)+' total';
+    const costByUser = [
+      { user:'support-bot service', initials:'SB', reqs:'8,420', cost:'$211.40', color:'#7b68ee' },
+      { user:'web-widget', initials:'WW', reqs:'2,910', cost:'$96.20', color:'#2673fd' },
+      { user:'mobile-app', initials:'MA', reqs:'1,180', cost:'$58.10', color:'#0ea5e9' },
+      { user:'internal-eval', initials:'IE', reqs:'337', cost:'$33.40', color:'#ea7317' },
+      { user:'partner-api', initials:'PA', reqs:'200', cost:'$19.10', color:'#16a34a' },
+    ];
+
+    // ---- trace detail ----
+    const spansSrc = this.spansData;
+    const spans = spansSrc.map((sp,i)=>({
+      name:sp.name, icon:sp.icon, dur:sp.dur, indent:(12+sp.depth*18)+'px',
+      bg: i===s.selSpan ? '#eff6ff' : 'transparent', weight: i===s.selSpan ? '600' : '400',
+      iconBg:sp.iconBg, iconFg:sp.iconFg, on:()=>this.setState({selSpan:i, spanTab:'io'}),
+    }));
+    const sp = spansSrc[s.selSpan] || spansSrc[0];
+    const spanTabsList = (sp.kind==='SCORE')
+      ? [['scores','Scores'],['io','Prompt'],['meta','Metadata']]
+      : [['io','Input / Output'],['meta','Metadata']];
+    const spanTabs = spanTabsList.map(([k,l])=>({ label:l, on:()=>this.setState({spanTab:k}), style:this.subtab(s.spanTab===k) }));
+    const span = { name:sp.name, kind:sp.kind, kindBg:sp.kindBg, kindFg:sp.kindFg, model:sp.model,
+      input:sp.input, output:sp.output,
+      scoreRows: (sp.scoreRows||[]).map(r=>({ ...r, ...this.scoreChip(r.k) })),
+      metaRows: (sp.meta||[]).map(m=>({ k:m.k, v:m.v })) };
+    const trace = traces[s.selTrace] || traces[0];
+
+    // ---- config ----
+    const configTabs = [
+      { label:'Scorers', on:()=>this.setState({configTab:'scorers'}), style:this.tab(s.configTab==='scorers') },
+      { label:'Judge prompts', on:()=>this.setState({configTab:'prompt'}), style:this.tab(s.configTab==='prompt') },
+      { label:'General', on:()=>this.setState({configTab:'general'}), style:this.tab(s.configTab==='general') },
+    ];
+    const scorers = this.scorersData.map(x=>({
+      ...x, kindBg: x.kind==='LLM-as-judge' ? '#fff7ed' : '#dcfce7', kindFg: x.kind==='LLM-as-judge' ? '#ea7317' : '#16a34a',
+      iconBg: x.kind==='LLM-as-judge' ? '#fff7ed' : '#dcfce7', iconFg: x.kind==='LLM-as-judge' ? '#ea7317' : '#16a34a',
+      toggleBg: x.on ? '#2673fd' : '#cbd5e1', toggleX: x.on ? '19px' : '3px',
+    }));
+    const promptText = 'You are an impartial evaluator. Given a user question\nand an assistant answer, rate how helpful the answer is\non a scale of 0 to 1.\n\nQuestion: {{input}}\nAnswer: {{output}}\n\nRespond as JSON: { "score": <float>, "reasoning": <string> }';
+    const generalRows = monIsLLM ? [
+      { k:'Sampling rate', hint:'Share of production traffic ingested as traces', v:'100%' },
+      { k:'Trace retention', hint:'How long raw traces are stored', v:'90 days' },
+      { k:'PII redaction', hint:'Mask emails / card numbers before storage', v:'Enabled' },
+      { k:'Alert: helpfulness < 0.7', hint:'Webhook + Slack #ml-alerts', v:'Active' },
+      { k:'Alert: error rate > 5%', hint:'Email on-call', v:'Active' },
+    ] : [
+      { k:'Reference dataset', hint:'Baseline distribution to compare against', v:'train_baseline_v2' },
+      { k:'Drift metric', hint:'Population Stability Index threshold', v:'PSI · 0.2' },
+      { k:'Window', hint:'Rolling comparison window', v:'7 days' },
+      { k:'Monitored features', hint:'Columns tracked for drift', v:'8 features' },
+      { k:'Alert: drift > threshold', hint:'Webhook + Slack #ml-alerts', v:'Active' },
+    ];
+
+    // ---- connect modal ----
+    const cType = s.connectType;
+    const cIsLLM = cType==='LLM';
+    const step = s.connectStep;
+    const steps = [
+      ['Target & type'],['Judge / reference'],['Review'],
+    ].map((l,i)=>{
+      const n=i+1; const active = step===n; const done = step>n;
+      return { num: done?'✓':String(n), label:l[0],
+        bg: active ? '#eef2ff' : 'transparent',
+        numBg: active||done ? '#2673fd' : '#e2e8f0', numFg: active||done ? '#fff' : '#94a3b8',
+        fg: active ? '#1e293b' : '#64748b', weight: active ? '600' : '400' };
+    });
+    const judgeOptions = [
+      { name:'gpt-judge-v2', model:'gpt-4o · marked Judge' },
+      { name:'llama-eval-8b', model:'llama-3.1-8b · marked Judge' },
+    ].map((j,i)=>{ const seld = s.connectJudge===i; return { ...j, on:()=>this.setState({connectJudge:i}),
+      border: seld ? '#2673fd':'#e2e8f0', bg: seld ? '#f5f8ff':'#fff', dotBg: seld ? '#2673fd':'transparent', dotOp: seld ? '1':'0' }; });
+    const reviewRows = [
+      { k:'Deployment', v:'customer_support_llm' },
+      { k:'Monitoring type', v: cIsLLM ? 'LLM Observability' : 'Classic ML Drift' },
+      { k: cIsLLM ? 'Judge deployment' : 'Reference', v: cIsLLM ? judgeOptions[s.connectJudge].name : 'train_baseline_v2' },
+      { k: cIsLLM ? 'Scorers' : 'Drift metric', v: cIsLLM ? 'helpfulness, hallucination (+ add later)' : 'PSI · threshold 0.2' },
+    ];
+    const sel = (b)=> b ? '#2673fd' : '#e2e8f0';
+
+    // ---- classic ML drift data ----
+    const driftStats = [
+      { label:'Features drifted', value:'2 / 8', delta:'+1 vs prev', deltaFg:'#dc2626' },
+      { label:'Max PSI', value:'0.31', delta:'age', deltaFg:'#94a3b8' },
+      { label:'Prediction drift', value:'PSI 0.12', delta:'within threshold', deltaFg:'#16a34a' },
+      { label:'Rows scored', value:'48,500', delta:'+3.1% vs prev', deltaFg:'#16a34a' },
+      { label:'Data quality', value:'99.2%', delta:'\u22120.2pp', deltaFg:'#64748b' },
+    ];
+    const psiSeed=[0.09,0.11,0.10,0.13,0.12,0.16,0.15,0.19,0.18,0.24,0.22,0.29,0.31,0.34];
+    const PW=320, PH=120, PMAX=0.5;
+    const psiLine = psiSeed.map((v,i)=>(i*(PW/(psiSeed.length-1))).toFixed(1)+','+(PH-(v/PMAX)*PH).toFixed(1)).join(' ');
+    const psiArea = 'M0,'+PH+' L'+psiSeed.map((v,i)=>(i*(PW/(psiSeed.length-1))).toFixed(1)+','+(PH-(v/PMAX)*PH).toFixed(1)).join(' L')+' L'+PW+','+PH+' Z';
+    const psiThreshY = (PH-(0.2/PMAX)*PH).toFixed(1);
+    const driftDash = '25 75';
+    const stFor = (psi)=> psi>=0.2 ? 'Drifted' : psi>=0.1 ? 'Watch' : 'Stable';
+    const fStatus = (st)=> st==='Drifted' ? {badgeBg:'#fee2e2',badgeFg:'#dc2626',psiFg:'#dc2626',barColor:'#ea7317',dot:'#ef4444'}
+      : st==='Watch' ? {badgeBg:'#fef9c3',badgeFg:'#a16207',psiFg:'#a16207',barColor:'#eab308',dot:'#eab308'}
+      : {badgeBg:'#dcfce7',badgeFg:'#16a34a',psiFg:'#475569',barColor:'#2673fd',dot:'#16a34a'};
+
+    // Feature reference profiles — computed at training (see attached training-summary JSON)
+    const FEATS = [
+      { name:'age', dtype:'numerical', unit:'yrs', psi:0.31,
+        bins:['18–25','25–35','35–45','45–55','55–65','65–75'],
+        ref:[0.05,0.15,0.40,0.25,0.10,0.05], cur:[0.03,0.10,0.30,0.30,0.17,0.10],
+        sum:{ mean:35.2, std:12.5, min:18, max:75, q05:20, q25:25, q50:34, q75:45, q95:65, count:100, missing:0 },
+        curSum:{ mean:41.8, std:13.9, q25:31, q50:42, q75:53 },
+        edges:'[18, 25, 35, 45, 55, 65, 75]' },
+      { name:'income', dtype:'numerical', unit:'$', psi:0.22,
+        bins:['20–40k','40–60k','60–80k','80–100k','100–120k'],
+        ref:[0.10,0.30,0.35,0.15,0.10], cur:[0.06,0.22,0.34,0.22,0.16],
+        sum:{ mean:52000, std:15000, min:20000, max:120000, q05:25000, q25:40000, q50:50000, q75:65000, q95:100000, count:100, missing:0 },
+        curSum:{ mean:61200, std:16800, q25:46000, q50:58000, q75:76000 },
+        edges:'[20k, 40k, 60k, 80k, 100k, 120k]' },
+      { name:'region', dtype:'categorical', unit:'', psi:0.12,
+        bins:['north','south','east','west'],
+        ref:[0.25,0.25,0.25,0.25], cur:[0.30,0.20,0.28,0.22],
+        sum:{ nUnique:4, count:100, missing:0 } },
+      { name:'gender', dtype:'categorical', unit:'', psi:0.03,
+        bins:['male','female','other'],
+        ref:[0.45,0.50,0.05], cur:[0.48,0.47,0.05],
+        sum:{ nUnique:3, count:100, missing:0 } },
+      { name:'account_balance', dtype:'numerical', unit:'$', psi:0.08,
+        bins:['0–2k','2–5k','5–10k','10–20k','20k+'],
+        ref:[0.30,0.32,0.22,0.11,0.05], cur:[0.28,0.33,0.23,0.11,0.05],
+        sum:{ mean:6400, std:5200, min:0, max:48000, q05:300, q25:1900, q50:4800, q75:9200, q95:18500, count:100, missing:2 },
+        curSum:{ mean:6610, std:5300, q25:2000, q50:5000, q75:9400 },
+        edges:'[0, 2k, 5k, 10k, 20k, 48k]' },
+      { name:'num_products', dtype:'numerical', unit:'', psi:0.05,
+        bins:['1','2','3','4+'],
+        ref:[0.52,0.34,0.11,0.03], cur:[0.50,0.35,0.12,0.03],
+        sum:{ mean:1.66, std:0.78, min:1, max:5, q05:1, q25:1, q50:2, q75:2, q95:3, count:100, missing:0 },
+        curSum:{ mean:1.69, std:0.79, q25:1, q50:2, q75:2 },
+        edges:'[1, 2, 3, 4, 5]' },
+      { name:'channel', dtype:'categorical', unit:'', psi:0.06,
+        bins:['web','mobile','branch','partner'],
+        ref:[0.40,0.34,0.18,0.08], cur:[0.43,0.33,0.16,0.08],
+        sum:{ nUnique:4, count:100, missing:0 } },
+      { name:'is_active', dtype:'categorical', unit:'', psi:0.04,
+        bins:['active','inactive'],
+        ref:[0.72,0.28], cur:[0.70,0.30],
+        sum:{ nUnique:2, count:100, missing:0 } },
+    ];
+
+    // overview drift table (compact ref/cur sparkbars)
+    const featureDrift = FEATS.map(f=>{
+      const st = stFor(f.psi), mx = Math.max(...f.ref, ...f.cur) || 1;
+      return { name:f.name, dtype:f.dtype, psi:f.psi.toFixed(2), status:st, ...fStatus(st),
+        dist: f.ref.map((r,i)=>({ ref: Math.round(r/mx*100)+'%', cur: Math.round(f.cur[i]/mx*100)+'%' })) };
+    });
+    const topDrift = [...featureDrift].sort((a,b)=>parseFloat(b.psi)-parseFloat(a.psi)).slice(0,3);
+
+    // feature selector chips
+    const featChips = FEATS.map(f=>{ const st=stFor(f.psi), seld=s.selFeature===f.name;
+      return { name:f.name, on:()=>this.setState({selFeature:f.name}), dot:fStatus(st).dot,
+        style:`display:inline-flex;align-items:center;gap:7px;border:1px solid ${seld?'#2673fd':'#e2e8f0'};background:${seld?'#eff6ff':'#fff'};color:${seld?'#2673fd':'#475569'};font-weight:${seld?'600':'500'};font-size:13px;font-family:inherit;padding:7px 13px;border-radius:8px;cursor:pointer` }; });
+
+    // selected feature deep-dive
+    const fSel = FEATS.find(f=>f.name===s.selFeature) || FEATS[0];
+    const fStat = stFor(fSel.psi), fStyle = fStatus(fStat);
+    const dmax = Math.max(...fSel.ref, ...fSel.cur) || 1;
+    const distBars = fSel.bins.map((label,i)=>({ label, ref:Math.round(fSel.ref[i]/dmax*100)+'%', cur:Math.round(fSel.cur[i]/dmax*100)+'%',
+      refPct:(fSel.ref[i]*100).toFixed(0)+'%', curPct:(fSel.cur[i]*100).toFixed(0)+'%' }));
+    // per-feature PSI over time (ramps toward its psi)
+    const fpsiSeed = Array.from({length:14}, (_,i)=> +(fSel.psi*(0.45+0.55*i/13)*(0.92+0.16*Math.sin(i*1.3))).toFixed(3));
+    const FW=320, FH=120, FMAX=Math.max(0.4, fSel.psi*1.3);
+    const fpsiLine = fpsiSeed.map((v,i)=>(i*(FW/(fpsiSeed.length-1))).toFixed(1)+','+(FH-(v/FMAX)*FH).toFixed(1)).join(' ');
+    const fpsiArea = 'M0,'+FH+' L'+fpsiSeed.map((v,i)=>(i*(FW/(fpsiSeed.length-1))).toFixed(1)+','+(FH-(v/FMAX)*FH).toFixed(1)).join(' L')+' L'+FW+','+FH+' Z';
+    const fThreshY = (FH-(0.2/FMAX)*FH).toFixed(1);
+    // stats comparison rows
+    const fmtV = (v)=> fSel.unit==='$' ? '$'+(v>=1000?(v/1000)+'k':v) : (fSel.unit==='yrs'? v : v);
+    let statRows;
+    if (fSel.dtype==='numerical'){
+      const rows = [['Mean','mean'],['Std dev','std'],['25th pct','q25'],['Median','q50'],['75th pct','q75']];
+      statRows = rows.map(([label,k])=>{ const r=fSel.sum[k], c=fSel.curSum[k]!=null?fSel.curSum[k]:fSel.sum[k];
+        const delta = c!==r ? ((c>r?'+':'')+(fSel.unit==='$'? '$'+Math.round((c-r)/1000)+'k' : (Math.round((c-r)*10)/10))) : '—';
+        return { label, ref:fmtV(r), cur:fmtV(c), delta, deltaFg: c>r?'#dc2626':(c<r?'#2673fd':'#94a3b8') }; });
+    } else {
+      statRows = fSel.bins.map((b,i)=>({ label:b, ref:(fSel.ref[i]*100).toFixed(0)+'%', cur:(fSel.cur[i]*100).toFixed(0)+'%',
+        delta:((fSel.cur[i]-fSel.ref[i])>=0?'+':'')+((fSel.cur[i]-fSel.ref[i])*100).toFixed(0)+'pp',
+        deltaFg: fSel.cur[i]>fSel.ref[i]?'#dc2626':(fSel.cur[i]<fSel.ref[i]?'#2673fd':'#94a3b8') }));
+    }
+    // info-drawer reference-profile rows
+    let infoRows;
+    if (fSel.dtype==='numerical'){
+      infoRows = [['Mean',fmtV(fSel.sum.mean)],['Std dev',fmtV(fSel.sum.std)],['Min',fmtV(fSel.sum.min)],['Max',fmtV(fSel.sum.max)],
+        ['q05',fmtV(fSel.sum.q05)],['q25',fmtV(fSel.sum.q25)],['q50 (median)',fmtV(fSel.sum.q50)],['q75',fmtV(fSel.sum.q75)],['q95',fmtV(fSel.sum.q95)],
+        ['Count',fSel.sum.count],['Missing',fSel.sum.missing]].map(([k,v])=>({k,v:String(v)}));
+    } else {
+      infoRows = [['Unique categories',fSel.sum.nUnique],['Count',fSel.sum.count],['Missing',fSel.sum.missing]].map(([k,v])=>({k,v:String(v)}))
+        .concat(fSel.bins.map((b,i)=>({k:'P('+b+')', v:fSel.ref[i].toFixed(2)})));
+    }
+    const infoCats = fSel.dtype==='categorical' ? fSel.bins.map((b,i)=>({ name:b, p:(fSel.ref[i]*100).toFixed(0)+'%' })) : [];
+    const fSelMeta = { name:fSel.name, dtype:fSel.dtype, psi:fSel.psi.toFixed(2), status:fStat,
+      badgeBg:fStyle.badgeBg, badgeFg:fStyle.badgeFg, barColor:fStyle.barColor, psiFg:fStyle.psiFg,
+      isNumeric:fSel.dtype==='numerical', isCategorical:fSel.dtype==='categorical', edges:fSel.edges||'',
+      openInfo:()=>this.setState({infoOpen:true}) };
+
+    // ---- multivariate (PCA) drift ----
+    const pcaRefPts = [[0,0],[1,0.5],[-1,-0.4],[0.6,1.1],[-0.8,0.7],[0.3,-0.9],[1.4,0.3],[-1.3,0.2],[0.2,0.6],[-0.4,-1.0],[0.9,-0.5],[-0.6,1.2]];
+    const pcaCurPts = [[1.6,0.9],[2.2,1.4],[1.1,0.4],[2.6,1.9],[1.9,0.6],[2.9,1.2],[1.4,1.7],[2.3,0.3],[3.1,1.5],[1.7,1.1],[2.5,0.8],[2.0,1.9]];
+    const PCX=(x)=> (160 + x*38).toFixed(1), PCY=(y)=> (95 - y*38).toFixed(1);
+    const pcaRef = pcaRefPts.map(([x,y])=>({ cx:PCX(x), cy:PCY(y) }));
+    const pcaCur = pcaCurPts.map(([x,y])=>({ cx:PCX(x), cy:PCY(y) }));
+    const predStats = [
+      { label:'Prediction PSI', value:'0.12' },
+      { label:'Mean churn prob', value:'0.27' },
+      { label:'Positive rate', value:'23.4%' },
+      { label:'Ref positive rate', value:'21.1%' },
+    ];
+    const predDist = [
+      { label:'0\u2013.2', ref:90, cur:78 },
+      { label:'.2\u2013.4', ref:55, cur:62 },
+      { label:'.4\u2013.6', ref:32, cur:40 },
+      { label:'.6\u2013.8', ref:18, cur:26 },
+      { label:'.8\u20131', ref:10, cur:16 },
+    ].map(b=>({ label:b.label, ref:b.ref+'%', cur:b.cur+'%' }));
+    const predPsiSeed=[0.05,0.06,0.06,0.07,0.08,0.07,0.09,0.08,0.10,0.09,0.11,0.10,0.12,0.12];
+    const predPsiLine = predPsiSeed.map((v,i)=>(i*(PW/(predPsiSeed.length-1))).toFixed(1)+','+(90-(v/PMAX)*90).toFixed(1)).join(' ');
+    const predPsiArea = 'M0,90 L'+predPsiSeed.map((v,i)=>(i*(PW/(predPsiSeed.length-1))).toFixed(1)+','+(90-(v/PMAX)*90).toFixed(1)).join(' L')+' L'+PW+',90 Z';
+    const qualityStats = [
+      { label:'Rows scored', value:'48,500' },
+      { label:'Missing values', value:'0.8%' },
+      { label:'Out-of-range', value:'0.3%' },
+      { label:'Schema match', value:'100%' },
+    ];
+    const qualSeed=[60,52,68,58,74,64,80,70,55,76,66,84,72,88];
+    const qualBars = qualSeed.map(v=>({ h:v+'%' }));
+    const qualityChecksR = [
+      { name:'Schema match', hint:'12 columns \u00b7 types match reference', status:'Passing', ok:true },
+      { name:'Null rate', hint:'0.8% nulls across monitored features', status:'Passing', ok:true },
+      { name:'Range checks', hint:'monthly_charges: 2 values above expected max', status:'Warning', ok:false },
+      { name:'Duplicate rows', hint:'no duplicate inference keys detected', status:'Passing', ok:true },
+    ].map(c=>({ ...c, badgeBg:c.ok?'#dcfce7':'#fef9c3', badgeFg:c.ok?'#16a34a':'#a16207' }));
+
+    return {
+      // view flags
+      isList, isDeployments: view==='deployments', isMonitoring: view==='monitoring',
+      isDashboard: view==='dashboard', isTrace: view==='trace', isConfig: view==='config',
+      // tabs
+      sectionTabs, dashTabs, timeRanges, configTabs, spanTabs,
+      dashMetrics: curTab==='metrics', dashTraces: curTab==='traces', dashScores: curTab==='scores',
+      dashUsage: curTab==='usage', dashCost: curTab==='cost',
+      driftOverview: curTab==='drift', driftFeatures: curTab==='features',
+      driftPredictions: curTab==='predictions', driftQuality: curTab==='quality',
+      driftStats, psiLine, psiArea, psiThreshY, driftDash, featureDrift, topDrift,
+      predStats, predDist, predPsiLine, predPsiArea, qualityStats, qualBars, qualityChecks: qualityChecksR,
+      goFeatures: ()=>this.setState({dashTab:'features'}),
+      featChips, distBars, fpsiLine, fpsiArea, fThreshY, statRows, fSel: fSelMeta,
+      infoRows, infoCats, infoOpen: s.infoOpen, closeInfo: ()=>this.setState({infoOpen:false}),
+      pcaRef, pcaCur,
+      dateLabel, calCells, calPresets, calOpen: s.calOpen, toggleCal, closeCal, calMonth: MON+' '+YR,
+      cfgScorers: s.configTab==='scorers', cfgPrompt: s.configTab==='prompt', cfgGeneral: s.configTab==='general',
+      spanIO: s.spanTab==='io', spanScores: s.spanTab==='scores', spanMeta: s.spanTab==='meta',
+      // toolbar text
+      searchPlaceholder: view==='monitoring' ? 'Search monitors…' : 'Search deployments…',
+      sortLabel:'Last activity',
+      // data
+      deployments, monitors, mon: { ...mon, isLLM:monIsLLM, isClassic:!monIsLLM,
+        typeBg: monTypeStyle(mon.type).bg, typeFg: monTypeStyle(mon.type).fg,
+        typeIcon: monTypeStyle(mon.type).icon, typeText: monTypeStyle(mon.type).text,
+        statusFg: mon.status==='Active' ? '#16a34a' : '#94a3b8' },
+      stats, volBars, latP50, latP95, latArea, scoreLine, scoreArea, costByModel, cbmLegend,
+      traces, traceTools, fbUserDist, fbAccDist,
+      scoreCards, usageStats, tokenBars, costLinePts, costArea, costDots, costTotalLabel, costByUser,
+      hov: s.hov, hovCbm: s.hov.chart==='cbm', hovCost: s.hov.chart==='cost', hovTok: s.hov.chart==='tok',
+      clearHov: ()=>this.clearHov(),
+      spans, span, trace, scorers, promptText, generalRows,
+      // nav handlers
+      goMonitoring: ()=>this.setState({view:'monitoring'}),
+      goConfig: ()=>this.setState({view:'config', configTab:'scorers'}),
+      backToDash: ()=>this.setState({view:'dashboard'}),
+      // modal
+      connectOpen: s.connectOpen, step1: step===1, step2: step===2, step3: step===3,
+      connectIsLLM: cIsLLM, connectIsClassic: !cIsLLM, steps, judgeOptions, reviewRows,
+      llmCardBorder: sel(cIsLLM), llmCardBg: cIsLLM?'#f5f8ff':'#fff', llmDotBg: cIsLLM?'#2673fd':'transparent', llmDotOp: cIsLLM?'1':'0',
+      classicCardBorder: sel(!cIsLLM), classicCardBg: !cIsLLM?'#f5f8ff':'#fff', classicDotBg: !cIsLLM?'#2673fd':'transparent', classicDotOp: !cIsLLM?'1':'0',
+      backFg: step===1 ? '#cbd5e1' : '#334155',
+      nextLabel: step===3 ? 'Connect monitoring' : 'Continue',
+      openConnect: ()=>this.setState({connectOpen:true, connectStep:1}),
+      closeConnect: ()=>this.setState({connectOpen:false}),
+      stop: (e)=>{ e.stopPropagation(); },
+      pickLLM: ()=>this.setState({connectType:'LLM'}),
+      pickClassic: ()=>this.setState({connectType:'Classic'}),
+      stepBack: ()=>this.setState(st=>({connectStep:Math.max(1,st.connectStep-1)})),
+      stepNext: ()=>{ if(s.connectStep>=3){ this.setState({connectOpen:false, view:'monitoring'}); } else { this.setState(st=>({connectStep:st.connectStep+1})); } },
+    };
+  }
+
+  countCss(active){
+    return active
+      ? "background:#dbeafe;color:#2673fd;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:600"
+      : "background:#f1f5f9;color:#94a3b8;border-radius:20px;padding:1px 8px;font-size:11px;font-weight:600";
+  }
+}
+</script>
+</body>
+</html>

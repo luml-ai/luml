@@ -1,0 +1,222 @@
+/**
+ * LUML Design System — colors & type tokens
+ * Distilled from frontend/src/assets/theme/{light,dark}-theme.css in luml-ai/luml.
+ * Source palette: PrimeVue-based system with Slate neutrals + blue brand (#2673fd).
+ */
+
+@import url('https://fonts.googleapis.com/css?family=Inter:100,200,300,regular,500,600,700,800,900&display=swap');
+
+:root {
+  /* ── BRAND ───────────────────────────────────────────────── */
+  --luml-brand: #2673fd;         /* primary/link — "LUML blue" */
+  --luml-brand-hover: #2563eb;
+  --luml-brand-active: #1d4ed8;
+  --luml-brand-contrast: #ffffff;
+  --luml-brand-tint: #eff6ff;    /* highlight bg */
+  --luml-brand-tint-strong: #dbeafe;
+
+  /* Hero / avatar gradient — the app's signature flourish */
+  --luml-gradient-brand: linear-gradient(226deg, #add8fb 28%, #dfa3f0 98.72%);
+  --luml-gradient-brand-dark: linear-gradient(42deg, #2673fd 15.39%, #828bf7 61.22%, #dfa3f0 97.28%);
+
+  /* ── SURFACE / NEUTRAL (Slate) ───────────────────────────── */
+  --luml-surface-0:   #ffffff;
+  --luml-surface-50:  #f8fafc;
+  --luml-surface-100: #f1f5f9;
+  --luml-surface-200: #e2e8f0;
+  --luml-surface-300: #cbd5e1;
+  --luml-surface-400: #94a3b8;
+  --luml-surface-500: #64748b;
+  --luml-surface-600: #475569;
+  --luml-surface-700: #334155;
+  --luml-surface-800: #1e293b;
+  --luml-surface-900: #0f172a;
+  --luml-surface-950: #0a0a0a;
+
+  /* Semantic foreground/background */
+  --luml-bg:            var(--luml-surface-50);   /* content-background */
+  --luml-bg-hover:      var(--luml-surface-100);
+  --luml-bg-card:       var(--luml-surface-0);
+  --luml-border:        var(--luml-surface-200);  /* divider / card border */
+  --luml-border-strong: var(--luml-surface-300);
+
+  --luml-fg:            var(--luml-surface-700);  /* body text */
+  --luml-fg-strong:     var(--luml-surface-800);  /* hover / emphasis */
+  --luml-fg-muted:      var(--luml-surface-500);  /* subtitles */
+  --luml-fg-faint:      var(--luml-surface-400);  /* icons, placeholders */
+
+  /* ── SEMANTIC COLORS ─────────────────────────────────────── */
+  --luml-success:         #22c55e;
+  --luml-success-tint-bg: #dcfce7;
+  --luml-success-tint-fg: #15803d;
+
+  --luml-info:            #0ea5e9;
+  --luml-info-tint-bg:    #e0f2fe;
+  --luml-info-tint-fg:    #0369a1;
+
+  --luml-warn:            #f97316;
+  --luml-warn-tint-bg:    #ffedd5;
+  --luml-warn-tint-fg:    #c2410c;
+
+  --luml-danger:          #ef4444;
+  --luml-danger-tint-bg:  #fee2e2;
+  --luml-danger-tint-fg:  #b91c1c;
+
+  --luml-help:            #a855f7;
+  --luml-contrast:        #0a0a0a;
+
+  /* ── TRACE SPAN ICONS ────────────────────────────────────── */
+  /* One hue per span type, mirroring the Platform's trace viewer. */
+  --luml-span-icon-1: #64748b;  /* default */
+  --luml-span-icon-2: #0ea5e9;  /* chat */
+  --luml-span-icon-3: #f97316;  /* tool */
+  --luml-span-icon-4: #22c55e;  /* embedder */
+  --luml-span-icon-5: #a855f7;  /* reranker */
+  --luml-span-icon-6: #6366f1;  /* agent */
+
+  /* ── TYPE ────────────────────────────────────────────────── */
+  --luml-font-sans: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  --luml-font-mono: ui-monospace, 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas',
+    'Liberation Mono', 'Courier New', monospace;
+
+  /* Base type scale (matches main.css + PrimeVue defaults) */
+  --luml-text-xs:  10.5px;     /* badges */
+  --luml-text-sm:  12.25px;    /* small inputs, captions */
+  --luml-text-base:14px;       /* buttons, body small */
+  --luml-text-md:  16px;       /* default inputs / sub-title */
+  --luml-text-lg:  17.5px;     /* card title */
+  --luml-text-xl:  21px;       /* overlay title */
+  --luml-text-2xl: 24px;       /* main-title / h1 */
+
+  /* Semantic typography */
+  --luml-h1-size:    24px;
+  --luml-h1-weight:  500;
+  --luml-h1-lh:      1.25;
+  --luml-h1-tracking:-0.48px;
+
+  --luml-title-size:   24px;
+  --luml-title-weight: 500;
+  --luml-title-lh:     1.2;
+
+  --luml-sub-title-lh: 1.5;
+
+  --luml-body-size:   14px;
+  --luml-body-weight: 400;
+  --luml-body-lh:     1.5;
+
+  --luml-button-size:   14px;
+  --luml-button-weight: 500;
+
+  --luml-caption-size:  12px;
+  --luml-caption-weight:500;
+
+  /* ── RADII ───────────────────────────────────────────────── */
+  --luml-radius-xs: 4px;   /* menu items */
+  --luml-radius-sm: 6px;   /* content border, tags, badges */
+  --luml-radius-md: 8px;   /* buttons, inputs */
+  --luml-radius-lg: 12px;  /* cards, modals */
+  --luml-radius-pill: 28px;/* rounded button */
+
+  /* ── SHADOWS ─────────────────────────────────────────────── */
+  --luml-shadow-input: 0px 1px 2px 0px #1212170d;
+  --luml-shadow-card:
+    0px 32px 9px 0px rgba(28, 43, 64, 0),
+    0px 21px 8px 0px rgba(28, 43, 64, 0),
+    0px 12px 7px 0px rgba(28, 43, 64, 0.01),
+    0px 5px 5px 0px rgba(28, 43, 64, 0.02),
+    0px 1px 3px 0px rgba(28, 43, 64, 0.02);
+  --luml-shadow-popover: 0px 4px 6px -1px #0000001a, 0px 2px 4px -2px #0000001a;
+  --luml-shadow-modal:   0px 20px 25px -5px #0000001a, 0px 8px 10px -6px #0000001a;
+  --luml-shadow-message-info:    0px 4px 8px 0px #02050a0a;
+  --luml-shadow-message-success: 0px 4px 8px 0px #0108040a;
+
+  /* ── SPACING (derived from PrimeVue 7x grid) ─────────────── */
+  --luml-space-1: 3.5px;   /* 0.25 */
+  --luml-space-2: 7px;     /* 0.5 — gap/padding */
+  --luml-space-3: 10.5px;  /* popover padding */
+  --luml-space-4: 14px;
+  --luml-space-5: 17.5px;  /* card body padding */
+  --luml-space-6: 24px;    /* form field padding-x */
+  --luml-space-8: 32px;    /* content padding-top */
+  --luml-space-10: 40px;   /* section gap */
+
+  /* ── COMPONENT SIZING ────────────────────────────────────── */
+  --luml-header-height: 64px;
+  --luml-sidebar-width: 180px;
+  --luml-sidebar-closed-width: 67px;
+  --luml-button-h: 35px;
+  --luml-input-padding-x: 24px;
+  --luml-input-padding-y: 12px;
+
+  /* ── SEMANTIC SHORTCUTS (for authors) ────────────────────── */
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --luml-bg:            #0f172a;
+  --luml-bg-hover:      #1e293b;
+  --luml-bg-card:       #1e293b;
+  --luml-border:        #334155;
+  --luml-border-strong: #475569;
+
+  --luml-fg:            #e2e8f0;
+  --luml-fg-strong:     #f1f5f9;
+  --luml-fg-muted:      #94a3b8;
+  --luml-fg-faint:      #64748b;
+
+  --luml-brand-tint:        #172554;
+  --luml-brand-tint-strong: #1e3a8a;
+
+  --luml-success-tint-bg: #052e16;
+  --luml-info-tint-bg:    #082f49;
+  --luml-warn-tint-bg:    #431407;
+  --luml-danger-tint-bg:  #450a0a;
+
+  color-scheme: dark;
+}
+
+/* ── SEMANTIC ELEMENTS ─────────────────────────────────────── */
+body {
+  font-family: var(--luml-font-sans);
+  font-size: var(--luml-text-base);
+  color: var(--luml-fg);
+  background: var(--luml-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+.luml-h1, .luml-main-title {
+  font-size: var(--luml-h1-size);
+  font-weight: var(--luml-h1-weight);
+  line-height: var(--luml-h1-lh);
+  letter-spacing: var(--luml-h1-tracking);
+  color: var(--luml-fg-strong);
+}
+
+.luml-title {
+  font-size: var(--luml-title-size);
+  font-weight: var(--luml-title-weight);
+  line-height: var(--luml-title-lh);
+  color: var(--luml-fg-strong);
+}
+
+.luml-sub-title {
+  line-height: var(--luml-sub-title-lh);
+  color: var(--luml-fg-muted);
+}
+
+.luml-body { font-size: var(--luml-body-size); line-height: var(--luml-body-lh); }
+.luml-caption { font-size: var(--luml-caption-size); font-weight: var(--luml-caption-weight); color: var(--luml-fg-muted); }
+.luml-link {
+  color: var(--luml-brand);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+.luml-link:hover { text-decoration: underline; }
+.luml-code, code, pre {
+  font-family: var(--luml-font-mono);
+  font-size: 13px;
+}

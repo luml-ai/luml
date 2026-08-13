@@ -8,6 +8,7 @@ from agent.monitoring.models import (
     DeploymentContext,
     InferenceEvent,
     MetricComputation,
+    Severity,
     worst_severity,
 )
 
@@ -64,28 +65,36 @@ class FeatureDriftMetric(Metric):
         features: dict[str, dict[str, Any]],
         signals: list[AlertSignal],
     ) -> None:
-        features[feature] = {"psi": score, "count": count}
         evaluated = psi.psi_severity(score)
+        status = evaluated[0] if evaluated is not None else Severity.NORMAL
+        features[feature] = {"psi": score, "count": count, "status": status.value}
         if evaluated is not None:
             severity, threshold = evaluated
             signals.append(AlertSignal(feature, score, threshold, severity))
 
 
+def _iter_values(raw: Any) -> list[Any]:  # noqa: ANN401
+    """One event may carry a batch of observations per feature; a scalar is a batch of one."""
+    return raw if isinstance(raw, list) else [raw]
+
+
 def _numeric_inputs(events: list[InferenceEvent], name: str) -> list[float]:
     values: list[float] = []
     for event in events:
-        value = event.inputs.get(name) if event.inputs else None
-        if isinstance(value, bool) or not isinstance(value, int | float):
-            continue
-        if not math.isnan(value):
-            values.append(float(value))
+        raw = event.inputs.get(name) if event.inputs else None
+        for value in _iter_values(raw):
+            if isinstance(value, bool) or not isinstance(value, int | float):
+                continue
+            if not math.isnan(value):
+                values.append(float(value))
     return values
 
 
 def _categorical_inputs(events: list[InferenceEvent], name: str) -> list[str]:
     values: list[str] = []
     for event in events:
-        value = event.inputs.get(name) if event.inputs else None
-        if isinstance(value, str):
-            values.append(value)
+        raw = event.inputs.get(name) if event.inputs else None
+        for value in _iter_values(raw):
+            if isinstance(value, str):
+                values.append(value)
     return values

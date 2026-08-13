@@ -17,12 +17,19 @@ from agent.monitoring.models import (
 
 logger = logging.getLogger("satellite")
 
-# Table + time-index conventions from part 1's collection layer. Kept as constants
-# so a differing convention is a one-line change rather than a schema hunt.
+# The collector writes inference events as OpenTelemetry spans: a nanosecond ``timestamp``
+# time index plus a ``span_attributes`` JSON object carrying the ``inference.*`` payload.
 INFERENCE_EVENTS_TABLE = "inference_events"
-INFERENCE_EVENTS_TIME_INDEX = "ts"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
+
+# span_attributes keys emitted by the Satellite inference instrumentation.
+_ATTR_DEPLOYMENT = "inference.deployment_id"
+_ATTR_EVENT_ID = "inference.event_id"
+_ATTR_STATUS = "inference.status"
+_ATTR_LATENCY = "inference.latency_ms"
+_ATTR_INPUTS = "inference.inputs"
+_ATTR_OUTPUT = "inference.output"
 
 _CREATE_RESULTS = f"""
 CREATE TABLE IF NOT EXISTS {RESULTS_TABLE} (
@@ -60,6 +67,49 @@ def _sql_str(value: str) -> str:
 
 def _sql_ts(value: datetime) -> str:
     return _sql_str(value.isoformat())
+
+
+def _json_path(key: str) -> str:
+    # Bracket path so a key containing dots (inference.deployment_id) is treated as one
+    # literal key rather than a nested path.
+    return _sql_str(f'["{key}"]')
+
+
+def _to_ns(value: datetime) -> int:
+    return int(value.timestamp() * 1_000_000_000)
+
+
+def _ns_to_dt(value: Any) -> datetime | None:  # noqa: ANN401
+    try:
+        return datetime.fromtimestamp(int(value) / 1_000_000_000, UTC)
+    except (TypeError, ValueError):
+        return None
+
+
+def _flatten(value: Any) -> list[Any]:  # noqa: ANN401
+    """Flatten a (possibly batched / column-vector) feature value into a scalar list."""
+    if isinstance(value, list):
+        out: list[Any] = []
+        for item in value:
+            out.extend(_flatten(item))
+        return out
+    return [value]
+
+
+def _normalize_features(raw: Any) -> dict[str, list[Any]]:  # noqa: ANN401
+    """Normalize the recorded input payload to ``{feature: [observation, ...]}``.
+
+    The instrumentation records the whole request under ``{"inputs": {feature: [[v], ...]},
+    "dynamic_attributes": {...}}``. Metrics reason per observation, so unwrap ``inputs`` and
+    flatten each feature's batch (a request may carry many rows).
+    """
+    data = _parse_json(raw)
+    if not isinstance(data, dict):
+        return {}
+    inner = data.get("inputs")
+    if not isinstance(inner, dict):
+        inner = data
+    return {name: _flatten(values) for name, values in inner.items()}
 
 
 class GreptimeMonitoringStore:
@@ -123,26 +173,30 @@ class GreptimeMonitoringStore:
         self._tables_ready = True
 
     async def read_events(self, deployment_id: str, window: TimeWindow) -> list[InferenceEvent]:
-        ts = INFERENCE_EVENTS_TIME_INDEX
         sql = (
-            f"SELECT event_id, deployment_id, status, status_code, latency_ms, "
-            f"inputs, output, {ts} FROM {INFERENCE_EVENTS_TABLE} "
-            f"WHERE deployment_id = {_sql_str(deployment_id)} "
-            f"AND {ts} >= {_sql_ts(window.start)} AND {ts} < {_sql_ts(window.end)}"
+            f"SELECT timestamp, span_attributes FROM {INFERENCE_EVENTS_TABLE} "
+            f"WHERE json_get_string(span_attributes, {_json_path(_ATTR_DEPLOYMENT)}) "
+            f"= {_sql_str(deployment_id)} "
+            f"AND timestamp >= {_to_ns(window.start)} AND timestamp < {_to_ns(window.end)}"
         )
         columns, rows = self._records(await self._execute(sql))
-        return [self._to_event(dict(zip(columns, row, strict=False))) for row in rows]
+        return [
+            self._to_event(deployment_id, dict(zip(columns, row, strict=False))) for row in rows
+        ]
 
-    def _to_event(self, row: dict[str, Any]) -> InferenceEvent:
+    def _to_event(self, deployment_id: str, row: dict[str, Any]) -> InferenceEvent:
+        attrs = row.get("span_attributes")
+        attrs = attrs if isinstance(attrs, dict) else (_parse_json(attrs) or {})
+        status = str(attrs.get(_ATTR_STATUS, "") or "")
         return InferenceEvent(
-            event_id=str(row.get("event_id", "")),
-            deployment_id=str(row.get("deployment_id", "")),
-            status=str(row.get("status", "")),
-            status_code=_coerce_int(row.get("status_code")),
-            latency_ms=_coerce_float(row.get("latency_ms")),
-            inputs=_parse_json(row.get("inputs")),
-            output=_parse_json(row.get("output")),
-            timestamp=_parse_timestamp(row.get(INFERENCE_EVENTS_TIME_INDEX)),
+            event_id=str(attrs.get(_ATTR_EVENT_ID, "") or ""),
+            deployment_id=deployment_id,
+            status=status,
+            status_code=200 if status == "success" else 500,
+            latency_ms=_coerce_float(attrs.get(_ATTR_LATENCY)),
+            inputs=_normalize_features(attrs.get(_ATTR_INPUTS)),
+            output=_parse_json(attrs.get(_ATTR_OUTPUT)),
+            timestamp=_ns_to_dt(row.get("timestamp")),
         )
 
     async def write_result(self, result: MetricResult) -> None:

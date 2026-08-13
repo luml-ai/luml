@@ -61,20 +61,11 @@ class ModelServerHandler:
         )
 
     @staticmethod
-    def _read_monitoring_enabled(satellite_parameters: dict[str, bool | int | str] | None) -> bool:
-        if not satellite_parameters:
-            return False
-        value = satellite_parameters.get("monitoring_enabled")
-        if isinstance(value, bool):
-            return value
-        if isinstance(value, int):
-            return value != 0
-        if isinstance(value, str):
-            return value.strip().lower() in {"true", "1", "yes", "on"}
-        return False
+    def _read_monitoring_enabled(monitoring_mode: str | None) -> bool:
+        return (monitoring_mode or "off").strip().lower() == "full"
 
     async def add_deployment(self, deployment: Deployment) -> None:
-        monitoring_enabled = self._read_monitoring_enabled(deployment.satellite_parameters)
+        monitoring_enabled = self._read_monitoring_enabled(deployment.monitoring_mode)
         await self.add_single_deployment(
             deployment.id,
             deployment.dynamic_attributes_secrets,
@@ -147,9 +138,7 @@ class ModelServerHandler:
                     health_ok = await client.is_healthy(dep_id)
 
                 if health_ok:
-                    monitoring_enabled = self._read_monitoring_enabled(
-                        dep.get("satellite_parameters")
-                    )
+                    monitoring_enabled = self._read_monitoring_enabled(dep.get("monitoring_mode"))
                     await self.add_single_deployment(
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
