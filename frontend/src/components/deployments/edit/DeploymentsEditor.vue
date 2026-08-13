@@ -34,8 +34,8 @@
           <ToggleSwitch v-model="initialValues.monitoringEnabled" name="monitoringEnabled" />
         </div>
         <p class="monitoring-hint">
-          Record inference telemetry and enable the monitoring dashboard for this deployment. Changes
-          are applied by the satellite shortly after saving.
+          Record inference telemetry and enable the monitoring dashboard for this deployment.
+          Changes are applied by the satellite shortly after saving.
         </p>
       </div>
       <Accordion v-if="initialValues.secretDynamicAttributes.length" style="margin-bottom: 12px">

@@ -675,7 +675,10 @@ def _trace_spans(event: InferenceEvent, spans: list[SpanRecord]) -> list[TraceSp
         return [_synthetic_span(event)]
 
     ids = {s.span_id for s in spans}
-    payload = {"inference.inputs": _payload(event.inputs), "inference.output": _payload(event.output)}
+    payload = {
+        "inference.inputs": _payload(event.inputs),
+        "inference.output": _payload(event.output),
+    }
     result = []
     for span in spans:
         is_root = span.parent_span_id is None or span.parent_span_id not in ids
