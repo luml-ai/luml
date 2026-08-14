@@ -199,7 +199,7 @@ function buildTransactions(): Transaction[] {
       step: branch.forkedAtStep,
       branchId: branch.branchId,
       author: 'agent-1',
-      intent: `Fork for ${branch.name}`,
+      intent: `Start ${branch.name}`,
       ops: [
         { op: 'fork-branch', branchId: branch.branchId, fromBranchId: 'main', name: branch.name },
       ],

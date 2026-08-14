@@ -262,7 +262,7 @@ export function integrityWarnings(
     if (isUpstream && hashes.size > 1) {
       warnings.push({
         kind: 'divergent-pin',
-        message: `Variants pin different versions of shared upstream \`${versions[0].definition.name}\`. Metrics below are not directly comparable.`,
+        message: `Lanes pin different versions of shared upstream \`${versions[0].definition.name}\`. Metrics below are not directly comparable.`,
         assetId,
         affectedBranchIds: branchIds,
       })

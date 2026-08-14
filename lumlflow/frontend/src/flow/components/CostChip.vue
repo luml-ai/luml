@@ -1,16 +1,15 @@
 <template>
-  <span
-    class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs border"
-    :class="instant ? 'border-emerald-400 text-emerald-700 dark:text-emerald-400' : 'border-orange-400 text-orange-700 dark:text-orange-400'"
+  <Tag
+    :severity="instant ? 'success' : 'warn'"
+    :value="headline"
     :title="detail"
-  >
-    <span class="w-1.5 h-1.5 rounded-full" :class="instant ? 'bg-emerald-500' : 'bg-orange-500'" />
-    {{ headline }}
-  </span>
+    :pt="CHIP_PT"
+  />
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Tag } from 'primevue'
 import { formatCost } from '../engine'
 import type { PreflightCost } from '../types'
 
@@ -21,6 +20,8 @@ import type { PreflightCost } from '../types'
  * difference between the warm-process promise being honest and being marketing.
  */
 const props = defineProps<{ cost: PreflightCost }>()
+
+const CHIP_PT = { root: { class: 'px-2 py-0.5 text-xs font-normal' } }
 
 const instant = computed(() => props.cost.recomputeAssetIds.length === 0)
 

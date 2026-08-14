@@ -12,13 +12,11 @@
 
     <div
       v-if="leftBehind.length"
-      class="mb-4 px-3 py-2 rounded border border-surface-300 dark:border-surface-600 text-sm"
+      class="mb-4 px-3 py-2 rounded-lg border border-surface-300 dark:border-surface-600 text-sm"
     >
       <p class="font-medium mb-1">Not included in the artifact</p>
       <ul class="text-muted-color">
-        <li v-for="item in leftBehind" :key="item.assetId">
-          {{ item.name }} — {{ item.reason }}
-        </li>
+        <li v-for="item in leftBehind" :key="item.assetId">{{ item.name }} · {{ item.reason }}</li>
       </ul>
     </div>
 
@@ -38,7 +36,7 @@
         <ArtifactView v-if="entry.value" :value="entry.value" />
         <details class="mt-2">
           <summary class="text-xs text-muted-color cursor-pointer">source</summary>
-          <pre class="text-xs mt-1 p-2 rounded bg-surface-100 dark:bg-surface-800 overflow-x-auto">{{ entry.source }}</pre>
+          <pre class="text-xs mt-1 p-2 rounded-lg bg-surface-100 dark:bg-surface-800 overflow-x-auto">{{ entry.source }}</pre>
         </details>
       </section>
     </article>

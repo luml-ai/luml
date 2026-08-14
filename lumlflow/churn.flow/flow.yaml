@@ -1,0 +1,25 @@
+flow_id: 01KZY5G7PA541RF25ND9QQK1WD
+name: churn
+language: python
+cells:
+  untitled_1: 01KZY5GPZHJT3ZD2YPTG2W6PP3
+  untitled_2: 01KZY5KNR8ZH1WM7BVKYNQ9ZRY
+  untitled_3: 01KZZMVZMP2W11DPGSW85BHFS1
+  untitled_4: 01M004DSQSBBH7B6228F52MTGF
+  untitled_5: 01M00KNBQV6N835VSAJEHG4Z0E
+  load_data: 01M00KYAT4KFHEJHYE82WM9T3G
+  eda: 01M00KYGX6Q0FK2N50KVP3G58J
+  split: 01M00KYVY7C5DTWD81S0TBZHHG
+  train_model: 01M00KZ0JWPTG4AYBSRZD3A6EB
+  evaluate: 01M00KZ617GMHXT002D3K9VG7W
+  feature_distributions: 01M00M5X7PCEF070G7QV7VNEXA
+  correlation_heatmap: 01M00M61EX9MZJHJD9DE9JY4MX
+  prediction_diagnostics: 01M00M6530J9C7T1522Q61ZC9F
+settings:
+  eager_cost_threshold_s: 5.0
+  reactivity: auto
+  eager: []
+  paranoid: false
+  strict: false
+  sandbox: auto
+  env_policy: ask

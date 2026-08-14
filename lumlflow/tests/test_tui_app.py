@@ -11,6 +11,7 @@ import pytest
 from lumlflow.tui import LumlflowApp, build_default_registry
 from lumlflow.tui.keymap import KeymapRegistry
 from lumlflow.tui.screens.home import HomeScreen
+from lumlflow.tui.widgets import StatusHeader
 from textual.widgets import Input
 
 
@@ -182,7 +183,7 @@ async def test_auto_refresh_indicator_reflects_toggle() -> None:
     app = LumlflowApp()
     async with app.run_test() as pilot:
         await pilot.pause()
-        header = app.screen.query_one("#app-header")
+        header = app.screen.query_one("#app-header", StatusHeader)
         assert header.auto_refresh_on is True
         await pilot.press("R")
         await pilot.pause()
@@ -195,7 +196,7 @@ async def test_starts_with_auto_refresh_disabled_when_flag_set() -> None:
     async with app.run_test() as pilot:
         await pilot.pause()
         assert app.live_refresh_on is False
-        header = app.screen.query_one("#app-header")
+        header = app.screen.query_one("#app-header", StatusHeader)
         assert header.auto_refresh_on is False
 
 
@@ -211,8 +212,7 @@ class TestQuitOnHome:
             # Still running, quit armed, and the hint was recorded.
             assert app._quit_armed is True
             assert any(
-                "again to quit" in message
-                for _, _, message in app._recent_messages
+                "again to quit" in message for _, _, message in app._recent_messages
             )
 
     async def test_double_q_on_home_quits(self) -> None:

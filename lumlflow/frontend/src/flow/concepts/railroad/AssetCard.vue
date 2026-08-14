@@ -37,7 +37,7 @@
       <div class="flex flex-col gap-4">
         <div
           v-if="primaryValue"
-          class="rounded-md border border-surface-200 dark:border-surface-700 p-4 overflow-auto"
+          class="rounded-lg border border-surface-200 dark:border-surface-700 p-4 overflow-auto"
           :style="{ maxHeight: `${artifactHeight}px` }"
         >
           <ArtifactView :value="primaryValue" />

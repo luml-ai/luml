@@ -248,10 +248,7 @@ class CloudPublishScreen(BaseScreen):
     def _is_model(self) -> bool:
         """True when publishing one specific linked model."""
 
-        return (
-            self._ctx.experiment_id is not None
-            and self._ctx.model_id is not None
-        )
+        return self._ctx.experiment_id is not None and self._ctx.model_id is not None
 
     def __init__(
         self,
@@ -429,9 +426,7 @@ class CloudPublishScreen(BaseScreen):
 
     def _refresh_sidebar(self) -> None:
         try:
-            self.query_one("#publish-sidebar-text", Static).update(
-                self._sidebar_text()
-            )
+            self.query_one("#publish-sidebar-text", Static).update(self._sidebar_text())
         except Exception:
             pass
 
@@ -656,9 +651,7 @@ class CloudPublishScreen(BaseScreen):
             return
         view.clear()
         if not self._orgs:
-            view.append(
-                ListItem(Static("(no organizations)"), id="publish-org-empty")
-            )
+            view.append(ListItem(Static("(no organizations)"), id="publish-org-empty"))
             return
         for org in self._orgs:
             view.append(
@@ -715,9 +708,7 @@ class CloudPublishScreen(BaseScreen):
             return
         view.clear()
         if not self._orbits:
-            view.append(
-                ListItem(Static("(no orbits)"), id="publish-orbit-empty")
-            )
+            view.append(ListItem(Static("(no orbits)"), id="publish-orbit-empty"))
             return
         for orbit in self._orbits:
             view.append(
@@ -748,15 +739,9 @@ class CloudPublishScreen(BaseScreen):
     @work(thread=True, group="publish-collection")
     def _fetch_collections(self) -> None:
         facade = self.facade
-        if (
-            facade is None
-            or self._ctx.organization is None
-            or self._ctx.orbit is None
-        ):
+        if facade is None or self._ctx.organization is None or self._ctx.orbit is None:
             return
-        result = facade.list_collections(
-            self._ctx.organization.id, self._ctx.orbit.id
-        )
+        result = facade.list_collections(self._ctx.organization.id, self._ctx.orbit.id)
         self.app.call_from_thread(self._on_collections_result, result)
 
     def _on_collections_result(self, result: Result[Any]) -> None:
@@ -1012,8 +997,7 @@ class CloudPublishScreen(BaseScreen):
         # derives it from the linked-model count and `experiment`
         # never embeds (mirrors the web UI / ArtifactHandler logic).
         self._ctx.embed_experiment = (
-            upload_type == UploadType.MODEL
-            and embed_radio.pressed_index == 1
+            upload_type == UploadType.MODEL and embed_radio.pressed_index == 1
         )
         self._ctx.artifact_name = name_input.value.strip() or None
         self._ctx.artifact_description = desc_input.value.strip() or None
@@ -1086,11 +1070,7 @@ class CloudPublishScreen(BaseScreen):
             self._set_error("Cloud features are unavailable.")
             return
         ctx = self._ctx
-        if (
-            ctx.organization is None
-            or ctx.orbit is None
-            or ctx.collection is None
-        ):
+        if ctx.organization is None or ctx.orbit is None or ctx.collection is None:
             # Defensive — UI flow forbids reaching here without these.
             self._set_error("Target is incomplete.")
             return

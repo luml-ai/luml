@@ -99,8 +99,14 @@ _STATUS_PLAIN_STYLE: dict[ExperimentStatus, str] = {
 # via `$tag-N` variables; here we use plain colours because the meta
 # header renders via `Static.update`).
 _TAG_COLORS: tuple[str, ...] = (
-    "cyan", "green", "red", "yellow",
-    "magenta", "blue", "bright_cyan", "bright_magenta",
+    "cyan",
+    "green",
+    "red",
+    "yellow",
+    "magenta",
+    "blue",
+    "bright_cyan",
+    "bright_magenta",
 )
 
 
@@ -488,9 +494,7 @@ class ExperimentDetailScreen(BaseScreen):
                         classes="overview-card -full overview-card-last",
                         id="overview-about-card",
                     ):
-                        yield Static(
-                            "Loading experiment…", id="overview-meta"
-                        )
+                        yield Static("Loading experiment…", id="overview-meta")
                     # Static params + dynamic metric snapshot live
                     # side-by-side on wider terminals; on a narrow viewport
                     # the row falls back to a stacked layout.
@@ -619,9 +623,7 @@ class ExperimentDetailScreen(BaseScreen):
     def _fetch_details(self) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_details_failure, "facade unavailable"
-            )
+            self.app.call_from_thread(self._on_details_failure, "facade unavailable")
             return
         result = facade.get_experiment(self._experiment_id)
         self.app.call_from_thread(self._on_details_result, result)
@@ -672,9 +674,7 @@ class ExperimentDetailScreen(BaseScreen):
             meta_text.append(details.group_name, style="dim")
         if details.created_at is not None:
             meta_text.append("    created: ")
-            meta_text.append(
-                details.created_at.strftime("%Y-%m-%d %H:%M"), style="dim"
-            )
+            meta_text.append(details.created_at.strftime("%Y-%m-%d %H:%M"), style="dim")
         if details.description:
             meta_text.append("\n\n")
             meta_text.append(details.description)
@@ -810,17 +810,13 @@ class ExperimentDetailScreen(BaseScreen):
 
     # ----- grid messages -----
 
-    def on_metric_grid_history_needed(
-        self, event: MetricGrid.HistoryNeeded
-    ) -> None:
+    def on_metric_grid_history_needed(self, event: MetricGrid.HistoryNeeded) -> None:
         """Honour a grid cell's request for its metric history."""
 
         event.stop()
         self._fetch_metric_history(event.metric_key, max_points=event.max_points)
 
-    def on_metric_grid_zoom_requested(
-        self, event: MetricGrid.ZoomRequested
-    ) -> None:
+    def on_metric_grid_zoom_requested(self, event: MetricGrid.ZoomRequested) -> None:
         """Open the zoom view on the metric the user pressed Enter on."""
 
         event.stop()
@@ -932,10 +928,7 @@ class ExperimentDetailScreen(BaseScreen):
         zoom.display = True
 
     def _is_zoom_active(self) -> bool:
-        return (
-            self._active_tab == "metrics"
-            and self._zoomed_metric is not None
-        )
+        return self._active_tab == "metrics" and self._zoomed_metric is not None
 
     def on_key(self, event: events.Key) -> None:
         # Esc returns from the zoom view to the grid without popping
@@ -975,9 +968,7 @@ class ExperimentDetailScreen(BaseScreen):
         except Exception:
             return None
 
-    def on_tab_bar_segment_clicked(
-        self, event: TabBar.SegmentClicked
-    ) -> None:
+    def on_tab_bar_segment_clicked(self, event: TabBar.SegmentClicked) -> None:
         """Route a clicked tab segment through the same path as the
         keyboard mnemonic so click and key produce the same transition."""
 
@@ -1090,9 +1081,7 @@ class ExperimentDetailScreen(BaseScreen):
         except Exception:
             return None
 
-    def on_data_table_row_selected(
-        self, event: DataTable.RowSelected
-    ) -> None:
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # Enter on a linked-model row opens its edit dialog. DataTable
         # consumes Enter for its own `select_cursor`, so we translate the
         # bubbled `RowSelected` into the edit action — the same pattern the
@@ -1127,11 +1116,7 @@ class ExperimentDetailScreen(BaseScreen):
             description=result.description,
             tags=result.tags,
         )
-        if (
-            body.name is None
-            and body.description is None
-            and body.tags is None
-        ):
+        if body.name is None and body.description is None and body.tags is None:
             return
         self._run_model_update(model_id, body)
 
@@ -1143,15 +1128,11 @@ class ExperimentDetailScreen(BaseScreen):
         result = facade.update_model(model_id, body)
         self.app.call_from_thread(self._on_model_update_result, result, model_id)
 
-    def _on_model_update_result(
-        self, result: Result[Any], model_id: str
-    ) -> None:
+    def _on_model_update_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
             err = result.error
             msg = err.message if err else "update failed"
-            self._lumlflow_app.show_toast(
-                f"Edit failed: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Edit failed: {msg}", severity="error")
             return
         updated_model: Model = result.unwrap()
         # Replace the row in-place rather than reloading the whole detail.
@@ -1191,9 +1172,7 @@ class ExperimentDetailScreen(BaseScreen):
             ),
         )
 
-    def _on_model_delete_confirmed(
-        self, model_id: str, confirmed: bool | None
-    ) -> None:
+    def _on_model_delete_confirmed(self, model_id: str, confirmed: bool | None) -> None:
         if not confirmed:
             return
         self._run_model_delete(model_id)
@@ -1206,9 +1185,7 @@ class ExperimentDetailScreen(BaseScreen):
         result = facade.delete_model(model_id)
         self.app.call_from_thread(self._on_model_delete_result, result, model_id)
 
-    def _on_model_delete_result(
-        self, result: Result[Any], model_id: str
-    ) -> None:
+    def _on_model_delete_result(self, result: Result[Any], model_id: str) -> None:
         if not result.ok:
             err = result.error
             msg = err.message if err else "delete failed"

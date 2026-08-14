@@ -24,8 +24,7 @@ class LumlHandler(BaseLumlHandler):
         luml = self._get_luml_client(organization_id)
         try:
             return [
-                Orbit.model_validate(orbit.model_dump())
-                for orbit in luml.orbits.list()
+                Orbit.model_validate(orbit.model_dump()) for orbit in luml.orbits.list()
             ]
         except Exception as e:
             raise ApplicationError(f"Failed to get luml orbits: {str(e)}") from e

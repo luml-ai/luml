@@ -13,6 +13,8 @@ fast — no network, no real filesystem store, no wall-clock waits.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pytest
 from luml.experiments.tracker import ExperimentTracker
@@ -36,6 +38,12 @@ from lumlflow.tui.widgets.dialogs import (
 from textual.widgets import DataTable, Input, Static
 
 
+def _header_selected(event: SimpleNamespace) -> DataTable.HeaderSelected:
+    """The handler reads `data_table` and `label` and nothing else, so a
+    stand-in carrying those is the event as far as it is concerned."""
+    return cast(DataTable.HeaderSelected, event)
+
+
 @pytest.fixture
 def tracker(tmp_path: Path) -> ExperimentTracker:
     return ExperimentTracker(f"sqlite://{tmp_path / 'experiments'}")
@@ -57,9 +65,7 @@ def _seed_experiments(
 
     ids: list[str] = []
     for i in range(count):
-        exp_id = tracker.start_experiment(
-            name=f"exp-{i:03d}", group=group_name
-        )
+        exp_id = tracker.start_experiment(name=f"exp-{i:03d}", group=group_name)
         ids.append(exp_id)
     return ids
 
@@ -230,9 +236,7 @@ class TestAllExperimentsMode:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             keys = {r.key for r in screen._rows}
@@ -479,9 +483,7 @@ class TestSort:
             )
             await pilot.pause()
             await pilot.pause()
-            screen._apply_sort_result(
-                SortChooserResult(field="name", order="asc")
-            )
+            screen._apply_sort_result(SortChooserResult(field="name", order="asc"))
             await pilot.pause()
             await pilot.pause()
             assert screen._sort_by == "name"
@@ -555,9 +557,7 @@ class TestEdit:
             )
             await pilot.pause()
             await pilot.pause()
-            screen._on_edit_submitted(
-                exp_id, EntityEditResult(name="renamed")
-            )
+            screen._on_edit_submitted(exp_id, EntityEditResult(name="renamed"))
             await pilot.pause()
             await pilot.pause()
             renamed = next(r for r in screen._rows if r.key == exp_id)
@@ -595,9 +595,7 @@ class TestDelete:
         tmp_path: Path,
     ) -> None:
         group = tracker.create_group("g")
-        exp_id = tracker.start_experiment(
-            name="exp-with-model", group=group.name
-        )
+        exp_id = tracker.start_experiment(name="exp-with-model", group=group.name)
         # The deletion constraint applies when an experiment has a linked
         # model. We seed one via the SDK backend (a fake .luml blob is
         # enough — the handler only checks linkage, not model contents).
@@ -750,15 +748,11 @@ class TestBreadcrumb:
             segs = screen.breadcrumb_segments()
             assert tuple(s.label for s in segs) == ("Groups", "alpha-grp")
 
-    async def test_all_experiments_breadcrumb(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_all_experiments_breadcrumb(self, facade: DataFacade) -> None:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             segs = screen.breadcrumb_segments()
             assert tuple(s.label for s in segs) == (
@@ -836,9 +830,7 @@ class TestPanelFrameReskin:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             panel = screen.query_one("#experiments-panel", PanelFrame)
@@ -926,7 +918,6 @@ class TestHeaderClickSort:
     async def test_header_click_sorts_and_toggles(
         self, facade: DataFacade, tracker: ExperimentTracker
     ) -> None:
-        from types import SimpleNamespace
 
         from rich.text import Text
 
@@ -935,24 +926,22 @@ class TestHeaderClickSort:
         app = _make_app(facade)
         async with app.run_test() as pilot:
             await pilot.pause()
-            screen = _push_experiments_screen(
-                app, facade, all_experiments=True
-            )
+            screen = _push_experiments_screen(app, facade, all_experiments=True)
             await pilot.pause()
             await pilot.pause()
             table = screen.query_one("#experiments-table", DataTable)
             event = SimpleNamespace(data_table=table, label=Text("Duration"))
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._sort_by == "duration"
             assert screen._order == "desc"
-            screen.on_data_table_header_selected(event)
+            screen.on_data_table_header_selected(_header_selected(event))
             await pilot.pause()
             assert screen._order == "asc"
             # Unmapped columns (Sel / Tags / Group) are ignored.
             before = (screen._sort_by, screen._order)
             screen.on_data_table_header_selected(
-                SimpleNamespace(data_table=table, label=Text("Sel"))
+                _header_selected(SimpleNamespace(data_table=table, label=Text("Sel")))
             )
             await pilot.pause()
             assert (screen._sort_by, screen._order) == before

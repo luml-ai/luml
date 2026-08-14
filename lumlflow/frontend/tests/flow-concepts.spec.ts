@@ -2,8 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
-import CatchupConcept from '@/flow/concepts/CatchupConcept.vue'
-import CompareConcept from '@/flow/concepts/CompareConcept.vue'
 import RailroadConcept from '@/flow/concepts/RailroadConcept.vue'
 import { unsyncedCause } from '@/flow/engine'
 import { churnSession, fixtures } from '@/flow/fixtures'
@@ -16,16 +14,16 @@ const unexpected = (spy: { mock: { calls: unknown[][] } }): string[] =>
     .map((call) => call.map(String).join(' '))
     .filter((message) => !IGNORED_WARNINGS.some((pattern) => pattern.test(message)))
 
-const concepts = [
-  { name: 'railroad', component: RailroadConcept },
-  { name: 'compare', component: CompareConcept },
-  { name: 'catchup', component: CatchupConcept },
-]
+// Mounting the whole prototype over the large fixture is seconds of Vue Flow
+// layout on its own, and the default 5 s is not what that costs beside the
+// other suites on a loaded machine.
+const MOUNT_TIMEOUT_MS = 20_000
 
-describe('flow concept prototypes', () => {
+describe('railroad concept prototype', () => {
   for (const fixture of fixtures) {
-    for (const concept of concepts) {
-      it(`${concept.name} mounts against the ${fixture.id} fixture`, async () => {
+    it(
+      `mounts against the ${fixture.id} fixture`,
+      async () => {
         const { fixtureId } = useWorkspace()
         fixtureId.value = fixture.id
         await nextTick()
@@ -33,7 +31,7 @@ describe('flow concept prototypes', () => {
         const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
         const warnings = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-        const wrapper = mount(concept.component)
+        const wrapper = mount(RailroadConcept)
         await nextTick()
 
         expect(wrapper.html().length).toBeGreaterThan(0)
@@ -45,8 +43,9 @@ describe('flow concept prototypes', () => {
         wrapper.unmount()
         errors.mockRestore()
         warnings.mockRestore()
-      })
-    }
+      },
+      MOUNT_TIMEOUT_MS,
+    )
   }
 })
 

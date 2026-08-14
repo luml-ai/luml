@@ -39,7 +39,7 @@
         :opacity="stopOpacity(stop)"
         @click="emit('select', stop.branchId, stop.step)"
       >
-        <title>step {{ stop.step }} · {{ stop.detail }} — {{ stop.label }}</title>
+        <title>step {{ stop.step }} · {{ stop.detail }} · {{ stop.label }}</title>
         <circle :cx="stop.x" :cy="stop.y" r="13" fill="transparent" />
         <circle
           v-if="stop.liveHead"
@@ -64,7 +64,7 @@
           v-if="showLaneNames && stop.laneHead && stop.branchId !== currentBranchId && !selectedLabelYs.has(stop.y)"
           :x="stop.x + 11"
           :y="stop.y + 4"
-          class="text-[11px] font-medium rail-halo"
+          class="text-xs font-medium rail-halo"
           :fill="laneColor(stop.branchId)"
         >
           {{ laneName(stop.branchId) }}

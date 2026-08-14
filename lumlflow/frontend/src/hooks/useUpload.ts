@@ -1,5 +1,6 @@
 import type { UploadArtifactPayload } from '@/components/upload/upload.interface'
 import { apiService } from '@/api/api.service'
+import { API_BASE_URL } from '@/api/client'
 import { errorToast } from '@/toasts'
 import { useToast } from 'primevue'
 import { ref } from 'vue'
@@ -32,9 +33,7 @@ export const useUpload = () => {
 
   function initProgressWatch(jobId: string) {
     reset()
-    const eventSource = new EventSource(
-      `${import.meta.env.VITE_API_URL}/luml/artifact/${jobId}/progress`,
-    )
+    const eventSource = new EventSource(`${API_BASE_URL}/luml/artifact/${jobId}/progress`)
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data)
       if (data.type === 'progress') {

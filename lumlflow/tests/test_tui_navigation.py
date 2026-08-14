@@ -411,9 +411,7 @@ class TestNavigateUpAction:
             await pilot.pause()
             assert isinstance(app.screen, GroupsScreen)
 
-    async def test_navigation_up_command_registered(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_navigation_up_command_registered(self, facade: DataFacade) -> None:
         from lumlflow.tui.keymap import build_default_registry
 
         registry = build_default_registry()
@@ -449,9 +447,7 @@ class TestScreenHistoryBackForward:
         async with app.run_test() as pilot:
             await pilot.pause()
             app.push_screen(
-                ExperimentsScreen(
-                    facade=facade, group_id=group_id, group_name="g"
-                )
+                ExperimentsScreen(facade=facade, group_id=group_id, group_name="g")
             )
             await pilot.pause()
             app.push_screen(
@@ -514,9 +510,7 @@ class TestScreenHistoryBackForward:
         async with app.run_test() as pilot:
             await pilot.pause()
             app.push_screen(
-                ExperimentsScreen(
-                    facade=facade, group_id=group_id, group_name="g"
-                )
+                ExperimentsScreen(facade=facade, group_id=group_id, group_name="g")
             )
             await pilot.pause()
             # Back to home records the list in the forward stack.
@@ -528,9 +522,7 @@ class TestScreenHistoryBackForward:
             # A new drill-in invalidates the forward history and
             # releases the screen it kept alive.
             app.push_screen(
-                ExperimentsScreen(
-                    facade=facade, group_id=group_id, group_name="g"
-                )
+                ExperimentsScreen(facade=facade, group_id=group_id, group_name="g")
             )
             await pilot.pause()
             await pilot.pause()
@@ -538,9 +530,7 @@ class TestScreenHistoryBackForward:
             assert not app.is_screen_installed(recorded)
             assert not recorded.is_running
 
-    async def test_forward_command_registered(
-        self, facade: DataFacade
-    ) -> None:
+    async def test_forward_command_registered(self, facade: DataFacade) -> None:
         from lumlflow.tui.keymap import build_default_registry
 
         registry = build_default_registry()

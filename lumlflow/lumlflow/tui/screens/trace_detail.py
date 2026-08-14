@@ -403,9 +403,7 @@ class TraceDetailScreen(BaseScreen):
     def _fetch_trace(self) -> None:
         facade = self.facade
         if facade is None:
-            self.app.call_from_thread(
-                self._on_trace_failure, "facade unavailable"
-            )
+            self.app.call_from_thread(self._on_trace_failure, "facade unavailable")
             return
         result = facade.get_trace(self._experiment_id, self._trace_id)
         self.app.call_from_thread(self._on_trace_result, result)
@@ -419,9 +417,7 @@ class TraceDetailScreen(BaseScreen):
         details: TraceDetails = result.unwrap()
         self._details = details
         self._spans_by_id = {s.span_id: s for s in details.spans}
-        self._trace_window_start, self._trace_window_end = _trace_window(
-            details.spans
-        )
+        self._trace_window_start, self._trace_window_end = _trace_window(details.spans)
         self._populate_tree(details.spans)
         self._update_trace_summary()
         # Auto-select the first root span so the detail pane has content.
@@ -459,9 +455,7 @@ class TraceDetailScreen(BaseScreen):
                     )
                     add_subtree(node, item.children)
                 else:
-                    node = parent_node.add_leaf(
-                        label, data=item.span.span_id
-                    )
+                    node = parent_node.add_leaf(label, data=item.span.span_id)
                 self._tree_nodes[item.span.span_id] = node
 
         add_subtree(tree.root, roots)
@@ -524,11 +518,7 @@ class TraceDetailScreen(BaseScreen):
             summary.update("")
             return
         total = len(self._details.spans)
-        errors = sum(
-            1
-            for s in self._details.spans
-            if s.status_code == _STATUS_ERROR
-        )
+        errors = sum(1 for s in self._details.spans if s.status_code == _STATUS_ERROR)
         bits = [f"{total} span{'s' if total != 1 else ''}"]
         if errors:
             bits.append(f"{errors} error{'s' if errors != 1 else ''}")
@@ -579,17 +569,11 @@ class TraceDetailScreen(BaseScreen):
         head.append(span.name, style="bold")
         head.append("\n")
         head.append("status: ")
-        status_style = _SPAN_STATUS_STYLE.get(
-            span.status_code or 0, "dim"
-        )
-        head.append(
-            self._status_label(span.status_code), style=status_style
-        )
+        status_style = _SPAN_STATUS_STYLE.get(span.status_code or 0, "dim")
+        head.append(self._status_label(span.status_code), style=status_style)
         head.append("    duration: ")
         head.append(
-            _format_duration_ns(
-                span.start_time_unix_nano, span.end_time_unix_nano
-            ),
+            _format_duration_ns(span.start_time_unix_nano, span.end_time_unix_nano),
             style="dim",
         )
         head.append("\nspan id: ")
@@ -635,9 +619,7 @@ class TraceDetailScreen(BaseScreen):
             text.append(str(name), style="bold")
             if isinstance(timestamp, (int, float)):
                 offset = int(timestamp) - trace_start
-                text.append(
-                    f"  {_format_event_offset_ns(offset)}", style="dim"
-                )
+                text.append(f"  {_format_event_offset_ns(offset)}", style="dim")
             attributes = event.get("attributes")
             if isinstance(attributes, dict) and attributes:
                 for k, v in attributes.items():
@@ -665,13 +647,9 @@ class TraceDetailScreen(BaseScreen):
         result = facade.list_span_annotations(
             self._experiment_id, self._trace_id, span_id
         )
-        self.app.call_from_thread(
-            self._on_span_annotations_result, result, span_id
-        )
+        self.app.call_from_thread(self._on_span_annotations_result, result, span_id)
 
-    def _on_span_annotations_result(
-        self, result: Result[Any], span_id: str
-    ) -> None:
+    def _on_span_annotations_result(self, result: Result[Any], span_id: str) -> None:
         if span_id != self._selected_span_id:
             return
         if not result.ok:
@@ -723,9 +701,7 @@ class TraceDetailScreen(BaseScreen):
 
     # ----- tree event handlers -----
 
-    def on_tree_node_highlighted(
-        self, event: Tree.NodeHighlighted[str]
-    ) -> None:
+    def on_tree_node_highlighted(self, event: Tree.NodeHighlighted[str]) -> None:
         if event.node is None:
             return
         data = event.node.data
@@ -735,9 +711,7 @@ class TraceDetailScreen(BaseScreen):
             return
         self._set_selected_span(data)
 
-    def on_tree_node_selected(
-        self, event: Tree.NodeSelected[str]
-    ) -> None:
+    def on_tree_node_selected(self, event: Tree.NodeSelected[str]) -> None:
         # Pressing Enter on a node also targets the same span.
         if event.node is None:
             return
@@ -788,9 +762,7 @@ class TraceDetailScreen(BaseScreen):
             return
         dialog = ConfirmDialog(
             title="Delete annotation",
-            message=(
-                f"Delete annotation {ann.name!r}? This cannot be undone."
-            ),
+            message=(f"Delete annotation {ann.name!r}? This cannot be undone."),
             confirm_label="Delete",
             destructive=True,
         )
@@ -849,9 +821,7 @@ class TraceDetailScreen(BaseScreen):
         self._editing_annotation_id = None
 
     @work(thread=True, group="span-annotation-create")
-    def _run_create_annotation(
-        self, span_id: str, body: CreateAnnotation
-    ) -> None:
+    def _run_create_annotation(self, span_id: str, body: CreateAnnotation) -> None:
         facade = self.facade
         if facade is None:
             return
@@ -869,9 +839,7 @@ class TraceDetailScreen(BaseScreen):
         facade = self.facade
         if facade is None:
             return
-        result = facade.update_span_annotation(
-            self._experiment_id, annotation_id, body
-        )
+        result = facade.update_span_annotation(self._experiment_id, annotation_id, body)
         span_id = self._selected_span_id or ""
         self.app.call_from_thread(
             self._on_annotation_mutation_result, result, span_id, "updated"
@@ -883,9 +851,7 @@ class TraceDetailScreen(BaseScreen):
         if not result.ok:
             err = result.error
             msg = err.message if err else "annotation save failed"
-            self._lumlflow_app.show_toast(
-                f"Annotation {verb}: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Annotation {verb}: {msg}", severity="error")
             return
         self._lumlflow_app.show_toast(
             f"Annotation {verb}.", severity="success", duration=2.0
@@ -908,9 +874,7 @@ class TraceDetailScreen(BaseScreen):
         facade = self.facade
         if facade is None:
             return
-        result = facade.delete_span_annotation(
-            self._experiment_id, annotation_id
-        )
+        result = facade.delete_span_annotation(self._experiment_id, annotation_id)
         span_id = self._selected_span_id or ""
         self.app.call_from_thread(
             self._on_annotation_delete_result, result, annotation_id, span_id
@@ -922,9 +886,7 @@ class TraceDetailScreen(BaseScreen):
         if not result.ok:
             err = result.error
             msg = err.message if err else "delete failed"
-            self._lumlflow_app.show_toast(
-                f"Delete failed: {msg}", severity="error"
-            )
+            self._lumlflow_app.show_toast(f"Delete failed: {msg}", severity="error")
             return
         # Remove the row locally so the UI updates without a round-trip,
         # and decrement the tree label's annotation count.

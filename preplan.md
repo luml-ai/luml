@@ -144,13 +144,16 @@ durable files must be *declared outputs* — an `asset` output whose returned
 `Path` infers the file kind (§3); the
 runtime moves them from scratch into the CAS, so they version, fork, and GC
 like any other value. Reading genuinely external paths is legitimate but
-makes the cell `volatility: external` — no memoization, no recompute claims.
-Workspace files (§4) are exactly that case: because cwd is per-run scratch,
-**`ctx.flow_dir`** is the sanctioned way to reach them
-(`ctx.flow_dir / "data/raw.csv"`), and such reads are `external` — the
-store cannot know when `data/raw.csv` changed. The natural upgrade —
-declared file inputs with hash-on-read, restoring memoization — is a
-recorded future direction, not v1.
+makes the run an `external` read — no memoization, no recompute claims (the
+one volatility rule v1 keeps live, §2). Workspace files (§4) are exactly
+that case: because cwd is per-run scratch, **`ctx.workspace_dir`** is the
+sanctioned way to reach them (`ctx.workspace_dir / "data/raw.csv"`), and
+the flow's optional internal `data/` folder rides `ctx.flow_dir / "data"`
+(the exact access surface is an open question, §4). Both are observed as
+`external` at ctx-path access — recorded like identity access (§2), no
+declaration needed — because the store cannot know when `data/raw.csv`
+changed. The natural upgrade — declared file inputs with hash-on-read,
+restoring memoization — is a recorded future direction, not v1.
 
 **Hazard 3 — process-global interpreter state.** Random seeds, `os.environ`,
 logging config, matplotlib's implicit current figure, torch's default
@@ -204,7 +207,6 @@ class TrainXGB:
     consumes = {"train": "features.train_split", "config": "sweep.config"}
     produces = {"model": "model", "run": "experiment", "checkpoint": "asset", "curves": "asset"}
     params = {"lr": 3e-4, "epochs": 10, "seed": 1337}
-    volatility = "seeded"
 
     def materialize(self, ctx, train, config):
         ctx.seed()
@@ -213,9 +215,10 @@ class TrainXGB:
 ```
 
 There is no base class and no import. Classification is **directory-scoped,
-never shape-scoped**: only files under `cells/` are cells; any other `.py`
-under the flow dir is shared code (§8d) regardless of what its classes look
-like — a lib helper that happens to define `materialize` is never recognized
+never shape-scoped**: only files under `cells/` are cells; any other watched
+`.py` — workspace shared code (§8d), or a stray `.py` inside the flow dir —
+is shared code regardless of what its classes look
+like — a helper that happens to define `materialize` is never recognized
 as a cell and never gets a `uid` write-back. Within a `cells/` file, shape
 picks *which* top-level class is the cell: the unique class defining
 `materialize` or carrying compute declarations (`uid`, `consumes`,
@@ -255,8 +258,8 @@ path-injected kernel must run on whatever Python version the venv has, so
 the kernel stays conservative, pure-Python, and CI-tested across the
 supported version range — this replaces the earlier draft's import-boundary
 CI test. Serde libraries (pyarrow, cloudpickle, safetensors) are ordinary
-ecosystem dependencies scaffolded into the flow's `pyproject.toml` as its
-kinds need them — not our package. The earlier rejection's counterarguments
+ecosystem dependencies scaffolded into the workspace's `pyproject.toml`
+(§14) as the flow's kinds need them — not our package. The earlier rejection's counterarguments
 dissolve on inspection: IDE/type support comes from the stubs (not for
 free — it costs the scaffolded conformance line and the future-import rule
 above, a fair price), typo
@@ -332,14 +335,25 @@ Rules that make this work:
   defines — slug references already resolved to `uid`s at acceptance) is
   *identity*: it drives merge conflict detection (§5) and
   divergence display (§15), and a whitespace/comment edit does not dirty
-  anything. `behaviorHash = hash(definitionHash + lib tree hash)` is *does it
-  need to rerun*: staleness marking and memo keys use it (§8b/§8d). Folding
-  the lib hash into `definitionHash` instead would make a three-way merge
-  report every cell conflicted once both branches touch `lib/`, and make
-  `lumlflow diff` report definition divergence everywhere. The future per-cell
+  anything. `behaviorHash = hash(definitionHash + workspace tree hash)` is
+  *does it need to rerun*: staleness marking and memo keys use it
+  (§8b/§8d). Folding the shared-code hash into `definitionHash` instead
+  would make a three-way merge report every cell conflicted once both
+  branches touch shared code, and make `lumlflow diff` report definition
+  divergence everywhere. The future per-cell
   `uses = [...]` narrowing (§8d) applies to `behaviorHash`.
-- **`params` are first-class**, not code: the UI can edit them without touching
-  source, and sweeps are "N branches × param overrides" with no code diff.
+- **`params` and `volatility` are reserved slots — dormant in v1.** Params
+  stay data, not code: the slot exists so param inspectors, params-only
+  diffs, and sweeps ("N branches × param overrides" with no code diff) can
+  land later without a schema change — but v1 exposes **no param or
+  volatility handles in the UI** (§13); editing a param is editing the cell
+  file. `volatility` is likewise parsed, recorded as provenance, and
+  reserved: the only rule v1 scheduling honors is `external`'s
+  no-memoization guarantee (§8b) — observed automatically from ctx-path
+  access (§1 hazard 2) or declared for the undetectable cases (module-state
+  dependence, hardcoded paths) — because dropping it would be silent
+  staleness. The richer pure/seeded/nondeterministic semantics are a future
+  feature the slots already fit.
 - `ctx` carries resources (a tracker client — a thin wrapper over the luml
   SDK that records locally, the daemon syncing to the collection (§3) — seed
   control, temp dirs, secrets) so
@@ -350,12 +364,16 @@ Rules that make this work:
   sweepable — a seed sweep is just a param sweep); `ctx.seed()` takes no
   argument and applies the runtime-resolved seed, which is why §8b's memo
   key needs no separate seed component.
-- **`ctx.flow_dir`, `ctx.branch`, `ctx.step` — paths and identity.**
-  `ctx.flow_dir` resolves the flow directory, the sanctioned route to
-  workspace files (§1 hazard 2, §4). `ctx.branch` (branch name) and
+- **`ctx.workspace_dir`, `ctx.flow_dir`, `ctx.branch`, `ctx.step` — paths
+  and identity.** `ctx.workspace_dir` resolves the workspace — the flow's
+  parent directory (§4) — the sanctioned route to workspace files (§1
+  hazard 2). `ctx.flow_dir` resolves the flow directory itself, whose only
+  sanctioned content beyond cells is the optional internal `data/` folder
+  (§4; the access surface is an open question — `ctx.flow_dir / "data"` is
+  the provisional spelling). `ctx.branch` (branch name) and
   `ctx.step` (current journal step) let a cell branch-prefix external
-  writes (`exports/{ctx.branch}/report.html`) so branches don't clobber
-  each other in the shared substrate. Two caveats travel with them, stated
+  writes (`ctx.workspace_dir / f"exports/{ctx.branch}/report.html"`) so
+  branches don't clobber each other in the shared substrate. Two caveats travel with them, stated
   here because this is where the temptation starts. First, branch-prefixed
   workspace writes are side effects outside the store — unversioned,
   un-rewound, un-GC'd; an interop escape hatch, not the durable-output path
@@ -468,8 +486,9 @@ memo hits (a hit reuses the already-logged reference). The authoring default
 is `asset`: AGENTS.md and the Tier-0 guidance say **"declare `asset` unless
 you mean to publish; promote later"** — promoting an existing inline value
 to a collection artifact is a daemon op, cheap because the bytes are already
-staged. And flow-emitted artifacts land in a **draft/workspace tier** on the
-platform, auto-expiring unless promoted or referenced — recorded explicitly
+staged. And flow-emitted artifacts land in a **draft tier** on the
+platform (a scratch tier — not §4's workspace), auto-expiring unless
+promoted or referenced — recorded explicitly
 as a requirement this document levies on the luml platform, not machinery it
 builds.
 
@@ -477,9 +496,9 @@ builds.
 Built-in and user-defined kinds implement the same shape — `AssetType` is a
 Protocol in §2's typing stubs, so a kind plugin implements the shape without
 importing anything at runtime — registered via Python
-entry points (installable packages) or the flow's own `lib/` — which is
-versioned with the flow, so a custom kind evolves under version control like
-everything else:
+entry points (installable packages) or the workspace's shared code (§8d) —
+watched and hashed like any other shared code, though its history belongs
+to the user's own VCS, not the flow store:
 
 ```python
 class EmbeddingMatrix:                    # implements the AssetType protocol — structural, like cells
@@ -547,24 +566,43 @@ surface falls directly out of the merged cell/asset model:
 
 ## 4. On-disk format of a Flow
 
-**Recommendation: directory per flow, file per cell, manifest for wiring;
-single-file `.py` as an export/import format, not the storage format.**
+**Recommendation: directory per flow, file per cell, manifest for wiring —
+and the flow directory is monolithic: cells, flow metadata, an optional
+internal `data/` folder, and nothing else. Everything external — shared
+code, data files, the env — lives in the flow's parent directory, the
+*workspace* (§16). Single-file `.py` stays an export/import format, not the
+storage format.** The analogy that sets the shape: a `.flow` directory is
+to its workspace what an `.ipynb` file is to a project folder — one
+self-contained document sitting among the project's code and data, treated
+by the UI as a single file-like entry (§16), never browsed as a folder.
 
 ```
-churn.flow/
-  flow.yaml            # flow id, name, cell index (file ↔ assetId), env ref, settings
-  cells/               # the only place cells live — classification is by directory (§2)
-    load_data.py       # one class per file; the filename (sans .py) IS the slug (§2)
-    features.py
-    train_model.py
-  lib/                 # conventional home for helpers; any .py outside cells/
-                       # is shared code — watched and hashed regardless (§8d)
+project/               # the workspace — where lumlflow is launched (§16)
+  churn.flow/
+    flow.yaml          # flow id, name, cell index (file ↔ assetId), env ref, settings
+    cells/             # the only place cells live — classification is by directory (§2)
+      load_data.py     # one class per file; the filename (sans .py) IS the slug (§2)
+      features.py
+      train_model.py
+    data/              # optional internal data folder — unversioned; access surface open (below)
+    .lumlflow/         # session store — the actual source of truth (see §5)
+  helpers.py           # workspace shared code — watched and hashed (§8d), never inside the flow
   data/raw.csv         # workspace file — unversioned shared substrate (below)
-  pyproject.toml       # env definition (uv), see §14
+  pyproject.toml       # workspace env definition (uv), see §14
   uv.lock
-  AGENTS.md            # generated: DSL cheatsheet + CLI/MCP entrypoints (see §10/§15)
-  .lumlflow/           # session store — the actual source of truth (see §5)
+  AGENTS.md            # generated at the workspace root: DSL cheatsheet + entrypoints (§10/§15)
 ```
+
+**No `lib/` inside the flow — an explicit reversal.** An earlier draft gave
+the flow a conventional `lib/` home for helpers. That is reversed: the flow
+is monolithic, and shared code lives in the workspace beside the `.flow`
+directory, exactly where a notebook's helper modules live. §8d's
+containment argument survives intact — it just relocates: the daemon
+watches the workspace's `.py` files and folds their tree hash into
+`behaviorHash`, so helper edits are never silently stale. A stray `.py`
+inside the flow dir (outside `cells/`) is still treated as shared code —
+containment, never silence — but flagged as hygiene: the flow is supposed
+to be monolithic.
 
 Why file-per-cell wins here:
 
@@ -590,29 +628,41 @@ The working directory is a **projection** of the active branch (a checkout), not
 the truth — see §6. Deleting or mangling files in the worktree is always
 recoverable from `.lumlflow/`.
 
-**Workspace files.** Everything in the flow directory that is neither
-`cells/`, shared code (`.py` outside `cells/`, §8d), nor flow metadata
-(`flow.yaml`, env files, `.lumlflow/`) is a *workspace file* — data files,
-exports, notebooks, scratch. Three rules: the watcher ignores them and the
-store never versions them; the UI treats the flow directory as monolithic —
-workspace files never appear on the canvas or in the graph model (the flow
-dir as a whole is the unit); and they are **branch-invariant in v1** —
+**Workspace files.** The workspace is the flow's parent directory — the
+substrate the flow sits on, browsed directly by §16's workspace view.
+Everything in it that is neither a `.flow` directory, watched shared code
+(`.py`, §8d), nor the env definition (§14) is a *workspace file* — data
+files, exports, notebooks, scratch. Three rules: the store never versions
+them; the UI treats each `.flow` directory as monolithic — workspace files
+never appear on a flow's canvas or in its graph model (the flow dir as a
+whole is the unit); and they are **branch-invariant** —
 `switch`, `rewind`, and fork never touch them, so every branch sees the
 same bytes. They are a shared, mutable substrate deliberately outside the
 time plane: in the plane split below, workspace files sit on neither
 plane — they are the floor both stand on. The honest consequences: never
 rewound, never GC'd, never traveling with a branch — the user owns their
 lifecycle, and the sanctioned durable output remains a declared `asset`
-(§3). Cells reach them via `ctx.flow_dir` (§1, §2), which makes the read
-`volatility: external` — the store cannot know when `data/raw.csv`
-changed. Under later per-actor worktrees, workspace files stay shared at
-the flow root: checkouts project code, not data.
+(§3). Cells reach them via `ctx.workspace_dir` (§1, §2), which marks the
+read `external` — the store cannot know when `data/raw.csv`
+changed. Under later per-actor worktrees this is automatic: checkouts
+project the flow's cells, and the workspace sits outside them entirely.
+
+**The internal data folder.** A flow may carry a `data/` folder of its
+own — inputs that should travel when the `.flow` directory is copied. It
+follows workspace-file rules (unversioned, branch-invariant, outside the
+time plane); the open question is the access surface: `ctx.flow_dir /
+"data"` is the provisional spelling, but whether cells get a dedicated
+handle (`ctx.data`), and whether reads should later upgrade to hashed,
+declared file inputs, is deliberately left open (Open questions).
 
 **What survives version control.** First: using a VCS at all is optional —
 the store, not git, owns branches and history (§5); this subsection covers
-the flow that *is* in one. The flow directory is what users commit; `.lumlflow/`
+the flow that *is* in one. The workspace — its `.flow` directories
+included — is what users commit; `.lumlflow/`
 is never committed (the daemon writes it into `.gitignore` — scaffolded only
-when a git repo is detected at flow init). Everything identity-critical
+when a git repo is detected at flow init). Workspace code and data are
+git's in the ordinary way; the store never versions them (§8d), so git is
+their *only* history. Everything identity-critical
 deliberately lives in the committed files:
 each cell file carries its own `uid` (the write-back exists precisely so
 identity travels through any channel that carries files — §2, §11),
@@ -725,15 +775,19 @@ flow that never sees git loses nothing.
   targets on `settled`, but under lazy evaluation (§8a) a branch with one
   perpetually-unmaterialized expensive leaf never settles — a realistic
   session would offer few or zero targets, breaking the time-travel promise.
-  Selection-as-of-transaction plus `preflightCost` already make every
-  transaction safe to jump to: rewind = set the branch selection to the slice
-  as of that transaction; because values are cached in the CAS, rewind is
-  instant for anything still warm, and `preflightCost` reports what a cold
-  rewind would recompute *before* the click — including an **irrecoverable**
-  category for nondeterministic/external values already past §7's
-  value-retention window, so a lossy rewind is declared before the click,
-  never discovered after it (the journal itself is never pruned, so the
-  rewind target always exists; only pinned values decay). `settled` (branch fully
+  And switching — between branches or to any transaction — is **instant and
+  prompt-free**: clicking a branch or a rewind target just swaps the
+  selection map (a dict of pointers), lazy evaluation guarantees nothing
+  recomputes on the click, and there is no "should we rewind?"
+  confirmation, no preflight dialog. §7's persist-everything policy is what
+  makes the promise honest: every value any journaled transaction
+  references is still in the CAS, so every jump lands warm and faithful.
+  The case an earlier draft guarded with a `preflightCost` gate and an
+  **irrecoverable** category (values evicted or past a retention window)
+  cannot arise in v1 — nothing referenced is ever evicted, and the journal
+  is never pruned, so the target always exists *with* its values.
+  `preflightCost` survives as background metadata on *run* decisions
+  (§15's pending-dirty-set cost), never as a switch gate. `settled` (branch fully
   materialized and consistent) is demoted to a quality badge: the timeline
   highlights settled transactions as the natural checkpoints, but never gates
   on them.
@@ -782,47 +836,45 @@ the sessions that never needed files.
 
 ## 7. Should assets always be serialized to disk?
 
-**Tiered policy — previews always, values by policy, recompute as the safety
-net:**
+**Persist everything, dedupe hard — previews always, values always,
+recompute demoted from safety net to optimization:**
 
 | Tier | What | Policy |
 |---|---|---|
 | Previews | table head+schema, plot spec, metrics, experiment summary | **Always**, unconditionally — small, and they power the entire session UI without a kernel |
-| Values | full serialized outputs in the CAS | Default **on** below a size threshold (config, e.g. 500 MB/asset, per-flow budget); above it, opt-in via §3's dict override (`"persist": True`) |
-| Hot cache | deserialized objects in kernel memory | LRU over the active branch's slice |
+| Values | full serialized outputs in the CAS | **Always** — persist-everything is what makes branch switching and rewind instant and prompt-free (§5); `"persist": False` (§3's dict override) stays as a dormant escape hatch for the truly outsized |
+| Hot cache | deserialized objects in kernel memory | LRU over the active branch's slice — the only tier that evicts |
 
-Rules that make the tiers safe:
+Rules that make persist-everything viable:
 
-- **Content addressing dedups across branches and checkpoints** — 20 sweep
-  branches sharing an unchanged 5 GB features frame store it once. GC is
-  mark-and-sweep from all branch selections (archived included) plus a
-  recent-journal-window grace period, and in-flight runs pin their inputs and
-  outputs for the duration — never bare refcount deletes racing an adopt or a
-  rewind.
-- **Eviction only demotes, never deletes truth**: an evicted *pure/seeded*
-  value becomes "cold" — lineage + memo keys mean the exact bytes are
-  recomputable on demand, and `preflightCost` surfaces the price before a
-  rewind. This is why "store visual outputs only" is *not* enough on its own,
-  but is fine as the floor of a tiered system.
-- **`nondeterministic`/`external` outputs are pinned**: they cannot be
-  faithfully recomputed, so their values stay pinned while any journaled
-  transaction references them — not merely while a current selection does,
-  because every transaction is a rewind target (§5), and a branch that moved
-  past a nondeterministic value must still be able to restore it; in the
-  LLM-evals wedge such values are the norm, not the edge case. Two clocks,
-  deliberately distinct: the **journal is append-only and never pruned** — it
-  stays small (ops and references, not values), so rewind to *any*
-  transaction always works structurally. What expires is the
-  **value-retention window**, a per-flow setting bounding how long
-  nondeterministic/external value pins are honored. Within the window, rewind
-  is faithful; beyond it, the selection still restores and the journal still
-  replays, but the pinned values may be gone — exactly what `preflightCost`'s
-  **irrecoverable** category declares before the click (§5). The tradeoff is
-  owned rather than hidden: the alternative — pinning nondeterministic values
-  forever — is unbounded growth; the window makes the decay explicit and
-  configurable. (LUML-native outputs are the friendly case: their staged
-  bytes live in the CAS like any inline value (§3), and once uploaded the
-  collection's copy backstops them beyond the window.)
+- **Content addressing is the "smart dedupe"** that makes the policy
+  affordable: 20 sweep branches sharing an unchanged 5 GB features frame
+  store it once; a rewind target shares every unchanged value with the
+  present. Identical bytes are never stored twice — across branches,
+  transactions, and time.
+- **CAS values referenced by any journaled transaction are never deleted.**
+  Every transaction is a rewind target (§5), and instant prompt-free
+  switching is only honest if the target's values still exist. GC is
+  therefore mark-and-sweep over *journal-referenced* objects: it collects
+  only true orphans (§5's crash-recovery leftovers) and values whose every
+  referencing transaction belongs to an explicitly deleted flow. In-flight
+  runs pin their inputs and outputs for the duration — never bare refcount
+  deletes racing an adopt or a rewind.
+- **The honest cost is disk, and it is owned rather than hidden**: an
+  append-only value store grows monotonically; dedupe bounds the growth to
+  the volume of *distinct* results, which at exploration scale is the right
+  trade for instant time travel. Eviction-to-cold (recompute pure values on
+  demand) and a value-retention window for nondeterministic decay are
+  recorded as future controls for when a flow outgrows the trade — not v1
+  machinery, and neither may ever gate a switch with a prompt (§5).
+  Per-flow disk usage is surfaced in `lumlflow status` so growth is visible
+  before it hurts. (LUML-native outputs additionally get a collection-side
+  copy once uploaded, §3.)
+- With values always present, the earlier volatility-tiered retention rules
+  dissolve: nondeterministic/external outputs need no special pinning —
+  everything is pinned by policy — and faithful rewind holds universally,
+  which matters most in the LLM-evals wedge where nondeterministic values
+  are the norm, not the edge case.
 - **Ephemeral outputs** (`"ephemeral": True` in §3's dict override) for the
   unserializable (connections, GPU handles):
   never persisted, always recomputed, excluded from memoization — these are
@@ -830,7 +882,16 @@ Rules that make the tiers safe:
 
 ## 8. Kernel architecture
 
-One long-lived daemon per session (kernel + supervisor), four components:
+One long-lived daemon per session (kernel + supervisor), four components.
+One invariant before the components: **kernel plumbing is invisible.** The
+user interacts with the flow, never with a kernel — opening a flow (§16)
+attaches the session, the daemon spawns and supervises the kernel on
+demand, and no connect/select/configure surface exists anywhere in the UI
+or CLI. Everything is wired through the daemon: browsers and agents speak
+to the daemon (§10–§12), the daemon alone speaks to the kernel (§9's
+JSON-RPC boundary), and no client ever holds a kernel connection. The one
+kernel control that surfaces at all is §14's prompted restart banner — a
+one-click action, not connection management.
 
 **a) Scheduler (DAG-level reactivity).** The graph comes from the manifests —
 no static analysis of cell bodies, per the design constraint. Crucially, the
@@ -896,8 +957,11 @@ this is the "reuse of unchanged assets between branches" answer, and it's the
 same mechanism as the single-branch cache, not a special case. One carve-out
 (§2): identity-dependent materializations — the cell read
 `ctx.branch`/`ctx.step` — never claim *cross-branch* hits.
-`volatility=nondeterministic` records materializations but never claims a
-cache hit; `external` never memoizes. In-flight runs are part of the cache: a
+`external` never memoizes — observed from ctx-path access or declared (§2),
+the one volatility rule live in v1; the richer rules (e.g.
+`nondeterministic` records materializations but never claims a cache hit)
+are specified but dormant with the rest of the volatility feature (§2).
+In-flight runs are part of the cache: a
 second branch requesting a key that is currently executing awaits that run
 rather than starting a duplicate (§1, hazard 5).
 
@@ -942,33 +1006,49 @@ continues and only the changed branch re-queues.
 Parallelism later: same-process threads for GIL-releasing workloads, or N
 executor subprocesses sharing the CAS — the store design already permits it.
 
-**d) Shared code — a containment rule, not a feature.** Cutting shared-code
+**d) Shared code — a containment rule, not a feature, relocated to the
+workspace.** Cutting shared-code
 support would not remove shared code: users and agents factor out helpers
-regardless, and with no sanctioned in-flow home those helpers become
+regardless, and with no sanctioned home those helpers become
 `sys.path` hacks or local installs — where edits are invisible to hashing,
-which is silent staleness, violating the never-silently-stale guarantee. So
-the rule: **any `.py` outside `cells/`** (conventionally under `lib/`) is
-shared code — classification is directory-scoped (§2), so a helper that
-happens to define `materialize` is still lib — watched and versioned like
-cells, and the lib tree hash folds
+which is silent staleness, violating the never-silently-stale guarantee.
+The sanctioned home is the **workspace** (§4): the flow is monolithic, so
+helpers live beside the `.flow` directory, exactly where a notebook's
+helper modules live, and the kernel runs with the workspace root on
+`sys.path` so `import helpers` works Jupyter-style. The rule: **any
+watched `.py` outside `cells/`** — workspace code, or a stray `.py` inside
+a flow dir (§4's hygiene flag) — is shared code; classification is
+directory-scoped (§2), so a helper that happens to define `materialize` is
+still shared code. The daemon watches these files and folds the
+**workspace tree hash**
 into every cell's `behaviorHash` (§2 — never into `definitionHash`, which
 stays identity), so a shared-code edit marks everything unsynced — blunt,
 but *lazy* reactivity makes blunt cheap (nothing recomputes until asked).
-Lib edits land in the journal like any other change, and staleness causes
-name the changed file ("stale: `lib/metrics.py` changed") — that is the
-entire v1 UI exposure; there is no dedicated lib surface (a flow-level code
-drawer is a later nicety). Marking
+Watch scope is bounded by standard exclusions (`.venv`, `.git`,
+`node_modules`, other flows' internals); a large monorepo above the
+workspace makes the blunt tree hash noisy, which is exactly what the
+future per-cell `uses = ["helpers"]` narrowing fixes, without new
+machinery. Two honest consequences of the relocation. First, **the store
+does not version workspace code** — its history belongs to the user's own
+VCS (§4's plane split): rewinding a flow never rewinds `helpers.py`, so a
+rewound branch whose helpers have since changed reads as stale ("stale:
+`helpers.py` changed") — surfaced, never silent — rather than
+time-traveling files the flow does not own. Second, shared-code edits
+still land in the journal as observed facts (tree-hash transitions naming
+the changed paths), so the timeline shows *that* and *when* helpers
+changed even though the store keeps no copy of their content — that is the
+entire v1 UI exposure; there is no dedicated shared-code surface (a
+workspace code drawer is a later nicety). Marking
 alone is not enough, though: §1 shares `sys.modules`, so a rerun would
-`import lib.features` and get the cached *old* module while recording the new
-hash — a permanently poisoned cache entry. So when the lib tree hash changes,
-the daemon **evicts all `lib.*` entries from `sys.modules`** before the next
-materialization; the fresh namespace re-imports current code. Flow-local code
-thus gets reload semantics while third-party packages keep §14's
+`import helpers` and get the cached *old* module while recording the new
+hash — a permanently poisoned cache entry. So when the workspace tree hash
+changes, the daemon **evicts the workspace's modules from `sys.modules`**
+before the next
+materialization; the fresh namespace re-imports current code. Workspace
+code thus gets reload semantics while third-party packages keep §14's
 restart-banner semantics. Known reload hazard, stated rather than hidden:
 values deserialized against a changed class definition can misbehave —
-paranoid mode detects, kernel restart recovers. Per-cell
-`uses = ["lib.features"]` declarations can later narrow which lib files enter
-a cell's `behaviorHash`, without new machinery.
+paranoid mode detects, kernel restart recovers.
 
 Crash/restart story: the kernel is stateless relative to `.lumlflow/` — restart
 reloads the index, hot cache warms lazily, and worktree edits made during the
@@ -1087,10 +1167,12 @@ standalone product.
 - **MCP server** exposed by the daemon: the same verbs as tools, plus resources
   (manifest, cell sources, previews, focus context) for agents that integrate
   MCP-natively. Strictly a wrapper over the same API — no second code path.
-- **Discoverability**: a generated `AGENTS.md` at the flow root (DSL
+- **Discoverability**: a generated `AGENTS.md` at the workspace root (§4 —
+  agents launch in the workspace, and one file covers every flow in it; DSL
   cheatsheet documenting the literal, import-free spelling — plain classes,
   string references, the four output types plus the accepted `eval`/`metric`
-  dict shapes (§2/§3), workspace files and `ctx.flow_dir` (§4) — immutability
+  dict shapes (§2/§3), workspace files and `ctx.workspace_dir` (§4) —
+  immutability
   contract,
   CLI verbs, "run `lumlflow context`
   first", "always name cells" — §13, and "declare `asset` unless you mean to
@@ -1237,7 +1319,7 @@ The user is just **another actor** on the same paths — no special machinery:
   the worktree only when that branch is checked out and no agent session
   holds the worktree (§11's lock). The watcher is bypassed on purpose — it
   exists for edits the daemon *didn't* make. Routing daemon-originated edits
-  (UI edits, param edits, `rename --rewire`) through the worktree would
+  (UI edits, future param edits, `rename --rewire`) through the worktree would
   rewrite files under a working agent and launder known authorship through
   §11's attribution heuristic. Deferral opens a lost-update window the model
   must own: while projection waits, the worktree file is stale, and an agent
@@ -1261,9 +1343,11 @@ The user is just **another actor** on the same paths — no special machinery:
   against, and agents are instructed via `AGENTS.md` to always name cells.
 - Edits in any external editor → watcher path directly. Vim users and agents
   are indistinguishable to the store.
-- **Param edits are first-class UI ops** (params are data, §2): tweak `lr` in
-  the inspector without opening code — lands as an `edit-asset` version with a
-  params-only diff, cheap to render and to sweep.
+- **No param or volatility handles in the v1 UI** (§2's dormancy). Params
+  are data in the schema, so an inspector edit — tweak `lr` without opening
+  code, landing as an `edit-asset` version with a params-only diff — is a
+  natural later feature the slots already fit; v1 ships without it, and
+  editing a param is editing the cell file (Monaco or watcher path above).
 - Concurrency: per-cell optimistic locking — UI edit carries the base
   `definitionHash`; on conflict (agent got there first) the user chooses
   overwrite / fork-my-edit; default suggestion is fork, which is on-brand.
@@ -1271,18 +1355,23 @@ The user is just **another actor** on the same paths — no special machinery:
 
 ## 14. Venv management
 
-**Env is versioned provenance, not a memo-key ingredient:**
+**Env is recorded provenance, not a memo-key ingredient:**
 
-- Per-flow env managed by **uv**: `pyproject.toml` + `uv.lock` live in the flow
-  dir (§4) and are versioned like cells; env changes are journal transactions
-  ("added lightgbm 4.3"), visible in the session tree like any other change.
-- **The flow venv contains no lumlflow code at all.** Cell files import
+- **Per-workspace env managed by uv**: `pyproject.toml` + `uv.lock` live at
+  the workspace root (§4) — the flow is monolithic and carries no env, the
+  same way a notebook shares its project's env; every flow in the workspace
+  shares the one venv. The store does not version the env files (workspace
+  files belong to the user's VCS, §4/§8d), but env changes are still
+  observed and journaled as transactions ("added lightgbm 4.3"), visible in
+  the session tree like any other change.
+- **The workspace venv contains no lumlflow code at all.** Cell files import
   nothing (§2), and the kernel executor doesn't need to be importable by
   user code, only runnable: the daemon launches it in the venv's interpreter
   with the kernel's code path-injected from the tool install. The product
   (daemon, store, CLI, server) stays a tool install (uvx/pipx-style), and
-  the flow's `pyproject.toml` lists only the user's own libraries plus the
-  serde libraries its kinds need (pyarrow, safetensors, ... — ordinary
+  the workspace's `pyproject.toml` lists only the user's own libraries plus
+  the serde libraries its flows' kinds need (pyarrow, safetensors, ... —
+  ordinary
   ecosystem deps, scaffolded as needed, §3, and executed kernel-side: the
   daemon never imports kind plugins or serde, §3). The **luml SDK is not
   under the no-venv rule** — that rule is about lumlflow, the product; luml
@@ -1291,17 +1380,15 @@ The user is just **another actor** on the same paths — no special machinery:
   code alike. The typing stubs are an
   optional dev dependency for IDE checking (§2). This works precisely
   because of the daemon/kernel process split (§8) plus AST-only extraction
-  (§2): the daemon touches the flow venv only to spawn the kernel —
+  (§2): the daemon touches the workspace venv only to spawn the kernel —
   watching, hashing, acceptance, and the store all run without it.
-- **One venv, one kernel — the live env is flow-global per kernel lifetime
-  (v1).** Lockfiles are branch-versioned *history*; the running interpreter is
-  not per-branch, and pretending otherwise would be fiction. So each
-  materialization records the **actual live venv's** lock hash as provenance —
-  never the branch's lockfile. When the scheduler would run a cell on a branch
-  whose lockfile differs from the live venv, it flags the run ("env mismatch —
-  restart under this branch's lock to clear") instead of pretending, and
-  background work for divergent-env branches is deferred until the kernel is
-  restarted under that branch's lock.
+- **One venv, one kernel — the live env is workspace-global per kernel
+  lifetime.** With the env at the workspace root there are no per-branch
+  lockfiles and no branch/env matrix to pretend about: each materialization
+  records the **actual live venv's** lock hash as provenance, and that is
+  the whole story. (The earlier draft's branch-versioned lockfiles and its
+  "env mismatch — restart under this branch's lock" scheduling flag die
+  with the per-flow env; the provenance badge below covers what remains.)
 - **Mid-run installs do not invalidate executed cells.** Their materializations
   are facts about the env they ran under; each materialization records the env
   (lock hash) it ran under as provenance. Including env hash in the memo key
@@ -1354,6 +1441,34 @@ The `intent` strings on transactions close the loop in the other direction:
 they're what makes the session tree navigable by the *user*, so requiring them
 from agents (CLI `-m`, MCP argument) is a hard rule, not politeness.
 
+## 16. Launch surfaces: experiments + workspace
+
+Launching lumlflow serves two top-level surfaces, side by side:
+
+- **Experiments** — the traditional tracker view, unchanged: runs, metrics,
+  comparisons over collections. Flows feed it through their `experiment`
+  outputs (§3), so it needs nothing new from the flow runtime.
+- **Workspace** — a file browser rooted at the directory lumlflow was
+  launched from (the default; navigating up to parents and across the tree
+  is free). It renders real files — data, notebooks, code — and each
+  `.flow` directory appears as a **single file-like entry**, exactly as an
+  `.ipynb` renders in Jupyter's tree: monolithic (§4), never expanded into
+  its internals. Opening one enters the flow session view (canvas,
+  branches, timeline); other files are listed as context, with viewers a
+  later nicety, not v1 scope.
+
+Opening a flow is the entire ceremony: the daemon for that flow starts if
+not running, the kernel spawns on first demand, and the session attaches —
+§8's invisibility invariant. There is no kernel picker, no connect dialog,
+no runtime status to manage; everything the browser sees is wired through
+the daemon (§10–§12), which is also what lets the platform later serve the
+same session remotely (§5's sync) without a different wiring story.
+
+The workspace view is where §4's model becomes visible: the workspace is
+the substrate (shared code, data, env) and flows are documents sitting on
+it. Multiple flows in one workspace share the substrate and the env (§14)
+but keep fully independent stores, branches, and histories.
+
 ---
 
 ## Suggested build order (v1 cutlines)
@@ -1370,12 +1485,14 @@ from agents (CLI `-m`, MCP argument) is a hard rule, not politeness.
    agent-driven session; the Tier-0 quickstart gate (§10) is measured here,
    not at the end.
 5. **Daemon streaming → lumlflow UI** (journal over WebSocket, replace concept
-   fixtures with live sessions), LUML-native outputs (kernel-staged,
+   fixtures with live sessions; the workspace browser beside the existing
+   experiments view — §16), LUML-native outputs (kernel-staged,
    daemon-uploaded — §3).
 6. **MCP wrapper (including `new-cell`/`edit-cell`, which makes worktree-less
-   sessions real — §6/§10), param editing UI, strict/paranoid modes, basic
+   sessions real — §6/§10), strict/paranoid modes, basic
    sandbox profile (no-network mode, FS allowlist — §8's security note makes
-   this v1, not deferred), sweeps.**
+   this v1, not deferred), sweeps (agent-driven — param slots exist in the
+   schema; no sweep or param UI in v1, §2/§13).**
 
 Deferred past v1: track-parent forking (sparse-overlay design recorded, §5),
 whole-branch merge (per-asset adopt is the v1 story, §5), multi-actor
@@ -1383,7 +1500,11 @@ presence rendering and choreography (v1 is one user + one agent on one
 branch, §15), per-actor worktrees (design reserved), parallel executors,
 non-Python kernels (protocol reserved), flow-as-LUML-artifact export, remote
 sync/collaboration, richer sandbox profiles (seccomp/container-grade
-isolation) beyond the v1 no-network/FS-allowlist profile.
+isolation) beyond the v1 no-network/FS-allowlist profile, param/volatility
+surfaces (UI handles, inspectors, sweep UIs — schema slots ship dormant,
+§2/§13), volatility-driven scheduling beyond the `external` rule (§8b),
+value eviction and retention-window controls (persist-everything is the v1
+policy, §7).
 
 ## Open questions (not blocking, worth deciding early)
 
@@ -1391,6 +1512,20 @@ isolation) beyond the v1 no-network/FS-allowlist profile.
   values; for unpersisted giants (`"persist": False`, §3) we need version
   tokens instead of content
   hashes — which weakens early cutoff for their consumers. Acceptable?
+- **Internal data folder access surface** (§4): the folder itself is
+  decided — allowed, unversioned, travels with the flow — but the
+  cell-facing spelling is open: `ctx.flow_dir / "data"` vs a dedicated
+  `ctx.data` handle, and whether/when reads upgrade to hashed, declared
+  file inputs.
+- **Workspace watch scope** (§8d): the exclusion list and depth for the
+  workspace tree hash need tuning against real project layouts (monorepos
+  especially) before the blunt hash gets noisy; per-cell `uses` narrowing
+  is the recorded fix.
+- **Disk growth under persist-everything** (§7): at what scale the
+  append-only CAS first hurts in practice, and which future control
+  (eviction-to-cold vs a retention window) to reach for then — measure with
+  real flows before building either; neither may gate a switch with a
+  prompt (§5).
 - **Transaction grouping heuristic for watcher edits**: time-window vs.
   explicit `agent begin/end` bracketing vs. both (proposed: both, window as
   fallback).

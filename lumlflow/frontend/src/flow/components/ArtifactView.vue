@@ -115,7 +115,7 @@
         <div
           v-for="trace in value.traces.slice(0, 3)"
           :key="trace.sampleId"
-          class="rounded-md border border-surface-200 dark:border-surface-700 px-3 py-2"
+          class="rounded-lg border border-surface-200 dark:border-surface-700 px-3 py-2"
         >
           <p class="text-xs text-muted-color">{{ trace.prompt }}</p>
           <p class="text-xs mt-1">{{ trace.output }}</p>

@@ -68,9 +68,7 @@ class BaseScreen(Screen):
 
         yield StatusHeader(id="app-header")
         yield from self.compose_content()
-        yield ContextualFooter(
-            cast("LumlflowApp", self.app).keymap, id="app-footer"
-        )
+        yield ContextualFooter(cast("LumlflowApp", self.app).keymap, id="app-footer")
         yield ToastHost(id="app-toasts")
 
     def compose_content(self) -> Iterable[Widget]:

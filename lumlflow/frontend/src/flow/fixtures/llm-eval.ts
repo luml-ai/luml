@@ -67,10 +67,10 @@ const promptV2 = push(
     name: 'Prompt',
     kind: 'note',
     source: promptSource(
-      'Adds citation requirement — the terse prompt hallucinated policy numbers.',
+      'Adds citation requirement. The terse prompt hallucinated policy numbers.',
       'Answer the support question using only the provided policy text. Cite the clause you used. If the policy does not cover it, say so.',
     ),
-    doc: 'Adds citation requirement — the terse prompt hallucinated policy numbers.',
+    doc: 'Adds citation requirement. The terse prompt hallucinated policy numbers.',
     outputs: [{ name: 'value', kind: 'note', content: 'prompt-cited' }],
     step: 8,
     author: 'agent-1',
@@ -157,7 +157,7 @@ const traces = (scoreBase: number) =>
       'Can two lines share one data allowance?',
     ][i],
     output: [
-      'Yes — clause 4.2 allows cancellation within 14 days of activation for a full refund.',
+      'Yes. Clause 4.2 allows cancellation within 14 days of activation for a full refund.',
       'No. Clause 9.1 excludes liquid ingress from the standard warranty.',
       'Billing address changes are handled in Account → Billing; the policy text does not cover this.',
       'Roaming is not included in the base tier (clause 12.4).',

@@ -100,7 +100,7 @@ const missingness = push(
     kind: 'plot',
     deps: ['a_raw'],
     source: `class MissingnessPlot(Asset):
-    """Null rate per column — total_charges is the one to worry about."""
+    """Null rate per column. total_charges is the one to worry about."""
     raw: RawChurn
 
     def materialize(self) -> Plot:
@@ -121,7 +121,7 @@ const balance = push(
     kind: 'plot',
     deps: ['a_raw'],
     source: `class TargetBalance(Asset):
-    """Class balance. 26.5% positive — imbalanced but not pathologically."""
+    """Class balance. 26.5% positive, imbalanced but not pathologically."""
     raw: RawChurn
 
     def materialize(self) -> Plot:
@@ -214,7 +214,7 @@ const featuresBuckets = push(
     deps: ['a_clean'],
     params: { bucket_count: 8 },
     source: `class Features(Asset):
-    """Baseline plus tenure buckets — churn is very non-linear in tenure."""
+    """Baseline plus tenure buckets. Churn is very non-linear in tenure."""
     clean: CleanChurn
     bucket_count: int = 8
 
@@ -222,7 +222,7 @@ const featuresBuckets = push(
         df = pd.get_dummies(self.clean, columns=["contract", "payment_method"])
         df["tenure_bucket"] = pd.qcut(df.tenure, self.bucket_count, labels=False)
         return df`,
-    doc: 'Baseline plus tenure buckets — churn is very non-linear in tenure.',
+    doc: 'Baseline plus tenure buckets. Churn is very non-linear in tenure.',
     outputs: [{ name: 'value', kind: 'frame', content: 'features-buckets' }],
     step: 12,
     author: 'agent-1',
@@ -263,14 +263,14 @@ const split = push(
     deps: ['a_features'],
     params: { test_size: 0.2, seed: 42 },
     source: `class TrainTestSplit(Asset):
-    """Stratified 80/20 split, seed pinned so branches are comparable."""
+    """Stratified 80/20 split, seed pinned so lanes are comparable."""
     features: Features
     test_size: float = 0.2
     seed: int = 42
 
     def materialize(self) -> Split:
         return stratified_split(self.features, self.test_size, self.seed)`,
-    doc: 'Stratified 80/20 split, seed pinned so branches are comparable.',
+    doc: 'Stratified 80/20 split, seed pinned so lanes are comparable.',
     volatility: 'seeded',
     outputs: [{ name: 'value', kind: 'frame', content: 'split' }],
     step: 7,
@@ -376,7 +376,7 @@ const logreg = push(
     deps: ['a_split'],
     params: { C: 1.0 },
     source: `class TrainLogReg(Asset):
-    """Regularised logistic regression — the interpretable baseline."""
+    """Regularised logistic regression, the interpretable baseline."""
     split: TrainTestSplit
     C: float = 1.0
 
@@ -384,7 +384,7 @@ const logreg = push(
         model = LogisticRegression(C=self.C, max_iter=2000)
         model.fit(self.split.X_train, self.split.y_train)
         return ExperimentBundle(model=model, metrics=score(model, self.split))`,
-    doc: 'Regularised logistic regression — the interpretable baseline.',
+    doc: 'Regularised logistic regression, the interpretable baseline.',
     outputs: [
       { name: 'model', kind: 'model', content: 'logreg' },
       { name: 'metrics', kind: 'metric', content: 'logreg-metrics' },
@@ -497,7 +497,7 @@ materializations[profile.versionId] = makeMaterialization(profile, {
     value: {
       type: 'note',
       markdown:
-        '**7,043 rows**, 26.5% churn rate. `total_charges` is stored as text and has 11 blanks — all of them customers with `tenure == 0`, so they are new accounts rather than bad data.',
+        '**7,043 rows**, 26.5% churn rate. `total_charges` is stored as text and has 11 blanks. All of them are customers with `tenure == 0`, so they are new accounts rather than bad data.',
     },
   },
 })

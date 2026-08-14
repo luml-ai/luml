@@ -46,10 +46,10 @@
         stroke="var(--p-content-background)"
         stroke-width="1.5"
       />
-      <text :x="PAD" :y="PAD - 3" class="text-[9px] text-muted-color" fill="currentColor">
+      <text :x="PAD" :y="PAD - 3" class="text-xs text-muted-color" fill="currentColor">
         {{ format(bounds.max) }}
       </text>
-      <text :x="PAD" :y="HEIGHT - 2" class="text-[9px] text-muted-color" fill="currentColor">
+      <text :x="PAD" :y="HEIGHT - 2" class="text-xs text-muted-color" fill="currentColor">
         {{ format(bounds.min) }}
       </text>
     </svg>

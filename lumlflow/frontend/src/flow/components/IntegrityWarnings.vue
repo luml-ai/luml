@@ -1,32 +1,28 @@
 <template>
-  <div v-if="warnings.length" class="space-y-1.5 mb-3">
-    <div
+  <div v-if="warnings.length" class="mb-3 space-y-1.5">
+    <Message
       v-for="(warning, index) in warnings"
       :key="index"
-      class="flex items-start gap-2 px-3 py-2 rounded border text-sm"
-      :class="
-        warning.kind === 'divergent-pin'
-          ? 'border-red-400 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-300'
-          : 'border-amber-400 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300'
-      "
+      :severity="warning.kind === 'divergent-pin' ? 'error' : 'warn'"
+      size="small"
     >
-      <span class="mt-0.5">⚠</span>
-      <div>
+      <div class="min-w-0 text-sm">
         <p class="font-medium">{{ title(warning.kind) }}</p>
         <p>{{ warning.message }}</p>
       </div>
-    </div>
+    </Message>
   </div>
 </template>
 
 <script setup lang="ts">
+import { Message } from 'primevue'
 import type { IntegrityWarning } from '../types'
 
 /**
  * Reasons a comparison may not be apples to apples.
  *
  * The divergent-pin case is the flagship: content addressing lets us detect
- * exactly that two variants read different versions of a shared upstream, where
+ * exactly that two lanes read different versions of a shared upstream, where
  * every competing tool can only guess. Without this warning, pin-at-fork quietly
  * destroys the trustworthiness of every metric shown next to it.
  */

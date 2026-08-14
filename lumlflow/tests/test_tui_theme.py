@@ -94,9 +94,7 @@ def test_semantic_palette_keeps_role_invariants() -> None:
     """
 
     bundle = get_theme_bundle()
-    assert len(bundle.dark_palette.tag_palette) == len(
-        bundle.light_palette.tag_palette
-    )
+    assert len(bundle.dark_palette.tag_palette) == len(bundle.light_palette.tag_palette)
     assert len(bundle.dark_palette.score_gradient) == len(
         bundle.light_palette.score_gradient
     )
