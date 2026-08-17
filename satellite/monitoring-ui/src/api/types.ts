@@ -58,6 +58,56 @@ export interface AlertBanner {
   message: string
   first_seen?: string | null
   last_seen?: string | null
+  /** What fired, phrased for a reader: "PSI", "Missing rate", "Latency p95". */
+  label?: string
+  unit?: string
+  value_label?: string
+  threshold_label?: string
+  state?: string
+  duration_seconds?: number | null
+  threshold_source?: string
+  /** The alert's own metric across the materialized windows. */
+  history?: Series | null
+}
+
+export interface MetricFailure {
+  metric: string
+  error: string
+  at: string
+}
+
+export interface MetricIncident {
+  metric: string
+  error: string
+  started_at: string
+  ended_at?: string | null
+  ongoing: boolean
+}
+
+/** Whether monitoring itself is keeping up — not a metric about the model. */
+export interface WorkerHealthResponse {
+  state: SectionState
+  running: boolean
+  last_tick_at?: string | null
+  windows_processed: number
+  last_window_end?: string | null
+  last_lag_seconds?: number | null
+  window_seconds?: number | null
+  interval_seconds?: number | null
+  failures: MetricFailure[]
+  /** Failure history from the database; survives a restart, unlike the counters. */
+  incidents: MetricIncident[]
+}
+
+export interface AlertGroup {
+  group: string
+  alerts: AlertBanner[]
+}
+
+export interface AlertsResponse {
+  state: SectionState
+  profile_status: ProfileStatus
+  groups: AlertGroup[]
 }
 
 export interface Card {
@@ -101,18 +151,50 @@ export interface OverviewResponse {
   top_drifted_features: DriftedFeature[]
 }
 
+export interface UnseenCategoryCount {
+  value: string
+  count: number
+}
+
+/** What was wrong with the values a feature's rates counted — evidence for the panel. */
+export interface InvalidValueSummary {
+  missing_count: number
+  type_mismatch_count: number
+  observed_types: Record<string, number>
+  type_examples: string[]
+  range_violation_count: number
+  below_min: number
+  above_max: number
+  observed_min?: number | null
+  observed_max?: number | null
+  reference_min?: number | null
+  reference_max?: number | null
+  unseen_category_count: number
+  unseen_distinct: number
+  reference_categories?: number | null
+  unseen_categories: UnseenCategoryCount[]
+}
+
 export interface DataQualityFeatureRow {
   feature: string
+  kind?: string | null
   missing_rate?: number | null
   type_error_rate?: number | null
+  // the worst of the two checks below, for the single column the table shows
   range_unseen_rate?: number | null
+  range_violation_rate?: number | null
+  unseen_category_rate?: number | null
+  checked?: number | null
   status: Severity
+  invalid?: InvalidValueSummary | null
 }
 
 export interface DataQualityResponse {
   state: SectionState
   profile_status: ProfileStatus
   features: DataQualityFeatureRow[]
+  /** One series per check of the requested feature; empty for the whole-table request. */
+  trends?: Series[]
   alerts: AlertBanner[]
 }
 
@@ -145,6 +227,11 @@ export interface MultivariatePanel {
   status: Severity
   shift_value?: number | null
   shift_metric?: string | null
+  shift_unit?: string
+  dispersion_ratio?: number | null
+  outlier_rate?: number | null
+  reference_ellipse?: PcaPoint[]
+  current_ellipse?: PcaPoint[]
   explained_variance: number[]
   feature_psi: DriftedFeature[]
   reference_projection: PcaPoint[]
@@ -177,6 +264,8 @@ export interface ReferenceProfileResponse {
   computed_at?: string | null
   features: string[]
   feature?: ReferenceProfileFeature | null
+  /** The artifact's reference_profile.json itself, for the Reference profile tab. */
+  document?: Record<string, unknown> | null
 }
 
 export interface TraceRow {

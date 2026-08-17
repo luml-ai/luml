@@ -23,6 +23,14 @@ TaskType = Literal["regression", "classification"]
 
 DEFAULT_BINS = 10
 
+# Share of training variance the stored principal components must cover.
+DEFAULT_EXPLAINED_VARIANCE = 0.90
+
+# How many training points travel with the profile for the PC1 × PC2 scatter.
+PROJECTION_SAMPLE = 400
+
+PROFILE_STATUS_READY = "ready"
+
 _QUANTILE_LEVELS: dict[str, float] = {
     "q05": 0.05,
     "q25": 0.25,
@@ -110,6 +118,7 @@ def compute_pca_profile(
     feature_names: list[str] | None = None,
     categorical_features: Mapping[str, list[str]] | None = None,
     random_state: int = 0,
+    explained_variance: float = DEFAULT_EXPLAINED_VARIANCE,
 ) -> dict[str, Any]:
     """Fit a scaler + PCA on the numerical features and summarize the score cloud.
 
@@ -120,6 +129,11 @@ def compute_pca_profile(
     worker measures Mahalanobis distance against. Rows with any missing numerical value
     are dropped before fitting. Returns an empty dict when there are no numerical
     features (or too few rows to fit), which the worker reads defensively.
+
+    Components are truncated at the smallest count reaching ``explained_variance`` of the
+    training variance: directions carrying almost nothing add noise to the distance and,
+    being nearly flat, make the covariance hard to invert. A model with two numerical
+    features therefore keeps both — the plane the dashboard draws needs two.
     """
     frame = _as_frame(features, feature_names)
     numerical_names = _numerical_feature_names(
@@ -134,10 +148,14 @@ def compute_pca_profile(
     if n_samples < 2:
         return {}
 
-    n_components = min(n_features, n_samples)
     scaler = StandardScaler().fit(matrix)
-    pca = PCA(n_components=n_components, random_state=random_state)
-    scores = pca.fit_transform(scaler.transform(matrix))
+    scaled = scaler.transform(matrix)
+    pca = PCA(n_components=min(n_features, n_samples), random_state=random_state)
+    pca.fit(scaled)
+
+    keep = _components_for_variance(pca.explained_variance_ratio_, explained_variance)
+    components = pca.components_[:keep]
+    scores = (scaled - pca.mean_) @ components.T
 
     return {
         "scaler": {
@@ -147,19 +165,43 @@ def compute_pca_profile(
             "n_features": n_features,
         },
         "pca": {
-            "n_components": int(pca.n_components_),
+            "n_components": keep,
             "n_features": n_features,
-            "components": _to_matrix(pca.components_),
+            "components": _to_matrix(components),
             "mean_": _to_vector(pca.mean_),
             "feature_names": numerical_names,
+            "explained_variance_ratio": _to_vector(pca.explained_variance_ratio_[:keep]),
         },
+        # A thinned sample of the training cloud in the PC1 × PC2 plane. Mean and
+        # covariance describe that cloud but cannot be drawn; the dashboard plots live
+        # traffic against these points, so the shape has to travel with the profile.
+        "reference_projection": _thin(scores[:, :2], PROJECTION_SAMPLE),
         "reference_distribution": {
             "mean": _to_vector(scores.mean(axis=0)),
             "covariance": _to_matrix(np.cov(scores, rowvar=False)),
             "n_samples": n_samples,
-            "n_components": int(pca.n_components_),
+            "n_components": keep,
         },
     }
+
+
+def _thin(points: np.ndarray, limit: int) -> list[list[float]]:
+    """Evenly spaced sample of ``points``, at most ``limit`` of them.
+
+    Deterministic (a stride, not a random draw) so the profile stays reproducible, and
+    capped so a million-row training set does not bloat the artifact.
+    """
+    if points.ndim != 2 or points.shape[1] < 2 or points.shape[0] == 0:
+        return []
+    stride = max(1, points.shape[0] // limit)
+    return _to_matrix(points[::stride][:limit])
+
+
+def _components_for_variance(ratios: np.ndarray, target: float) -> int:
+    """Smallest component count whose cumulative explained variance reaches ``target``."""
+    cumulative = np.cumsum(ratios)
+    reached = np.searchsorted(cumulative, min(target, float(cumulative[-1])))
+    return int(min(len(ratios), reached + 1))
 
 
 def build_reference_profile(
@@ -178,6 +220,12 @@ def build_reference_profile(
     ``predict`` is the way to obtain predictions from the model; when
     ``predict_proba`` is supplied for a classification task, its per-sample confidence
     (the maximum class probability) is summarized as an extra numerical score output.
+
+    Besides the summaries the profile declares what the monitoring runtime keys off:
+    ``task_type`` (which output-drift adapter applies), ``output_summary`` (the single
+    monitored prediction — its name, kind, and reference distribution, picked out of
+    ``output_summaries``), and ``profile_status`` (``ready``: these baselines came from
+    real reference data, not a placeholder).
     """
     feature_summaries = compute_feature_summaries(
         features,
@@ -205,10 +253,33 @@ def build_reference_profile(
     )
 
     return {
+        "profile_status": PROFILE_STATUS_READY,
+        "task_type": task_type,
         "feature_summaries": feature_summaries,
         "output_summaries": output_summaries,
+        "output_summary": _primary_output_summary(output_summaries, task_type),
         "pca_profile": pca_profile,
     }
+
+
+def _primary_output_summary(
+    output_summaries: dict[str, dict[str, Any]], task_type: TaskType
+) -> dict[str, Any]:
+    """The monitored prediction, flattened out of the per-group ``output_summaries``.
+
+    Output drift scores one prediction against one reference distribution, so the profile
+    names it explicitly instead of leaving the runtime to guess a group and a key. A
+    regression profile points at the first numerical output (score columns are appended
+    after the predictions, so the prediction stays first); a classification profile points
+    at the first categorical output — its predicted-class proportions.
+    """
+    group = "numerical_outputs" if task_type == "regression" else "categorical_outputs"
+    kind = "numerical" if task_type == "regression" else "categorical"
+    summaries = output_summaries.get(group) or {}
+    if not summaries:
+        return {}
+    name, summary = next(iter(summaries.items()))
+    return {"name": name, "type": kind, "summary": summary}
 
 
 def _numerical_summary(series: pd.Series, position: int, bins: int) -> dict[str, Any]:

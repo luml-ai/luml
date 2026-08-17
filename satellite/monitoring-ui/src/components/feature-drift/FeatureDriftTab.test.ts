@@ -9,7 +9,12 @@ import {
   type ReferenceProfileResponse,
 } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
-import { makeFeatureDrift, makeFeatureDriftDetail, makeReferenceProfile } from '@/test/fixtures'
+import {
+  makeAlerts,
+  makeFeatureDrift,
+  makeFeatureDriftDetail,
+  makeReferenceProfile,
+} from '@/test/fixtures'
 
 function mountTab(props: {
   featureDrift: FeatureDriftResponse | null
@@ -25,11 +30,28 @@ function mountTab(props: {
       referenceProfileStatus: 'ready',
       ...props,
     },
-    global: { stubs: { apexchart: true } },
+    // the drawer teleports to the body; keep it inline so assertions stay on the wrapper
+    global: { stubs: { apexchart: true, teleport: true } },
   })
 }
 
 describe('FeatureDriftTab', () => {
+  it('opens an alert from its own section in the shared sidebar', async () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ alerts: makeAlerts().groups[0].alerts }),
+      status: 'ready',
+    })
+
+    await wrapper.findAll('[data-testid="alert-banner"]')[0].trigger('click')
+
+    expect(wrapper.find('[data-testid="alert-drawer"]').text()).toContain('income')
+
+    await wrapper.find('[data-testid="alert-show-feature"]').trigger('click')
+    expect(wrapper.emitted('show-feature')?.[0]).toEqual([
+      expect.objectContaining({ feature: 'income' }),
+    ])
+  })
+
   it('renders the ranked PSI list with per-feature status from the contract', () => {
     const wrapper = mountTab({ featureDrift: makeFeatureDrift(), status: 'ready' })
 
@@ -99,20 +121,42 @@ describe('FeatureDriftTab', () => {
     expect(wrapper.find('[data-testid="pca-empty"]').exists()).toBe(true)
   })
 
-  it('renders the reference profile panel for the selected numeric feature', () => {
+  it('names the kind of the selected feature next to its status', () => {
     const wrapper = mountTab({
       featureDrift: makeFeatureDrift({ selected: makeFeatureDriftDetail() }),
       status: 'ready',
       selectedFeature: 'income',
     })
 
-    const panel = wrapper.find('[data-testid="reference-profile-panel"]')
-    expect(panel.text()).toContain('Summary statistics')
-    expect(panel.find('[data-testid="reference-edges"]').exists()).toBe(true)
-    expect(panel.text()).toContain('training set (2026-01-05)')
+    expect(wrapper.get('[data-testid="feature-kind"]').text()).toBe('Numerical')
   })
 
-  it('renders category probabilities for a categorical reference feature', () => {
+  it('keeps the reference profile behind a button until it is asked for', async () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ selected: makeFeatureDriftDetail() }),
+      status: 'ready',
+      selectedFeature: 'income',
+    })
+
+    expect(wrapper.find('[data-testid="reference-profile-panel"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="open-reference-profile"]').trigger('click')
+
+    const panel = wrapper.get('[data-testid="reference-profile-panel"]')
+    expect(panel.text()).toContain('Summary statistics')
+    expect(panel.find('[data-testid="reference-edges"]').exists()).toBe(true)
+
+    // identity and provenance live in the drawer header, above the sections
+    const drawer = wrapper.get('[data-testid="reference-drawer"]')
+    expect(drawer.text()).toContain('income')
+    expect(drawer.text()).toContain('numeric')
+    expect(drawer.text()).toContain('training set (2026-01-05)')
+
+    await wrapper.get('[data-testid="reference-drawer-close"]').trigger('click')
+    expect(wrapper.find('[data-testid="reference-profile-panel"]').exists()).toBe(false)
+  })
+
+  it('shows category probabilities of a categorical feature in the drawer', async () => {
     const wrapper = mountTab({
       featureDrift: makeFeatureDrift({ selected: makeFeatureDriftDetail({ feature: 'region' }) }),
       status: 'ready',
@@ -128,10 +172,79 @@ describe('FeatureDriftTab', () => {
       }),
     })
 
-    const panel = wrapper.find('[data-testid="reference-profile-panel"]')
+    expect(wrapper.get('[data-testid="feature-kind"]').text()).toBe('Categorical')
+
+    await wrapper.get('[data-testid="open-reference-profile"]').trigger('click')
+
+    const panel = wrapper.get('[data-testid="reference-profile-panel"]')
     expect(panel.find('[data-testid="reference-categories"]').exists()).toBe(true)
     expect(panel.text()).toContain('north')
     expect(panel.text()).toContain('50.0%')
+  })
+
+  it('keeps a long category label on one line and exposes it in full on hover', async () => {
+    const longName = 'enterprise_customer_success_escalation_tier_three'
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ selected: makeFeatureDriftDetail({ feature: 'segment' }) }),
+      status: 'ready',
+      selectedFeature: 'segment',
+      referenceProfile: makeReferenceProfile({
+        feature: {
+          feature: 'segment',
+          kind: 'categorical',
+          summary: { distinct: 2 },
+          categories: [longName, 'smb'],
+          category_probabilities: [0.8, 0.2],
+        },
+      }),
+    })
+
+    await wrapper.get('[data-testid="open-reference-profile"]').trigger('click')
+
+    const label = wrapper.findAll('.cat-name')[0]
+    expect(label.text()).toBe(longName)
+    expect(label.attributes('title')).toBe(longName)
+  })
+
+  it('closes the drawer when another feature is selected', async () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ selected: makeFeatureDriftDetail() }),
+      status: 'ready',
+      selectedFeature: 'income',
+    })
+
+    await wrapper.get('[data-testid="open-reference-profile"]').trigger('click')
+    expect(wrapper.find('[data-testid="reference-drawer"]').exists()).toBe(true)
+
+    await wrapper.setProps({ selectedFeature: 'age' })
+
+    expect(wrapper.find('[data-testid="reference-drawer"]').exists()).toBe(false)
+  })
+
+  it('explains both halves of the tab when there is nothing to rank', () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ features: [], selected: null }),
+      status: 'ready',
+      selectedFeature: null,
+    })
+
+    const list = wrapper.get('[data-testid="ranked-empty"]')
+    expect(list.text()).toContain('No features to rank')
+
+    // with an empty ranking the detail panel must not send the reader back to the list
+    const detail = wrapper.get('[data-testid="feature-detail-prompt"]')
+    expect(detail.text()).toContain('Nothing to inspect yet')
+    expect(detail.text()).not.toContain('Pick a feature')
+  })
+
+  it('asks for a selection while the ranking has features', () => {
+    const wrapper = mountTab({
+      featureDrift: makeFeatureDrift({ selected: null }),
+      status: 'ready',
+      selectedFeature: null,
+    })
+
+    expect(wrapper.get('[data-testid="feature-detail-prompt"]').text()).toContain('Pick a feature')
   })
 
   it('shows the not-computed-yet empty state when the worker has no drift results', () => {

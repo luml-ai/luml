@@ -37,6 +37,26 @@
           </template>
         </Select>
       </div>
+      <div class="monitoring-field">
+        <div class="monitoring-header">
+          <label for="monitoringEnabled" class="label">Live monitoring</label>
+          <ToggleSwitch
+            v-model="monitoringEnabled"
+            inputId="monitoringEnabled"
+            name="monitoringEnabled"
+            data-testid="create-monitoring-toggle"
+          />
+        </div>
+        <p class="monitoring-hint">
+          Record inference telemetry and serve the monitoring dashboard for this deployment. Can be
+          switched later from the deployment settings.
+        </p>
+        <p v-if="monitoringEnabled && !satelliteSupportsMonitoring" class="monitoring-warning">
+          <Info :size="12" class="option-message-icon" />
+          The selected satellite does not report the monitoring capability, so the dashboard stays
+          unavailable until it does.
+        </p>
+      </div>
       <div v-if="fields?.length" class="custom-variables">
         <div class="custom-variables__content">
           <FormField
@@ -97,7 +117,7 @@ import { SatelliteFieldTypeEnum, type SatelliteField } from '@/lib/api/satellite
 import { getErrorMessage } from '@/helpers/helpers'
 import { simpleErrorToast } from '@/lib/primevue/data/toasts'
 import { useSatellitesStore } from '@/stores/satellites'
-import { Select, useToast, InputText, InputNumber, ToggleButton } from 'primevue'
+import { Select, useToast, InputText, InputNumber, ToggleButton, ToggleSwitch } from 'primevue'
 import { computed, nextTick, onBeforeMount, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { FormField } from '@primevue/forms'
@@ -118,8 +138,15 @@ const { fields: fieldsForShowing, setFields } = useSatelliteFields()
 
 const satelliteId = defineModel<string | null>('satelliteId')
 const fields = defineModel<FieldInfo<string | number | boolean>[]>('fields')
+const monitoringEnabled = defineModel<boolean>('monitoringEnabled')
 
 const ignoreWatch = ref(false)
+
+const satelliteSupportsMonitoring = computed(() => {
+  if (!satelliteId.value) return true
+  const satellite = satellitesStore.satellitesList.find(({ id }) => id === satelliteId.value)
+  return !satellite || !!satellite.capabilities.monitoring
+})
 
 const filteredSatellites = computed(() => {
   const model = props.selectedModel
@@ -298,6 +325,34 @@ onBeforeMount(() => {
   padding: 12px;
   border-radius: var(--p-border-radius-lg);
   background-color: var(--p-badge-secondary-background);
+}
+
+.monitoring-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.monitoring-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.monitoring-hint {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--p-button-text-secondary-color);
+  margin: 0;
+}
+
+.monitoring-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 0;
 }
 
 .custom-variables .label {

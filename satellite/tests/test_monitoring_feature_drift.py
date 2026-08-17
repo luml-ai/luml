@@ -243,3 +243,28 @@ def test_feature_drift_aggregates_batched_observations() -> None:
     age = result.values["features"]["age"]
     assert age["count"] == 4  # all batch observations scored, not one per event
     assert age["psi"] < 0.1  # matches reference distribution -> no drift
+
+
+def test_numerical_result_carries_the_two_distributions_psi_compares() -> None:
+    """The score alone cannot be charted: the tab draws reference against current, so the
+    metric records both halves per reference bin."""
+    values = [5.0] * 10 + [15.0] * 10  # all in the first two of four reference bins
+
+    result = _compute(_events("age", values), _profile(numerical=NUM_REF))
+
+    distribution = result.values["features"]["age"]["distribution"]
+    assert distribution["kind"] == "numeric"
+    assert [b["label"] for b in distribution["bins"]] == ["0–10", "10–20", "20–30", "30–40"]
+    assert [b["reference"] for b in distribution["bins"]] == [0.25] * 4
+    assert [b["current"] for b in distribution["bins"]] == [0.5, 0.5, 0.0, 0.0]
+
+
+def test_categorical_distribution_includes_categories_only_seen_live() -> None:
+    values = ["a"] * 6 + ["b"] * 2 + ["c"] * 2  # "c" is absent from the reference
+
+    result = _compute(_events("region", values), _profile(categorical=CAT_REF))
+
+    bins = result.values["features"]["region"]["distribution"]["bins"]
+    assert [b["label"] for b in bins] == ["a", "b", "c"]
+    assert [b["reference"] for b in bins] == [0.5, 0.5, 0.0]
+    assert [b["current"] for b in bins] == [0.6, 0.2, 0.2]

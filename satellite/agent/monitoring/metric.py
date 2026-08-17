@@ -14,6 +14,10 @@ class MetricInput:
     context: DeploymentContext
     events: list[InferenceEvent]
     window: TimeWindow
+    # Signal keys of this metric that are already open from an earlier window. A rule
+    # phrased over consecutive windows ("repeated timeouts") needs to know that the
+    # previous window fired too, and an open alert is exactly that memory.
+    open_signals: frozenset[str] = frozenset()
 
     @property
     def profile(self) -> dict | None:

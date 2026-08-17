@@ -332,3 +332,110 @@ def test_build_profile_includes_pca_over_numerical_features() -> None:
 
     assert {"feature_summaries", "output_summaries", "pca_profile"} <= set(profile)
     assert profile["pca_profile"]["pca"]["feature_names"] == ["age", "bmi"]
+
+
+def test_uncorrelated_features_keep_every_component() -> None:
+    """Nothing to compress: each direction carries a quarter of the variance, so all four
+    are needed to reach the 90% the profile stores."""
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame(rng.normal(size=(200, 4)), columns=["a", "b", "c", "d"])
+
+    profile = compute_pca_profile(frame)
+
+    assert profile["pca"]["n_components"] == 4
+    assert profile["reference_distribution"]["n_components"] == 4
+
+
+def test_two_numerical_features_keep_both_components() -> None:
+    """The dashboard draws a PC1 × PC2 plane; a model with two numerical inputs must still
+    produce two components, or there is no plane to draw."""
+    rng = np.random.default_rng(3)
+    frame = pd.DataFrame({"age": rng.normal(40, 12, 300), "bmi": rng.normal(30, 6, 300)})
+
+    profile = compute_pca_profile(frame)
+
+    assert profile["pca"]["n_components"] == 2
+    assert len(profile["reference_distribution"]["covariance"]) == 2
+    assert len(profile["reference_projection"]) == 300
+
+
+def test_pca_keeps_fewer_components_when_features_are_correlated() -> None:
+    rng = np.random.default_rng(0)
+    base = rng.normal(size=200)
+    frame = pd.DataFrame(
+        {
+            "a": base,
+            "b": 2.0 * base + 0.01 * rng.normal(size=200),
+            "c": -1.5 * base + 0.01 * rng.normal(size=200),
+            "d": rng.normal(size=200),
+        }
+    )
+
+    profile = compute_pca_profile(frame)
+
+    assert profile["pca"]["n_components"] == 2
+    assert len(profile["pca"]["explained_variance_ratio"]) == 2
+    assert sum(profile["pca"]["explained_variance_ratio"]) >= 0.90
+
+
+def test_regression_profile_declares_task_type_and_monitored_output() -> None:
+    frame = _mixed_frame()
+    target = 200.0 * frame["age"] + 300.0 * frame["bmi"]
+    pipe = _fit_pipeline(frame, target.to_numpy(), LinearRegression())
+
+    profile = build_reference_profile(frame, "regression", pipe.predict)
+
+    assert profile["task_type"] == "regression"
+    assert profile["profile_status"] == "ready"
+
+    output = profile["output_summary"]
+    assert output["name"] == "y_pred"
+    assert output["type"] == "numerical"
+    assert output["summary"] == profile["output_summaries"]["numerical_outputs"]["y_pred"]
+
+
+def test_classification_monitored_output_is_the_predicted_class_not_the_score() -> None:
+    frame = _mixed_frame()
+    target = (frame["age"] > 40).astype(int).to_numpy()
+    pipe = _fit_pipeline(frame, target, LogisticRegression(max_iter=1000))
+
+    profile = build_reference_profile(
+        frame, "classification", pipe.predict, predict_proba=pipe.predict_proba
+    )
+
+    assert profile["task_type"] == "classification"
+
+    output = profile["output_summary"]
+    assert output["name"] == "y_pred"
+    assert output["type"] == "categorical"
+    assert "probabilities" in output["summary"]
+
+
+def test_pca_profile_carries_a_drawable_sample_of_the_training_cloud() -> None:
+    """Mean and covariance describe the reference cloud but cannot be plotted; the
+    dashboard scatters live traffic against these points, so they ship with the profile."""
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame(rng.normal(size=(1000, 3)), columns=["a", "b", "c"])
+
+    projection = compute_pca_profile(frame)["reference_projection"]
+
+    assert len(projection) == 400  # thinned to the cap
+    assert all(len(point) == 2 for point in projection)
+    _assert_json_native(projection)
+
+
+def test_reference_projection_is_deterministic_and_keeps_every_small_input() -> None:
+    rng = np.random.default_rng(1)
+    frame = pd.DataFrame(rng.normal(size=(40, 3)), columns=["x", "y", "z"])
+
+    first = compute_pca_profile(frame)["reference_projection"]
+    second = compute_pca_profile(frame)["reference_projection"]
+
+    assert first == second
+    assert len(first) == 40  # under the cap, nothing is dropped
+
+
+def test_single_numerical_feature_has_no_two_dimensional_projection() -> None:
+    frame = pd.DataFrame({"x": np.linspace(0.0, 10.0, 50), "cat": ["a", "b"] * 25})
+
+    assert compute_pca_profile(frame)["reference_projection"] == []

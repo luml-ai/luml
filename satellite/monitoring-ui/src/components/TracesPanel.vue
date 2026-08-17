@@ -51,7 +51,12 @@
               @keydown.space.prevent="$emit('open', row.event_id)"
             >
               <td class="nowrap">{{ formatTimestamp(row.ts) ?? '—' }}</td>
-              <td class="mono id">{{ row.event_id }}</td>
+              <td class="mono id">
+                <span class="id-cell">
+                  <span class="id-text">{{ row.event_id }}</span>
+                  <CopyButton :value="row.event_id" label="event id" />
+                </span>
+              </td>
               <td class="mono summary">{{ row.features_summary ?? '—' }}</td>
               <td class="mono summary">{{ row.prediction ?? '—' }}</td>
               <td class="num nowrap">{{ Math.round(row.latency_ms) }} ms</td>
@@ -105,6 +110,7 @@ import { sectionView } from '@/lib/section'
 import { formatTimestamp } from '@/lib/format'
 import StateBlock from '@/components/StateBlock.vue'
 import TraceDetailDialog from '@/components/TraceDetailDialog.vue'
+import CopyButton from '@/components/CopyButton.vue'
 
 const props = defineProps<{
   traces: TracesResponse | null
@@ -198,8 +204,19 @@ function statusClass(statusCode: number): string {
 .id {
   color: var(--luml-fg-muted);
 }
+.id-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.id-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .summary {
-  max-width: 260px;
+  /* the copy affordance costs the row some width; the summaries give it back */
+  max-width: 210px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

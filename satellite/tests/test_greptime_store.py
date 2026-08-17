@@ -134,7 +134,8 @@ async def test_tables_created_only_once() -> None:
     await store.write_result(result)
 
     creates = [s for s in recorder.statements if s.strip().startswith("CREATE TABLE")]
-    assert len(creates) == 2
+    # results, alerts and the worker's own failure history
+    assert len(creates) == 3
 
 
 async def test_save_alert_inserts_row() -> None:

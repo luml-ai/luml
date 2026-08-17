@@ -17,6 +17,7 @@ export interface CreateDeploymentPayload {
   description: string
   satellite_id: string
   artifact_id: string
+  monitoring_mode: MonitoringMode
   satellite_parameters: Record<string, string | number | boolean>
   dynamic_attributes_secrets: Record<string, string>
   env_variables_secrets: Record<string, string>

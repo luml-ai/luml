@@ -7,6 +7,7 @@ from typing import Any
 _SUCCESS_STATUSES = frozenset({"success", "ok", "succeeded", "completed"})
 _ERROR_STATUSES = frozenset({"error", "failed", "failure"})
 _FAILED_INFERENCE_STATUSES = frozenset({"failed", "failure"})
+_TIMEOUT_STATUSES = frozenset({"timeout", "timed_out", "deadline_exceeded"})
 
 
 class Severity(StrEnum):
@@ -76,8 +77,17 @@ class InferenceEvent:
         return not self.is_success
 
     @property
+    def is_timeout(self) -> bool:
+        """A call that never came back in time, as opposed to one that returned an error."""
+        if self._normalized_status() in _TIMEOUT_STATUSES:
+            return True
+        return self.status_code == 504
+
+    @property
     def is_failed_inference(self) -> bool:
         """Whether the inference itself did not complete (vs. a client-side 4xx)."""
+        if self.is_timeout:  # a call that never returned never completed either
+            return True
         status = self._normalized_status()
         if status in _FAILED_INFERENCE_STATUSES:
             return True
@@ -114,6 +124,16 @@ class DeploymentContext:
     @property
     def has_pca_profile(self) -> bool:
         return bool((self.profile or {}).get("pca_profile"))
+
+
+@dataclass(frozen=True)
+class MetricTransition:
+    """One entry of a metric's failure history: it broke, or it came back."""
+
+    metric: str
+    kind: str  # failed | recovered
+    error: str
+    at: datetime
 
 
 @dataclass(frozen=True)

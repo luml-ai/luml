@@ -15,6 +15,7 @@ from agent.monitoring import (
     default_registry,
     monitored_deployments,
 )
+from agent.monitoring.health import worker_health
 from agent.settings import config
 
 
@@ -23,6 +24,9 @@ def _build_monitoring_worker() -> tuple[MonitoringWorker, GreptimeMonitoringStor
         host=config.GREPTIMEDB_HOST,
         port=config.GREPTIMEDB_HTTP_PORT,
         database=config.GREPTIMEDB_DATABASE,
+        events_ttl=config.MONITORING_EVENTS_TTL,
+        results_ttl=config.MONITORING_RESULTS_TTL,
+        alerts_ttl=config.MONITORING_ALERTS_TTL,
     )
     worker = MonitoringWorker(
         store=store,
@@ -32,6 +36,8 @@ def _build_monitoring_worker() -> tuple[MonitoringWorker, GreptimeMonitoringStor
         provider=lambda: monitored_deployments(ms_handler.deployments.values()),
         window_seconds=config.MONITORING_WINDOW_SEC,
         interval_seconds=config.MONITORING_INTERVAL_SEC,
+        health=worker_health,
+        max_backfill_windows=config.MONITORING_BACKFILL_MAX_WINDOWS,
     )
     return worker, store
 

@@ -67,6 +67,18 @@ def has_categorical_reference(summary: dict) -> bool:
     return isinstance(probabilities, dict) and bool(probabilities)
 
 
+def numerical_proportions(values: Sequence[float], bin_edges: Sequence[float]) -> list[float]:
+    """Share of live values per reference bin — the live half of a distribution chart."""
+    return _bin_proportions(values, bin_edges)
+
+
+def categorical_proportions(values: Iterable[str], categories: Sequence[str]) -> list[float]:
+    """Share of live values per reference category, aligned with ``categories``."""
+    counts = Counter(values)
+    total = sum(counts.values())
+    return [counts.get(category, 0) / total if total else 0.0 for category in categories]
+
+
 def _bin_proportions(values: Sequence[float], bin_edges: Sequence[float]) -> list[float]:
     n_bins = len(bin_edges) - 1
     counts = [0] * n_bins

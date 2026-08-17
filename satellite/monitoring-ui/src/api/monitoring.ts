@@ -1,5 +1,6 @@
-import { apiGet, type QueryParams } from './client'
+import { apiGet, apiPost, type QueryParams } from './client'
 import type {
+  AlertsResponse,
   DataQualityResponse,
   Dimensions,
   FeatureDriftResponse,
@@ -8,6 +9,7 @@ import type {
   ReferenceProfileResponse,
   TraceDetailResponse,
   TracesResponse,
+  WorkerHealthResponse,
 } from './types'
 
 export function dimensionParams(dims: Dimensions): QueryParams {
@@ -37,6 +39,18 @@ export function getFeatureDrift(dims: Dimensions): Promise<FeatureDriftResponse>
 
 export function getReferenceProfile(dims: Dimensions): Promise<ReferenceProfileResponse> {
   return apiGet<ReferenceProfileResponse>('/reference-profile', dimensionParams(dims))
+}
+
+export function getAlerts(dims: Dimensions): Promise<AlertsResponse> {
+  return apiGet<AlertsResponse>('/alerts', dimensionParams(dims))
+}
+
+export function acknowledgeAlert(dims: Dimensions, metric: string): Promise<AlertsResponse> {
+  return apiPost<AlertsResponse>('/alerts/acknowledge', { metric }, dimensionParams(dims))
+}
+
+export function getWorkerHealth(): Promise<WorkerHealthResponse> {
+  return apiGet<WorkerHealthResponse>('/worker')
 }
 
 export function getTraces(

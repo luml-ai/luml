@@ -3,6 +3,12 @@ import respx
 
 from agent.handlers.model_server_handler import ModelServerHandler
 from agent.schemas.deployments import Deployment, LocalDeployment
+from agent.settings import config
+
+# The Agent talks to whatever PLATFORM_URL the environment configures, so the mock has to
+# follow it — pinning a literal URL here made the suite pass only on a machine whose .env
+# happened to match.
+PLATFORM_URL = str(config.PLATFORM_URL).rstrip("/")
 
 
 def _make_deployment(
@@ -76,15 +82,17 @@ class TestSyncDeploymentsCarriesFlag:
     async def test_sync_reads_monitoring_mode(self) -> None:
         handler = ModelServerHandler()
 
-        platform_url = "https://api.luml.ai"
-        respx.get(f"{platform_url}/satellites/v1/deployments").mock(
+        respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
             return_value=httpx.Response(
                 200,
                 json=[
                     {
                         "id": "dep-sync-1",
+                        "name": "synced deployment",
                         "status": "active",
                         "monitoring_mode": "full",
+                        "artifact_name": "model-a",
+                        "satellite_name": "test-sat",
                         "dynamic_attributes_secrets": {},
                     }
                 ],
@@ -115,14 +123,20 @@ class TestSyncDeploymentsCarriesFlag:
             await handler.sync_deployments()
 
         assert "dep-sync-1" in handler.deployments
-        assert handler.deployments["dep-sync-1"].monitoring_enabled is True
+        local = handler.deployments["dep-sync-1"]
+        assert local.monitoring_enabled is True
+        # the dashboard header reads its identity from here, not from telemetry
+        assert local.metadata.name == "synced deployment"
+        assert local.metadata.status == "active"
+        assert local.metadata.model_name == "model-a"
+        assert local.metadata.satellite == "test-sat"
+
 
     @respx.mock
     async def test_sync_absent_mode_means_off(self) -> None:
         handler = ModelServerHandler()
 
-        platform_url = "https://api.luml.ai"
-        respx.get(f"{platform_url}/satellites/v1/deployments").mock(
+        respx.get(f"{PLATFORM_URL}/satellites/v1/deployments").mock(
             return_value=httpx.Response(
                 200,
                 json=[
@@ -156,4 +170,7 @@ class TestSyncDeploymentsCarriesFlag:
             await handler.sync_deployments()
 
         assert "dep-sync-2" in handler.deployments
-        assert handler.deployments["dep-sync-2"].monitoring_enabled is False
+        local = handler.deployments["dep-sync-2"]
+        assert local.monitoring_enabled is False
+        # a record without those fields simply leaves the header empty
+        assert local.metadata.name is None

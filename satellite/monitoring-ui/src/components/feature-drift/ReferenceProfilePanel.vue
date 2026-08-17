@@ -1,12 +1,5 @@
 <template>
-  <div class="card" data-testid="reference-profile-panel">
-    <div class="head">
-      <div class="titles">
-        <p class="section-title small">Reference profile</p>
-        <p class="section-subtitle">{{ baselineLabel }}</p>
-      </div>
-    </div>
-
+  <div class="reference-profile" data-testid="reference-profile-panel">
     <StateBlock
       v-if="view !== 'ready'"
       :view="view"
@@ -16,38 +9,35 @@
     />
 
     <template v-else-if="feature">
-      <div class="feature-head">
-        <span class="mono name">{{ feature.feature }}</span>
-        <span class="kind">{{ feature.kind }}</span>
-      </div>
-
-      <div class="stats">
+      <section class="block">
         <p class="block-title">Summary statistics</p>
-        <div class="stat-grid">
-          <div v-for="stat in summaryStats" :key="stat.key" class="stat">
-            <span class="eyebrow">{{ stat.key }}</span>
+        <div class="stat-list">
+          <div v-for="stat in summaryStats" :key="stat.key" class="stat-row">
+            <span class="stat-key">{{ stat.key }}</span>
             <span class="stat-value mono">{{ stat.value }}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div
+      <section
         v-if="feature.kind === 'categorical'"
-        class="categories"
+        class="block"
         data-testid="reference-categories"
       >
         <p class="block-title">Reference category probabilities</p>
         <div v-for="cat in categories" :key="cat.name" class="cat-row">
-          <span class="cat-name mono">{{ cat.name }}</span>
+          <div class="cat-head">
+            <span class="cat-name mono" :title="cat.name">{{ cat.name }}</span>
+            <span class="cat-prob mono">{{ cat.prob }}</span>
+          </div>
           <div class="cat-track"><div class="cat-bar" :style="{ width: cat.width }" /></div>
-          <span class="cat-prob">{{ cat.prob }}</span>
         </div>
-      </div>
+      </section>
 
-      <div v-else class="edges" data-testid="reference-edges">
+      <section v-else class="block" data-testid="reference-edges">
         <p class="block-title">Histogram bin edges</p>
         <p class="edge-values mono">{{ binEdgesLabel }}</p>
-      </div>
+      </section>
 
       <p class="note">
         This profile is the training baseline. Each logged batch is binned with these edges and
@@ -73,12 +63,6 @@ const props = defineProps<{ profile: ReferenceProfileResponse | null; status: Lo
 const view = computed(() => sectionView(props.status, props.profile?.state))
 
 const feature = computed(() => props.profile?.feature ?? null)
-
-const baselineLabel = computed(() =>
-  props.profile?.baseline_label
-    ? `Computed at training · ${props.profile.baseline_label}`
-    : 'Training-time baseline distributions',
-)
 
 const summaryStats = computed(() =>
   Object.entries(feature.value?.summary ?? {}).map(([key, value]) => ({
@@ -116,67 +100,67 @@ function formatStat(value: number): string {
 </script>
 
 <style scoped>
-.head {
-  margin-bottom: var(--luml-space-4);
-}
-.section-title.small {
-  font-size: var(--luml-text-base);
-}
-.feature-head {
-  display: flex;
-  align-items: center;
-  gap: var(--luml-space-3);
-  margin-bottom: var(--luml-space-4);
-}
-.feature-head .name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--luml-fg-strong);
-}
-.kind {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--luml-fg-muted);
-  padding: 2px 8px;
-  border-radius: var(--luml-radius-pill);
-  background: var(--luml-surface-100);
-}
-.block-title {
-  margin: 0 0 var(--luml-space-2);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--luml-fg);
-}
-.stats,
-.categories,
-.edges {
-  margin-top: var(--luml-space-4);
-}
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-  gap: var(--luml-space-3);
-}
-.stat {
+.reference-profile {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 22px;
+}
+.block-title {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--luml-fg-muted);
+}
+/* summary statistics read as one bordered table, separate from the block below it */
+.stat-list {
+  border: 1px solid var(--luml-border);
+  border-radius: 9px;
+  overflow: hidden;
+}
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--luml-space-4);
+  padding: 9px 14px;
+}
+.stat-row + .stat-row {
+  border-top: 1px solid var(--luml-border);
+}
+.stat-key {
+  font-size: 13px;
+  color: var(--luml-fg-muted);
 }
 .stat-value {
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--luml-fg-strong);
 }
-.cat-row {
-  display: grid;
-  grid-template-columns: 120px 1fr auto;
-  align-items: center;
+.cat-row + .cat-row {
+  margin-top: 11px;
+}
+.cat-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: var(--luml-space-3);
-  margin-bottom: 6px;
+  margin-bottom: 5px;
 }
 .cat-name {
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--luml-fg);
+  /* a long category label is cut rather than wrapped, so the bars stay aligned */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cat-prob {
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--luml-fg-strong);
+  font-variant-numeric: tabular-nums;
 }
 .cat-track {
   height: 8px;
@@ -189,27 +173,32 @@ function formatStat(value: number): string {
   background: var(--luml-brand);
   border-radius: 4px;
 }
-.cat-prob {
-  font-size: 12px;
-  color: var(--luml-fg-muted);
-  font-variant-numeric: tabular-nums;
-}
 .edge-values {
   margin: 0;
-  font-size: 12px;
-  color: var(--luml-fg-muted);
-  line-height: 1.7;
+  padding: 12px 14px;
+  background: var(--luml-surface-100);
+  border: 1px solid var(--luml-border);
+  border-radius: 9px;
+  font-size: 12.5px;
+  color: var(--luml-fg);
+  line-height: 1.6;
+  word-break: break-word;
 }
 .note {
-  margin: var(--luml-space-4) 0 0;
-  font-size: 12px;
-  color: var(--luml-fg-muted);
-  line-height: 1.5;
+  margin: 0;
+  padding: 13px 15px;
+  background: var(--luml-brand-tint);
+  border: 1px solid var(--luml-brand-tint-strong);
+  border-radius: 9px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--luml-fg);
 }
 .prompt {
-  text-align: center;
-  padding: var(--luml-space-6) var(--luml-space-4);
+  margin: 0;
   font-size: 13px;
   color: var(--luml-fg-muted);
+  text-align: center;
+  padding: var(--luml-space-6) var(--luml-space-4);
 }
 </style>

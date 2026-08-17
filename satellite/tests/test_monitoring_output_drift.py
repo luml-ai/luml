@@ -175,3 +175,61 @@ async def test_worker_skips_output_drift_without_output_summary() -> None:
     groups = {result.metric for result in store.results}
     assert "runtime" in groups
     assert "output_drift" not in groups
+
+
+def test_prediction_is_unwrapped_from_the_response_body_by_name() -> None:
+    """The agent records the model's whole response, not the bare prediction: the model
+    server answers ``{"y": [value]}``. Scoring that envelope as-is found nothing numeric
+    and output drift silently stayed empty on every real deployment."""
+    summary = {**NUM_OUT, "name": "y"}
+    outputs = [{"y": [value], "decision": ["assisted"]} for value in ([5] * 25 + [15] * 25 + [25] * 25 + [35] * 25)]
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+    assert result.severity == Severity.NORMAL
+
+
+def test_batched_response_contributes_every_prediction() -> None:
+    summary = {**NUM_OUT, "name": "y"}
+    outputs = [{"y": [5, 15, 25, 35]}] * 25
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_single_output_response_needs_no_name() -> None:
+    result = _compute(_events([{"prediction": 5.0}] * 100), _profile(NUM_OUT))
+
+    assert result.values["count"] == 100
+    assert result.severity == Severity.CRITICAL
+
+
+def test_ambiguous_response_without_a_matching_name_is_not_guessed_at() -> None:
+    summary = {**NUM_OUT, "name": "y"}
+    outputs = [{"score": 5.0, "confidence": 0.9}] * 100
+
+    result = _compute(_events(outputs), _profile(summary))
+
+    assert result.values == {}
+    assert result.severity == Severity.NORMAL
+
+
+def test_classification_predictions_are_unwrapped_too() -> None:
+    summary = {**CAT_OUT, "name": "label"}
+    outputs = [{"label": [value]} for value in (["cat"] * 50 + ["dog"] * 50)]
+
+    result = _compute(_events(outputs), _profile(summary, task_type="classification"))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)
+
+
+def test_bare_scalar_output_still_scores() -> None:
+    result = _compute(_events([5] * 25 + [15] * 25 + [25] * 25 + [35] * 25), _profile(NUM_OUT))
+
+    assert result.values["count"] == 100
+    assert result.values["psi"] == pytest.approx(0.0, abs=1e-9)

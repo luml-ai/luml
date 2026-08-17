@@ -19,6 +19,15 @@ class Settings(BaseSettings):
     MONITORING_INTERVAL_SEC: float = 60.0
     MONITORING_WINDOW_SEC: float = 300.0
     MONITORING_LATENCY_P95_THRESHOLD_MS: float = 1000.0
+    # How many missed windows a restarted worker may catch up on in one tick.
+    MONITORING_BACKFILL_MAX_WINDOWS: int = 12
+    # Retention. Raw inference events carry the model's own inputs and predictions — the one
+    # table that both grows fast and holds sensitive data — so leaving it unbounded is the
+    # risk. The bound is the dashboard's longest window: expiring events sooner would make
+    # the Traces tab silently partial on 30d, which reads as "no traffic".
+    MONITORING_EVENTS_TTL: str = "30d"
+    MONITORING_RESULTS_TTL: str = "30d"
+    MONITORING_ALERTS_TTL: str = "30d"
     GREPTIMEDB_HOST: str = "localhost"
     GREPTIMEDB_HTTP_PORT: int = 4000
     GREPTIMEDB_DATABASE: str = "public"

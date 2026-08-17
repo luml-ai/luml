@@ -46,6 +46,7 @@
           :selected-model="selectedModel"
           v-model:satellite-id="initialValues.satelliteId"
           v-model:fields="initialValues.satelliteFields"
+          v-model:monitoring-enabled="initialValues.monitoringEnabled"
         ></DeploymentsFormSatelliteSettings>
       </Form>
     </template>
@@ -57,6 +58,7 @@ import type { CreateDeploymentForm, FieldInfo } from '../deployments.interfaces'
 import type { CreateDeploymentPayload } from '@/lib/api/deployments/interfaces'
 import type { FormInstance, FormSubmitEvent } from '@primevue/forms'
 import type { ModelArtifact } from '@/lib/api/artifacts/interfaces'
+import { MonitoringMode } from '@/lib/api/deployments/interfaces'
 import { Dialog, Button, useToast } from 'primevue'
 import { Form } from '@primevue/forms'
 import { dialogPt, getInitialFormData } from '../deployments.const'
@@ -130,6 +132,7 @@ function getPayload(form: CreateDeploymentForm): CreateDeploymentPayload {
     description: form.description,
     satellite_id: form.satelliteId,
     artifact_id: form.modelId,
+    monitoring_mode: form.monitoringEnabled ? MonitoringMode.full : MonitoringMode.off,
     satellite_parameters: fieldsToRecord<string | number | boolean>(form.satelliteFields, (v) => v),
     dynamic_attributes_secrets: fieldsToRecord(
       form.secretDynamicAttributes,

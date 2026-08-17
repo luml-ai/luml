@@ -68,6 +68,18 @@ class MonitoringSessionStore:
             del self._sessions[sid]
 
 
+def require_monitoring_write(request: Request) -> MonitoringSession:
+    """Session for a dashboard action that changes local alert state.
+
+    The launch token the Platform mints carries ``monitoring:read``, so today this is the
+    same session as a read — deliberately, not by oversight: acknowledging touches nothing
+    but this deployment's own alert rows, the Platform has already authenticated the user
+    and checked their permission on that deployment, and the session cannot name another
+    one. Keeping it a separate dependency means a stricter scope is one edit here.
+    """
+    return require_monitoring_session(request)
+
+
 def require_monitoring_session(request: Request) -> MonitoringSession:
     """Resolve the active dashboard session, deriving ``deployment_id`` from the cookie.
 

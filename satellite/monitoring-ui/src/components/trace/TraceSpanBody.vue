@@ -30,33 +30,50 @@
     <div class="panel">
       <template v-if="currentTab === 'Attributes'">
         <div v-if="sortedAttributes.length" class="items">
-          <div v-for="[key, value] in sortedAttributes" :key="key" class="entry">
-            <p class="key">{{ key }}</p>
-            <pre class="mono value">{{ stringify(value) }}</pre>
-          </div>
+          <SpanField
+            v-for="[key, value] in sortedAttributes"
+            :key="key"
+            :name="key"
+            :value="stringify(value)"
+            @expand="expanded = { name: key, value: stringify(value) }"
+          />
         </div>
         <p v-else class="empty">Attributes not found.</p>
       </template>
 
       <template v-else-if="currentTab === 'Events'">
         <div v-if="data.events.length" class="items">
-          <div v-for="(event, index) in data.events" :key="index" class="entry">
-            <p class="key">{{ index }}</p>
-            <pre class="mono value">{{ stringify(event) }}</pre>
-          </div>
+          <SpanField
+            v-for="(event, index) in data.events"
+            :key="index"
+            :name="String(index)"
+            :value="stringify(event)"
+            @expand="expanded = { name: `event ${index}`, value: stringify(event) }"
+          />
         </div>
         <p v-else class="empty">Events not found.</p>
       </template>
 
       <template v-else>
         <div class="items">
-          <div v-for="[key, value] in metadata" :key="key" class="entry">
-            <p class="key">{{ key }}</p>
-            <pre class="mono value">{{ value }}</pre>
-          </div>
+          <SpanField
+            v-for="[key, value] in metadata"
+            :key="key"
+            :name="key"
+            :value="value"
+            @expand="expanded = { name: key, value }"
+          />
         </div>
       </template>
     </div>
+
+    <FieldFullscreen
+      v-if="expanded"
+      :name="expanded.name"
+      :value="expanded.value"
+      :eyebrow="`${data.name} · ${currentTab.toLowerCase()}`"
+      @close="expanded = null"
+    />
   </div>
 </template>
 
@@ -65,6 +82,8 @@ import { computed, ref } from 'vue'
 import { History } from 'lucide-vue-next'
 import type { TraceSpanNode } from '@/api/types'
 import { getFormattedTime, getSpanTypeData } from '@/lib/spans'
+import SpanField from '@/components/trace/SpanField.vue'
+import FieldFullscreen from '@/components/trace/FieldFullscreen.vue'
 
 const TABS = ['Attributes', 'Events', 'Metadata'] as const
 type Tab = (typeof TABS)[number]
@@ -72,6 +91,9 @@ type Tab = (typeof TABS)[number]
 const props = defineProps<{ data: TraceSpanNode }>()
 
 const currentTab = ref<Tab>('Attributes')
+
+// A payload too tall for its 220px box gets the whole screen instead.
+const expanded = ref<{ name: string; value: string } | null>(null)
 
 const spanTypeData = computed(() => getSpanTypeData(props.data.dfs_span_type))
 
@@ -168,24 +190,6 @@ function stringify(value: unknown): string {
   display: flex;
   flex-direction: column;
   gap: 10px;
-}
-.key {
-  margin: 0 0 4px;
-  font-size: 11px;
-  color: var(--luml-fg-muted);
-}
-.value {
-  margin: 0;
-  max-height: 220px;
-  overflow: auto;
-  padding: 8px 10px;
-  border: 1px solid var(--luml-surface-100);
-  border-radius: var(--luml-radius-md);
-  background: var(--luml-surface-100);
-  font-size: 12px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 .empty {
   margin: 0;

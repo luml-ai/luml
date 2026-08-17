@@ -1,3 +1,7 @@
+import math
+from typing import Any
+
+from agent.monitoring import thresholds
 from agent.monitoring.metric import Metric, MetricInput
 from agent.monitoring.models import (
     AlertSignal,
@@ -6,6 +10,10 @@ from agent.monitoring.models import (
     Severity,
     worst_severity,
 )
+from agent.monitoring.thresholds import Threshold
+
+# The signal key is also the key its count has in the window, so the dashboard can plot it.
+TIMEOUT_SIGNAL = "timeout_count"
 
 
 def quantile(sorted_values: list[float], q: float) -> float:
@@ -40,6 +48,28 @@ class RuntimeHealthMetric(Metric):
         self.error_rate_warning = error_rate_warning
         self.error_rate_critical = error_rate_critical
 
+    def _bounds(self, profile: dict[str, Any] | None) -> tuple[Threshold, Threshold]:
+        """Error-rate and latency bounds for this deployment.
+
+        The spec calls the latency threshold deployment-specific, and the reference profile
+        is where a deployment states it; without a rule the metric keeps its own default
+        and, as before, only warns on latency.
+        """
+        error_rate = thresholds.resolve(
+            profile,
+            thresholds.ERROR_RATE,
+            Threshold(warning=self.error_rate_warning, critical=self.error_rate_critical),
+        )
+        latency = thresholds.resolve(
+            profile,
+            thresholds.LATENCY_P95_MS,
+            Threshold(
+                warning=self.latency_p95_threshold_ms,
+                critical=math.inf,  # no critical latency bound unless the profile sets one
+            ),
+        )
+        return error_rate, latency
+
     def applies(self, context: DeploymentContext) -> bool:
         return context.has_events
 
@@ -49,6 +79,7 @@ class RuntimeHealthMetric(Metric):
         success_count = sum(1 for event in events if event.is_success)
         error_count = request_count - success_count
         failed_inference_count = sum(1 for event in events if event.is_failed_inference)
+        timeout_count = sum(1 for event in events if event.is_timeout)
         error_rate = error_count / request_count if request_count else 0.0
 
         latencies = sorted(e.latency_ms for e in events if e.latency_ms is not None)
@@ -65,27 +96,44 @@ class RuntimeHealthMetric(Metric):
             "latency_p95": latency_p95,
             "latency_max": latency_max,
             "failed_inference_count": failed_inference_count,
+            "timeout_count": timeout_count,
         }
 
-        signals = self._signals(error_rate, latency_p95)
+        signals = self._signals(
+            error_rate,
+            latency_p95,
+            *self._bounds(data.profile),
+            timeout_count=timeout_count,
+            timeouts_already_open=TIMEOUT_SIGNAL in data.open_signals,
+        )
         severity = worst_severity(signal.severity for signal in signals)
         return MetricComputation(values=values, severity=severity, signals=signals)
 
-    def _signals(self, error_rate: float, latency_p95: float) -> list[AlertSignal]:
+    @staticmethod
+    def _signals(
+        error_rate: float,
+        latency_p95: float,
+        error_bounds: Threshold,
+        latency_bounds: Threshold,
+        *,
+        timeout_count: int = 0,
+        timeouts_already_open: bool = False,
+    ) -> list[AlertSignal]:
         signals: list[AlertSignal] = []
-        if error_rate > self.error_rate_critical:
-            signals.append(
-                AlertSignal("error_rate", error_rate, self.error_rate_critical, Severity.CRITICAL)
-            )
-        elif error_rate > self.error_rate_warning:
-            signals.append(
-                AlertSignal("error_rate", error_rate, self.error_rate_warning, Severity.WARNING)
-            )
+        evaluated = error_bounds.evaluate(error_rate)
+        if evaluated is not None:
+            severity, breached = evaluated
+            signals.append(AlertSignal("error_rate", error_rate, breached, severity))
 
-        if latency_p95 > self.latency_p95_threshold_ms:
-            signals.append(
-                AlertSignal(
-                    "latency_p95", latency_p95, self.latency_p95_threshold_ms, Severity.WARNING
-                )
-            )
+        evaluated = latency_bounds.evaluate(latency_p95)
+        if evaluated is not None:
+            severity, breached = evaluated
+            signals.append(AlertSignal("latency_p95", latency_p95, breached, severity))
+
+        # The spec asks for two levels here: any timeout in a window deserves attention,
+        # timeouts that keep coming window after window are an outage. "Repeated" is read
+        # off the alert itself — it is still open only if an earlier window raised it.
+        if timeout_count > 0:
+            severity = Severity.CRITICAL if timeouts_already_open else Severity.WARNING
+            signals.append(AlertSignal(TIMEOUT_SIGNAL, float(timeout_count), 0.0, severity))
         return signals

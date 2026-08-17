@@ -1,4 +1,6 @@
 import {
+  type AlertsResponse,
+  type WorkerHealthResponse,
   Compare,
   ProfileStatus,
   SectionState,
@@ -101,17 +103,55 @@ export function makeDataQuality(overrides: Partial<DataQualityResponse> = {}): D
     features: [
       {
         feature: 'age',
-        missing_rate: 0.01,
+        kind: 'numeric',
+        missing_rate: 0.001,
         type_error_rate: 0.0,
         range_unseen_rate: 0.02,
+        range_violation_rate: 0.02,
+        checked: 1070,
         status: Severity.OK,
+        invalid: {
+          missing_count: 1,
+          type_mismatch_count: 0,
+          observed_types: {},
+          type_examples: [],
+          range_violation_count: 21,
+          below_min: 5,
+          above_max: 16,
+          observed_min: 3,
+          observed_max: 122,
+          reference_min: 18,
+          reference_max: 64,
+          unseen_category_count: 0,
+          unseen_distinct: 0,
+          unseen_categories: [],
+        },
       },
       {
-        feature: 'income',
+        feature: 'region',
+        kind: 'categorical',
         missing_rate: 0.2,
         type_error_rate: 0.05,
         range_unseen_rate: 0.1,
+        unseen_category_rate: 0.1,
+        checked: 1070,
         status: Severity.CRITICAL,
+        invalid: {
+          missing_count: 214,
+          type_mismatch_count: 54,
+          observed_types: { int: 54 },
+          type_examples: ['7'],
+          range_violation_count: 0,
+          below_min: 0,
+          above_max: 0,
+          unseen_category_count: 107,
+          unseen_distinct: 2,
+          reference_categories: 4,
+          unseen_categories: [
+            { value: 'antarctica', count: 90 },
+            { value: 'mars', count: 17 },
+          ],
+        },
       },
     ],
     alerts: [],
@@ -198,6 +238,105 @@ export function makeReferenceProfile(
       bin_edges: [0, 10000, 20000, 200000],
       histogram: [0.5, 0.3, 0.2],
     },
+    document: {
+      profile_status: 'ready',
+      task_type: 'regression',
+      n_reference_samples: 1070,
+      feature_summaries: {
+        numerical_features: {
+          income: { min: 10000, max: 200000, bin_edges: [0, 10000, 20000, 200000] },
+        },
+        categorical_features: {
+          region: { categories: ['north', 'south'], probabilities: { north: 0.6, south: 0.4 } },
+        },
+      },
+      output_summary: { name: 'y_pred', type: 'numerical' },
+      pca_profile: { pca: { explained_variance_ratio: [0.6, 0.3] } },
+    },
+    ...overrides,
+  }
+}
+
+export function makeWorkerHealth(
+  overrides: Partial<WorkerHealthResponse> = {},
+): WorkerHealthResponse {
+  return {
+    state: SectionState.OK,
+    running: true,
+    last_tick_at: '2026-07-07T12:00:00Z',
+    windows_processed: 42,
+    last_window_end: '2026-07-07T11:55:00Z',
+    last_lag_seconds: 18,
+    window_seconds: 300,
+    interval_seconds: 60,
+    failures: [],
+    incidents: [],
+    ...overrides,
+  }
+}
+
+export function makeAlerts(overrides: Partial<AlertsResponse> = {}): AlertsResponse {
+  return {
+    state: SectionState.OK,
+    profile_status: ProfileStatus.READY,
+    groups: [
+      {
+        group: 'feature_drift',
+        alerts: [
+          {
+            group: 'feature_drift',
+            metric: 'feature_drift:income',
+            feature: 'income',
+            severity: Severity.CRITICAL,
+            current_value: 0.42,
+            threshold: 0.25,
+            message: 'PSI 0.42 vs threshold 0.25',
+            first_seen: '2026-07-07T10:00:00Z',
+            last_seen: '2026-07-07T11:00:00Z',
+            label: 'PSI',
+            unit: 'score',
+            value_label: '0.42',
+            threshold_label: '0.25',
+            state: 'open',
+            duration_seconds: 3600,
+            threshold_source: 'default',
+            history: {
+              key: 'feature_drift:income',
+              label: 'PSI',
+              unit: 'score',
+              points: [
+                { t: '2026-07-07T10:00:00Z', value: 0.28 },
+                { t: '2026-07-07T11:00:00Z', value: 0.42 },
+              ],
+            },
+          },
+        ],
+      },
+      {
+        group: 'runtime',
+        alerts: [
+          {
+            group: 'runtime',
+            metric: 'runtime:error_rate',
+            feature: null,
+            severity: Severity.WARNING,
+            current_value: 0.057,
+            threshold: 0.01,
+            message: 'Error rate 5.7% vs threshold 1.0%',
+            first_seen: '2026-07-07T10:30:00Z',
+            last_seen: '2026-07-07T11:00:00Z',
+            label: 'Error rate',
+            unit: 'ratio',
+            value_label: '5.7%',
+            threshold_label: '1.0%',
+            state: 'open',
+            duration_seconds: 1800,
+            threshold_source: 'default',
+            history: null,
+          },
+        ],
+      },
+    ],
     ...overrides,
   }
 }

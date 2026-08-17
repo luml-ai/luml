@@ -119,6 +119,16 @@ class ReferenceFeatureProfile:
 
 
 @dataclass(frozen=True)
+class StoredMetricTransition:
+    """One entry of the worker's own failure history."""
+
+    metric: str
+    kind: str  # failed | recovered
+    error: str
+    at: datetime
+
+
+@dataclass(frozen=True)
 class ReferenceProfile:
     """The per-deployment reference profile part 2 loads on the deploy path."""
 
@@ -127,6 +137,8 @@ class ReferenceProfile:
     baseline_label: str | None = None
     computed_at: datetime | None = None
     features: dict[str, ReferenceFeatureProfile] = field(default_factory=dict)
+    # The artifact's ``reference_profile.json`` as it is, for the tab that shows the file.
+    document: dict[str, Any] | None = None
 
 
 class MonitoringStore(Protocol):
@@ -152,7 +164,31 @@ class MonitoringStore(Protocol):
         self, deployment_id: UUID, group: str, window: str
     ) -> StoredMetricResult | None: ...
 
+    async def fetch_result_history(
+        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+    ) -> list[StoredMetricResult]:
+        """Every materialized window of a metric group since ``since``, oldest first.
+
+        The worker writes one row per window, so a trend line over a metric — PSI of a
+        feature, say — is assembled from these rows rather than stored as a series.
+        """
+        ...
+
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]: ...
+
+    async def fetch_metric_transitions(
+        self, deployment_id: UUID, since: datetime
+    ) -> list[StoredMetricTransition]:
+        """The worker's failure history for this deployment, oldest first."""
+        ...
+
+    async def acknowledge_alert(self, deployment_id: UUID, metric: str) -> bool:
+        """Mark one open alert as acknowledged; ``False`` when there is nothing to mark.
+
+        The alert keeps firing and keeps its numbers — acknowledging only says a human has
+        seen it, so the worker leaves the state alone until the condition clears.
+        """
+        ...
 
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None: ...
 
@@ -168,9 +204,13 @@ class InMemoryMonitoringStore:
     _events: list[InferenceEvent] = field(default_factory=list)
     _spans: list[SpanRecord] = field(default_factory=list)
     _results: dict[tuple[UUID, str, str], StoredMetricResult] = field(default_factory=dict)
+    # every window ever written, so trend lines can be assembled from past windows
+    _history: list[StoredMetricResult] = field(default_factory=list)
     _alerts: list[StoredAlert] = field(default_factory=list)
     _profiles: dict[UUID, str] = field(default_factory=dict)
     _profile_data: dict[UUID, ReferenceProfile] = field(default_factory=dict)
+    # The worker's own failure history, as the dashboard reads it back.
+    transitions: list[StoredMetricTransition] = field(default_factory=list)
 
     def add_deployment(self, descriptor: DeploymentDescriptor) -> None:
         self._meta[descriptor.deployment_id] = descriptor
@@ -183,6 +223,7 @@ class InMemoryMonitoringStore:
 
     def add_result(self, result: StoredMetricResult) -> None:
         self._results[(result.deployment_id, result.group, result.window)] = result
+        self._history.append(result)
 
     def add_alert(self, alert: StoredAlert) -> None:
         self._alerts.append(alert)
@@ -233,9 +274,44 @@ class InMemoryMonitoringStore:
         self._guard()
         return self._results.get((deployment_id, group, window))
 
+    async def fetch_result_history(
+        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+    ) -> list[StoredMetricResult]:
+        self._guard()
+        matching = [
+            result
+            for result in self._history
+            if result.deployment_id == deployment_id
+            and result.group == group
+            and result.window == window
+            and result.computed_at is not None
+            and result.computed_at >= since
+        ]
+        return sorted(matching, key=lambda result: result.computed_at or since)
+
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]:
         self._guard()
-        return [a for a in self._alerts if a.deployment_id == deployment_id and a.state == "open"]
+        # Everything that still needs attention: an acknowledged alert is still firing,
+        # only a resolved one is gone. Matches what the Greptime store returns.
+        return [
+            a
+            for a in self._alerts
+            if a.deployment_id == deployment_id and a.state != "resolved"
+        ]
+
+    async def fetch_metric_transitions(
+        self, deployment_id: UUID, since: datetime
+    ) -> list[StoredMetricTransition]:
+        self._guard()
+        return [t for t in self.transitions if t.at >= since]
+
+    async def acknowledge_alert(self, deployment_id: UUID, metric: str) -> bool:
+        self._guard()
+        for index, alert in enumerate(self._alerts):
+            if alert.deployment_id == deployment_id and alert.metric == metric:
+                self._alerts[index] = replace(alert, state="acknowledged")
+                return True
+        return False
 
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None:
         self._guard()

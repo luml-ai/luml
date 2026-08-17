@@ -11,7 +11,10 @@ import {
   type FeatureDriftResponse,
   type HeaderResponse,
   type OverviewResponse,
+  type AlertsResponse,
+  type WorkerHealthResponse,
   type ReferenceProfileResponse,
+  type Series,
   type TraceDetail,
   type TracesResponse,
 } from '@/api/types'
@@ -26,8 +29,11 @@ export type LoadStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 export const DASHBOARD_TABS = [
   { key: 'overview', label: 'Overview' },
+  { key: 'traces', label: 'Traces' },
   { key: 'data-quality', label: 'Data quality' },
   { key: 'feature-drift', label: 'Feature drift' },
+  { key: 'reference-profile', label: 'Reference profile' },
+  { key: 'alerts', label: 'Alerts' },
 ] as const
 
 export type TabKey = (typeof DASHBOARD_TABS)[number]['key']
@@ -51,6 +57,15 @@ export function useMonitoringDashboard() {
 
   const dataQuality = ref<DataQualityResponse | null>(null)
   const dataQualityStatus = ref<LoadStatus>('idle')
+  // The table request covers every feature; the history behind one feature's rates is a
+  // second, narrower request made when its detail panel opens.
+  const qualityTrends = ref<Series[]>([])
+  const qualityTrendsStatus = ref<LoadStatus>('idle')
+  const profileDocument = ref<ReferenceProfileResponse | null>(null)
+  const profileDocumentStatus = ref<LoadStatus>('idle')
+  const alerts = ref<AlertsResponse | null>(null)
+  const alertsStatus = ref<LoadStatus>('idle')
+  const workerHealth = ref<WorkerHealthResponse | null>(null)
 
   const traces = ref<TracesResponse | null>(null)
   const tracesStatus = ref<LoadStatus>('idle')
@@ -108,6 +123,12 @@ export function useMonitoringDashboard() {
   }
 
   function loadOverview(): Promise<void> {
+    // Whether monitoring itself is keeping up rides along with the tab that shows it;
+    // a failure here must never keep the metrics from rendering.
+    void monitoringApi
+      .getWorkerHealth()
+      .then((value) => (workerHealth.value = value))
+      .catch(() => (workerHealth.value = null))
     return run(
       overviewStatus,
       () => monitoringApi.getOverview({ ...dimensions }),
@@ -121,6 +142,36 @@ export function useMonitoringDashboard() {
       dataQualityStatus,
       () => monitoringApi.getDataQuality({ ...dimensions, feature: null }),
       (value) => (dataQuality.value = value),
+    )
+  }
+
+  function loadQualityTrends(feature: string | null): Promise<void> {
+    if (feature === null) {
+      qualityTrends.value = []
+      qualityTrendsStatus.value = 'idle'
+      return Promise.resolve()
+    }
+    return run(
+      qualityTrendsStatus,
+      () => monitoringApi.getDataQuality({ ...dimensions, feature }),
+      (value) => (qualityTrends.value = value.trends ?? []),
+    )
+  }
+
+  /** The dashboard's only write: mark an alert as seen and take the refreshed list back. */
+  function acknowledgeAlert(metric: string): Promise<void> {
+    return run(
+      alertsStatus,
+      () => monitoringApi.acknowledgeAlert({ ...dimensions }, metric),
+      (value) => (alerts.value = value),
+    )
+  }
+
+  function loadAlerts(): Promise<void> {
+    return run(
+      alertsStatus,
+      () => monitoringApi.getAlerts({ ...dimensions }),
+      (value) => (alerts.value = value),
     )
   }
 
@@ -149,15 +200,44 @@ export function useMonitoringDashboard() {
     )
   }
 
+  /** The profile document itself, unscoped — what the Reference profile tab shows. */
+  function loadProfileDocument(): Promise<void> {
+    return run(
+      profileDocumentStatus,
+      () => monitoringApi.getReferenceProfile({ ...dimensions, feature: null }),
+      (value) => (profileDocument.value = value),
+    )
+  }
+
   /** Reload the window-scoped data for whichever tab is active (header is window-independent). */
   function reloadActiveTab(): Promise<void> {
     // An open trace belongs to the window it was opened from; the reload invalidates it.
     closeTrace()
     if (activeTab.value === 'overview') return loadOverview()
+    if (activeTab.value === 'traces') return loadTraces(0)
+    if (activeTab.value === 'alerts') return loadAlerts()
+    if (activeTab.value === 'reference-profile') return loadProfileDocument()
     if (activeTab.value === 'data-quality') {
-      return Promise.all([loadDataQuality(), loadTraces(0)]).then(() => undefined)
+      // the open panel described the previous window
+      qualityTrends.value = []
+      return loadDataQuality()
     }
-    return Promise.all([loadFeatureDrift(), loadReferenceProfile()]).then(() => undefined)
+    return Promise.all([loadFeatureDrift(), loadReferenceProfile()])
+      .then(() => selectTopFeature())
+      .then(() => undefined)
+  }
+
+  /**
+   * Open the Feature drift tab on its most drifted feature.
+   *
+   * The detail panel and the reference profile are scoped to a feature, so with none
+   * chosen the right-hand side of the tab is an empty prompt even when the ranking is
+   * full. The list is sorted by PSI, so the first row is the one worth looking at.
+   */
+  function selectTopFeature(): Promise<void> {
+    if (dimensions.feature !== null) return Promise.resolve()
+    const top = featureDrift.value?.features?.[0]?.feature
+    return top ? setFeature(top) : Promise.resolve()
   }
 
   async function load(): Promise<void> {
@@ -215,6 +295,23 @@ export function useMonitoringDashboard() {
     traceDetailStatus.value = 'idle'
   }
 
+  /**
+   * Follow an alert to the tab that explains it, with its feature already selected.
+   *
+   * Data-quality alerts are about one feature's checks, drift alerts about its
+   * distribution — both tabs can open on a named feature, so the jump lands on the row
+   * the alert is complaining about instead of the top of a list.
+   */
+  async function focusAlert(alert: { group: string; feature?: string | null }): Promise<void> {
+    const tab: TabKey = alert.group === 'data_quality' ? 'data-quality' : 'feature-drift'
+    if (alert.feature) dimensions.feature = alert.feature
+    focusedFeature.value = alert.feature ?? null
+    await setActiveTab(tab)
+  }
+
+  /** The feature a jump asked to open, consumed by the tab that lands on it. */
+  const focusedFeature = ref<string | null>(null)
+
   async function setActiveTab(next: TabKey): Promise<void> {
     if (activeTab.value === next) return
     activeTab.value = next
@@ -231,6 +328,17 @@ export function useMonitoringDashboard() {
     overviewStatus,
     dataQuality,
     dataQualityStatus,
+    qualityTrends,
+    qualityTrendsStatus,
+    loadQualityTrends,
+    profileDocument,
+    profileDocumentStatus,
+    alerts,
+    alertsStatus,
+    acknowledgeAlert,
+    workerHealth,
+    focusAlert,
+    focusedFeature,
     traces,
     tracesStatus,
     tracesOffset,

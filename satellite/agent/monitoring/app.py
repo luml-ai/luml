@@ -11,7 +11,7 @@ from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from agent.monitoring.api import build_query_router
-from agent.monitoring.query import MonitoringQueryService
+from agent.monitoring.query import HealthSource, MonitoringQueryService
 from agent.monitoring.query_store import InMemoryMonitoringStore, MonitoringStore
 from agent.monitoring.session import (
     DEFAULT_SESSION_TTL_SECONDS,
@@ -134,11 +134,12 @@ def register_monitoring(
     data_store: MonitoringStore | None = None,
     clock: Callable[[], float] = time.time,
     cookie_secure: bool = True,
+    health_source: HealthSource | None = None,
 ) -> None:
     store = session_store or MonitoringSessionStore(ttl_seconds=session_ttl_seconds)
     app.state.monitoring_sessions = store
     app.state.monitoring_query = MonitoringQueryService(
-        data_store or InMemoryMonitoringStore(), clock=clock
+        data_store or InMemoryMonitoringStore(), clock=clock, health_source=health_source
     )
 
     app.add_middleware(FrameAncestorsMiddleware, csp_value=frame_ancestors_csp(frame_ancestors))

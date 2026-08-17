@@ -3,7 +3,7 @@ from agent.monitoring.app import (
     frame_ancestors_csp,
     register_monitoring,
 )
-from agent.monitoring.data_quality import DataQualityMetric, QualityThreshold
+from agent.monitoring.data_quality import DataQualityMetric
 from agent.monitoring.events import InferenceEvent
 from agent.monitoring.feature_drift import FeatureDriftMetric
 from agent.monitoring.greptime import GreptimeMonitoringStore
@@ -35,6 +35,7 @@ from agent.monitoring.session import (
 )
 from agent.monitoring.store import InMemoryMonitoringStore, MonitoringStore
 from agent.monitoring.telemetry import TelemetrySetup, create_telemetry
+from agent.monitoring.thresholds import Threshold
 from agent.monitoring.worker import MonitoringWorker, monitored_deployments
 
 __all__ = [
@@ -64,7 +65,7 @@ __all__ = [
     "MonitoringWorker",
     "MultivariateDriftMetric",
     "OutputDriftMetric",
-    "QualityThreshold",
+    "Threshold",
     "QueryDimensions",
     "RuntimeHealthMetric",
     "Severity",

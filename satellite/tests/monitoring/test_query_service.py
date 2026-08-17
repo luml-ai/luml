@@ -14,6 +14,7 @@ from agent.monitoring.query_store import (
 )
 from agent.schemas.monitoring_query import (
     Compare,
+    Granularity,
     ProfileStatus,
     SectionState,
     Severity,
@@ -79,17 +80,66 @@ async def test_runtime_rollup_aggregates_counts_and_latency() -> None:
     assert result.latency_max_ms == 90
 
 
-async def test_runtime_series_covers_the_whole_window() -> None:
+async def test_series_zooms_to_a_short_burst_of_traffic() -> None:
+    """Nine calls inside seven minutes used to land in one window-sized bucket: a single
+    point, which a line chart draws as nothing. The layout follows the data instead."""
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
-    for event in _mixed_events(dep):
+    for event in _mixed_events(dep):  # ~400 seconds of traffic
         store.add_event(event)
 
     result = await _service(store).runtime(dep, QueryDimensions(window=Window.H24))
 
     requests = next(s for s in result.series if s.key == "requests")
-    assert len(requests.points) == 24  # 24h at auto (hourly) granularity
+    latency = next(s for s in result.series if s.key == "latency_p95")
+    spacing = (requests.points[1].t - requests.points[0].t).total_seconds()
+
+    assert spacing == 30  # smallest ladder step for a ~7-minute span
+    assert len(requests.points) == 14
     assert sum(p.value for p in requests.points) == result.request_count
+    assert len([p for p in latency.points if p.value is not None]) > 1
+
+
+async def test_series_keeps_the_window_layout_when_traffic_spans_it() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for hours in range(0, 24, 2):  # traffic across the whole 24h window
+        store.add_event(_event(dep, offset_s=hours * 3600, latency=120.0))
+
+    result = await _service(store).runtime(dep, QueryDimensions(window=Window.H24))
+
+    requests = next(s for s in result.series if s.key == "requests")
+    assert len(requests.points) == 96  # 24h at auto (15-minute) granularity
+    assert sum(p.value for p in requests.points) == result.request_count
+
+
+async def test_explicit_granularity_is_never_overridden_by_the_zoom() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for event in _mixed_events(dep):
+        store.add_event(event)
+
+    result = await _service(store).runtime(
+        dep, QueryDimensions(window=Window.H24, granularity=Granularity.HOUR)
+    )
+
+    requests = next(s for s in result.series if s.key == "requests")
+    assert len(requests.points) == 24
+    assert sum(p.value for p in requests.points) == result.request_count
+
+
+async def test_bursty_traffic_yields_several_latency_points() -> None:
+    """Hourly buckets collapsed a burst into a single point, and one point draws no line —
+    the latency chart read as empty while the rollup card showed a value."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for offset in (60, 20 * 60, 40 * 60, 80 * 60):  # spread over ~80 minutes
+        store.add_event(_event(dep, offset_s=offset, latency=120.0))
+
+    result = await _service(store).runtime(dep, QueryDimensions(window=Window.H24))
+
+    latency = next(s for s in result.series if s.key == "latency_p95")
+    assert len([p for p in latency.points if p.value is not None]) == 4
 
 
 async def test_window_dimension_changes_the_query() -> None:
@@ -202,6 +252,31 @@ async def test_overview_top_drifted_features_ranked_by_psi() -> None:
     assert result.top_drifted_features[0].psi == 0.3
 
 
+async def test_overview_keeps_the_ten_most_drifted_features() -> None:
+    """Models here carry a couple of dozen inputs; five names were too few to see where the
+    drift sits, so the card ranks ten."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(
+        StoredMetricResult(
+            deployment_id=dep,
+            group="feature_drift",
+            window=Window.H24.value,
+            values={
+                "features": {
+                    f"f{i:02d}": {"psi": 0.5 - i / 100, "status": "critical"} for i in range(15)
+                }
+            },
+            severity="critical",
+        )
+    )
+
+    result = await _service(store).overview(dep, QueryDimensions(window=Window.H24))
+
+    assert len(result.top_drifted_features) == 10
+    assert [d.feature for d in result.top_drifted_features] == [f"f{i:02d}" for i in range(10)]
+
+
 async def test_severity_filter_narrows_alerts() -> None:
     dep = uuid.uuid4()
     svc = _service(_overview_store(dep))
@@ -233,17 +308,57 @@ def _data_quality_store(dep: uuid.UUID) -> InMemoryMonitoringStore:
             window=Window.H24.value,
             values={
                 "features": {
+                    # keys exactly as the data-quality metric writes them
                     "age": {
+                        "count": 100,
                         "missing_rate": 0.01,
-                        "type_error_rate": 0.0,
-                        "range_unseen_rate": 0.02,
+                        "type_mismatch_rate": 0.0,
+                        "range_violation_rate": 0.02,
                         "status": "ok",
                     },
                     "income": {
+                        "kind": "numeric",
+                        "count": 100,
                         "missing_rate": 0.2,
-                        "type_error_rate": 0.05,
-                        "range_unseen_rate": 0.1,
+                        "type_mismatch_rate": 0.05,
+                        "range_violation_rate": 0.1,
                         "status": "critical",
+                        "invalid": {
+                            "missing": {"count": 20},
+                            "type_mismatch": {
+                                "count": 5,
+                                "types": {"str": 5},
+                                "examples": ["'n/a'"],
+                            },
+                            "range_violation": {
+                                "count": 10,
+                                "below_min": 2,
+                                "above_max": 8,
+                                "observed_min": -400.0,
+                                "observed_max": 980000.0,
+                                "reference_min": 0.0,
+                                "reference_max": 250000.0,
+                            },
+                        },
+                    },
+                    "plan": {
+                        "kind": "categorical",
+                        "count": 100,
+                        "missing_rate": 0.0,
+                        "type_mismatch_rate": 0.0,
+                        "unseen_category_rate": 0.3,
+                        "status": "critical",
+                        "invalid": {
+                            "unseen_category": {
+                                "count": 30,
+                                "distinct": 2,
+                                "reference_categories": 4,
+                                "values": [
+                                    {"value": "enterprise", "count": 25},
+                                    {"value": "trial", "count": 5},
+                                ],
+                            },
+                        },
                     },
                 }
             },
@@ -261,9 +376,105 @@ async def test_data_quality_table_from_result_group() -> None:
     assert result.state is SectionState.OK
     rows = {r.feature: r for r in result.features}
     assert rows["income"].missing_rate == 0.2
+    assert rows["income"].type_error_rate == 0.05
     assert rows["income"].range_unseen_rate == 0.1
+    assert rows["income"].range_violation_rate == 0.1
+    assert rows["income"].checked == 100
     assert rows["income"].status is Severity.CRITICAL
     assert rows["age"].status is Severity.OK
+    # a categorical feature reports unseen categories in the same column
+    assert rows["plan"].range_unseen_rate == 0.3
+    assert rows["plan"].unseen_category_rate == 0.3
+
+
+async def test_data_quality_rows_carry_the_invalid_value_evidence() -> None:
+    dep = uuid.uuid4()
+    svc = _service(_data_quality_store(dep))
+    result = await svc.data_quality(dep, QueryDimensions(window=Window.H24))
+
+    rows = {r.feature: r for r in result.features}
+    income = rows["income"].invalid
+    assert income is not None
+    assert (income.missing_count, income.type_mismatch_count) == (20, 5)
+    assert income.observed_types == {"str": 5}
+    assert (income.below_min, income.above_max) == (2, 8)
+    assert (income.observed_max, income.reference_max) == (980000.0, 250000.0)
+
+    plan = rows["plan"].invalid
+    assert plan is not None
+    assert plan.unseen_distinct == 2
+    assert plan.reference_categories == 4
+    assert [(c.value, c.count) for c in plan.unseen_categories] == [
+        ("enterprise", 25),
+        ("trial", 5),
+    ]
+    assert rows["plan"].kind == "categorical"
+    # a clean feature has nothing to explain
+    assert rows["age"].invalid is None
+
+
+def _quality_window(
+    dep: uuid.UUID, *, missing: float, unseen: float, seconds_ago: float
+) -> StoredMetricResult:
+    return StoredMetricResult(
+        deployment_id=dep,
+        group="data_quality",
+        window=Window.H24.value,
+        values={
+            "features": {
+                "plan": {
+                    "kind": "categorical",
+                    "count": 100,
+                    "missing_rate": missing,
+                    "type_mismatch_rate": 0.0,
+                    "unseen_category_rate": unseen,
+                    "status": "warning",
+                }
+            }
+        },
+        severity="warning",
+        computed_at=ago(seconds_ago),
+    )
+
+
+async def test_data_quality_trends_come_from_past_windows() -> None:
+    """The spec asks for a trend per check; the worker stores one window at a time."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for missing, unseen, ago_seconds in ((0.0, 0.0, 3 * 3600), (0.01, 0.2, 2 * 3600)):
+        store.add_result(
+            _quality_window(dep, missing=missing, unseen=unseen, seconds_ago=ago_seconds)
+        )
+
+    result = await _service(store).data_quality(
+        dep, QueryDimensions(window=Window.H24, feature="plan")
+    )
+
+    trends = {series.key: series for series in result.trends}
+    assert [series.key for series in result.trends] == [
+        "missing",
+        "type_mismatch",
+        "unseen_category",
+    ]
+    assert [p.value for p in trends["unseen_category"].points] == [0.0, 0.2]
+    assert trends["unseen_category"].label == "Unseen categories"
+    assert trends["missing"].unit == "ratio"
+    # a check that never applied to this feature has no series at all
+    assert "range_violation" not in trends
+
+
+async def test_data_quality_trends_need_a_selected_feature_and_two_windows() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_quality_window(dep, missing=0.01, unseen=0.2, seconds_ago=600))
+
+    whole_tab = await _service(store).data_quality(dep, QueryDimensions(window=Window.H24))
+    assert whole_tab.trends == []
+
+    one_window = await _service(store).data_quality(
+        dep, QueryDimensions(window=Window.H24, feature="plan")
+    )
+    assert one_window.trends == []
 
 
 async def test_feature_filter_narrows_data_quality() -> None:

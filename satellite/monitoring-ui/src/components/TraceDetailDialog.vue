@@ -18,7 +18,10 @@
               Status
               <b :class="statusClass">{{ trace.status }}</b>
             </span>
-            <span class="fact mono id">{{ eventId }}</span>
+            <span class="fact mono id">
+              {{ eventId }}
+              <CopyButton :value="eventId" label="event id" />
+            </span>
           </div>
         </div>
         <button type="button" class="close" data-testid="trace-detail-close" @click="$emit('close')">
@@ -58,6 +61,7 @@ import type { TraceDetail, TraceSpanNode } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { buildSpanTree, getFormattedExecutionTime, spanTimeBounds } from '@/lib/spans'
 import StateBlock from '@/components/StateBlock.vue'
+import CopyButton from '@/components/CopyButton.vue'
 import TraceSpanTree from '@/components/trace/TraceSpanTree.vue'
 import TraceSpanBody from '@/components/trace/TraceSpanBody.vue'
 
@@ -172,6 +176,9 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onKeydown))
   color: var(--luml-danger-tint-fg);
 }
 .id {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   word-break: break-all;
 }
 .close {

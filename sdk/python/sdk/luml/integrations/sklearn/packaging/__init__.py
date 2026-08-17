@@ -51,12 +51,15 @@ def _add_io(
     builder: PyfuncBuilder,
     estimator: "BaseEstimator",
     inputs: Any,  # noqa: ANN401
-) -> None:
+) -> bool:
+    """Declare the artifact's inputs and outputs; return whether it feeds on a frame."""
     x: Any
+    input_dtypes: dict[str, str] = {}
     if pd is not None and isinstance(inputs, pd.DataFrame):
         input_order = list(inputs.columns)
         for col in input_order:
             dtype = _resolve_dtype(inputs[col].dtype)  # type: ignore
+            input_dtypes[col] = dtype
             builder.add_input(
                 NDJSON(
                     name=col,
@@ -98,7 +101,14 @@ def _add_io(
             input_order = ["input"]
         x = example
 
-    builder.set_extra_values({"input_order": input_order})
+    # A frame-trained estimator is handed a frame back at inference. Stacking the columns
+    # into one array instead upcasts mixed dtypes to strings, and a ColumnTransformer that
+    # selects columns by name has nothing to select from.
+    frame_inputs = bool(input_dtypes)
+    extra_values: dict[str, Any] = {"input_order": input_order}
+    if frame_inputs:
+        extra_values["input_dtypes"] = input_dtypes
+    builder.set_extra_values(extra_values)
 
     y_pred = estimator.predict(x)  # type: ignore
     y_array = np.asarray(y_pred)
@@ -113,6 +123,7 @@ def _add_io(
             shape=y_shape,  # type: ignore
         )
     )
+    return frame_inputs
 
 
 def _add_dependencies(
@@ -120,6 +131,7 @@ def _add_dependencies(
     dependencies: Literal["default"] | Literal["all"] | list[str],
     extra_dependencies: list[str] | None,
     extra_code_modules: list[str] | Literal["auto"] | None,
+    frame_inputs: bool = False,
 ) -> None:
     if dependencies == "all" or extra_code_modules == "auto":
         auto_pip_dependencies, auto_local_dependencies = find_dependencies()
@@ -128,6 +140,9 @@ def _add_dependencies(
         dependencies = auto_pip_dependencies
     elif dependencies == "default":
         dependencies = _get_default_deps()
+        if frame_inputs:
+            # the runtime rebuilds the training frame, so pandas has to be there
+            dependencies = dependencies + ["pandas==" + get_version("pandas")]
         builder.add_fnnx_runtime_dependency()
 
     local_dependencies = []
@@ -257,15 +272,22 @@ def save_sklearn(  # noqa: C901
         tags=tags,
     )
 
-    _add_io(builder, estimator, inputs)
-    _add_dependencies(builder, dependencies, extra_dependencies, extra_code_modules)
+    frame_inputs = _add_io(builder, estimator, inputs)
+    _add_dependencies(
+        builder, dependencies, extra_dependencies, extra_code_modules, frame_inputs
+    )
 
     with tempfile.NamedTemporaryFile("wb", delete=False) as tmp:
         cloudpickle.dump(estimator, tmp)
         estimator_path = tmp.name
     builder.add_file(estimator_path, "estimator.pkl")
 
-    profile_path: str | None = None
+    builder.save(path)
+
+    os.remove(estimator_path)
+
+    # After save, not before: the profile must land at the root of the archive, which is
+    # where the model server looks for it.
     if reference_data is not None:
         classifier = is_classifier(estimator)
         task_type: TaskType = "classification" if classifier else "regression"
@@ -274,17 +296,11 @@ def save_sklearn(  # noqa: C901
             if classifier and hasattr(estimator, "predict_proba")
             else None
         )
-        profile_path = add_reference_profile(
-            builder,
+        add_reference_profile(
+            path,
             reference_data,
             task_type,
             estimator.predict,
             predict_proba=predict_proba,
         )
-
-    builder.save(path)
-
-    os.remove(estimator_path)
-    if profile_path is not None:
-        os.remove(profile_path)
     return ModelReference(path)

@@ -7,6 +7,9 @@ vi.mock('@/api/monitoring', () => ({
   getFeatureDrift: vi.fn(),
   getReferenceProfile: vi.fn(),
   getTraces: vi.fn(),
+  getAlerts: vi.fn(),
+  getWorkerHealth: vi.fn(),
+  acknowledgeAlert: vi.fn(),
   dimensionParams: (dims: unknown) => dims,
 }))
 
@@ -25,10 +28,12 @@ import {
   makeOverview,
   makeReferenceProfile,
   makeTraces,
+  makeWorkerHealth,
 } from '@/test/fixtures'
 
 const getHeader = vi.mocked(monitoringApi.getHeader)
 const getOverview = vi.mocked(monitoringApi.getOverview)
+const getWorkerHealth = vi.mocked(monitoringApi.getWorkerHealth)
 const getDataQuality = vi.mocked(monitoringApi.getDataQuality)
 const getFeatureDrift = vi.mocked(monitoringApi.getFeatureDrift)
 const getReferenceProfile = vi.mocked(monitoringApi.getReferenceProfile)
@@ -43,6 +48,7 @@ describe('useMonitoringDashboard', () => {
     getFeatureDrift.mockResolvedValue(makeFeatureDrift())
     getReferenceProfile.mockResolvedValue(makeReferenceProfile())
     getTraces.mockResolvedValue(makeTraces())
+    getWorkerHealth.mockResolvedValue(makeWorkerHealth())
   })
 
   it('loads header and overview for the default 24h window', async () => {
@@ -122,19 +128,29 @@ describe('useMonitoringDashboard', () => {
     expect(dashboard.isPlaceholderProfile.value).toBe(true)
   })
 
-  it('loads the data quality table and traces when the data-quality tab activates', async () => {
+  it('loads the data quality table when its tab activates, without the request log', async () => {
     const dashboard = useMonitoringDashboard()
     await dashboard.load()
 
     await dashboard.setActiveTab('data-quality')
 
     expect(getDataQuality).toHaveBeenCalledTimes(1)
+    expect(getTraces).not.toHaveBeenCalled()
+    expect(dashboard.dataQuality.value?.features).toHaveLength(2)
+  })
+
+  it('loads the request log when the traces tab activates', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+
+    await dashboard.setActiveTab('traces')
+
     expect(getTraces).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ limit: TRACES_PAGE_SIZE, offset: 0 }),
     )
-    expect(dashboard.dataQuality.value?.features).toHaveLength(2)
     expect(dashboard.traces.value?.rows).toHaveLength(2)
+    expect(getDataQuality).not.toHaveBeenCalled()
   })
 
   it('requests the data quality table for every feature, not the selected one', async () => {
@@ -154,9 +170,40 @@ describe('useMonitoringDashboard', () => {
 
     await dashboard.setActiveTab('feature-drift')
 
-    expect(getFeatureDrift).toHaveBeenCalledTimes(1)
-    expect(getReferenceProfile).toHaveBeenCalledTimes(1)
     expect(dashboard.featureDrift.value?.features).toHaveLength(2)
+    // the ranking arrives first, then the tab re-queries scoped to its top feature
+    expect(getFeatureDrift).toHaveBeenLastCalledWith(expect.objectContaining({ feature: 'income' }))
+    expect(getReferenceProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({ feature: 'income' }),
+    )
+  })
+
+  it('opens the feature-drift tab on its most drifted feature', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.load()
+
+    await dashboard.setActiveTab('feature-drift')
+
+    expect(dashboard.dimensions.feature).toBe('income') // highest PSI in the ranking
+  })
+
+  it('keeps a feature the reader already chose when the tab reloads', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.setActiveTab('feature-drift')
+    await dashboard.setFeature('age')
+
+    await dashboard.setWindow(Window.D7)
+
+    expect(dashboard.dimensions.feature).toBe('age')
+  })
+
+  it('selects nothing when the ranking is empty', async () => {
+    getFeatureDrift.mockResolvedValue(makeFeatureDrift({ features: [], selected: null }))
+    const dashboard = useMonitoringDashboard()
+
+    await dashboard.setActiveTab('feature-drift')
+
+    expect(dashboard.dimensions.feature).toBeNull()
   })
 
   it('re-queries feature drift and the reference profile when a feature is selected, no re-launch', async () => {
@@ -167,11 +214,11 @@ describe('useMonitoringDashboard', () => {
     getReferenceProfile.mockClear()
     const postMessage = vi.spyOn(window.parent, 'postMessage')
 
-    await dashboard.setFeature('income')
+    await dashboard.setFeature('age') // the tab opened on 'income'
 
-    expect(dashboard.dimensions.feature).toBe('income')
-    expect(getFeatureDrift).toHaveBeenCalledWith(expect.objectContaining({ feature: 'income' }))
-    expect(getReferenceProfile).toHaveBeenCalledWith(expect.objectContaining({ feature: 'income' }))
+    expect(dashboard.dimensions.feature).toBe('age')
+    expect(getFeatureDrift).toHaveBeenCalledWith(expect.objectContaining({ feature: 'age' }))
+    expect(getReferenceProfile).toHaveBeenCalledWith(expect.objectContaining({ feature: 'age' }))
     expect(dashboard.sessionExpired.value).toBe(false)
     expect(postMessage).not.toHaveBeenCalled()
   })
@@ -180,12 +227,23 @@ describe('useMonitoringDashboard', () => {
     const dashboard = useMonitoringDashboard()
     await dashboard.setActiveTab('data-quality')
     getDataQuality.mockClear()
-    getTraces.mockClear()
 
     await dashboard.setWindow(Window.D7)
 
     expect(getDataQuality).toHaveBeenCalledWith(expect.objectContaining({ window: Window.D7 }))
-    expect(getTraces).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-queries the active traces tab when the window changes', async () => {
+    const dashboard = useMonitoringDashboard()
+    await dashboard.setActiveTab('traces')
+    getTraces.mockClear()
+
+    await dashboard.setWindow(Window.D7)
+
+    expect(getTraces).toHaveBeenCalledWith(
+      expect.objectContaining({ window: Window.D7 }),
+      expect.anything(),
+    )
   })
 
   it('re-queries the active feature-drift tab when the window changes, without re-launch', async () => {

@@ -8,11 +8,22 @@ import { makeOverview } from '@/test/fixtures'
 function mountTab(props: { overview: OverviewResponse | null; status: LoadStatus }) {
   return mount(OverviewTab, {
     props,
-    global: { stubs: { apexchart: true } },
+    // the alert drawer teleports to the body; keep it inline for the assertions
+    global: { stubs: { apexchart: true, teleport: true } },
   })
 }
 
 describe('OverviewTab', () => {
+  it('opens an alert banner in the same sidebar the Alerts tab uses', async () => {
+    const wrapper = mountTab({ overview: makeOverview(), status: 'ready' })
+
+    const banner = wrapper.findAll('[data-testid="alert-banner"]')[0]
+    expect(banner.element.tagName).toBe('BUTTON')
+    await banner.trigger('click')
+
+    expect(wrapper.find('[data-testid="alert-drawer"]').exists()).toBe(true)
+  })
+
   it('renders cards, alert banners, runtime charts, and top drifted features from the contract', () => {
     const overview = makeOverview()
     const wrapper = mountTab({ overview, status: 'ready' })
@@ -22,7 +33,9 @@ describe('OverviewTab', () => {
     expect(wrapper.text()).toContain('12,430')
 
     expect(wrapper.findAll('[data-testid="alert-banner"]')).toHaveLength(1)
-    expect(wrapper.text()).toContain('feature drift critical — smoker')
+    // the title is prose, the feature name stays verbatim next to it
+    expect(wrapper.text()).toContain('Feature drift critical')
+    expect(wrapper.text()).toContain('smoker')
 
     // one card per runtime series (requests / error rate / latency p95)
     expect(wrapper.findAll('.charts .card')).toHaveLength(3)

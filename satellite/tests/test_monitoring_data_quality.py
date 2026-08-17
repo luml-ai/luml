@@ -2,7 +2,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from agent.monitoring.data_quality import DataQualityMetric
+from agent.monitoring.data_quality import EXAMPLE_LIMIT, UNSEEN_LIMIT, DataQualityMetric
 from agent.monitoring.metric import MetricInput
 from agent.monitoring.models import (
     AlertSignal,
@@ -96,13 +96,17 @@ def test_clean_inputs_stay_normal() -> None:
     assert result.signals == []
     age = result.values["features"]["age"]
     assert age == {
+        "kind": "numeric",
         "count": 10,
         "status": "normal",
         "missing_rate": 0.0,
         "type_mismatch_rate": 0.0,
         "range_violation_rate": 0.0,
     }
+    # nothing was rejected, so the window carries no evidence to explain
+    assert "invalid" not in age
     assert result.values["features"]["region"]["unseen_category_rate"] == 0.0
+    assert result.values["features"]["region"]["kind"] == "categorical"
 
 
 def test_missing_values_raise_critical_alert() -> None:
@@ -247,3 +251,51 @@ def test_batched_observations_counted_individually() -> None:
     assert age["count"] == 4  # observations, not events
     assert age["range_violation_rate"] == 0.5  # 5.0 and 100.0
     assert age["type_mismatch_rate"] == 0.25  # "x"
+
+
+def test_invalid_values_are_summarized_for_the_detail_panel() -> None:
+    events = [_event({"age": 30}) for _ in range(6)]
+    events += [_event({"age": 200}), _event({"age": 300}), _event({"age": 5})]
+    events += [_event({"age": "n/a"}), _event({"age": None})]
+
+    result = _compute(events, _profile(numerical=NUMERICAL))
+
+    invalid = result.values["features"]["age"]["invalid"]
+    assert invalid["missing"] == {"count": 1}
+    assert invalid["type_mismatch"] == {"count": 1, "types": {"str": 1}, "examples": ["'n/a'"]}
+    assert invalid["range_violation"] == {
+        "count": 3,
+        "below_min": 1,
+        "above_max": 2,
+        "observed_min": 5,  # the worst excursion on each side of the reference bounds
+        "observed_max": 300,
+        "reference_min": 18.0,
+        "reference_max": 75.0,
+    }
+
+
+def test_unseen_categories_are_named_and_counted() -> None:
+    events = [_event({"region": "north"}) for _ in range(10)]
+    events += [_event({"region": "mars"}) for _ in range(3)]
+    events += [_event({"region": "moon"}), _event({"region": 7})]
+
+    result = _compute(events, _profile(categorical=CATEGORICAL))
+
+    unseen = result.values["features"]["region"]["invalid"]["unseen_category"]
+    assert unseen["count"] == 4
+    assert unseen["distinct"] == 2
+    assert unseen["reference_categories"] == 4
+    assert unseen["values"] == [{"value": "mars", "count": 3}, {"value": "moon", "count": 1}]
+    assert result.values["features"]["region"]["invalid"]["type_mismatch"]["types"] == {"int": 1}
+
+
+def test_evidence_lists_stay_bounded() -> None:
+    events = [_event({"region": f"cat-{index}"}) for index in range(20)]
+    events += [_event({"region": index}) for index in range(20)]
+
+    result = _compute(events, _profile(categorical=CATEGORICAL))
+
+    invalid = result.values["features"]["region"]["invalid"]
+    assert invalid["unseen_category"]["distinct"] == 20
+    assert len(invalid["unseen_category"]["values"]) == UNSEEN_LIMIT
+    assert len(invalid["type_mismatch"]["examples"]) == EXAMPLE_LIMIT

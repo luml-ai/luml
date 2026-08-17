@@ -48,6 +48,7 @@ export const getInitialFormData = (
     collectionId: collectionId ?? '',
     modelId: modelId ?? '',
     satelliteId: '',
+    monitoringEnabled: false,
     secretDynamicAttributes: [],
     dynamicAttributes: [],
     secretEnvs: [],

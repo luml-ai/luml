@@ -1,6 +1,7 @@
 from agent.schemas.deployments import (
     Deployment,
     DeploymentInfo,
+    DeploymentMetadata,
     DeploymentStatus,
     DeploymentUpdate,
     Healthz,
@@ -20,6 +21,7 @@ __all__ = [
     "DeploymentStatus",
     "DeploymentUpdate",
     "Secret",
+    "DeploymentMetadata",
     "LocalDeployment",
     "DeploymentInfo",
     "InferenceAccessIn",

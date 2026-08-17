@@ -3,6 +3,7 @@ import uuid
 from tests.support import FIXED_NOW, ago
 
 from agent.monitoring import MonitoringQueryService, QueryDimensions
+from agent.monitoring.profile import build_reference_profile
 from agent.monitoring.query_store import (
     InMemoryMonitoringStore,
     ReferenceFeatureProfile,
@@ -351,6 +352,28 @@ async def test_reference_profile_placeholder_degrades_gracefully() -> None:
     assert result.feature is not None
 
 
+async def test_reference_profile_carries_the_whole_document() -> None:
+    """The Reference profile tab shows the artifact's file, not a summary of it."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    raw = {
+        "profile_status": "ready",
+        "task_type": "regression",
+        "feature_summaries": {
+            "numerical_features": {"income": {"min": 0.0, "max": 1.0}},
+            "categorical_features": {},
+        },
+        "pca_profile": {"pca": {"explained_variance_ratio": [0.7, 0.2]}},
+    }
+    store.add_profile(build_reference_profile(dep, raw))
+
+    result = await _service(store).reference_profile(dep, QueryDimensions())
+
+    assert result.state is SectionState.OK
+    assert result.document == raw
+    assert result.features == ["income"]
+
+
 async def test_reference_profile_store_unavailable_yields_unavailable_state() -> None:
     dep = uuid.uuid4()
     store = InMemoryMonitoringStore()
@@ -360,3 +383,57 @@ async def test_reference_profile_store_unavailable_yields_unavailable_state() ->
     result = await _service(store).reference_profile(dep, QueryDimensions(feature="income"))
 
     assert result.state is SectionState.UNAVAILABLE
+
+
+def _window_result(dep: uuid.UUID, psi: float, seconds_ago: float) -> StoredMetricResult:
+    return StoredMetricResult(
+        deployment_id=dep,
+        group="feature_drift",
+        window=Window.H24.value,
+        values={"features": {"income": {"psi": psi, "status": "warning"}}},
+        severity="warning",
+        computed_at=ago(seconds_ago),
+    )
+
+
+async def test_psi_over_time_is_assembled_from_past_windows() -> None:
+    """The worker stores one result per window and no series of its own, so the trend line
+    comes from the materialized history of that metric group."""
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    for psi, seconds_ago in ((0.04, 3 * 3600), (0.18, 2 * 3600), (0.42, 3600)):
+        store.add_result(_window_result(dep, psi, seconds_ago))
+
+    result = await _service(store).feature_drift(
+        dep, QueryDimensions(window=Window.H24, feature="income")
+    )
+
+    assert result.selected is not None
+    series = result.selected.psi_over_time
+    assert series is not None
+    assert [p.value for p in series.points] == [0.04, 0.18, 0.42]
+    assert series.points[0].t < series.points[-1].t
+
+
+async def test_psi_over_time_needs_more_than_one_window() -> None:
+    dep = uuid.uuid4()
+    store = InMemoryMonitoringStore()
+    store.add_result(_window_result(dep, 0.42, 600))
+
+    result = await _service(store).feature_drift(
+        dep, QueryDimensions(window=Window.H24, feature="income")
+    )
+
+    assert result.selected is not None
+    assert result.selected.psi_over_time is None
+
+
+async def test_multivariate_panel_shows_the_univariate_psi_ranking() -> None:
+    """The per-feature list beside the scatter is the univariate ranking; it is read from
+    the feature-drift result instead of being duplicated into the multivariate one."""
+    dep = uuid.uuid4()
+    result = await _service(_drift_store(dep)).feature_drift(dep, _dims())
+
+    panel = result.multivariate
+    assert [f.feature for f in panel.feature_psi] == ["income", "age"]
+    assert panel.feature_psi[0].psi == 0.31

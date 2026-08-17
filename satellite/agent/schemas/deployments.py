@@ -1,7 +1,8 @@
+from collections.abc import Mapping
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class DeploymentStatus(StrEnum):
@@ -50,6 +51,33 @@ class Deployment(BaseModel):
     updated_at: str | None = None
 
 
+class DeploymentMetadata(BaseModel):
+    """What the Platform knows about a deployment, kept for the monitoring dashboard.
+
+    GreptimeDB only ever sees telemetry, so without carrying these along the dashboard
+    header has nothing to show but the deployment id.
+    """
+
+    name: str | None = None
+    status: str | None = None
+    model_name: str | None = None
+    satellite: str | None = None
+    inference_url: str | None = None
+
+    @classmethod
+    def from_platform(cls, record: Mapping[str, Any] | None) -> DeploymentMetadata:
+        if not record:
+            return cls()
+        return cls(
+            name=record.get("name"),
+            status=record.get("status"),
+            # the artifact is the model the deployment serves
+            model_name=record.get("artifact_name") or record.get("model_artifact_name"),
+            satellite=record.get("satellite_name"),
+            inference_url=record.get("inference_url"),
+        )
+
+
 class LocalDeployment(BaseModel):
     deployment_id: str
     dynamic_attributes_secrets: dict[str, str] | None = {}
@@ -57,6 +85,7 @@ class LocalDeployment(BaseModel):
     openapi_schema: dict | None = None
     reference_profile: dict | None = None
     monitoring_enabled: bool = False
+    metadata: DeploymentMetadata = Field(default_factory=DeploymentMetadata)
 
 
 def usable_reference_profile(profile: dict | None) -> dict | None:

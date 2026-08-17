@@ -16,7 +16,13 @@
     />
 
     <template v-else-if="featureDrift">
-      <AlertBannerList v-if="featureDrift.alerts.length" :banners="featureDrift.alerts" />
+      <AlertBannerList
+        v-if="featureDrift.alerts.length"
+        :banners="featureDrift.alerts"
+        inspectable
+        @show-feature="$emit('show-feature', $event)"
+        @acknowledge="$emit('acknowledge', $event)"
+      />
 
       <div class="layout">
         <RankedDriftList
@@ -24,19 +30,35 @@
           :selected="selectedFeature"
           @select="$emit('select-feature', $event)"
         />
-        <FeatureDetailPanel :detail="featureDrift.selected" />
+        <FeatureDetailPanel
+          :detail="featureDrift.selected"
+          :kind="selectedKind"
+          :has-features="featureDrift.features.length > 0"
+          @open-reference="referenceOpen = true"
+        />
       </div>
 
       <MultivariatePanel :panel="featureDrift.multivariate" />
 
-      <ReferenceProfilePanel :profile="referenceProfile" :status="referenceProfileStatus" />
+      <!-- the baseline lives one click away instead of below the fold -->
+      <DetailDrawer
+        :open="referenceOpen"
+        :feature="selectedFeature"
+        :kind="selectedKind"
+        :caption="baselineLabel"
+        eyebrow="Reference profile"
+        testid="reference-drawer"
+        @close="referenceOpen = false"
+      >
+        <ReferenceProfilePanel :profile="referenceProfile" :status="referenceProfileStatus" />
+      </DetailDrawer>
     </template>
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { FeatureDriftResponse, ReferenceProfileResponse } from '@/api/types'
+import { computed, ref, watch } from 'vue'
+import type { AlertBanner, FeatureDriftResponse, ReferenceProfileResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import StateBlock from '@/components/StateBlock.vue'
@@ -44,6 +66,7 @@ import AlertBannerList from '@/components/overview/AlertBannerList.vue'
 import RankedDriftList from './RankedDriftList.vue'
 import FeatureDetailPanel from './FeatureDetailPanel.vue'
 import MultivariatePanel from './MultivariatePanel.vue'
+import DetailDrawer from '@/components/DetailDrawer.vue'
 import ReferenceProfilePanel from './ReferenceProfilePanel.vue'
 
 const props = defineProps<{
@@ -54,9 +77,35 @@ const props = defineProps<{
   referenceProfileStatus: LoadStatus
 }>()
 
-defineEmits<{ 'select-feature': [string] }>()
+defineEmits<{
+  'select-feature': [string]
+  'show-feature': [AlertBanner]
+  acknowledge: [AlertBanner]
+}>()
 
 const view = computed(() => sectionView(props.status, props.featureDrift?.state))
+
+// The reference profile knows the kind for every feature; the drift payload only carries it
+// once a window with a distribution has been materialized.
+const selectedKind = computed(
+  () => props.referenceProfile?.feature?.kind ?? props.featureDrift?.selected?.distribution?.kind,
+)
+
+// Wording that used to live in the drawer, before the shell became tab-agnostic.
+const baselineLabel = computed(() => {
+  const baseline = props.referenceProfile?.baseline_label
+  return baseline ? `Computed at training · ${baseline}` : 'Training-time baseline'
+})
+
+const referenceOpen = ref(false)
+
+// A drawer describing one feature must not survive a switch to another one.
+watch(
+  () => props.selectedFeature,
+  () => {
+    referenceOpen.value = false
+  },
+)
 </script>
 
 <style scoped>
@@ -69,7 +118,9 @@ const view = computed(() => sectionView(props.status, props.featureDrift?.state)
   display: grid;
   grid-template-columns: minmax(240px, 340px) 1fr;
   gap: var(--luml-space-4);
-  align-items: start;
+  /* The ranked list and the charts read as one section, so they end at the same line;
+     the list scrolls inside whatever height the detail panel sets. */
+  align-items: stretch;
 }
 @media (max-width: 720px) {
   .layout {

@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.openapi.utils import get_openapi
@@ -12,6 +13,7 @@ from agent.handlers.handler_instances import ms_handler
 from agent.handlers.openapi_handler import OpenAPIHandler
 from agent.monitoring import IntrospectFn, register_monitoring
 from agent.monitoring.greptime_query import GreptimeQueryStore
+from agent.monitoring.health import HealthSnapshot, worker_health
 from agent.schemas import (
     DeploymentInfo,
     Healthz,
@@ -22,6 +24,7 @@ from agent.settings import config
 
 openapi_handler = OpenAPIHandler(ms_handler)
 
+# TODO fix frontend env
 
 class OpenAPISchemaBuilder:
     @staticmethod
@@ -48,6 +51,34 @@ class OpenAPISchemaBuilder:
         }
 
 
+def _deployment_reference_profile(deployment_id: UUID) -> dict[str, Any] | None:
+    """The artifact's reference profile for a deployment, as loaded on the deploy path."""
+    deployment = ms_handler.deployments.get(str(deployment_id))
+    return deployment.reference_profile if deployment else None
+
+
+def _worker_health(deployment_id: UUID) -> tuple[HealthSnapshot, tuple[float, float]]:
+    """The worker's counters for one deployment, plus the cadence it runs at."""
+    return (
+        worker_health.snapshot(str(deployment_id)),
+        (config.MONITORING_WINDOW_SEC, config.MONITORING_INTERVAL_SEC),
+    )
+
+
+def _deployment_descriptor(deployment_id: UUID) -> dict[str, Any] | None:
+    """Identity of a deployment for the dashboard header.
+
+    Everything but the task type comes from the Platform record the Agent syncs; the task
+    type is a property of the trained model, so it comes from the artifact's profile.
+    """
+    deployment = ms_handler.deployments.get(str(deployment_id))
+    if deployment is None:
+        return None
+    descriptor = deployment.metadata.model_dump()
+    descriptor["task_type"] = (deployment.reference_profile or {}).get("task_type")
+    return descriptor
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, Any]:
     asyncio.create_task(ms_handler.sync_deployments())
@@ -67,12 +98,16 @@ def create_agent_app(
     security = HTTPBearer()
 
     # In full mode the dashboard Query API reads live telemetry from GreptimeDB; otherwise
-    # register_monitoring falls back to an empty in-memory store.
+    # register_monitoring falls back to an empty in-memory store. The reference profile is
+    # the exception: it ships in the artifact, so it comes from the deployment state the
+    # handler already loaded rather than from the database.
     data_store = (
         GreptimeQueryStore(
             host=config.GREPTIMEDB_HOST,
             port=config.GREPTIMEDB_HTTP_PORT,
             database=config.GREPTIMEDB_DATABASE,
+            profile_source=_deployment_reference_profile,
+            deployment_source=_deployment_descriptor,
         )
         if config.MONITORING_ENABLED
         else None
@@ -85,6 +120,7 @@ def create_agent_app(
         frame_ancestors=config.monitoring_frame_ancestors(),
         session_ttl_seconds=config.MONITORING_SESSION_TTL_SECONDS,
         data_store=data_store,
+        health_source=_worker_health,
     )
 
     async def verify_token(

@@ -45,6 +45,11 @@ export interface Satellite {
 
 export interface SatelliteCapabilities {
   deploy?: CapabilitiesDeploy
+  monitoring?: CapabilitiesMonitoring
+}
+
+export interface CapabilitiesMonitoring {
+  version: number
 }
 
 export interface CapabilitiesDeploy {

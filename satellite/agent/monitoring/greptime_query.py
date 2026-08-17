@@ -12,12 +12,15 @@ than failing. Only a real database outage raises :class:`MonitoringStoreUnavaila
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
 
+from agent.monitoring.alerts import parse_alert_key
+from agent.monitoring.profile import build_reference_profile, profile_status
 from agent.monitoring.query_store import (
     DeploymentDescriptor,
     InferenceEvent,
@@ -26,6 +29,7 @@ from agent.monitoring.query_store import (
     SpanRecord,
     StoredAlert,
     StoredMetricResult,
+    StoredMetricTransition,
 )
 
 logger = logging.getLogger("satellite")
@@ -54,6 +58,13 @@ _SPAN_STATUS = {
 _ATTR_SPAN_TYPE = "dfs.span_type"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
+FAILURES_TABLE = "monitoring_worker_failures"
+_RESOLVED = "resolved"
+_ACKNOWLEDGED = "acknowledged"
+
+# Upper bound on materialized windows read for a trend line — a day of one-minute windows
+# with room to spare, so a long-running deployment cannot drag the dashboard down.
+_HISTORY_LIMIT = 2000
 
 # span_attributes keys emitted by the Satellite inference instrumentation.
 _ATTR_DEPLOYMENT = "inference.deployment_id"
@@ -68,6 +79,10 @@ _ATTR_OUTPUT = "inference.output"
 
 class _QueryError(RuntimeError):
     """A query-level GreptimeDB error (e.g. a table that does not exist yet)."""
+
+
+def _sql_ts(moment: datetime) -> str:
+    return _sql_str(moment.astimezone(UTC).strftime("%Y-%m-%d %H:%M:%S"))
 
 
 def _sql_str(value: str) -> str:
@@ -85,8 +100,21 @@ def _to_ns(value: datetime) -> int:
 
 
 def _ns_to_dt(value: Any) -> datetime | None:  # noqa: ANN401
+    """Trace timestamps: the OTEL tables store nanoseconds."""
     try:
         return datetime.fromtimestamp(int(value) / 1_000_000_000, UTC)
+    except (TypeError, ValueError):
+        return None
+
+
+def _ms_to_dt(value: Any) -> datetime | None:  # noqa: ANN401
+    """Monitoring tables: the Agent writes ``TimestampMillisecond`` columns.
+
+    Reading these as nanoseconds parsed every window boundary as 1970 — which is what the
+    PSI-over-time axis and the alert timestamps used to show.
+    """
+    try:
+        return datetime.fromtimestamp(int(value) / 1_000, UTC)
     except (TypeError, ValueError):
         return None
 
@@ -133,12 +161,21 @@ class GreptimeQueryStore:
         database: str = "public",
         client: httpx.AsyncClient | None = None,
         timeout: float = 15.0,
+        profile_source: Callable[[UUID], dict[str, Any] | None] | None = None,
+        deployment_source: Callable[[UUID], dict[str, Any] | None] | None = None,
     ) -> None:
         self._url = f"http://{host}:{port}/v1/sql"
         self._database = database
         self._timeout = timeout
         self._client = client
         self._owns_client = client is None
+        # The reference profile does not live in GreptimeDB: it ships inside the artifact
+        # and the Agent loads it per deployment on the deploy path. The caller passes a
+        # lookup into that in-memory state; without one the tab stays empty.
+        self._profile_source = profile_source
+        # Same story for the deployment's own identity — name, status, served model: it is
+        # Platform state the Agent syncs, never telemetry, so it cannot come from SQL.
+        self._deployment_source = deployment_source
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
@@ -182,13 +219,36 @@ class GreptimeQueryStore:
         )
         _columns, rows = await self._query(sql)
         last = rows[0][0] if rows and rows[0] else None
-        if last is None:
-            # No collected events for this deployment yet.
+        meta = self._deployment_source(deployment_id) if self._deployment_source else None
+        if last is None and not meta:
+            # Nothing known about this deployment: no telemetry and no Platform record.
             return None
+        meta = meta or {}
         return DeploymentDescriptor(
             deployment_id=deployment_id,
-            last_prediction_at=_ns_to_dt(last),
+            name=meta.get("name"),
+            status=meta.get("status"),
+            task_type=meta.get("task_type"),
+            model_name=meta.get("model_name"),
+            environment=meta.get("environment"),
+            satellite=meta.get("satellite"),
+            inference_url=meta.get("inference_url"),
+            last_prediction_at=_ns_to_dt(last) if last is not None else None,
+            last_monitored_at=await self._last_monitored_at(deployment_id),
         )
+
+    async def _last_monitored_at(self, deployment_id: UUID) -> datetime | None:
+        """When the worker last materialized a window for this deployment."""
+        sql = (
+            f"SELECT max(window_end) FROM {RESULTS_TABLE} "
+            f"WHERE deployment_id = {_sql_str(str(deployment_id))}"
+        )
+        try:
+            _columns, rows = await self._query(sql)
+        except MonitoringStoreUnavailable:
+            return None
+        value = rows[0][0] if rows and rows[0] else None
+        return _ms_to_dt(value) if value is not None else None
 
     async def fetch_events(
         self, deployment_id: UUID, start: datetime, end: datetime
@@ -299,7 +359,32 @@ class GreptimeQueryStore:
             return None
         if not rows:
             return None
-        record = dict(zip(columns, rows[0], strict=False))
+        return self._to_result(deployment_id, group, window, dict(zip(columns, rows[0], strict=False)))
+
+    async def fetch_result_history(
+        self, deployment_id: UUID, group: str, window: str, *, since: datetime
+    ) -> list[StoredMetricResult]:
+        sql = (
+            f"SELECT deployment_id, metric, metric_values, severity, profile_status, window_end "
+            f"FROM {RESULTS_TABLE} "
+            f"WHERE deployment_id = {_sql_str(str(deployment_id))} "
+            f"AND metric = {_sql_str(group)} AND window_end >= {_sql_ts(since)} "
+            f"ORDER BY window_end ASC LIMIT {_HISTORY_LIMIT}"
+        )
+        try:
+            columns, rows = await self._query(sql)
+        except _QueryError as error:
+            logger.debug("fetch_result_history skipped (%s): %s", group, error)
+            return []
+        return [
+            self._to_result(deployment_id, group, window, dict(zip(columns, row, strict=False)))
+            for row in rows
+        ]
+
+    @staticmethod
+    def _to_result(
+        deployment_id: UUID, group: str, window: str, record: dict[str, Any]
+    ) -> StoredMetricResult:
         try:
             values = json.loads(record.get("metric_values") or "{}")
         except json.JSONDecodeError:
@@ -310,10 +395,17 @@ class GreptimeQueryStore:
             window=window,
             values=_normalize_severity(values) if isinstance(values, dict) else {},
             severity=_map_severity(str(record.get("severity", "") or "")),
-            computed_at=_ns_to_dt(record.get("window_end")),
+            computed_at=_ms_to_dt(record.get("window_end")),
         )
 
     async def fetch_alerts(self, deployment_id: UUID) -> list[StoredAlert]:
+        """The alerts that currently need attention, one row per metric.
+
+        ``monitoring_alerts`` is append-only: the worker re-saves an alert on every window
+        it still fires in, so the table holds the alert's whole history. Only the newest
+        row per metric is its current state, and a resolved one is not an alert any more —
+        counting the raw rows reported 97 "active" alerts where 29 were open.
+        """
         dep = _sql_str(str(deployment_id))
         sql = (
             f"SELECT deployment_id, metric, current_value, threshold, severity, state, "
@@ -325,31 +417,96 @@ class GreptimeQueryStore:
         except _QueryError as error:
             logger.debug("fetch_alerts skipped: %s", error)
             return []
-        alerts = []
+        latest: dict[str, StoredAlert] = {}
         for row in rows:
             record = dict(zip(columns, row, strict=False))
-            alerts.append(
-                StoredAlert(
-                    deployment_id=deployment_id,
-                    group=str(record.get("metric", "") or ""),
+            metric = str(record.get("metric", "") or "")
+            if metric in latest:  # rows arrive newest-first, so the first one wins
+                continue
+            parsed = parse_alert_key(metric)
+            latest[metric] = StoredAlert(
+                deployment_id=deployment_id,
+                group=parsed.group,
+                metric=metric,
+                feature=parsed.feature,
+                severity=_map_severity(str(record.get("severity", "") or "")),
+                current_value=_as_float(record.get("current_value")),
+                threshold=_as_float(record.get("threshold")),
+                state=str(record.get("state", "open") or "open"),
+                first_seen=_ms_to_dt(record.get("first_seen")),
+                last_seen=_ms_to_dt(record.get("last_seen")),
+            )
+        return [alert for alert in latest.values() if alert.state != _RESOLVED]
+
+    async def fetch_metric_transitions(
+        self, deployment_id: UUID, since: datetime
+    ) -> list[StoredMetricTransition]:
+        sql = (
+            f"SELECT metric, kind, message, happened_at FROM {FAILURES_TABLE} "
+            f"WHERE deployment_id = {_sql_str(str(deployment_id))} "
+            f"AND happened_at >= {_sql_ts(since)} "
+            f"ORDER BY happened_at ASC"
+        )
+        try:
+            columns, rows = await self._query(sql)
+        except _QueryError as error:
+            logger.debug("fetch_metric_transitions skipped: %s", error)
+            return []
+        transitions = []
+        for row in rows:
+            record = dict(zip(columns, row, strict=False))
+            at = _ms_to_dt(record.get("happened_at"))
+            if at is None:
+                continue
+            transitions.append(
+                StoredMetricTransition(
                     metric=str(record.get("metric", "") or ""),
-                    severity=_map_severity(str(record.get("severity", "") or "")),
-                    current_value=_as_float(record.get("current_value")),
-                    threshold=_as_float(record.get("threshold")),
-                    state=str(record.get("state", "open") or "open"),
-                    first_seen=_ns_to_dt(record.get("first_seen")),
-                    last_seen=_ns_to_dt(record.get("last_seen")),
+                    kind=str(record.get("kind", "") or ""),
+                    error=str(record.get("message", "") or ""),
+                    at=at,
                 )
             )
-        return alerts
+        return transitions
+
+    async def acknowledge_alert(self, deployment_id: UUID, metric: str) -> bool:
+        """Rewrite the alert's newest row as acknowledged.
+
+        The table is append-only and keyed by ``(deployment_id, metric)`` over
+        ``last_seen``: writing the same row back with the same ``last_seen`` replaces it
+        rather than adding another entry to the alert's history, so acknowledging leaves
+        the timeline of when it fired untouched.
+        """
+        current = next(
+            (a for a in await self.fetch_alerts(deployment_id) if a.metric == metric), None
+        )
+        if current is None or current.last_seen is None or current.first_seen is None:
+            return False
+        sql = (
+            f"INSERT INTO {ALERTS_TABLE} "
+            f"(deployment_id, metric, current_value, threshold, severity, state, "
+            f"first_seen, last_seen) VALUES ("
+            f"{_sql_str(str(deployment_id))}, {_sql_str(metric)}, "
+            f"{_sql_number(current.current_value)}, {_sql_number(current.threshold)}, "
+            f"{_sql_str(_worker_severity(current.severity))}, {_sql_str(_ACKNOWLEDGED)}, "
+            f"{_sql_ts(current.first_seen)}, {_sql_ts(current.last_seen)})"
+        )
+        await self._query(sql)
+        return True
 
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None:
-        # The reference profile is not materialized in GreptimeDB; the Reference Profile
-        # tab shows an empty state until a profile source is wired.
-        return None
+        return build_reference_profile(deployment_id, self._raw_profile(deployment_id))
 
     async def profile_status(self, deployment_id: UUID) -> str:
-        return "ready"
+        return profile_status(self._raw_profile(deployment_id))
+
+    def _raw_profile(self, deployment_id: UUID) -> dict[str, Any] | None:
+        if self._profile_source is None:
+            return None
+        try:
+            return self._profile_source(deployment_id)
+        except Exception:  # noqa: BLE001 — a profile lookup must never break the dashboard
+            logger.warning("Failed to read reference profile", exc_info=True)
+            return None
 
 
 def _as_float(value: Any) -> float | None:  # noqa: ANN401
@@ -359,6 +516,16 @@ def _as_float(value: Any) -> float | None:  # noqa: ANN401
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _sql_number(value: float | None) -> str:
+    return "NULL" if value is None else repr(float(value))
+
+
+def _worker_severity(value: Any) -> str:  # noqa: ANN401
+    """Back to the worker's vocabulary: the Query API says "ok", the worker "normal"."""
+    text = str(value)
+    return "normal" if text == "ok" else text
 
 
 def _map_severity(value: Any) -> Any:  # noqa: ANN401

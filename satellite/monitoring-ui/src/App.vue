@@ -22,20 +22,49 @@
 
     <DashboardTabs :active="activeTab" @select="setActiveTab" />
 
-    <OverviewTab v-if="activeTab === 'overview'" :overview="overview" :status="overviewStatus" />
+    <OverviewTab
+      v-if="activeTab === 'overview'"
+      :overview="overview"
+      :status="overviewStatus"
+      :worker-health="workerHealth"
+      @show-feature="focusAlert"
+      @acknowledge="acknowledgeAlert($event.metric)"
+    />
+
+    <TracesTab
+      v-else-if="activeTab === 'traces'"
+      :traces="traces"
+      :status="tracesStatus"
+      :open-trace-id="openTraceId"
+      :trace-detail="traceDetail"
+      :trace-detail-status="traceDetailStatus"
+      @page="setTracesPage"
+      @open="openTrace"
+      @close-trace="closeTrace"
+    />
 
     <DataQualityTab
       v-else-if="activeTab === 'data-quality'"
       :data-quality="dataQuality"
       :status="dataQualityStatus"
-      :traces="traces"
-      :traces-status="tracesStatus"
-      :open-trace-id="openTraceId"
-      :trace-detail="traceDetail"
-      :trace-detail-status="traceDetailStatus"
-      @traces-page="setTracesPage"
-      @trace-open="openTrace"
-      @trace-close="closeTrace"
+      :trends="qualityTrends"
+      :trends-status="qualityTrendsStatus"
+      :focus-feature="focusedFeature"
+      @inspect="loadQualityTrends"
+    />
+
+    <AlertsTab
+      v-else-if="activeTab === 'alerts'"
+      :alerts="alerts"
+      :status="alertsStatus"
+      @show-feature="focusAlert"
+      @acknowledge="acknowledgeAlert($event.metric)"
+    />
+
+    <ReferenceProfileTab
+      v-else-if="activeTab === 'reference-profile'"
+      :profile="profileDocument"
+      :status="profileDocumentStatus"
     />
 
     <FeatureDriftTab
@@ -61,8 +90,11 @@ import PlaceholderBanner from '@/components/PlaceholderBanner.vue'
 import SessionExpiredOverlay from '@/components/SessionExpiredOverlay.vue'
 import StateBlock from '@/components/StateBlock.vue'
 import OverviewTab from '@/components/overview/OverviewTab.vue'
+import TracesTab from '@/components/traces/TracesTab.vue'
 import DataQualityTab from '@/components/data-quality/DataQualityTab.vue'
 import FeatureDriftTab from '@/components/feature-drift/FeatureDriftTab.vue'
+import ReferenceProfileTab from '@/components/reference-profile/ReferenceProfileTab.vue'
+import AlertsTab from '@/components/alerts/AlertsTab.vue'
 
 const {
   dimensions,
@@ -74,6 +106,17 @@ const {
   overviewStatus,
   dataQuality,
   dataQualityStatus,
+  qualityTrends,
+  qualityTrendsStatus,
+  loadQualityTrends,
+  profileDocument,
+  profileDocumentStatus,
+  alerts,
+  alertsStatus,
+  acknowledgeAlert,
+  workerHealth,
+  focusAlert,
+  focusedFeature,
   traces,
   tracesStatus,
   openTraceId,

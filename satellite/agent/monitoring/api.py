@@ -7,8 +7,13 @@ from agent.monitoring.query import (
     MonitoringQueryService,
     QueryDimensions,
 )
-from agent.monitoring.session import MonitoringSession, require_monitoring_session
+from agent.monitoring.session import (
+    MonitoringSession,
+    require_monitoring_session,
+    require_monitoring_write,
+)
 from agent.schemas.monitoring_query import (
+    AcknowledgeAlertRequest,
     AlertsResponse,
     Compare,
     DataQualityResponse,
@@ -23,6 +28,7 @@ from agent.schemas.monitoring_query import (
     TraceDetailResponse,
     TracesResponse,
     Window,
+    WorkerHealthResponse,
 )
 
 MONITORING_API_PREFIX = "/monitoring/api"
@@ -105,6 +111,24 @@ def build_query_router() -> APIRouter:
         service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
     ) -> AlertsResponse:
         return await service.alerts(session.deployment_id, dims)
+
+    @router.post("/alerts/acknowledge", response_model=AlertsResponse)
+    async def acknowledge_alert(
+        body: AcknowledgeAlertRequest,
+        session: MonitoringSession = Depends(require_monitoring_write),  # noqa: B008
+        dims: QueryDimensions = Depends(_dimensions),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> AlertsResponse:
+        """Mark an alert as seen. The metric comes from the body: its key contains ':'."""
+        return await service.acknowledge_alert(session.deployment_id, body.metric, dims)
+
+    @router.get("/worker", response_model=WorkerHealthResponse)
+    async def worker_health(
+        session: MonitoringSession = Depends(require_monitoring_session),  # noqa: B008
+        service: MonitoringQueryService = Depends(get_query_service),  # noqa: B008
+    ) -> WorkerHealthResponse:
+        """Whether monitoring itself is keeping up — not a metric about the model."""
+        return await service.worker_health(session.deployment_id)
 
     @router.get("/traces", response_model=TracesResponse)
     async def traces(

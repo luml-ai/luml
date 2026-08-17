@@ -11,6 +11,7 @@ from agent.monitoring.instrumentation import InferenceInstrumentation
 from agent.monitoring.telemetry import TelemetrySetup
 from agent.schemas import (
     Deployment,
+    DeploymentMetadata,
     DeploymentStatus,
     DeploymentUpdate,
     LocalDeployment,
@@ -37,6 +38,7 @@ class ModelServerHandler:
         dynamic_attributes_secrets: dict[str, str] | None,
         *,
         monitoring_enabled: bool = False,
+        metadata: DeploymentMetadata | None = None,
     ) -> None:
         manifest = None
         openapi_schema = None
@@ -58,6 +60,7 @@ class ModelServerHandler:
             openapi_schema=openapi_schema,
             monitoring_enabled=monitoring_enabled,
             reference_profile=usable_reference_profile(reference_profile),
+            metadata=metadata or DeploymentMetadata(),
         )
 
     @staticmethod
@@ -70,6 +73,7 @@ class ModelServerHandler:
             deployment.id,
             deployment.dynamic_attributes_secrets,
             monitoring_enabled=monitoring_enabled,
+            metadata=DeploymentMetadata.from_platform(deployment.model_dump()),
         )
         self._invalidate_openapi_cache()
 
@@ -143,6 +147,7 @@ class ModelServerHandler:
                         dep_id,
                         dep.get("dynamic_attributes_secrets"),
                         monitoring_enabled=monitoring_enabled,
+                        metadata=DeploymentMetadata.from_platform(dep),
                     )
                 else:
                     logs = ""

@@ -1,35 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import DataQualityTab from './DataQualityTab.vue'
-import {
-  SectionState,
-  Severity,
-  type DataQualityResponse,
-  type TraceDetail,
-  type TracesResponse,
-} from '@/api/types'
+import { SectionState, Severity, type DataQualityResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
-import { makeDataQuality, makeTraceDetail, makeTraces } from '@/test/fixtures'
+import { makeDataQuality } from '@/test/fixtures'
 
-function mountTab(props: {
-  dataQuality: DataQualityResponse | null
-  status: LoadStatus
-  traces?: TracesResponse | null
-  tracesStatus?: LoadStatus
-  openTraceId?: string | null
-  traceDetail?: TraceDetail | null
-  traceDetailStatus?: LoadStatus
-}) {
+function mountTab(props: { dataQuality: DataQualityResponse | null; status: LoadStatus }) {
   return mount(DataQualityTab, {
-    props: {
-      traces: makeTraces(),
-      tracesStatus: 'ready',
-      openTraceId: null,
-      traceDetail: null,
-      traceDetailStatus: 'idle',
-      ...props,
-    },
-    global: { stubs: { apexchart: true } },
+    props,
+    // the drawer teleports to the body; keep it inline so assertions stay on the wrapper
+    global: { stubs: { apexchart: true, teleport: true } },
   })
 }
 
@@ -39,11 +19,23 @@ describe('DataQualityTab', () => {
 
     const rows = wrapper.findAll('[data-testid="dq-row"]')
     expect(rows).toHaveLength(2)
-    expect(rows[1].text()).toContain('income')
+    expect(rows[1].text()).toContain('region')
     expect(rows[1].text()).toContain('20.0%') // missing_rate 0.2
-    expect(rows[1].text()).toContain('10.0%') // range/unseen 0.1
+    expect(rows[1].text()).toContain('5.0%') // type_error_rate 0.05
     expect(rows[1].find('[data-testid="severity-tag"]').text()).toBe('Critical')
     expect(rows[0].find('[data-testid="severity-tag"]').text()).toBe('Ok')
+  })
+
+  it('names the check behind the range / unseen column and flags rates past the thresholds', () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+
+    const rows = wrapper.findAll('[data-testid="dq-row"]')
+    // a numerical feature reports range violations, a categorical one unseen categories
+    expect(rows[0].text()).toContain('2.0% out of range')
+    expect(rows[1].text()).toContain('10.0% unseen')
+    // 0.1% missing is under the 1% warning line, 20% is past the 5% critical one
+    expect(rows[0].findAll('.warn, .critical')).toHaveLength(0)
+    expect(rows[1].find('.critical').text()).toBe('20.0%')
   })
 
   it('renders from the contract for any classical-ML task without task-specific branching', () => {
@@ -74,6 +66,49 @@ describe('DataQualityTab', () => {
     expect(rows[1].find('[data-testid="severity-tag"]').text()).toBe('Warning')
   })
 
+  it('opens the invalid-values panel for the clicked feature and closes it again', async () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+
+    expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+
+    await wrapper.findAll('[data-testid="dq-row"]')[1].trigger('click')
+
+    const drawer = wrapper.find('[data-testid="invalid-values-drawer"]')
+    expect(drawer.text()).toContain('region')
+    expect(drawer.text()).toContain('Categorical')
+    expect(drawer.text()).toContain('1,070 values checked')
+    // the row's verdict travels with it into the panel header
+    expect(drawer.find('[data-testid="severity-tag"]').text()).toBe('Critical')
+    expect(drawer.find('[data-testid="dq-unseen-categories"]').text()).toContain('antarctica')
+
+    // the page must not scroll away behind the panel while it is open
+    expect(document.body.style.overflow).toBe('hidden')
+
+    // opening a row asks for that feature's history; closing cancels the request
+    expect(wrapper.emitted('inspect')?.at(-1)).toEqual(['region'])
+
+    await drawer.find('[data-testid="invalid-values-drawer-close"]').trigger('click')
+    expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+    expect(document.body.style.overflow).toBe('')
+    expect(wrapper.emitted('inspect')?.at(-1)).toEqual([null])
+  })
+
+  it('follows the selected feature into the next window, and drops it when it is gone', async () => {
+    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
+    await wrapper.findAll('[data-testid="dq-row"]')[1].trigger('click')
+
+    const next = makeDataQuality()
+    next.features[1].invalid!.unseen_categories = [{ value: 'pluto', count: 4 }]
+    await wrapper.setProps({ dataQuality: next })
+    expect(wrapper.find('[data-testid="invalid-values-drawer"]').text()).toContain('pluto')
+
+    await wrapper.setProps({
+      dataQuality: makeDataQuality({ features: [makeDataQuality().features[0]] }),
+    })
+    expect(wrapper.find('[data-testid="invalid-values-drawer"]').exists()).toBe(false)
+    expect(wrapper.emitted('inspect')?.at(-1)).toEqual([null])
+  })
+
   it('shows the not-computed-yet empty state and no table when the worker has no results', () => {
     const wrapper = mountTab({
       dataQuality: makeDataQuality({ state: SectionState.EMPTY, features: [] }),
@@ -93,125 +128,4 @@ describe('DataQualityTab', () => {
     expect(wrapper.find('[data-testid="state-error"]').exists()).toBe(true)
   })
 
-  it('renders the local Traces panel with recent inference calls', () => {
-    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
-
-    expect(wrapper.find('[data-testid="traces-panel"]').exists()).toBe(true)
-    expect(wrapper.findAll('[data-testid="trace-row"]')).toHaveLength(2)
-  })
-
-  it('emits a traces-page request when paging', async () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      traces: makeTraces({ total: 60, offset: 0, limit: 20 }),
-      tracesStatus: 'ready',
-    })
-
-    await wrapper.find('[data-testid="traces-next"]').trigger('click')
-
-    expect(wrapper.emitted('traces-page')?.[0]).toEqual([20])
-  })
-
-  it('shows the traces empty state when there are no inference calls', () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      traces: makeTraces({ state: SectionState.EMPTY, rows: [], total: 0 }),
-      tracesStatus: 'ready',
-    })
-
-    expect(wrapper.find('[data-testid="traces-panel"] [data-testid="state-empty"]').exists()).toBe(
-      true,
-    )
-  })
-
-  it('emits trace-open with the clicked call id', async () => {
-    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
-
-    const row = wrapper.findAll('[data-testid="trace-row"]')[0]
-    await row.trigger('click')
-
-    expect(wrapper.emitted('trace-open')?.[0]).toEqual([makeTraces().rows[0].event_id])
-  })
-
-  it('renders no detail dialog until a trace is opened', () => {
-    const wrapper = mountTab({ dataQuality: makeDataQuality(), status: 'ready' })
-
-    expect(wrapper.find('[data-testid="trace-detail-dialog"]').exists()).toBe(false)
-  })
-
-  it('renders the span tree of the opened call, root first', () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      openTraceId: 'evt-1',
-      traceDetail: makeTraceDetail(),
-      traceDetailStatus: 'ready',
-    })
-
-    const spans = wrapper.findAll('[data-testid="trace-span-item"]')
-    expect(spans).toHaveLength(2)
-    expect(spans[0].text()).toContain('inference')
-    expect(spans[1].text()).toContain('model.execute')
-    expect(spans[1].text()).toContain('1ms') // child duration, formatted like the Platform
-  })
-
-  it('shows the root span attributes — the full payloads — in the details panel', () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      openTraceId: 'evt-1',
-      traceDetail: makeTraceDetail(),
-      traceDetailStatus: 'ready',
-    })
-
-    const body = wrapper.find('[data-testid="trace-span-body"]')
-    expect(body.text()).toContain('6.82')
-    expect(body.text()).toContain('Virginica')
-  })
-
-  it('selects a child span and shows its own details', async () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      openTraceId: 'evt-1',
-      traceDetail: makeTraceDetail(),
-      traceDetailStatus: 'ready',
-    })
-
-    await wrapper.findAll('[data-testid="trace-span-item"]')[1].trigger('click')
-
-    const body = wrapper.find('[data-testid="trace-span-body"]')
-    expect(body.text()).toContain('model.execute')
-    expect(body.text()).not.toContain('Virginica') // payloads live on the root span
-  })
-
-  it('exposes span metadata on the Metadata tab', async () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      openTraceId: 'evt-1',
-      traceDetail: makeTraceDetail(),
-      traceDetailStatus: 'ready',
-    })
-
-    await wrapper.find('[data-testid="trace-tab-metadata"]').trigger('click')
-
-    expect(wrapper.find('[data-testid="trace-span-body"]').text()).toContain('trc-1')
-  })
-
-  it('emits trace-close from the dialog close button', async () => {
-    const wrapper = mountTab({
-      dataQuality: makeDataQuality(),
-      status: 'ready',
-      openTraceId: 'evt-1',
-      traceDetail: null,
-      traceDetailStatus: 'loading',
-    })
-
-    await wrapper.find('[data-testid="trace-detail-close"]').trigger('click')
-
-    expect(wrapper.emitted('trace-close')).toHaveLength(1)
-  })
 })

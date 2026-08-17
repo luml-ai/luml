@@ -70,6 +70,18 @@ class AlertBanner(BaseModel):
     message: str
     first_seen: datetime | None = None
     last_seen: datetime | None = None
+    # What fired, phrased for a reader: "PSI", "Missing rate", "Latency p95".
+    label: str = ""
+    unit: str = "score"
+    value_label: str = ""
+    threshold_label: str = ""
+    state: str = "open"
+    # How long it has been firing, from first to last confirmation.
+    duration_seconds: float | None = None
+    # Where the threshold came from; today every metric uses its built-in default.
+    threshold_source: str = "default"
+    # The alert's own metric across the materialized windows, for the detail panel.
+    history: Series | None = None
 
 
 class Card(BaseModel):
@@ -129,18 +141,57 @@ class RuntimeResponse(BaseModel):
     alerts: list[AlertBanner] = []
 
 
+class UnseenCategoryCount(BaseModel):
+    value: str
+    count: int
+
+
+class InvalidValueSummary(BaseModel):
+    """What was wrong with the values a feature's rates counted.
+
+    The rates say how broken the input is; this says broken how — which categories arrived
+    unseen, how far past the reference bounds the numbers went, what types came instead.
+    """
+
+    missing_count: int = 0
+    type_mismatch_count: int = 0
+    observed_types: dict[str, int] = {}
+    type_examples: list[str] = []
+    range_violation_count: int = 0
+    below_min: int = 0
+    above_max: int = 0
+    observed_min: float | None = None
+    observed_max: float | None = None
+    reference_min: float | None = None
+    reference_max: float | None = None
+    unseen_category_count: int = 0
+    unseen_distinct: int = 0
+    reference_categories: int | None = None
+    unseen_categories: list[UnseenCategoryCount] = []
+
+
 class DataQualityFeatureRow(BaseModel):
     feature: str
+    kind: str | None = None  # "numeric" | "categorical"
     missing_rate: float | None = None
     type_error_rate: float | None = None
+    # The table shows one "range / unseen" column — a feature is either numerical or
+    # categorical, so only one of the two applies — but both rates travel for detail.
     range_unseen_rate: float | None = None
+    range_violation_rate: float | None = None
+    unseen_category_rate: float | None = None
+    checked: int | None = None
     status: Severity = Severity.OK
+    # None when nothing was rejected in this window — the panel then has nothing to explain.
+    invalid: InvalidValueSummary | None = None
 
 
 class DataQualityResponse(BaseModel):
     state: SectionState
     profile_status: ProfileStatus = ProfileStatus.READY
     features: list[DataQualityFeatureRow] = []
+    # One series per check of the selected feature; empty when no feature is asked for.
+    trends: list[Series] = []
     alerts: list[AlertBanner] = []
 
 
@@ -175,6 +226,15 @@ class MultivariatePanel(BaseModel):
     status: Severity = Severity.OK
     shift_value: float | None = None
     shift_metric: str | None = None
+    # Unit for shift_value; empty for a unitless measure.
+    shift_unit: str = ""
+    # Spread of the live cloud over the reference one, per component (1.0 = unchanged).
+    dispersion_ratio: float | None = None
+    # Share of live rows past the reference's own 99th percentile.
+    outlier_rate: float | None = None
+    # 95% confidence ellipses of both Gaussians, as closed polygons in PC1 × PC2.
+    reference_ellipse: list[PcaPoint] = []
+    current_ellipse: list[PcaPoint] = []
     explained_variance: list[float] = []
     feature_psi: list[DriftedFeature] = []
     reference_projection: list[PcaPoint] = []
@@ -207,6 +267,42 @@ class ReferenceProfileResponse(BaseModel):
     computed_at: datetime | None = None
     features: list[str] = []  # available feature names to select from
     feature: ReferenceProfileFeature | None = None  # the selected feature's baseline
+    # The artifact's profile document itself, for the tab that shows the whole file.
+    document: dict[str, Any] | None = None
+
+
+class MetricFailure(BaseModel):
+    metric: str
+    error: str
+    at: datetime
+
+
+class MetricIncident(BaseModel):
+    """One stretch during which a metric was failing."""
+
+    metric: str
+    error: str
+    started_at: datetime
+    # None while it is still broken.
+    ended_at: datetime | None = None
+    ongoing: bool = True
+
+
+class WorkerHealthResponse(BaseModel):
+    """Whether the background worker is keeping up for this deployment."""
+
+    state: SectionState
+    running: bool = False
+    last_tick_at: datetime | None = None
+    windows_processed: int = 0
+    last_window_end: datetime | None = None
+    # Seconds between a window closing and the worker materializing it.
+    last_lag_seconds: float | None = None
+    window_seconds: float | None = None
+    interval_seconds: float | None = None
+    failures: list[MetricFailure] = []
+    # Failure history from the database, newest first — survives a restart.
+    incidents: list[MetricIncident] = []
 
 
 class AlertGroup(BaseModel):
@@ -214,6 +310,12 @@ class AlertGroup(BaseModel):
 
     group: str
     alerts: list[AlertBanner] = []
+
+
+class AcknowledgeAlertRequest(BaseModel):
+    """Which alert a human has seen; the key is the worker's ``group:subject``."""
+
+    metric: str = Field(min_length=1, max_length=200)
 
 
 class AlertsResponse(BaseModel):

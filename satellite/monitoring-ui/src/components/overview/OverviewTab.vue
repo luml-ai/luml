@@ -5,6 +5,9 @@
       <p class="section-subtitle">Runtime health and headline signals for the selected window.</p>
     </div>
 
+    <!-- every number below is produced in the background; this says whether that is working -->
+    <WorkerHealthStrip :health="workerHealth" />
+
     <StateBlock
       v-if="view !== 'ready'"
       :view="view"
@@ -18,7 +21,13 @@
         <MetricCard v-for="card in overview.cards" :key="card.key" :card="card" />
       </div>
 
-      <AlertBannerList v-if="overview.alert_banners.length" :banners="overview.alert_banners" />
+      <AlertBannerList
+        v-if="overview.alert_banners.length"
+        :banners="overview.alert_banners"
+        inspectable
+        @show-feature="$emit('show-feature', $event)"
+        @acknowledge="$emit('acknowledge', $event)"
+      />
 
       <div class="charts grid">
         <div v-for="chart in charts" :key="chart.series.key" class="card">
@@ -35,7 +44,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { OverviewResponse, Series } from '@/api/types'
+import type { AlertBanner, OverviewResponse, Series, WorkerHealthResponse } from '@/api/types'
 import type { LoadStatus } from '@/composables/useMonitoringDashboard'
 import { sectionView } from '@/lib/section'
 import StateBlock from '@/components/StateBlock.vue'
@@ -43,8 +52,15 @@ import SeriesChart from '@/components/SeriesChart.vue'
 import MetricCard from './MetricCard.vue'
 import AlertBannerList from './AlertBannerList.vue'
 import TopDriftedList from './TopDriftedList.vue'
+import WorkerHealthStrip from './WorkerHealthStrip.vue'
 
-const props = defineProps<{ overview: OverviewResponse | null; status: LoadStatus }>()
+defineEmits<{ 'show-feature': [AlertBanner]; acknowledge: [AlertBanner] }>()
+
+const props = defineProps<{
+  overview: OverviewResponse | null
+  status: LoadStatus
+  workerHealth?: WorkerHealthResponse | null
+}>()
 
 const view = computed(() => sectionView(props.status, props.overview?.state))
 

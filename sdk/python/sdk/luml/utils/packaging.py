@@ -1,6 +1,6 @@
+import io
 import json
-import os
-import tempfile
+import tarfile
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -221,20 +221,22 @@ def is_sklearn_estimator(obj: object, estimator_cls: type | None) -> bool:
 
 
 def add_reference_profile(
-    builder: PyfuncBuilder,
+    artifact_path: str,
     reference_data: Any,  # noqa: ANN401
     task_type: "TaskType",
     predict: Callable[[Any], Any],
     *,
     predict_proba: Callable[[Any], Any] | None = None,
-) -> str:
-    """Compute the monitoring reference profile and embed it as JSON in the artifact.
+) -> dict[str, Any]:
+    """Compute the monitoring reference profile and embed it in a saved artifact.
 
     Runs the canonical, dependency-light profile computation over ``reference_data``
-    (the training features), serializes the plain-JSON result to a temporary file, and
-    registers it under ``reference_profile.json`` via the builder's file API. The
-    temporary path is returned so the caller can remove it after ``builder.save``. The
-    caller is responsible for adding ``REFERENCE_PROFILE_TAG`` to the producer tags.
+    (the training features) and writes the plain-JSON result into the artifact as
+    ``reference_profile.json``. Call it *after* ``builder.save(path)``: the profile has
+    to sit at the root of the archive, next to ``manifest.json``, because that is where
+    the model server reads it from — the builder's file API would nest it under
+    ``variant_artifacts/extra_files/``, where the profile is never found. The caller is
+    responsible for adding ``REFERENCE_PROFILE_TAG`` to the producer tags.
 
     The pandas-dependent canonical module is imported lazily so importing this module
     (and packaging without ``reference_data``) stays pandas-optional.
@@ -244,8 +246,36 @@ def add_reference_profile(
     profile = build_reference_profile(
         reference_data, task_type, predict, predict_proba=predict_proba
     )
-    fd, tmp_path = tempfile.mkstemp(suffix=".json")
-    with os.fdopen(fd, "w") as tmp:
-        json.dump(profile, tmp)
-    builder.add_file(tmp_path, REFERENCE_PROFILE_FILENAME)
-    return tmp_path
+    embed_reference_profile(artifact_path, profile)
+    return profile
+
+
+def embed_reference_profile(artifact_path: str, profile: dict[str, Any]) -> None:
+    """Write ``reference_profile.json`` into the root of an fnnx tar artifact.
+
+    Every existing member (manifest, estimator, variant artifacts, …) is copied through
+    unchanged and any previous profile member is replaced, so the call is idempotent.
+    """
+    payload = json.dumps(profile).encode("utf-8")
+
+    with open(artifact_path, "rb") as handle:
+        source = io.BytesIO(handle.read())
+
+    output = io.BytesIO()
+    with (
+        tarfile.open(fileobj=source, mode="r") as src,
+        tarfile.open(fileobj=output, mode="w") as dst,
+    ):
+        for member in src.getmembers():
+            if member.name == REFERENCE_PROFILE_FILENAME:
+                continue
+            content = src.extractfile(member) if member.isreg() else None
+            dst.addfile(member, content)
+
+        info = tarfile.TarInfo(name=REFERENCE_PROFILE_FILENAME)
+        info.size = len(payload)
+        info.mode = 0o644
+        dst.addfile(info, io.BytesIO(payload))
+
+    with open(artifact_path, "wb") as handle:
+        handle.write(output.getvalue())
