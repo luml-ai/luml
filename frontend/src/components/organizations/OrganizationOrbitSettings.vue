@@ -92,7 +92,7 @@
           form="editOrganizationForm"
           @click="saveChanges"
         >
-          save changes
+          Save changes
         </Button>
       </div>
     </template>

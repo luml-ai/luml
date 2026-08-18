@@ -61,12 +61,6 @@ const getLink = computed(
 </script>
 
 <style scoped>
-.notebooks-table {
-  border-top: 1px solid var(--p-datatable-body-cell-border-color);
-  border-left: 1px solid var(--p-datatable-body-cell-border-color);
-  border-right: 1px solid var(--p-datatable-body-cell-border-color);
-}
-
 .buttons {
   display: flex;
   align-items: center;

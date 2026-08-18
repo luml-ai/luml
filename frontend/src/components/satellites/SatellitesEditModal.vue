@@ -1,17 +1,10 @@
 <template>
-  <Dialog
+  <UiDialogRight
     v-model:visible="visible"
-    position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPT"
+    :icon="Bolt"
+    title="Satellite settings"
+    :footer-actions="footerActions"
   >
-    <template #header>
-      <h2 class="popup-title">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>satellite settings</span>
-      </h2>
-    </template>
     <div class="dialog-content">
       <Form
         id="satellitesEditForm"
@@ -45,18 +38,7 @@
         </div>
       </Form>
     </div>
-    <template #footer>
-      <Button
-        severity="warn"
-        variant="outlined"
-        :disabled="loading"
-        @click="deleteDialogVisible = true"
-      >
-        unpair satellite
-      </Button>
-      <Button type="submit" :disabled="loading" form="satellitesEditForm">save changes</Button>
-    </template>
-  </Dialog>
+  </UiDialogRight>
   <SatelliteDelete
     v-model:visible="deleteDialogVisible"
     :organization-id="organizationId"
@@ -68,7 +50,7 @@
 
 <script setup lang="ts">
 import type { Satellite } from '@/lib/api/satellites/interfaces'
-import { Dialog, InputText, Textarea, Button, useToast } from 'primevue'
+import { InputText, Textarea, useToast } from 'primevue'
 import { Bolt } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
@@ -78,6 +60,7 @@ import { useSatellitesStore } from '@/stores/satellites'
 import { useRoute } from 'vue-router'
 import SatelliteDelete from './SatelliteDelete.vue'
 import { getErrorMessage } from '@/helpers/helpers'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 
 type Props = {
   data: Satellite
@@ -88,12 +71,6 @@ const props = defineProps<Props>()
 const toast = useToast()
 const route = useRoute()
 const satellitesStore = useSatellitesStore()
-
-const dialogPT = {
-  footer: {
-    class: 'organization-edit-footer',
-  },
-}
 
 const visible = defineModel<boolean>('visible')
 const deleteDialogVisible = ref(false)
@@ -114,6 +91,29 @@ const orbitId = computed(() => {
   return id
 })
 
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Unpair satellite',
+        severity: 'warn',
+        variant: 'outlined',
+        disabled: loading.value,
+        onClick: () => {
+          deleteDialogVisible.value = true
+        },
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'satellitesEditForm',
+        disabled: loading.value,
+      },
+    },
+  }
+})
 async function onSubmit({ valid }: FormSubmitEvent) {
   if (!valid) return
   try {

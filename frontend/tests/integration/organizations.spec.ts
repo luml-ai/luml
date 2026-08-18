@@ -236,7 +236,7 @@ test.describe('Organizations', () => {
 
       await expect(page.getByText('Delete this organization?')).toBeVisible()
 
-      const deleteBtn = page.getByRole('button', { name: 'delete', exact: true })
+      const deleteBtn = page.getByRole('button', { name: 'Delete', exact: true })
       await expect(deleteBtn).toBeDisabled()
 
       await page.getByLabel(/Yes, delete this organization/i).check()
@@ -255,9 +255,9 @@ test.describe('Organizations', () => {
 
       await page.goto(`/organization/${ORG_ID}`)
       await page.locator('.edit-button').click()
-      await page.getByRole('button', { name: /delete organization/i }).click()
+      await page.getByRole('button', { name: /Delete organization/i }).click()
       await page.getByLabel(/Yes, delete this organization/i).check()
-      await page.getByRole('button', { name: 'delete', exact: true }).click()
+      await page.getByRole('button', { name: 'Delete', exact: true }).click()
 
       await expect.poll(() => deleteCalled).toBe(true)
       await expect(page).toHaveURL(/\/$/)
@@ -279,10 +279,10 @@ test.describe('Organizations', () => {
       await page.locator('.menu-link').filter({ hasText: 'Acme Corp' }).click()
 
       const orgRow = page.locator('.organization').filter({ hasText: 'Acme Corp' })
-      await orgRow.getByRole('button').last().click() 
+      await orgRow.getByRole('button').last().click()
 
       const confirmBtn = page
-        .getByRole('button', { name: /^(leave|yes|confirm|accept)$/i })
+        .getByRole('button', { name: /^(Leave|Yes|Confirm|Accept)$/i })
         .first()
       await confirmBtn.click()
 
@@ -371,7 +371,7 @@ test.describe('Organizations', () => {
         `**/v1/organizations/${ORG_ID}`,
         makeOrganizationDetails({
           members: [
-            makeMember(), 
+            makeMember(),
             makeMember({
               id: MEMBER_ID_2,
               role: OrganizationRole.member,
@@ -420,10 +420,10 @@ test.describe('Organizations', () => {
       await memberRow.getByRole('button').click()
 
       await expect(page.getByRole('heading', { name: /user settings/i })).toBeVisible()
-      await page.getByRole('button', { name: /delete user/i }).click()
+      await page.getByRole('button', { name: /Delete user/i }).click()
 
       const confirmBtn = page
-        .getByRole('button', { name: /^(delete|yes|remove|confirm)$/i })
+        .getByRole('button', { name: /^(Delete|Yes|Remove|Confirm)$/i })
         .first()
       await confirmBtn.click()
 

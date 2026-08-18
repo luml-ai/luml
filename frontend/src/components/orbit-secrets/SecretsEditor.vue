@@ -1,18 +1,11 @@
 <template>
-  <Dialog
+  <UiDialogRight
     :visible="props.visible"
+    :icon="Bolt"
+    title="Secret settings"
+    :footer-actions="footerActions"
     @update:visible="emit('update:visible', $event)"
-    position="topright"
-    :draggable="false"
-    style="margin-top: 80px; height: 86%; width: 420px"
-    :pt="dialogPt"
   >
-    <template #header>
-      <h2 class="dialog-title">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>Secret settings</span>
-      </h2>
-    </template>
     <Form
       id="secret-edit-form"
       :initial-values="formData"
@@ -53,23 +46,13 @@
         />
       </div>
     </Form>
-    <template #footer>
-      <div class="footer-actions">
-        <Button outlined severity="warn" :loading="deleteLoading" @click="onComponentDelete">
-          delete key
-        </Button>
-        <Button type="submit" form="secret-edit-form" :loading="updateLoading">
-          save changes
-        </Button>
-      </div>
-    </template>
-  </Dialog>
+  </UiDialogRight>
 </template>
 
 <script setup lang="ts">
 import { getErrorMessage } from '@/helpers/helpers'
 import { computed, ref, watch } from 'vue'
-import { Dialog, Button, InputText, AutoComplete, Password, useToast, useConfirm } from 'primevue'
+import { InputText, AutoComplete, Password, useToast, useConfirm } from 'primevue'
 import { Form, type FormSubmitEvent } from '@primevue/forms'
 import { Bolt } from 'lucide-vue-next'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -79,6 +62,7 @@ import { useOrbitsStore } from '@/stores/orbits'
 import type { OrbitSecret, UpdateSecretPayload } from '@/lib/api/orbit-secrets/interfaces'
 import type { AutoCompleteCompleteEvent } from 'primevue'
 import { deleteSecretConfirmation } from '@/lib/primevue/data/confirm'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 
 interface Props {
   visible: boolean
@@ -92,17 +76,33 @@ const secretsStore = useSecretsStore()
 const orbitsStore = useOrbitsStore()
 const toast = useToast()
 
-const dialogPt = {
-  footer: {
-    style: 'display: flex; justify-content: space-between; width: 100%; margin-top: auto;',
-  },
-}
-
 const formData = ref<UpdateSecretPayload>({
   id: props.secret?.id || '',
   name: props.secret?.name || '',
   value: '',
   tags: props.secret?.tags ? [...props.secret.tags] : [],
+})
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Delete key',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: deleteLoading.value,
+        onClick: onComponentDelete,
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'secret-edit-form',
+        loading: updateLoading.value,
+      },
+    },
+  }
 })
 
 async function loadSecretDetails() {

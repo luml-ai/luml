@@ -34,7 +34,7 @@
     <div v-if="editAvailable" class="right">
       <Button severity="secondary" variant="text" @click.stop="isEditorVisible = true">
         <template #icon>
-          <EllipsisVertical :size="14" />
+          <Bolt :size="14" />
         </template>
       </Button>
     </div>
@@ -45,7 +45,7 @@
 <script setup lang="ts">
 import { type OrbitCollection } from '@/lib/api/orbit-collections/interfaces'
 import { Button, Tag } from 'primevue'
-import { EllipsisVertical, History, Database, Tag as TagIcon } from 'lucide-vue-next'
+import { History, Database, Tag as TagIcon, Bolt } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getLastUpdateText } from '@/helpers/helpers'

@@ -1,6 +1,6 @@
 <template>
   <div class="evaluation">
-    <h3 class="title">evaluation Metrics</h3>
+    <h3 class="title">Evaluation metrics</h3>
     <div class="description">Choose a model evaluation metric</div>
     <div class="modes">
       <ui-custom-radio

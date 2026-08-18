@@ -37,7 +37,7 @@
       scrollable
       scrollHeight="19rem"
       :virtualScrollerOptions="{ itemSize: 31 }"
-      class="table"
+      class="table table-with-external-border"
       size="small"
       :style="{ fontSize: '14px' }"
     >
@@ -81,7 +81,7 @@
         scrollable
         scrollHeight="calc(100vh - 120px)"
         :virtualScrollerOptions="{ itemSize: 31 }"
-        class="table"
+        class="table table-with-external-border"
         size="small"
         :style="{ fontSize: '14px' }"
       >

@@ -116,7 +116,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Tabular Classification',
     description:
       'Predict categories from table-structured data — ideal for tasks like customer segmentation, product classification, or fraud detection.',
-    btnText: 'next',
+    btnText: 'Next',
     linkName: 'classification',
     tooltipData:
       'This task focuses on analyzing table-structured data to classify rows into predefined categories. Each row represents an observation, and the model uses the provided features (columns) to predict the target category.',
@@ -133,7 +133,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Tabular Regression',
     description:
       'Predict continuous numerical values from table-structured data — perfect for tasks like pricing or demand estimation.',
-    btnText: 'next',
+    btnText: 'Next',
     linkName: 'regression',
     tooltipData:
       'This task involves analyzing table-structured data to predict continuous numerical values. Each row represents an observation, and the model uses the features (columns) to estimate the target variable.',
@@ -150,7 +150,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Prompt Optimization',
     description:
       'Construct and optimize LLM flows using a no-code builder — suitable for various NLP tasks, including text classification and structured information extraction.',
-    btnText: 'next',
+    btnText: 'Next',
     tooltipData:
       'Define and automatically optimize generic LLM-based NLP pipelines using a no-code builder. Optimization can be performed either based on the task structure and description or on the provided labeled input-output pairs. ',
     isAvailable: true,
@@ -166,7 +166,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Notebooks',
     description:
       'Run Jupyter notebooks directly in the browser with no setup or backend. Create, test, and export models locally with automatic discovery, while managing instances entirely client-side.',
-    btnText: 'next',
+    btnText: 'Next',
     linkName: 'notebooks',
     tooltipData:
       'Run Jupyter notebooks fully in the browser using a WebAssembly-based Python runtime with no backend or setup required. All data is stored locally in the browser, with options to export, back up, and automatically surface saved models in the platform UI.',
@@ -180,7 +180,7 @@ const appTasks: IAppTaskData[] = [
     title: 'Time Series Forecasting',
     description:
       'Predict future values based on historical time-series data — ideal for tasks like sales projections, demand planning, or financial forecasting.',
-    btnText: 'next',
+    btnText: 'Next',
     linkName: 'forecasting',
     tooltipData:
       'This task focuses on analyzing historical time-series data to predict future trends or values over a specified period. It involves identifying patterns, seasonality, and trends in the data.',

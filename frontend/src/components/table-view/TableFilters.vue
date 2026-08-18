@@ -1,11 +1,11 @@
 <template>
   <d-overlay-badge v-if="filters.length" :value="filters.length">
-    <d-button severity="secondary" rounded variant="outlined" @click="toggleFilter">
+    <d-button severity="secondary" variant="outlined" @click="toggleFilter">
       <span class="button-label">Filter</span>
       <Filter width="14" height="14" />
     </d-button>
   </d-overlay-badge>
-  <d-button v-else severity="secondary" rounded variant="outlined" @click="toggleFilter">
+  <d-button v-else severity="secondary" variant="outlined" @click="toggleFilter">
     <span class="button-label">Filter</span>
     <Filter width="14" height="14" />
   </d-button>
@@ -13,11 +13,17 @@
     <div class="popover-wrapper" :style="{ width: '39.9rem' }">
       <div class="filters-list">
         <div v-for="filter in currentFilters" :key="filter.id" class="filter-item">
-          <d-select placeholder="Column" :options="columnSelectOptions" v-model="filter.column" />
+          <d-select
+            placeholder="Column"
+            :options="columnSelectOptions"
+            v-model="filter.column"
+            @click.stop
+          />
           <d-select
             placeholder="Operator"
             :options="getFilterTypeSelectOptions(filter.column)"
             v-model="filter.filterType"
+            @click.stop
           />
           <d-input-text
             class="input"
@@ -45,8 +51,8 @@
           </template>
         </d-button>
         <div class="popover-footer-buttons">
-          <d-button label="clear" severity="secondary" variant="outlined" @click="clear" />
-          <d-button label="apply" severity="secondary" @click="apply" />
+          <d-button label="Clear" severity="secondary" variant="outlined" @click="clear" />
+          <d-button label="Apply" severity="secondary" @click="apply" />
         </div>
       </div>
     </div>

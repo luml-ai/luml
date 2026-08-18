@@ -27,7 +27,7 @@
     </div>
     <Button variant="text" severity="secondary" @click.prevent.stop="showEditor">
       <template #icon>
-        <EllipsisVertical :size="14" />
+        <Bolt :size="14" />
       </template>
     </Button>
   </RouterLink>
@@ -35,7 +35,7 @@
 
 <script setup lang="ts">
 import type { TrackCardProps } from './tracks.interface'
-import { Database, EllipsisVertical, History } from 'lucide-vue-next'
+import { Bolt, Database, History } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { getLastUpdateText } from '@/helpers/helpers'
 import { TRACK_TYPE_CONFIG } from './tracks.const'

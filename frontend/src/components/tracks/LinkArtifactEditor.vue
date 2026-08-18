@@ -1,56 +1,37 @@
 <template>
-  <UiDialogRight :visible="!!artifactLinksStore.editableEntry" @update:visible="onVisibleChange">
-    <template #header>
-      <div class="dialog-title">
-        <Bolt :size="20" color="var(--p-primary-color)" />
-        <span>ARTIFACT settings</span>
+  <UiDialogRight
+    :visible="!!artifactLinksStore.editableEntry"
+    :icon="Bolt"
+    title="ARTIFACT settings"
+    :footer-actions="footerActions"
+    @update:visible="onVisibleChange"
+  >
+    <Form
+      ref="formRef"
+      id="link-artifact-edit-form"
+      :initialValues
+      :resolver
+      class="form"
+      @submit="onSubmit"
+    >
+      <div class="field">
+        <label for="name" class="label">Name</label>
+        <InputText id="name" name="artifact_name" placeholder="Name your track" fluid disabled />
       </div>
-    </template>
-    <template #default>
-      <Form
-        ref="formRef"
-        id="link-artifact-edit-form"
-        :initialValues
-        :resolver
-        class="form"
-        @submit="onSubmit"
-      >
-        <div class="field">
-          <label for="name" class="label">Name</label>
-          <InputText id="name" name="artifact_name" placeholder="Name your track" fluid disabled />
-        </div>
-        <div class="field">
-          <label for="description" class="label">Description</label>
-          <Textarea
-            name="artifact_description"
-            id="description"
-            placeholder="-"
-            class="textarea"
-            fluid
-            disabled
-          ></Textarea>
-        </div>
-        <StageSelect :options="tracksStore.trackStages" />
-        <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
-      </Form>
-    </template>
-    <template #footer>
-      <div class="footer-actions">
-        <Button
-          label="unlink artifact"
-          severity="warn"
-          variant="outlined"
-          :loading="deleteLoading"
-          @click="onDeleteClick"
-        />
-        <Button
-          label="save changes"
-          type="submit"
-          form="link-artifact-edit-form"
-          :loading="saveLoading"
-        />
+      <div class="field">
+        <label for="description" class="label">Description</label>
+        <Textarea
+          name="artifact_description"
+          id="description"
+          placeholder="-"
+          class="textarea"
+          fluid
+          disabled
+        ></Textarea>
       </div>
-    </template>
+      <StageSelect :options="tracksStore.trackStages" />
+      <StageWarning v-if="artifactWithSelectedStage" :artifact="artifactWithSelectedStage" />
+    </Form>
   </UiDialogRight>
 </template>
 
@@ -59,7 +40,7 @@ import type { TrackEntry } from '@/lib/api/orbit-tracks/interfaces'
 import { useArtifactLinksStore } from '@/stores/artifact-links/artifact-links'
 import { computed, ref, watch, watchEffect } from 'vue'
 import { Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
-import { InputText, Textarea, Button } from 'primevue'
+import { InputText, Textarea } from 'primevue'
 import { zodResolver } from '@primevue/forms/resolvers/zod'
 import { useToast } from 'primevue'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
@@ -72,7 +53,7 @@ import {
 } from '@/lib/primevue/data/confirm'
 import { useTracksStore } from '@/stores/tracks'
 import z from 'zod'
-import UiDialogRight from '../ui/dialogs/UiDialogRight.vue'
+import UiDialogRight, { type FooterActions } from '../ui/dialogs/UiDialogRight.vue'
 import StageSelect from './StageSelect.vue'
 import StageWarning from './StageWarning.vue'
 
@@ -92,6 +73,28 @@ const initialValues = computed(() => {
     artifact_name: artifactLinksStore.editableEntry.artifact_name,
     artifact_description: artifactLinksStore.editableEntry.artifact_description,
     stage_id: artifactLinksStore.editableEntry.stage_id,
+  }
+})
+
+const footerActions = computed<FooterActions>(() => {
+  return {
+    leftButton: {
+      props: {
+        label: 'Unlink artifact',
+        severity: 'warn',
+        variant: 'outlined',
+        loading: deleteLoading.value,
+        onClick: onDeleteClick,
+      },
+    },
+    rightButton: {
+      props: {
+        label: 'Save changes',
+        type: 'submit',
+        form: 'link-artifact-edit-form',
+        loading: saveLoading.value,
+      },
+    },
   }
 })
 
