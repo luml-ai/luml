@@ -203,6 +203,11 @@ const router = createRouter({
               name: 'attachments',
               component: () => import('../pages/collection/artifact/AttachmentsView.vue'),
             },
+            {
+              path: 'lineage',
+              name: 'lineage',
+              component: () => import('../pages/collection/artifact/LineageView.vue'),
+            },
           ],
         },
         {

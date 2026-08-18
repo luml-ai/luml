@@ -22,7 +22,14 @@
 
 <script setup lang="ts">
 import { Tabs, TabList, Tab, type TabPassThroughOptions } from 'primevue'
-import { LayoutDashboard, FileChartLine, ScanEye, Paperclip, Database } from 'lucide-vue-next'
+import {
+  LayoutDashboard,
+  FileChartLine,
+  ScanEye,
+  Paperclip,
+  Database,
+  Workflow,
+} from 'lucide-vue-next'
 import { computed } from 'vue'
 
 type Props = {
@@ -77,6 +84,13 @@ const items = computed(() => [
     icon: Paperclip,
     visible: props.showModelAttachments,
     disabled: props.modelAttachmentsDisabled,
+  },
+  {
+    label: 'Lineage',
+    routeName: 'lineage',
+    icon: Workflow,
+    visible: true,
+    disabled: false,
   },
 ])
 </script>

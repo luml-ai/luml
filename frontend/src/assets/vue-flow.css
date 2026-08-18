@@ -1,3 +1,11 @@
+body {
+  --vue-flow-edge-path-color: var(--p-organizationchart-connector-color);
+}
+
+[data-theme='dark'] {
+  --vue-flow-edge-path-color: var(--p-surface-600);
+}
+
 .vue-flow__pane.connecting .vue-flow__handle {
   opacity: 1;
 }
@@ -72,7 +80,7 @@
 }
 
 .vue-flow__edge-path {
-  stroke: var(--p-organizationchart-connector-color);
+  stroke: var(--vue-flow-edge-path-color);
 }
 
 .vue-flow__edge.selected .vue-flow__edge-path {
@@ -86,10 +94,6 @@
 [data-theme='dark'] .vue-flow__node {
   border-color: var(--p-surface-700);
   box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.4);
-}
-
-[data-theme='dark'] .vue-flow__edge-path {
-  stroke: var(--p-surface-600);
 }
 
 a.p-button {
