@@ -23,6 +23,18 @@ const router = createRouter({
           name: ROUTE_NAMES.HOME,
           path: ROUTES[ROUTE_NAMES.HOME],
           component: HomePage,
+          children: [
+            {
+              name: ROUTE_NAMES.EXPERIMENTS,
+              path: ROUTES[ROUTE_NAMES.EXPERIMENTS],
+              component: () => import('@/pages/experiments/ExperimentsPage.vue'),
+            },
+            {
+              name: ROUTE_NAMES.WORKSPACES,
+              path: ROUTES[ROUTE_NAMES.WORKSPACES],
+              component: () => import('@/pages/workspaces/WorkspacesPage.vue'),
+            },
+          ],
         },
         {
           name: ROUTE_NAMES.EXPERIMENT,
