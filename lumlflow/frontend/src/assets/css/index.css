@@ -52,3 +52,9 @@ body {
 [data-theme='dark'] ::-webkit-scrollbar-thumb {
   background: #a1a1aa;
 }
+
+label.required::after {
+  content: '*';
+  color: var(--p-badge-warn-background);
+  margin-left: 2px;
+}

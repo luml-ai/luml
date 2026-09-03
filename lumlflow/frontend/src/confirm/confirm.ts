@@ -47,6 +47,22 @@ export const deleteExperimentConfirmOptions = (
   }
 }
 
+export const deleteFlowConfirmOptions = (accept: () => void): ConfirmationOptions => {
+  return {
+    message: PERMANENT_ACTION_MESSAGE,
+    header: 'Delete flow?',
+    acceptProps: {
+      label: 'Delete flow',
+      severity: 'warn',
+      variant: 'outlined',
+    },
+    rejectProps: {
+      label: 'Cancel',
+    },
+    accept,
+  }
+}
+
 function formatLumlflowOrigin(experiment: Experiment): string | null {
   const origin = experiment.metadata.lumlflow
   if (typeof origin !== 'object' || origin === null || Array.isArray(origin)) return null
