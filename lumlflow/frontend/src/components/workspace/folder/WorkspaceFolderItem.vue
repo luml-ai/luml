@@ -6,12 +6,11 @@
     </div>
     <span class="shrink-0">{{ getSizeText(item.size) }}</span>
   </div>
-  <div v-else-if="item.type === 'folder'" class="item">
+  <div v-else-if="item.type === 'folder'" class="item item-folder" @click="openFolder(item.path)">
     <div class="item-main-info text-muted-color-emphasis">
       <Folder :size="16" class="item-icon" />
       <span class="item-name">{{ item.name }}</span>
     </div>
-    <span class="shrink-0">{{ getSizeText(item.size) }}</span>
   </div>
   <WorkspaceFolderItemFlow v-else-if="item.type === 'flow'" :item="item" />
 </template>
@@ -19,7 +18,10 @@
 <script setup lang="ts">
 import type { IWorkspaceFolderItem } from '@/components/workspace/folder/interface'
 import { FileText, Folder } from 'lucide-vue-next'
+import { useToast } from 'primevue'
 import { getSizeText } from '@/helpers/string'
+import { errorToast } from '@/toasts'
+import { useWorkspaceStore } from '@/store/workspace'
 import WorkspaceFolderItemFlow from './WorkspaceFolderItemFlow.vue'
 
 interface Props {
@@ -27,6 +29,17 @@ interface Props {
 }
 
 defineProps<Props>()
+
+const toast = useToast()
+const workspaceStore = useWorkspaceStore()
+
+async function openFolder(path: string) {
+  try {
+    await workspaceStore.navigateToFolder(path)
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
 </script>
 
 <style scoped>
@@ -46,5 +59,14 @@ defineProps<Props>()
 
 .item-name {
   @apply truncate;
+}
+
+.item-folder {
+  @apply cursor-pointer transition-colors;
+}
+
+.item-folder:hover {
+  background-color: var(--p-list-option-focus-background);
+  border-radius: 8px;
 }
 </style>

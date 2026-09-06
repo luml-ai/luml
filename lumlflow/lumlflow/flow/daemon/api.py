@@ -81,6 +81,8 @@ class Api:
             "flow.open": self.flow_open,
             "flow.checkout": self.flow_checkout,
             "flow.delete": self.flow_delete,
+            "flow.rename": self.flow_rename,
+            "flow.duplicate": self.flow_duplicate,
             "cells.list": self.cells_list,
             "cells.show": self.cells_show,
             "cells.logs": self.cells_logs,
@@ -286,6 +288,26 @@ class Api:
         ref = self.resolve(_flow_name(params), directory=self._directory(params))
         await self.hub.delete_flow(ref)
         return {"deleted": ref.name, "path": ref.address}
+
+    async def flow_rename(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Rename the flow's directory. Its store, history and cells move with it."""
+        ref = self.resolve(_flow_name(params), directory=self._directory(params))
+        renamed = await self.hub.rename_flow(ref, str(params.get("name") or ""))
+        return {"renamed": renamed.name, "path": renamed.address, "from": ref.address}
+
+    async def flow_duplicate(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Copy a flow under a new name. Its store, cells and history come with it.
+
+        Quiesced first, so the copy carries whatever the source's files hold
+        right now rather than what its store last reconciled.
+        """
+        actor = _actor(params)
+        session = self._session(params, actor=actor)
+        await self.hub.quiesce(session, actor=actor)
+        duplicated = await self.hub.duplicate_flow(
+            session.ref, str(params.get("name") or "")
+        )
+        return {"flow": duplicated.name, "path": duplicated.address}
 
     async def cells_list(self, params: dict[str, Any]) -> dict[str, Any]:
         session, branch = await self._read(params)

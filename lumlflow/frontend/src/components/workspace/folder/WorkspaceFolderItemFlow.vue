@@ -9,9 +9,16 @@
       <div v-if="isRenaming" class="rename-block relative z-10">
         <InputText
           v-model="renameValue"
+          :disabled="isSaving"
           class="max-w-50 max-h-6.5 rounded-none! shadow-none! border-x-0! border-t-0! px-0!"
         />
-        <Button label="Save" severity="secondary" class="max-h-11" @click="saveName" />
+        <Button
+          label="Save"
+          severity="secondary"
+          class="max-h-11"
+          :loading="isSaving"
+          @click="saveName"
+        />
       </div>
       <span v-else class="item-name">{{ item.name }}</span>
     </div>
@@ -58,6 +65,7 @@ const itemRef = useTemplateRef<HTMLDivElement>('itemRef')
 
 const isRenaming = ref(false)
 const renameValue = ref('')
+const isSaving = ref(false)
 
 const menuItems: MenuItem[] = [
   { label: 'Rename', command: onRename },
@@ -74,7 +82,7 @@ function cancelRename() {
   isRenaming.value = false
 }
 
-function saveName() {
+async function saveName() {
   const name = renameValue.value
 
   if (!name.endsWith(FLOW_FILE_EXTENSION)) {
@@ -82,7 +90,7 @@ function saveName() {
     return
   }
 
-  const isTaken = workspaceStore.items.some(
+  const isTaken = workspaceStore.sortedItems.some(
     (item) => item.type === 'flow' && item.id !== props.item.id && item.name === name,
   )
   if (isTaken) {
@@ -90,26 +98,41 @@ function saveName() {
     return
   }
 
-  workspaceStore.renameFlow(props.item.id, name)
-  toast.add(successToast('Flow renamed successfully'))
-  isRenaming.value = false
+  isSaving.value = true
+  try {
+    await workspaceStore.renameFlow(props.item.id, name)
+    toast.add(successToast('Flow renamed successfully'))
+    isRenaming.value = false
+  } catch (error) {
+    toast.add(errorToast(error))
+  } finally {
+    isSaving.value = false
+  }
 }
 
 onClickOutside(itemRef, cancelRename)
 onKeyStroke('Escape', cancelRename)
 
-function onDuplicate() {
-  workspaceStore.duplicateFlow(props.item.id)
-  toast.add(successToast('Flow duplicated successfully'))
+async function onDuplicate() {
+  try {
+    await workspaceStore.duplicateFlow(props.item.id)
+    toast.add(successToast('Flow duplicated successfully'))
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
 }
 
 function onDelete() {
   confirm.require(deleteFlowConfirmOptions(onDeleteConfirm))
 }
 
-function onDeleteConfirm() {
-  workspaceStore.deleteFlow(props.item.id)
-  toast.add(successToast('Flow deleted successfully'))
+async function onDeleteConfirm() {
+  try {
+    await workspaceStore.deleteFlow(props.item.id)
+    toast.add(successToast('Flow deleted successfully'))
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
 }
 </script>
 

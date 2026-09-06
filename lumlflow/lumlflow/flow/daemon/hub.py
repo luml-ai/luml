@@ -373,6 +373,40 @@ class Hub:
             await session.close()
         shutil.rmtree(ref.path)
 
+    async def rename_flow(self, ref: FlowRef, name: str) -> FlowRef:
+        """Rename the flow's directory in place. Its store and history move with it."""
+        if not _is_flow(ref.path):
+            raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        renamed = _new_flow_ref(ref.path.parent, name)
+        if renamed.path == ref.path:
+            return ref
+        if renamed.path.exists():
+            raise FlowAlreadyExists(f"`{renamed.relpath}` already exists")
+        session = self._sessions.pop(ref.path, None)
+        self._known.pop(ref.path, None)
+        if session is not None:
+            self.watches.release(session.watch.root)
+            await session.close()
+        ref.path.rename(renamed.path)
+        return renamed
+
+    async def duplicate_flow(self, ref: FlowRef, name: str) -> FlowRef:
+        """Copy the flow's directory under a new name.
+
+        Its store and history come with it, the same way a clone of it would
+        carry them. The source is untouched, so no cached session of it is
+        disturbed.
+        """
+        if not _is_flow(ref.path):
+            raise FlowNotFound(f"`{ref.relpath}` is not a flow")
+        duplicated = _new_flow_ref(ref.path.parent, name)
+        if duplicated.path == ref.path:
+            raise FlowError(f"`{name}` is the same name as `{ref.name}`")
+        if duplicated.path.exists():
+            raise FlowAlreadyExists(f"`{duplicated.relpath}` already exists")
+        shutil.copytree(ref.path, duplicated.path)
+        return duplicated
+
     async def close(self) -> None:
         self._closed = True
         self._unsubscribe_tracker()

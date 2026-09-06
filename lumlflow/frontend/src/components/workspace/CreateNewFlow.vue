@@ -129,7 +129,6 @@ function resetForm() {
 }
 
 function submit(event: FormSubmitEvent) {
-  console.log(event)
   if (!event.valid) return
 
   const values = event.values as typeof initialValues.value
@@ -139,8 +138,7 @@ function submit(event: FormSubmitEvent) {
 async function createFlow(name: string) {
   loading.value = true
   try {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    workspaceStore.createFlow(name)
+    await workspaceStore.createFlow(name)
     resetForm()
     visible.value = false
     toast.add(successToast('Flow created successfully'))

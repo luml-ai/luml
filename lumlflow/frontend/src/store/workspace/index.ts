@@ -1,48 +1,96 @@
 import type { IWorkspaceFolderItem } from '@/components/workspace/folder/interface'
 import { FLOW_FILE_EXTENSION } from '@/components/workspace/workspace.const'
+import { workspaceApi } from '@/api/slices/workspace/workspace.api'
+import type { WorkspaceFlow } from '@/api/slices/workspace/workspace.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { uuidv4 } from 'zod'
+
+const ITEM_TYPE_ORDER: Record<IWorkspaceFolderItem['type'], number> = {
+  flow: 0,
+  folder: 1,
+  file: 2,
+}
+
+const MIN_LOADING_MS = 500
+
+function joinPath(directory: string, segment: string): string {
+  if (!directory) return segment
+  return directory.endsWith('/') ? `${directory}${segment}` : `${directory}/${segment}`
+}
+
+function parentDirectory(directory: string): string | null {
+  const trimmed = directory.replace(/\/+$/, '')
+  const lastSlash = trimmed.lastIndexOf('/')
+  if (lastSlash < 0) return null
+  return lastSlash === 0 ? '/' : trimmed.slice(0, lastSlash)
+}
 
 export const useWorkspaceStore = defineStore('workspace', () => {
-  const currentDirectory = ref('')
+  const currentDirectory = ref<string | null>(null)
+  const flows = ref<WorkspaceFlow[]>([])
+  const isDirectoryLoading = ref(false)
 
-  const items = ref<IWorkspaceFolderItem[]>([
-    {
-      id: '4',
-      name: 'flow4.flow',
-      type: 'flow',
-      path: '/flow4',
-      size: 400,
-    },
-    {
-      id: '1',
-      name: `Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since 1966, when designers at Letraset and James Mosley, the librarian at St Bride Printing Library in London, took a 1914 Cicero translation and scrambled it to make dummy text for Letraset's Body Type sheets. It has survived not only many decades, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised thanks to these sheets and more recently with desktop publishing software like Aldus PageMaker and Microsoft Word including versions of Lorem Ipsum.`,
-      type: 'folder',
-      path: '/folder1',
-      size: 4600,
-    },
-    {
-      id: '2',
-      name: 'folder2',
-      type: 'folder',
-      path: '/folder2',
-      size: 237,
-    },
-    {
-      id: '3',
-      name: 'file3',
-      type: 'file',
-      path: '/file3',
-      size: 134000,
-    },
-  ])
+  const canGoUp = computed(() => {
+    return currentDirectory.value !== null && parentDirectory(currentDirectory.value) !== null
+  })
 
-  const ITEM_TYPE_ORDER: Record<IWorkspaceFolderItem['type'], number> = {
-    flow: 0,
-    folder: 1,
-    file: 2,
+  async function fetchDirectory(directory?: string) {
+    isDirectoryLoading.value = true
+    const startedAt = Date.now()
+    try {
+      const listing = await workspaceApi.listFlows(directory)
+      currentDirectory.value = listing.directory
+      flows.value = listing.flows
+    } finally {
+      const elapsed = Date.now() - startedAt
+      if (elapsed < MIN_LOADING_MS) {
+        await new Promise((resolve) => setTimeout(resolve, MIN_LOADING_MS - elapsed))
+      }
+      isDirectoryLoading.value = false
+    }
   }
+
+  function navigateToFolder(path: string) {
+    return fetchDirectory(path)
+  }
+
+  function navigateUp() {
+    if (currentDirectory.value === null) return Promise.resolve()
+    const parent = parentDirectory(currentDirectory.value)
+    return fetchDirectory(parent ?? undefined)
+  }
+
+  const items = computed<IWorkspaceFolderItem[]>(() => {
+    const directory = currentDirectory.value ?? ''
+    const flowItems: IWorkspaceFolderItem[] = []
+    const folderNames = new Set<string>()
+
+    for (const flow of flows.value) {
+      const segments = flow.relative_path.split('/').filter(Boolean)
+      const [firstSegment] = segments
+      if (segments.length <= 1 && firstSegment) {
+        flowItems.push({
+          id: flow.path,
+          name: firstSegment,
+          type: 'flow',
+          path: flow.path,
+          size: 0,
+        })
+      } else if (firstSegment) {
+        folderNames.add(firstSegment)
+      }
+    }
+
+    const folderItems: IWorkspaceFolderItem[] = [...folderNames].map((name) => ({
+      id: joinPath(directory, name),
+      name,
+      type: 'folder',
+      path: joinPath(directory, name),
+      size: 0,
+    }))
+
+    return [...flowItems, ...folderItems]
+  })
 
   const sortedItems = computed(() => {
     return [...items.value].sort((a, b) => {
@@ -52,15 +100,14 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     })
   })
 
-  function deleteFlow(id: string) {
-    items.value = items.value.filter((item) => item.id !== id)
+  async function deleteFlow(path: string) {
+    await workspaceApi.deleteFlow(path)
+    await fetchDirectory(currentDirectory.value ?? undefined)
   }
 
-  function renameFlow(id: string, name: string) {
-    const item = items.value.find((item) => item.id === id)
-    if (item) {
-      item.name = name
-    }
+  async function renameFlow(path: string, name: string) {
+    await workspaceApi.renameFlow(path, name)
+    await fetchDirectory(currentDirectory.value ?? undefined)
   }
 
   function buildDuplicateFlowName(name: string): string {
@@ -68,7 +115,7 @@ export const useWorkspaceStore = defineStore('workspace', () => {
       ? name.slice(0, -FLOW_FILE_EXTENSION.length)
       : name
     const existingNames = new Set(
-      items.value.filter((item) => item.type === 'flow').map((item) => item.name),
+      sortedItems.value.filter((item) => item.type === 'flow').map((item) => item.name),
     )
 
     let candidate = `${baseName} (copy)${FLOW_FILE_EXTENSION}`
@@ -80,30 +127,31 @@ export const useWorkspaceStore = defineStore('workspace', () => {
     return candidate
   }
 
-  function duplicateFlow(id: string) {
-    const item = items.value.find((item) => item.id === id)
-    if (item) {
-      items.value.push({
-        ...item,
-        name: buildDuplicateFlowName(item.name),
-        id: uuidv4().toString(),
-      })
-    }
+  async function duplicateFlow(path: string) {
+    const flow = flows.value.find((flow) => flow.path === path)
+    if (!flow) return
+    const name = buildDuplicateFlowName(flow.name)
+    await workspaceApi.duplicateFlow(path, name)
+    await fetchDirectory(currentDirectory.value ?? undefined)
   }
 
-  function createFlow(name: string) {
-    items.value.push({
-      name: name,
-      type: 'flow',
-      id: uuidv4().toString(),
-      path: `${currentDirectory.value}/${name}`,
-      size: 0,
-    })
+  async function createFlow(name: string) {
+    const directory = currentDirectory.value ?? ''
+    const created = await workspaceApi.createFlow(name, directory)
+    try {
+      await workspaceApi.checkoutFlow(created.path, `init flow ${created.flow}`)
+    } catch {}
+    await fetchDirectory(directory)
   }
 
   return {
-    items,
+    currentDirectory,
+    isDirectoryLoading,
+    canGoUp,
     sortedItems,
+    fetchDirectory,
+    navigateToFolder,
+    navigateUp,
     deleteFlow,
     renameFlow,
     duplicateFlow,

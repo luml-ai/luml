@@ -20,7 +20,7 @@ from lumlflow.flow.daemon.api import Api
 from lumlflow.flow.daemon.hub import FlowSession, Hub
 from lumlflow.flow.daemon.stream import Streams
 from lumlflow.flow.dsl import portable
-from lumlflow.flow.errors import FlowError, FlowNotFound
+from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
 from lumlflow.flow.store.flowstore import store_dir
 from lumlflow.flow.store.models import RunRecorded
 from lumlflow.tracker import TrackerProvider
@@ -1524,6 +1524,82 @@ async def test_deleting_a_flow_takes_its_store_with_it(tmp_path: Path):
     assert deleted == {"deleted": "churn", "path": str(root / "churn.flow")}
     assert not (root / "churn.flow").exists()
     assert [flow["relative_path"] for flow in left["flows"]] == ["sales.flow"]
+
+
+async def test_renaming_a_flow_moves_its_directory_and_keeps_its_store(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "score"})
+        renamed = await api.flow_rename({"flow": "churn", "name": "revenue"})
+        left = await api.workspace_list({"directory": str(root)})
+        reopened = await api.flow_open({"flow": "revenue"})
+
+    assert renamed == {
+        "renamed": "revenue",
+        "path": str(root / "revenue.flow"),
+        "from": str(root / "churn.flow"),
+    }
+    assert not (root / "churn.flow").exists()
+    assert (root / "revenue.flow").exists()
+    assert sorted(flow["relative_path"] for flow in left["flows"]) == [
+        "revenue.flow",
+        "sales.flow",
+    ]
+    assert [cell["slug"] for cell in reopened["cells"]] == ["score"]
+
+
+async def test_renaming_a_flow_onto_an_existing_name_is_refused(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
+
+    async with daemon_api(root) as api:
+        with pytest.raises(FlowAlreadyExists):
+            await api.flow_rename({"flow": "churn", "name": "sales"})
+
+    assert (root / "churn.flow").exists()
+    assert (root / "sales.flow").exists()
+
+
+async def test_duplicating_a_flow_copies_its_store_and_leaves_the_source(
+    tmp_path: Path,
+):
+    root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.run({"flow": "churn", "target": "score"})
+        duplicated = await api.flow_duplicate({"flow": "churn", "name": "churn (copy)"})
+        left = await api.workspace_list({"directory": str(root)})
+        original = await api.flow_open({"flow": "churn"})
+        copy = await api.flow_open({"flow": "churn (copy)"})
+
+    assert duplicated == {
+        "flow": "churn (copy)",
+        "path": str(root / "churn (copy).flow"),
+    }
+    assert (root / "churn.flow").exists()
+    assert (root / "churn (copy).flow").exists()
+    assert sorted(flow["relative_path"] for flow in left["flows"]) == [
+        "churn (copy).flow",
+        "churn.flow",
+        "sales.flow",
+    ]
+    assert [cell["slug"] for cell in original["cells"]] == ["score"]
+    assert [cell["slug"] for cell in copy["cells"]] == ["score"]
+
+
+async def test_duplicating_a_flow_onto_an_existing_name_is_refused(tmp_path: Path):
+    root = make_workspace(tmp_path / "project", flows=("churn", "sales"))
+
+    async with daemon_api(root) as api:
+        with pytest.raises(FlowAlreadyExists):
+            await api.flow_duplicate({"flow": "churn", "name": "sales"})
+
+    assert (root / "churn.flow").exists()
+    assert (root / "sales.flow").exists()
 
 
 async def test_an_unknown_flow_is_refused_by_name(tmp_path: Path):
