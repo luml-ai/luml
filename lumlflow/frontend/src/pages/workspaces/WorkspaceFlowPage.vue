@@ -11,6 +11,8 @@
       <NotebooksSidebar />
       <div>
         <NotebookToolbar class="mb-2" />
+        <NotebookBaseView v-if="flowStore.viewMode === 'notebook'" />
+        <NotebookCanvasView v-if="flowStore.viewMode === 'canvas'" />
       </div>
     </div>
   </div>
@@ -19,10 +21,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useFlowStore } from '@/store/flow'
 import NotebookHeader from '@/components/notebooks/NotebookHeader.vue'
 import NotebooksSidebar from '@/components/notebooks/NotebooksSidebar.vue'
 import NotebookToolbar from '@/components/notebooks/NotebookToolbar.vue'
-import { useFlowStore } from '@/store/flow'
+import NotebookBaseView from '@/components/notebooks/NotebookBaseView.vue'
+import NotebookCanvasView from '@/components/notebooks/NotebookCanvasView.vue'
 
 const route = useRoute()
 const flowStore = useFlowStore()

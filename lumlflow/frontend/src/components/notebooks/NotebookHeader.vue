@@ -15,12 +15,14 @@
     </div>
     <div class="toolbar-right">
       <SelectButton
-        v-model="selectedOption"
+        :model-value="flowStore.viewMode"
         :options="options"
+        :allow-empty="false"
         optionLabel="label"
         optionValue="value"
         aria-labelledby="basic"
         size="small"
+        @update:model-value="flowStore.setViewMode($event)"
       />
       <Button variant="outlined" severity="secondary" size="small" class="toolbar-settings-button">
         <template #icon> <Bolt :size="12" /> </template>
@@ -32,7 +34,9 @@
 <script setup lang="ts">
 import { Bolt, ChevronLeft, Notebook, Workflow } from 'lucide-vue-next'
 import { Button, SelectButton, Tag } from 'primevue'
-import { ref } from 'vue'
+import { useFlowStore } from '@/store/flow'
+
+const flowStore = useFlowStore()
 
 const options = [
   {
@@ -46,8 +50,6 @@ const options = [
     icon: Notebook,
   },
 ]
-
-const selectedOption = ref('canvas')
 </script>
 
 <style scoped>
