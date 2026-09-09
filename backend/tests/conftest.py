@@ -61,7 +61,7 @@ from luml.settings import config
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 from utils.db import migrate_db
 
-TEST_DB_NAME = "luml_studio_test"
+TEST_DB_NAME = "df_studio_test"
 TEST_PASSWORD = "test_password"
 
 
@@ -630,6 +630,7 @@ async def create_satellite(
 
     artifact_data = test_artifact.model_copy()
     artifact_data.collection_id = collection.id
+    artifact_data.status = ArtifactStatus.UPLOADED
 
     artifact = await artifact_repo.create_artifact(artifact_data)
     assert artifact is not None, (

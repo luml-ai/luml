@@ -12,13 +12,14 @@ from luml.infra.exceptions import (
     ArtifactTypeMismatchError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
+    DatabaseConstraintError,
     InvalidSortingError,
     InvalidStatusTransitionError,
     NotFoundError,
     OrbitNotFoundError,
     OrganizationLimitReachedError,
 )
-from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.artifacts import ArtifactDeletionRecord, ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
@@ -30,8 +31,13 @@ from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreate,
     ArtifactCreateIn,
+    ArtifactDeleteFailure,
+    ArtifactDeleteReason,
+    ArtifactDeleteURL,
     ArtifactDetails,
     ArtifactIn,
+    ArtifactsDeleteResponse,
+    ArtifactsDeleteURLsResponse,
     ArtifactsList,
     ArtifactSortBy,
     ArtifactStatus,
@@ -418,6 +424,131 @@ class ArtifactHandler:
         )
         return url
 
+    @staticmethod
+    def _deletion_failure(
+        artifact_id: UUID,
+        reason: ArtifactDeleteReason,
+        record: ArtifactDeletionRecord | None = None,
+    ) -> ArtifactDeleteFailure:
+        return ArtifactDeleteFailure(
+            artifact_id=artifact_id,
+            name=record.artifact.name if record else None,
+            reason=reason,
+            deployments=(
+                record.deployments
+                if record and reason == ArtifactDeleteReason.DEPLOYMENTS
+                else []
+            ),
+            tracks=(
+                record.tracks
+                if record and reason == ArtifactDeleteReason.TRACKS
+                else []
+            ),
+        )
+
+    @classmethod
+    def _classify_deletion_record(
+        cls,
+        record: ArtifactDeletionRecord,
+        *,
+        require_pending_deletion: bool,
+    ) -> ArtifactDeleteFailure | None:
+        if record.deployments:
+            return cls._deletion_failure(
+                record.artifact.id,
+                ArtifactDeleteReason.DEPLOYMENTS,
+                record,
+            )
+        if record.tracks:
+            return cls._deletion_failure(
+                record.artifact.id,
+                ArtifactDeleteReason.TRACKS,
+                record,
+            )
+        if (
+            require_pending_deletion
+            and record.artifact.status != ArtifactStatus.PENDING_DELETION
+        ):
+            return cls._deletion_failure(
+                record.artifact.id,
+                ArtifactDeleteReason.NOT_PENDING_DELETION,
+                record,
+            )
+        return None
+
+    async def request_delete_urls(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_id: UUID,
+        artifact_ids: list[UUID],
+    ) -> ArtifactsDeleteURLsResponse:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ARTIFACT,
+            Action.DELETE,
+            orbit_id,
+        )
+        orbit, _ = await self._check_orbit_and_collection_access(
+            organization_id, orbit_id, collection_id
+        )
+        storage_service = await self._get_storage_client(orbit.bucket_secret_id)
+
+        requested_ids = list(dict.fromkeys(artifact_ids))
+        records = await self.__repository.request_batch_deletion(
+            collection_id, requested_ids
+        )
+        records_by_id = {record.artifact.id: record for record in records}
+        urls: list[ArtifactDeleteURL] = []
+        failed: list[ArtifactDeleteFailure] = []
+        signing_failures: list[UUID] = []
+
+        for artifact_id in requested_ids:
+            record = records_by_id.get(artifact_id)
+            if record is None:
+                failed.append(
+                    self._deletion_failure(artifact_id, ArtifactDeleteReason.NOT_FOUND)
+                )
+                continue
+
+            blocker = self._classify_deletion_record(
+                record, require_pending_deletion=False
+            )
+            if blocker:
+                failed.append(blocker)
+                continue
+
+            try:
+                url = await storage_service.get_delete_url(
+                    record.artifact.bucket_location
+                )
+            except Exception:
+                signing_failures.append(artifact_id)
+                failed.append(
+                    self._deletion_failure(
+                        artifact_id,
+                        ArtifactDeleteReason.STORAGE_ERROR,
+                        record,
+                    )
+                )
+                continue
+
+            urls.append(
+                ArtifactDeleteURL(
+                    artifact_id=artifact_id,
+                    name=record.artifact.name or record.artifact.file_name,
+                    url=url,
+                )
+            )
+
+        if signing_failures:
+            await self.__repository.mark_deletion_failed(
+                collection_id, signing_failures
+            )
+        return ArtifactsDeleteURLsResponse(urls=urls, failed=failed)
+
     async def request_satellite_download_url(
         self,
         orbit_id: UUID,
@@ -466,6 +597,84 @@ class ArtifactHandler:
             await self.__lineage_repository.delete_unreachable_deleted_nodes(
                 orbit_id, session
             )
+
+    async def confirm_deletions(
+        self,
+        user_id: UUID,
+        organization_id: UUID,
+        orbit_id: UUID,
+        collection_id: UUID,
+        artifact_ids: list[UUID],
+        *,
+        force: bool = False,
+    ) -> ArtifactsDeleteResponse:
+        await self.__permissions_handler.check_permissions(
+            organization_id,
+            user_id,
+            Resource.ARTIFACT,
+            Action.DELETE,
+            orbit_id,
+        )
+        await self._check_orbit_and_collection_access(
+            organization_id, orbit_id, collection_id
+        )
+
+        requested_ids = list(dict.fromkeys(artifact_ids))
+        records = await self.__repository.get_batch_deletion_records(
+            collection_id, requested_ids
+        )
+        records_by_id = {record.artifact.id: record for record in records}
+        deleted: list[UUID] = []
+        failed: list[ArtifactDeleteFailure] = []
+
+        for artifact_id in requested_ids:
+            record = records_by_id.get(artifact_id)
+            if record is None:
+                failed.append(
+                    self._deletion_failure(artifact_id, ArtifactDeleteReason.NOT_FOUND)
+                )
+                continue
+
+            blocker = self._classify_deletion_record(
+                record, require_pending_deletion=not force
+            )
+            if blocker:
+                failed.append(blocker)
+                continue
+
+            try:
+                was_deleted = await self.__repository.delete_artifact_record(
+                    artifact_id, collection_id
+                )
+            except DatabaseConstraintError:
+                refreshed = await self.__repository.get_batch_deletion_records(
+                    collection_id, [artifact_id]
+                )
+                refreshed_record = refreshed[0] if refreshed else None
+                if refreshed_record is None:
+                    failed.append(
+                        self._deletion_failure(
+                            artifact_id, ArtifactDeleteReason.NOT_FOUND
+                        )
+                    )
+                    continue
+
+                race_blocker = self._classify_deletion_record(
+                    refreshed_record, require_pending_deletion=False
+                )
+                if race_blocker is None:
+                    raise
+                failed.append(race_blocker)
+                continue
+
+            if was_deleted:
+                deleted.append(artifact_id)
+            else:
+                failed.append(
+                    self._deletion_failure(artifact_id, ArtifactDeleteReason.NOT_FOUND)
+                )
+
+        return ArtifactsDeleteResponse(deleted=deleted, failed=failed)
 
     async def force_delete_artifact(
         self,
