@@ -61,7 +61,8 @@ against the bucket, multipart uploads included), and batch deletion keeps that p
    and tracks; the user removes them through their own flows first (delete the deployments on
    the deployments page, unlink the artifact on the track page) and deletes again. This is the
    rule the single deletion enforces today, now reported instead of hidden behind a generic
-   error.
+   error. In the other direction, a deployment can only be created for an `uploaded` artifact,
+   so no deployment can attach to an artifact whose deletion is under way.
 4. **Force stays, but only for the one thing that can still get stuck.** The client tolerates
    a missing object, so artifacts in `pending_upload`, `upload_failed`, `deletion_failed` or
    `pending_deletion` go through the normal flow; status alone no longer needs a force path.
@@ -70,18 +71,20 @@ against the bucket, multipart uploads included), and batch deletion keeps that p
    URL that cannot be signed would leave the artifact in `deletion_failed` forever. For that
    case the confirmation phase accepts a `force` flag: the record is removed although the
    object was not deleted, and the file stays in the bucket for the user to remove by hand.
-   Force never overrides deployments or tracks and never touches the bucket. The web client
-   offers it only where the normal path has already failed: for rows already in
-   `deletion_failed`, and in the result dialog for artifacts whose object could not be deleted
-   in the attempt that just ran. The SDK exposes the same flag. The legacy per-artifact force
-   endpoint stays as it is but is no longer used by the web client.
+   Force never overrides deployments or tracks and never touches the bucket. On the platform
+   `force` is an explicit caller choice accepted in any status, as the legacy endpoint is, and
+   the SDK exposes it as such; the narrowing is the web client's rule: it offers force only
+   where the normal path has already failed, for rows already in `deletion_failed` (next to a
+   plain retry) and in the result dialog for artifacts whose object could not be deleted in
+   the attempt that just ran. The legacy per-artifact force endpoint stays as it is but is no
+   longer used by the web client.
 5. **Frontend:** the registry toolbar and the artifact editor run the batch flow for one or
    many artifacts. Deleted artifacts are announced with a toast; artifacts that stayed are
    shown in a result dialog with the reason and links to the blocking deployments and tracks.
-   The existing pre-check for active deployments stays in front of the flow: while a selected
-   artifact has an active deployment, the current modal lists them and nothing is deleted. The
-   "any non-uploaded artifact → force everything" branch is replaced by the narrower force rule
-   above.
+   The pre-check modal for active deployments goes away: the platform never deletes a deployed
+   artifact and the result dialog shows the same deployments with the same links, so the
+   selection is sent as it is and partial success holds in the UI too. The "any non-uploaded
+   artifact → force everything" branch is replaced by the narrower force rule above.
 6. **SDK:** a new `delete_batch` on the artifacts resource runs the same three phases and
    returns the typed result; the existing single `delete` is reworked to run the same flow for
    one artifact, so one call deletes an uploaded artifact. Both take an optional `force` that
@@ -102,9 +105,9 @@ against the bucket, multipart uploads included), and batch deletion keeps that p
   satellite can never be orphaned by deleting its artifact, and a track keeps every version
   until someone unlinks it on purpose.
 - Force is kept for the only failure that retrying cannot resolve (an object the bucket will
-  not let go of) and is offered only after that failure, so a stuck row can always be cleared
-  while healthy artifacts are never forced by accident, as the current "force everything"
-  branch does.
+  not let go of), and the web client offers it only after that failure, so a stuck row can
+  always be cleared while healthy artifacts are never forced by accident, as the current
+  "force everything" branch does.
 - The per-artifact endpoints stay untouched, so older SDK versions keep working.
 
 Alternatives considered and rejected:
@@ -205,23 +208,33 @@ with per-artifact outcomes, including the case where every artifact failed.
   exactly one reason, the first that applies.
 - **Deployments block in every status** and are never modified by artifact deletion. Only
   deleting the deployments (through their own flow) unblocks the artifact.
+- **New deployments need an `uploaded` artifact.** Creating a deployment for an artifact in
+  any other status is refused with 409 naming the status. This closes the window in which a
+  deployment could attach to an artifact whose object is being or has already been deleted,
+  and matches what the web client enforces already (Deploy is disabled for non-uploaded
+  artifacts). Track linking keeps accepting any status; a link created between the phases is
+  caught at phase 3 as today.
 - **Tracks block exactly as today.** Batch deletion never removes a track entry; unlinking stays
   on the track page. Only unlinking the artifact from every track unblocks it.
 - **Status is not a blocker.** Phase 1 accepts artifacts in any status (`uploaded`,
   `pending_upload`, `upload_failed`, `deletion_failed`, `pending_deletion`) and moves the
   eligible ones to `pending_deletion`. An artifact already in `pending_deletion` is simply given
-  a URL again; this is how an interrupted deletion is resumed.
+  a URL again; this is how an interrupted deletion is resumed. `pending_upload` is included on
+  purpose: deleting is the only way to clean up an abandoned upload, since nothing else ever
+  moves an artifact out of that status (see Trade-offs).
 - **Force skips only the status check.** With `force`, phase 3 removes the records of the
   listed artifacts whatever their status, without any phase 1 or 2 having run for them, and
   leaves the object in the bucket as it is. Everything else is unchanged: `not_found`,
   `deployments` and `tracks` are reported exactly as without `force`, no deployment or track
   entry is touched, the same permission applies, and the platform still never reaches the
   bucket. This is where the batch differs from the legacy per-artifact force endpoint, which
-  also drops the deployment rows.
+  also drops the deployment rows. The platform does not demand a previous failed attempt:
+  like the legacy endpoint it accepts `force` in any status, and limiting force to rows that
+  already failed is the web client's rule, not the platform's.
 - **Phase 1 changes only the eligible artifacts.** Blocked artifacts keep their status; no URL is
   issued for them. If a URL cannot be generated for one artifact, that artifact is reported with
   `storage_error` and moved to `deletion_failed`, so afterwards it is treated like any other
-  failed deletion (the web client's force gate included); the others are unaffected.
+  failed deletion (the web client's failed-deletion dialog included); the others are unaffected.
 - **Phase 3 removes records one artifact at a time**, each in its own transaction, so one
   failure never rolls back the others. If the database refuses the removal because a deployment
   or a track link appeared between the check and the removal, the artifact is reported with
@@ -235,8 +248,10 @@ with per-artifact outcomes, including the case where every artifact failed.
 
 ## Client-side rules (web app and SDK alike)
 
-- **Chunking.** A selection larger than 100 artifacts is processed in chunks of at most 100,
-  one chunk after the other (phase 1 → 2 → 3 per chunk). Results are merged across chunks. A
+- **Chunking.** Duplicates are collapsed over the whole list first, so an id never lands in
+  two chunks and is reported once. A selection larger than 100 artifacts is then processed in
+  chunks of at most 100, one chunk after the other (phase 1 → 2 → 3 per chunk). Results are
+  merged across chunks. A
   request-level error (network failure, 4xx/5xx) stops the flow: what was already deleted stays
   deleted and is reported, and every artifact of the chunk that hit the error plus all later
   chunks counts as *not completed*. Not-completed artifacts are neither deleted nor failed with
@@ -248,6 +263,9 @@ with per-artifact outcomes, including the case where every artifact failed.
   error means a storage failure: the artifact is *not* sent to phase 3, the client sets its
   status to `deletion_failed` through the existing artifact update endpoint (the platform allows
   that transition from `pending_deletion`), and the artifact is reported with `storage_error`.
+  That status update is best-effort: if it fails, the artifact stays in `pending_deletion`, is
+  still reported with `storage_error`, and the next deletion attempt resumes it; the flow never
+  stops on it.
 - **Phase 3 is skipped** for a chunk when no object deletion succeeded.
 - **Force.** A forced deletion skips phases 1 and 2: the ids go straight to the confirmation
   with `force` set, in chunks of at most 100, and the result is merged like any other. The
@@ -259,53 +277,63 @@ with per-artifact outcomes, including the case where every artifact failed.
 ## Web client
 
 - **Trigger points.** The registry table toolbar (multi-select) and the artifact editor's
-  "Delete artifact" button both run the same store action with a list of ids, behind three
-  gates in this order. First the existing active-deployments pre-check: if any selected
-  artifact carries an `active` deployment in its list data, the current modal lists those
-  artifacts with their deployments linked to the deployments page and nothing is sent. Then the
-  force gate: when every selected artifact is in `deletion_failed` (in the editor: the artifact
-  itself), the existing typed force confirmation opens ("Force delete this artifact?" / "Force
-  delete these artifacts?", the word `delete` typed to enable the button, the warning that the
-  files stay in the bucket) and a forced deletion runs, with no bucket retry. Otherwise the
-  normal confirmation ("Delete N artifacts?" / "Delete artifact?") and the normal flow. A
-  selection that mixes `deletion_failed` rows with others goes through the normal flow: the
-  failed rows retry the bucket and, if it refuses again, get the force option in the result
-  dialog. Deployments in other statuses are not in the list data, so they surface through the
-  result dialog instead.
-- **Removed behaviour.** The "any selected artifact is not `uploaded` → force-delete
-  everything" branch and the store's per-artifact force action (the legacy force endpoint) are
-  removed. Artifacts in `upload_failed`, `pending_upload` and `pending_deletion` are deleted
-  through the normal flow; only `deletion_failed` reaches force directly, as described above.
-  The typed force confirmation stays: it now serves the force gate and the result dialog's
-  force action, and the component keeps its other user (deployments).
+  "Delete artifact" button both run the same store action with a list of ids, behind one of
+  two confirmations. When every selected artifact is in `deletion_failed` (in the editor: the
+  artifact itself), the failed-deletion dialog opens: "Delete this artifact?" / "Delete these
+  artifacts?", the text "The file could not be deleted from the bucket last time. Try again,
+  or force delete to remove the artifact from the registry and leave the file in the bucket.
+  To force delete, type "delete" below.", and the actions Cancel, "Try again" (the normal
+  flow) and "Force delete" (enabled once `delete` is typed; a forced deletion, no bucket
+  retry). Otherwise the normal confirmation ("Delete N artifacts?" / "Delete artifact?") and
+  the normal flow. A selection that mixes `deletion_failed` rows with others goes through the
+  normal flow: the failed rows retry the bucket and, if it refuses again, get the force option
+  in the result dialog. There is no pre-check in front of either confirmation: artifacts with
+  deployments, active ones included, are sent with the rest, stay untouched on the platform
+  and come back in the result dialog with their deployments linked.
+- **Removed behaviour.** The active-deployments pre-check (the modal that stopped the whole
+  selection when any selected artifact had an `active` deployment in its list data, together
+  with its store state) is removed: the platform guarantees that a deployed artifact is never
+  deleted and the result dialog shows the same deployments with the same links, so the
+  pre-check only stood in the way of partial success. The "any selected artifact is not
+  `uploaded` → force-delete everything" branch and the store's per-artifact force action (the
+  legacy force endpoint) are removed as well. Artifacts in `upload_failed`, `pending_upload`
+  and `pending_deletion` are deleted through the normal flow; only `deletion_failed` gets the
+  force option up front, next to a plain retry. The typed force confirmation stays: extended
+  with the "Try again" action it serves the failed-deletion dialog, unchanged it serves the
+  result dialog's force action, and the component keeps its other user (deployments).
 - **After the batch.** Deleted rows leave the table; when the flow completes, the selection is
-  cleared. Rows that failed stay; a row that failed with `storage_error` shows the
-  `deletion_failed` status, whether its URL could not be signed or the bucket refused the
-  DELETE. A success toast reports what was deleted: `Artifact "<name>" deleted` for one, `N
-  artifacts deleted` for several. Nothing is toasted for failures with a reason; they go to
-  the dialog. A forced deletion is reported exactly the same way.
+  cleared. Rows that failed stay, except rows reported `not_found`: the artifact no longer
+  exists whichever way it went (deleted by someone else, or by a confirmation whose response
+  was lost), so the row leaves the table, is not listed in the dialog and is not counted in
+  the toast. A row that failed with `storage_error` shows the `deletion_failed` status,
+  whether its URL could not be signed or the bucket refused the DELETE. A success toast
+  reports what was deleted: `Artifact "<name>" deleted` for one, `N artifacts deleted` for
+  several. Nothing is toasted for failures with a reason; they go to the dialog. A forced
+  deletion is reported exactly the same way.
 - **After a request-level error.** The selection is not cleared: it keeps exactly the
   not-completed artifacts, so the user retries with one click. The error toast shows the
   platform's message and, when something was already deleted, adds `N artifacts deleted, M not
   completed`. Not-completed rows that already passed phase 1 show the `pending_deletion`
   status. The result dialog is shown only if some artifact failed with a reason before the
-  error.
+  error. A confirmation whose response was lost after the platform had already removed the
+  records needs nothing special: the retry reports those ids as `not_found` and their rows
+  leave the table like any other.
 - **Result dialog** ("Some artifacts were not deleted" / "Artifact was not deleted"), shown when
-  `failed` is not empty, with a Close button and, while the list holds `storage_error` entries,
-  a "Force delete" button; a new component in the visual pattern of the pre-check modal. One
-  block per failed artifact: the artifact name and a reason line:
+  `failed` holds entries other than `not_found`, with a Close button and, while the list holds
+  `storage_error` entries, a "Force delete" button; a new component in the visual pattern of
+  the pre-check modal it replaces. One block per failed artifact: the artifact name and a
+  reason line:
 
   | Reason | Reason line | Links |
   |---|---|---|
   | `deployments` | "Used by deployments: <name> (<status>), …. Delete the deployments first." | each deployment links to the orbit's deployments page with that deployment selected (`?deployment=<id>`), opened in a new tab |
   | `tracks` | "Linked to tracks: <name>, …. Unlink the artifact from the tracks first." | each track links to its track page, opened in a new tab |
   | `storage_error` | "The file could not be deleted from the bucket. Try again, or force delete to remove the artifact and leave the file in the bucket." | — |
-  | `not_found` | "The artifact no longer exists." | — |
   | `not_pending_deletion` | "Could not be deleted. Try again." | — |
 
 - **Force from the result dialog.** The "Force delete" button applies to every `storage_error`
-  entry in the dialog and to nothing else; artifacts blocked by deployments, tracks or
-  `not_found` never get a force option. It opens the typed force confirmation on top of the
+  entry in the dialog and to nothing else; artifacts blocked by deployments or tracks never
+  get a force option. It opens the typed force confirmation on top of the
   dialog; on confirm, a forced deletion runs for those ids. The artifacts it deletes leave the
   table and are toasted like any deletion; if it reports failures (for example a deployment
   created in the meantime), the dialog shows that new result, otherwise it closes.
@@ -347,9 +375,21 @@ with per-artifact outcomes, including the case where every artifact failed.
   which is the platform's existing data-plane design.
 - An interrupted client can leave artifacts in `pending_deletion` with their object already
   gone; this exists today and is recoverable by deleting the artifact again.
-- Failures at phase 3 caused by a deployment or track link created between the phases leave an
-  artifact whose object is gone. The window is a few seconds and the artifact stays visible in
+- Failures at phase 3 caused by a track link created between the phases leave an artifact
+  whose object is gone (on the deployment side only a same-instant race remains, since a
+  deployment can no longer be created for a non-uploaded artifact; the database constraint
+  catches it). The window is a few seconds and the artifact stays visible in
   `pending_deletion`, so the user can finish the job once the blocker is removed.
+- Deleting an artifact in `pending_upload` whose upload is still running in another session
+  can leave an orphaned object, or unfinished multipart parts, in the bucket once that upload
+  completes: the upload URLs stay valid for 12 hours and the platform signs no abort. The
+  web client only shows such a row after a reload, so the row a user can select is an
+  abandoned upload or someone else's upload in progress. This is today's behaviour too, and
+  blocking `pending_upload` would make abandoned uploads undeletable. An upload-abort
+  protocol is a possible follow-up.
+- A confirmation whose response is lost after the platform removed the records is recovered
+  by simply retrying: the ids come back as `not_found`, which the web client treats as gone
+  and the SDK reports as such. The outcome is unambiguous, so no idempotency token is needed.
 - Tracked artifacts still need a detour through the track page before they can be deleted; the
   dialog now tells the user which tracks, which the single deletion never did.
 - A forced deletion leaves the object in the bucket, and the file has to be removed by hand;
@@ -414,7 +454,7 @@ with per-artifact outcomes, including the case where every artifact failed.
 ## Scenario: an artifact whose URL could not be signed is forced like any other
 **Given** the artifact B from the previous scenario, selected alone in the registry table
 **When** the user clicks Delete
-**Then** the typed force confirmation opens and, once confirmed, B is removed with one forced confirmation and no delete-URL request
+**Then** the failed-deletion dialog opens and, once the user types `delete` and chooses "Force delete", B is removed with one forced confirmation and no delete-URL request
 
 ## Backend — confirm deletion (phase 3)
 
@@ -444,7 +484,7 @@ with per-artifact outcomes, including the case where every artifact failed.
 **Then** it is reported with reason `not_found` and the response is 200
 
 ## Scenario: a deployment appeared between the phases
-**Given** an artifact in `pending_deletion` that received a deployment after phase 1
+**Given** an artifact in `pending_deletion` that a deployment came to reference after phase 1 (the same-instant race the status check on deployment creation cannot catch)
 **When** the caller confirms its deletion
 **Then** it is reported with reason `deployments` listing that deployment, the deployment is untouched, and the artifact stays in `pending_deletion`
 
@@ -463,6 +503,13 @@ with per-artifact outcomes, including the case where every artifact failed.
 **When** the caller confirms them
 **Then** both are reported with reason `not_found` and the response is still 200
 
+## Backend — deployment creation
+
+## Scenario: a deployment cannot be created for a non-uploaded artifact
+**Given** an artifact in `pending_deletion` (the same holds for `pending_upload`, `upload_failed` and `deletion_failed`) and a caller allowed to create deployments
+**When** the caller creates a deployment for it
+**Then** the platform answers 409 with a message naming the artifact's status, and no deployment exists
+
 ## Web client
 
 ## Scenario: deleting a selection from the toolbar
@@ -471,12 +518,17 @@ with per-artifact outcomes, including the case where every artifact failed.
 **Then** the app requests deletion once for the three ids, sends one bucket DELETE per returned URL, confirms once with the three ids, removes the three rows, clears the selection and shows the toast "3 artifacts deleted"; no dialog appears
 
 ## Scenario: a selected artifact has an active deployment
-**Given** a selection where A is eligible and B carries the deployment "api" (`active`) in its list data
-**When** the user clicks Delete
-**Then** the existing modal opens listing B with "api" linked to the deployments page, no request is sent, nothing is deleted and the selection is unchanged
+**Given** a selection where A is eligible and B carries the deployment "api" (`active`)
+**When** the user clicks Delete and confirms "Delete 2 artifacts?"
+**Then** no pre-check modal appears, A is deleted with the toast `Artifact "A" deleted`, B stays with its deployment untouched, and the result dialog lists B with "Used by deployments: api (active). Delete the deployments first." where "api" links to the deployments page with that deployment selected
+
+## Scenario: a stale row that no longer exists
+**Given** a selection where A is eligible and B was deleted by another user a moment ago
+**When** the user confirms the deletion
+**Then** the platform reports B as `not_found`, both rows leave the table, no dialog opens and the toast says `Artifact "A" deleted`
 
 ## Scenario: some artifacts stay
-**Given** a selection where A is eligible, B is referenced by deployments "old" (`failed`) and "stuck" (`deletion_failed`), which are not in the list data, and C is linked to track "release"
+**Given** a selection where A is eligible, B is referenced by deployments "old" (`failed`) and "stuck" (`deletion_failed`), and C is linked to track "release"
 **When** the user confirms the deletion
 **Then** A's row disappears with the toast `Artifact "A" deleted`, and the result dialog lists B with "Used by deployments: old (failed), stuck (deletion_failed). Delete the deployments first." where each deployment name links to the deployments page with that deployment selected, and C with "Linked to tracks: release. Unlink the artifact from the tracks first." where the track name links to the track page; the dialog only offers Close
 
@@ -503,7 +555,17 @@ with per-artifact outcomes, including the case where every artifact failed.
 ## Scenario: force delete of rows that already failed
 **Given** two artifacts in `deletion_failed` selected and nothing else
 **When** the user clicks Delete
-**Then** the typed force confirmation opens instead of the normal one; after the user types `delete` and confirms, the app sends one confirmation with `force` for the two ids, requests no delete URLs and sends nothing to the bucket, the two rows disappear, the selection is cleared and the toast "2 artifacts deleted" is shown
+**Then** the failed-deletion dialog opens instead of the normal confirmation ("Delete these artifacts?", with Cancel, "Try again" and "Force delete"), "Force delete" stays disabled until `delete` is typed, and once it is chosen the app sends one confirmation with `force` for the two ids, requests no delete URLs and sends nothing to the bucket, the two rows disappear, the selection is cleared and the toast "2 artifacts deleted" is shown
+
+## Scenario: retrying rows that already failed
+**Given** the same two `deletion_failed` artifacts selected, and bucket credentials that have been fixed since
+**When** the user clicks Delete and chooses "Try again"
+**Then** the normal flow runs: delete URLs are requested for both, the bucket answers 204, the confirmation is sent without `force`, the two rows disappear and the toast "2 artifacts deleted" is shown
+
+## Scenario: the status update after a bucket failure fails
+**Given** an eligible artifact whose bucket DELETE answers 403 and whose status update to `deletion_failed` answers 500
+**When** the user deletes it
+**Then** the flow does not stop: the artifact is still listed in the result dialog with the bucket message and the "Force delete" button, its row keeps the `pending_deletion` status, and deleting it again resumes it
 
 ## Scenario: a mixed selection is not forced
 **Given** an `uploaded` artifact A and a `deletion_failed` artifact B selected together
@@ -516,9 +578,9 @@ with per-artifact outcomes, including the case where every artifact failed.
 **Then** both artifacts are deleted without any force dialog
 
 ## Scenario: a forced deletion that is blocked
-**Given** a `deletion_failed` artifact that received a deployment after it was selected
-**When** the user force-deletes it from the toolbar
-**Then** the result dialog lists it with "Used by deployments: …" and no force option, its row stays with the "Deletion failed" status, and the deployment is untouched
+**Given** a `deletion_failed` artifact that was linked to a track after it was selected
+**When** the user chooses "Force delete" in the failed-deletion dialog
+**Then** the result dialog lists it with "Linked to tracks: …" and no force option, its row stays with the "Deletion failed" status, and the track entry is untouched
 
 ## Scenario: more than one hundred artifacts selected
 **Given** 130 eligible artifacts selected
@@ -538,7 +600,7 @@ with per-artifact outcomes, including the case where every artifact failed.
 ## Scenario: an error after the objects were deleted
 **Given** 3 eligible artifacts selected
 **When** the bucket deletes all three objects and the confirmation request fails with a network error
-**Then** the three rows stay in the table in `pending_deletion` and stay selected, the error toast is shown, and deleting them again removes them (the bucket answers 404, the confirmation succeeds)
+**Then** the three rows stay in the table in `pending_deletion` and stay selected, the error toast is shown, and deleting them again clears them either way: if the platform had not removed the records, the bucket answers 404 and the confirmation succeeds; if it had (the response was lost), the retry reports them as `not_found` and the rows leave the table without a dialog
 
 ## Scenario: deleting from the artifact editor
 **Given** the editor of an eligible artifact
@@ -546,9 +608,9 @@ with per-artifact outcomes, including the case where every artifact failed.
 **Then** the artifact is deleted, the toast `Artifact "<name>" deleted` is shown, the editor closes and the app navigates to the collection
 
 ## Scenario: the editor's artifact has an active deployment
-**Given** the editor of an artifact whose details carry an `active` deployment
-**When** the user clicks "Delete artifact"
-**Then** the existing modal lists that deployment, no request is sent and the editor stays open
+**Given** the editor of an artifact with an `active` deployment
+**When** the user clicks "Delete artifact" and confirms
+**Then** no pre-check modal appears, nothing is deleted, the editor stays open and the result dialog lists the deployment with its link
 
 ## Scenario: the editor's artifact is blocked
 **Given** the editor of an artifact linked to a track
@@ -557,7 +619,7 @@ with per-artifact outcomes, including the case where every artifact failed.
 
 ## Scenario: force delete from the artifact editor
 **Given** the editor of a `deletion_failed` artifact with no references
-**When** the user clicks "Delete artifact", types `delete` in the force confirmation and confirms
+**When** the user clicks "Delete artifact" and, in the failed-deletion dialog, types `delete` and chooses "Force delete"
 **Then** one confirmation with `force` is sent for that id, the toast `Artifact "<name>" deleted` is shown, the editor closes and the app navigates to the collection
 
 ## Scenario: no delete without the permission
@@ -586,6 +648,21 @@ with per-artifact outcomes, including the case where every artifact failed.
 **Given** 250 artifact ids
 **When** `delete_batch` is called
 **Then** the request and confirmation endpoints are each called three times (100, 100, 50 ids) and the merged result covers all 250 ids
+
+## Scenario: delete_batch collapses duplicates before chunking
+**Given** a list of 150 ids of which only 90 are distinct
+**When** `delete_batch` is called
+**Then** one request of 90 ids is sent, no id is sent twice, and each id appears exactly once in the result
+
+## Scenario: the status update after a bucket failure fails
+**Given** the bucket answers 500 for A's URL and the update to `deletion_failed` answers 500
+**When** `delete_batch` is called with A
+**Then** no exception is raised, no confirmation is sent, and the result has A in `failed` with reason `storage_error`
+
+## Scenario: retrying after a lost confirmation response
+**Given** a previous call whose confirmation removed the records of A and B but whose response never arrived
+**When** `delete_batch` is called again with A and B
+**Then** the request phase reports both as `not_found`, nothing is sent to the bucket, and the result has an empty `deleted` and both ids in `failed` with reason `not_found`; `delete` called with A alone raises `ArtifactDeleteError` with reason `not_found`
 
 ## Scenario: delete succeeds in one call
 **Given** an `uploaded` artifact with no references
@@ -630,6 +707,7 @@ Each task ends with the package's CI checks listed in its last subtask.
   - [ ] Add the set-based lookups: in `backend/luml/repositories/artifacts.py` fetch the requested artifacts of a collection with their deployments in every status and a batch status move (to `pending_deletion` for the artifacts that received a URL, to `deletion_failed` for those whose URL could not be signed); in `backend/luml/repositories/tracks.py` (track-entry repository) the tracks (id, name) per artifact for a set of artifact ids.
   - [ ] Add per-artifact record removal in `backend/luml/repositories/artifacts.py` that runs in its own transaction and reports a database constraint refusal so the handler can map it to `deployments` / `tracks`.
   - [ ] Implement the two handler operations in `backend/luml/handlers/artifacts.py` following the Design rules: permission and orbit/collection access checked once, classification order `not_found` → `deployments` → `tracks` (→ `not_pending_deletion` in confirm without `force`; with `force` the status is ignored and the record removed, deployments and tracks still block, nothing is signed), URLs signed with the orbit's storage client (a signing failure reports `storage_error` for that artifact only and moves it to `deletion_failed`), no deployment or track entry ever modified.
+  - [ ] Refuse deployment creation for an artifact whose status is not `uploaded` in `backend/luml/handlers/deployments.py` (409 naming the status, checked right after the artifact lookup), with a unit test in `backend/tests/unit/handlers/test_deployments.py` for each non-uploaded status and for `uploaded` still passing.
   - [ ] Register the routes in `backend/luml/api/orbits/orbit_artifacts.py`: `POST /collections/{collection_id}/artifacts/delete-urls` and `DELETE /collections/{collection_id}/artifacts` (JSON body), both answering 200 with the response schemas; keep the existing per-artifact routes untouched.
   - [ ] Unit tests for the handler in a new `backend/tests/unit/handlers/test_artifacts_batch_deletion.py` (one class): every phase-1 and phase-3 scenario from the Scenarios section (classification per artifact, precedence of `deployments` over `tracks`, statuses accepted, duplicates, permission and access errors, missing bucket secret, signing failure for one artifact → `storage_error` and `deletion_failed` for that artifact only, race → constraint refusal mapped to a reason, partial success, unknown ids, forced confirmation in every status without touching storage, forced confirmation still blocked by deployments and tracks, `force` off by default).
   - [ ] Route tests in a new `backend/tests/unit/api/test_orbit_artifacts_batch_routes.py` (pattern of `backend/tests/unit/api/test_orbit_tags_routes.py`): body validation (empty list, 101 ids → 422), DELETE with a JSON body reaches the handler with `force` defaulting to false and passed through when set, response shapes.
@@ -638,24 +716,25 @@ Each task ends with the package's CI checks listed in its last subtask.
 
 - [ ] Task 2 — Web client: batch deletion flow in the API client and the artifacts store (depends on Task 1)
   - [ ] Add the request/response and failure-entry types (reason union, `deployments`, `tracks`) to `frontend/src/lib/api/artifacts/interfaces.ts` and the two batch calls to `frontend/src/lib/api/artifacts/index.ts` (`POST .../artifacts/delete-urls`, `DELETE .../artifacts` with `data` body carrying `artifact_ids` and `force`, as `deleteEntries` does in `frontend/src/lib/api/orbit-tracks/index.ts`); remove the per-artifact delete-URL and confirm calls once nothing uses them.
-  - [ ] Reimplement the store's batch deletion in `frontend/src/stores/artifacts/index.ts` (result type in `frontend/src/stores/artifacts/artifacts.interface.ts`): chunks of 100 processed sequentially, phase 1, parallel bucket DELETEs with 2xx/404 as success, phase 3 only for the ids whose object is gone, `deletion_failed` set through the existing update call on storage failure, merged `deleted` / `failed` result with names, deleted rows removed from the list, `storage_error` rows updated to `deletion_failed` in the list, remaining chunks skipped after a request-level error with the not-completed ids reported alongside the error. Add a forced deletion next to it (same chunking, confirmation with `force` only, no phase 1 or 2, same result shape and list updates) that replaces the store's per-artifact force action.
+  - [ ] Reimplement the store's batch deletion in `frontend/src/stores/artifacts/index.ts` (result type in `frontend/src/stores/artifacts/artifacts.interface.ts`): chunks of 100 processed sequentially, phase 1, parallel bucket DELETEs with 2xx/404 as success, phase 3 only for the ids whose object is gone, duplicates collapsed over the whole list before chunking, `deletion_failed` set through the existing update call on storage failure (best-effort: a failed update is logged and the artifact still reported with `storage_error`), merged `deleted` / `failed` result with names, deleted rows and `not_found` rows removed from the list (`not_found` entries left out of the result presented to the dialog), `storage_error` rows updated to `deletion_failed` in the list, remaining chunks skipped after a request-level error with the not-completed ids reported alongside the error. Add a forced deletion next to it (same chunking, confirmation with `force` only, no phase 1 or 2, same result shape and list updates) that replaces the store's per-artifact force action.
   - [ ] Adjust the two existing call sites (`TableToolbar.vue`, `ArtifactEditor.vue`) to the new result shape without changing their UX yet, so the app keeps working until Task 3.
-  - [ ] Unit tests in a new `frontend/src/stores/__tests__/artifacts.test.ts` (pattern of `frontend/src/stores/__tests__/deployments.test.ts`, mocking `@/lib/api` and axios): happy path, failures from each phase, bucket 404 tolerated, storage failure → status update and `storage_error`, chunking at 130 ids, request-level error stops the remaining chunks and reports the not-completed ids, list updates, forced deletion sends only confirmations with `force` and no delete-URL or bucket request.
+  - [ ] Unit tests in a new `frontend/src/stores/__tests__/artifacts.test.ts` (pattern of `frontend/src/stores/__tests__/deployments.test.ts`, mocking `@/lib/api` and axios): happy path, failures from each phase, bucket 404 tolerated, storage failure → status update and `storage_error`, a failed status update still yields `storage_error` without stopping the flow, `not_found` rows removed from the list and left out of the dialog result, duplicates collapsed before chunking, chunking at 130 ids, request-level error stops the remaining chunks and reports the not-completed ids, list updates, forced deletion sends only confirmations with `force` and no delete-URL or bucket request.
   - [ ] Run `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:ci` in `frontend`; all green. The Playwright deletion tests in `frontend/tests/integration/artifacts.spec.ts` still mock the per-artifact endpoints and are expected to fail until Task 3 rewrites them.
 
 - [ ] Task 3 — Web client: toolbar, editor and the result dialog (depends on Task 2)
-  - [ ] Add a result dialog component next to `frontend/src/components/orbits/tabs/registry/collection/artifacts-table/ArtifactsDeploymentsModal.vue` (same folder, same visual pattern and dialog pass-through options from `models-table.data.ts`; the pre-check modal and its store state stay as they are) driven by store state holding the last deletion result: title by count, one block per failed artifact with the reason lines and links from the Design table (deployments → `orbit-deployments` route with `?deployment=<id>`, tracks → `track` route, both in a new tab), a Close button that clears the state and a "Force delete" button shown only while `storage_error` entries are present, which opens the existing `ForceDeleteConfirmDialog.vue` on top and runs the store's forced deletion for those ids, then closes the dialog or shows the new failures.
-  - [ ] Rework the delete flow in `frontend/src/components/orbits/tabs/registry/collection/artifacts-table/TableToolbar.vue`: active-deployments pre-check → force gate (every selected artifact `deletion_failed` → the existing typed force confirmation → store forced deletion) or the existing confirmation → store batch deletion → success toast by name/count for `deleted` → result dialog when `failed` is not empty; replace the "not uploaded → force everything" branch with that gate and keep the typed force confirmation with its warning text; clear the selection when the flow completes, and after a request-level error keep the not-completed artifacts selected and show the error toast with the deleted / not-completed counts.
-  - [ ] Rework `frontend/src/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue` the same way, including the force gate for a `deletion_failed` artifact (typed force confirmation → forced deletion): on success, forced or not, close and emit as today; on failure keep the editor open and show the result dialog; the active-deployments pre-check stays. Render the result dialog in `frontend/src/pages/collection/artifact/index.vue` next to the deployments modal.
-  - [ ] Remove the leftovers: the legacy per-artifact force API call in `frontend/src/lib/api/artifacts/index.ts` and anything still calling it; `frontend/src/components/ui/dialogs/ForceDeleteConfirmDialog.vue` stays (force gate, result dialog, deployments).
-  - [ ] Component test for the result dialog (vitest, pattern of `frontend/src/components/deployments/edit/DeploymentsEditor.test.ts`): reason lines and links for `deployments`, `tracks`, `storage_error`, `not_found`; title for one vs several artifacts; the "Force delete" button present only with `storage_error` entries and applying only to them.
-  - [ ] Update `frontend/tests/integration/artifacts.spec.ts` (fixtures in `frontend/tests/integration/fixtures/data.ts`): the single and multiple deletion tests mock the two batch endpoints and the bucket DELETE; replace the force-delete tests with an `upload_failed` artifact deleted through the normal flow (bucket answers 404), a `deletion_failed` artifact that opens the typed force dialog and sends one confirmation with `force` and no delete-URL request, a bucket refusal whose result dialog offers "Force delete" and then sends the forced confirmation, and a blocked artifact whose dialog shows the deployment and track links; keep (or add) the test that a selected artifact with an active deployment opens the pre-check modal and sends no deletion request.
+  - [ ] Add a result dialog component in `frontend/src/components/orbits/tabs/registry/collection/artifacts-table/` (same visual pattern and dialog pass-through options from `models-table.data.ts` as the pre-check modal `ArtifactsDeploymentsModal.vue`, which it replaces) driven by store state holding the last deletion result: title by count, one block per failed artifact with the reason lines and links from the Design table (deployments → `orbit-deployments` route with `?deployment=<id>`, tracks → `track` route, both in a new tab), a Close button that clears the state and a "Force delete" button shown only while `storage_error` entries are present, which opens the existing `ForceDeleteConfirmDialog.vue` on top and runs the store's forced deletion for those ids, then closes the dialog or shows the new failures.
+  - [ ] Extend `frontend/src/components/ui/dialogs/ForceDeleteConfirmDialog.vue` with an optional secondary action (label and event, rendered between Cancel and the typed force button, not gated by the typed word) so the same component can serve as the failed-deletion dialog with "Try again"; its existing users (deployments editor, result dialog) pass nothing and keep their current look.
+  - [ ] Rework the delete flow in `frontend/src/components/orbits/tabs/registry/collection/artifacts-table/TableToolbar.vue`: every selected artifact `deletion_failed` → the failed-deletion dialog with the title, text and actions from the Design ("Try again" → store batch deletion, "Force delete" → store forced deletion); otherwise the existing confirmation → store batch deletion; then the success toast by name/count for `deleted` and the result dialog when `failed` holds entries other than `not_found`. Remove the active-deployments pre-check (the `ArtifactsDeploymentsModal.vue` usage and its store state) and the "not uploaded → force everything" branch; clear the selection when the flow completes, and after a request-level error keep the not-completed artifacts selected and show the error toast with the deleted / not-completed counts.
+  - [ ] Rework `frontend/src/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue` the same way, including the failed-deletion dialog for a `deletion_failed` artifact: on success, forced or not, close and emit as today; on failure keep the editor open and show the result dialog; the active-deployments pre-check is removed here too. Render the result dialog in `frontend/src/pages/collection/artifact/index.vue` in place of the deployments modal.
+  - [ ] Remove the leftovers: the legacy per-artifact force API call in `frontend/src/lib/api/artifacts/index.ts` and anything still calling it, `ArtifactsDeploymentsModal.vue` and the store's pre-check state and actions (`modelsWithActiveDeploymentsForDeletion` and its setters); `ForceDeleteConfirmDialog.vue` stays (failed-deletion dialog, result dialog, deployments).
+  - [ ] Component test for the result dialog (vitest, pattern of `frontend/src/components/deployments/edit/DeploymentsEditor.test.ts`): reason lines and links for `deployments`, `tracks`, `storage_error`, `not_pending_deletion`; title for one vs several artifacts; the "Force delete" button present only with `storage_error` entries and applying only to them. A test for the extended `ForceDeleteConfirmDialog.vue`: the secondary action renders only when given and is not gated by the typed word, the force button still is.
+  - [ ] Update `frontend/tests/integration/artifacts.spec.ts` (fixtures in `frontend/tests/integration/fixtures/data.ts`): the single and multiple deletion tests mock the two batch endpoints and the bucket DELETE; replace the force-delete tests with an `upload_failed` artifact deleted through the normal flow (bucket answers 404), a `deletion_failed` artifact whose failed-deletion dialog sends the normal flow on "Try again" and one confirmation with `force` and no delete-URL request on "Force delete", a bucket refusal whose result dialog offers "Force delete" and then sends the forced confirmation, and a blocked artifact whose dialog shows the deployment and track links; replace the pre-check test with one where a selected artifact with an active deployment is sent with the rest and comes back in the result dialog with the deployment linked.
   - [ ] Run `npm run lint`, `npm run format:check`, `npm run type-check`, `npm run test:ci` and `npx playwright test tests/integration/artifacts.spec.ts` in `frontend`; all green.
 
 - [ ] Task 4 — SDK (`sdk/python/api`): `delete_batch` and the reworked `delete` (depends on Task 1)
   - [ ] Add the result types to `sdk/python/api/luml_api/_types.py` (`ArtifactsDeleteResult` with `deleted` and `failed`, `ArtifactDeleteFailure` with `artifact_id`, `name`, `reason`, `deployments`, `tracks`, plus the two platform response models) and `ArtifactDeleteError` to `sdk/python/api/luml_api/_exceptions.py`, exported from `sdk/python/api/luml_api/__init__.py`.
   - [ ] Add a bucket delete helper next to the download helper in `sdk/python/api/luml_api/handlers/base_file_handler.py` (sync and async): HTTP DELETE on a presigned URL, 2xx/404 as success, anything else as a storage failure.
-  - [ ] Implement `delete_batch` on the abstract base, the sync and the async resource in `sdk/python/api/luml_api/resources/artifacts.py` (collection validation like the other methods, chunks of 100, three phases, `deletion_failed` set through `update` on storage failure, merged result, no exception for per-artifact outcomes, `force=False` keyword that skips phases 1 and 2 and confirms with `force`) and rework `delete` to run the same flow for one id with the same `force` keyword, raising `ArtifactDeleteError` with the failure entry when the artifact stays. Docstrings with examples, `force` documented as the last resort after a `storage_error`, as the reference docs are generated from them.
-  - [ ] Tests: update the `delete` tests in `sdk/python/api/tests/unit/test_model_artifact_resource.py` and the abstract-method list in `sdk/python/api/tests/unit/test_artifact_resource_coverage.py`; add a new `sdk/python/api/tests/unit/test_artifact_delete_batch.py` (one class) covering the SDK scenarios: three phases with the exact platform calls, failures from each phase, bucket 404 tolerated, storage failure → status update and `storage_error`, chunking at 250 ids, `force=True` sending only chunked confirmations with `force` and no delete-URL or bucket request, `force=True` still raising for a tracked artifact, `delete` returning nothing vs raising, legacy manual sequence, async parity.
+  - [ ] Implement `delete_batch` on the abstract base, the sync and the async resource in `sdk/python/api/luml_api/resources/artifacts.py` (collection validation like the other methods, duplicates collapsed before chunking, chunks of 100, three phases, `deletion_failed` set through `update` on storage failure as a best-effort step that never raises, merged result, no exception for per-artifact outcomes, `force=False` keyword that skips phases 1 and 2 and confirms with `force`) and rework `delete` to run the same flow for one id with the same `force` keyword, raising `ArtifactDeleteError` with the failure entry when the artifact stays. Docstrings with examples, `force` documented as the last resort after a `storage_error`, as the reference docs are generated from them.
+  - [ ] Tests: update the `delete` tests in `sdk/python/api/tests/unit/test_model_artifact_resource.py` and the abstract-method list in `sdk/python/api/tests/unit/test_artifact_resource_coverage.py`; add a new `sdk/python/api/tests/unit/test_artifact_delete_batch.py` (one class) covering the SDK scenarios: three phases with the exact platform calls, failures from each phase, bucket 404 tolerated, storage failure → status update and `storage_error`, a failed status update still yielding `storage_error` without raising, duplicates collapsed before chunking, chunking at 250 ids, retry after a lost confirmation response → `not_found` in `failed` and `ArtifactDeleteError` from `delete`, `force=True` sending only chunked confirmations with `force` and no delete-URL or bucket request, `force=True` still raising for a tracked artifact, `delete` returning nothing vs raising, legacy manual sequence, async parity.
   - [ ] Regenerate the API reference with `python docs/generate_docs.py` (pydoc-markdown) so `docs/docs/api-reference/resources/artifacts.md` documents `delete_batch` and the reworked `delete`.
   - [ ] Run `uv run ruff format --check luml_api tests examples`, `uv run ruff check luml_api tests`, `uv run mypy luml_api`, `uv run pytest` in `sdk/python/api`; all green.
