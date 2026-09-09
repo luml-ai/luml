@@ -1,18 +1,18 @@
 <template>
   <header class="header">
-    <div class="header-left">
+    <div class="header-left overflow-hidden">
       <component
         :is="NOTEBOOK_ASSET_ICONS['graph']"
         :size="14"
         color="var(--p-button-text-secondary-color)"
-        class="mt-1"
+        class="mt-1 shrink-0"
       />
-      <div>
-        <h3 class="mb-1">correlation_heatmap</h3>
+      <div class="overflow-hidden">
+        <h3 class="mb-1 truncate">correlation_heatmap</h3>
         <div class="text-sm text-muted-color">8.5s</div>
       </div>
     </div>
-    <div class="header-right">
+    <div class="header-right shrink-0">
       <Button
         variant="outlined"
         severity="secondary"
