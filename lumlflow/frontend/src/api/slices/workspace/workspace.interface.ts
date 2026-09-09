@@ -70,12 +70,37 @@ export interface CellSummary {
   state: CellStaleState
   primary: string | null
   kinds: Record<string, string>
+  consumes: Record<string, string>
+  cost_seconds: number | null
+  causes: string[]
+  reused: boolean
 }
 
 export interface CellsPage {
   flow: string
   branch: string
   cells: CellSummary[]
+}
+
+export interface RenamedCell {
+  slug: string
+  renamed_from: string
+  branch: string
+}
+
+export interface CellDetail {
+  slug: string
+  source: string
+}
+
+export interface NewCell {
+  slug: string
+  branch: string
+}
+
+export interface DeletedCell {
+  slug: string
+  branch: string
 }
 
 export interface JournalTransactionOp {

@@ -103,6 +103,9 @@ export const useFlowStore = defineStore('flow', () => {
   const journal = ref<JournalTransaction[]>([])
   const isJournalLoading = ref(false)
 
+  const selectedCellId = ref<string | null>(null)
+  const expandedCellId = ref<string | null>(null)
+
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
   const notebookCells = computed(() => cells.value.map(toNotebookCell))
@@ -124,6 +127,14 @@ export const useFlowStore = defineStore('flow', () => {
 
   function toggleSidebar() {
     isSidebarOpened.value = !isSidebarOpened.value
+  }
+
+  function selectCell(id: string | null) {
+    selectedCellId.value = id
+  }
+
+  function setExpandedCellId(id: string | null) {
+    expandedCellId.value = id
   }
 
   function setViewMode(mode: 'canvas' | 'notebook') {
@@ -193,6 +204,68 @@ export const useFlowStore = defineStore('flow', () => {
     }
   }
 
+  async function renameCell(slug: string, to: string) {
+    await workspaceApi.renameCell(
+      slug,
+      to,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    await fetchCells()
+  }
+
+  async function fetchCellSource(slug: string): Promise<string> {
+    const detail = await workspaceApi.cellSource(
+      slug,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    return detail.source
+  }
+
+  function nextDuplicateSlug(slug: string): string {
+    const taken = new Set(cells.value.map((cell) => cell.slug.toLowerCase()))
+    let candidate = `${slug}_copy`
+    let suffix = 2
+    while (taken.has(candidate.toLowerCase())) {
+      candidate = `${slug}_copy_${suffix}`
+      suffix += 1
+    }
+    return candidate
+  }
+
+  async function duplicateCell(slug: string): Promise<string> {
+    const flow = currentFlow.value ?? undefined
+    const branch = currentBranch.value?.branch
+    const detail = await workspaceApi.cellSource(slug, flow, branch)
+    const created = await workspaceApi.newCell({
+      slug: nextDuplicateSlug(slug),
+      source: detail.source,
+      after: slug,
+      flow,
+      branch,
+    })
+    await fetchCells()
+    return created.slug
+  }
+
+  async function addCellDownstream(slug: string): Promise<string> {
+    const created = await workspaceApi.newCell({
+      after: slug,
+      flow: currentFlow.value ?? undefined,
+      branch: currentBranch.value?.branch,
+    })
+    await fetchCells()
+    return created.slug
+  }
+
+  async function deleteCell(slug: string) {
+    await workspaceApi.deleteCell(slug, currentFlow.value ?? undefined, currentBranch.value?.branch)
+    if (selectedCellId.value === slug) selectedCellId.value = null
+    if (expandedCellId.value === slug) expandedCellId.value = null
+    await fetchCells()
+  }
+
   async function createLane(name: string) {
     const from = currentBranch.value?.branch
     if (!from) throw new Error('No branch to fork from')
@@ -211,6 +284,8 @@ export const useFlowStore = defineStore('flow', () => {
     isCellsLoading.value = false
     journal.value = []
     isJournalLoading.value = false
+    selectedCellId.value = null
+    expandedCellId.value = null
   }
 
   return {
@@ -234,9 +309,18 @@ export const useFlowStore = defineStore('flow', () => {
     notebookCells,
     isCellsLoading,
     fetchCells,
+    renameCell,
+    fetchCellSource,
+    duplicateCell,
+    addCellDownstream,
+    deleteCell,
     journal,
     currentBranchActivities,
     isJournalLoading,
     fetchJournal,
+    selectedCellId,
+    selectCell,
+    expandedCellId,
+    setExpandedCellId,
   }
 })

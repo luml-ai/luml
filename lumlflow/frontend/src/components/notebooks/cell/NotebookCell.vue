@@ -1,16 +1,19 @@
 <template>
   <div class="card">
-    <NotebookCellHeader />
+    <NotebookCellHeader :title="title" :icon="icon" :cost-seconds="costSeconds" :cell="cell" />
     <div class="py-4">
-      <slot> Basic </slot>
+      <slot> </slot>
     </div>
-    <NotebookCellFooter />
+    <NotebookCellFooter :state="state" :causes="causes" :reused="reused" />
   </div>
 </template>
 
 <script setup lang="ts">
+import type { NotebookCellProps } from '@/components/notebooks/cell/cell.interface'
 import NotebookCellHeader from '@/components/notebooks/cell/NotebookCellHeader.vue'
 import NotebookCellFooter from '@/components/notebooks/cell/NotebookCellFooter.vue'
+
+defineProps<NotebookCellProps>()
 </script>
 
 <style scoped>

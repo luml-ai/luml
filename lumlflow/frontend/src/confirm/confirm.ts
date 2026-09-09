@@ -63,6 +63,23 @@ export const deleteFlowConfirmOptions = (accept: () => void): ConfirmationOption
   }
 }
 
+export const deleteCellConfirmOptions = (accept: () => void, slug: string): ConfirmationOptions => {
+  return {
+    group: 'delete-cell',
+    message: `${PERMANENT_ACTION_MESSAGE} Every other lane keeps its own copy of \`${slug}\`.`,
+    header: 'Delete cell from this lane?',
+    acceptProps: {
+      label: 'Delete cell',
+      severity: 'warn',
+      variant: 'outlined',
+    },
+    rejectProps: {
+      label: 'Cancel',
+    },
+    accept,
+  }
+}
+
 function formatLumlflowOrigin(experiment: Experiment): string | null {
   const origin = experiment.metadata.lumlflow
   if (typeof origin !== 'object' || origin === null || Array.isArray(origin)) return null

@@ -16,7 +16,7 @@
     <div class="toolbar-right">
       <SelectButton
         :model-value="flowStore.viewMode"
-        :options="options"
+        :options="NOTEBOOK_VIEW_MODE_OPTIONS"
         :allow-empty="false"
         optionLabel="label"
         optionValue="value"
@@ -32,12 +32,13 @@
 </template>
 
 <script setup lang="ts">
-import { Bolt, ChevronLeft, Notebook, Workflow } from 'lucide-vue-next'
+import { Bolt, ChevronLeft } from 'lucide-vue-next'
 import { Button, SelectButton, Tag } from 'primevue'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
 import { useFlowStore } from '@/store/flow'
+import { NOTEBOOK_VIEW_MODE_OPTIONS } from '@/components/notebooks/notebooks.const'
 
 const flowStore = useFlowStore()
 
@@ -60,19 +61,6 @@ const flowName = computed(() => {
 })
 
 const branchName = computed(() => flowStore.currentBranch?.branch ?? '')
-
-const options = [
-  {
-    label: 'Canvas',
-    value: 'canvas',
-    icon: Workflow,
-  },
-  {
-    label: 'Notebook',
-    value: 'notebook',
-    icon: Notebook,
-  },
-]
 </script>
 
 <style scoped>

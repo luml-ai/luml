@@ -1,3 +1,6 @@
+import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
+import type { LucideIcon } from 'lucide-vue-next'
+
 export type NotebookAssetType = 'graph' | 'model' | 'dataset' | 'experiment' | 'unknown'
 
 export interface NotebookAssetInterface {
@@ -5,4 +8,32 @@ export interface NotebookAssetInterface {
   type: NotebookAssetType
   name: string
   unmaterialized: boolean
+}
+
+export interface CellNodeData {
+  asset: NotebookAssetInterface
+  cell: CellSummary
+}
+
+export interface CellEdge {
+  from: string
+  to: string
+  input: string
+}
+
+export interface ViewModeOption {
+  label: string
+  value: 'canvas' | 'notebook'
+  icon: LucideIcon
+}
+
+export interface NotebooksCanvasToolbarEmits {
+  zoomIn: []
+  zoomOut: []
+  zoomChange: [value: number]
+}
+
+export interface SidebarTooltipPlugProps {
+  tooltip: string
+  label: string
 }

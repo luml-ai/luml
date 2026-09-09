@@ -35,19 +35,14 @@
 </template>
 
 <script setup lang="ts">
+import type { NotebooksCanvasToolbarEmits } from '@/components/notebooks/notebooks.interface'
 import { computed, ref, watch } from 'vue'
 import { useVueFlow } from '@vue-flow/core'
 import { Button } from 'primevue'
 import { Pointer, MousePointer2 } from 'lucide-vue-next'
 import UiZoom from '@/components/ui/UiZoom.vue'
 
-interface Emits {
-  zoomIn: []
-  zoomOut: []
-  zoomChange: [value: number]
-}
-
-const emit = defineEmits<Emits>()
+const emit = defineEmits<NotebooksCanvasToolbarEmits>()
 
 const zoom = defineModel<string>('zoom', { required: true })
 

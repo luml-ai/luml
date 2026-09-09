@@ -1,12 +1,16 @@
 import { api } from '@/api/client'
 import type {
   BranchTree,
+  CellDetail,
   CellsPage,
   CreatedFlow,
+  DeletedCell,
   DeletedFlow,
   DuplicatedFlow,
   ForkedBranch,
   JournalPage,
+  NewCell,
+  RenamedCell,
   RenamedFlow,
   SwitchedBranch,
   WorkspaceListing,
@@ -129,5 +133,51 @@ export const workspaceApi = {
     call<{ flow?: string; cursor: number }, JournalPage>('journal.since', {
       ...(flow ? { flow } : {}),
       cursor,
+    }),
+
+  renameCell: (slug: string, to: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string; to: string }, RenamedCell>('rename', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
+      to,
+    }),
+
+  cellSource: (slug: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string }, CellDetail>('cells.show', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
+    }),
+
+  newCell: (params: {
+    slug?: string
+    source?: string
+    after?: string
+    flow?: string
+    branch?: string
+  }) =>
+    call<
+      {
+        flow?: string
+        branch?: string
+        slug?: string
+        source?: string
+        after?: string
+      },
+      NewCell
+    >('cells.new', {
+      ...(params.flow ? { flow: params.flow } : {}),
+      ...(params.branch ? { branch: params.branch } : {}),
+      ...(params.slug ? { slug: params.slug } : {}),
+      ...(params.source ? { source: params.source } : {}),
+      ...(params.after ? { after: params.after } : {}),
+    }),
+
+  deleteCell: (slug: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string }, DeletedCell>('cells.delete', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
     }),
 }

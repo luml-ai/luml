@@ -13,15 +13,11 @@
 </template>
 
 <script setup lang="ts">
+import type { SidebarTooltipPlugProps } from '@/components/notebooks/notebooks.interface'
 import { CircleQuestionMark } from 'lucide-vue-next'
 import { Button } from 'primevue'
 
-interface Props {
-  tooltip: string
-  label: string
-}
-
-defineProps<Props>()
+defineProps<SidebarTooltipPlugProps>()
 </script>
 
 <style scoped>

@@ -1,7 +1,7 @@
 <template>
   <Tabs :value="modelValue" @update:value="updateValue">
-    <TabList :pt="TABLIST_PT">
-      <Tab v-for="tab in items" :key="tab.label" :value="tab.value" class="tab">
+    <TabList :pt="CELL_TABS_LIST_PT">
+      <Tab v-for="tab in NOTEBOOK_CELL_TABS" :key="tab.label" :value="tab.value" class="tab">
         <component :is="tab.icon" :size="14" />
         <span>{{ tab.label }}</span>
       </Tab>
@@ -10,35 +10,8 @@
 </template>
 
 <script setup lang="ts">
-import { ChartSpline, CodeXml, Scroll } from 'lucide-vue-next'
-import { Tabs, TabList, Tab, type TabListPassThroughOptions } from 'primevue'
-
-const TABLIST_PT: TabListPassThroughOptions = {
-  root: {
-    class: 'bg-transparent!',
-  },
-  tabList: {
-    style: 'border-left: none; border-top: none; border-right: none; ',
-  },
-}
-
-const items = [
-  {
-    label: 'Plot',
-    icon: ChartSpline,
-    value: 'plot',
-  },
-  {
-    label: 'Code',
-    icon: CodeXml,
-    value: 'code',
-  },
-  {
-    label: 'Logs',
-    icon: Scroll,
-    value: 'logs',
-  },
-]
+import { Tabs, TabList, Tab } from 'primevue'
+import { CELL_TABS_LIST_PT, NOTEBOOK_CELL_TABS } from '@/components/notebooks/cell/cell.const'
 
 const modelValue = defineModel<string>('modelValue', { required: true })
 
