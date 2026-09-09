@@ -4,6 +4,10 @@ import type {
   GetArtifactsListParams,
   GetArtifactsListResponse,
   Artifact,
+  ArtifactsDeleteConfirmRequest,
+  ArtifactsDeleteRequest,
+  ArtifactsDeleteResponse,
+  ArtifactsDeleteUrlsResponse,
   CreateArtifactPayload,
   UpdateArtifactPayload,
 } from './interfaces'
@@ -73,14 +77,16 @@ export class ArtifactsApi {
     return responseData
   }
 
-  async getDeleteUrl(
+  async requestDeleteUrls(
     organizationId: string,
     orbitId: string,
     collectionId: string,
-    artifactId: string,
-  ) {
-    const { data: responseData } = await this.api.get<{ url: string }>(
-      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/delete-url`,
+    artifactIds: string[],
+  ): Promise<ArtifactsDeleteUrlsResponse> {
+    const data: ArtifactsDeleteRequest = { artifact_ids: artifactIds }
+    const { data: responseData } = await this.api.post<ArtifactsDeleteUrlsResponse>(
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/delete-urls`,
+      data,
     )
     return responseData
   }
@@ -89,10 +95,13 @@ export class ArtifactsApi {
     organizationId: string,
     orbitId: string,
     collectionId: string,
-    artifactId: string,
-  ) {
-    const { data: responseData } = await this.api.delete(
-      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
+    artifactIds: string[],
+    force = false,
+  ): Promise<ArtifactsDeleteResponse> {
+    const data: ArtifactsDeleteConfirmRequest = { artifact_ids: artifactIds, force }
+    const { data: responseData } = await this.api.delete<ArtifactsDeleteResponse>(
+      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts`,
+      { data },
     )
     return responseData
   }

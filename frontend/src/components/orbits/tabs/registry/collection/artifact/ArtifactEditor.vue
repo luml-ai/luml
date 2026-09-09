@@ -174,6 +174,7 @@ async function deleteArtifact() {
     } else if (result.failed?.length) {
       toast.add(simpleErrorToast(`Failed to delete artifact "${props.data.name}".`))
     }
+    if (result.error) throw result.error
   } catch {
     toast.add(simpleErrorToast('Failed to delete artifact'))
   } finally {

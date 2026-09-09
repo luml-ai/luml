@@ -212,8 +212,9 @@ async function confirmDelete() {
       showSuccessDeleteToast(result.deleted)
     }
     if (result.failed?.length) {
-      showErrorDeleteToast(result.failed)
+      showErrorDeleteToast(result.failed.map((failure) => failure.name ?? failure.artifact_id))
     }
+    if (result.error) throw result.error
   } catch {
     toast.add(simpleErrorToast('Failed to delete artifacts'))
   } finally {
@@ -231,8 +232,9 @@ async function onForceDelete() {
       showSuccessDeleteToast(result.deleted)
     }
     if (result.failed?.length) {
-      showErrorDeleteToast(result.failed)
+      showErrorDeleteToast(result.failed.map((failure) => failure.name ?? failure.artifact_id))
     }
+    if (result.error) throw result.error
   } catch {
     toast.add(simpleErrorToast('Failed to delete artifacts'))
   } finally {
