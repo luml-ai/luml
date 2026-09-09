@@ -119,7 +119,7 @@ export const deleteArtifactConfirmOptions = (
   count: number,
 ): ConfirmationOptions => ({
   message: 'This action is permanent and cannot be undone.',
-  header: count > 1 ? `Delete ${count}  artifacts?` : 'Delete artifact?',
+  header: count > 1 ? `Delete ${count} artifacts?` : 'Delete artifact?',
   rejectProps: {
     label: 'Cancel',
   },

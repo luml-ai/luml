@@ -79,12 +79,7 @@ export const FULL_PERMISSIONS = {
     Permission.update,
     Permission.delete,
   ],
-  organization_invite: [
-    Permission.list,
-    Permission.read,
-    Permission.create,
-    Permission.delete,
-  ],
+  organization_invite: [Permission.list, Permission.read, Permission.create, Permission.delete],
   billing: [Permission.read, Permission.update],
   orbit: [Permission.create],
 }
@@ -155,7 +150,6 @@ export function makeOrganizationDetails(overrides: Record<string, unknown> = {})
     ...overrides,
   }
 }
-
 
 export const ORBIT_ID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
 export const ORBIT_ID_2 = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
@@ -228,7 +222,6 @@ export function makeBucketConnectionUrls() {
   }
 }
 
-
 export const CollectionType = {
   model: 'model',
   dataset: 'dataset',
@@ -261,7 +254,6 @@ export function makeCollectionsListResponse(
   return { cursor, items }
 }
 
-
 export const ArtifactStatus = {
   uploaded: 'uploaded',
   upload_failed: 'upload_failed',
@@ -278,6 +270,8 @@ export const ArtifactType = {
 
 export const ARTIFACT_ID = 'a1b2c3d4-a1b2-c3d4-e5f6-a1b2c3d4e5f6'
 export const ARTIFACT_ID_2 = 'f6e5d4c3-f6e5-d4c3-b2a1-f6e5d4c3b2a1'
+export const ARTIFACT_ID_3 = '12345678-1234-5678-1234-567812345678'
+export const TRACK_ID = 'abcdefab-cdef-abcd-efab-cdefabcdefab'
 
 export function makeArtifact(overrides: Record<string, unknown> = {}) {
   return {
@@ -326,6 +320,25 @@ export function makeArtifactsListResponse(
   return { cursor, items }
 }
 
+export function makeArtifactDeleteUrl(artifactId: string, name: string, url: string) {
+  return {
+    artifact_id: artifactId,
+    name,
+    url,
+  }
+}
+
+export function makeArtifactDeleteFailure(overrides: Record<string, unknown> = {}) {
+  return {
+    artifact_id: ARTIFACT_ID,
+    name: 'model-v1',
+    reason: 'not_pending_deletion',
+    deployments: [],
+    tracks: [],
+    ...overrides,
+  }
+}
+
 export function makeExtendedCollection(overrides: Record<string, unknown> = {}) {
   return {
     ...makeCollection(),
@@ -335,13 +348,13 @@ export function makeExtendedCollection(overrides: Record<string, unknown> = {}) 
   }
 }
 
-
 export const DeploymentStatus = {
   pending: 'pending',
   active: 'active',
   failed: 'failed',
   deleted: 'deleted',
   deletion_pending: 'deletion_pending',
+  deletion_failed: 'deletion_failed',
   not_responding: 'not_responding',
 } as const
 

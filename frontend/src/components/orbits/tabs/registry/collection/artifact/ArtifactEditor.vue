@@ -41,10 +41,23 @@
       </div>
     </Form>
   </UiDialogRight>
+  <ForceDeleteConfirmDialog
+    v-model:visible="failedDeletionDialogVisible"
+    :title="failedDeletionTitle"
+    :text="FAILED_DELETION_TEXT"
+    :loading="loading"
+    secondary-action-label="Try again"
+    @secondary-action="retryDelete"
+    @confirm="forceDeleteArtifact"
+  />
 </template>
 
 <script setup lang="ts">
-import type { Artifact, UpdateArtifactPayload } from '@/lib/api/artifacts/interfaces'
+import {
+  ArtifactStatusEnum,
+  type Artifact,
+  type UpdateArtifactPayload,
+} from '@/lib/api/artifacts/interfaces'
 import { computed, ref, watch } from 'vue'
 import {
   InputText,
@@ -64,9 +77,12 @@ import { PermissionEnum } from '@/lib/api/api.interfaces'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { useArtifactsTags } from '@/hooks/useArtifactsTags'
 import { getErrorMessage } from '@/helpers/helpers'
-import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces'
 import type { FooterActions, FooterButton } from '@/components/ui/dialogs/UiDialogRight.vue'
 import UiDialogRight from '@/components/ui/dialogs/UiDialogRight.vue'
+import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
+
+const FAILED_DELETION_TEXT =
+  'The file could not be deleted from the bucket last time. Try again, or force delete to remove the artifact from the registry and leave the file in the bucket. To force delete, type "delete" below.'
 
 type Props = {
   data: Artifact
@@ -95,7 +111,10 @@ const initialValues = ref({
   tags: [...(props.data.tags || [])],
 })
 const loading = ref(false)
+const failedDeletionDialogVisible = ref(false)
 const autocompleteItems = ref<string[]>([])
+
+const failedDeletionTitle = computed(() => 'Delete this artifact?')
 
 const leftButton = computed<FooterButton | undefined>(() => {
   if (orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)) {
@@ -150,35 +169,54 @@ async function saveChanges() {
   }
 }
 
-function onDeleteClick() {
-  const hasActiveDeployments = props.data.deployments?.some(
-    (deployment) => deployment.status === DeploymentStatusEnum.active,
-  )
-  if (hasActiveDeployments) {
-    artifactsStore.setModelsWithActiveDeploymentsForDeletion([props.data])
+function onDeleteClick(): void {
+  if (props.data.status === ArtifactStatusEnum.deletion_failed) {
+    failedDeletionDialogVisible.value = true
   } else {
-    confirm.require(deleteArtifactConfirmOptions(deleteArtifact, 1))
+    confirm.require(deleteArtifactConfirmOptions(confirmDeleteArtifact, 1))
   }
 }
 
-async function deleteArtifact() {
+async function confirmDeleteArtifact(): Promise<void> {
+  await runDeletion(false)
+}
+
+async function retryDelete(): Promise<void> {
+  failedDeletionDialogVisible.value = false
+  await runDeletion(false)
+}
+
+async function forceDeleteArtifact(): Promise<void> {
+  await runDeletion(true)
+}
+
+async function runDeletion(force: boolean): Promise<void> {
+  if (loading.value) return
+
+  loading.value = true
+  artifactsStore.resetDeletionResult()
   try {
-    loading.value = true
-    const result = await artifactsStore.deleteArtifacts([props.data.id])
-    if (result.deleted?.length) {
-      toast.add(
-        simpleSuccessToast(`Artifact "${props.data.name}" was removed from the collection.`),
-      )
-      visible.value = false
-      emit('artifactDeleted')
-    } else if (result.failed?.length) {
-      toast.add(simpleErrorToast(`Failed to delete artifact "${props.data.name}".`))
+    const result = force
+      ? await artifactsStore.forceDeleteArtifacts([props.data.id])
+      : await artifactsStore.deleteArtifacts([props.data.id])
+    artifactsStore.setDeletionResult(result.failed.length ? result : null)
+
+    if (result.error) {
+      toast.add(simpleErrorToast(getErrorMessage(result.error, 'Failed to delete artifact')))
+      return
     }
-    if (result.error) throw result.error
-  } catch {
-    toast.add(simpleErrorToast('Failed to delete artifact'))
+
+    if (result.failed.length) return
+    if (result.deleted.length) {
+      toast.add(simpleSuccessToast(`Artifact "${props.data.name}" deleted`))
+    }
+    visible.value = false
+    emit('artifactDeleted')
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to delete artifact')))
   } finally {
     loading.value = false
+    failedDeletionDialogVisible.value = false
   }
 }
 

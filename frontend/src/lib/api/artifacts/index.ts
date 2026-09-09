@@ -106,17 +106,6 @@ export class ArtifactsApi {
     return responseData
   }
 
-  async forceDelete(
-    organizationId: string,
-    orbitId: string,
-    collectionId: string,
-    artifactId: string,
-  ) {
-    return this.api.delete(
-      `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}/force`,
-    )
-  }
-
   async getById(organizationId: string, orbitId: string, collectionId: string, artifactId: string) {
     const { data: responseData } = await this.api.get<Artifact>(
       `/v1/organizations/${organizationId}/orbits/${orbitId}/collections/${collectionId}/artifacts/${artifactId}`,
