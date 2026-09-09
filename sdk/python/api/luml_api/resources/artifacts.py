@@ -1,12 +1,25 @@
+import asyncio
 import builtins
+import logging
 import warnings
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator, Coroutine, Iterator
-from typing import TYPE_CHECKING, Any
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Any, Never
 
-from luml_api._exceptions import FileError, FileUploadError
+from luml_api._exceptions import (
+    ArtifactBatchDeleteError,
+    ArtifactDeleteError,
+    FileError,
+    FileUploadError,
+)
 from luml_api._types import (
     Artifact,
+    ArtifactDeleteFailure,
+    ArtifactDeleteURL,
+    ArtifactsDeleteResponse,
+    ArtifactsDeleteResult,
+    ArtifactsDeleteURLsResponse,
     ArtifactsList,
     ArtifactStatus,
     ArtifactType,
@@ -17,6 +30,7 @@ from luml_api._types import (
     is_uuid,
 )
 from luml_api._utils import find_by_value
+from luml_api.handlers.base_file_handler import BaseFileHandler
 from luml_api.handlers.model_artifacts import ModelFileHandler
 from luml_api.handlers.s3_file_handler import S3FileHandler
 from luml_api.resources._listed_resource import ListedResource
@@ -26,6 +40,23 @@ from luml_api.utils.progress import BaseProgressHandler
 
 if TYPE_CHECKING:
     from luml_api._client import AsyncLumlClient, LumlClient
+
+
+_ARTIFACT_DELETE_CHUNK_SIZE = 100
+logger = logging.getLogger(__name__)
+
+
+def _raise_batch_delete_error(
+    cause: Exception,
+    result: ArtifactsDeleteResult,
+    not_completed: builtins.list[str],
+) -> Never:
+    raise ArtifactBatchDeleteError(
+        cause,
+        deleted=result.deleted,
+        failed=result.failed,
+        not_completed=not_completed,
+    ) from cause
 
 
 class ArtifactResourceBase(ABC):
@@ -151,8 +182,22 @@ class ArtifactResourceBase(ABC):
 
     @abstractmethod
     def delete(
-        self, artifact_id: str, *, collection_id: str | None = None
+        self,
+        artifact_id: str,
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
     ) -> None | Coroutine[Any, Any, None]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def delete_batch(
+        self,
+        artifact_ids: builtins.list[str],
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
+    ) -> ArtifactsDeleteResult | Coroutine[Any, Any, ArtifactsDeleteResult]:
         raise NotImplementedError()
 
 
@@ -1195,46 +1240,201 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             )
         )
 
-    @validate_collection
-    def delete(self, artifact_id: str, *, collection_id: str | None = None) -> None:
-        """Delete artifact permanently.
+    def _delete_objects(
+        self,
+        urls: builtins.list[ArtifactDeleteURL],
+        collection_id: str | None,
+    ) -> tuple[builtins.list[str], builtins.list[ArtifactDeleteFailure]]:
+        if not urls:
+            return [], []
 
-        Permanently removes the artifact record and associated file from storage.
-        This action cannot be undone. If collection_id is None,
-            uses the default collection from client.
+        with ThreadPoolExecutor() as executor:
+            outcomes = executor.map(
+                BaseFileHandler.delete_file,
+                (entry.url for entry in urls),
+            )
+            entries_with_outcomes = zip(urls, outcomes, strict=True)
+            deleted: builtins.list[str] = []
+            failed: builtins.list[ArtifactDeleteFailure] = []
+            for entry, object_deleted in entries_with_outcomes:
+                if object_deleted:
+                    deleted.append(entry.artifact_id)
+                    continue
+
+                failed.append(
+                    ArtifactDeleteFailure(
+                        artifact_id=entry.artifact_id,
+                        name=entry.name,
+                        reason="storage_error",
+                    )
+                )
+                try:
+                    self.update(
+                        entry.artifact_id,
+                        status=ArtifactStatus.DELETION_FAILED,
+                        collection_id=collection_id,
+                    )
+                except Exception:  # noqa: BLE001
+                    logger.warning(
+                        "Failed to set artifact %s status to deletion_failed",
+                        entry.artifact_id,
+                        exc_info=True,
+                    )
+        return deleted, failed
+
+    @validate_collection
+    def delete_batch(
+        self,
+        artifact_ids: builtins.list[str],
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
+    ) -> ArtifactsDeleteResult:
+        """Delete several artifacts, preserving per-artifact outcomes.
+
+        The SDK requests presigned URLs, deletes eligible objects in parallel,
+        and confirms their record deletion. Requests are sent in chunks of 100
+        after duplicate ids are collapsed.
 
         Args:
-            artifact_id: ID of the artifact to delete.
-            collection_id: ID of the collection containing the model. If not provided,
-                uses the default collection set in the client.
+            artifact_ids: Artifact ids to delete.
+            collection_id: Collection containing the artifacts. The client's
+                default collection is used when omitted.
+            force: Skip bucket deletion and remove records directly. Use only as
+                a last resort after a normal call reports `storage_error`; the
+                objects remain in the bucket. Deployments and tracks still block
+                deletion.
 
         Returns:
-            None: No return value on successful deletion.
+            The ids deleted and typed failures for artifacts that stayed.
 
         Raises:
-            ConfigurationError: If collection_id not provided and
-                no default collection set.
-            NotFoundError: If artifact with specified ID doesn't exist.
+            ArtifactBatchDeleteError: A platform request failed. The exception
+                carries completed deletions, classified failures, and ids safe
+                to retry in `not_completed`.
+            ConfigurationError: No collection was provided or configured.
 
         Example:
         ```python
-        luml = LumlClient(
-            api_key="luml_your_key",
-            organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-            orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-            collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
+        result = luml.artifacts.delete_batch([artifact_a, artifact_b])
+        for failure in result.failed:
+            print(failure.artifact_id, failure.reason)
+
+        storage_failures = [
+            failure.artifact_id
+            for failure in result.failed
+            if failure.reason == "storage_error"
+        ]
+        if storage_failures:
+            luml.artifacts.delete_batch(storage_failures, force=True)
+        ```
+        """
+        distinct_ids = builtins.list(dict.fromkeys(artifact_ids))
+        result = ArtifactsDeleteResult(deleted=[], failed=[])
+        artifacts_path = (
+            f"/v1/organizations/{self._client.organization}/orbits/"
+            f"{self._client.orbit}/collections/{collection_id}/artifacts"
         )
+
+        for start in range(0, len(distinct_ids), _ARTIFACT_DELETE_CHUNK_SIZE):
+            end = start + _ARTIFACT_DELETE_CHUNK_SIZE
+            chunk = distinct_ids[start:end]
+            later_ids = distinct_ids[end:]
+
+            if force:
+                try:
+                    response = ArtifactsDeleteResponse.model_validate(
+                        self._client.delete(
+                            artifacts_path,
+                            json={"artifact_ids": chunk, "force": True},
+                        )
+                    )
+                except Exception as error:  # noqa: BLE001
+                    _raise_batch_delete_error(error, result, [*chunk, *later_ids])
+                result.deleted.extend(response.deleted)
+                result.failed.extend(response.failed)
+                continue
+
+            try:
+                deletion_request = ArtifactsDeleteURLsResponse.model_validate(
+                    self._client.post(
+                        f"{artifacts_path}/delete-urls",
+                        json={"artifact_ids": chunk},
+                    )
+                )
+            except Exception as error:  # noqa: BLE001
+                _raise_batch_delete_error(error, result, [*chunk, *later_ids])
+
+            result.failed.extend(deletion_request.failed)
+            deleted_from_bucket, storage_failures = self._delete_objects(
+                deletion_request.urls,
+                collection_id,
+            )
+            result.failed.extend(storage_failures)
+            if not deleted_from_bucket:
+                continue
+
+            try:
+                confirmation = ArtifactsDeleteResponse.model_validate(
+                    self._client.delete(
+                        artifacts_path,
+                        json={
+                            "artifact_ids": deleted_from_bucket,
+                            "force": False,
+                        },
+                    )
+                )
+            except Exception as error:  # noqa: BLE001
+                _raise_batch_delete_error(
+                    error,
+                    result,
+                    [*deleted_from_bucket, *later_ids],
+                )
+            result.deleted.extend(confirmation.deleted)
+            result.failed.extend(confirmation.failed)
+
+        return result
+
+    @validate_collection
+    def delete(
+        self,
+        artifact_id: str,
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
+    ) -> None:
+        """Delete one artifact and its bucket object.
+
+        Args:
+            artifact_id: ID of the artifact to delete.
+            collection_id: Collection containing the artifact. The client's
+                default collection is used when omitted.
+            force: Skip bucket deletion and remove the record directly. This is
+                a last resort after a normal deletion reports `storage_error`;
+                the object remains in the bucket.
+
+        Raises:
+            ArtifactDeleteError: The artifact stayed because it was blocked,
+                unknown, or could not be removed from storage.
+            ConfigurationError: No collection was provided or configured.
+            APIStatusError: A platform request failed.
+
+        Example:
+        ```python
         luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
         ```
-
-        Warning:
-            This operation is irreversible. The model file and all metadata
-            will be permanently lost from database, but you can still
-                find model in your storage.
         """
-        return self._client.delete(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
-        )
+        try:
+            result = self.delete_batch(
+                [artifact_id],
+                collection_id=collection_id,
+                force=force,
+            )
+        except ArtifactBatchDeleteError as error:
+            raise error.cause from None
+
+        if result.failed:
+            raise ArtifactDeleteError(result.failed[0])
 
 
 class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
@@ -2269,52 +2469,189 @@ class AsyncArtifactResource(ArtifactResourceBase, ListedResource):
             )
         )
 
-    @validate_collection
-    async def delete(
-        self, artifact_id: str, *, collection_id: str | None = None
-    ) -> None:
-        """
-        Delete artifact permanently.
+    async def _delete_objects(
+        self,
+        urls: builtins.list[ArtifactDeleteURL],
+        collection_id: str | None,
+    ) -> tuple[builtins.list[str], builtins.list[ArtifactDeleteFailure]]:
+        outcomes = await asyncio.gather(
+            *(BaseFileHandler.delete_file_async(entry.url) for entry in urls)
+        )
+        deleted: builtins.list[str] = []
+        failed: builtins.list[ArtifactDeleteFailure] = []
+        for entry, object_deleted in zip(urls, outcomes, strict=True):
+            if object_deleted:
+                deleted.append(entry.artifact_id)
+                continue
 
-        Permanently removes the artifact record and associated file from storage.
-        This action cannot be undone. If collection_id is None,
-            uses the default collection from client
+            failed.append(
+                ArtifactDeleteFailure(
+                    artifact_id=entry.artifact_id,
+                    name=entry.name,
+                    reason="storage_error",
+                )
+            )
+            try:
+                await self.update(
+                    entry.artifact_id,
+                    status=ArtifactStatus.DELETION_FAILED,
+                    collection_id=collection_id,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to set artifact %s status to deletion_failed",
+                    entry.artifact_id,
+                    exc_info=True,
+                )
+        return deleted, failed
+
+    @validate_collection
+    async def delete_batch(
+        self,
+        artifact_ids: builtins.list[str],
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
+    ) -> ArtifactsDeleteResult:
+        """Delete several artifacts, preserving per-artifact outcomes.
+
+        This is the async variant of `ArtifactResource.delete_batch`. It runs
+        bucket DELETEs concurrently within each chunk and processes chunks of
+        up to 100 ids sequentially.
 
         Args:
-            artifact_id: ID of the artifact to delete.
-            collection_id: ID of the collection containing the model. If not provided,
-                uses the default collection set in the client
+            artifact_ids: Artifact ids to delete.
+            collection_id: Collection containing the artifacts. The client's
+                default collection is used when omitted.
+            force: Skip bucket deletion and remove records directly. Use only as
+                a last resort after a normal call reports `storage_error`; the
+                objects remain in the bucket. Deployments and tracks still block
+                deletion.
 
         Returns:
-            None: No return value on successful deletion
+            The ids deleted and typed failures for artifacts that stayed.
 
         Raises:
-            ConfigurationError: If collection_id not provided and
-                no default collection set.
-            NotFoundError: If artifact with specified ID doesn't exist
+            ArtifactBatchDeleteError: A platform request failed. The exception
+                carries partial results and ids safe to retry.
+            ConfigurationError: No collection was provided or configured.
 
         Example:
         ```python
-        luml = AsyncLumlClient(
-            api_key="luml_your_key",
-        )
-
-        async def main():
-            await luml.setup_config(
-                organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-                orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-                collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-            )
-            await luml.artifacts.delete(
-                "0199c455-21ee-74c6-b747-19a82f1a1e67"
-            )
+        result = await luml.artifacts.delete_batch([artifact_a, artifact_b])
+        storage_failures = [
+            failure.artifact_id
+            for failure in result.failed
+            if failure.reason == "storage_error"
+        ]
+        if storage_failures:
+            await luml.artifacts.delete_batch(storage_failures, force=True)
         ```
-
-        Warning:
-            This operation is irreversible. The model file and all metadata
-            will be permanently lost from database, but you can still
-            find model in your storage.
         """
-        return await self._client.delete(
-            f"/v1/organizations/{self._client.organization}/orbits/{self._client.orbit}/collections/{collection_id}/artifacts/{artifact_id}"
+        distinct_ids = builtins.list(dict.fromkeys(artifact_ids))
+        result = ArtifactsDeleteResult(deleted=[], failed=[])
+        artifacts_path = (
+            f"/v1/organizations/{self._client.organization}/orbits/"
+            f"{self._client.orbit}/collections/{collection_id}/artifacts"
         )
+
+        for start in range(0, len(distinct_ids), _ARTIFACT_DELETE_CHUNK_SIZE):
+            end = start + _ARTIFACT_DELETE_CHUNK_SIZE
+            chunk = distinct_ids[start:end]
+            later_ids = distinct_ids[end:]
+
+            if force:
+                try:
+                    response = ArtifactsDeleteResponse.model_validate(
+                        await self._client.delete(
+                            artifacts_path,
+                            json={"artifact_ids": chunk, "force": True},
+                        )
+                    )
+                except Exception as error:  # noqa: BLE001
+                    _raise_batch_delete_error(error, result, [*chunk, *later_ids])
+                result.deleted.extend(response.deleted)
+                result.failed.extend(response.failed)
+                continue
+
+            try:
+                deletion_request = ArtifactsDeleteURLsResponse.model_validate(
+                    await self._client.post(
+                        f"{artifacts_path}/delete-urls",
+                        json={"artifact_ids": chunk},
+                    )
+                )
+            except Exception as error:  # noqa: BLE001
+                _raise_batch_delete_error(error, result, [*chunk, *later_ids])
+
+            result.failed.extend(deletion_request.failed)
+            deleted_from_bucket, storage_failures = await self._delete_objects(
+                deletion_request.urls,
+                collection_id,
+            )
+            result.failed.extend(storage_failures)
+            if not deleted_from_bucket:
+                continue
+
+            try:
+                confirmation = ArtifactsDeleteResponse.model_validate(
+                    await self._client.delete(
+                        artifacts_path,
+                        json={
+                            "artifact_ids": deleted_from_bucket,
+                            "force": False,
+                        },
+                    )
+                )
+            except Exception as error:  # noqa: BLE001
+                _raise_batch_delete_error(
+                    error,
+                    result,
+                    [*deleted_from_bucket, *later_ids],
+                )
+            result.deleted.extend(confirmation.deleted)
+            result.failed.extend(confirmation.failed)
+
+        return result
+
+    @validate_collection
+    async def delete(
+        self,
+        artifact_id: str,
+        *,
+        collection_id: str | None = None,
+        force: bool = False,
+    ) -> None:
+        """Delete one artifact and its bucket object.
+
+        Args:
+            artifact_id: ID of the artifact to delete.
+            collection_id: Collection containing the artifact. The client's
+                default collection is used when omitted.
+            force: Skip bucket deletion and remove the record directly. This is
+                a last resort after a normal deletion reports `storage_error`;
+                the object remains in the bucket.
+
+        Raises:
+            ArtifactDeleteError: The artifact stayed after the attempt.
+            ConfigurationError: No collection was provided or configured.
+            APIStatusError: A platform request failed.
+
+        Example:
+        ```python
+        await luml.artifacts.delete(
+            "0199c455-21ee-74c6-b747-19a82f1a1e67"
+        )
+        ```
+        """
+        try:
+            result = await self.delete_batch(
+                [artifact_id],
+                collection_id=collection_id,
+                force=force,
+            )
+        except ArtifactBatchDeleteError as error:
+            raise error.cause from None
+
+        if result.failed:
+            raise ArtifactDeleteError(result.failed[0])

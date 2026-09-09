@@ -966,58 +966,103 @@ Artifact(
     updated_at=None
 )
 
+<a id="luml_api.resources.artifacts.ArtifactResource.delete_batch"></a>
+
+#### delete\_batch
+
+```python
+@validate_collection
+def delete_batch(artifact_ids: builtins.list[str],
+                 *,
+                 collection_id: str | None = None,
+                 force: bool = False) -> ArtifactsDeleteResult
+```
+
+Delete several artifacts, preserving per-artifact outcomes.
+
+The SDK requests presigned URLs, deletes eligible objects in parallel,
+and confirms their record deletion. Requests are sent in chunks of 100
+after duplicate ids are collapsed.
+
+**Arguments**:
+
+- `artifact_ids` - Artifact ids to delete.
+- `collection_id` - Collection containing the artifacts. The client's
+  default collection is used when omitted.
+- `force` - Skip bucket deletion and remove records directly. Use only as
+  a last resort after a normal call reports `storage_error`; the
+  objects remain in the bucket. Deployments and tracks still block
+  deletion.
+  
+
+**Returns**:
+
+  The ids deleted and typed failures for artifacts that stayed.
+  
+
+**Raises**:
+
+- `ArtifactBatchDeleteError` - A platform request failed. The exception
+  carries completed deletions, classified failures, and ids safe
+  to retry in `not_completed`.
+- `ConfigurationError` - No collection was provided or configured.
+  
+
+**Example**:
+
+```python
+result = luml.artifacts.delete_batch([artifact_a, artifact_b])
+for failure in result.failed:
+    print(failure.artifact_id, failure.reason)
+
+storage_failures = [
+    failure.artifact_id
+    for failure in result.failed
+    if failure.reason == "storage_error"
+]
+if storage_failures:
+    luml.artifacts.delete_batch(storage_failures, force=True)
+```
+
 <a id="luml_api.resources.artifacts.ArtifactResource.delete"></a>
 
 #### delete
 
 ```python
 @validate_collection
-def delete(artifact_id: str, *, collection_id: str | None = None) -> None
+def delete(
+        artifact_id: str,
+        *,
+        collection_id: str | None = None,
+        force: bool = False
+) -> None
 ```
 
-Delete artifact permanently.
-
-Permanently removes the artifact record and associated file from storage.
-This action cannot be undone. If collection_id is None,
-uses the default collection from client.
+Delete one artifact and its bucket object.
 
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
-  
-
-**Returns**:
-
-- `None` - No return value on successful deletion.
+- `collection_id` - Collection containing the artifact. The client's
+  default collection is used when omitted.
+- `force` - Skip bucket deletion and remove the record directly. This is
+  a last resort after a normal deletion reports `storage_error`;
+  the object remains in the bucket.
   
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
-- `NotFoundError` - If artifact with specified ID doesn't exist.
-  
+- `ArtifactDeleteError` - The artifact stayed because it was blocked,
+  unknown, or could not be removed from storage.
+- `ConfigurationError` - No collection was provided or configured.
+- `APIStatusError` - A platform request failed.
+
 
 **Example**:
 
 ```python
-luml = LumlClient(
-    api_key="luml_your_key",
-    organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-    orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-    collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-)
 luml.artifacts.delete("0199c455-21ee-74c6-b747-19a82f1a1e67")
 ```
-  
-
-**Warnings**:
-
-  This operation is irreversible. The model file and all metadata
-  will be permanently lost from database, but you can still
-  find model in your storage.
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource"></a>
 
@@ -2003,62 +2048,99 @@ async def main():
     )
 ```
 
+<a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_batch"></a>
+
+#### delete\_batch
+
+```python
+@validate_collection
+async def delete_batch(
+        artifact_ids: builtins.list[str],
+        *,
+        collection_id: str | None = None,
+        force: bool = False
+) -> ArtifactsDeleteResult
+```
+
+Delete several artifacts, preserving per-artifact outcomes.
+
+This is the async variant of `ArtifactResource.delete_batch`. It runs
+bucket DELETEs concurrently within each chunk and processes chunks of
+up to 100 ids sequentially.
+
+**Arguments**:
+
+- `artifact_ids` - Artifact ids to delete.
+- `collection_id` - Collection containing the artifacts. The client's
+  default collection is used when omitted.
+- `force` - Skip bucket deletion and remove records directly. Use only as
+  a last resort after a normal call reports `storage_error`; the
+  objects remain in the bucket. Deployments and tracks still block
+  deletion.
+  
+
+**Returns**:
+
+  The ids deleted and typed failures for artifacts that stayed.
+  
+
+**Raises**:
+
+- `ArtifactBatchDeleteError` - A platform request failed. The exception
+  carries partial results and ids safe to retry.
+- `ConfigurationError` - No collection was provided or configured.
+  
+
+**Example**:
+
+```python
+result = await luml.artifacts.delete_batch([artifact_a, artifact_b])
+storage_failures = [
+    failure.artifact_id
+    for failure in result.failed
+    if failure.reason == "storage_error"
+]
+if storage_failures:
+    await luml.artifacts.delete_batch(storage_failures, force=True)
+```
+
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.delete"></a>
 
 #### delete
 
 ```python
 @validate_collection
-async def delete(artifact_id: str, *, collection_id: str | None = None) -> None
+async def delete(
+        artifact_id: str,
+        *,
+        collection_id: str | None = None,
+        force: bool = False
+) -> None
 ```
 
-Delete artifact permanently.
-
-Permanently removes the artifact record and associated file from storage.
-This action cannot be undone. If collection_id is None,
-uses the default collection from client
+Delete one artifact and its bucket object.
 
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client
-  
-
-**Returns**:
-
-- `None` - No return value on successful deletion
+- `collection_id` - Collection containing the artifact. The client's
+  default collection is used when omitted.
+- `force` - Skip bucket deletion and remove the record directly. This is
+  a last resort after a normal deletion reports `storage_error`;
+  the object remains in the bucket.
   
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
-- `NotFoundError` - If artifact with specified ID doesn't exist
-  
+- `ArtifactDeleteError` - The artifact stayed after the attempt.
+- `ConfigurationError` - No collection was provided or configured.
+- `APIStatusError` - A platform request failed.
+
 
 **Example**:
 
 ```python
-luml = AsyncLumlClient(
-    api_key="luml_your_key",
+await luml.artifacts.delete(
+    "0199c455-21ee-74c6-b747-19a82f1a1e67"
 )
-
-async def main():
-    await luml.setup_config(
-        organization="0199c455-21ec-7c74-8efe-41470e29bae5",
-        orbit="0199c455-21ed-7aba-9fe5-5231611220de",
-        collection="0199c455-21ee-74c6-b747-19a82f1a1e75"
-    )
-    await luml.artifacts.delete(
-        "0199c455-21ee-74c6-b747-19a82f1a1e67"
-    )
 ```
-  
-
-**Warnings**:
-
-  This operation is irreversible. The model file and all metadata
-  will be permanently lost from database, but you can still
-  find model in your storage.
-

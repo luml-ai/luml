@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
 from httpx import URL, InvalidURL
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from luml_api._exceptions import LumlAPIError
 from luml_api.resources._listed_resource import PaginatedList
@@ -258,6 +258,55 @@ class ArtifactListed(Artifact):
 
 class ArtifactsList(PaginatedList[Artifact]):
     pass
+
+
+ArtifactDeleteReason = Literal[
+    "not_found",
+    "deployments",
+    "tracks",
+    "not_pending_deletion",
+    "storage_error",
+]
+
+
+class ArtifactDeleteDeployment(BaseModel):
+    id: str
+    name: str
+    status: str
+
+
+class ArtifactDeleteTrack(BaseModel):
+    id: str
+    name: str
+
+
+class ArtifactDeleteFailure(BaseModel):
+    artifact_id: str
+    name: str | None
+    reason: ArtifactDeleteReason
+    deployments: list[ArtifactDeleteDeployment] = Field(default_factory=list)
+    tracks: list[ArtifactDeleteTrack] = Field(default_factory=list)
+
+
+class ArtifactDeleteURL(BaseModel):
+    artifact_id: str
+    name: str
+    url: str
+
+
+class ArtifactsDeleteURLsResponse(BaseModel):
+    urls: list[ArtifactDeleteURL]
+    failed: list[ArtifactDeleteFailure]
+
+
+class ArtifactsDeleteResponse(BaseModel):
+    deleted: list[str]
+    failed: list[ArtifactDeleteFailure]
+
+
+class ArtifactsDeleteResult(BaseModel):
+    deleted: list[str]
+    failed: list[ArtifactDeleteFailure]
 
 
 class ArtifactFileDetails(BaseModel):
