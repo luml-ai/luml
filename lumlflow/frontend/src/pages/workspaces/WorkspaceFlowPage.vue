@@ -19,7 +19,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useFlowStore } from '@/store/flow'
 import NotebookHeader from '@/components/notebooks/NotebookHeader.vue'
@@ -36,6 +36,8 @@ const directory = computed(() =>
 )
 
 watch(directory, (flow) => flowStore.setFlow(flow), { immediate: true })
+
+onUnmounted(() => flowStore.reset())
 </script>
 
 <style scoped></style>

@@ -103,6 +103,6 @@ const options = [
   @apply flex gap-4;
 }
 .toolbar-settings-button {
-  @apply p-0;
+  @apply p-0 h-10! w-10!;
 }
 </style>

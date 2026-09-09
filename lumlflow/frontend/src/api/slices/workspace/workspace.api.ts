@@ -1,10 +1,12 @@
 import { api } from '@/api/client'
 import type {
   BranchTree,
+  CellsPage,
   CreatedFlow,
   DeletedFlow,
   DuplicatedFlow,
   ForkedBranch,
+  JournalPage,
   RenamedFlow,
   SwitchedBranch,
   WorkspaceListing,
@@ -115,5 +117,17 @@ export const workspaceApi = {
       name,
       from_branch: from,
       intent: `started ${name} from ${from}`,
+    }),
+
+  cellsList: (flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string }, CellsPage>('cells.list', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+    }),
+
+  journalSince: (flow?: string, cursor = 0) =>
+    call<{ flow?: string; cursor: number }, JournalPage>('journal.since', {
+      ...(flow ? { flow } : {}),
+      cursor,
     }),
 }

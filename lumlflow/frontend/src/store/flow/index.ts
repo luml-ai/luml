@@ -1,5 +1,13 @@
-import type { BranchRecord } from '@/api/slices/workspace/workspace.interface'
+import type {
+  BranchRecord,
+  CellSummary,
+  JournalTransaction,
+} from '@/api/slices/workspace/workspace.interface'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
+import type {
+  NotebookAssetInterface,
+  NotebookAssetType,
+} from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useToast } from 'primevue'
@@ -29,6 +37,31 @@ function toLane(record: BranchRecord): INotebookLane {
     parentId: record.parent,
     state: record.archived ? 'inactive' : 'active',
     current: record.checked_out,
+  }
+}
+
+function assetTypeFromKind(kind: string | undefined): NotebookAssetType {
+  switch (kind) {
+    case 'dataset':
+      return 'dataset'
+    case 'experiment':
+      return 'experiment'
+    case 'model':
+      return 'model'
+    case 'plot':
+      return 'graph'
+    default:
+      return 'unknown'
+  }
+}
+
+function toNotebookCell(cell: CellSummary): NotebookAssetInterface {
+  const kind = cell.primary ? cell.kinds[cell.primary] : undefined
+  return {
+    id: cell.slug,
+    type: assetTypeFromKind(kind),
+    name: cell.slug,
+    unmaterialized: cell.state === 'unmaterialized',
   }
 }
 
@@ -64,8 +97,22 @@ export const useFlowStore = defineStore('flow', () => {
   const isBranchesLoading = ref(false)
   const isSwitchingBranch = ref(false)
 
+  const cells = ref<CellSummary[]>([])
+  const isCellsLoading = ref(false)
+
+  const journal = ref<JournalTransaction[]>([])
+  const isJournalLoading = ref(false)
+
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
+  const notebookCells = computed(() => cells.value.map(toNotebookCell))
+  const currentBranchActivities = computed(() => {
+    const branchId = currentBranch.value?.branch_id
+    if (!branchId) return []
+    return journal.value
+      .filter((transaction) => transaction.branch === branchId)
+      .sort((a, b) => b.step - a.step)
+  })
 
   const currentBranchFamilyLine = computed(() => {
     const branch = currentBranch.value
@@ -99,6 +146,34 @@ export const useFlowStore = defineStore('flow', () => {
     } finally {
       isBranchesLoading.value = false
     }
+    await Promise.all([fetchCells(), fetchJournal()])
+  }
+
+  async function fetchCells() {
+    isCellsLoading.value = true
+    try {
+      const page = await workspaceApi.cellsList(
+        currentFlow.value ?? undefined,
+        currentBranch.value?.branch,
+      )
+      cells.value = page.cells
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to load cells'))
+    } finally {
+      isCellsLoading.value = false
+    }
+  }
+
+  async function fetchJournal() {
+    isJournalLoading.value = true
+    try {
+      const page = await workspaceApi.journalSince(currentFlow.value ?? undefined)
+      journal.value = page.transactions
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to load activities'))
+    } finally {
+      isJournalLoading.value = false
+    }
   }
 
   async function switchBranch(branch: string) {
@@ -125,6 +200,19 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
+  function reset() {
+    isSidebarOpened.value = true
+    viewMode.value = 'canvas'
+    branches.value = []
+    currentFlow.value = null
+    isBranchesLoading.value = false
+    isSwitchingBranch.value = false
+    cells.value = []
+    isCellsLoading.value = false
+    journal.value = []
+    isJournalLoading.value = false
+  }
+
   return {
     isSidebarOpened,
     toggleSidebar,
@@ -141,5 +229,14 @@ export const useFlowStore = defineStore('flow', () => {
     fetchBranches,
     switchBranch,
     createLane,
+    reset,
+    cells,
+    notebookCells,
+    isCellsLoading,
+    fetchCells,
+    journal,
+    currentBranchActivities,
+    isJournalLoading,
+    fetchJournal,
   }
 })

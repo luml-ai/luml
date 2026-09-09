@@ -38,6 +38,7 @@ export interface BranchLastIntent {
 
 export interface BranchRecord {
   branch: string
+  branch_id: string
   parent: string | null
   forked_at_step: number
   parent_step: number | null
@@ -60,4 +61,41 @@ export interface SwitchedBranch {
 export interface ForkedBranch {
   branch: string
   from_branch: string
+}
+
+export type CellStaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'
+
+export interface CellSummary {
+  slug: string
+  state: CellStaleState
+  primary: string | null
+  kinds: Record<string, string>
+}
+
+export interface CellsPage {
+  flow: string
+  branch: string
+  cells: CellSummary[]
+}
+
+export interface JournalTransactionOp {
+  op: string
+}
+
+export interface JournalTransaction {
+  step: number
+  ts: string
+  actor: string
+  intent: string
+  offline: boolean
+  settled: boolean
+  branch: string | null
+  ops: JournalTransactionOp[]
+}
+
+export interface JournalPage {
+  flow: string
+  path: string
+  cursor: number
+  transactions: JournalTransaction[]
 }

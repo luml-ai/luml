@@ -21,6 +21,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
   ACCORDION_CONTENT_PT,
   ACCORDION_HEADER_PT,
@@ -29,31 +30,41 @@ import {
 } from '@/prime-vue/pass-through/accordion.pt'
 import { FlaskConical, SquareCode, History, CircuitBoard } from 'lucide-vue-next'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
+import { useFlowStore } from '@/store/flow'
 import NotebookAccordionCells from './NotebookAccordionCells.vue'
 import NotebookAccordionExperiments from '@/components/notebooks/sidebar-accordion/NotebookAccordionExperiments.vue'
 import NotebookAccordionModels from '@/components/notebooks/sidebar-accordion/NotebookAccordionModels.vue'
 import NotebookAccordionActivities from '@/components/notebooks/sidebar-accordion/NotebookAccordionActivities.vue'
 
-const list = [
+const flowStore = useFlowStore()
+
+const experimentsCount = computed(
+  () => flowStore.notebookCells.filter((cell) => cell.type === 'experiment').length,
+)
+const modelsCount = computed(
+  () => flowStore.notebookCells.filter((cell) => cell.type === 'model').length,
+)
+
+const list = computed(() => [
   {
     icon: SquareCode,
     label: 'Cells',
     value: 'cells',
-    count: 10,
+    count: flowStore.cells.length,
     component: NotebookAccordionCells,
   },
   {
     icon: FlaskConical,
     label: 'Experiments',
     value: 'experiments',
-    count: 1,
+    count: experimentsCount.value,
     component: NotebookAccordionExperiments,
   },
   {
     icon: CircuitBoard,
     label: 'Models',
     value: 'models',
-    count: 1,
+    count: modelsCount.value,
     component: NotebookAccordionModels,
   },
   {
@@ -62,7 +73,7 @@ const list = [
     value: 'activities',
     component: NotebookAccordionActivities,
   },
-]
+])
 </script>
 
 <style scoped></style>
