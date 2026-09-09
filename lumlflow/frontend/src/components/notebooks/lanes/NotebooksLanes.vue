@@ -5,19 +5,14 @@
         <div class="flex items-center gap-1 text-sm font-normal">
           <ListTree :size="14" color="var(--p-text-muted-color)" />
           <span class="text-color">Lanes</span>
-          <span class="text-muted-color">(4)</span>
+          <span class="text-muted-color">({{ flowStore.branches.length }})</span>
         </div>
       </AccordionHeader>
       <AccordionContent :pt="ACCORDION_CONTENT_PT">
         <NotebookLanesList />
         <div class="buttons">
-          <Button variant="text" class="px-2.5!">
-            <Plus :size="14" />
-            <span>New lane</span>
-          </Button>
-          <Button variant="text" class="px-2.5!">
-            <span>Compare</span>
-          </Button>
+          <CreateNewLane />
+          <!-- TODO: Add compare -->
         </div>
       </AccordionContent>
     </AccordionPanel>
@@ -25,10 +20,14 @@
 </template>
 
 <script setup lang="ts">
-import { ListTree, Plus } from 'lucide-vue-next'
-import { Accordion, AccordionContent, AccordionHeader, AccordionPanel, Button } from 'primevue'
+import { ListTree } from 'lucide-vue-next'
+import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
 import { ACCORDION_CONTENT_PT, ACCORDION_HEADER_PT } from '@/prime-vue/pass-through/accordion.pt'
+import { useFlowStore } from '@/store/flow'
 import NotebookLanesList from './NotebookLanesList.vue'
+import CreateNewLane from './CreateNewLane.vue'
+
+const flowStore = useFlowStore()
 </script>
 
 <style scoped>

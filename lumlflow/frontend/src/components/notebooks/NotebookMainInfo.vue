@@ -8,7 +8,7 @@
             display: flowStore.isSidebarOpened ? 'flex' : 'none',
           }"
         >
-          <span>Test-1</span>
+          <span>{{ flowStore.currentBranch?.branch }}</span>
           <Tag severity="success">
             <CircleQuestionMark :size="10" />
             Setteled
@@ -26,7 +26,7 @@
           hidden: !flowStore.isSidebarOpened,
         }"
       >
-        started from test · 0 steps ago viewing · the files stay on main
+        {{ flowStore.currentBranchFamilyLine }}
       </div>
     </div>
     <NotebooksLanes v-if="flowStore.isSidebarOpened" />

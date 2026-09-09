@@ -1,7 +1,12 @@
 <template>
   <div class="lane">
     <div class="lane-row" :class="{ 'lane-row--current': lane.current }">
-      <button type="button" class="lane-select-button"></button>
+      <button
+        type="button"
+        class="lane-select-button"
+        :disabled="flowStore.isSwitchingBranch"
+        @click="flowStore.switchBranch(lane.name)"
+      ></button>
       <span class="lane-dot" :style="{ backgroundColor: dotColor }" />
       <div class="lane-body">
         <div class="lane-name">
@@ -9,6 +14,7 @@
         </div>
         <div class="lane-meta">{{ lane.steps }} steps · {{ lane.updatedAgo }}</div>
       </div>
+      <!--TODO: Add menu button
       <Button
         v-if="lane.current"
         severity="secondary"
@@ -19,19 +25,20 @@
         <template #icon>
           <EllipsisVertical :size="16" />
         </template>
-      </Button>
+      </Button>-->
     </div>
     <div
       v-if="lane.children.length"
       class="lane-children"
-      :style="{ '--lane-bridge-color': laneColor(lane.children[0].state) }"
+      :style="{ '--lane-bridge-color': bridgeColor }"
     >
       <div
         v-for="(child, index) in lane.children"
         :key="child.id"
         class="lane-branch"
         :style="{
-          '--lane-branch-color': laneColor(child.state),
+          '--lane-trunk-color': trunkColor(index),
+          '--lane-branch-color': branchColor(index),
           '--lane-continue-color': continueColor(index),
         }"
       >
@@ -42,10 +49,9 @@
 </template>
 
 <script setup lang="ts">
-import type { INotebookLaneNode, NotebookLaneState } from './interface'
-import { EllipsisVertical } from 'lucide-vue-next'
-import { Button } from 'primevue'
+import type { INotebookLaneNode } from './interface'
 import { computed } from 'vue'
+import { useFlowStore } from '@/store/flow'
 import NotebooksLanesListItem from './NotebooksLanesListItem.vue'
 
 interface Props {
@@ -53,17 +59,37 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const flowStore = useFlowStore()
 
-function laneColor(state: NotebookLaneState): string {
-  return state === 'active' ? 'var(--p-primary-color)' : 'var(--p-surface-300)'
+function laneColor(isCurrentPath: boolean): string {
+  return isCurrentPath ? 'var(--p-primary-color)' : 'var(--p-surface-300)'
+}
+
+function containsCurrent(lane: INotebookLaneNode): boolean {
+  return lane.current || lane.children.some(containsCurrent)
+}
+
+const currentChildIndex = computed(() =>
+  props.lane.children.findIndex((child) => containsCurrent(child)),
+)
+
+function trunkColor(index: number): string {
+  return laneColor(currentChildIndex.value !== -1 && index <= currentChildIndex.value)
+}
+
+function branchColor(index: number): string {
+  return laneColor(index === currentChildIndex.value)
 }
 
 function continueColor(index: number): string | undefined {
   const next = props.lane.children[index + 1]
-  return next ? laneColor(next.state) : undefined
+  if (!next) return undefined
+  return laneColor(currentChildIndex.value !== -1 && index < currentChildIndex.value)
 }
 
-const dotColor = computed(() => laneColor(props.lane.state))
+const bridgeColor = computed(() => laneColor(currentChildIndex.value !== -1))
+
+const dotColor = computed(() => laneColor(containsCurrent(props.lane)))
 </script>
 
 <style scoped>
@@ -134,7 +160,7 @@ const dotColor = computed(() => laneColor(props.lane.state))
   top: 0;
   width: 5px;
   height: 25px;
-  border-left: 1px solid var(--lane-branch-color);
+  border-left: 1px solid var(--lane-trunk-color);
   border-bottom: 1px solid var(--lane-branch-color);
   border-bottom-left-radius: 4px;
 }

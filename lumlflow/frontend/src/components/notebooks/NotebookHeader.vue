@@ -1,14 +1,14 @@
 <template>
   <div class="toolbar">
     <div class="toolbar-left">
-      <button class="toolbar-back-button">
+      <RouterLink :to="backTarget" class="toolbar-back-button">
         <ChevronLeft :size="14" />
-      </button>
+      </RouterLink>
       <div class="toolbar-title">
         <span class="status-circle"></span>
-        <span>churn.flow</span>
+        <span>{{ flowName }}</span>
         <span>/</span>
-        <span>Test-1</span>
+        <span>{{ branchName }}</span>
       </div>
       <Tag value="Unpaired" severity="secondary" />
       <button class="toolbar-pair-button">Pair an agent</button>
@@ -34,9 +34,32 @@
 <script setup lang="ts">
 import { Bolt, ChevronLeft, Notebook, Workflow } from 'lucide-vue-next'
 import { Button, SelectButton, Tag } from 'primevue'
+import { computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import { ROUTE_NAMES } from '@/router/router.const'
 import { useFlowStore } from '@/store/flow'
 
 const flowStore = useFlowStore()
+
+const backTarget = computed(() => {
+  const flow = flowStore.currentFlow?.replace(/\/+$/, '')
+  const lastSlash = flow?.lastIndexOf('/') ?? -1
+  const directory = lastSlash > 0 ? flow?.slice(0, lastSlash) : undefined
+
+  return {
+    name: ROUTE_NAMES.WORKSPACES,
+    query: directory ? { directory } : {},
+  }
+})
+
+const flowName = computed(() => {
+  const flow = flowStore.currentFlow?.replace(/\/+$/, '')
+  if (!flow) return ''
+  const lastSlash = flow.lastIndexOf('/')
+  return lastSlash >= 0 ? flow.slice(lastSlash + 1) : flow
+})
+
+const branchName = computed(() => flowStore.currentBranch?.branch ?? '')
 
 const options = [
   {

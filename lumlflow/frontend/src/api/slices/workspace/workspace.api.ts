@@ -1,9 +1,12 @@
 import { api } from '@/api/client'
 import type {
+  BranchTree,
   CreatedFlow,
   DeletedFlow,
   DuplicatedFlow,
+  ForkedBranch,
   RenamedFlow,
+  SwitchedBranch,
   WorkspaceListing,
 } from './workspace.interface'
 
@@ -69,7 +72,6 @@ async function call<P, R>(method: string, params: P): Promise<R> {
 
 export const workspaceApi = {
   listFlows: (directory?: string) => {
-    console.log('listFlows', directory)
     return call<{ directory?: string }, WorkspaceListing>(
       'workspace.list',
       directory ? { directory } : {},
@@ -93,4 +95,25 @@ export const workspaceApi = {
 
   duplicateFlow: (flow: string, name: string) =>
     call<{ flow: string; name: string }, DuplicatedFlow>('flow.duplicate', { flow, name }),
+
+  tree: (flow?: string) => call<{ flow?: string }, BranchTree>('tree', flow ? { flow } : {}),
+
+  switchBranch: (branch: string, intent: string, flow?: string) =>
+    call<{ flow?: string; branch: string; intent: string }, SwitchedBranch>('switch', {
+      ...(flow ? { flow } : {}),
+      branch,
+      intent,
+    }),
+
+  forkBranch: (name: string, from: string, flow?: string) =>
+    call<
+      { flow?: string; branch: string; name: string; from_branch: string; intent: string },
+      ForkedBranch
+    >('fork', {
+      ...(flow ? { flow } : {}),
+      branch: from,
+      name,
+      from_branch: from,
+      intent: `started ${name} from ${from}`,
+    }),
 }
