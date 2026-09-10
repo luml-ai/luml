@@ -10,6 +10,7 @@ from luml.infra.exceptions import (
     ApplicationError,
     ArtifactNotFoundError,
     ArtifactTypeMismatchError,
+    BucketConnectionError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
     DatabaseConstraintError,
@@ -430,20 +431,21 @@ class ArtifactHandler:
         reason: ArtifactDeleteReason,
         record: ArtifactDeletionRecord | None = None,
     ) -> ArtifactDeleteFailure:
+        deployments = (
+            record.deployments
+            if record and reason == ArtifactDeleteReason.DEPLOYMENTS
+            else []
+        )
+        tracks = (
+            record.tracks if record and reason == ArtifactDeleteReason.TRACKS else []
+        )
+
         return ArtifactDeleteFailure(
             artifact_id=artifact_id,
-            name=record.artifact.name if record else None,
+            name=record.artifact.display_name if record else None,
             reason=reason,
-            deployments=(
-                record.deployments
-                if record and reason == ArtifactDeleteReason.DEPLOYMENTS
-                else []
-            ),
-            tracks=(
-                record.tracks
-                if record and reason == ArtifactDeleteReason.TRACKS
-                else []
-            ),
+            deployments=deployments,
+            tracks=tracks,
         )
 
     @classmethod
@@ -524,7 +526,7 @@ class ArtifactHandler:
                 url = await storage_service.get_delete_url(
                     record.artifact.bucket_location
                 )
-            except Exception:
+            except BucketConnectionError:
                 signing_failures.append(artifact_id)
                 failed.append(
                     self._deletion_failure(
@@ -538,7 +540,7 @@ class ArtifactHandler:
             urls.append(
                 ArtifactDeleteURL(
                     artifact_id=artifact_id,
-                    name=record.artifact.name or record.artifact.file_name,
+                    name=record.artifact.display_name,
                     url=url,
                 )
             )

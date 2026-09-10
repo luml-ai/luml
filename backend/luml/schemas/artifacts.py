@@ -240,6 +240,10 @@ class Artifact(ArtifactIn, BaseOrmConfig):
     created_at: datetime
     updated_at: datetime | None = None
 
+    @property
+    def display_name(self) -> str:
+        return self.name or self.file_name
+
 
 class ArtifactListed(Artifact):
     deployments: list[DeploymentBase] = []

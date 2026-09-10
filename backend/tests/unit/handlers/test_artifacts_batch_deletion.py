@@ -27,7 +27,8 @@ from luml.schemas.permissions import Action, Resource
 def _record(
     artifact_id: UUID,
     *,
-    name: str,
+    name: str | None,
+    file_name: str | None = None,
     status: ArtifactStatus = ArtifactStatus.UPLOADED,
     deployments: list[ArtifactDeleteDeployment] | None = None,
     tracks: list[ArtifactDeleteTrack] | None = None,
@@ -35,7 +36,7 @@ def _record(
     artifact = Artifact.model_construct(
         id=artifact_id,
         name=name,
-        file_name=f"{name}.luml",
+        file_name=file_name or f"{name}.luml",
         bucket_location=f"objects/{artifact_id}",
         status=status,
     )
@@ -211,6 +212,66 @@ class TestArtifactsBatchDeletion:
         context.repository.mark_deletion_failed.assert_awaited_once_with(
             context.collection_id, [second.artifact.id]
         )
+
+    @pytest.mark.asyncio
+    async def test_request_propagates_unexpected_signing_errors(
+        self, context: SimpleNamespace
+    ) -> None:
+        record = _record(uuid7(), name="first")
+        context.repository.request_batch_deletion.return_value = [record]
+        context.storage_client.get_delete_url.side_effect = RuntimeError("boom")
+
+        with pytest.raises(RuntimeError):
+            await context.handler.request_delete_urls(
+                context.user_id,
+                context.organization_id,
+                context.orbit_id,
+                context.collection_id,
+                [record.artifact.id],
+            )
+
+        context.repository.mark_deletion_failed.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_names_fall_back_to_file_name(self, context: SimpleNamespace) -> None:
+        eligible = _record(uuid7(), name=None, file_name="eligible.luml")
+        deployed = _record(
+            uuid7(),
+            name=None,
+            file_name="deployed.luml",
+            deployments=[
+                ArtifactDeleteDeployment(
+                    id=uuid7(), name="deployment", status=DeploymentStatus.ACTIVE
+                )
+            ],
+        )
+        context.repository.request_batch_deletion.return_value = [eligible, deployed]
+        context.storage_client.get_delete_url.return_value = "https://bucket/delete"
+
+        requested = await context.handler.request_delete_urls(
+            context.user_id,
+            context.organization_id,
+            context.orbit_id,
+            context.collection_id,
+            [eligible.artifact.id, deployed.artifact.id],
+        )
+
+        assert [entry.name for entry in requested.urls] == ["eligible.luml"]
+        assert [entry.name for entry in requested.failed] == ["deployed.luml"]
+
+        context.repository.get_batch_deletion_records.return_value = [eligible]
+        confirmed = await context.handler.confirm_deletions(
+            context.user_id,
+            context.organization_id,
+            context.orbit_id,
+            context.collection_id,
+            [eligible.artifact.id],
+        )
+
+        assert [entry.reason for entry in confirmed.failed] == [
+            ArtifactDeleteReason.NOT_PENDING_DELETION
+        ]
+        assert [entry.name for entry in confirmed.failed] == ["eligible.luml"]
 
     @pytest.mark.parametrize(
         ("failure", "failing_mock"),
