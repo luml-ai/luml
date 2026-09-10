@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import UUID, Integer, String
+from sqlalchemy import UUID, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from luml.models.base import Base
@@ -8,6 +8,7 @@ from luml.models.base import Base
 
 class TokenBlackListOrm(Base):
     __tablename__ = "token_black_list"
+    __table_args__ = (UniqueConstraint("token", name="uq_token_black_list_token"),)
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid7

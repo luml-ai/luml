@@ -8,9 +8,11 @@ from fastapi import status
 from luml.handlers.deployments import DeploymentHandler
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactStatusMismatchError,
     InsufficientPermissionsError,
     NotFoundError,
 )
+from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
@@ -75,9 +77,11 @@ def _artifact(
     *,
     variant: str = "pyfunc",
     producer_tags: list[str] | None = None,
+    status: ArtifactStatus = ArtifactStatus.UPLOADED,
 ) -> Mock:
     return Mock(
         collection_id=collection_id,
+        status=status,
         manifest=Mock(
             variant=variant,
             producer_tags=producer_tags or [],
@@ -2076,3 +2080,134 @@ async def test_update_deployment_details_enabling_monitoring_needs_the_satellite
     assert error.value.status_code == status.HTTP_404_NOT_FOUND
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_update_deployment_details.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "artifact_status",
+    [
+        ArtifactStatus.PENDING_UPLOAD,
+        ArtifactStatus.UPLOAD_FAILED,
+        ArtifactStatus.PENDING_DELETION,
+        ArtifactStatus.DELETION_FAILED,
+    ],
+)
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_deployment_rejects_non_uploaded_artifact(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_get_public_user_by_id: AsyncMock,
+    mock_create_deployment: AsyncMock,
+    artifact_status: ArtifactStatus,
+) -> None:
+    user_id = uuid7()
+    organization_id = uuid7()
+    orbit_id = uuid7()
+    collection_id = uuid7()
+    artifact_id = uuid7()
+    data = DeploymentCreateIn(
+        name="deployment",
+        satellite_id=uuid7(),
+        artifact_id=artifact_id,
+    )
+    mock_get_orbit_simple.return_value = Mock()
+    mock_get_satellite.return_value = _satellite(orbit_id, _capabilities())
+    mock_get_artifact.return_value = _artifact(collection_id, status=artifact_status)
+    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
+    mock_get_public_user_by_id.return_value = Mock(full_name="User")
+    mock_create_deployment.side_effect = ArtifactStatusMismatchError(
+        artifact_status.value
+    )
+
+    with pytest.raises(ApplicationError, match=artifact_status.value) as error:
+        await handler.create_deployment(user_id, organization_id, orbit_id, data)
+
+    assert error.value.status_code == status.HTTP_409_CONFLICT
+    mock_create_deployment.assert_awaited_once()
+    mock_check_permissions.assert_awaited_once()
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.create_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_deployment_does_not_disclose_foreign_artifact_status(
+    mock_check_permissions: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_create_deployment: AsyncMock,
+) -> None:
+    orbit_id = uuid7()
+    collection_id = uuid7()
+    data = DeploymentCreateIn(
+        name="deployment",
+        satellite_id=uuid7(),
+        artifact_id=uuid7(),
+    )
+    mock_get_orbit_simple.return_value = Mock()
+    mock_get_satellite.return_value = _satellite(orbit_id, _capabilities())
+    mock_get_artifact.return_value = _artifact(
+        collection_id, status=ArtifactStatus.PENDING_DELETION
+    )
+    mock_get_collection.return_value = Mock(orbit_id=uuid7())
+
+    with pytest.raises(NotFoundError, match="Collection not found") as error:
+        await handler.create_deployment(uuid7(), uuid7(), orbit_id, data)
+
+    assert error.value.status_code == status.HTTP_404_NOT_FOUND
+    assert ArtifactStatus.PENDING_DELETION.value not in error.value.message
+    mock_create_deployment.assert_not_awaited()
+    mock_check_permissions.assert_awaited_once()

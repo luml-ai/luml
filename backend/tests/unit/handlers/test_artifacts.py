@@ -9,7 +9,9 @@ import pytest
 from luml.handlers.artifacts import ArtifactHandler
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactDeployedError,
     ArtifactNotFoundError,
+    ArtifactTrackedError,
     ArtifactTypeMismatchError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
@@ -1473,11 +1475,11 @@ async def test_request_download_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.update_status",
+    "luml.handlers.artifacts.ArtifactRepository.request_deletion",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1488,17 +1490,11 @@ async def test_request_download_url(
     "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
     new_callable=AsyncMock,
 )
-@patch(
-    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
-    new_callable=AsyncMock,
-    return_value=False,
-)
 @pytest.mark.asyncio
 async def test_request_delete_url(
-    mock_has_track_entries: AsyncMock,
     mock_get_storage_client: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
-    mock_update_status: AsyncMock,
+    mock_request_deletion: AsyncMock,
     mock_get_artifact: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
@@ -1556,6 +1552,7 @@ async def test_request_delete_url(
     mock_storage_client = AsyncMock()
     mock_storage_client.get_delete_url.return_value = "url"
     mock_get_storage_client.return_value = mock_storage_client
+    mock_request_deletion.return_value = artifact
 
     url = await handler.request_delete_url(
         user_id, organization_id, orbit_id, collection_id, artifact_id
@@ -1565,9 +1562,7 @@ async def test_request_delete_url(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.ARTIFACT, Action.DELETE, orbit_id
     )
-    mock_update_status.assert_awaited_once_with(
-        artifact_id, ArtifactStatus.PENDING_DELETION
-    )
+    mock_request_deletion.assert_awaited_once_with(artifact_id, collection_id)
     mock_get_storage_client.assert_awaited_once()
     mock_storage_client.get_delete_url.assert_awaited_once_with(
         artifact.bucket_location
@@ -1587,7 +1582,11 @@ async def test_request_delete_url(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.request_deletion",
     new_callable=AsyncMock,
 )
 @patch(
@@ -1602,6 +1601,7 @@ async def test_request_delete_url(
 async def test_request_delete_url_with_deployments(
     mock_get_storage_client: AsyncMock,
     mock_get_secret_or_raise: AsyncMock,
+    mock_request_deletion: AsyncMock,
     mock_get_artifact: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_collection: AsyncMock,
@@ -1676,6 +1676,7 @@ async def test_request_delete_url_with_deployments(
     mock_storage_client = AsyncMock()
     mock_storage_client.get_delete_url.return_value = "url"
     mock_get_storage_client.return_value = mock_storage_client
+    mock_request_deletion.side_effect = ArtifactDeployedError()
 
     with pytest.raises(ApplicationError) as error:
         await handler.request_delete_url(
@@ -1691,6 +1692,7 @@ async def test_request_delete_url_with_deployments(
         orbit_id,
     )
     mock_get_artifact.assert_awaited_once_with(artifact_id)
+    mock_request_deletion.assert_awaited_once_with(artifact_id, collection_id)
 
 
 @patch(
@@ -2366,7 +2368,7 @@ async def test_request_download_url_artifact_not_found(
 
 
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -2411,7 +2413,7 @@ async def test_request_delete_url_artifact_not_found(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -2422,14 +2424,8 @@ async def test_request_delete_url_artifact_not_found(
     "luml.handlers.artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
-@patch(
-    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
-    new_callable=AsyncMock,
-    return_value=False,
-)
 @pytest.mark.asyncio
 async def test_request_delete_url_orbit_not_found(
-    mock_has_track_entries: AsyncMock,
     mock_check_permission: AsyncMock,
     mock_check_orbit_and_collection_access: AsyncMock,
     mock_get_artifact: AsyncMock,
@@ -3361,29 +3357,94 @@ def _make_artifact(manifest: Manifest, collection_id: UUID) -> Artifact:
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.request_deletion",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_request_delete_url_blocked_by_tracks(
-    mock_has_entries: AsyncMock,
-    mock_get_details: AsyncMock,
+    mock_request_deletion: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_artifact: AsyncMock,
     mock_check_access: AsyncMock,
     mock_perms: AsyncMock,
 ) -> None:
     mock_check_access.return_value = None
-    mock_get_details.return_value = Mock(collection_id=_COLLECTION, deployments=None)
-    mock_has_entries.return_value = True
+    artifact = Mock(id=_ARTIFACT, collection_id=_COLLECTION, bucket_location="loc")
+    mock_get_artifact.return_value = artifact
+    mock_get_orbit_simple.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
+    mock_get_storage_client.return_value = AsyncMock(
+        get_delete_url=AsyncMock(return_value="url")
+    )
+    mock_request_deletion.side_effect = ArtifactTrackedError()
 
     with pytest.raises(
         ApplicationError, match="referenced by one or more tracks"
     ) as exc:
         await handler.request_delete_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
     assert exc.value.status_code == 409
+    mock_request_deletion.assert_awaited_once_with(_ARTIFACT, _COLLECTION)
+
+
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._check_orbit_and_collection_access",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactHandler._get_storage_client",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.request_deletion",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_request_delete_url_artifact_gone_before_lock(
+    mock_request_deletion: AsyncMock,
+    mock_get_storage_client: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_check_access: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    # The artifact was read, but a concurrent deletion removed it before the
+    # locked status change: the request answers 404, not a server error.
+    mock_check_access.return_value = None
+    mock_get_artifact.return_value = Mock(
+        id=_ARTIFACT, collection_id=_COLLECTION, bucket_location="loc"
+    )
+    mock_get_orbit_simple.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
+    mock_get_storage_client.return_value = AsyncMock(
+        get_delete_url=AsyncMock(return_value="url")
+    )
+    mock_request_deletion.return_value = None
+
+    with pytest.raises(ArtifactNotFoundError):
+        await handler.request_delete_url(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
 
 
 @patch(
@@ -3422,7 +3483,7 @@ async def test_request_download_url_rejects_artifact_from_another_collection(
 
 
 @patch(
-    "luml.handlers.artifacts.ArtifactRepository.update_status",
+    "luml.handlers.artifacts.ArtifactRepository.request_deletion",
     new_callable=AsyncMock,
 )
 @patch(
@@ -3434,12 +3495,7 @@ async def test_request_download_url_rejects_artifact_from_another_collection(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
-    new_callable=AsyncMock,
-    return_value=False,
-)
-@patch(
-    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact",
     new_callable=AsyncMock,
 )
 @patch(
@@ -3455,10 +3511,9 @@ async def test_request_delete_url_rejects_artifact_from_another_collection(
     mock_check_permissions: AsyncMock,
     mock_check_access: AsyncMock,
     mock_get_details: AsyncMock,
-    mock_has_entries: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_get_storage_client: AsyncMock,
-    mock_update_status: AsyncMock,
+    mock_request_deletion: AsyncMock,
 ) -> None:
     mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
     mock_get_orbit_simple.return_value = Mock(id=_ORBIT, bucket_secret_id=uuid7())
@@ -3474,7 +3529,7 @@ async def test_request_delete_url_rejects_artifact_from_another_collection(
 
     assert error.value.status_code == 404
     mock_get_storage_client.assert_not_awaited()
-    mock_update_status.assert_not_awaited()
+    mock_request_deletion.assert_not_awaited()
 
 
 @patch(

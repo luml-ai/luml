@@ -10,7 +10,6 @@ from luml.infra.exceptions import (
     EmailDeliveryError,
     InsufficientPermissionsError,
     NotFoundError,
-    OrganizationDeleteError,
     OrganizationInviteAlreadyExistsError,
     OrganizationInviteNotFoundError,
     OrganizationLimitReachedError,
@@ -18,6 +17,7 @@ from luml.infra.exceptions import (
     OrganizationMemberNotFoundError,
 )
 from luml.repositories.invites import InviteRepository
+from luml.repositories.limits import ORGANIZATION_MEMBERSHIP_LIMIT
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -48,7 +48,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __organization_membership_limit = 5
+    __organization_membership_limit = ORGANIZATION_MEMBERSHIP_LIMIT
 
     def _set_organizations_permissions(
         self, organizations: list[OrganizationSwitcher]
@@ -121,19 +121,8 @@ class OrganizationHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
         )
-        organization = await self.__user_repository.get_organization_details(
-            organization_id
-        )
-
-        if not organization:
+        if not await self.__user_repository.delete_organization(organization_id):
             raise NotFoundError("Organization not found")
-
-        if len(organization.members) > 1:
-            raise OrganizationDeleteError(
-                "Organization has members and cant be deleted"
-            )
-
-        return await self.__user_repository.delete_organization(organization_id)
 
     async def leave_from_organization(
         self, user_id: UUID, organization_id: UUID

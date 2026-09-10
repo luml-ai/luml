@@ -1,18 +1,33 @@
 import time
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 
 from luml.models import TokenBlackListOrm
 from luml.repositories.base import RepositoryBase
 
 
 class TokenBlackListRepository(RepositoryBase):
-    async def add_token(self, token: str, expire_at: int) -> None:
+    async def add_token(self, token: str, expire_at: int) -> bool:
         async with self._get_session() as session:
-            token_black_list = TokenBlackListOrm(token=token, expire_at=expire_at)
-            session.add(token_black_list)
-            await session.commit()
+            session.add(TokenBlackListOrm(token=token, expire_at=expire_at))
+            try:
+                await session.commit()
+            except IntegrityError:
+                await session.rollback()
+                await session.execute(
+                    update(TokenBlackListOrm)
+                    .where(TokenBlackListOrm.token == token)
+                    .values(
+                        expire_at=func.greatest(TokenBlackListOrm.expire_at, expire_at)
+                    )
+                )
+                await session.commit()
+                added = False
+            else:
+                added = True
         await self.delete_expired_tokens()
+        return added
 
     async def is_token_blacklisted(self, token: str) -> bool:
         async with self._get_session() as session:

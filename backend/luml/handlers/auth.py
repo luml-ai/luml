@@ -185,18 +185,16 @@ class AuthHandler:
             if email is None:
                 raise AuthError("Invalid token", 400)
 
-            if await self.__token_black_list_repository.is_token_blacklisted(
-                refresh_token
-            ):
-                raise AuthError("Token has been revoked", 400)
-
             service_user = await self.__user_repository.get_user(email)
             if service_user is None:
                 raise AuthError("User not found", 404)
 
             exp = int(payload.get("exp"))
 
-            await self.__token_black_list_repository.add_token(refresh_token, exp)
+            if not await self.__token_black_list_repository.add_token(
+                refresh_token, exp
+            ):
+                raise AuthError("Token has been revoked", 400)
 
             return self._create_tokens(service_user.email)
 
@@ -240,21 +238,24 @@ class AuthHandler:
             payload = jwt.decode(
                 refresh_token, self.secret_key, algorithms=[self.algorithm]
             )
-            exp = payload.get("exp")
+            refresh_exp = payload.get("exp")
 
             if access_token:
                 try:
                     access_payload = jwt.decode(
                         access_token, self.secret_key, algorithms=[self.algorithm]
                     )
-                    exp = access_payload.get("exp")
                     await self.__token_black_list_repository.add_token(
-                        access_token, exp
+                        access_token, access_payload.get("exp")
                     )
                 except InvalidTokenError:
                     pass
 
-            await self.__token_black_list_repository.add_token(refresh_token, exp)
+            # Each token is blacklisted for its own lifetime: the refresh token
+            # outlives the access token and must stay revoked until it expires.
+            await self.__token_black_list_repository.add_token(
+                refresh_token, refresh_exp
+            )
 
         except InvalidTokenError as err:
             raise AuthError("Invalid refresh token", 400) from err

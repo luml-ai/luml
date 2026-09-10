@@ -7,8 +7,8 @@ from luml.handlers.lineage import LineageHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
-    ApplicationError,
     ArtifactNotFoundError,
+    ArtifactTrackedError,
     ArtifactTypeMismatchError,
     BucketSecretNotFoundError,
     CollectionNotFoundError,
@@ -144,11 +144,7 @@ class ArtifactHandler:
             raise ArtifactNotFoundError()
 
         if await self.__track_entry_repository.has_entries_for_artifact(artifact_id):
-            raise ApplicationError(
-                "Artifact is referenced by one or more tracks. "
-                "Remove it from all tracks before deleting.",
-                409,
-            )
+            raise ArtifactTrackedError()
 
         return artifact
 
@@ -389,21 +385,9 @@ class ArtifactHandler:
         await self._check_orbit_and_collection_access(
             organization_id, orbit_id, collection_id
         )
-        artifact = await self.__repository.get_artifact_details(artifact_id)
+        artifact = await self.__repository.get_artifact(artifact_id)
         if not artifact or artifact.collection_id != collection_id:
             raise ArtifactNotFoundError()
-
-        if artifact.deployments:
-            raise ApplicationError(
-                "Cannot delete artifact because it is used in deployments.", 409
-            )
-
-        if await self.__track_entry_repository.has_entries_for_artifact(artifact_id):
-            raise ApplicationError(
-                "Artifact is referenced by one or more tracks. "
-                "Remove it from all tracks before deleting.",
-                409,
-            )
 
         orbit = await self.__orbit_repository.get_orbit_simple(
             orbit_id, organization_id
@@ -413,9 +397,9 @@ class ArtifactHandler:
 
         storage_service = await self._get_storage_client(orbit.bucket_secret_id)
         url = await storage_service.get_delete_url(artifact.bucket_location)
-        await self.__repository.update_status(
-            artifact_id, ArtifactStatus.PENDING_DELETION
-        )
+
+        if await self.__repository.request_deletion(artifact_id, collection_id) is None:
+            raise ArtifactNotFoundError()
         return url
 
     async def request_satellite_download_url(
