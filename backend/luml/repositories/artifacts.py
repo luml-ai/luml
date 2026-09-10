@@ -4,16 +4,28 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
-from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
+from luml.infra.exceptions import (
+    ArtifactDeployedError,
+    ArtifactTrackedError,
+    CollectionNotFoundError,
+    DatabaseConstraintError,
+    InvalidSortingError,
+)
 from luml.models import (
     ArtifactOrm,
     CollectionOrm,
     DeploymentOrm,
+    OrbitOrm,
     TrackArtifactOrm,
 )
-from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.repositories.base import (
+    CrudMixin,
+    RepositoryBase,
+    is_foreign_key_violation,
+)
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreate,
@@ -30,8 +42,73 @@ from luml.schemas.general import Cursor, PaginationParams
 class ArtifactRepository(RepositoryBase, CrudMixin):
     async def create_artifact(self, artifact: ArtifactCreate) -> Artifact:
         async with self._get_session() as session:
-            db_artifact = await self.create_model(session, ArtifactOrm, artifact)
+            organization_id = await session.scalar(
+                select(OrbitOrm.organization_id)
+                .join(CollectionOrm, CollectionOrm.orbit_id == OrbitOrm.id)
+                .where(CollectionOrm.id == artifact.collection_id)
+            )
+            if organization_id is None:
+                raise CollectionNotFoundError()
+            await reserve_organization_slot(
+                session, organization_id, OrganizationResource.ARTIFACTS
+            )
+            try:
+                db_artifact = await self.create_model(session, ArtifactOrm, artifact)
+            except IntegrityError as error:
+                if is_foreign_key_violation(error):
+                    raise CollectionNotFoundError() from error
+                raise DatabaseConstraintError("Cannot create artifact.") from error
             return db_artifact.to_artifact()
+
+    async def request_deletion(
+        self, artifact_id: UUID, collection_id: UUID
+    ) -> Artifact | None:
+        """Move the artifact to ``pending_deletion``, or refuse.
+
+        The row is locked while deployments and track links are checked, so a
+        deployment created concurrently is either seen here or waits and then
+        finds the artifact already in ``pending_deletion``. Raises
+        ``ArtifactDeployedError`` / ``ArtifactTrackedError`` (409) when the
+        artifact is referenced; returns ``None`` when it does not exist in the
+        collection.
+        """
+        async with self._get_session() as session:
+            result = await session.execute(
+                select(ArtifactOrm)
+                .where(
+                    ArtifactOrm.id == artifact_id,
+                    ArtifactOrm.collection_id == collection_id,
+                )
+                .options(
+                    noload(ArtifactOrm.collection),
+                    noload(ArtifactOrm.deployments),
+                )
+                .with_for_update()
+            )
+            artifact = result.scalar_one_or_none()
+            if artifact is None:
+                return None
+
+            deployments = await session.scalar(
+                select(func.count())
+                .select_from(DeploymentOrm)
+                .where(DeploymentOrm.artifact_id == artifact_id)
+            )
+            if deployments:
+                raise ArtifactDeployedError()
+
+            track_links = await session.scalar(
+                select(func.count())
+                .select_from(TrackArtifactOrm)
+                .where(TrackArtifactOrm.artifact_id == artifact_id)
+            )
+            if track_links:
+                raise ArtifactTrackedError()
+
+            artifact.status = ArtifactStatus.PENDING_DELETION.value
+            record = artifact.to_artifact()
+            await session.commit()
+            return record
 
     async def update_status(
         self, artifact_id: UUID, status: ArtifactStatus
@@ -48,11 +125,6 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
     async def delete_artifact(
         self, artifact_id: UUID, session: AsyncSession | None = None
     ) -> None:
-        """Delete the artifact row.
-
-        With a caller ``session`` the delete is only flushed: it is committed
-        or rolled back together with the rest of the caller's transaction.
-        """
         try:
             if session is not None:
                 artifact = await session.get(ArtifactOrm, artifact_id)

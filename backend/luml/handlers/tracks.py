@@ -10,12 +10,14 @@ from luml.infra.exceptions import (
     NotFoundError,
 )
 from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.base import is_foreign_key_violation, violates
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.tracks import (
     TrackEntryRepository,
     TrackRepository,
     TrackStageRepository,
+    stage_sync_error,
 )
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
@@ -96,11 +98,7 @@ class TracksHandler:
                 track_create, stage_names=track_in.stages
             )
         except IntegrityError as error:
-            if "uq_track_stages_track_id_name" in str(error):
-                raise ApplicationError(
-                    "Duplicate stage names are not allowed.", 409
-                ) from error
-            raise
+            raise stage_sync_error(error) from error
 
         return track
 
@@ -220,11 +218,7 @@ class TracksHandler:
                 stages=track_in.stages,
             )
         except IntegrityError as error:
-            if "uq_track_stages_track_id_name" in str(error):
-                raise ApplicationError(
-                    "Duplicate stage names are not allowed.", 409
-                ) from error
-            raise
+            raise stage_sync_error(error) from error
 
         if not updated:
             raise NotFoundError("Track not found")
@@ -254,6 +248,24 @@ class TracksHandler:
         if not track:
             raise NotFoundError("Track not found")
         await self.__track_repository.delete_track(track_id)
+
+    @staticmethod
+    def _entry_write_error(
+        error: IntegrityError, stage: Stage | None
+    ) -> ApplicationError:
+        """Translate a refused entry write by the rule the database enforced.
+
+        The pre-checks above run without a lock, so a concurrent writer can win
+        in between: the stage got taken, the stage got deleted, or the artifact
+        got linked. The constraint names which one it was.
+        """
+        if stage is not None and violates(error, "uq_track_entries_track_id_stage_id"):
+            return ApplicationError(
+                f"Stage '{stage.name}' is already assigned to another entry.", 409
+            )
+        if is_foreign_key_violation(error):
+            return ApplicationError("Stage does not belong to this track.", 422)
+        return ApplicationError("Artifact is already an entry in this track.", 409)
 
     async def create_entry(
         self,
@@ -292,6 +304,7 @@ class TracksHandler:
                 "Artifact must belong to the same orbit as the track.", 422
             )
 
+        stage: Stage | None = None
         if entry_in.stage_id is not None:
             stage = await self.__stage_repository.get_stage(entry_in.stage_id)
             if not stage or stage.track_id != track_id:
@@ -315,9 +328,7 @@ class TracksHandler:
         try:
             return await self.__entry_repository.create_entry(entry_create)
         except IntegrityError as error:
-            raise ApplicationError(
-                "Artifact is already an entry in this track.", 409
-            ) from error
+            raise self._entry_write_error(error, stage) from error
 
     async def get_entry(
         self,
@@ -445,6 +456,7 @@ class TracksHandler:
         if not entry or entry.track_id != track_id:
             raise NotFoundError("Entry not found")
 
+        stage: Stage | None = None
         if entry_in.stage_id is not None:
             stage = await self.__stage_repository.get_stage(entry_in.stage_id)
             if not stage or stage.track_id != track_id:
@@ -462,9 +474,12 @@ class TracksHandler:
                 )
 
         update_data = TrackEntryUpdate(stage_id=entry_in.stage_id)
-        updated = await self.__entry_repository.update_entry(
-            entry_id, update_data, force=force
-        )
+        try:
+            updated = await self.__entry_repository.update_entry(
+                entry_id, update_data, force=force
+            )
+        except IntegrityError as error:
+            raise self._entry_write_error(error, stage) from error
         if not updated:
             raise NotFoundError("Entry not found")
         return updated
@@ -636,7 +651,5 @@ class TracksHandler:
                 "Use force to delete and unassign.",
                 409,
             )
-        if in_use:
-            await self.__stage_repository.clear_stage_from_entries(track_id, stage_id)
 
-        await self.__stage_repository.delete_stage(stage_id)
+        await self.__stage_repository.delete_stage(stage_id, unassign=force)

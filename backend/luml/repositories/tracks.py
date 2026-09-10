@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from luml.infra.exceptions import ApplicationError
 from luml.models.artifacts import ArtifactOrm
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
-from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.repositories.base import CrudMixin, RepositoryBase, violates
 from luml.schemas.general import Cursor, PaginationParams
 from luml.schemas.track_base import TrackBase
 from luml.schemas.tracks import (
@@ -32,6 +32,16 @@ from luml.schemas.tracks import (
     TrackEntryUpdate,
     TrackUpdate,
 )
+
+
+def stage_sync_error(error: IntegrityError) -> ApplicationError | IntegrityError:
+    if violates(error, "fk_track_entries_stage_id_track_stages"):
+        return ApplicationError(
+            "Cannot remove stages that are assigned to a version.", 409
+        )
+    if violates(error, "uq_track_stages_track_id_name"):
+        return ApplicationError("Duplicate stage names are not allowed.", 409)
+    return error
 
 
 class TrackRepository(RepositoryBase, CrudMixin):
@@ -176,9 +186,26 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
             db_stage = await self.get_model(session, TrackStageOrm, stage_id)
             return Stage.model_validate(db_stage) if db_stage else None
 
-    async def delete_stage(self, stage_id: UUID) -> None:
+    async def delete_stage(self, stage_id: UUID, *, unassign: bool = False) -> None:
         async with self._get_session() as session:
-            await self.delete_model(session, TrackStageOrm, stage_id)
+            if unassign:
+                await session.execute(
+                    update(TrackArtifactOrm)
+                    .where(TrackArtifactOrm.stage_id == stage_id)
+                    .values(stage_id=None)
+                )
+            db_stage = await session.get(TrackStageOrm, stage_id)
+            if db_stage is None:
+                return
+            await session.delete(db_stage)
+            try:
+                await session.commit()
+            except IntegrityError as error:
+                raise ApplicationError(
+                    "Stage is currently assigned to an entry. "
+                    "Use force to delete and unassign.",
+                    409,
+                ) from error
 
     async def clear_stage_from_entries(self, track_id: UUID, stage_id: UUID) -> None:
         async with self._get_session() as session:
@@ -253,9 +280,7 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
             try:
                 await session.commit()
             except IntegrityError as error:
-                raise ApplicationError(
-                    "Duplicate stage names are not allowed.", 409
-                ) from error
+                raise stage_sync_error(error) from error
 
 
 class TrackEntryRepository(RepositoryBase, CrudMixin):

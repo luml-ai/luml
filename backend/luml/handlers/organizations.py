@@ -10,7 +10,6 @@ from luml.infra.exceptions import (
     EmailDeliveryError,
     InsufficientPermissionsError,
     NotFoundError,
-    OrganizationDeleteError,
     OrganizationInviteAlreadyExistsError,
     OrganizationInviteNotFoundError,
     OrganizationLimitReachedError,
@@ -90,7 +89,11 @@ class OrganizationHandler:
     ) -> Organization:
         await self._organization_membership_limit_check(user_id)
 
-        db_org = await self.__user_repository.create_organization(user_id, organization)
+        db_org = await self.__user_repository.create_organization(
+            user_id,
+            organization,
+            membership_limit=self.__organization_membership_limit,
+        )
         return db_org.to_organization()
 
     async def update_organization(
@@ -121,19 +124,8 @@ class OrganizationHandler:
         await self.__permissions_handler.check_permissions(
             organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
         )
-        organization = await self.__user_repository.get_organization_details(
-            organization_id
-        )
-
-        if not organization:
+        if not await self.__user_repository.delete_organization(organization_id):
             raise NotFoundError("Organization not found")
-
-        if len(organization.members) > 1:
-            raise OrganizationDeleteError(
-                "Organization has members and cant be deleted"
-            )
-
-        return await self.__user_repository.delete_organization(organization_id)
 
     async def leave_from_organization(
         self, user_id: UUID, organization_id: UUID
@@ -260,7 +252,8 @@ class OrganizationHandler:
                     user_id=user_id,
                     organization_id=invite.organization_id,
                     role=invite.role,
-                )
+                ),
+                membership_limit=self.__organization_membership_limit,
             )
         except DatabaseConstraintError as error:
             raise OrganizationMemberAlreadyExistsError() from error

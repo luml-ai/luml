@@ -492,17 +492,12 @@ async def test_delete_collection_empty(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.collections.ArtifactRepository.get_collection_artifacts_count",
-    new_callable=AsyncMock,
-)
-@patch(
     "luml.handlers.collections.CollectionRepository.delete_collection",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_collection_not_empty(
     mock_delete: AsyncMock,
-    mock_get_count: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
     mock_check_permissions: AsyncMock,
@@ -535,7 +530,9 @@ async def test_delete_collection_not_empty(
         created_at=datetime.now(),
         updated_at=None,
     )
-    mock_get_count.return_value = 1
+    mock_delete.side_effect = CollectionDeleteError(
+        "Collection has artifacts and cant be deleted"
+    )
     mock_get_orbit_simple.return_value = Mock(organization_id=organization_id)
 
     with pytest.raises(CollectionDeleteError, match="cant be deleted"):
@@ -543,7 +540,7 @@ async def test_delete_collection_not_empty(
             user_id, organization_id, orbit_id, collection_id
         )
 
-    mock_delete.assert_not_called()
+    mock_delete.assert_awaited_once_with(collection_id, orbit_id)
     mock_check_permissions.assert_awaited_once_with(
         organization_id,
         user_id,

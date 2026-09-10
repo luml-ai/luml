@@ -189,6 +189,32 @@ class ArtifactNotFoundError(ApplicationError):
         super().__init__(message, status.HTTP_404_NOT_FOUND)
 
 
+class ArtifactInUseError(ApplicationError):
+    """The artifact is referenced and cannot be deleted."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, status.HTTP_409_CONFLICT)
+
+
+class ArtifactDeployedError(ArtifactInUseError):
+    def __init__(
+        self,
+        message: str = "Cannot delete artifact because it is used in deployments.",
+    ) -> None:
+        super().__init__(message)
+
+
+class ArtifactTrackedError(ArtifactInUseError):
+    def __init__(
+        self,
+        message: str = (
+            "Artifact is referenced by one or more tracks. "
+            "Remove it from all tracks before deleting."
+        ),
+    ) -> None:
+        super().__init__(message)
+
+
 class ArtifactTypeMismatchError(ApplicationError):
     def __init__(
         self,

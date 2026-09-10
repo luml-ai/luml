@@ -2,7 +2,7 @@ from uuid import UUID
 
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
-from luml.infra.exceptions import CollectionDeleteError, NotFoundError
+from luml.infra.exceptions import NotFoundError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
@@ -225,11 +225,5 @@ class CollectionHandler:
         collection = await self.__repository.get_collection(collection_id)
         if not collection or collection.orbit_id != orbit_id:
             raise NotFoundError("Collection not found")
-        artifacts_count = (
-            await self.__artifacts_repository.get_collection_artifacts_count(
-                collection_id
-            )
-        )
-        if artifacts_count:
-            raise CollectionDeleteError("Collection has artifacts and cant be deleted")
-        await self.__repository.delete_collection(collection_id, orbit_id)
+        if not await self.__repository.delete_collection(collection_id, orbit_id):
+            raise NotFoundError("Collection not found")

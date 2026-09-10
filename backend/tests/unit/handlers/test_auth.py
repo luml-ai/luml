@@ -2,7 +2,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from time import time
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, patch
 
 import jwt
 import pytest
@@ -382,15 +382,10 @@ async def test_handle_signin(
 @patch("luml.handlers.auth.jwt.decode")
 @patch.object(AuthHandler, "_create_tokens", new_callable=MagicMock)
 @patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
-@patch(
-    "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
-    new_callable=AsyncMock,
-)
 @patch("luml.handlers.auth.TokenBlackListRepository.add_token", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_refresh_token(
     mock_add_token: AsyncMock,
-    mock_is_token_blacklisted: AsyncMock,
     mock_get_user: AsyncMock,
     mock_create_tokens: MagicMock,
     mock_jwt_decode: MagicMock,
@@ -405,7 +400,7 @@ async def test_handle_refresh_token(
         "type": "refresh",
         "exp": int(time()) + 300,
     }
-    mock_is_token_blacklisted.return_value = False
+    mock_add_token.return_value = True
     mock_get_user.return_value = user
     mock_create_tokens.return_value = tokens
 
@@ -414,9 +409,8 @@ async def test_handle_refresh_token(
     result = await handler.handle_refresh_token(tokens.refresh_token)
 
     assert result == tokens
-    mock_is_token_blacklisted.assert_awaited_once_with(tokens.refresh_token)
     mock_get_user.assert_awaited_once_with(user.email)
-    mock_add_token.assert_awaited_once()
+    mock_add_token.assert_awaited_once_with(tokens.refresh_token, ANY)
     mock_create_tokens.assert_called_once_with(user.email)
 
 
@@ -464,13 +458,12 @@ async def test_handle_refresh_token_email_is_none(
 
 
 @patch("luml.handlers.auth.jwt.decode")
-@patch(
-    "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
-    new_callable=AsyncMock,
-)
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.TokenBlackListRepository.add_token", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_refresh_token_has_been_revoked(
-    mock_is_token_blacklisted: AsyncMock,
+    mock_add_token: AsyncMock,
+    mock_get_user: AsyncMock,
     mock_jwt_decode: MagicMock,
     test_user_create: CreateUser,
     get_tokens: Token,
@@ -483,7 +476,9 @@ async def test_handle_refresh_token_has_been_revoked(
         "type": "refresh",
         "exp": int(time()) + 300,
     }
-    mock_is_token_blacklisted.return_value = True
+    # A concurrent refresh already revoked the token: revoking it again fails.
+    mock_add_token.return_value = False
+    mock_get_user.return_value = Mock(email=user.email)
 
     assert tokens.refresh_token
 
@@ -491,18 +486,13 @@ async def test_handle_refresh_token_has_been_revoked(
         await handler.handle_refresh_token(tokens.refresh_token)
 
     assert error.value.status_code == 400
-    mock_is_token_blacklisted.assert_awaited_once_with(tokens.refresh_token)
+    mock_add_token.assert_awaited_once_with(tokens.refresh_token, ANY)
 
 
 @patch("luml.handlers.auth.jwt.decode")
 @patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
-@patch(
-    "luml.handlers.auth.TokenBlackListRepository.is_token_blacklisted",
-    new_callable=AsyncMock,
-)
 @pytest.mark.asyncio
 async def test_handle_refresh_token_user_not_found(
-    mock_is_token_blacklisted: AsyncMock,
     mock_get_user: AsyncMock,
     mock_jwt_decode: MagicMock,
     test_user: User,
@@ -516,7 +506,6 @@ async def test_handle_refresh_token_user_not_found(
         "type": "refresh",
         "exp": int(time()) + 300,
     }
-    mock_is_token_blacklisted.return_value = False
     mock_get_user.return_value = None
 
     assert tokens.refresh_token
@@ -525,7 +514,6 @@ async def test_handle_refresh_token_user_not_found(
         await handler.handle_refresh_token(tokens.refresh_token)
 
     assert error.value.status_code == 404
-    mock_is_token_blacklisted.assert_awaited_once_with(tokens.refresh_token)
     mock_get_user.assert_awaited_once_with(user.email)
 
 

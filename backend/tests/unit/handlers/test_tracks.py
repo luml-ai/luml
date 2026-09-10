@@ -1403,7 +1403,7 @@ async def test_delete_stage_not_in_use(
 
     await tracks_handler.delete_stage(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID)
 
-    mock_delete.assert_awaited_once_with(STAGE_ID)
+    mock_delete.assert_awaited_once_with(STAGE_ID, unassign=False)
 
 
 @patch(
@@ -1445,17 +1445,12 @@ async def test_delete_stage_in_use_no_force(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.tracks.TrackStageRepository.clear_stage_from_entries",
-    new_callable=AsyncMock,
-)
-@patch(
     "luml.handlers.tracks.TrackStageRepository.delete_stage",
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
 async def test_delete_stage_in_use_with_force(
     mock_delete: AsyncMock,
-    mock_clear: AsyncMock,
     mock_in_use: AsyncMock,
     mock_get_track: AsyncMock,
     mock_perms: AsyncMock,
@@ -1467,8 +1462,7 @@ async def test_delete_stage_in_use_with_force(
         USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID, force=True
     )
 
-    mock_clear.assert_awaited_once_with(TRACK_ID, STAGE_ID)
-    mock_delete.assert_awaited_once_with(STAGE_ID)
+    mock_delete.assert_awaited_once_with(STAGE_ID, unassign=True)
 
 
 # ---- Artifact deletion blocked by tracks ----
@@ -2108,3 +2102,138 @@ async def test_update_track_stage_sync_conflict_propagates(
     with pytest.raises(ApplicationError) as exc:
         await tracks_handler.update_track(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, data)
     assert exc.value.status_code == 409
+
+
+# ---- Entry writes refused by the database after the pre-checks passed ----
+
+
+class _DriverError(Exception):
+    """Stand-in for the asyncpg error SQLAlchemy wraps in ``IntegrityError``."""
+
+    def __init__(
+        self, constraint_name: str | None = None, sqlstate: str | None = None
+    ) -> None:
+        super().__init__("driver error")
+        self.constraint_name = constraint_name
+        self.sqlstate = sqlstate
+
+
+def _integrity_error(
+    constraint_name: str | None = None, sqlstate: str | None = None
+) -> IntegrityError:
+    return IntegrityError("", {}, _DriverError(constraint_name, sqlstate))
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.TrackEntryRepository.get_entry_by_stage",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        (
+            _integrity_error(constraint_name="uq_track_entries_track_id_stage_id"),
+            409,
+            "already assigned to another entry",
+        ),
+        (_integrity_error(sqlstate="23503"), 422, "does not belong to this track"),
+        (
+            _integrity_error(constraint_name="uq_track_entries_track_id_artifact_id"),
+            409,
+            "already an entry in this track",
+        ),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_entry_loses_race_after_pre_checks(
+    mock_create: AsyncMock,
+    mock_by_stage: AsyncMock,
+    mock_get_stage: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+    error: IntegrityError,
+    status: int,
+    message: str,
+) -> None:
+    # The stage was free when checked; the database then refused the write
+    # because a concurrent writer took the stage, deleted it, or linked the
+    # artifact first.
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_stage.return_value = _make_stage(name="Production")
+    mock_by_stage.return_value = None
+    mock_create.side_effect = error
+
+    with pytest.raises(ApplicationError, match=message) as exc:
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
+        )
+    assert exc.value.status_code == status
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.get_entry", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.TrackEntryRepository.get_entry_by_stage",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.update_entry", new_callable=AsyncMock)
+@pytest.mark.parametrize(
+    ("error", "status", "message"),
+    [
+        (
+            _integrity_error(constraint_name="uq_track_entries_track_id_stage_id"),
+            409,
+            "already assigned to another entry",
+        ),
+        (_integrity_error(sqlstate="23503"), 422, "does not belong to this track"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_update_entry_loses_race_after_pre_checks(
+    mock_update: AsyncMock,
+    mock_by_stage: AsyncMock,
+    mock_get_stage: AsyncMock,
+    mock_get_entry: AsyncMock,
+    mock_perms: AsyncMock,
+    error: IntegrityError,
+    status: int,
+    message: str,
+) -> None:
+    mock_get_entry.return_value = _make_entry()
+    mock_get_stage.return_value = _make_stage(name="Production")
+    mock_by_stage.return_value = None
+    mock_update.side_effect = error
+
+    with pytest.raises(ApplicationError, match=message) as exc:
+        await tracks_handler.update_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            ENTRY_ID,
+            TrackEntryUpdateIn(stage_id=STAGE_ID),
+        )
+    assert exc.value.status_code == status

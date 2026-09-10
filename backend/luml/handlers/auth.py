@@ -185,18 +185,16 @@ class AuthHandler:
             if email is None:
                 raise AuthError("Invalid token", 400)
 
-            if await self.__token_black_list_repository.is_token_blacklisted(
-                refresh_token
-            ):
-                raise AuthError("Token has been revoked", 400)
-
             service_user = await self.__user_repository.get_user(email)
             if service_user is None:
                 raise AuthError("User not found", 404)
 
             exp = int(payload.get("exp"))
 
-            await self.__token_black_list_repository.add_token(refresh_token, exp)
+            if not await self.__token_black_list_repository.add_token(
+                refresh_token, exp
+            ):
+                raise AuthError("Token has been revoked", 400)
 
             return self._create_tokens(service_user.email)
 

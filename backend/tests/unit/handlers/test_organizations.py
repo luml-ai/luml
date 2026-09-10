@@ -6,6 +6,7 @@ from luml.handlers.organizations import OrganizationHandler
 from luml.infra.exceptions import (
     InsufficientPermissionsError,
     NotFoundError,
+    OrganizationDeleteError,
     OrganizationLimitReachedError,
 )
 from luml.models import OrganizationOrm
@@ -175,7 +176,9 @@ async def test_create_organization(
 
     assert actual
     assert actual == expected
-    mock_create_organization.assert_awaited_once_with(user_id, org_to_create)
+    mock_create_organization.assert_awaited_once_with(
+        user_id, org_to_create, membership_limit=5
+    )
 
 
 @patch(
@@ -261,22 +264,15 @@ async def test_update_organization_not_found(
     "luml.handlers.organizations.UserRepository.delete_organization",
     new_callable=AsyncMock,
 )
-@patch(
-    "luml.handlers.organizations.UserRepository.get_organization_details",
-    new_callable=AsyncMock,
-)
 @pytest.mark.asyncio
 async def test_delete_organization(
-    mock_get_organization_details: AsyncMock,
     mock_delete_organization: AsyncMock,
     mock_check_permissions: AsyncMock,
-    test_org_details: OrganizationDetails,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 
-    mock_delete_organization.return_value = None
-    mock_get_organization_details.return_value = test_org_details
+    mock_delete_organization.return_value = True
 
     await handler.delete_organization(user_id, organization_id)
 
@@ -284,6 +280,54 @@ async def test_delete_organization(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.ORGANIZATION, Action.DELETE
     )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.delete_organization",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_organization_not_found(
+    mock_delete_organization: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+
+    mock_delete_organization.return_value = False
+
+    with pytest.raises(NotFoundError, match="Organization not found"):
+        await handler.delete_organization(user_id, organization_id)
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.delete_organization",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_delete_organization_with_members(
+    mock_delete_organization: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    # The repository decides under the organization row lock; its refusal
+    # reaches the caller unchanged.
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+
+    mock_delete_organization.side_effect = OrganizationDeleteError(
+        "Organization has members and cant be deleted"
+    )
+
+    with pytest.raises(OrganizationDeleteError, match="has members"):
+        await handler.delete_organization(user_id, organization_id)
 
 
 @patch(
