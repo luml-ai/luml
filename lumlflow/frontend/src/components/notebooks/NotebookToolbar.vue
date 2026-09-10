@@ -1,10 +1,7 @@
 <template>
   <div class="toolbar">
     <div class="toolbar-left">
-      <Button variant="text">
-        <Plus :size="14" />
-        New cell
-      </Button>
+      <NotebookCellCreator />
       <Button variant="text" severity="secondary">
         <Terminal :size="14" />
         Scratch
@@ -24,8 +21,9 @@
 </template>
 
 <script setup lang="ts">
-import { Pause, Play, Plus, Terminal } from 'lucide-vue-next'
+import { Pause, Play, Terminal } from 'lucide-vue-next'
 import { Button } from 'primevue'
+import NotebookCellCreator from '@/components/notebooks/cell/NotebookCellCreator.vue'
 </script>
 
 <style scoped>

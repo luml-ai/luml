@@ -28,6 +28,18 @@ export const CELL_STATE_ICONS: Record<CellStaleState, LucideIcon> = {
 
 export const CELL_NAME_UNSAFE = /[\x00-\x1f\x7f/\\:*?"<>|]/
 
+export const CELL_NAME_INVALID_MESSAGE =
+  'Name cannot start with a dot, contain ".." or invalid characters'
+
+export function isValidCellName(name: string): boolean {
+  if (!name) return false
+  if (name.startsWith('.')) return false
+  if (name.includes('..')) return false
+  if (CELL_NAME_UNSAFE.test(name)) return false
+
+  return true
+}
+
 export const CELL_HEADER_MENU_PT: MenuPassThroughOptions = {
   root: {
     style: 'background-color: var(--p-card-background);',

@@ -259,6 +259,16 @@ export const useFlowStore = defineStore('flow', () => {
     return created.slug
   }
 
+  async function createCell(name: string): Promise<string> {
+    const created = await workspaceApi.newCell({
+      slug: name,
+      flow: currentFlow.value ?? undefined,
+      branch: currentBranch.value?.branch,
+    })
+    await fetchCells()
+    return created.slug
+  }
+
   async function deleteCell(slug: string) {
     await workspaceApi.deleteCell(slug, currentFlow.value ?? undefined, currentBranch.value?.branch)
     if (selectedCellId.value === slug) selectedCellId.value = null
@@ -313,6 +323,7 @@ export const useFlowStore = defineStore('flow', () => {
     fetchCellSource,
     duplicateCell,
     addCellDownstream,
+    createCell,
     deleteCell,
     journal,
     currentBranchActivities,
