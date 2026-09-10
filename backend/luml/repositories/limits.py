@@ -23,6 +23,8 @@ class OrganizationResource(StrEnum):
     MEMBERS = "members"
 
 
+ORGANIZATION_MEMBERSHIP_LIMIT = 5
+
 MEMBERSHIP_LIMIT_MESSAGE = (
     "You’ve reached the limit of organizations you can join or create"
 )

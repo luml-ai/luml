@@ -2147,7 +2147,21 @@ def _integrity_error(
             409,
             "already assigned to another entry",
         ),
-        (_integrity_error(sqlstate="23503"), 422, "does not belong to this track"),
+        (
+            _integrity_error("fk_track_entries_stage_id_track_stages", "23503"),
+            422,
+            "does not belong to this track",
+        ),
+        (
+            _integrity_error("track_entries_artifact_id_fkey", "23503"),
+            404,
+            "Artifact not found",
+        ),
+        (
+            _integrity_error("track_entries_track_id_fkey", "23503"),
+            404,
+            "Track not found",
+        ),
         (
             _integrity_error(constraint_name="uq_track_entries_track_id_artifact_id"),
             409,
@@ -2208,7 +2222,11 @@ async def test_create_entry_loses_race_after_pre_checks(
             409,
             "already assigned to another entry",
         ),
-        (_integrity_error(sqlstate="23503"), 422, "does not belong to this track"),
+        (
+            _integrity_error("fk_track_entries_stage_id_track_stages", "23503"),
+            422,
+            "does not belong to this track",
+        ),
     ],
 )
 @pytest.mark.asyncio
@@ -2237,3 +2255,38 @@ async def test_update_entry_loses_race_after_pre_checks(
             TrackEntryUpdateIn(stage_id=STAGE_ID),
         )
     assert exc.value.status_code == status
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@pytest.mark.asyncio
+async def test_create_entry_propagates_unknown_foreign_key_failures(
+    mock_create: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    # A foreign key the handler does not know (here the added_by user) is not
+    # reported as a stage problem; it surfaces unchanged.
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_create.side_effect = _integrity_error("track_entries_added_by_fkey", "23503")
+
+    with pytest.raises(IntegrityError):
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID),
+        )

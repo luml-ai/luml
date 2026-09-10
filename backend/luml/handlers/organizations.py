@@ -17,6 +17,7 @@ from luml.infra.exceptions import (
     OrganizationMemberNotFoundError,
 )
 from luml.repositories.invites import InviteRepository
+from luml.repositories.limits import ORGANIZATION_MEMBERSHIP_LIMIT
 from luml.repositories.users import UserRepository
 from luml.schemas.organization import (
     CreateOrganizationInvite,
@@ -47,7 +48,7 @@ class OrganizationHandler:
     __user_repository = UserRepository(engine)
     __permissions_handler = PermissionsHandler()
 
-    __organization_membership_limit = 5
+    __organization_membership_limit = ORGANIZATION_MEMBERSHIP_LIMIT
 
     def _set_organizations_permissions(
         self, organizations: list[OrganizationSwitcher]
@@ -89,11 +90,7 @@ class OrganizationHandler:
     ) -> Organization:
         await self._organization_membership_limit_check(user_id)
 
-        db_org = await self.__user_repository.create_organization(
-            user_id,
-            organization,
-            membership_limit=self.__organization_membership_limit,
-        )
+        db_org = await self.__user_repository.create_organization(user_id, organization)
         return db_org.to_organization()
 
     async def update_organization(
@@ -252,8 +249,7 @@ class OrganizationHandler:
                     user_id=user_id,
                     organization_id=invite.organization_id,
                     role=invite.role,
-                ),
-                membership_limit=self.__organization_membership_limit,
+                )
             )
         except DatabaseConstraintError as error:
             raise OrganizationMemberAlreadyExistsError() from error

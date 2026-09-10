@@ -204,8 +204,7 @@ async def test_accept_invite(
             user_id=user_id,
             organization_id=invite.organization_id,
             role=OrgRole(invite.role),
-        ),
-        membership_limit=5,
+        )
     )
     mock_delete_organization_invites_for_user.assert_awaited_once_with(
         invite.organization_id, invite.email

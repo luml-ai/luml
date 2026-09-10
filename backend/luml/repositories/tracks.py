@@ -13,10 +13,15 @@ from sqlalchemy import (
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from luml.infra.exceptions import ApplicationError
+from luml.infra.exceptions import (
+    ApplicationError,
+    ArtifactBeingDeletedError,
+    ArtifactNotFoundError,
+)
 from luml.models.artifacts import ArtifactOrm
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
 from luml.repositories.base import CrudMixin, RepositoryBase, violates
+from luml.schemas.artifacts import ArtifactStatus
 from luml.schemas.general import Cursor, PaginationParams
 from luml.schemas.track_base import TrackBase
 from luml.schemas.tracks import (
@@ -42,6 +47,38 @@ def stage_sync_error(error: IntegrityError) -> ApplicationError | IntegrityError
     if violates(error, "uq_track_stages_track_id_name"):
         return ApplicationError("Duplicate stage names are not allowed.", 409)
     return error
+
+
+async def _hold_artifact_for_linking(session: AsyncSession, artifact_id: UUID) -> None:
+    """Take a key-share lock on the artifact and refuse one being deleted.
+
+    The lock conflicts with the FOR UPDATE a deletion request holds, so a
+    link either sees pending_deletion or makes the deletion see the link.
+    """
+    artifact_status = await session.scalar(
+        select(ArtifactOrm.status)
+        .where(ArtifactOrm.id == artifact_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    if artifact_status is None:
+        raise ArtifactNotFoundError()
+    if artifact_status == ArtifactStatus.PENDING_DELETION:
+        raise ArtifactBeingDeletedError()
+
+
+async def _hold_stage(session: AsyncSession, stage_id: UUID) -> None:
+    """Take a key-share lock on the stage before touching entries.
+
+    Stage deletion locks the stage row first as well, so assignment and
+    deletion always acquire the stage before any entry row.
+    """
+    locked = await session.scalar(
+        select(TrackStageOrm.id)
+        .where(TrackStageOrm.id == stage_id)
+        .with_for_update(read=True, key_share=True)
+    )
+    if locked is None:
+        raise ApplicationError("Stage does not belong to this track.", 422)
 
 
 class TrackRepository(RepositoryBase, CrudMixin):
@@ -188,15 +225,21 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
 
     async def delete_stage(self, stage_id: UUID, *, unassign: bool = False) -> None:
         async with self._get_session() as session:
+            db_stage = (
+                await session.execute(
+                    select(TrackStageOrm)
+                    .where(TrackStageOrm.id == stage_id)
+                    .with_for_update()
+                )
+            ).scalar_one_or_none()
+            if db_stage is None:
+                return
             if unassign:
                 await session.execute(
                     update(TrackArtifactOrm)
                     .where(TrackArtifactOrm.stage_id == stage_id)
                     .values(stage_id=None)
                 )
-            db_stage = await session.get(TrackStageOrm, stage_id)
-            if db_stage is None:
-                return
             await session.delete(db_stage)
             try:
                 await session.commit()
@@ -232,8 +275,16 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
     async def apply_stage_sync(
         session: AsyncSession, track_id: UUID, desired: list[StageUpsertIn]
     ) -> None:
-        current = await CrudMixin.get_models_where(
-            session, TrackStageOrm, TrackStageOrm.track_id == track_id
+        current = list(
+            (
+                await session.execute(
+                    select(TrackStageOrm)
+                    .where(TrackStageOrm.track_id == track_id)
+                    .with_for_update()
+                )
+            )
+            .scalars()
+            .all()
         )
         current_by_id = {stage.id: stage for stage in current}
         desired_ids = {item.id for item in desired if item.id is not None}
@@ -357,6 +408,9 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
 
     async def create_entry(self, entry: TrackEntryCreate) -> TrackEntry:
         async with self._get_session() as session:
+            await _hold_artifact_for_linking(session, entry.artifact_id)
+            if entry.stage_id is not None:
+                await _hold_stage(session, entry.stage_id)
             result = await session.execute(
                 text(
                     "UPDATE tracks SET next_version = next_version + 1 "
@@ -422,6 +476,8 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
             if db_entry is None:
                 return None
 
+            if data.stage_id is not None:
+                await _hold_stage(session, data.stage_id)
             if force and data.stage_id is not None:
                 await self.clear_stage_from_entries_in_session(
                     session, db_entry.track_id, data.stage_id

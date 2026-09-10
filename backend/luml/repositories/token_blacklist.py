@@ -1,6 +1,6 @@
 import time
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.models import TokenBlackListOrm
@@ -15,6 +15,14 @@ class TokenBlackListRepository(RepositoryBase):
                 await session.commit()
             except IntegrityError:
                 await session.rollback()
+                await session.execute(
+                    update(TokenBlackListOrm)
+                    .where(TokenBlackListOrm.token == token)
+                    .values(
+                        expire_at=func.greatest(TokenBlackListOrm.expire_at, expire_at)
+                    )
+                )
+                await session.commit()
                 added = False
             else:
                 added = True

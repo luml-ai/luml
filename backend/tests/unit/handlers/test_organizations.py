@@ -176,9 +176,7 @@ async def test_create_organization(
 
     assert actual
     assert actual == expected
-    mock_create_organization.assert_awaited_once_with(
-        user_id, org_to_create, membership_limit=5
-    )
+    mock_create_organization.assert_awaited_once_with(user_id, org_to_create)
 
 
 @patch(

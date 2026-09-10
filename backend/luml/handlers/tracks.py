@@ -252,19 +252,25 @@ class TracksHandler:
     @staticmethod
     def _entry_write_error(
         error: IntegrityError, stage: Stage | None
-    ) -> ApplicationError:
-        """Translate a refused entry write by the rule the database enforced.
+    ) -> ApplicationError | IntegrityError:
+        """Translate a refused entry write by the constraint that refused it.
 
         The pre-checks above run without a lock, so a concurrent writer can win
-        in between: the stage got taken, the stage got deleted, or the artifact
-        got linked. The constraint names which one it was.
+        in between: the stage got taken or deleted, the artifact or track got
+        deleted, or the artifact got linked. Anything else propagates.
         """
         if stage is not None and violates(error, "uq_track_entries_track_id_stage_id"):
             return ApplicationError(
                 f"Stage '{stage.name}' is already assigned to another entry.", 409
             )
-        if is_foreign_key_violation(error):
+        if violates(error, "fk_track_entries_stage_id_track_stages"):
             return ApplicationError("Stage does not belong to this track.", 422)
+        if violates(error, "track_entries_artifact_id_fkey"):
+            return NotFoundError("Artifact not found")
+        if violates(error, "track_entries_track_id_fkey"):
+            return NotFoundError("Track not found")
+        if is_foreign_key_violation(error):
+            return error
         return ApplicationError("Artifact is already an entry in this track.", 409)
 
     async def create_entry(
