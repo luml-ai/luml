@@ -15,6 +15,7 @@ from sqlalchemy import (
     nullslast,
     select,
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from luml.models import Base
@@ -27,6 +28,32 @@ from luml.schemas.general import (
 
 TOrm = TypeVar("TOrm", bound=Base)
 TPydantic = TypeVar("TPydantic", bound=BaseModel)
+
+
+def violated_constraint(error: IntegrityError) -> str | None:
+    """Name of the constraint an ``IntegrityError`` reports, if the driver knows it."""
+    cause: BaseException | None = error.orig
+    while cause is not None:
+        name = getattr(cause, "constraint_name", None)
+        if name:
+            return str(name)
+        cause = cause.__cause__
+    return None
+
+
+def violates(error: IntegrityError, constraint: str) -> bool:
+    """Whether ``error`` reports ``constraint``, by name or in its message."""
+    return violated_constraint(error) == constraint or constraint in str(error)
+
+
+def is_foreign_key_violation(error: IntegrityError) -> bool:
+    """Whether an ``IntegrityError`` is a foreign-key violation (SQLSTATE 23503)."""
+    cause: BaseException | None = error.orig
+    while cause is not None:
+        if getattr(cause, "sqlstate", None) == "23503":
+            return True
+        cause = cause.__cause__
+    return False
 
 
 class RepositoryBase:
