@@ -45,3 +45,61 @@ describe('FnnxService.findHtmlCard', () => {
     expect(FnnxService.findHtmlCard(fileIndex)).toBe('card.zip')
   })
 })
+
+describe('FnnxService.hasAttachments', () => {
+  it('returns true when the attachments index contains files', () => {
+    const fileIndex: FileIndex = {
+      'attachments/report.pdf': [0, 42],
+    }
+
+    expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
+  })
+
+  it('returns false when the attachments index is empty', () => {
+    expect(FnnxService.hasAttachments({})).toBe(false)
+  })
+
+  it('ignores directory entries', () => {
+    expect(FnnxService.hasAttachments({ 'attachments/': [0, 512] })).toBe(false)
+  })
+
+  it('ignores zero-byte files', () => {
+    expect(FnnxService.hasAttachments({ 'attachments/empty.txt': [0, 0] })).toBe(false)
+  })
+
+  it('returns true when usable files appear beside ignored entries', () => {
+    const fileIndex: FileIndex = {
+      'attachments/': [0, 512],
+      'attachments/empty.txt': [512, 0],
+      'attachments/report.pdf': [512, 42],
+    }
+
+    expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
+  })
+})
+
+describe('FnnxService.isValidAttachmentsIndex', () => {
+  it('accepts file ranges contained by the attachment archive', () => {
+    expect(
+      FnnxService.isValidAttachmentsIndex(
+        {
+          'attachments/': [0, 0],
+          'attachments/report.pdf': [512, 42],
+        },
+        1024,
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    null,
+    [],
+    { 'attachments/report.pdf': null },
+    { 'attachments/report.pdf': [-1, 42] },
+    { 'attachments/report.pdf': [0, -1] },
+    { 'attachments/report.pdf': [900, 200] },
+    { 'attachments/report.pdf': ['0', 42] },
+  ])('rejects malformed or out-of-bounds index content', (value) => {
+    expect(FnnxService.isValidAttachmentsIndex(value, 1024)).toBe(false)
+  })
+})
