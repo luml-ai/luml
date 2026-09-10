@@ -1056,7 +1056,7 @@ Delete one artifact and its bucket object.
   unknown, or could not be removed from storage.
 - `ConfigurationError` - No collection was provided or configured.
 - `APIStatusError` - A platform request failed.
-
+  
 
 **Example**:
 
@@ -2135,7 +2135,7 @@ Delete one artifact and its bucket object.
 - `ArtifactDeleteError` - The artifact stayed after the attempt.
 - `ConfigurationError` - No collection was provided or configured.
 - `APIStatusError` - A platform request failed.
-
+  
 
 **Example**:
 
@@ -2144,3 +2144,4 @@ await luml.artifacts.delete(
     "0199c455-21ee-74c6-b747-19a82f1a1e67"
 )
 ```
+
