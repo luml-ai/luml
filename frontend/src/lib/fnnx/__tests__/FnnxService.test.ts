@@ -47,31 +47,33 @@ describe('FnnxService.findHtmlCard', () => {
 })
 
 describe('FnnxService.hasAttachments', () => {
-  const archivePath =
-    'meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~abc123/attachments.tar'
-  const indexPath =
-    'meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~abc123/attachments.index.json'
-
   it('returns true when the attachments index contains files', () => {
     const fileIndex: FileIndex = {
-      [archivePath]: [0, 10240],
-      [indexPath]: [10240, 42],
+      'attachments/report.pdf': [0, 42],
     }
 
     expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
   })
 
   it('returns false when the attachments index is empty', () => {
-    const fileIndex: FileIndex = {
-      [archivePath]: [0, 10240],
-      [indexPath]: [10240, 2],
-    }
-
-    expect(FnnxService.hasAttachments(fileIndex)).toBe(false)
+    expect(FnnxService.hasAttachments({})).toBe(false)
   })
 
-  it('returns false when the archive or index is missing', () => {
-    expect(FnnxService.hasAttachments({ [archivePath]: [0, 10240] })).toBe(false)
-    expect(FnnxService.hasAttachments({ [indexPath]: [0, 42] })).toBe(false)
+  it('ignores directory entries', () => {
+    expect(FnnxService.hasAttachments({ 'attachments/': [0, 512] })).toBe(false)
+  })
+
+  it('ignores zero-byte files', () => {
+    expect(FnnxService.hasAttachments({ 'attachments/empty.txt': [0, 0] })).toBe(false)
+  })
+
+  it('returns true when usable files appear beside ignored entries', () => {
+    const fileIndex: FileIndex = {
+      'attachments/': [0, 512],
+      'attachments/empty.txt': [512, 0],
+      'attachments/report.pdf': [512, 42],
+    }
+
+    expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
   })
 })

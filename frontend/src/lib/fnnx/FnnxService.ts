@@ -206,11 +206,10 @@ class FnnxServiceClass {
     return Object.keys(fileIndex).find((file) => regex.test(file))
   }
 
-  hasAttachments(fileIndex: FileIndex) {
-    const archivePath = this.findAttachmentsTarPath(fileIndex)
-    const indexPath = this.findAttachmentsIndexPath(fileIndex)
-    if (!archivePath || !indexPath) return false
-    return fileIndex[indexPath][1] > '{}'.length
+  hasAttachments(attachmentsIndex: FileIndex) {
+    return Object.entries(attachmentsIndex).some(
+      ([path, [, size]]) => size > 0 && !path.endsWith('/'),
+    )
   }
 
   findAttachmentsTarPath(fileIndex: FileIndex) {

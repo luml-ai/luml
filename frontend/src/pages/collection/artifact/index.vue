@@ -72,7 +72,7 @@
 </template>
 
 <script setup lang="ts">
-import { ArtifactTypeEnum, type Artifact } from '@/lib/api/artifacts/interfaces'
+import { ArtifactTypeEnum, type Artifact, type FileIndex } from '@/lib/api/artifacts/interfaces'
 import { useArtifactsStore } from '@/stores/artifacts'
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -90,6 +90,7 @@ import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsC
 import ArtifactEditor from '@/components/orbits/tabs/registry/collection/artifact/ArtifactEditor.vue'
 import LinkArtifactToTrack from '@/components/tracks/LinkArtifactToTrack.vue'
 import ArtifactsDeploymentsModal from '@/components/orbits/tabs/registry/collection/artifacts-table/ArtifactsDeploymentsModal.vue'
+import { ModelDownloader } from '@/lib/bucket-service'
 
 const artifactsStore = useArtifactsStore()
 const route = useRoute()
@@ -101,6 +102,7 @@ const datasetsStore = useDatasetsStore()
 
 const modelForDeployment = ref<string | null>(null)
 const modelForEdit = ref<Artifact | null>(null)
+const isModelAttachmentsAvailable = ref(false)
 
 const isDeployButtonVisible = computed(() => {
   return artifactsStore.currentArtifact?.type === ArtifactTypeEnum.model
@@ -132,18 +134,32 @@ const isExperimentSnapshotCardAvailable = computed(() => {
   return !!FnnxService.findExperimentSnapshotArchiveName(fileIndex)
 })
 
-const isModelAttachmentsAvailable = computed(() => {
-  const artifact = artifactsStore.currentArtifact
-  if (
-    !artifact ||
-    (artifact.type !== ArtifactTypeEnum.model && artifact.type !== ArtifactTypeEnum.experiment)
-  ) {
-    return false
+async function updateModelAttachmentsAvailability(artifact: Artifact) {
+  isModelAttachmentsAvailable.value = false
+  if (artifact.type !== ArtifactTypeEnum.model && artifact.type !== ArtifactTypeEnum.experiment) {
+    return
   }
+
   const fileIndex = artifact.file_index
-  if (!fileIndex) return false
-  return FnnxService.hasAttachments(fileIndex)
-})
+  const archivePath = FnnxService.findAttachmentsTarPath(fileIndex)
+  const indexPath = FnnxService.findAttachmentsIndexPath(fileIndex)
+  if (!archivePath || !indexPath) return
+
+  try {
+    const url = await artifactsStore.getDownloadUrl(artifact.id)
+    const downloader = new ModelDownloader(url)
+    const attachmentsIndex = await downloader.getFileFromBucket<FileIndex>(fileIndex, indexPath)
+
+    if (artifactsStore.currentArtifact?.id === artifact.id) {
+      isModelAttachmentsAvailable.value = FnnxService.hasAttachments(attachmentsIndex)
+    }
+  } catch (e) {
+    if (artifactsStore.currentArtifact?.id === artifact.id) {
+      const message = getErrorMessage(e, 'Failed to check attachments')
+      toast.add(simpleErrorToast(message))
+    }
+  }
+}
 
 function initDeploy() {
   if (artifactsStore.currentArtifact) {
@@ -210,6 +226,7 @@ async function onArtifactIdChange(artifactId: string | string[] | null) {
     }
     const artifact = await artifactsStore.getArtifact(artifactId, requestInfo)
     artifactsStore.setCurrentArtifact(artifact)
+    await updateModelAttachmentsAvailability(artifact)
   } catch (e) {
     const message = getErrorMessage(e, 'Failed to set current artifact')
     toast.add(simpleErrorToast(message))
