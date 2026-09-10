@@ -1,15 +1,20 @@
 import { api } from '@/api/client'
 import type {
+  AgentSession,
   BranchTree,
+  CancelledRun,
   CellDetail,
   CellsPage,
   CreatedFlow,
   DeletedCell,
   DeletedFlow,
   DuplicatedFlow,
+  EndedAgentSession,
   ForkedBranch,
   JournalPage,
   NewCell,
+  RanCell,
+  RanLane,
   RenamedCell,
   RenamedFlow,
   SwitchedBranch,
@@ -179,5 +184,37 @@ export const workspaceApi = {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
       slug,
+    }),
+
+  pairAgent: (actor: string, label: string, flow?: string) =>
+    call<{ flow?: string; actor: string; label: string }, AgentSession>('agent.begin', {
+      ...(flow ? { flow } : {}),
+      actor,
+      label,
+    }),
+
+  unpairAgent: (flow?: string, actor?: string) =>
+    call<{ flow?: string; actor?: string }, EndedAgentSession>('agent.end', {
+      ...(flow ? { flow } : {}),
+      ...(actor ? { actor } : {}),
+    }),
+
+  runLane: (flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string }, RanLane>('run', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+    }),
+
+  runCell: (target: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; target: string }, RanCell>('run', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      target,
+    }),
+
+  cancelRun: (flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string }, CancelledRun>('cancel', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
     }),
 }

@@ -1,4 +1,4 @@
-import type { CellSummary } from '@/api/slices/workspace/workspace.interface'
+import type { CellStaleState, CellSummary } from '@/api/slices/workspace/workspace.interface'
 import type { LucideIcon } from 'lucide-vue-next'
 
 export type NotebookAssetType = 'graph' | 'model' | 'dataset' | 'experiment' | 'unknown'
@@ -37,3 +37,11 @@ export interface SidebarTooltipPlugProps {
   tooltip: string
   label: string
 }
+
+export interface PairableAgentInterface {
+  id: string
+  name: string
+  icon: LucideIcon
+}
+
+export type NotebookHealthState = CellStaleState | 'empty'

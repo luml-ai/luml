@@ -21,6 +21,7 @@ export interface NotebookCellFooterProps {
   state: CellStaleState
   causes: string[]
   reused: boolean
+  cell: CellSummary
 }
 
 export interface NotebookCellHeaderProps {

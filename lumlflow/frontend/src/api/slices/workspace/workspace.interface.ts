@@ -46,6 +46,7 @@ export interface BranchRecord {
   checked_out: boolean
   cells: number
   last_intent: BranchLastIntent | null
+  agent: string | null
 }
 
 export interface BranchTree {
@@ -61,6 +62,56 @@ export interface SwitchedBranch {
 export interface ForkedBranch {
   branch: string
   from_branch: string
+}
+
+export interface AgentSession {
+  flow: string
+  actor: string
+  label: string
+  leased: boolean
+}
+
+export interface EndedAgentSession {
+  flow: string
+  actor: string
+  label: string
+}
+
+export interface UnplannedRunTarget {
+  target: string
+  error: string
+}
+
+export interface RanLane {
+  path: string
+  branch: string
+  target: string
+  targets: string[]
+  executed: string[]
+  cached: string[]
+  pruned: string[]
+  failed: string | null
+  failures: string[]
+  unplanned: UnplannedRunTarget[]
+  abandoned: boolean
+}
+
+export interface CancelledRun {
+  branch: string
+  left: number
+  stopped: boolean
+  awaiting: number
+}
+
+export interface RanCell {
+  path: string
+  branch: string
+  target: string
+  executed: string[]
+  cached: string[]
+  pruned: string[]
+  failed: string | null
+  abandoned: boolean
 }
 
 export type CellStaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'

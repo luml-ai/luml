@@ -1,12 +1,16 @@
 import type {
   BranchRecord,
+  CancelledRun,
   CellSummary,
   JournalTransaction,
+  RanCell,
+  RanLane,
 } from '@/api/slices/workspace/workspace.interface'
 import type { INotebookLane, INotebookLaneNode } from '@/components/notebooks/lanes/interface'
 import type {
   NotebookAssetInterface,
   NotebookAssetType,
+  PairableAgentInterface,
 } from '@/components/notebooks/notebooks.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
@@ -108,6 +112,7 @@ export const useFlowStore = defineStore('flow', () => {
 
   const laneTree = computed(() => buildLaneTree(branches.value))
   const currentBranch = computed(() => branches.value.find((branch) => branch.checked_out) ?? null)
+  const pairedAgentLabel = computed(() => currentBranch.value?.agent ?? null)
   const notebookCells = computed(() => cells.value.map(toNotebookCell))
   const currentBranchActivities = computed(() => {
     const branchId = currentBranch.value?.branch_id
@@ -135,6 +140,15 @@ export const useFlowStore = defineStore('flow', () => {
 
   function setExpandedCellId(id: string | null) {
     expandedCellId.value = id
+  }
+
+  async function pairAgent(agent: PairableAgentInterface) {
+    const flow = currentFlow.value ?? undefined
+    if (pairedAgentLabel.value) {
+      await workspaceApi.unpairAgent(flow).catch(() => undefined)
+    }
+    await workspaceApi.pairAgent(agent.id, agent.name, flow)
+    await fetchBranches()
   }
 
   function setViewMode(mode: 'canvas' | 'notebook') {
@@ -283,6 +297,34 @@ export const useFlowStore = defineStore('flow', () => {
     await fetchBranches()
   }
 
+  async function runLane(): Promise<RanLane> {
+    const result = await workspaceApi.runLane(
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    await fetchBranches()
+    return result
+  }
+
+  async function stopSession(): Promise<CancelledRun> {
+    const result = await workspaceApi.cancelRun(
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    await fetchBranches()
+    return result
+  }
+
+  async function runCell(slug: string): Promise<RanCell> {
+    const result = await workspaceApi.runCell(
+      slug,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    await fetchCells()
+    return result
+  }
+
   function reset() {
     isSidebarOpened.value = true
     viewMode.value = 'canvas'
@@ -314,6 +356,8 @@ export const useFlowStore = defineStore('flow', () => {
     fetchBranches,
     switchBranch,
     createLane,
+    runLane,
+    stopSession,
     reset,
     cells,
     notebookCells,
@@ -325,6 +369,7 @@ export const useFlowStore = defineStore('flow', () => {
     addCellDownstream,
     createCell,
     deleteCell,
+    runCell,
     journal,
     currentBranchActivities,
     isJournalLoading,
@@ -333,5 +378,7 @@ export const useFlowStore = defineStore('flow', () => {
     selectCell,
     expandedCellId,
     setExpandedCellId,
+    pairedAgentLabel,
+    pairAgent,
   }
 })

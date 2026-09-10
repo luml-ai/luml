@@ -4,7 +4,7 @@
     <div class="py-4">
       <slot> </slot>
     </div>
-    <NotebookCellFooter :state="state" :causes="causes" :reused="reused" />
+    <NotebookCellFooter :state="state" :causes="causes" :reused="reused" :cell="cell" />
   </div>
 </template>
 
