@@ -20,9 +20,10 @@ from luml.models import (
 from luml.repositories.base import (
     CrudMixin,
     RepositoryBase,
-    is_foreign_key_violation,
+    violates,
 )
 from luml.repositories.limits import (
+    ORGANIZATION_MEMBERSHIP_LIMIT,
     OrganizationResource,
     reserve_organization_slot,
     reserve_user_membership_slot,
@@ -137,11 +138,10 @@ class UserRepository(RepositoryBase, CrudMixin):
         user_id: UUID,
         organization: OrganizationCreateIn,
         *,
-        membership_limit: int | None = None,
+        membership_limit: int = ORGANIZATION_MEMBERSHIP_LIMIT,
     ) -> OrganizationOrm:
         async with self._get_session() as session:
-            if membership_limit is not None:
-                await reserve_user_membership_slot(session, user_id, membership_limit)
+            await reserve_user_membership_slot(session, user_id, membership_limit)
             org_logo = str(organization.logo) if organization.logo else None
             db_organization = OrganizationOrm(
                 **OrganizationCreate(name=organization.name, logo=org_logo).model_dump()
@@ -213,23 +213,24 @@ class UserRepository(RepositoryBase, CrudMixin):
         self,
         member: OrganizationMemberCreate,
         *,
-        membership_limit: int | None = None,
+        membership_limit: int = ORGANIZATION_MEMBERSHIP_LIMIT,
     ) -> OrganizationMember:
         async with self._get_session() as session:
             await reserve_organization_slot(
                 session, member.organization_id, OrganizationResource.MEMBERS
             )
-            if membership_limit is not None:
-                await reserve_user_membership_slot(
-                    session, member.user_id, membership_limit
-                )
+            await reserve_user_membership_slot(
+                session, member.user_id, membership_limit
+            )
             try:
                 db_member = await self.create_model(
                     session, OrganizationMemberOrm, member
                 )
             except IntegrityError as error:
-                if is_foreign_key_violation(error):
+                if violates(error, "organization_members_organization_id_fkey"):
                     raise NotFoundError("Organization not found") from error
+                if violates(error, "organization_members_user_id_fkey"):
+                    raise NotFoundError("User not found") from error
                 raise DatabaseConstraintError() from error
             return db_member.to_organization_member()
 

@@ -622,9 +622,11 @@ async def test_handle_logout(mock_add_token: AsyncMock, mock_jwt_decode: Mock) -
 
     await handler.handle_logout(access_token, refresh_token)
 
+    # Each token is revoked for its own lifetime: the refresh token keeps its
+    # (longer) expiry instead of inheriting the access token's.
     assert mock_jwt_decode.call_count == 2
     mock_add_token.assert_any_await(access_token, 67890)
-    mock_add_token.assert_any_await(refresh_token, 67890)
+    mock_add_token.assert_any_await(refresh_token, 12345)
     assert mock_add_token.await_count == 2
 
 

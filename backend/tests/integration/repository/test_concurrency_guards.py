@@ -13,9 +13,12 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from alembic import command
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactBeingDeletedError,
     ArtifactDeployedError,
+    ArtifactStatusMismatchError,
     ArtifactTrackedError,
     CollectionDeleteError,
     CollectionNotFoundError,
@@ -23,7 +26,13 @@ from luml.infra.exceptions import (
     OrganizationInviteAlreadyExistsError,
     OrganizationLimitReachedError,
 )
-from luml.models import CollectionOrm, OrganizationOrm
+from luml.models import (
+    ArtifactOrm,
+    CollectionOrm,
+    DeploymentOrm,
+    OrganizationOrm,
+    TokenBlackListOrm,
+)
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
@@ -59,9 +68,11 @@ from luml.schemas.tracks import (
     TrackEntryUpdate,
 )
 from luml.schemas.user import CreateUser
-from sqlalchemy import select, update
+from sqlalchemy import func, insert, select, update
+from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from utils.db import cfg as alembic_cfg
 
 from tests.conftest import (
     CollectionFixtureData,
@@ -525,3 +536,219 @@ class TestConcurrencyGuards:
         assert await repo.delete_organization(uuid.uuid4()) is False
         assert await repo.delete_organization(data.organization.id) is True
         assert await repo.get_organization_details(data.organization.id) is None
+
+    # ------------------------------------------- references vs. deletion
+    @pytest.mark.asyncio
+    async def test_references_wait_for_the_deletion_request_and_are_refused(
+        self, create_satellite: SatelliteFixtureData
+    ) -> None:
+        data = create_satellite
+        deployments = DeploymentRepository(data.engine)
+        entries = TrackEntryRepository(data.engine)
+        track = await TrackRepository(data.engine).create_track(
+            TrackCreate(
+                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+            )
+        )
+
+        async with AsyncSession(data.engine) as session:
+            artifact = (
+                await session.execute(
+                    select(ArtifactOrm)
+                    .where(ArtifactOrm.id == data.model.id)
+                    .with_for_update()
+                )
+            ).scalar_one()
+            deploy = asyncio.create_task(
+                deployments.create_deployment(
+                    DeploymentCreate(
+                        name="late",
+                        orbit_id=data.orbit.id,
+                        satellite_id=data.satellite.id,
+                        artifact_id=data.model.id,
+                        status=DeploymentStatus.PENDING,
+                    )
+                )
+            )
+            link = asyncio.create_task(
+                entries.create_entry(
+                    TrackEntryCreate(
+                        track_id=track.id,
+                        artifact_id=data.model.id,
+                        added_by=data.user.id,
+                    )
+                )
+            )
+            await asyncio.sleep(0.5)
+            assert not deploy.done(), "the deployment must wait on the artifact row"
+            assert not link.done(), "the track link must wait on the artifact row"
+            artifact.status = ArtifactStatus.PENDING_DELETION.value
+            await session.commit()
+
+        with pytest.raises(ArtifactStatusMismatchError, match="pending_deletion"):
+            await deploy
+        with pytest.raises(ArtifactBeingDeletedError):
+            await link
+        async with AsyncSession(data.engine) as session:
+            late_deployments = await session.scalar(
+                select(func.count())
+                .select_from(DeploymentOrm)
+                .where(DeploymentOrm.artifact_id == data.model.id)
+            )
+        assert late_deployments == 0
+        assert await entries.has_entries_for_artifact(data.model.id) is False
+
+    @pytest.mark.asyncio
+    async def test_forced_stage_deletion_never_leaves_a_dangling_assignment(
+        self, create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+    ) -> None:
+        data = create_collection
+        artifacts = await _artifacts(
+            ArtifactRepository(data.engine), test_artifact, data.collection.id, 3
+        )
+        track = await TrackRepository(data.engine).create_track(
+            TrackCreate(
+                orbit_id=data.orbit.id, name="t", artifact_type=ArtifactType.MODEL
+            )
+        )
+        stages = TrackStageRepository(data.engine)
+        entries = TrackEntryRepository(data.engine)
+
+        for artifact in artifacts:
+            stage = await stages.create_stage(
+                StageCreate(track_id=track.id, name=f"stage-{artifact.id}")
+            )
+            entry = await entries.create_entry(
+                TrackEntryCreate(
+                    track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+                )
+            )
+
+            deletion, assignment = await _race(
+                stages.delete_stage(stage.id, unassign=True),
+                entries.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id)),
+            )
+
+            # The forced deletion always wins: it either cleared the assignment
+            # that got in first, or the assignment found the stage gone (422).
+            assert deletion is None
+            assert not isinstance(assignment, BaseException) or (
+                isinstance(assignment, ApplicationError)
+                and assignment.status_code == 422
+            ), assignment
+            assert await stages.get_stage(stage.id) is None
+            stored = await entries.get_entry(entry.id)
+            assert stored is not None
+            assert stored.stage_id is None
+
+    # ------------------------------------------------ per-user membership cap
+    @pytest.mark.asyncio
+    async def test_direct_member_addition_respects_the_user_cap(
+        self,
+        create_organization_with_user: OrganizationFixtureData,
+        test_user_create: CreateUser,
+    ) -> None:
+        data = create_organization_with_user
+        repo = UserRepository(data.engine)
+        joiner = await repo.create_user(
+            test_user_create.model_copy(
+                update={"email": f"joiner-{uuid.uuid4().hex}@example.com"}
+            )
+        )
+        assert joiner is not None
+        second = await repo.create_organization(
+            data.user.id, OrganizationCreateIn(name="second"), membership_limit=10
+        )
+        await _set_limit(data.engine, second.id, members_limit=10)
+        already = await repo.get_user_organizations_membership_count(joiner.id)
+        make = lambda organization_id, limit: repo.create_organization_member(  # noqa: E731
+            OrganizationMemberCreate(
+                user_id=joiner.id, organization_id=organization_id, role=OrgRole.MEMBER
+            ),
+            membership_limit=limit,
+        )
+
+        # At the cap the direct addition is refused like an invite acceptance.
+        with pytest.raises(
+            OrganizationLimitReachedError, match="limit of organizations"
+        ):
+            await make(data.organization.id, already)
+
+        # One slot left, two organizations at once: exactly one addition wins.
+        winners, losers = _split(
+            await _race(
+                make(data.organization.id, already + 1),
+                make(second.id, already + 1),
+            ),
+            OrganizationLimitReachedError,
+        )
+        assert len(winners) == 1
+        assert len(losers) == 1
+        assert await repo.get_user_organizations_membership_count(joiner.id) == (
+            already + 1
+        )
+
+    # ------------------------------------------------------- blacklist expiry
+    @pytest.mark.asyncio
+    async def test_blacklisting_keeps_the_longest_expiry(
+        self, create_database_and_apply_migrations: str
+    ) -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        engine = create_async_engine(create_database_and_apply_migrations)
+        repo = TokenBlackListRepository(engine)
+        token = f"refresh-{uuid.uuid4()}"
+        base = int(time.time()) + 3600
+
+        assert await repo.add_token(token, base) is True
+        assert await repo.add_token(token, base + 600) is False
+        assert await repo.add_token(token, base - 600) is False
+
+        async with AsyncSession(engine) as session:
+            expire_at = await session.scalar(
+                select(TokenBlackListOrm.expire_at).where(
+                    TokenBlackListOrm.token == token
+                )
+            )
+        assert expire_at == base + 600
+
+    @pytest.mark.asyncio
+    async def test_migration_keeps_the_longest_blacklist_expiry(
+        self, create_database_and_apply_migrations: str
+    ) -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        engine = create_async_engine(create_database_and_apply_migrations)
+
+        async def alembic(action: str, revision: str) -> None:
+            def run(connection: Connection) -> None:
+                alembic_cfg.attributes["connection"] = connection
+                getattr(command, action)(alembic_cfg, revision)
+
+            async with engine.begin() as connection:
+                await connection.run_sync(run)
+
+        token = f"refresh-{uuid.uuid4()}"
+        await alembic("downgrade", "038")
+        async with AsyncSession(engine) as session:
+            await session.execute(
+                insert(TokenBlackListOrm),
+                [
+                    {"id": uuid.uuid4(), "token": token, "expire_at": 100},
+                    {"id": uuid.uuid4(), "token": token, "expire_at": 300},
+                    {"id": uuid.uuid4(), "token": token, "expire_at": 200},
+                ],
+            )
+            await session.commit()
+
+        await alembic("upgrade", "head")
+
+        async with AsyncSession(engine) as session:
+            rows = list(
+                await session.scalars(
+                    select(TokenBlackListOrm.expire_at).where(
+                        TokenBlackListOrm.token == token
+                    )
+                )
+            )
+        assert rows == [300]

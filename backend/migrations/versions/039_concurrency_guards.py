@@ -29,7 +29,9 @@ def upgrade() -> None:
     # Refresh-token blacklist: one row per token, so revoking is atomic.
     op.execute(
         "DELETE FROM token_black_list a USING token_black_list b "
-        "WHERE a.token = b.token AND a.id > b.id"
+        "WHERE a.token = b.token AND ("
+        "a.expire_at < b.expire_at "
+        "OR (a.expire_at = b.expire_at AND a.id > b.id))"
     )
     op.create_unique_constraint(
         "uq_token_black_list_token", "token_black_list", ["token"]

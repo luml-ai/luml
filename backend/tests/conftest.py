@@ -658,6 +658,7 @@ async def create_satellite(
 
     artifact_data = test_artifact.model_copy()
     artifact_data.collection_id = collection.id
+    artifact_data.status = ArtifactStatus.UPLOADED
 
     artifact = await artifact_repo.create_artifact(artifact_data)
     assert artifact is not None, (
