@@ -965,17 +965,20 @@ Artifact(
     created_at='2025-01-15T10:30:00.123456Z',
     updated_at=None
 )
+```
 
 <a id="luml_api.resources.artifacts.ArtifactResource.delete_batch"></a>
 
-#### delete\_batch
+#### delete_batch
 
 ```python
 @validate_collection
-def delete_batch(artifact_ids: builtins.list[str],
-                 *,
-                 collection_id: str | None = None,
-                 force: bool = False) -> ArtifactsDeleteResult
+def delete_batch(
+        artifact_ids: builtins.list[str],
+        *,
+        collection_id: str | None = None,
+        force: bool = False
+) -> ArtifactsDeleteResult
 ```
 
 Delete several artifacts, preserving per-artifact outcomes.
@@ -987,12 +990,8 @@ after duplicate ids are collapsed.
 **Arguments**:
 
 - `artifact_ids` - Artifact ids to delete.
-- `collection_id` - Collection containing the artifacts. The client's
-  default collection is used when omitted.
-- `force` - Skip bucket deletion and remove records directly. Use only as
-  a last resort after a normal call reports `storage_error`; the
-  objects remain in the bucket. Deployments and tracks still block
-  deletion.
+- `collection_id` - Collection containing the artifacts. The client's default collection is used when omitted.
+- `force` - Skip bucket deletion and remove records directly. Use only as a last resort after a normal call reports `storage_error`; the objects remain in the bucket. Deployments and tracks still block deletion.
   
 
 **Returns**:
@@ -1002,9 +1001,7 @@ after duplicate ids are collapsed.
 
 **Raises**:
 
-- `ArtifactBatchDeleteError` - A platform request failed. The exception
-  carries completed deletions, classified failures, and ids safe
-  to retry in `not_completed`.
+- `ArtifactBatchDeleteError` - A platform request failed. The exception carries completed deletions, classified failures, and ids safe to retry in `not_completed`.
 - `ConfigurationError` - No collection was provided or configured.
   
 
@@ -1043,17 +1040,13 @@ Delete one artifact and its bucket object.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete.
-- `collection_id` - Collection containing the artifact. The client's
-  default collection is used when omitted.
-- `force` - Skip bucket deletion and remove the record directly. This is
-  a last resort after a normal deletion reports `storage_error`;
-  the object remains in the bucket.
+- `collection_id` - Collection containing the artifact. The client's default collection is used when omitted.
+- `force` - Skip bucket deletion and remove the record directly. This is a last resort after a normal deletion reports `storage_error`; the object remains in the bucket.
   
 
 **Raises**:
 
-- `ArtifactDeleteError` - The artifact stayed because it was blocked,
-  unknown, or could not be removed from storage.
+- `ArtifactDeleteError` - The artifact stayed because it was blocked, unknown, or could not be removed from storage.
 - `ConfigurationError` - No collection was provided or configured.
 - `APIStatusError` - A platform request failed.
   
@@ -1096,8 +1089,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_value` - The ID or exact name of the artifact to retrieve.
-- `collection_id` - ID of the collection to search in. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to search in. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -1109,10 +1101,8 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `MultipleResourcesFoundError` - If there are several artifacts
-  with that name.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `MultipleResourcesFoundError` - If there are several artifacts with that name.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -1134,7 +1124,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 Artifact(
     id="0199c455-21ee-74c6-b747-19a82f1a1e67",
@@ -1142,8 +1132,8 @@ Artifact(
     name="my_model",
     file_name="model.fnnx",
     description="Trained model",
-    metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
-    manifest=&#123;
+    metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+    manifest={
         "variant": "pipeline",
         "name": None,
         "version": None,
@@ -1155,29 +1145,29 @@ Artifact(
             "dataforce.studio::tabular_regression:v1",
         ],
         "inputs": [
-            &#123;
+            {
                 "name": "age",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": ["falcon.beastbyte.ai::numeric:v1"],
                 "shape": ["batch", 1],
-            &#125;,
+            },
         ],
         "outputs": [
-            &#123;
+            {
                 "name": "y_pred",
                 "content_type": "NDJSON",
                 "dtype": "Array[float32]",
                 "tags": None,
                 "shape": ["batch", 1],
-            &#125;
+            }
         ],
         "dynamic_attributes": [],
         "env_vars": [],
-    &#125;,
+    },
     bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
     file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-    file_index = &#123;
+    file_index = {
         "env.json": (3584, 2),
         "ops.json": (7168, 1869),
         "meta.json": (239616, 3279),
@@ -1185,7 +1175,7 @@ Artifact(
         "manifest.json": (512, 2353),
         "variant_config.json": (4608, 372),
         "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-    &#125;,
+    },
     size=245760,
     unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
     status='pending_upload',
@@ -1198,7 +1188,7 @@ Artifact(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.list_all"></a>
 
-#### list\_all
+#### list_all
 
 ```python
 @validate_collection
@@ -1217,15 +1207,12 @@ List all collection artifacts with auto-paging.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to list models from. If not provided, uses the default collection set in the client.
 - `limit` - Page size (default: 100).
 - `sort_by` - Field to sort by.
-- `Options` - name, created_at, size, description, status
-  and any metric key
+- `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types:
-  "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
   
 
@@ -1258,7 +1245,7 @@ async def main():
         order="desc",
         limit=50
     ):
-        print(f"&#123;artifact.name&#125;: F1=&#123;artifact.metrics.get('F1')&#125;")
+        print(f"{artifact.name}: F1={artifact.metrics.get('F1')}")
 
     # Filter by artifact types
     async for artifact in luml.artifacts.list_all(
@@ -1291,16 +1278,13 @@ If collection_id is None, uses the default collection from client.
 
 **Arguments**:
 
-- `collection_id` - ID of the collection to list models from. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to list models from. If not provided, uses the default collection set in the client.
 - `start_after` - ID of the artifact to start listing from.
 - `limit` - Limit number of models per page (default: 100).
 - `sort_by` - Field to sort by.
-- `Options` - name, created_at, size, description, status
-  and any metric key
+- `Options` - name, created_at, size, description, status and any metric key
 - `order` - Sort order - "asc" or "desc" (default: "desc").
-- `types` - Filter by artifact types:
-  "model", "dataset", or "experiment".
+- `types` - Filter by artifact types: "model", "dataset", or "experiment".
 - `search` - Filter by a case-insensitive substring of the artifact name.
   
 
@@ -1311,8 +1295,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -1349,7 +1332,7 @@ async def main():
     )
 ```
   
-  Example response:
+**Example response**:
 ```python
 ArtifactsList(
     items=[
@@ -1359,8 +1342,8 @@ ArtifactsList(
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
-            manifest=&#123;
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1372,29 +1355,29 @@ ArtifactsList(
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    &#123;
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    &#125;,
+                    },
                 ],
                 "outputs": [
-                    &#123;
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    &#125;
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            &#125;,
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = &#123;
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1402,7 +1385,7 @@ ArtifactsList(
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            &#125;,
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1418,7 +1401,7 @@ ArtifactsList(
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.get_lineage"></a>
 
-#### get\_lineage
+#### get_lineage
 
 ```python
 @validate_orbit
@@ -1433,9 +1416,7 @@ Get the lineage graph around an artifact.
 **Arguments**:
 
 - `artifact_id` - ID of the focal artifact.
-- `depth` - Number of graph levels to load. ``None`` loads the whole
-  connected graph; the platform caps it at 200 artifacts and
-  sets ``truncated`` when the cap was hit.
+- `depth` - Number of graph levels to load. ``None`` loads the whole connected graph; the platform caps it at 200 artifacts and sets ``truncated`` when the cap was hit.
   
 
 **Returns**:
@@ -1444,7 +1425,7 @@ Get the lineage graph around an artifact.
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.log_lineage"></a>
 
-#### log\_lineage
+#### log_lineage
 
 ```python
 @validate_orbit
@@ -1468,7 +1449,7 @@ Create lineage connections from one artifact to other artifacts.
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.remove_lineage"></a>
 
-#### remove\_lineage
+#### remove_lineage
 
 ```python
 @validate_orbit
@@ -1489,7 +1470,7 @@ Remove a lineage connection touching an artifact.
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.log_lineage_inputs"></a>
 
-#### log\_lineage\_inputs
+#### log_lineage_inputs
 
 ```python
 @validate_orbit
@@ -1516,7 +1497,7 @@ either all inputs get linked or none of them.
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.download_url"></a>
 
-#### download\_url
+#### download_url
 
 ```python
 @validate_collection
@@ -1535,8 +1516,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to download.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -1546,8 +1526,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -1571,7 +1550,7 @@ async def main():
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_url"></a>
 
-#### delete\_url
+#### delete_url
 
 ```python
 @validate_collection
@@ -1590,8 +1569,7 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete from storage.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -1601,8 +1579,7 @@ If collection_id is None, uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -1672,8 +1649,7 @@ If collection_id is None, uses the default collection from client
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -1692,10 +1668,10 @@ async def main():
 
     result = await luml.artifacts.create(
         file_name="model.fnnx",
-        extra_values=&#123;"accuracy": 0.95&#125;,
-        manifest=&#123;"version": "1.0"&#125;,
+        extra_values={"accuracy": 0.95},
+        manifest={"version": "1.0"},
         file_hash="abc123",
-        file_index=&#123;"layer1": (0, 1024)&#125;,
+        file_index={"layer1": (0, 1024)},
         size=1048576,
         name="Test Model"
     )
@@ -1710,8 +1686,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
-            manifest=&#123;
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1723,29 +1699,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    &#123;
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    &#125;,
+                    },
                 ],
                 "outputs": [
-                    &#123;
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    &#125;
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            &#125;,
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = &#123;
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1753,7 +1729,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            &#125;,
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1804,22 +1780,19 @@ uses the default collection from client.
 - `description` - Optional description of the model.
 - `tags` - Optional list of tags for organizing models.
 - `lineage_inputs` - Optional IDs of artifacts used to produce this artifact.
-- `collection_id` - ID of the collection to upload to. If not provided,
-  uses the default collection set in the client.
+- `collection_id` - ID of the collection to upload to. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
 
-- `Artifact` - Uploaded model artifact object with
-  UPLOADED or UPLOAD_FAILED status.
+- `Artifact` - Uploaded model artifact object with UPLOADED or UPLOAD_FAILED status.
   
 
 **Raises**:
 
 - `FileError` - If file size exceeds 5GB or unsupported format.
 - `FileUploadError` - If upload to storage fails.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection is set.
+- `ConfigurationError` - If collection_id not provided and no default collection is set.
   
 
 **Example**:
@@ -1853,8 +1826,8 @@ async def main():
             name="my_model",
             file_name="model.fnnx",
             description="Trained model",
-            metrics=&#123;'R2': 0.8449933416622079, 'MAE': 2753.903519270197&#125;,
-            manifest=&#123;
+            metrics={'R2': 0.8449933416622079, 'MAE': 2753.903519270197},
+            manifest={
                 "variant": "pipeline",
                 "name": None,
                 "version": None,
@@ -1866,29 +1839,29 @@ async def main():
                     "dataforce.studio::tabular_regression:v1",
                 ],
                 "inputs": [
-                    &#123;
+                    {
                         "name": "age",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": ["falcon.beastbyte.ai::numeric:v1"],
                         "shape": ["batch", 1],
-                    &#125;,
+                    },
                 ],
                 "outputs": [
-                    &#123;
+                    {
                         "name": "y_pred",
                         "content_type": "NDJSON",
                         "dtype": "Array[float32]",
                         "tags": None,
                         "shape": ["batch", 1],
-                    &#125;
+                    }
                 ],
                 "dynamic_attributes": [],
                 "env_vars": [],
-            &#125;,
+            },
             bucket_location='orbit-0199c8cf-4d35-783b-9f81-cb3cec788074/collection-0199c455-21ee-74c6-b747-19a82f1a1e75/dc2b54d0d41d411da169e8e7d40f94c3-model.fnnx',
             file_hash='ea1ea069ba4e7979c950b7143413c6b05b07d1c1f97e292d2d8ac909c89141b2',
-            file_index = &#123;
+            file_index = {
                 "env.json": (3584, 2),
                 "ops.json": (7168, 1869),
                 "meta.json": (239616, 3279),
@@ -1896,7 +1869,7 @@ async def main():
                 "manifest.json": (512, 2353),
                 "variant_config.json": (4608, 372),
                 "ops_artifacts/onnx_main/model.onnx": (10240, 227540),
-            &#125;,
+            },
             size=245760,
             unique_identifier='dc2b54d0d41d411da169e8e7d40f94c3',
             status='pending_upload',
@@ -1936,10 +1909,8 @@ If collection_id is None, uses the default collection from client.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to download.
-- `file_path` - Local path to save the downloaded file. If None,
-  uses the original file name.
-- `collection_id` - ID of the collection containing the model. If not provided,
-  uses the default collection set in the client.
+- `file_path` - Local path to save the downloaded file. If None, uses the original file name.
+- `collection_id` - ID of the collection containing the model. If not provided, uses the default collection set in the client.
   
 
 **Returns**:
@@ -1950,8 +1921,7 @@ If collection_id is None, uses the default collection from client.
 **Raises**:
 
 - `ValueError` - If model with specified ID not found.
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
   
 
 **Example**:
@@ -2023,8 +1993,7 @@ uses the default collection from client.
 
 **Raises**:
 
-- `ConfigurationError` - If collection_id not provided and
-  no default collection set.
+- `ConfigurationError` - If collection_id not provided and no default collection set.
 - `NotFoundError` - If artifact with specified ID doesn't exist.
   
 
@@ -2050,7 +2019,7 @@ async def main():
 
 <a id="luml_api.resources.artifacts.AsyncArtifactResource.delete_batch"></a>
 
-#### delete\_batch
+#### delete_batch
 
 ```python
 @validate_collection
@@ -2071,12 +2040,8 @@ up to 100 ids sequentially.
 **Arguments**:
 
 - `artifact_ids` - Artifact ids to delete.
-- `collection_id` - Collection containing the artifacts. The client's
-  default collection is used when omitted.
-- `force` - Skip bucket deletion and remove records directly. Use only as
-  a last resort after a normal call reports `storage_error`; the
-  objects remain in the bucket. Deployments and tracks still block
-  deletion.
+- `collection_id` - Collection containing the artifacts. The client's default collection is used when omitted.
+- `force` - Skip bucket deletion and remove records directly. Use only as a last resort after a normal call reports `storage_error`; the objects remain in the bucket. Deployments and tracks still block deletion.
   
 
 **Returns**:
@@ -2086,8 +2051,7 @@ up to 100 ids sequentially.
 
 **Raises**:
 
-- `ArtifactBatchDeleteError` - A platform request failed. The exception
-  carries partial results and ids safe to retry.
+- `ArtifactBatchDeleteError` - A platform request failed. The exception carries partial results and ids safe to retry.
 - `ConfigurationError` - No collection was provided or configured.
   
 
@@ -2123,11 +2087,8 @@ Delete one artifact and its bucket object.
 **Arguments**:
 
 - `artifact_id` - ID of the artifact to delete.
-- `collection_id` - Collection containing the artifact. The client's
-  default collection is used when omitted.
-- `force` - Skip bucket deletion and remove the record directly. This is
-  a last resort after a normal deletion reports `storage_error`;
-  the object remains in the bucket.
+- `collection_id` - Collection containing the artifact. The client's default collection is used when omitted.
+- `force` - Skip bucket deletion and remove the record directly. This is a last resort after a normal deletion reports `storage_error`; the object remains in the bucket.
   
 
 **Raises**:

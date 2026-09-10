@@ -1218,6 +1218,7 @@ class ArtifactResource(ArtifactResourceBase, ListedResource):
             created_at='2025-01-15T10:30:00.123456Z',
             updated_at=None
         )
+        ```
         """
         if file_name is not None:
             warnings.warn(
