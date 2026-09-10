@@ -212,6 +212,24 @@ class FnnxServiceClass {
     )
   }
 
+  isValidAttachmentsIndex(value: unknown, archiveSize: number): value is FileIndex {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+    if (!Number.isSafeInteger(archiveSize) || archiveSize < 0) return false
+
+    return Object.entries(value).every(([path, range]) => {
+      if (!path || !Array.isArray(range) || range.length !== 2) return false
+      const [offset, size] = range
+      return (
+        Number.isSafeInteger(offset) &&
+        Number.isSafeInteger(size) &&
+        offset >= 0 &&
+        size >= 0 &&
+        Number.isSafeInteger(offset + size) &&
+        offset + size <= archiveSize
+      )
+    })
+  }
+
   findAttachmentsTarPath(fileIndex: FileIndex) {
     const regex =
       /meta_artifacts\/dataforce\.studio~c~~c~experiment_snapshot~c~v1~~et~~[^/]+\/attachments\.tar$|^attachments\.tar$/

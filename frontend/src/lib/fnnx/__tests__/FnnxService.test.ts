@@ -77,3 +77,29 @@ describe('FnnxService.hasAttachments', () => {
     expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
   })
 })
+
+describe('FnnxService.isValidAttachmentsIndex', () => {
+  it('accepts file ranges contained by the attachment archive', () => {
+    expect(
+      FnnxService.isValidAttachmentsIndex(
+        {
+          'attachments/': [0, 0],
+          'attachments/report.pdf': [512, 42],
+        },
+        1024,
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    null,
+    [],
+    { 'attachments/report.pdf': null },
+    { 'attachments/report.pdf': [-1, 42] },
+    { 'attachments/report.pdf': [0, -1] },
+    { 'attachments/report.pdf': [900, 200] },
+    { 'attachments/report.pdf': ['0', 42] },
+  ])('rejects malformed or out-of-bounds index content', (value) => {
+    expect(FnnxService.isValidAttachmentsIndex(value, 1024)).toBe(false)
+  })
+})

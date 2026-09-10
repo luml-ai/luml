@@ -1,22 +1,35 @@
-import type { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
+import { FnnxService, type FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
 import type {
   Artifact,
   CreateArtifactPayload,
+  FileIndex,
   UpdateArtifactPayload,
 } from '@/lib/api/artifacts/interfaces'
+import { ArtifactTypeEnum } from '@/lib/api/artifacts/interfaces'
 import type { ModelMetadata, RequestInfo } from './artifacts.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/lib/api'
 import { useRoute } from 'vue-router'
-import { downloadFileFromBlob } from '@/helpers/helpers'
+import { downloadFileFromBlob, getErrorMessage } from '@/helpers/helpers'
 import axios from 'axios'
+import { ModelDownloader } from '@/lib/bucket-service'
+
+export type ArtifactAttachmentsStatus = 'idle' | 'loading' | 'available' | 'empty' | 'error'
+
+const MAX_ATTACHMENTS_INDEX_SIZE = 1024 * 1024
 
 export const useArtifactsStore = defineStore('artifacts', () => {
   const route = useRoute()
 
   const currentArtifact = ref<Artifact | null>(null)
+
+  const attachmentsIndex = ref<FileIndex | null>(null)
+  const attachmentsDownloader = ref<ModelDownloader | null>(null)
+  const attachmentsStatus = ref<ArtifactAttachmentsStatus>('idle')
+  const attachmentsError = ref<string | null>(null)
+  let attachmentsLoadVersion = 0
 
   const artifactsList = ref<Artifact[]>([])
 
@@ -32,6 +45,89 @@ export const useArtifactsStore = defineStore('artifacts', () => {
 
   function resetCurrentArtifact() {
     currentArtifact.value = null
+    resetCurrentArtifactAttachments()
+  }
+
+  function resetCurrentArtifactAttachments() {
+    attachmentsLoadVersion += 1
+    attachmentsIndex.value = null
+    attachmentsDownloader.value = null
+    attachmentsStatus.value = 'idle'
+    attachmentsError.value = null
+  }
+
+  async function loadCurrentArtifactAttachments(artifact: Artifact) {
+    const loadVersion = ++attachmentsLoadVersion
+    attachmentsIndex.value = null
+    attachmentsDownloader.value = null
+    attachmentsStatus.value = 'loading'
+    attachmentsError.value = null
+
+    const fileIndex = artifact.file_index
+    const tarPath = FnnxService.findAttachmentsTarPath(fileIndex)
+    const indexPath = FnnxService.findAttachmentsIndexPath(fileIndex)
+
+    if (
+      (artifact.type !== ArtifactTypeEnum.model && artifact.type !== ArtifactTypeEnum.experiment) ||
+      !tarPath ||
+      !indexPath
+    ) {
+      if (loadVersion === attachmentsLoadVersion) attachmentsStatus.value = 'empty'
+      return
+    }
+
+    try {
+      const [indexOffset, indexSize] = fileIndex[indexPath]
+      const indexEnd = indexOffset + indexSize
+      const [tarOffset, tarSize] = fileIndex[tarPath]
+      const tarEnd = tarOffset + tarSize
+      if (
+        !Number.isSafeInteger(artifact.size) ||
+        artifact.size < 0 ||
+        !Number.isSafeInteger(indexOffset) ||
+        !Number.isSafeInteger(indexSize) ||
+        indexOffset < 0 ||
+        indexSize <= 0 ||
+        indexSize > MAX_ATTACHMENTS_INDEX_SIZE ||
+        !Number.isSafeInteger(indexEnd) ||
+        indexEnd > artifact.size ||
+        !Number.isSafeInteger(tarOffset) ||
+        !Number.isSafeInteger(tarSize) ||
+        tarOffset < 0 ||
+        tarSize < 0 ||
+        !Number.isSafeInteger(tarEnd) ||
+        tarEnd > artifact.size
+      ) {
+        throw new Error('Attachment index has an invalid range')
+      }
+
+      const url = await getDownloadUrl(artifact.id)
+      const downloader = new ModelDownloader(url)
+      const index = await downloader.getFileFromBucket<unknown>(fileIndex, indexPath)
+
+      if (!FnnxService.isValidAttachmentsIndex(index, tarSize)) {
+        throw new Error('Attachment index has invalid content')
+      }
+
+      if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
+        return
+      }
+
+      if (!FnnxService.hasAttachments(index)) {
+        attachmentsStatus.value = 'empty'
+      } else {
+        attachmentsIndex.value = index
+        attachmentsDownloader.value = downloader
+        attachmentsStatus.value = 'available'
+      }
+    } catch (error) {
+      if (loadVersion !== attachmentsLoadVersion || currentArtifact.value?.id !== artifact.id) {
+        return
+      }
+
+      attachmentsError.value = getErrorMessage(error, 'Failed to check attachments')
+      attachmentsStatus.value = 'error'
+    }
   }
 
   async function refreshCurrentArtifact() {
@@ -221,6 +317,11 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     currentArtifact,
     setCurrentArtifact,
     resetCurrentArtifact,
+    attachmentsIndex,
+    attachmentsDownloader,
+    attachmentsStatus,
+    attachmentsError,
+    loadCurrentArtifactAttachments,
     requestInfo,
     currentModelTag,
     currentModelMetadata,
