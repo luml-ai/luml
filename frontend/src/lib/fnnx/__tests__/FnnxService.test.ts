@@ -45,3 +45,33 @@ describe('FnnxService.findHtmlCard', () => {
     expect(FnnxService.findHtmlCard(fileIndex)).toBe('card.zip')
   })
 })
+
+describe('FnnxService.hasAttachments', () => {
+  const archivePath =
+    'meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~abc123/attachments.tar'
+  const indexPath =
+    'meta_artifacts/dataforce.studio~c~~c~experiment_snapshot~c~v1~~et~~abc123/attachments.index.json'
+
+  it('returns true when the attachments index contains files', () => {
+    const fileIndex: FileIndex = {
+      [archivePath]: [0, 10240],
+      [indexPath]: [10240, 42],
+    }
+
+    expect(FnnxService.hasAttachments(fileIndex)).toBe(true)
+  })
+
+  it('returns false when the attachments index is empty', () => {
+    const fileIndex: FileIndex = {
+      [archivePath]: [0, 10240],
+      [indexPath]: [10240, 2],
+    }
+
+    expect(FnnxService.hasAttachments(fileIndex)).toBe(false)
+  })
+
+  it('returns false when the archive or index is missing', () => {
+    expect(FnnxService.hasAttachments({ [archivePath]: [0, 10240] })).toBe(false)
+    expect(FnnxService.hasAttachments({ [indexPath]: [0, 42] })).toBe(false)
+  })
+})

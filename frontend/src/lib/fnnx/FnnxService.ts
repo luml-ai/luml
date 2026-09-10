@@ -207,7 +207,10 @@ class FnnxServiceClass {
   }
 
   hasAttachments(fileIndex: FileIndex) {
-    return !!this.findAttachmentsTarPath(fileIndex)
+    const archivePath = this.findAttachmentsTarPath(fileIndex)
+    const indexPath = this.findAttachmentsIndexPath(fileIndex)
+    if (!archivePath || !indexPath) return false
+    return fileIndex[indexPath][1] > '{}'.length
   }
 
   findAttachmentsTarPath(fileIndex: FileIndex) {
