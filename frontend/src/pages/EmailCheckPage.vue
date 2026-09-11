@@ -6,13 +6,7 @@
     :hide-sso="true"
   >
     <template #form>
-      <d-button
-        type="submit"
-        label="Use another account"
-        rounded
-        fluid
-        @click="$router.push({ name: 'sign-up' })"
-      />
+      <d-button type="submit" label="Use another account" rounded fluid @click="goToSignUp" />
     </template>
     <!--<template #footer>
       <span>Did not receive it?</span>
@@ -25,4 +19,14 @@
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
 import MainImage from '@/assets/img/form-bg.webp'
+import { getSafeAuthRedirect } from '@/utils/authRedirect'
+import { useRoute, useRouter } from 'vue-router'
+
+const route = useRoute()
+const router = useRouter()
+
+function goToSignUp() {
+  const redirect = getSafeAuthRedirect(route.query.redirect)
+  router.push({ name: 'sign-up', query: redirect ? { redirect } : {} })
+}
 </script>

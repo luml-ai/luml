@@ -71,8 +71,10 @@ export const useUserStore = defineStore('user', () => {
     () => user.value?.id,
     async (id) => {
       if (id) {
-        await invitationsStore.getInvitations()
-        await organizationStore.getAvailableOrganizations()
+        await Promise.allSettled([
+          invitationsStore.getInvitations(),
+          organizationStore.getAvailableOrganizations(),
+        ])
       } else {
         invitationsStore.reset()
         organizationStore.reset()

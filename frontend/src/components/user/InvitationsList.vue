@@ -1,5 +1,13 @@
 <template>
-  <div v-if="invitationsStore.invitations.length" class="table">
+  <div v-if="!invitationsStore.isLoaded || invitationsStore.isLoading" class="status">
+    <ProgressSpinner class="spinner" aria-label="Loading invitations" />
+    <span>Loading invitations...</span>
+  </div>
+  <div v-else-if="invitationsStore.loadError" class="status">
+    <span>Failed to load invitations.</span>
+    <d-button label="Retry" size="small" :loading="invitationsStore.isLoading" @click="retry" />
+  </div>
+  <div v-else-if="invitationsStore.invitations.length" class="table">
     <div class="table-header">
       <div class="table-row">
         <div>Organization</div>
@@ -50,13 +58,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Trash2, Check } from 'lucide-vue-next'
-import { useToast } from 'primevue'
+import { ProgressSpinner, useToast } from 'primevue'
 import { useInvitationsStore } from '@/stores/invitations'
 import { simpleErrorToast, simpleSuccessToast, simpleWardToast } from '@/lib/primevue/data/toasts'
 
 const invitationsStore = useInvitationsStore()
 const toast = useToast()
 const loading = ref(false)
+
+async function retry() {
+  try {
+    await invitationsStore.getInvitations()
+  } catch {
+    toast.add(simpleErrorToast('Failed to load invitations'))
+  }
+}
 
 async function accept(inviteId: string, organizationId: string) {
   loading.value = true
@@ -120,6 +136,16 @@ async function reject(inviteId: string) {
 }
 .placeholder {
   font-size: 20px;
+}
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 18px;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
 }
 .cell {
   overflow: hidden;
