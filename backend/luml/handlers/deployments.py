@@ -318,7 +318,9 @@ class DeploymentHandler:
         updated = await self.__repo.update_deployment_details(
             orbit_id,
             deployment_id,
-            DeploymentDetailsUpdate.model_validate(data.model_dump(mode="json")),
+            DeploymentDetailsUpdate.model_validate(
+                data.model_dump(mode="json", exclude_unset=True)
+            ),
         )
         if not updated:
             raise NotFoundError("Deployment not found")

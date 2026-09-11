@@ -1,6 +1,11 @@
 import uuid
+from collections.abc import AsyncGenerator
+from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
+from luml.handlers.deployments import DeploymentHandler
+from luml.infra.db import engine as shared_engine
 from luml.infra.exceptions import InvalidStatusTransitionError
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.orbits import OrbitRepository
@@ -9,6 +14,7 @@ from luml.schemas.deployment import (
     Deployment,
     DeploymentCreate,
     DeploymentDetailsUpdate,
+    DeploymentDetailsUpdateIn,
     DeploymentStatus,
     DeploymentUpdate,
     MonitoringMode,
@@ -41,6 +47,18 @@ async def _create_satellite_in(
             orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="sibling satellite"
         )
     )
+
+
+@pytest_asyncio.fixture
+async def deployment_handler() -> AsyncGenerator[DeploymentHandler]:
+    """A handler wired to the shared engine, rebound to this test's event loop.
+
+    DeploymentHandler holds repositories built on luml.infra.db.engine, whose
+    pool would otherwise still be attached to the previous test's loop.
+    """
+    await shared_engine.dispose()
+    yield DeploymentHandler()
+    await shared_engine.dispose()
 
 
 async def _create_deployment(data: SatelliteFixtureData) -> Deployment:
@@ -726,3 +744,92 @@ async def test_delete_deployments_by_artifact_id(
     await repo.delete_deployments_by_artifact_id(data.model.id)
 
     assert await repo.list_deployments(data.orbit.id) == []
+
+
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_partial_details_update_preserves_untouched_columns(
+    mock_check_permissions: AsyncMock,  # noqa: ARG001
+    create_satellite: SatelliteFixtureData,
+    deployment_handler: DeploymentHandler,
+) -> None:
+    """A PATCH carrying one field must leave every other column as it was.
+
+    This goes through the handler and back out of the database, because the bug
+    it guards against lived in the handler's conversion and only became visible
+    once the row was written and read again.
+    """
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    secret_id = str(uuid.uuid7())
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="original",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            description="keep me",
+            tags=["keep"],
+            dynamic_attributes_secrets={"token": secret_id},
+            env_variables={"LEVEL": "debug"},
+        )
+    )
+
+    await deployment_handler.update_deployment_details(
+        data.user.id,
+        data.organization.id,
+        data.orbit.id,
+        created.id,
+        DeploymentDetailsUpdateIn(name="renamed"),
+    )
+
+    reloaded = await repo.get_deployment(created.id, data.orbit.id)
+    assert reloaded is not None
+    assert reloaded.name == "renamed"
+    assert reloaded.description == "keep me"
+    assert reloaded.tags == ["keep"]
+    assert reloaded.dynamic_attributes_secrets == {"token": secret_id}
+    assert reloaded.env_variables == {"LEVEL": "debug"}
+
+
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_details_update_treats_explicit_null_secrets_as_cleared(
+    mock_check_permissions: AsyncMock,  # noqa: ARG001
+    create_satellite: SatelliteFixtureData,
+    deployment_handler: DeploymentHandler,
+) -> None:
+    """An explicit null for a NOT NULL column clears it instead of erroring."""
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+
+    created, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="original",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+            status=DeploymentStatus.PENDING,
+            dynamic_attributes_secrets={"token": str(uuid.uuid7())},
+        )
+    )
+
+    await deployment_handler.update_deployment_details(
+        data.user.id,
+        data.organization.id,
+        data.orbit.id,
+        created.id,
+        DeploymentDetailsUpdateIn.model_validate({"dynamic_attributes_secrets": None}),
+    )
+
+    reloaded = await repo.get_deployment(created.id, data.orbit.id)
+    assert reloaded is not None
+    assert reloaded.dynamic_attributes_secrets == {}
