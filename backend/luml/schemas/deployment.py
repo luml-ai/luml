@@ -3,7 +3,13 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import (
+    BaseModel,
+    Field,
+    ValidationInfo,
+    computed_field,
+    field_validator,
+)
 
 from luml.schemas.base import BaseOrmConfig
 
@@ -115,6 +121,12 @@ class InferenceAccessOut(BaseModel):
 
 
 class DeploymentDetailsUpdateBase(BaseModel):
+    """Partial update: None marks a field as absent, never as a value to store.
+
+    Fields backed by a NOT NULL column therefore reject an explicit null rather
+    than letting it reach the database as a failed write.
+    """
+
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
     monitoring_mode: MonitoringMode | None = None
@@ -122,9 +134,22 @@ class DeploymentDetailsUpdateBase(BaseModel):
     error_message: dict[str, Any] | None = None
     tags: TagList | None = None
 
+    @field_validator("name", "monitoring_mode", mode="before")
+    @classmethod
+    def _reject_explicit_null(cls, value: Any, info: ValidationInfo) -> Any:  # noqa: ANN401
+        if value is None:
+            raise ValueError(f"{info.field_name} cannot be null; omit it instead")
+        return value
+
 
 class DeploymentDetailsUpdateIn(DeploymentDetailsUpdateBase):
     dynamic_attributes_secrets: dict[str, UUID] | None = None
+
+    @field_validator("dynamic_attributes_secrets", mode="before")
+    @classmethod
+    def _null_clears_the_mapping(cls, value: Any) -> Any:  # noqa: ANN401
+        # The column is NOT NULL, so an explicit null can only mean "clear it".
+        return {} if value is None else value
 
 
 class DeploymentDetailsUpdate(DeploymentDetailsUpdateBase):

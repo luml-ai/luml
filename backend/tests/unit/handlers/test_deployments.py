@@ -30,6 +30,7 @@ from luml.schemas.satellite import (
     get_present_capabilities,
     normalize_capabilities,
 )
+from pydantic import ValidationError
 
 handler = DeploymentHandler()
 
@@ -1147,6 +1148,30 @@ async def test_update_deployment_details_forwards_only_the_fields_sent(
     forwarded = mock_update_deployment_details.await_args.args[2]
     assert forwarded.model_fields_set == {"name"}
     assert forwarded.model_dump(exclude_unset=True) == {"name": "new-name"}
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        pytest.param({"dynamic_attributes_secrets": None}, {}, id="explicit-null"),
+        pytest.param({"dynamic_attributes_secrets": {}}, {}, id="explicit-empty"),
+    ],
+)
+def test_details_update_in_reads_null_secrets_as_cleared(
+    payload: dict[str, Any], expected: dict[str, Any]
+) -> None:
+    """The column is NOT NULL, so null can only mean "clear it"."""
+    details = DeploymentDetailsUpdateIn.model_validate(payload)
+
+    assert details.dynamic_attributes_secrets == expected
+    assert "dynamic_attributes_secrets" in details.model_fields_set
+
+
+@pytest.mark.parametrize("field", ["name", "monitoring_mode"])
+def test_details_update_in_rejects_null_for_not_null_columns(field: str) -> None:
+    """Omitting a field means "leave it"; null would be an impossible write."""
+    with pytest.raises(ValidationError, match=f"{field} cannot be null"):
+        DeploymentDetailsUpdateIn.model_validate({field: None})
 
 
 @pytest.mark.parametrize(
