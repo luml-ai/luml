@@ -119,7 +119,7 @@ test.describe('Invitation links', () => {
 
     await expect(page).toHaveURL(/\/invitations$/)
     await expect(page.getByRole('heading', { name: 'Invitation center' })).toBeVisible()
-    await expect(page.getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
   })
 
   test('shows loading while invitations are being fetched', async ({ page, apiMocks }) => {
@@ -156,7 +156,7 @@ test.describe('Invitation links', () => {
     await expect(page.getByText('Failed to load invitations.')).toBeVisible()
     await page.getByRole('button', { name: 'Retry' }).click()
 
-    await expect(page.getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
   })
 
   test('accepts an invitation and shows success', async ({ page, apiMocks }) => {
@@ -183,7 +183,7 @@ test.describe('Invitation links', () => {
     await page.getByRole('button', { name: 'Accept invitation' }).click()
 
     await expect(page.getByText('Failed to accept the invitation')).toBeVisible()
-    await expect(page.getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
   })
 
   test('declines an invitation and shows success', async ({ page, apiMocks }) => {
@@ -210,6 +210,6 @@ test.describe('Invitation links', () => {
     await page.getByRole('button', { name: 'Decline invitation' }).click()
 
     await expect(page.getByText('Failed to reject the invitation')).toBeVisible()
-    await expect(page.getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
   })
 })
