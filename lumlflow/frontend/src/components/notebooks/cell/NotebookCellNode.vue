@@ -13,7 +13,7 @@
     <NotebookCellTabs v-model="activeTab" class="mb-4" />
     <NotebookPlot v-if="activeTab === 'plot'" />
     <NotebookCode v-if="activeTab === 'code'" />
-    <NotebookLogs v-if="activeTab === 'logs'" />
+    <NotebookLogs v-if="activeTab === 'logs'" :slug="cell.slug" />
   </NotebookCell>
 </template>
 

@@ -17,7 +17,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import type { TrackerExperiment } from '@/flow/api/types'
 import type { CellErrorInfo } from '../../model/types'
-import { terminalText } from '../../model/terminal'
+import { terminalText } from '@/utils/terminal'
 
 /**
  * Logs of the current materialization; while a cell runs this still holds the

@@ -17,7 +17,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { terminalText } from '../../model/terminal'
+import { terminalText } from '@/utils/terminal'
 
 /** Terminal-style live stdout/stderr while the cell runs; demotes to logs after. */
 const props = defineProps<{ lines: string[] }>()

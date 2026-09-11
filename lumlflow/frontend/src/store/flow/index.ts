@@ -237,6 +237,15 @@ export const useFlowStore = defineStore('flow', () => {
     return detail.source
   }
 
+  async function fetchCellLogs(slug: string): Promise<string | null> {
+    const detail = await workspaceApi.cellLogs(
+      slug,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    return detail.logs
+  }
+
   function nextDuplicateSlug(slug: string): string {
     const taken = new Set(cells.value.map((cell) => cell.slug.toLowerCase()))
     let candidate = `${slug}_copy`
@@ -365,6 +374,7 @@ export const useFlowStore = defineStore('flow', () => {
     fetchCells,
     renameCell,
     fetchCellSource,
+    fetchCellLogs,
     duplicateCell,
     addCellDownstream,
     createCell,

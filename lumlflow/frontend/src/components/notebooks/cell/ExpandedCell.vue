@@ -27,7 +27,7 @@
           <div class="item-title">Logs</div>
         </div>
         <div class="item-content">
-          <NotebookLogs />
+          <NotebookLogs :slug="cell.slug" />
         </div>
       </div>
     </div>

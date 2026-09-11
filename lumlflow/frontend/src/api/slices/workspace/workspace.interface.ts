@@ -144,6 +144,14 @@ export interface CellDetail {
   source: string
 }
 
+export interface CellLogs {
+  flow: string
+  branch: string
+  slug: string
+  state: CellStaleState | null
+  logs: string | null
+}
+
 export interface NewCell {
   slug: string
   branch: string

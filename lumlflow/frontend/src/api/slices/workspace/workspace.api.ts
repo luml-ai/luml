@@ -4,6 +4,7 @@ import type {
   BranchTree,
   CancelledRun,
   CellDetail,
+  CellLogs,
   CellsPage,
   CreatedFlow,
   DeletedCell,
@@ -150,6 +151,13 @@ export const workspaceApi = {
 
   cellSource: (slug: string, flow?: string, branch?: string) =>
     call<{ flow?: string; branch?: string; slug: string }, CellDetail>('cells.show', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      slug,
+    }),
+
+  cellLogs: (slug: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string }, CellLogs>('cells.logs', {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
       slug,

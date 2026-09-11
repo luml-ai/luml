@@ -44,3 +44,7 @@ export interface CellTab {
   icon: LucideIcon
   value: string
 }
+
+export interface NotebookLogsProps {
+  slug: string
+}

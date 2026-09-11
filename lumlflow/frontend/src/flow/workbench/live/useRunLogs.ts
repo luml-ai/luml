@@ -18,7 +18,7 @@ import type { ComputedRef, Ref } from 'vue'
 import { RING_CHUNKS } from '@/flow/api/logs'
 import type { LogFrame, StreamFrame } from '@/flow/api/types'
 import type { FlowStream } from '@/flow/api/stream'
-import { TerminalBuffer } from '../model/terminal'
+import { TerminalBuffer } from '@/utils/terminal'
 import type { FlowSessionHandle } from './useFlowSession'
 
 export interface RunLogsHandle {
