@@ -1112,6 +1112,43 @@ async def test_update_deployment_details(
     )
 
 
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.deployments.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_deployment_details_forwards_only_the_fields_sent(
+    mock_check_permissions: AsyncMock,
+    mock_update_deployment_details: AsyncMock,
+) -> None:
+    """Unset fields must not reach the repository.
+
+    The repository applies the update with ``model_dump(exclude_unset=True)``,
+    so a field that is merely defaulted to None must stay unset -- otherwise the
+    PATCH overwrites untouched columns with NULL.
+    """
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+
+    await handler.update_deployment_details(
+        user_id,
+        organization_id,
+        orbit_id,
+        deployment_id,
+        DeploymentDetailsUpdateIn(name="new-name"),
+    )
+
+    forwarded = mock_update_deployment_details.await_args.args[2]
+    assert forwarded.model_fields_set == {"name"}
+    assert forwarded.model_dump(exclude_unset=True) == {"name": "new-name"}
+
+
 @pytest.mark.parametrize(
     "capabilities",
     [
