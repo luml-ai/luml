@@ -48,3 +48,7 @@ export interface CellTab {
 export interface NotebookLogsProps {
   slug: string
 }
+
+export interface NotebookCodeProps {
+  slug: string
+}

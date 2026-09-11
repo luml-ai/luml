@@ -10,6 +10,7 @@ import type {
   DeletedCell,
   DeletedFlow,
   DuplicatedFlow,
+  EditedCell,
   EndedAgentSession,
   ForkedBranch,
   JournalPage,
@@ -162,6 +163,17 @@ export const workspaceApi = {
       ...(branch ? { branch } : {}),
       slug,
     }),
+
+  editCell: (slug: string, source: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string; source: string }, EditedCell>(
+      'cells.edit',
+      {
+        ...(flow ? { flow } : {}),
+        ...(branch ? { branch } : {}),
+        slug,
+        source,
+      },
+    ),
 
   newCell: (params: {
     slug?: string

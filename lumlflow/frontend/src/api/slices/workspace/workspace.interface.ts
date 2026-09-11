@@ -152,6 +152,19 @@ export interface CellLogs {
   logs: string | null
 }
 
+export interface EditedCellFlag {
+  code: string
+  detail: string | null
+}
+
+export interface EditedCell {
+  slug: string
+  branch: string
+  definition_hash: string
+  written_to_files: boolean
+  flags: EditedCellFlag[]
+}
+
 export interface NewCell {
   slug: string
   branch: string
