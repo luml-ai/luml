@@ -96,7 +96,7 @@
     </template>
     <template #footer>
       <span>Already have an account? </span>
-      <router-link :to="{ name: 'sign-in' }" class="link">Sign in</router-link>
+      <router-link :to="signInRoute" class="link">Sign in</router-link>
     </template>
   </authorization-wrapper>
 </template>
@@ -105,19 +105,21 @@
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 import MainImage from '@/assets/img/form-bg.webp'
 
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { FormSubmitEvent } from '@primevue/forms'
 
 import { useAuthStore } from '@/stores/auth'
 import type { IPostSignupRequest } from '@/lib/api/api.interfaces'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { signUpInitialValues } from '@/utils/forms/initialValues'
 import { signUpResolver } from '@/utils/forms/resolvers'
 import { useInputIcon } from '@/hooks/useInputIcon'
 import { getErrorMessage } from '@/helpers/helpers'
+import { getSafeAuthRedirect, storeAuthRedirect } from '@/utils/authRedirect'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const initialValues = ref(signUpInitialValues)
 
@@ -128,6 +130,11 @@ const usernameRef = ref<HTMLInputElement | null>(null)
 const emailRef = ref<HTMLInputElement | null>(null)
 
 const formResponseError = ref('')
+const redirect = computed(() => getSafeAuthRedirect(route.query.redirect))
+const signInRoute = computed(() => ({
+  name: 'sign-in',
+  query: redirect.value ? { redirect: redirect.value } : {},
+}))
 
 const { getCurrentInputIcon, onIconClick } = useInputIcon(
   [usernameRef, emailRef],
@@ -148,8 +155,11 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 
   try {
     await authStore.signUp(data)
-
-    router.push({ name: 'email-check' })
+    storeAuthRedirect(redirect.value)
+    router.push({
+      name: 'email-check',
+      query: redirect.value ? { redirect: redirect.value } : {},
+    })
   } catch (e: unknown) {
     const errorDetails = getErrorMessage(e)
 

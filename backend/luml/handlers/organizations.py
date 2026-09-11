@@ -219,7 +219,7 @@ class OrganizationHandler:
                 invite.email if invite else "",
                 get_invited_by_name(invite),
                 get_organization_email_name(invite),
-                config.APP_EMAIL_URL,
+                f"{config.APP_EMAIL_URL.rstrip('/')}/invitations",
             )
         except Exception as error:
             raise EmailDeliveryError(

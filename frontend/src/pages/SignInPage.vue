@@ -71,7 +71,7 @@
     <template #footer>
       <div class="footer-message">
         <span>Don`t have an account? </span>
-        <router-link :to="{ name: 'sign-up' }" class="link">Sign up</router-link>
+        <router-link :to="signUpRoute" class="link">Sign up</router-link>
       </div>
       <router-link :to="{ name: 'forgot-password' }" class="link">Forgot password?</router-link>
     </template>
@@ -82,7 +82,7 @@
 import type { FormSubmitEvent } from '@primevue/forms'
 import type { IPostSignInRequest } from '@/lib/api/api.interfaces'
 
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 import MainImage from '@/assets/img/form-bg.webp'
@@ -91,12 +91,14 @@ import { signInInitialValues } from '@/utils/forms/initialValues'
 import { signInResolver } from '@/utils/forms/resolvers'
 
 import { useAuthStore } from '@/stores/auth'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useInputIcon } from '@/hooks/useInputIcon'
 import { getErrorMessage } from '@/helpers/helpers'
+import { clearStoredAuthRedirect, getSafeAuthRedirect } from '@/utils/authRedirect'
 
 const authStore = useAuthStore()
 const router = useRouter()
+const route = useRoute()
 
 const initialValues = ref(signInInitialValues)
 const resolver = ref(signInResolver)
@@ -104,6 +106,11 @@ const resolver = ref(signInResolver)
 const formRef = ref()
 const emailRef = ref<HTMLInputElement | null>(null)
 const formResponseError = ref('')
+const redirect = computed(() => getSafeAuthRedirect(route.query.redirect))
+const signUpRoute = computed(() => ({
+  name: 'sign-up',
+  query: redirect.value ? { redirect: redirect.value } : {},
+}))
 
 const { getCurrentInputIcon, onIconClick } = useInputIcon([emailRef], formRef, initialValues, false)
 
@@ -117,8 +124,8 @@ const onFormSubmit = async ({ valid, values }: FormSubmitEvent) => {
 
   try {
     await authStore.signIn(data)
-    const redirect = router.currentRoute.value.query.redirect as string
-    router.push(redirect || { name: 'home' })
+    clearStoredAuthRedirect()
+    router.push(redirect.value || { name: 'home' })
   } catch (e: unknown) {
     const errorDetails = getErrorMessage(e)
 

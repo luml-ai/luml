@@ -15,6 +15,7 @@ from luml.schemas.organization import (
     UserInvite,
 )
 from luml.schemas.user import CreateUser, UserOut
+from luml.settings import config
 
 handler = OrganizationHandler()
 
@@ -97,7 +98,12 @@ async def test_send_invite(
 
     assert result == mocked_invite
 
-    mock_send_organization_invite_email.assert_called_once()
+    mock_send_organization_invite_email.assert_called_once_with(
+        mocked_invite.email,
+        "",
+        "",
+        f"{config.APP_EMAIL_URL.rstrip('/')}/invitations",
+    )
     mock_create_organization_invite.assert_awaited_once()
 
 
