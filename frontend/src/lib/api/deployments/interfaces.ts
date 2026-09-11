@@ -4,6 +4,7 @@ export enum DeploymentStatusEnum {
   failed = 'failed',
   deleted = 'deleted',
   deletion_pending = 'deletion_pending',
+  deletion_failed = 'deletion_failed',
   not_responding = 'not_responding',
 }
 

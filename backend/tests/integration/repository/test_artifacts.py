@@ -150,6 +150,7 @@ async def test_get_collection_artifacts_returns_only_active_deployments(
 
     model = test_artifact.model_copy()
     model.collection_id = collection.id
+    model.status = ArtifactStatus.UPLOADED
     created_model = await repo.create_artifact(model)
 
     satellite = await satellite_repo.create_satellite(
@@ -399,6 +400,7 @@ async def test_delete_artifact_with_deployment_constraint(
 
     model = test_artifact.model_copy()
     model.collection_id = collection.id
+    model.status = ArtifactStatus.UPLOADED
 
     created_model = await repo.create_artifact(model)
     peer_model = await _make_artifact(

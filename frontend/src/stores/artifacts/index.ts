@@ -1,17 +1,24 @@
 import type { FNNX_PRODUCER_TAGS_MANIFEST_ENUM } from '@/lib/fnnx/FnnxService'
 import type { ExperimentSnapshotProvider } from '@luml/experiments'
-import type {
-  Artifact,
-  CreateArtifactPayload,
-  UpdateArtifactPayload,
+import {
+  ArtifactStatusEnum,
+  type Artifact,
+  type ArtifactDeleteFailure,
+  type ArtifactDeleteUrl,
+  type ArtifactsDeleteResponse,
+  type ArtifactsDeleteUrlsResponse,
+  type CreateArtifactPayload,
+  type UpdateArtifactPayload,
 } from '@/lib/api/artifacts/interfaces'
-import type { ModelMetadata, RequestInfo } from './artifacts.interface'
+import type { DeleteArtifactsResult, ModelMetadata, RequestInfo } from './artifacts.interface'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { api } from '@/lib/api'
 import { useRoute } from 'vue-router'
 import { downloadFileFromBlob } from '@/helpers/helpers'
 import axios from 'axios'
+
+const ARTIFACT_DELETE_CHUNK_SIZE = 100
 
 export const useArtifactsStore = defineStore('artifacts', () => {
   const route = useRoute()
@@ -20,7 +27,7 @@ export const useArtifactsStore = defineStore('artifacts', () => {
 
   const artifactsList = ref<Artifact[]>([])
 
-  const modelsWithActiveDeploymentsForDeletion = ref<Artifact[]>([])
+  const deletionResult = ref<DeleteArtifactsResult | null>(null)
 
   const setArtifactsList = (list: Artifact[]) => {
     artifactsList.value = list
@@ -32,6 +39,14 @@ export const useArtifactsStore = defineStore('artifacts', () => {
 
   function resetCurrentArtifact() {
     currentArtifact.value = null
+  }
+
+  function setDeletionResult(result: DeleteArtifactsResult | null): void {
+    deletionResult.value = result
+  }
+
+  function resetDeletionResult(): void {
+    deletionResult.value = null
   }
 
   async function refreshCurrentArtifact() {
@@ -87,26 +102,8 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     )
   }
 
-  async function deleteArtifacts(ids: string[]) {
-    const results = await Promise.allSettled(ids.map((id) => deleteArtifact(id).then(() => id)))
-    const deleted: string[] = []
-    const failed: string[] = []
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        deleted.push(result.value)
-      } else {
-        failed.push(ids[index])
-      }
-    })
-    removeArtifactsFromList(deleted)
-    return { deleted, failed }
-  }
-
-  async function deleteArtifact(id: string) {
-    const { organizationId, orbitId, collectionId } = requestInfo.value
-    const { url } = await api.artifacts.getDeleteUrl(organizationId, orbitId, collectionId, id)
-    await axios.delete(url)
-    await api.artifacts.confirmDelete(organizationId, orbitId, collectionId, id)
+  async function deleteArtifacts(ids: string[]): Promise<DeleteArtifactsResult> {
+    return processArtifactDeletion(ids, false)
   }
 
   async function downloadArtifact(id: string, name: string) {
@@ -168,24 +165,165 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     return result
   }
 
-  async function forceDeleteArtifacts(ids: string[]) {
+  async function forceDeleteArtifacts(ids: string[]): Promise<DeleteArtifactsResult> {
+    return processArtifactDeletion(ids, true)
+  }
+
+  async function processArtifactDeletion(
+    ids: string[],
+    force: boolean,
+  ): Promise<DeleteArtifactsResult> {
     const { organizationId, orbitId, collectionId } = requestInfo.value
-    const results = await Promise.allSettled(
-      ids.map((id) =>
-        api.artifacts.forceDelete(organizationId, orbitId, collectionId, id).then(() => id),
-      ),
+    const distinctIds = [...new Set(ids)]
+    const result: DeleteArtifactsResult = { deleted: [], failed: [] }
+
+    for (let start = 0; start < distinctIds.length; start += ARTIFACT_DELETE_CHUNK_SIZE) {
+      const chunk = distinctIds.slice(start, start + ARTIFACT_DELETE_CHUNK_SIZE)
+      const laterIds = distinctIds.slice(start + ARTIFACT_DELETE_CHUNK_SIZE)
+
+      if (force) {
+        try {
+          const response = await api.artifacts.confirmDelete(
+            organizationId,
+            orbitId,
+            collectionId,
+            chunk,
+            true,
+          )
+          mergeConfirmationResponse(result, response)
+        } catch (error) {
+          return { ...result, error, notCompleted: [...chunk, ...laterIds] }
+        }
+        continue
+      }
+
+      let deletionRequest: ArtifactsDeleteUrlsResponse
+      try {
+        deletionRequest = await api.artifacts.requestDeleteUrls(
+          organizationId,
+          orbitId,
+          collectionId,
+          chunk,
+        )
+      } catch (error) {
+        return { ...result, error, notCompleted: [...chunk, ...laterIds] }
+      }
+
+      updateArtifactStatuses(
+        deletionRequest.urls.map(({ artifact_id }) => artifact_id),
+        ArtifactStatusEnum.pending_deletion,
+      )
+      mergeFailures(result, deletionRequest.failed)
+
+      const deletedFromBucket = await deleteArtifactsFromBucket(deletionRequest.urls, result)
+      if (!deletedFromBucket.length) continue
+
+      try {
+        const response = await api.artifacts.confirmDelete(
+          organizationId,
+          orbitId,
+          collectionId,
+          deletedFromBucket,
+        )
+        mergeConfirmationResponse(result, response)
+      } catch (error) {
+        return { ...result, error, notCompleted: [...deletedFromBucket, ...laterIds] }
+      }
+    }
+
+    return result
+  }
+
+  async function deleteArtifactsFromBucket(
+    urls: ArtifactDeleteUrl[],
+    result: DeleteArtifactsResult,
+  ): Promise<string[]> {
+    const outcomes = await Promise.all(
+      urls.map(async (entry) => ({ entry, deleted: await deleteArtifactFromBucket(entry.url) })),
     )
     const deleted: string[] = []
-    const failed: string[] = []
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        deleted.push(result.value)
-      } else {
-        failed.push(ids[index])
+
+    for (const { entry, deleted: objectDeleted } of outcomes) {
+      if (objectDeleted) {
+        deleted.push(entry.artifact_id)
+        continue
       }
-    })
-    removeArtifactsFromList(deleted)
-    return { deleted, failed }
+
+      const failure: ArtifactDeleteFailure = {
+        artifact_id: entry.artifact_id,
+        name: entry.name,
+        reason: 'storage_error',
+        deployments: [],
+        tracks: [],
+      }
+      await markStorageFailure(entry.artifact_id)
+      result.failed.push(failure)
+    }
+
+    return deleted
+  }
+
+  async function deleteArtifactFromBucket(url: string): Promise<boolean> {
+    try {
+      const response = await axios.delete(url)
+      return (response.status >= 200 && response.status < 300) || response.status === 404
+    } catch (error) {
+      return getResponseStatus(error) === 404
+    }
+  }
+
+  async function markStorageFailure(artifactId: string): Promise<void> {
+    const { organizationId, orbitId, collectionId } = requestInfo.value
+    try {
+      await api.artifacts.update(organizationId, orbitId, collectionId, artifactId, {
+        id: artifactId,
+        status: ArtifactStatusEnum.deletion_failed,
+      })
+      updateArtifactStatuses([artifactId], ArtifactStatusEnum.deletion_failed)
+    } catch (error) {
+      console.error(`Failed to set artifact ${artifactId} status to deletion_failed`, error)
+    }
+  }
+
+  function mergeConfirmationResponse(
+    result: DeleteArtifactsResult,
+    response: ArtifactsDeleteResponse,
+  ): void {
+    result.deleted.push(...response.deleted)
+    removeArtifactsFromList(response.deleted)
+    mergeFailures(result, response.failed)
+  }
+
+  function mergeFailures(result: DeleteArtifactsResult, failures: ArtifactDeleteFailure[]): void {
+    const notFoundIds = failures
+      .filter(({ reason }) => reason === 'not_found')
+      .map(({ artifact_id }) => artifact_id)
+    removeArtifactsFromList(notFoundIds)
+
+    const visibleFailures = failures.filter(({ reason }) => reason !== 'not_found')
+    result.failed.push(...visibleFailures)
+    updateArtifactStatuses(
+      visibleFailures
+        .filter(({ reason }) => reason === 'storage_error')
+        .map(({ artifact_id }) => artifact_id),
+      ArtifactStatusEnum.deletion_failed,
+    )
+  }
+
+  function getResponseStatus(error: unknown): number | undefined {
+    if (typeof error !== 'object' || error === null || !('response' in error)) return undefined
+    const response = (error as { response?: { status?: unknown } }).response
+    return typeof response?.status === 'number' ? response.status : undefined
+  }
+
+  function updateArtifactStatuses(ids: string[], status: ArtifactStatusEnum): void {
+    const artifactIds = new Set(ids)
+    if (!artifactIds.size) return
+    setArtifactsList(
+      artifactsList.value.map((artifact) =>
+        artifactIds.has(artifact.id) ? { ...artifact, status } : artifact,
+      ),
+    )
   }
 
   async function getArtifactsExtraValues(requestData?: RequestInfo) {
@@ -209,18 +347,13 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     setArtifactsList(newArtifactsList)
   }
 
-  function setModelsWithActiveDeploymentsForDeletion(artifacts: Artifact[]) {
-    modelsWithActiveDeploymentsForDeletion.value = artifacts
-  }
-
-  function resetModelsWithActiveDeploymentsForDeletion() {
-    modelsWithActiveDeploymentsForDeletion.value = []
-  }
-
   return {
     currentArtifact,
     setCurrentArtifact,
     resetCurrentArtifact,
+    deletionResult,
+    setDeletionResult,
+    resetDeletionResult,
     requestInfo,
     currentModelTag,
     currentModelMetadata,
@@ -246,9 +379,6 @@ export const useArtifactsStore = defineStore('artifacts', () => {
     getArtifact,
     artifactsList,
     setArtifactsList,
-    setModelsWithActiveDeploymentsForDeletion,
-    resetModelsWithActiveDeploymentsForDeletion,
-    modelsWithActiveDeploymentsForDeletion,
     refreshCurrentArtifact,
   }
 })

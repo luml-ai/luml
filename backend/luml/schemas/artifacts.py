@@ -15,7 +15,7 @@ from pydantic import (
 from luml.constants import LINEAGE_MAX_BATCH_ITEMS, MAX_FILE_SIZE_BYTES
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.collections import Collection
-from luml.schemas.deployment import Deployment, DeploymentBase
+from luml.schemas.deployment import Deployment, DeploymentBase, DeploymentStatus
 from luml.schemas.storage import AzureUploadDetails, S3UploadDetails
 from luml.schemas.track_base import TrackBase
 
@@ -51,6 +51,62 @@ class ArtifactType(StrEnum):
     MODEL = "model"
     EXPERIMENT = "experiment"
     DATASET = "dataset"
+
+
+class ArtifactDeleteReason(StrEnum):
+    NOT_FOUND = "not_found"
+    DEPLOYMENTS = "deployments"
+    TRACKS = "tracks"
+    NOT_PENDING_DELETION = "not_pending_deletion"
+    STORAGE_ERROR = "storage_error"
+
+
+class ArtifactsDeleteRequest(BaseModel):
+    artifact_ids: Annotated[list[UUID], Field(min_length=1, max_length=100)]
+
+    @field_validator("artifact_ids")
+    @classmethod
+    def collapse_duplicate_ids(cls, artifact_ids: list[UUID]) -> list[UUID]:
+        return list(dict.fromkeys(artifact_ids))
+
+
+class ArtifactsDeleteConfirmRequest(ArtifactsDeleteRequest):
+    force: bool = False
+
+
+class ArtifactDeleteDeployment(BaseModel):
+    id: UUID
+    name: str
+    status: DeploymentStatus
+
+
+class ArtifactDeleteTrack(BaseModel):
+    id: UUID
+    name: str
+
+
+class ArtifactDeleteFailure(BaseModel):
+    artifact_id: UUID
+    name: str | None
+    reason: ArtifactDeleteReason
+    deployments: list[ArtifactDeleteDeployment] = Field(default_factory=list)
+    tracks: list[ArtifactDeleteTrack] = Field(default_factory=list)
+
+
+class ArtifactDeleteURL(BaseModel):
+    artifact_id: UUID
+    name: str
+    url: str
+
+
+class ArtifactsDeleteURLsResponse(BaseModel):
+    urls: list[ArtifactDeleteURL]
+    failed: list[ArtifactDeleteFailure]
+
+
+class ArtifactsDeleteResponse(BaseModel):
+    deleted: list[UUID]
+    failed: list[ArtifactDeleteFailure]
 
 
 class ModelIO(BaseModel):
@@ -183,6 +239,10 @@ class Artifact(ArtifactIn, BaseOrmConfig):
     created_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
+
+    @property
+    def display_name(self) -> str:
+        return self.name or self.file_name
 
 
 class ArtifactListed(Artifact):

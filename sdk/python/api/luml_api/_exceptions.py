@@ -69,9 +69,17 @@ get a subclass of their own; any other 4xx arrives as a plain `APIStatusError`.
 """
 
 from collections.abc import Iterable
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import httpx
+
+if TYPE_CHECKING:
+    from luml_api._types import (
+        ArtifactDeleteDeployment,
+        ArtifactDeleteFailure,
+        ArtifactDeleteReason,
+        ArtifactDeleteTrack,
+    )
 
 
 def _format_resources(
@@ -534,6 +542,51 @@ class InternalServerError(APIStatusError):
     text."""
 
     pass
+
+
+class ArtifactDeleteError(LumlAPIError):
+    """A single artifact stayed in the registry after a deletion attempt."""
+
+    failure: "ArtifactDeleteFailure"
+    artifact_id: str
+    name: str | None
+    reason: "ArtifactDeleteReason"
+    deployments: list["ArtifactDeleteDeployment"]
+    tracks: list["ArtifactDeleteTrack"]
+
+    def __init__(self, failure: "ArtifactDeleteFailure") -> None:
+        self.failure = failure
+        self.artifact_id = failure.artifact_id
+        self.name = failure.name
+        self.reason = failure.reason
+        self.deployments = list(failure.deployments)
+        self.tracks = list(failure.tracks)
+        super().__init__(
+            f"Artifact {failure.artifact_id} was not deleted: {failure.reason}"
+        )
+
+
+class ArtifactBatchDeleteError(LumlAPIError):
+    """A platform request interrupted a batch artifact deletion."""
+
+    cause: Exception
+    deleted: list[str]
+    failed: list["ArtifactDeleteFailure"]
+    not_completed: list[str]
+
+    def __init__(
+        self,
+        cause: Exception,
+        *,
+        deleted: list[str],
+        failed: list["ArtifactDeleteFailure"],
+        not_completed: list[str],
+    ) -> None:
+        self.cause = cause
+        self.deleted = list(deleted)
+        self.failed = list(failed)
+        self.not_completed = list(not_completed)
+        super().__init__(f"Artifact batch deletion was interrupted: {cause}")
 
 
 class FileError(Exception):

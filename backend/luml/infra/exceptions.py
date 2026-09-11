@@ -165,6 +165,17 @@ class DatabaseConstraintError(RepositoryError):
         super().__init__(message, status_code)
 
 
+class ArtifactStatusMismatchError(RepositoryError):
+    status: str
+
+    def __init__(self, artifact_status: str) -> None:
+        self.status = artifact_status
+        super().__init__(
+            f"Cannot create deployment for artifact with status '{artifact_status}'.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+
+
 class InvalidSortingError(ApplicationError):
     def __init__(
         self,

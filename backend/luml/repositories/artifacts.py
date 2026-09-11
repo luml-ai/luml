@@ -1,10 +1,12 @@
+from collections import defaultdict
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
 from luml.models import (
@@ -12,11 +14,14 @@ from luml.models import (
     CollectionOrm,
     DeploymentOrm,
     TrackArtifactOrm,
+    TrackOrm,
 )
 from luml.repositories.base import CrudMixin, RepositoryBase
 from luml.schemas.artifacts import (
     Artifact,
     ArtifactCreate,
+    ArtifactDeleteDeployment,
+    ArtifactDeleteTrack,
     ArtifactDetails,
     ArtifactListed,
     ArtifactStatus,
@@ -25,6 +30,13 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.deployment import DeploymentStatus
 from luml.schemas.general import Cursor, PaginationParams
+
+
+@dataclass(slots=True)
+class ArtifactDeletionRecord:
+    artifact: Artifact
+    deployments: list[ArtifactDeleteDeployment]
+    tracks: list[ArtifactDeleteTrack]
 
 
 class ArtifactRepository(RepositoryBase, CrudMixin):
@@ -68,6 +80,169 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
                 error_mess + " It is used in deployments."
                 if "deployments" in str(error)
                 else error_mess
+            ) from error
+
+    async def _load_deletion_records(
+        self,
+        session: AsyncSession,
+        collection_id: UUID,
+        artifact_ids: list[UUID],
+        *,
+        lock: bool,
+    ) -> tuple[
+        list[ArtifactOrm],
+        dict[UUID, list[ArtifactDeleteDeployment]],
+        dict[UUID, list[ArtifactDeleteTrack]],
+    ]:
+        artifact_query = (
+            select(ArtifactOrm)
+            .where(
+                ArtifactOrm.collection_id == collection_id,
+                ArtifactOrm.id.in_(artifact_ids),
+            )
+            .options(
+                noload(ArtifactOrm.collection),
+                noload(ArtifactOrm.deployments),
+            )
+        )
+        if lock:
+            artifact_query = artifact_query.with_for_update()
+
+        artifact_result = await session.execute(artifact_query)
+        artifacts_by_id = {
+            artifact.id: artifact for artifact in artifact_result.scalars().all()
+        }
+        ordered_artifacts = [
+            artifacts_by_id[artifact_id]
+            for artifact_id in dict.fromkeys(artifact_ids)
+            if artifact_id in artifacts_by_id
+        ]
+        found_ids = list(artifacts_by_id)
+
+        deployment_result = await session.execute(
+            select(
+                DeploymentOrm.artifact_id,
+                DeploymentOrm.id,
+                DeploymentOrm.name,
+                DeploymentOrm.status,
+            ).where(DeploymentOrm.artifact_id.in_(found_ids))
+        )
+        deployments: defaultdict[UUID, list[ArtifactDeleteDeployment]] = defaultdict(
+            list
+        )
+        for artifact_id, deployment_id, name, deployment_status in deployment_result:
+            deployments[artifact_id].append(
+                ArtifactDeleteDeployment(
+                    id=deployment_id,
+                    name=name,
+                    status=DeploymentStatus(deployment_status),
+                )
+            )
+
+        track_result = await session.execute(
+            select(
+                TrackArtifactOrm.artifact_id,
+                TrackOrm.id,
+                TrackOrm.name,
+            )
+            .join(TrackOrm, TrackOrm.id == TrackArtifactOrm.track_id)
+            .where(TrackArtifactOrm.artifact_id.in_(found_ids))
+        )
+        tracks: defaultdict[UUID, list[ArtifactDeleteTrack]] = defaultdict(list)
+        for artifact_id, track_id, name in track_result:
+            tracks[artifact_id].append(ArtifactDeleteTrack(id=track_id, name=name))
+
+        return ordered_artifacts, dict(deployments), dict(tracks)
+
+    @staticmethod
+    def _to_deletion_records(
+        artifacts: list[ArtifactOrm],
+        deployments: dict[UUID, list[ArtifactDeleteDeployment]],
+        tracks: dict[UUID, list[ArtifactDeleteTrack]],
+    ) -> list[ArtifactDeletionRecord]:
+        return [
+            ArtifactDeletionRecord(
+                artifact=artifact.to_artifact(),
+                deployments=deployments.get(artifact.id, []),
+                tracks=tracks.get(artifact.id, []),
+            )
+            for artifact in artifacts
+        ]
+
+    async def request_batch_deletion(
+        self, collection_id: UUID, artifact_ids: list[UUID]
+    ) -> list[ArtifactDeletionRecord]:
+        async with self._get_session() as session:
+            artifacts, deployments, tracks = await self._load_deletion_records(
+                session,
+                collection_id,
+                artifact_ids,
+                lock=True,
+            )
+            for artifact in artifacts:
+                if not deployments.get(artifact.id) and not tracks.get(artifact.id):
+                    artifact.status = ArtifactStatus.PENDING_DELETION.value
+
+            records = self._to_deletion_records(artifacts, deployments, tracks)
+            await session.commit()
+            return records
+
+    async def get_batch_deletion_records(
+        self, collection_id: UUID, artifact_ids: list[UUID]
+    ) -> list[ArtifactDeletionRecord]:
+        async with self._get_session() as session:
+            artifacts, deployments, tracks = await self._load_deletion_records(
+                session,
+                collection_id,
+                artifact_ids,
+                lock=False,
+            )
+            return self._to_deletion_records(artifacts, deployments, tracks)
+
+    async def mark_deletion_failed(
+        self, collection_id: UUID, artifact_ids: list[UUID]
+    ) -> None:
+        if not artifact_ids:
+            return
+
+        async with self._get_session() as session:
+            await session.execute(
+                update(ArtifactOrm)
+                .where(
+                    ArtifactOrm.collection_id == collection_id,
+                    ArtifactOrm.id.in_(artifact_ids),
+                )
+                .values(status=ArtifactStatus.DELETION_FAILED.value)
+            )
+            await session.commit()
+
+    async def delete_artifact_record(
+        self, artifact_id: UUID, collection_id: UUID
+    ) -> bool:
+        try:
+            async with self._get_session() as session:
+                result = await session.execute(
+                    select(ArtifactOrm)
+                    .where(
+                        ArtifactOrm.id == artifact_id,
+                        ArtifactOrm.collection_id == collection_id,
+                    )
+                    .options(
+                        noload(ArtifactOrm.collection),
+                        noload(ArtifactOrm.deployments),
+                    )
+                    .with_for_update()
+                )
+                artifact = result.scalar_one_or_none()
+                if artifact is None:
+                    return False
+
+                await session.delete(artifact)
+                await session.commit()
+                return True
+        except IntegrityError as error:
+            raise DatabaseConstraintError(
+                "Cannot delete artifact because it is referenced."
             ) from error
 
     async def get_collection_artifacts_extra_values(
