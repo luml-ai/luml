@@ -96,6 +96,7 @@ test.describe('Invitation links', () => {
     await page.getByRole('link', { name: 'Sign up' }).click()
     await expect(page).toHaveURL(/\/sign-up\?redirect=\/invitations$/)
 
+    await page.getByLabel('Name').fill('Invitee')
     await page.getByLabel('Email').fill('invitee@example.com')
     await page.locator('#password input').fill('password123')
     await page.getByRole('button', { name: 'Sign up', exact: true }).click()
