@@ -24,6 +24,18 @@ class DeploymentOrm(TimestampMixin, Base):
             "monitoring_mode in ('off','full')",
             name="deployments_monitoring_mode_check",
         ),
+        *(
+            CheckConstraint(
+                f"jsonb_typeof({column}) = 'object'",
+                name=f"deployments_{column}_is_object_check",
+            )
+            for column in (
+                "dynamic_attributes_secrets",
+                "env_variables_secrets",
+                "env_variables",
+                "satellite_parameters",
+            )
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
