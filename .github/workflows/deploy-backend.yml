@@ -53,7 +53,9 @@ jobs:
         working-directory: backend
         env:
           POSTGRESQL_DSN: ${{ secrets.POSTGRESQL_DSN }}
-        run: uv run alembic upgrade head
+        run: |
+          uv run alembic upgrade head
+          uv run alembic current
 
   deploy:
     needs: [resolve-env, migrate]

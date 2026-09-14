@@ -1,9 +1,9 @@
 import asyncio
-import os
 from logging.config import fileConfig
 
 from alembic import context
 from luml.models import Base
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine.base import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -20,16 +20,20 @@ if config.config_file_name is not None:
 # add your model's MetaData object here
 target_metadata = Base.metadata
 
-# Read DSN directly from env so migrations don't require all app settings
-postgresql_dsn = os.environ.get(
-    "POSTGRESQL_DSN", config.get_main_option("sqlalchemy.url", "")
-)
-config.set_main_option("sqlalchemy.url", postgresql_dsn)
+
+class MigrationSettings(BaseSettings):
+    POSTGRESQL_DSN: str
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
 def run_migrations_online() -> None:
     connectable = context.config.attributes.get("connection", None)
     if connectable is None:
+        config.set_main_option(
+            "sqlalchemy.url",
+            MigrationSettings().POSTGRESQL_DSN,  # type: ignore[call-arg]
+        )
         configuration = context.config.get_section(context.config.config_ini_section)
         if configuration is None:
             raise RuntimeError("Alembic configuration section not found")
