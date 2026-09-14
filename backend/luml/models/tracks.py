@@ -1,6 +1,16 @@
 import uuid
 
-from sqlalchemy import UUID, ForeignKey, Integer, String, UniqueConstraint, func, select
+from sqlalchemy import (
+    UUID,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+    select,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
@@ -15,6 +25,13 @@ class TrackArtifactOrm(TimestampMixin, Base):
         ),
         UniqueConstraint(
             "track_id", "version", name="uq_track_entries_track_id_version"
+        ),
+        Index(
+            "uq_track_entries_track_id_stage_id",
+            "track_id",
+            "stage_id",
+            unique=True,
+            postgresql_where=text("stage_id IS NOT NULL"),
         ),
     )
 
@@ -36,7 +53,11 @@ class TrackArtifactOrm(TimestampMixin, Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     stage_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("track_stages.id", ondelete="SET NULL"),
+        ForeignKey(
+            "track_stages.id",
+            ondelete="RESTRICT",
+            name="fk_track_entries_stage_id_track_stages",
+        ),
         nullable=True,
     )
     added_by: Mapped[uuid.UUID] = mapped_column(

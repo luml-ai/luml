@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from luml.infra.exceptions import DatabaseConstraintError
 from luml.models import CollectionOrm, OrbitMembersOrm, OrbitOrm
 from luml.repositories.base import CrudMixin, RepositoryBase
+from luml.repositories.limits import OrganizationResource, reserve_organization_slot
 from luml.schemas.orbit import (
     Orbit,
     OrbitCreate,
@@ -118,6 +119,9 @@ class OrbitRepository(RepositoryBase, CrudMixin):
         self, organization_id: UUID, orbit: OrbitCreateIn
     ) -> OrbitDetails | None:
         async with self._get_session() as session:
+            await reserve_organization_slot(
+                session, organization_id, OrganizationResource.ORBITS
+            )
             db_orbit = await self.create_model(
                 session,
                 OrbitOrm,

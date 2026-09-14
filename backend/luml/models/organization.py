@@ -100,6 +100,13 @@ class OrganizationMemberOrm(TimestampMixin, Base):
 
 class OrganizationInviteOrm(TimestampMixin, Base):
     __tablename__ = "organization_invites"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "email",
+            name="uq_organization_invites_organization_id_email",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=False), primary_key=True, default=uuid.uuid7

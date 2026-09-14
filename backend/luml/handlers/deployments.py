@@ -7,6 +7,7 @@ from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
     ApplicationError,
+    ArtifactStatusMismatchError,
     InsufficientPermissionsError,
     NotFoundError,
 )
@@ -141,26 +142,29 @@ class DeploymentHandler:
             data.monitoring_mode,
         )
 
-        deployment, _ = await self.__repo.create_deployment(
-            DeploymentCreate(
-                orbit_id=orbit_id,
-                satellite_id=data.satellite_id,
-                artifact_id=data.artifact_id,
-                name=data.name,
-                monitoring_mode=data.monitoring_mode,
-                satellite_parameters=data.satellite_parameters,
-                description=data.description,
-                dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(
-                    data.dynamic_attributes_secrets
-                ),
-                env_variables_secrets=self._convert_dynamic_attributes_secrets(
-                    data.env_variables_secrets
-                ),
-                env_variables=data.env_variables,
-                created_by_user=user.full_name,
-                tags=data.tags,
+        try:
+            deployment, _ = await self.__repo.create_deployment(
+                DeploymentCreate(
+                    orbit_id=orbit_id,
+                    satellite_id=data.satellite_id,
+                    artifact_id=data.artifact_id,
+                    name=data.name,
+                    monitoring_mode=data.monitoring_mode,
+                    satellite_parameters=data.satellite_parameters,
+                    description=data.description,
+                    dynamic_attributes_secrets=self._convert_dynamic_attributes_secrets(
+                        data.dynamic_attributes_secrets
+                    ),
+                    env_variables_secrets=self._convert_dynamic_attributes_secrets(
+                        data.env_variables_secrets
+                    ),
+                    env_variables=data.env_variables,
+                    created_by_user=user.full_name,
+                    tags=data.tags,
+                )
             )
-        )
+        except ArtifactStatusMismatchError as error:
+            raise ApplicationError(error.message, status.HTTP_409_CONFLICT) from error
         return deployment
 
     async def list_deployments(
