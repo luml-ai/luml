@@ -4,7 +4,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 
 from luml.models import TokenBlackListOrm
-from luml.repositories.base import RepositoryBase
+from luml.repositories.base import RepositoryBase, violates
 
 
 class TokenBlackListRepository(RepositoryBase):
@@ -13,7 +13,9 @@ class TokenBlackListRepository(RepositoryBase):
             session.add(TokenBlackListOrm(token=token, expire_at=expire_at))
             try:
                 await session.commit()
-            except IntegrityError:
+            except IntegrityError as error:
+                if not violates(error, "uq_token_black_list_token"):
+                    raise
                 await session.rollback()
                 await session.execute(
                     update(TokenBlackListOrm)

@@ -201,8 +201,6 @@ class ArtifactNotFoundError(ApplicationError):
 
 
 class ArtifactInUseError(ApplicationError):
-    """The artifact is referenced and cannot be deleted."""
-
     def __init__(self, message: str) -> None:
         super().__init__(message, status.HTTP_409_CONFLICT)
 

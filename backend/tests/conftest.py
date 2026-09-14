@@ -413,8 +413,6 @@ TEST_ORGANIZATION_LIMITS = {
 
 
 async def lift_organization_limits(engine: AsyncEngine, organization_id: UUID) -> None:
-    """Repositories enforce quotas under a row lock; fixture organizations get
-    generous ones so only the quota tests decide what a limit is."""
     async with AsyncSession(engine) as session:
         await session.execute(
             update(OrganizationOrm)

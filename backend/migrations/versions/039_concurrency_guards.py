@@ -6,6 +6,8 @@ Create Date: 2026-09-10 00:00:00.000000
 
 """
 
+import base64
+import json
 from collections.abc import Sequence
 
 import sqlalchemy as sa
@@ -25,8 +27,41 @@ def _stage_foreign_key_name() -> str:
     raise RuntimeError("track_entries.stage_id foreign key not found")
 
 
+def _token_expiry(token: str) -> int | None:
+    parts = token.split(".")
+    if len(parts) != 3:
+        return None
+    payload = parts[1]
+    try:
+        claims = json.loads(
+            base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4))
+        )
+    except (ValueError, UnicodeDecodeError):
+        return None
+    exp = claims.get("exp") if isinstance(claims, dict) else None
+    if isinstance(exp, bool) or not isinstance(exp, int | float):
+        return None
+    return int(exp)
+
+
+def _extend_blacklist_to_token_expiry() -> None:
+    connection = op.get_bind()
+    rows = connection.execute(
+        sa.text("SELECT id, token, expire_at FROM token_black_list")
+    ).all()
+    for row_id, token, expire_at in rows:
+        expiry = _token_expiry(token)
+        if expiry is not None and expiry > expire_at:
+            connection.execute(
+                sa.text(
+                    "UPDATE token_black_list SET expire_at = :expire_at WHERE id = :id"
+                ),
+                {"expire_at": expiry, "id": row_id},
+            )
+
+
 def upgrade() -> None:
-    # Refresh-token blacklist: one row per token, so revoking is atomic.
+    _extend_blacklist_to_token_expiry()
     op.execute(
         "DELETE FROM token_black_list a USING token_black_list b "
         "WHERE a.token = b.token AND ("
@@ -37,7 +72,6 @@ def upgrade() -> None:
         "uq_token_black_list_token", "token_black_list", ["token"]
     )
 
-    # Invites: one pending invite per organization and email (keep the newest).
     op.execute(
         "DELETE FROM organization_invites a USING organization_invites b "
         "WHERE a.organization_id = b.organization_id "
@@ -49,7 +83,6 @@ def upgrade() -> None:
         ["organization_id", "email"],
     )
 
-    # Track stages: at most one entry per stage (keep the highest version).
     op.execute(
         "UPDATE track_entries e SET stage_id = NULL "
         "WHERE e.stage_id IS NOT NULL AND EXISTS ("
@@ -64,7 +97,6 @@ def upgrade() -> None:
         postgresql_where=sa.text("stage_id IS NOT NULL"),
     )
 
-    # Deleting a stage must not clear entries silently.
     op.drop_constraint(_stage_foreign_key_name(), "track_entries", type_="foreignkey")
     op.create_foreign_key(
         "fk_track_entries_stage_id_track_stages",

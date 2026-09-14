@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 
 
 class _AdapterError(Exception):
-    """The DBAPI-level error; the driver error hangs off its ``__cause__``."""
+    pass
 
 
 class _DriverError(Exception):

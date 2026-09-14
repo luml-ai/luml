@@ -251,8 +251,6 @@ class AuthHandler:
                 except InvalidTokenError:
                     pass
 
-            # Each token is blacklisted for its own lifetime: the refresh token
-            # outlives the access token and must stay revoked until it expires.
             await self.__token_black_list_repository.add_token(
                 refresh_token, refresh_exp
             )

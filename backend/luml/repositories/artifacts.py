@@ -63,15 +63,6 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
     async def request_deletion(
         self, artifact_id: UUID, collection_id: UUID
     ) -> Artifact | None:
-        """Move the artifact to ``pending_deletion``, or refuse.
-
-        The row is locked while deployments and track links are checked, so a
-        deployment created concurrently is either seen here or waits and then
-        finds the artifact already in ``pending_deletion``. Raises
-        ``ArtifactDeployedError`` / ``ArtifactTrackedError`` (409) when the
-        artifact is referenced; returns ``None`` when it does not exist in the
-        collection.
-        """
         async with self._get_session() as session:
             result = await session.execute(
                 select(ArtifactOrm)

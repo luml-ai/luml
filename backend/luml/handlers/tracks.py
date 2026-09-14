@@ -10,7 +10,7 @@ from luml.infra.exceptions import (
     NotFoundError,
 )
 from luml.repositories.artifacts import ArtifactRepository
-from luml.repositories.base import is_foreign_key_violation, violates
+from luml.repositories.base import violates
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.tracks import (
@@ -253,12 +253,6 @@ class TracksHandler:
     def _entry_write_error(
         error: IntegrityError, stage: Stage | None
     ) -> ApplicationError | IntegrityError:
-        """Translate a refused entry write by the constraint that refused it.
-
-        The pre-checks above run without a lock, so a concurrent writer can win
-        in between: the stage got taken or deleted, the artifact or track got
-        deleted, or the artifact got linked. Anything else propagates.
-        """
         if stage is not None and violates(error, "uq_track_entries_track_id_stage_id"):
             return ApplicationError(
                 f"Stage '{stage.name}' is already assigned to another entry.", 409
@@ -269,9 +263,9 @@ class TracksHandler:
             return NotFoundError("Artifact not found")
         if violates(error, "track_entries_track_id_fkey"):
             return NotFoundError("Track not found")
-        if is_foreign_key_violation(error):
-            return error
-        return ApplicationError("Artifact is already an entry in this track.", 409)
+        if violates(error, "uq_track_entries_track_id_artifact_id"):
+            return ApplicationError("Artifact is already an entry in this track.", 409)
+        return error
 
     async def create_entry(
         self,

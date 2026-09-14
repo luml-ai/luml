@@ -817,7 +817,9 @@ async def test_create_entry_duplicate(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
-    mock_create.side_effect = IntegrityError("", {}, Exception())
+    mock_create.side_effect = IntegrityError(
+        "", {}, Exception("uq_track_entries_track_id_artifact_id")
+    )
 
     with pytest.raises(ApplicationError, match="already an entry") as exc:
         await tracks_handler.create_entry(
@@ -2104,12 +2106,7 @@ async def test_update_track_stage_sync_conflict_propagates(
     assert exc.value.status_code == 409
 
 
-# ---- Entry writes refused by the database after the pre-checks passed ----
-
-
 class _DriverError(Exception):
-    """Stand-in for the asyncpg error SQLAlchemy wraps in ``IntegrityError``."""
-
     def __init__(
         self, constraint_name: str | None = None, sqlstate: str | None = None
     ) -> None:
@@ -2182,9 +2179,6 @@ async def test_create_entry_loses_race_after_pre_checks(
     status: int,
     message: str,
 ) -> None:
-    # The stage was free when checked; the database then refused the write
-    # because a concurrent writer took the stage, deleted it, or linked the
-    # artifact first.
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
@@ -2201,6 +2195,49 @@ async def test_create_entry_loses_race_after_pre_checks(
             TrackEntryCreateIn(artifact_id=ARTIFACT_ID, stage_id=STAGE_ID),
         )
     assert exc.value.status_code == status
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@pytest.mark.parametrize(
+    "error",
+    [
+        _integrity_error(constraint_name="uq_track_entries_track_id_version"),
+        _integrity_error("track_entries_added_by_fkey", "23503"),
+        IntegrityError("", {}, Exception('null value in column "added_by"')),
+    ],
+)
+@pytest.mark.asyncio
+async def test_create_entry_unrelated_constraint_propagates(
+    mock_create: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+    error: IntegrityError,
+) -> None:
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_create.side_effect = error
+
+    with pytest.raises(IntegrityError) as exc:
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID),
+        )
+    assert exc.value is error
 
 
 @patch(
@@ -2275,8 +2312,6 @@ async def test_create_entry_propagates_unknown_foreign_key_failures(
     mock_get_track: AsyncMock,
     mock_perms: AsyncMock,
 ) -> None:
-    # A foreign key the handler does not know (here the added_by user) is not
-    # reported as a stage problem; it surfaces unchanged.
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)

@@ -3431,8 +3431,6 @@ async def test_request_delete_url_artifact_gone_before_lock(
     mock_check_access: AsyncMock,
     mock_perms: AsyncMock,
 ) -> None:
-    # The artifact was read, but a concurrent deletion removed it before the
-    # locked status change: the request answers 404, not a server error.
     mock_check_access.return_value = None
     mock_get_artifact.return_value = Mock(
         id=_ARTIFACT, collection_id=_COLLECTION, bucket_location="loc"

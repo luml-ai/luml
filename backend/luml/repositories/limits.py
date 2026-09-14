@@ -67,7 +67,6 @@ def _usage_query(
 async def reserve_organization_slot(
     session: AsyncSession, organization_id: UUID, resource: OrganizationResource
 ) -> None:
-    """Lock the organization row and fail if ``resource`` is at its limit."""
     limit_column = getattr(OrganizationOrm, f"{resource.value}_limit")
     limit = await session.scalar(
         select(limit_column)
@@ -84,7 +83,6 @@ async def reserve_organization_slot(
 async def reserve_user_membership_slot(
     session: AsyncSession, user_id: UUID, limit: int
 ) -> None:
-    """Lock the user row and fail if the user is already in ``limit`` organizations."""
     locked = await session.scalar(
         select(UserOrm.id).where(UserOrm.id == user_id).with_for_update()
     )

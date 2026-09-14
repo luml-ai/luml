@@ -17,6 +17,7 @@ from luml.infra.exceptions import (
     ApplicationError,
     ArtifactBeingDeletedError,
     ArtifactNotFoundError,
+    NotFoundError,
 )
 from luml.models.artifacts import ArtifactOrm
 from luml.models.tracks import TrackArtifactOrm, TrackOrm, TrackStageOrm
@@ -50,11 +51,6 @@ def stage_sync_error(error: IntegrityError) -> ApplicationError | IntegrityError
 
 
 async def _hold_artifact_for_linking(session: AsyncSession, artifact_id: UUID) -> None:
-    """Take a key-share lock on the artifact and refuse one being deleted.
-
-    The lock conflicts with the FOR UPDATE a deletion request holds, so a
-    link either sees pending_deletion or makes the deletion see the link.
-    """
     artifact_status = await session.scalar(
         select(ArtifactOrm.status)
         .where(ArtifactOrm.id == artifact_id)
@@ -67,11 +63,6 @@ async def _hold_artifact_for_linking(session: AsyncSession, artifact_id: UUID) -
 
 
 async def _hold_stage(session: AsyncSession, stage_id: UUID) -> None:
-    """Take a key-share lock on the stage before touching entries.
-
-    Stage deletion locks the stage row first as well, so assignment and
-    deletion always acquire the stage before any entry row.
-    """
     locked = await session.scalar(
         select(TrackStageOrm.id)
         .where(TrackStageOrm.id == stage_id)
@@ -275,6 +266,11 @@ class TrackStageRepository(RepositoryBase, CrudMixin):
     async def apply_stage_sync(
         session: AsyncSession, track_id: UUID, desired: list[StageUpsertIn]
     ) -> None:
+        track_exists = await session.scalar(
+            select(TrackOrm.id).where(TrackOrm.id == track_id).with_for_update()
+        )
+        if track_exists is None:
+            raise NotFoundError("Track not found")
         current = list(
             (
                 await session.execute(

@@ -315,8 +315,6 @@ async def test_delete_organization_with_members(
     mock_delete_organization: AsyncMock,
     mock_check_permissions: AsyncMock,
 ) -> None:
-    # The repository decides under the organization row lock; its refusal
-    # reaches the caller unchanged.
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 

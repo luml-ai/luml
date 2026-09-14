@@ -476,7 +476,6 @@ async def test_handle_refresh_token_has_been_revoked(
         "type": "refresh",
         "exp": int(time()) + 300,
     }
-    # A concurrent refresh already revoked the token: revoking it again fails.
     mock_add_token.return_value = False
     mock_get_user.return_value = Mock(email=user.email)
 
@@ -622,8 +621,6 @@ async def test_handle_logout(mock_add_token: AsyncMock, mock_jwt_decode: Mock) -
 
     await handler.handle_logout(access_token, refresh_token)
 
-    # Each token is revoked for its own lifetime: the refresh token keeps its
-    # (longer) expiry instead of inheriting the access token's.
     assert mock_jwt_decode.call_count == 2
     mock_add_token.assert_any_await(access_token, 67890)
     mock_add_token.assert_any_await(refresh_token, 12345)

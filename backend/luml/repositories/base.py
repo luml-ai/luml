@@ -31,7 +31,6 @@ TPydantic = TypeVar("TPydantic", bound=BaseModel)
 
 
 def violated_constraint(error: IntegrityError) -> str | None:
-    """Name of the constraint an ``IntegrityError`` reports, if the driver knows it."""
     cause: BaseException | None = error.orig
     while cause is not None:
         name = getattr(cause, "constraint_name", None)
@@ -42,12 +41,10 @@ def violated_constraint(error: IntegrityError) -> str | None:
 
 
 def violates(error: IntegrityError, constraint: str) -> bool:
-    """Whether ``error`` reports ``constraint``, by name or in its message."""
     return violated_constraint(error) == constraint or constraint in str(error)
 
 
 def is_foreign_key_violation(error: IntegrityError) -> bool:
-    """Whether an ``IntegrityError`` is a foreign-key violation (SQLSTATE 23503)."""
     cause: BaseException | None = error.orig
     while cause is not None:
         if getattr(cause, "sqlstate", None) == "23503":
