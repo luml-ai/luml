@@ -114,16 +114,10 @@ const toggle = (event: MouseEvent) => {
   background-color: var(--p-card-background);
   border: 1px solid var(--p-content-border-color);
   box-shadow: var(--p-card-shadow);
-  transition: background-color 0.2s;
-  cursor: pointer;
   color: inherit;
   text-decoration: none;
   display: flex;
   flex-direction: column;
-}
-
-.card:hover {
-  background-color: var(--p-autocomplete-chip-focus-background);
 }
 
 .content {
