@@ -333,7 +333,7 @@ class AuthHandler:
             raise AuthError("User not found", 404)
 
         if service_user.email_verified:
-            raise AuthError("Email already verified", 400)
+            return
 
         await self.__user_repository.update_user(
             UpdateUser(email=email, email_verified=True)

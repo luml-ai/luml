@@ -912,22 +912,25 @@ async def test_handle_email_confirmation_user_not_found(
 
 @patch("luml.handlers.auth.jwt.decode")
 @patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_handle_email_confirmation_already_verified(
-    mock_get_user: AsyncMock, mock_jwt_decode: MagicMock, test_user: User
+    mock_update_user: AsyncMock,
+    mock_get_user: AsyncMock,
+    mock_jwt_decode: MagicMock,
+    test_user: User,
 ) -> None:
-    user = test_user
+    user = test_user.model_copy()
     user.email_verified = True
 
     mock_jwt_decode.return_value = {"sub": user.email, "type": "email_confirmation"}
     mock_get_user.return_value = user
 
-    with pytest.raises(AuthError, match="Email already verified") as error:
-        await handler.handle_email_confirmation("token")
+    await handler.handle_email_confirmation("token")
 
-    assert error.value.status_code == 400
     mock_jwt_decode.assert_called_once()
-    mock_get_user.assert_awaited_once()
+    mock_get_user.assert_awaited_once_with(user.email)
+    mock_update_user.assert_not_awaited()
 
 
 @patch("luml.handlers.auth.UserRepository.update_user", new_callable=AsyncMock)
