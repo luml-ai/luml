@@ -113,3 +113,20 @@ class BaseFileHandler(ABC):
         except Exception as error:
             self.finish_progress()
             raise FileDownloadError(f" Error: {error}") from error
+
+    @staticmethod
+    def delete_file(url: str) -> bool:
+        try:
+            response = httpx.delete(url, timeout=60.0)
+        except Exception:  # noqa: BLE001
+            return False
+        return response.is_success or response.status_code == 404
+
+    @staticmethod
+    async def delete_file_async(url: str) -> bool:
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.delete(url)
+        except Exception:  # noqa: BLE001
+            return False
+        return response.is_success or response.status_code == 404

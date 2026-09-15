@@ -6,6 +6,7 @@
         v-if="orbitsStore.getCurrentOrbitPermissions?.artifact.includes(PermissionEnum.delete)"
         variant="text"
         severity="secondary"
+        aria-label="Delete"
         v-tooltip="'Delete'"
         :disabled="!selectedArtifacts.length"
         @click="onDeleteClick"
@@ -73,10 +74,12 @@
     @update:visible="modelForEdit = null"
   ></ArtifactEditor>
   <ForceDeleteConfirmDialog
-    v-model:visible="isForceDeleting"
-    :title="forceDeleteTitle"
-    :text="FORCE_DELETE_TEXT"
+    v-model:visible="failedDeletionDialogVisible"
+    :title="failedDeletionTitle"
+    :text="FAILED_DELETION_TEXT"
     :loading="loading"
+    secondary-action-label="Try again"
+    @secondary-action="retryDelete"
     @confirm="onForceDelete"
   ></ForceDeleteConfirmDialog>
   <DeploymentsCreateModal
@@ -86,7 +89,7 @@
     :initial-model-id="modelForDeployment"
     @update:visible="onUpdateModelDeploymentVisible"
   ></DeploymentsCreateModal>
-  <ArtifactsDeploymentsModal :is-multiple="selectedArtifacts.length > 1" />
+  <ArtifactsDeletionResultDialog @artifacts-deleted="onResultArtifactsDeleted" />
 </template>
 
 <script setup lang="ts">
@@ -101,17 +104,17 @@ import { Button, useConfirm, useToast } from 'primevue'
 import { useRouter } from 'vue-router'
 import { deleteArtifactConfirmOptions } from '@/lib/primevue/data/confirm'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
+import { getErrorMessage } from '@/helpers/helpers'
 import { useCollectionsStore } from '@/stores/collections'
 import { OrbitCollectionTypeEnum } from '@/lib/api/orbit-collections/interfaces'
-import { DeploymentStatusEnum } from '@/lib/api/deployments/interfaces'
 import ArtifactEditor from '../artifact/ArtifactEditor.vue'
 import ForceDeleteConfirmDialog from '@/components/ui/dialogs/ForceDeleteConfirmDialog.vue'
 import DeploymentsCreateModal from '@/components/deployments/create/DeploymentsCreateModal.vue'
 import MetricsSelect from './MetricsSelect.vue'
-import ArtifactsDeploymentsModal from './ArtifactsDeploymentsModal.vue'
+import ArtifactsDeletionResultDialog from './ArtifactsDeletionResultDialog.vue'
 
-const FORCE_DELETE_TEXT =
-  'This action will permanently delete the models. If your bucket still contains the model files, the storage space will not be freed until you remove them manually. <br /> If you are sure, then write "delete" below'
+const FAILED_DELETION_TEXT =
+  'The file could not be deleted from the bucket last time. Try again, or force delete to remove the artifact from the registry and leave the file in the bucket. To force delete, type "delete" below.'
 
 type Props = {
   selectedArtifacts: Artifact[]
@@ -120,6 +123,7 @@ type Props = {
 
 type Emits = {
   clearSelectedArtifacts: []
+  updateSelectedArtifacts: [artifacts: Artifact[]]
 }
 
 const orbitsStore = useOrbitsStore()
@@ -135,7 +139,7 @@ const emits = defineEmits<Emits>()
 const selectedMetrics = defineModel<string[] | null>('selectedMetrics')
 
 const loading = ref(false)
-const isForceDeleting = ref(false)
+const failedDeletionDialogVisible = ref(false)
 const modelForEdit = ref<Artifact | null>(null)
 const modelForDeployment = ref<string | null>(null)
 
@@ -154,10 +158,8 @@ const compareButtonDisabled = computed(() => {
   return !hasAllExperimentSnapshots
 })
 
-const forceDeleteTitle = computed(() => {
-  return props.selectedArtifacts.length > 1
-    ? 'Force delete these artifacts?'
-    : 'Force delete this artifact?'
+const failedDeletionTitle = computed(() => {
+  return props.selectedArtifacts.length > 1 ? 'Delete these artifacts?' : 'Delete this artifact?'
 })
 
 const deployButtonDisabled = computed(() => {
@@ -181,101 +183,110 @@ const showCompareButton = computed(() => {
   return collectionsStore.currentCollection?.type !== OrbitCollectionTypeEnum.dataset
 })
 
-async function onDeleteClick() {
+function onDeleteClick(): void {
   if (!props.selectedArtifacts.length || loading.value) return
-  const hasFailedStatus = props.selectedArtifacts.some(
-    (artifact) => artifact.status !== ArtifactStatusEnum.uploaded,
+  const allDeletionsFailed = props.selectedArtifacts.every(
+    (artifact) => artifact.status === ArtifactStatusEnum.deletion_failed,
   )
-  const artifactsWithActiveDeployments = props.selectedArtifacts
-    .map((artifact) => {
-      const activeDeployments = artifact.deployments.filter(
-        (deployment) => deployment.status === DeploymentStatusEnum.active,
-      )
-      return activeDeployments.length ? { ...artifact, deployments: activeDeployments } : null
-    })
-    .filter(Boolean) as Artifact[]
-  if (artifactsWithActiveDeployments.length) {
-    artifactsStore.setModelsWithActiveDeploymentsForDeletion(artifactsWithActiveDeployments)
-  } else if (hasFailedStatus) {
-    isForceDeleting.value = true
+  if (allDeletionsFailed) {
+    failedDeletionDialogVisible.value = true
   } else {
     confirm.require(deleteArtifactConfirmOptions(confirmDelete, props.selectedArtifacts.length))
   }
 }
 
-async function confirmDelete() {
+async function confirmDelete(): Promise<void> {
+  await runDeletion(false)
+}
+
+async function retryDelete(): Promise<void> {
+  failedDeletionDialogVisible.value = false
+  await runDeletion(false)
+}
+
+async function onForceDelete(): Promise<void> {
+  await runDeletion(true)
+}
+
+async function runDeletion(force: boolean): Promise<void> {
+  const selectedArtifacts = [...props.selectedArtifacts]
+  const artifactIds = selectedArtifacts.map(({ id }) => id)
+  if (!artifactIds.length || loading.value) return
+
+  loading.value = true
+  artifactsStore.resetDeletionResult()
   try {
-    const artifactsForDelete = props.selectedArtifacts.map((artifact) => artifact.id)
-    loading.value = true
-    const result = await artifactsStore.deleteArtifacts(artifactsForDelete)
-    if (result.deleted?.length) {
-      showSuccessDeleteToast(result.deleted)
+    const result = force
+      ? await artifactsStore.forceDeleteArtifacts(artifactIds)
+      : await artifactsStore.deleteArtifacts(artifactIds)
+    artifactsStore.setDeletionResult(result.failed.length ? result : null)
+
+    if (result.error) {
+      retainNotCompletedSelection(selectedArtifacts, result.notCompleted ?? [])
+      toast.add(
+        simpleErrorToast(deletionErrorMessage(result.error, result.deleted, result.notCompleted)),
+      )
+      return
     }
-    if (result.failed?.length) {
-      showErrorDeleteToast(result.failed)
-    }
-  } catch {
-    toast.add(simpleErrorToast('Failed to delete artifacts'))
-  } finally {
+
+    if (result.deleted.length) showSuccessDeleteToast(result.deleted, selectedArtifacts)
     emits('clearSelectedArtifacts')
-    loading.value = false
-  }
-}
-
-async function onForceDelete() {
-  try {
-    const artifactsForDelete = props.selectedArtifacts.map((artifact) => artifact.id)
-    loading.value = true
-    const result = await artifactsStore.forceDeleteArtifacts(artifactsForDelete)
-    if (result.deleted?.length) {
-      showSuccessDeleteToast(result.deleted)
-    }
-    if (result.failed?.length) {
-      showErrorDeleteToast(result.failed)
-    }
-  } catch {
-    toast.add(simpleErrorToast('Failed to delete artifacts'))
+  } catch (error) {
+    toast.add(simpleErrorToast(getErrorMessage(error, 'Failed to delete artifacts')))
   } finally {
-    emits('clearSelectedArtifacts')
     loading.value = false
-    isForceDeleting.value = false
+    failedDeletionDialogVisible.value = false
   }
 }
 
-function showSuccessDeleteToast(artifacts: string[]) {
-  if (artifacts.length > 1) {
-    toast.add(
-      simpleSuccessToast(`Successfully removed ${artifacts.length} artifacts from the collection`),
-    )
-  } else {
-    toast.add(
-      simpleSuccessToast(
-        `Artifact "${artifacts[0]}" has been removed from the collection successfully`,
-      ),
-    )
-  }
+function retainNotCompletedSelection(selectedArtifacts: Artifact[], notCompleted: string[]): void {
+  const notCompletedIds = new Set(notCompleted)
+  const storedArtifacts = new Map(
+    artifactsStore.artifactsList.map((artifact) => [artifact.id, artifact]),
+  )
+  emits(
+    'updateSelectedArtifacts',
+    selectedArtifacts
+      .filter(({ id }) => notCompletedIds.has(id))
+      .map((artifact) => storedArtifacts.get(artifact.id) ?? artifact),
+  )
 }
 
-function showErrorDeleteToast(artifacts: string[]) {
-  if (artifacts.length > 1) {
-    toast.add(simpleErrorToast(`Failed to delete ${artifacts.length} artifacts`))
-  } else {
-    toast.add(simpleErrorToast(`Failed to delete artifact "${artifacts[0]}"`))
-  }
+function showSuccessDeleteToast(deletedIds: string[], selectedArtifacts: Artifact[]): void {
+  const names = new Map(selectedArtifacts.map(({ id, name }) => [id, name]))
+  const message =
+    deletedIds.length === 1
+      ? `Artifact "${names.get(deletedIds[0]) ?? deletedIds[0]}" deleted`
+      : `${deletedIds.length} artifacts deleted`
+  toast.add(simpleSuccessToast(message))
 }
 
-function openModelEditor() {
+function deletionErrorMessage(
+  error: unknown,
+  deleted: string[],
+  notCompleted: string[] | undefined,
+): string {
+  const message = getErrorMessage(error, 'Failed to delete artifacts')
+  if (!deleted.length) return message
+  return `${message}. ${deleted.length} artifacts deleted, ${notCompleted?.length ?? 0} not completed`
+}
+
+function onResultArtifactsDeleted(ids: string[]): void {
+  if (modelForEdit.value && ids.includes(modelForEdit.value.id)) modelForEdit.value = null
+}
+
+function openModelEditor(): void {
   if (!props.selectedArtifacts.length) return
   modelForEdit.value = props.selectedArtifacts[0]
 }
 
-function compareClick() {
+function compareClick(): void {
   if (!props.selectedArtifacts.length) return
   const selectedArtifactsIds = props.selectedArtifacts.map((artifact) => artifact.id)
   router.push({ name: 'compare', query: { artifacts: selectedArtifactsIds } })
 }
 
-async function downloadClick() {
+async function downloadClick(): Promise<void> {
   if (!props.selectedArtifacts.length) throw new Error('Select artifact before')
   if (!props.selectedArtifacts[0]?.id || loading.value) return
   loading.value = true
@@ -290,12 +301,12 @@ async function downloadClick() {
   }
 }
 
-function onDeployClick() {
+function onDeployClick(): void {
   const modelId = props.selectedArtifacts[0].id
   modelForDeployment.value = modelId
 }
 
-function onUpdateModelDeploymentVisible(val?: boolean) {
+function onUpdateModelDeploymentVisible(val?: boolean): void {
   if (val) return
   modelForDeployment.value = null
 }

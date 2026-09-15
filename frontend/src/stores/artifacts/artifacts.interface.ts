@@ -3,6 +3,7 @@ import type {
   PromptOptimizationModelMetadataPayload,
   ForecastingModelMetadataPayload,
 } from '@/lib/data-processing/interfaces'
+import type { ArtifactDeleteFailure } from '@/lib/api/artifacts/interfaces'
 
 export interface RequestInfo {
   organizationId: string
@@ -12,7 +13,9 @@ export interface RequestInfo {
 
 export interface DeleteArtifactsResult {
   deleted: string[]
-  failed: string[]
+  failed: ArtifactDeleteFailure[]
+  error?: unknown
+  notCompleted?: string[]
 }
 
 export type ModelMetadata =

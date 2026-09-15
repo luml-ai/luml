@@ -388,6 +388,26 @@ HTTP 5xx: the Platform failed to process the request. Also raised when a
 success answer carries a body that is not JSON; `body` then holds the raw
 text.
 
+<a id="luml_api._exceptions.ArtifactDeleteError"></a>
+
+## ArtifactDeleteError Objects
+
+```python
+class ArtifactDeleteError(LumlAPIError)
+```
+
+A single artifact stayed in the registry after a deletion attempt.
+
+<a id="luml_api._exceptions.ArtifactBatchDeleteError"></a>
+
+## ArtifactBatchDeleteError Objects
+
+```python
+class ArtifactBatchDeleteError(LumlAPIError)
+```
+
+A platform request interrupted a batch artifact deletion.
+
 <a id="luml_api._exceptions.FileError"></a>
 
 ## FileError Objects

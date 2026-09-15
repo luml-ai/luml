@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from luml_api._types import Artifact, BucketType
+from luml_api.handlers.base_file_handler import BaseFileHandler
 from luml_api.resources.artifacts import (
     ArtifactResource,
     AsyncArtifactResource,
@@ -186,13 +187,29 @@ def test_artifact_delete(mock_sync_client: Mock) -> None:
     orbit_id = mock_sync_client.orbit
     collection_id = mock_sync_client.collection
     artifact_id = "1236640f-fec6-478d-8772-90eb531cc727"
-    mock_sync_client.delete.return_value = None
+    mock_sync_client.post.return_value = {
+        "urls": [
+            {
+                "artifact_id": artifact_id,
+                "name": "artifact",
+                "url": "https://example.com/delete",
+            }
+        ],
+        "failed": [],
+    }
+    mock_sync_client.delete.return_value = {"deleted": [artifact_id], "failed": []}
 
     resource = ArtifactResource(mock_sync_client)
-    result = resource.delete(artifact_id=artifact_id)
+    with patch.object(BaseFileHandler, "delete_file", return_value=True):
+        result = resource.delete(artifact_id=artifact_id)
 
+    mock_sync_client.post.assert_called_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/delete-urls",
+        json={"artifact_ids": [artifact_id]},
+    )
     mock_sync_client.delete.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        json={"artifact_ids": [artifact_id], "force": False},
     )
     assert result is None
 
@@ -507,12 +524,35 @@ async def test_async_artifact_delete(mock_async_client: AsyncMock) -> None:
     orbit_id = mock_async_client.orbit
     collection_id = mock_async_client.collection
     artifact_id = "1236640f-fec6-478d-8772-90eb531cc727"
-    mock_async_client.delete.return_value = None
+    mock_async_client.post.return_value = {
+        "urls": [
+            {
+                "artifact_id": artifact_id,
+                "name": "artifact",
+                "url": "https://example.com/delete",
+            }
+        ],
+        "failed": [],
+    }
+    mock_async_client.delete.return_value = {
+        "deleted": [artifact_id],
+        "failed": [],
+    }
 
     resource = AsyncArtifactResource(mock_async_client)
-    result = await resource.delete(artifact_id=artifact_id)
+    with patch.object(
+        BaseFileHandler,
+        "delete_file_async",
+        new=AsyncMock(return_value=True),
+    ):
+        result = await resource.delete(artifact_id=artifact_id)
 
+    mock_async_client.post.assert_awaited_once_with(
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/delete-urls",
+        json={"artifact_ids": [artifact_id]},
+    )
     mock_async_client.delete.assert_called_once_with(
-        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts/{artifact_id}"
+        f"/v1/organizations/{organization_id}/orbits/{orbit_id}/collections/{collection_id}/artifacts",
+        json={"artifact_ids": [artifact_id], "force": False},
     )
     assert result is None

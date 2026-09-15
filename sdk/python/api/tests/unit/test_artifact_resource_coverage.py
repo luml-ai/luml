@@ -67,6 +67,7 @@ def test_abstract_base_methods_raise_not_implemented() -> None:
         lambda: obj.download("a"),
         lambda: obj.create(None, "f", {}, {}, "h", {}, 1, "n"),
         lambda: obj.update("a"),
+        lambda: obj.delete_batch(["a"]),
         lambda: obj.delete("a"),
     ]
     for call in calls:

@@ -67,7 +67,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from utils.db import migrate_db
 
-TEST_DB_NAME = "luml_studio_test"
+TEST_DB_NAME = "df_studio_test"
 TEST_PASSWORD = "test_password"
 
 

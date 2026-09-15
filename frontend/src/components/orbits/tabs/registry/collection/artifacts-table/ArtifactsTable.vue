@@ -7,6 +7,7 @@
         :metrics="allMetricsKeys"
         @update:selected-metrics="(val) => updateSelectedMetrics(val)"
         @clear-selected-artifacts="resetSelectedArtifacts"
+        @update-selected-artifacts="setSelectedArtifacts"
       ></TableToolbar>
       <div>
         <DataTable
@@ -230,6 +231,10 @@ function onRowClick(event: DataTableRowClickEvent) {
 
 function resetSelectedArtifacts() {
   selectedArtifacts.value = []
+}
+
+function setSelectedArtifacts(artifacts: Artifact[]): void {
+  selectedArtifacts.value = artifacts
 }
 
 async function getMetricsKeys() {
