@@ -1,6 +1,6 @@
 [project]
 name = "df-satellite"
-version = "0.1.0"
+version = "0.2.0"
 description = "Dataforce Satellite Agent"
 readme = "README.md"
 requires-python = ">=3.14"

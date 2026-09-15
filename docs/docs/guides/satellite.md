@@ -34,14 +34,14 @@ networks:
 
 services:
   agent:
-    image: ghcr.io/luml-ai/luml-satellite-agent:v0.1.0
+    image: ghcr.io/luml-ai/luml-satellite-agent:v0.2.0
     networks:
       - satellite-network
     environment:
       SATELLITE_TOKEN: ${SATELLITE_TOKEN:?Set SATELLITE_TOKEN in .env}
       PLATFORM_URL: ${PLATFORM_URL:-https://api.luml.ai}
       BASE_URL: ${BASE_URL:-http://localhost}
-      MODEL_IMAGE: ${MODEL_IMAGE:-ghcr.io/luml-ai/luml-model-server:v0.1.0}
+      MODEL_IMAGE: ${MODEL_IMAGE:-ghcr.io/luml-ai/luml-model-server:v0.2.0}
       POLL_INTERVAL_SEC: ${POLL_INTERVAL_SEC:-120}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -55,7 +55,7 @@ services:
       - model-server
 
   model-server:
-    image: ghcr.io/luml-ai/luml-model-server:v0.1.0
+    image: ghcr.io/luml-ai/luml-model-server:v0.2.0
     platform: linux/amd64
     command: ["true"]
 ```

@@ -1,6 +1,6 @@
 [project]
 name = "df-model-server"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sample model server for satellite"
 requires-python = ">=3.13"
 dependencies = [
