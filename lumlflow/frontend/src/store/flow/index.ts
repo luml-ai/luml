@@ -361,6 +361,15 @@ export const useFlowStore = defineStore('flow', () => {
     return detail.logs
   }
 
+  async function copyCellContext(slug: string): Promise<string> {
+    const payload = await workspaceApi.agentPayload(
+      slug,
+      currentFlow.value ?? undefined,
+      currentBranch.value?.branch,
+    )
+    return payload.text
+  }
+
   async function editCellSource(slug: string, source: string) {
     await workspaceApi.editCell(
       slug,
@@ -514,6 +523,7 @@ export const useFlowStore = defineStore('flow', () => {
     renameCell,
     fetchCellSource,
     fetchCellLogs,
+    copyCellContext,
     fetchAssetPreview,
     editCellSource,
     duplicateCell,

@@ -186,6 +186,16 @@ async function onDownload() {
   }
 }
 
+async function onSendToAgent() {
+  try {
+    const text = await flowStore.copyCellContext(props.cell.slug)
+    await navigator.clipboard.writeText(text)
+    toast.add(successToast('Cell context copied to clipboard'))
+  } catch (error) {
+    toast.add(errorToast(error))
+  }
+}
+
 function onDelete() {
   confirm.require(deleteCellConfirmOptions(onDeleteConfirm, props.cell.slug))
 }
@@ -225,7 +235,7 @@ const menuItems: CellHeaderMenuItem[] = [
     command: onGoToCanvas,
   },
   { separator: true },
-  { label: 'Send to agent', glyph: Send, command: () => console.log('Send to agent') },
+  { label: 'Send to agent', glyph: Send, command: onSendToAgent },
   { label: 'Promote to LUML', glyph: CloudUpload, command: () => console.log('Promote to LUML') },
   { label: 'Download', glyph: Download, command: onDownload },
   { separator: true },

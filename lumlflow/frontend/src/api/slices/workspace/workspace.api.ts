@@ -4,6 +4,7 @@ import type {
   AssetPreview,
   BranchTree,
   CancelledRun,
+  CellContextPayload,
   CellDetail,
   CellLogs,
   CellsPage,
@@ -230,6 +231,16 @@ export const workspaceApi = {
       ...(flow ? { flow } : {}),
       ...(actor ? { actor } : {}),
     }),
+
+  agentPayload: (slug: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; slug: string }, CellContextPayload>(
+      'agent.payload',
+      {
+        ...(flow ? { flow } : {}),
+        ...(branch ? { branch } : {}),
+        slug,
+      },
+    ),
 
   runLane: (flow?: string, branch?: string) =>
     call<{ flow?: string; branch?: string }, RanLane>('run', {

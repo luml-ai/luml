@@ -77,6 +77,13 @@ export interface EndedAgentSession {
   label: string
 }
 
+export interface CellContextPayload {
+  flow: string
+  branch: string
+  slug: string
+  text: string
+}
+
 export interface UnplannedRunTarget {
   target: string
   error: string
