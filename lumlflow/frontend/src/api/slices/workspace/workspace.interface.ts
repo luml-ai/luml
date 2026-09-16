@@ -116,6 +116,24 @@ export interface RanCell {
 
 export type CellStaleState = 'synced' | 'unsynced' | 'unmaterialized' | 'failed'
 
+export type FlowReactivity = 'lazy' | 'auto'
+
+export interface FlowSettingsReport {
+  reactivity: FlowReactivity
+  eager_cost_threshold_s: number
+}
+
+export interface SavedSettings {
+  flow: string
+  settings: FlowSettingsReport
+}
+
+export interface OpenedFlow {
+  flow: string
+  flow_id: string
+  path: string
+}
+
 export interface CellSummary {
   slug: string
   state: CellStaleState

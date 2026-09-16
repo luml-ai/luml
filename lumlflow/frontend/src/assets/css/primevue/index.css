@@ -15,3 +15,8 @@
 .preview-table .p-datatable-thead > tr > th {
   border-width: 0;
 }
+
+.popover-without-arrow::before,
+.popover-without-arrow::after {
+  display: none;
+}

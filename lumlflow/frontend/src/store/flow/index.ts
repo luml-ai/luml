@@ -18,6 +18,8 @@ import { computed, ref } from 'vue'
 import { useToast } from 'primevue'
 import { errorToast } from '@/toasts'
 import { workspaceApi } from '@/api/slices/workspace/workspace.api'
+import { FlowStream, streamToken } from '@/api/streams/flow'
+import type { StreamFrame } from '@/api/streams/flow'
 
 function formatStepCount(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`
@@ -97,6 +99,9 @@ export const useFlowStore = defineStore('flow', () => {
   const isSidebarOpened = ref(true)
   const viewMode = ref<'canvas' | 'notebook'>('canvas')
 
+  const reactivity = ref<'lazy' | 'auto'>('auto')
+  const autoThresholdSeconds = ref(5)
+
   const isTerminalOpen = ref(false)
   const terminalHistory = ref<{ text: string; response?: string }[]>([])
 
@@ -159,6 +164,92 @@ export const useFlowStore = defineStore('flow', () => {
     viewMode.value = mode
   }
 
+  function applySettings(settings: {
+    reactivity: 'lazy' | 'auto'
+    eager_cost_threshold_s: number
+  }) {
+    reactivity.value = settings.reactivity
+    autoThresholdSeconds.value = settings.eager_cost_threshold_s
+  }
+
+  async function fetchSettings() {
+    try {
+      const saved = await workspaceApi.getSettings(currentFlow.value ?? undefined)
+      applySettings(saved.settings)
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to load reactivity settings'))
+    }
+  }
+
+  async function setReactivity(mode: 'lazy' | 'auto') {
+    try {
+      const saved = await workspaceApi.setSettings(
+        { reactivity: mode },
+        currentFlow.value ?? undefined,
+      )
+      applySettings(saved.settings)
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to update reactivity'))
+    }
+  }
+
+  async function setAutoThresholdSeconds(seconds: number) {
+    try {
+      const saved = await workspaceApi.setSettings(
+        { eager_cost_threshold_s: seconds },
+        currentFlow.value ?? undefined,
+      )
+      applySettings(saved.settings)
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to update auto-run threshold'))
+    }
+  }
+
+  let cascadeStream: FlowStream | null = null
+  let stopCascadeFrame: (() => void) | null = null
+  let cascadeSettleTimer: ReturnType<typeof setTimeout> | null = null
+
+  function scheduleCellsRefetch() {
+    if (cascadeSettleTimer !== null) clearTimeout(cascadeSettleTimer)
+    cascadeSettleTimer = setTimeout(() => {
+      cascadeSettleTimer = null
+      void fetchCells()
+    }, 250)
+  }
+
+  function disconnectCascadeStream() {
+    stopCascadeFrame?.()
+    stopCascadeFrame = null
+    cascadeStream?.close()
+    cascadeStream = null
+    if (cascadeSettleTimer !== null) {
+      clearTimeout(cascadeSettleTimer)
+      cascadeSettleTimer = null
+    }
+  }
+
+  async function connectCascadeStream(flow: string) {
+    disconnectCascadeStream()
+    const token = streamToken()
+    if (!token) return
+    try {
+      const opened = await workspaceApi.openFlow(flow)
+      const stream = new FlowStream({ token })
+      cascadeStream = stream
+      stopCascadeFrame = stream.onFrame((frame: StreamFrame) => {
+        if (!('channel' in frame) || frame.channel !== 'journal') return
+        if (frame.type === 'lagged') return
+        if (frame.flow !== opened.path) return
+        if (frame.type === 'state') return
+        scheduleCellsRefetch()
+      })
+      stream.connect()
+      stream.watchJournal(opened.path, opened.flow_id)
+    } catch (error) {
+      toast.add(errorToast(error, 'Failed to open a live connection for cell updates'))
+    }
+  }
+
   function toggleTerminal() {
     isTerminalOpen.value = !isTerminalOpen.value
   }
@@ -171,6 +262,12 @@ export const useFlowStore = defineStore('flow', () => {
     if (currentFlow.value === flow) return
     currentFlow.value = flow
     void fetchBranches()
+    void fetchSettings()
+    if (flow) {
+      void connectCascadeStream(flow)
+    } else {
+      disconnectCascadeStream()
+    }
   }
 
   async function fetchBranches() {
@@ -357,8 +454,11 @@ export const useFlowStore = defineStore('flow', () => {
   }
 
   function reset() {
+    disconnectCascadeStream()
     isSidebarOpened.value = true
     viewMode.value = 'canvas'
+    reactivity.value = 'auto'
+    autoThresholdSeconds.value = 5
     isTerminalOpen.value = false
     terminalHistory.value = []
     branches.value = []
@@ -378,6 +478,11 @@ export const useFlowStore = defineStore('flow', () => {
     toggleSidebar,
     viewMode,
     setViewMode,
+    reactivity,
+    setReactivity,
+    autoThresholdSeconds,
+    setAutoThresholdSeconds,
+    fetchSettings,
     isTerminalOpen,
     toggleTerminal,
     terminalHistory,

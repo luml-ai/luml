@@ -27,17 +27,15 @@
         size="small"
         @update:model-value="flowStore.setViewMode($event)"
       />
-      <Button variant="outlined" severity="secondary" size="small" class="toolbar-settings-button">
-        <template #icon> <Bolt :size="12" /> </template>
-      </Button>
+      <NotebookSettings />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { NotebookHealthState } from '@/components/notebooks/notebooks.interface'
-import { Bolt, ChevronLeft } from 'lucide-vue-next'
-import { Button, SelectButton } from 'primevue'
+import { ChevronLeft } from 'lucide-vue-next'
+import { SelectButton } from 'primevue'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ROUTE_NAMES } from '@/router/router.const'
@@ -48,6 +46,7 @@ import {
   NOTEBOOK_VIEW_MODE_OPTIONS,
 } from '@/components/notebooks/notebooks.const'
 import NotebookPairAgent from '@/components/notebooks/NotebookPairAgent.vue'
+import NotebookSettings from '@/components/notebooks/NotebookSettings.vue'
 
 const flowStore = useFlowStore()
 
@@ -137,8 +136,5 @@ const statusTooltip = computed(() => NOTEBOOK_HEALTH_LABELS[notebookHealth.value
 }
 .toolbar-right {
   @apply flex gap-4;
-}
-.toolbar-settings-button {
-  @apply p-0 h-10! w-10!;
 }
 </style>

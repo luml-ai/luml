@@ -14,12 +14,15 @@ import type {
   EndedAgentSession,
   EvalResult,
   ForkedBranch,
+  FlowSettingsReport,
   JournalPage,
   NewCell,
+  OpenedFlow,
   RanCell,
   RanLane,
   RenamedCell,
   RenamedFlow,
+  SavedSettings,
   SwitchedBranch,
   WorkspaceListing,
 } from './workspace.interface'
@@ -237,6 +240,22 @@ export const workspaceApi = {
     call<{ flow?: string; branch?: string }, CancelledRun>('cancel', {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
+    }),
+
+  openFlow: (flow?: string) =>
+    call<{ flow?: string }, OpenedFlow>('flow.open', {
+      ...(flow ? { flow } : {}),
+    }),
+
+  getSettings: (flow?: string) =>
+    call<{ flow?: string }, SavedSettings>('settings.set', {
+      ...(flow ? { flow } : {}),
+    }),
+
+  setSettings: (settings: Partial<FlowSettingsReport>, flow?: string) =>
+    call<{ flow?: string } & Partial<FlowSettingsReport>, SavedSettings>('settings.set', {
+      ...(flow ? { flow } : {}),
+      ...settings,
     }),
 
   evalCode: (code: string, flow?: string, branch?: string) =>

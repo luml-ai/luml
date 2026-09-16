@@ -16,6 +16,7 @@ import type {
   NotebookAssetType,
   NotebookHealthState,
   PairableAgentInterface,
+  ReactivityOption,
   ViewModeOption,
 } from './notebooks.interface'
 
@@ -36,6 +37,16 @@ export const NOTEBOOK_VIEW_MODE_OPTIONS: ViewModeOption[] = [
   { label: 'Canvas', value: 'canvas', icon: Workflow },
   { label: 'Notebook', value: 'notebook', icon: Notebook },
 ]
+
+export const NOTEBOOK_REACTIVITY_OPTIONS: ReactivityOption[] = [
+  { label: 'Lazy', value: 'lazy' },
+  { label: 'Auto', value: 'auto' },
+]
+
+export const NOTEBOOK_REACTIVITY_HINTS: Record<ReactivityOption['value'], string> = {
+  lazy: 'Nothing runs until you ask for it.',
+  auto: 'A cell already timed under this refreshes itself when something above it changes. Anything dearer waits for you, and says so on the card.',
+}
 
 export const NOTEBOOK_PAIRABLE_AGENTS: PairableAgentInterface[] = [
   { id: 'claude', name: 'Claude', icon: Bot },

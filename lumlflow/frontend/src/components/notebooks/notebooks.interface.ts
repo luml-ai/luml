@@ -27,6 +27,11 @@ export interface ViewModeOption {
   icon: LucideIcon
 }
 
+export interface ReactivityOption {
+  label: string
+  value: 'lazy' | 'auto'
+}
+
 export interface NotebooksCanvasToolbarEmits {
   zoomIn: []
   zoomOut: []
