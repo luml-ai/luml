@@ -2,6 +2,7 @@ import type {
   BranchRecord,
   CancelledRun,
   CellSummary,
+  EvalResult,
   JournalTransaction,
   RanCell,
   RanLane,
@@ -96,6 +97,9 @@ export const useFlowStore = defineStore('flow', () => {
   const isSidebarOpened = ref(true)
   const viewMode = ref<'canvas' | 'notebook'>('canvas')
 
+  const isTerminalOpen = ref(false)
+  const terminalHistory = ref<{ text: string; response?: string }[]>([])
+
   const branches = ref<BranchRecord[]>([])
   const currentFlow = ref<string | null>(null)
   const isBranchesLoading = ref(false)
@@ -153,6 +157,14 @@ export const useFlowStore = defineStore('flow', () => {
 
   function setViewMode(mode: 'canvas' | 'notebook') {
     viewMode.value = mode
+  }
+
+  function toggleTerminal() {
+    isTerminalOpen.value = !isTerminalOpen.value
+  }
+
+  async function evalScratch(code: string): Promise<EvalResult> {
+    return workspaceApi.evalCode(code, currentFlow.value ?? undefined, currentBranch.value?.branch)
   }
 
   function setFlow(flow: string | null) {
@@ -347,6 +359,8 @@ export const useFlowStore = defineStore('flow', () => {
   function reset() {
     isSidebarOpened.value = true
     viewMode.value = 'canvas'
+    isTerminalOpen.value = false
+    terminalHistory.value = []
     branches.value = []
     currentFlow.value = null
     isBranchesLoading.value = false
@@ -364,6 +378,10 @@ export const useFlowStore = defineStore('flow', () => {
     toggleSidebar,
     viewMode,
     setViewMode,
+    isTerminalOpen,
+    toggleTerminal,
+    terminalHistory,
+    evalScratch,
     branches,
     currentFlow,
     setFlow,

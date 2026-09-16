@@ -30,6 +30,8 @@ export const NOTEBOOK_ASSET_ICONS: Record<NotebookAssetType, LucideIcon> = {
 export const NOTEBOOK_CANVAS_NODE_WIDTH = 450
 export const NOTEBOOK_CANVAS_LEVEL_HEIGHT = 550
 
+export const NOTEBOOK_TERMINAL_HEIGHT = 180
+
 export const NOTEBOOK_VIEW_MODE_OPTIONS: ViewModeOption[] = [
   { label: 'Canvas', value: 'canvas', icon: Workflow },
   { label: 'Notebook', value: 'notebook', icon: Notebook },

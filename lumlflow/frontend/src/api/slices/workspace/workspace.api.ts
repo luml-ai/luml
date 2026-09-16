@@ -12,6 +12,7 @@ import type {
   DuplicatedFlow,
   EditedCell,
   EndedAgentSession,
+  EvalResult,
   ForkedBranch,
   JournalPage,
   NewCell,
@@ -236,5 +237,12 @@ export const workspaceApi = {
     call<{ flow?: string; branch?: string }, CancelledRun>('cancel', {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
+    }),
+
+  evalCode: (code: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; code: string }, EvalResult>('eval', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      code,
     }),
 }

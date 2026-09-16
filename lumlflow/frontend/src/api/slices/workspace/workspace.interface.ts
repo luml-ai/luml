@@ -196,3 +196,18 @@ export interface JournalPage {
   cursor: number
   transactions: JournalTransaction[]
 }
+
+export interface EvalError {
+  type: string
+  message: string
+  traceback: string
+}
+
+export interface EvalResult {
+  flow: string
+  branch: string
+  repr: string | null
+  output: string
+  names: string[]
+  error: EvalError | null
+}

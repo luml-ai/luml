@@ -2,9 +2,13 @@
   <div class="toolbar">
     <div class="toolbar-left">
       <NotebookCellCreator />
-      <Button variant="text" severity="secondary">
+      <Button
+        variant="text"
+        :severity="flowStore.isTerminalOpen ? 'primary' : 'secondary'"
+        @click="flowStore.toggleTerminal()"
+      >
         <Terminal :size="14" />
-        Scratch
+        {{ flowStore.isTerminalOpen ? 'Hide Scratch' : 'Scratch' }}
       </Button>
     </div>
     <div class="toolbar-right">

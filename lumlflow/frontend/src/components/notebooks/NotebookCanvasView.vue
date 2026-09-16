@@ -1,5 +1,9 @@
 <template>
-  <div class="wrapper" :class="{ 'full-screen': isFullScreen }">
+  <div
+    class="wrapper"
+    :class="{ 'full-screen': isFullScreen }"
+    :style="isFullScreen ? undefined : { height: wrapperHeight }"
+  >
     <VueFlow
       :nodes="nodes"
       :edges="edges"
@@ -67,6 +71,7 @@ import NotebooksCanvasToolbar from '@/components/notebooks/NotebooksCanvasToolba
 import {
   NOTEBOOK_CANVAS_LEVEL_HEIGHT,
   NOTEBOOK_CANVAS_NODE_WIDTH,
+  NOTEBOOK_TERMINAL_HEIGHT,
 } from '@/components/notebooks/notebooks.const'
 
 function producerOf(reference: string): string {
@@ -174,6 +179,12 @@ const zoomValue = ref((viewport.value.zoom * 100).toFixed())
 
 const isFullScreen = ref(false)
 
+const wrapperHeight = computed(() =>
+  flowStore.isTerminalOpen
+    ? `calc(100vh - 211px - ${NOTEBOOK_TERMINAL_HEIGHT}px - 8px)`
+    : 'calc(100vh - 211px)',
+)
+
 function toggleFullScreen() {
   isFullScreen.value = !isFullScreen.value
 }
@@ -218,7 +229,7 @@ watch(
 @reference "@/assets/css/index.css";
 
 .wrapper {
-  @apply h-[calc(100vh-211px)] p-4 border border-surface rounded-lg relative bg-(--p-content-background) transition-all duration-300;
+  @apply p-4 border border-surface rounded-lg relative bg-(--p-content-background) transition-all duration-300;
 }
 
 .overlay {
