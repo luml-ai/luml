@@ -53,6 +53,11 @@ export interface NotebookCodeProps {
   slug: string
 }
 
+export interface NotebookOutputProps {
+  slug: string
+  name: string
+}
+
 export interface NotebookCellTabsProps {
   tabs: CellTab[]
 }

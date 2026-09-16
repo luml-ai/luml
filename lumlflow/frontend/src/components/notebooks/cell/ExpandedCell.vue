@@ -1,12 +1,12 @@
 <template>
   <RightFullHeightDialog v-model:visible="visible" :title="cell.slug">
     <div>
-      <div class="item">
+      <div v-for="output in outputs" :key="output.name" class="item">
         <div class="item-header">
-          <div class="item-title mb-4">Plot</div>
+          <div class="item-title mb-4">{{ output.label }}</div>
         </div>
         <div class="item-content">
-          <NotebookPlot />
+          <NotebookOutput :slug="cell.slug" :name="output.name" />
         </div>
       </div>
       <div class="item">
@@ -31,14 +31,20 @@
 
 <script setup lang="ts">
 import type { ExpandedCellProps } from '@/components/notebooks/cell/cell.interface'
+import { computed } from 'vue'
 import RightFullHeightDialog from '@/dialogs/RightFullHeightDialog.vue'
-import NotebookPlot from '@/components/notebooks/cell/NotebookPlot.vue'
+import { capitalize } from '@/helpers/string'
+import NotebookOutput from '@/components/notebooks/cell/NotebookOutput.vue'
 import NotebookCode from '@/components/notebooks/cell/NotebookCode.vue'
 import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
 
-defineProps<ExpandedCellProps>()
+const props = defineProps<ExpandedCellProps>()
 
 const visible = defineModel<boolean>('visible', { required: true })
+
+const outputs = computed(() =>
+  Object.keys(props.cell.kinds).map((name) => ({ name, label: capitalize(name) })),
+)
 </script>
 
 <style scoped>

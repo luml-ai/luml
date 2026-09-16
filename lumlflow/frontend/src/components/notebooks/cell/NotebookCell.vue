@@ -16,10 +16,14 @@
               <NotebookLogs v-if="activePanels.includes('logs')" :slug="cell.slug" />
             </AccordionContent>
           </AccordionPanel>
-          <AccordionPanel value="plot" :pt="ACCORDION_PANEL_PT">
-            <AccordionHeader :pt="ACCORDION_HEADER_PT">Plot</AccordionHeader>
+          <AccordionPanel v-for="output in outputs" :key="output.name" :value="output.name" :pt="ACCORDION_PANEL_PT">
+            <AccordionHeader :pt="ACCORDION_HEADER_PT">{{ output.label }}</AccordionHeader>
             <AccordionContent :pt="ACCORDION_CONTENT_PT">
-              <NotebookPlot v-if="activePanels.includes('plot')" />
+              <NotebookOutput
+                v-if="activePanels.includes(output.name)"
+                :slug="cell.slug"
+                :name="output.name"
+              />
             </AccordionContent>
           </AccordionPanel>
         </Accordion>
@@ -31,22 +35,27 @@
 
 <script setup lang="ts">
 import type { NotebookCellProps } from '@/components/notebooks/cell/cell.interface'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Accordion, AccordionContent, AccordionHeader, AccordionPanel } from 'primevue'
 import {
   ACCORDION_CONTENT_PT,
   ACCORDION_HEADER_PT,
   ACCORDION_PANEL_PT,
 } from '@/prime-vue/pass-through/accordion.pt'
+import { capitalize } from '@/helpers/string'
 import NotebookCellHeader from '@/components/notebooks/cell/NotebookCellHeader.vue'
 import NotebookCellFooter from '@/components/notebooks/cell/NotebookCellFooter.vue'
-import NotebookPlot from '@/components/notebooks/cell/NotebookPlot.vue'
+import NotebookOutput from '@/components/notebooks/cell/NotebookOutput.vue'
 import NotebookCode from '@/components/notebooks/cell/NotebookCode.vue'
 import NotebookLogs from '@/components/notebooks/cell/NotebookLogs.vue'
 
-defineProps<NotebookCellProps>()
+const props = defineProps<NotebookCellProps>()
 
 const activePanels = ref<string[]>([])
+
+const outputs = computed(() =>
+  Object.keys(props.cell.kinds).map((name) => ({ name, label: capitalize(name) })),
+)
 </script>
 
 <style scoped>
