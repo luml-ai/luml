@@ -92,15 +92,12 @@ export function useCellTabs(cell: MaybeRefOrGetter<CellSummary>) {
     { immediate: true },
   )
 
-  watch(
-    () => toValue(cell).state,
-    () => {
-      cache.clear()
-      if (activeTab.value !== CODE_TAB_ID && activeTab.value !== LOGS_TAB_ID) {
-        void loadOutput(activeTab.value)
-      }
-    },
-  )
+  watch(cell, () => {
+    cache.clear()
+    if (activeTab.value !== CODE_TAB_ID && activeTab.value !== LOGS_TAB_ID) {
+      void loadOutput(activeTab.value)
+    }
+  })
 
   return { tabs, activeTab, content }
 }
