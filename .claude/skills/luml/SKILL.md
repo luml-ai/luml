@@ -53,6 +53,19 @@ Read the file that matches the task before writing code:
 - `references/artifacts.md` — packaging datasets (`save_tabular_dataset`, `save_hf_dataset`, `load_dataset`), experiment snapshots (`save_experiment`), model cards (`CardBuilder`), reference profiles for monitoring.
 - `references/repro.md` — reproducing and debugging API behaviour: HTTP tracing, the repro-script scaffold in `scripts/`, the local dev stack, reading failures. Read this whenever the task is "why does this call fail", "reproduce this bug", or "see what the SDK actually sends".
 - `references/core-api.md` — `LumlClient`: organizations/orbits/collections, artifact upload/download, tracks and stages, deployments, monitoring dashboards, lineage.
+- `references/api-shapes.md` — the raw REST API for curl/httpx: list response shapes, bodies that need `organization_id`/`orbit_id`, the artifact delete lifecycle, cursor rules, and the Flow local API (`lumlflow ui`). Read it before calling the backend without `LumlClient`.
+- `references/dev-stack.md` — running the platform locally and its traps: alembic drift between branches, the frontend not starting in docker on macOS, port 5000, Secure/Lax cookies, identical JWTs within one second, broken SendGrid and how to create a second user in psql. Read it before `docker compose up`.
+- `references/frontend-map.md` — where each SPA and Flow UI feature lives (routes, components, hooks, stores) and what to check first when reading a UI bug. Read it before code-reviewing a frontend finding.
+
+## QA against the dev stack
+
+```bash
+source ~/.claude/skills/luml/scripts/dev_api.sh   # signs in, sets API/TOKEN/ORG/ORBIT, defines a/A/j/psql/backend_errors
+```
+
+Verify a reported bug at runtime when the stack is up (curl for the API,
+`localhost:5173` for the SPA); fall back to code review with `frontend-map.md`
+when it is not. Say which of the two you did.
 
 ## Install
 

@@ -59,10 +59,6 @@ def on_cleanup(fn) -> None:
     _cleanup.append(fn)
 
 
-# --------------------------------------------------------------------------
-# REPRO - edit below this line
-# --------------------------------------------------------------------------
-
 def repro(luml: LumlClient) -> None:
     step("1. what the setup is")
     collection = luml.collections.get()
@@ -81,10 +77,6 @@ def repro(luml: LumlClient) -> None:
     #   )
     #   on_cleanup(lambda: luml.collections.delete(str(created.id)))
 
-
-# --------------------------------------------------------------------------
-# Harness - no need to edit below this line
-# --------------------------------------------------------------------------
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
