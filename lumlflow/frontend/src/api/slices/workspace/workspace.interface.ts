@@ -134,6 +134,66 @@ export interface OpenedFlow {
   path: string
 }
 
+export interface TableBlock {
+  block: 'table'
+  columns: string[]
+  dtypes: string[]
+  rows: (string | number | boolean | null)[][]
+  total_rows: number
+  total_columns: number
+}
+
+export interface SeriesBlock {
+  block: 'series'
+  name: string
+  points: [number, number | null][]
+  total_points: number
+}
+
+export interface ImageBlock {
+  block: 'image'
+  mime: string
+  data: string
+}
+
+export interface MarkdownBlock {
+  block: 'markdown'
+  text: string
+}
+
+export interface KvBlock {
+  block: 'kv'
+  entries: Record<string, string | number | boolean | null>
+}
+
+export interface FileBlock {
+  block: 'file'
+  name: string
+  size: number
+  content_type: string
+}
+
+export type PreviewBlock = TableBlock | SeriesBlock | ImageBlock | MarkdownBlock | KvBlock | FileBlock
+
+export interface StoredPreview {
+  schema: number
+  kind: string
+  blocks: PreviewBlock[]
+  truncated: boolean
+}
+
+export interface AssetPreview {
+  flow: string
+  branch: string
+  slug: string
+  output: string
+  state: CellStaleState
+  kind: string | null
+  size: number | null
+  persisted: boolean | null
+  preview: StoredPreview | null
+}
+
 export interface CellSummary {
   slug: string
   state: CellStaleState

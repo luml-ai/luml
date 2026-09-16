@@ -1,7 +1,7 @@
 <template>
   <Tabs :value="modelValue" @update:value="updateValue">
     <TabList :pt="CELL_TABS_LIST_PT">
-      <Tab v-for="tab in NOTEBOOK_CELL_TABS" :key="tab.label" :value="tab.value" class="tab">
+      <Tab v-for="tab in tabs" :key="tab.id" :value="tab.id" class="tab">
         <component :is="tab.icon" :size="14" />
         <span>{{ tab.label }}</span>
       </Tab>
@@ -10,8 +10,11 @@
 </template>
 
 <script setup lang="ts">
+import type { NotebookCellTabsProps } from '@/components/notebooks/cell/cell.interface'
 import { Tabs, TabList, Tab } from 'primevue'
-import { CELL_TABS_LIST_PT, NOTEBOOK_CELL_TABS } from '@/components/notebooks/cell/cell.const'
+import { CELL_TABS_LIST_PT } from '@/components/notebooks/cell/cell.const'
+
+defineProps<NotebookCellTabsProps>()
 
 const modelValue = defineModel<string>('modelValue', { required: true })
 

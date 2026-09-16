@@ -40,9 +40,9 @@ export interface NotebookCellNodeProps {
 }
 
 export interface CellTab {
+  id: string
   label: string
   icon: LucideIcon
-  value: string
 }
 
 export interface NotebookLogsProps {
@@ -51,4 +51,8 @@ export interface NotebookLogsProps {
 
 export interface NotebookCodeProps {
   slug: string
+}
+
+export interface NotebookCellTabsProps {
+  tabs: CellTab[]
 }

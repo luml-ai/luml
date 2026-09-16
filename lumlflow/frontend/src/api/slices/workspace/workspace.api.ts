@@ -1,6 +1,7 @@
 import { api } from '@/api/client'
 import type {
   AgentSession,
+  AssetPreview,
   BranchTree,
   CancelledRun,
   CellDetail,
@@ -138,6 +139,13 @@ export const workspaceApi = {
     call<{ flow?: string; branch?: string }, CellsPage>('cells.list', {
       ...(flow ? { flow } : {}),
       ...(branch ? { branch } : {}),
+    }),
+
+  assetPreview: (target: string, flow?: string, branch?: string) =>
+    call<{ flow?: string; branch?: string; target: string }, AssetPreview>('asset.preview', {
+      ...(flow ? { flow } : {}),
+      ...(branch ? { branch } : {}),
+      target,
     }),
 
   journalSince: (flow?: string, cursor = 0) =>

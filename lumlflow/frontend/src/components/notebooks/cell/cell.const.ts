@@ -1,15 +1,19 @@
 import type { CellStaleState } from '@/api/slices/workspace/workspace.interface'
-import type { CellTab } from '@/components/notebooks/cell/cell.interface'
 import type { LucideIcon } from 'lucide-vue-next'
 import type { MenuPassThroughOptions, TabListPassThroughOptions } from 'primevue'
 import {
   AlertTriangle,
+  ChartBar,
   ChartSpline,
   CheckCircle2,
   CircleDashed,
-  CodeXml,
+  CircuitBoard,
+  ClipboardCheck,
+  FlaskConical,
   RefreshCw,
-  Scroll,
+  Save,
+  StickyNote,
+  Table2,
 } from 'lucide-vue-next'
 
 export const CELL_STATE_LABELS: Record<CellStaleState, string> = {
@@ -55,8 +59,16 @@ export const CELL_TABS_LIST_PT: TabListPassThroughOptions = {
   },
 }
 
-export const NOTEBOOK_CELL_TABS: CellTab[] = [
-  { label: 'Plot', icon: ChartSpline, value: 'plot' },
-  { label: 'Code', icon: CodeXml, value: 'code' },
-  { label: 'Logs', icon: Scroll, value: 'logs' },
-]
+export const CELL_OUTPUT_KIND_ICONS: Record<string, LucideIcon> = {
+  plot: ChartSpline,
+  frame: Table2,
+  dataset: Table2,
+  model: CircuitBoard,
+  experiment: FlaskConical,
+  metric: ChartBar,
+  eval: ClipboardCheck,
+  checkpoint: Save,
+  note: StickyNote,
+}
+
+export const DEFAULT_OUTPUT_KIND_ICON: LucideIcon = ChartBar

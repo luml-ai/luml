@@ -10,6 +10,11 @@ cells:
   feature_distributions: 01M00M5X7PCEF070G7QV7VNEXA
   correlation_heatmap: 01M00M61EX9MZJHJD9DE9JY4MX
   prediction_diagnostics: 01M00M6530J9C7T1522Q61ZC9F
+  untitled_5: 01M2MNA9N7Y73Z394WC0RX37M6
+  untitled_6: 01M2MNAEBWENTE96TMS3GFF7MY
+order:
+  01M2MNA9N7Y73Z394WC0RX37M6: '119'
+  01M2MNAEBWENTE96TMS3GFF7MY: '177.5'
 settings:
   eager_cost_threshold_s: 5.0
   reactivity: auto

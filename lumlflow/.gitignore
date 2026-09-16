@@ -72,3 +72,5 @@ frontend/dist/
 frontend/coverage/
 
 uv.lock
+
+/testbed

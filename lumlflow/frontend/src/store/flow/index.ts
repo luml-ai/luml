@@ -1,4 +1,5 @@
 import type {
+  AssetPreview,
   BranchRecord,
   CancelledRun,
   CellSummary,
@@ -346,6 +347,11 @@ export const useFlowStore = defineStore('flow', () => {
     return detail.source
   }
 
+  async function fetchAssetPreview(slug: string, output?: string): Promise<AssetPreview> {
+    const target = output ? `${slug}.${output}` : slug
+    return workspaceApi.assetPreview(target, currentFlow.value ?? undefined, currentBranch.value?.branch)
+  }
+
   async function fetchCellLogs(slug: string): Promise<string | null> {
     const detail = await workspaceApi.cellLogs(
       slug,
@@ -508,6 +514,7 @@ export const useFlowStore = defineStore('flow', () => {
     renameCell,
     fetchCellSource,
     fetchCellLogs,
+    fetchAssetPreview,
     editCellSource,
     duplicateCell,
     addCellDownstream,
