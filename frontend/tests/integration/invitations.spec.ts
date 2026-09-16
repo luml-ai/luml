@@ -112,14 +112,43 @@ test.describe('Invitation links', () => {
     await expect(page).toHaveURL(/\/invitations$/)
   })
 
-  test('shows the invitation page to authenticated users', async ({ page, apiMocks }) => {
+  test('opens the invitation dialog over the home page for authenticated users', async ({
+    page,
+    apiMocks,
+  }) => {
     await mockAuthenticatedInvitationPage(apiMocks)
 
     await page.goto('/invitations')
 
     await expect(page).toHaveURL(/\/invitations$/)
-    await expect(page.getByRole('heading', { name: 'Invitation center' })).toBeVisible()
-    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Pick a Machine Learning Task' })).toBeVisible()
+    await expect(
+      page.getByRole('dialog').getByRole('heading', { name: 'invitation center' }),
+    ).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('Acme Corp')).toBeVisible()
+  })
+
+  test('returns to the home route when the invitation dialog is closed', async ({
+    page,
+    apiMocks,
+  }) => {
+    await mockAuthenticatedInvitationPage(apiMocks)
+
+    await page.goto('/invitations')
+    await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click()
+
+    await expect(page.getByRole('dialog')).toBeHidden()
+    await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('opens the invitation dialog from the bell button', async ({ page, apiMocks }) => {
+    await mockAuthenticatedInvitationPage(apiMocks)
+
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Invitations' }).click()
+
+    await expect(page.getByRole('dialog').getByText('Acme Corp')).toBeVisible()
+    await expect(page).toHaveURL(/\/$/)
   })
 
   test('shows loading while invitations are being fetched', async ({ page, apiMocks }) => {
@@ -156,7 +185,7 @@ test.describe('Invitation links', () => {
     await expect(page.getByText('Failed to load invitations.')).toBeVisible()
     await page.getByRole('button', { name: 'Retry' }).click()
 
-    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('Acme Corp')).toBeVisible()
   })
 
   test('accepts an invitation and shows success', async ({ page, apiMocks }) => {
@@ -183,7 +212,7 @@ test.describe('Invitation links', () => {
     await page.getByRole('button', { name: 'Accept invitation' }).click()
 
     await expect(page.getByText('Failed to accept the invitation')).toBeVisible()
-    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('Acme Corp')).toBeVisible()
   })
 
   test('declines an invitation and shows success', async ({ page, apiMocks }) => {
@@ -210,6 +239,6 @@ test.describe('Invitation links', () => {
     await page.getByRole('button', { name: 'Decline invitation' }).click()
 
     await expect(page.getByText('Failed to reject the invitation')).toBeVisible()
-    await expect(page.getByRole('main').getByText('Acme Corp')).toBeVisible()
+    await expect(page.getByRole('dialog').getByText('Acme Corp')).toBeVisible()
   })
 })

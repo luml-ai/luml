@@ -303,7 +303,7 @@ const router = createRouter({
     {
       path: '/invitations',
       name: 'invitations',
-      component: () => import('../pages/InvitationsPage.vue'),
+      component: HomePage,
       meta: {
         requireAuth: true,
         redirectToSignIn: true,

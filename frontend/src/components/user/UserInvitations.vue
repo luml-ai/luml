@@ -1,7 +1,13 @@
 <template>
   <div class="user-notification">
     <div v-if="invitationsStore.invitations.length" class="user-notification__circle"></div>
-    <d-button rounded severity="help" class="bell-button" @click="visible = true">
+    <d-button
+      rounded
+      severity="help"
+      class="bell-button"
+      aria-label="Invitations"
+      @click="visible = true"
+    >
       <template #icon>
         <Bell :size="12" />
       </template>
@@ -25,15 +31,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { Bell } from 'lucide-vue-next'
 import { Dialog } from 'primevue'
+import { useRoute, useRouter } from 'vue-router'
 import { useInvitationsStore } from '@/stores/invitations'
 import InvitationsList from './InvitationsList.vue'
 
 const invitationsStore = useInvitationsStore()
+const route = useRoute()
+const router = useRouter()
 
-const visible = ref(false)
+const visible = ref(route.name === 'invitations')
+
+watch(
+  () => route.name,
+  (name) => {
+    if (name === 'invitations') {
+      visible.value = true
+    }
+  },
+)
+
+watch(visible, (isVisible) => {
+  if (!isVisible && route.name === 'invitations') {
+    router.replace({ name: 'home' })
+  }
+})
 </script>
 
 <style scoped>
