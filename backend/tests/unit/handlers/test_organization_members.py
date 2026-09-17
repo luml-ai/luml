@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 from luml.handlers.organizations import OrganizationHandler
+from luml.infra.exceptions import InsufficientPermissionsError
 from luml.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
@@ -64,13 +65,16 @@ async def test_update_organization_member_by_id(
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
 
+    member_to_update = member_data.model_copy()
+    member_to_update.role = OrgRole.MEMBER
+
     mock_update_organization_member.return_value = member_data
-    mock_get_organization_member_by_id.return_value = member_data
+    mock_get_organization_member_by_id.return_value = member_to_update
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     update_member = UpdateOrganizationMember(role=OrgRole.ADMIN)
     actual = await handler.update_organization_member_by_id(
-        user_id, member_data.organization_id, member_data.id, update_member
+        user_id, member_to_update.organization_id, member_to_update.id, update_member
     )
 
     assert actual == member_data
@@ -79,6 +83,10 @@ async def test_update_organization_member_by_id(
 
 @patch(
     "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
     new_callable=AsyncMock,
 )
 @patch(
@@ -93,6 +101,7 @@ async def test_update_organization_member_by_id(
 async def test_delete_organization_member_by_id(
     mock_delete_organization_member: AsyncMock,
     mock_check_permissions: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
     mock_get_organization_member_by_id: AsyncMock,
     member_data: OrganizationMember,
 ) -> None:
@@ -104,6 +113,7 @@ async def test_delete_organization_member_by_id(
 
     mock_delete_organization_member.return_value = None
     mock_get_organization_member_by_id.return_value = member_data_new
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
 
     await handler.delete_organization_member_by_id(
         user_id, organization_id, member_data_new.id
@@ -167,3 +177,206 @@ async def test_add_organization_member(
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.ORGANIZATION_USER, Action.CREATE
     )
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.update_organization_member",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_admin_can_not_assign_new_admin(
+    mock_update_organization_member: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
+    member_data: OrganizationMember,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    member_to_update = member_data.model_copy()
+    member_to_update.role = OrgRole.MEMBER
+
+    mock_get_organization_member_by_id.return_value = member_to_update
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+
+    with pytest.raises(
+        InsufficientPermissionsError,
+        match="Only Organization Owner can assign new admins.",
+    ):
+        await handler.update_organization_member_by_id(
+            user_id,
+            member_to_update.organization_id,
+            member_to_update.id,
+            UpdateOrganizationMember(role=OrgRole.ADMIN),
+        )
+
+    mock_update_organization_member.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.update_organization_member",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_admin_can_not_demote_another_admin(
+    mock_update_organization_member: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
+    member_data: OrganizationMember,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    member_to_update = member_data.model_copy()
+    member_to_update.role = OrgRole.ADMIN
+
+    mock_get_organization_member_by_id.return_value = member_to_update
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+
+    with pytest.raises(
+        InsufficientPermissionsError,
+        match="Only Organization Owner can change admin roles.",
+    ):
+        await handler.update_organization_member_by_id(
+            user_id,
+            member_to_update.organization_id,
+            member_to_update.id,
+            UpdateOrganizationMember(role=OrgRole.MEMBER),
+        )
+
+    mock_update_organization_member.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.update_organization_member",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_owner_role_can_not_be_changed(
+    mock_update_organization_member: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
+    member_data: OrganizationMember,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    mock_get_organization_member_by_id.return_value = member_data
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+
+    with pytest.raises(
+        InsufficientPermissionsError,
+        match="Organization Owner role can not be changed.",
+    ):
+        await handler.update_organization_member_by_id(
+            user_id,
+            member_data.organization_id,
+            member_data.id,
+            UpdateOrganizationMember(role=OrgRole.MEMBER),
+        )
+
+    mock_update_organization_member.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.delete_organization_member",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_admin_can_not_remove_another_admin(
+    mock_delete_organization_member: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
+    member_data: OrganizationMember,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    member_to_delete = member_data.model_copy()
+    member_to_delete.role = OrgRole.ADMIN
+
+    mock_get_organization_member_by_id.return_value = member_to_delete
+    mock_get_organization_member_role.return_value = OrgRole.ADMIN
+
+    with pytest.raises(
+        InsufficientPermissionsError,
+        match="Only Organization Owner can remove admins.",
+    ):
+        await handler.delete_organization_member_by_id(
+            user_id, member_to_delete.organization_id, member_to_delete.id
+        )
+
+    mock_delete_organization_member.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_by_id",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.UserRepository.get_organization_member_role",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.organizations.UserRepository.delete_organization_member",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_owner_can_remove_admin(
+    mock_delete_organization_member: AsyncMock,
+    mock_check_permissions: AsyncMock,
+    mock_get_organization_member_role: AsyncMock,
+    mock_get_organization_member_by_id: AsyncMock,
+    member_data: OrganizationMember,
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+
+    member_to_delete = member_data.model_copy()
+    member_to_delete.role = OrgRole.ADMIN
+
+    mock_delete_organization_member.return_value = None
+    mock_get_organization_member_by_id.return_value = member_to_delete
+    mock_get_organization_member_role.return_value = OrgRole.OWNER
+
+    await handler.delete_organization_member_by_id(
+        user_id, member_to_delete.organization_id, member_to_delete.id
+    )
+
+    mock_delete_organization_member.assert_awaited_once_with(member_to_delete.id)
