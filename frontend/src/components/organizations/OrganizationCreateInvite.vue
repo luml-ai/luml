@@ -43,7 +43,7 @@
             </div>
           </div>
           <Select
-            :options="OPTIONS"
+            :options="roleOptions"
             option-label="label"
             option-value="value"
             name="role"
@@ -73,7 +73,7 @@ import { useInvitationsStore } from '@/stores/invitations'
 import { useOrganizationStore } from '@/stores/organization'
 import { simpleErrorToast, simpleSuccessToast } from '@/lib/primevue/data/toasts'
 
-const INITIAL_DATA = { email: '', role: OrganizationRoleEnum.admin }
+const INITIAL_ROLE = OrganizationRoleEnum.member
 
 const dialogPT = {
   root: {
@@ -95,11 +95,20 @@ const OPTIONS = [
   },
 ]
 
+type Props = {
+  isOwner: boolean
+}
+
+const props = defineProps<Props>()
+
 const invitationsStore = useInvitationsStore()
 const organizationStore = useOrganizationStore()
 const toast = useToast()
 
-const initialValues = ref({ ...INITIAL_DATA })
+const initialValues = ref({ email: '', role: INITIAL_ROLE })
+const roleOptions = computed(() =>
+  props.isOwner ? OPTIONS : OPTIONS.filter((option) => option.value !== OrganizationRoleEnum.admin),
+)
 
 const isMemberLimitExceeded = computed(() => {
   if (!organizationStore.organizationDetails) return false
