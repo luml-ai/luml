@@ -406,6 +406,8 @@ class OrganizationHandler:
             raise InsufficientPermissionsError(
                 "Only Organization Owner can add new admins."
             )
+
+        member = member.model_copy(update={"organization_id": organization_id})
         try:
             created_member = await self.__user_repository.create_organization_member(
                 member
