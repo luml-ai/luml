@@ -6,13 +6,7 @@
     :hide-sso="true"
   >
     <template #form>
-      <d-button
-        type="submit"
-        label="Go to account"
-        rounded
-        fluid
-        @click="$router.push({ name: 'sign-in' })"
-      />
+      <d-button type="submit" label="Go to account" rounded fluid @click="goToSignIn" />
     </template>
   </authorization-wrapper>
 </template>
@@ -21,4 +15,13 @@
 import AuthorizationWrapper from '@/components/authorization/AuthorizationWrapper.vue'
 
 import MainImage from '@/assets/img/form-bg.webp'
+import { getStoredAuthRedirect } from '@/utils/authRedirect'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
+
+function goToSignIn() {
+  const redirect = getStoredAuthRedirect()
+  router.push({ name: 'sign-in', query: redirect ? { redirect } : {} })
+}
 </script>

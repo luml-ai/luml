@@ -19,7 +19,11 @@ export async function authMiddleware(
     }
   } catch {
     if (to.meta.requireAuth) {
-      next({ name: 'home' })
+      if (to.meta.redirectToSignIn) {
+        next({ name: 'sign-in', query: { redirect: to.fullPath } })
+      } else {
+        next({ name: 'home' })
+      }
     } else {
       next()
     }

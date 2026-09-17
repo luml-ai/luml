@@ -8,5 +8,6 @@ declare module 'vue-router' {
     mobileAvailable?: boolean
     showInvalidMessage?: number
     requireAuth?: boolean
+    redirectToSignIn?: boolean
   }
 }

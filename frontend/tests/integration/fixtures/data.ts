@@ -125,6 +125,7 @@ export function makeInvitation(overrides: Record<string, unknown> = {}) {
       has_api_key: false,
     },
     created_at: '2025-02-01T00:00:00.000Z',
+    ...overrides,
   } as Record<string, unknown>
 }
 

@@ -48,29 +48,39 @@ import MicrosoftIcon from '@/assets/img/authorization-services/microsoft.svg'
 import { useAuthStore } from '@/stores/auth'
 import { useUserStore } from '@/stores/user'
 import { onBeforeMount, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import {
+  clearStoredAuthRedirect,
+  getStoredAuthRedirect,
+  storeAuthRedirect,
+} from '@/utils/authRedirect'
 
 const authStore = useAuthStore()
 const userStore = useUserStore()
 const router = useRouter()
+const route = useRoute()
 
 defineProps<TAuthorizationWrapperProps>()
 
 const servicesError = ref('')
+
+function startSsoLogin(provider: 'google' | 'microsoft') {
+  storeAuthRedirect(route.query.redirect)
+  window.location.href = `${import.meta.env.VITE_API_URL}/v1/auth/${provider}/login`
+}
 
 const services: IAuthorizationService[] = [
   {
     id: 'google',
     label: 'Sign in with Google',
     icon: GoogleIcon,
-    action: () => (window.location.href = `${import.meta.env.VITE_API_URL}/v1/auth/google/login`),
+    action: () => startSsoLogin('google'),
   },
   {
     id: 'microsoft',
     label: 'Sign in with Microsoft',
     icon: MicrosoftIcon,
-    action: () =>
-      (window.location.href = `${import.meta.env.VITE_API_URL}/v1/auth/microsoft/login`),
+    action: () => startSsoLogin('microsoft'),
   },
   // {
   //   id: 'github',
@@ -92,7 +102,9 @@ onBeforeMount(async () => {
       await authStore.loginWithMicrosoft(code)
     }
     await userStore.loadUser()
-    router.push({ name: 'home' })
+    const redirect = getStoredAuthRedirect()
+    clearStoredAuthRedirect()
+    router.push(redirect || { name: 'home' })
   } catch (e) {
     console.error(e)
   }
