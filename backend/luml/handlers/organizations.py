@@ -169,6 +169,14 @@ class OrganizationHandler:
             Resource.ORGANIZATION_INVITE,
             Action.CREATE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            invite_.organization_id, user_id
+        )
+
+        if user_role != OrgRole.OWNER and invite_.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can invite new admins."
+            )
 
         user_info = await self.__user_repository.get_public_user_by_id(user_id)
 
