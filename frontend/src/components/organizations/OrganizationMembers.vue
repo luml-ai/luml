@@ -3,7 +3,7 @@
     <h3 class="label">Members ({{ members.length }})</h3>
     <div class="toolbar">
       <div class="buttons">
-        <OrganizationCreateInvite></OrganizationCreateInvite>
+        <OrganizationCreateInvite :is-owner="isUserOwner"></OrganizationCreateInvite>
         <OrganizationInviteManager></OrganizationInviteManager>
       </div>
       <div class="list">
@@ -53,6 +53,7 @@
                   (member.role === OrganizationRoleEnum.admin && isUserOwner)
                 "
                 :member="member"
+                :is-owner="isUserOwner"
               ></OrganizationUserSettings>
             </div>
           </div>

@@ -362,8 +362,35 @@ test.describe('Organizations', () => {
 
       await expect.poll(() => deleteCalled).toBe(true)
     })
-  })
 
+    test('offers the admin role to the owner', async ({ page }) => {
+      await page.goto(`/organization/${ORG_ID}`)
+      await page.getByRole('button', { name: /Invite member/i }).click()
+
+      await page.locator('.form-select').click()
+
+      await expect(page.getByRole('option', { name: 'Admin' })).toBeVisible()
+      await expect(page.getByRole('option', { name: 'Member' })).toBeVisible()
+    })
+
+    test('hides the admin role from organization admins', async ({ page, apiMocks }) => {
+      await apiMocks.get(
+        `**/v1/organizations/${ORG_ID}`,
+        makeOrganizationDetails({
+          members: [makeMember({ role: OrganizationRole.admin })],
+          members_by_role: { owner: 0, admin: 1, member: 0 },
+        }),
+      )
+
+      await page.goto(`/organization/${ORG_ID}`)
+      await page.getByRole('button', { name: /Invite member/i }).click()
+
+      await page.locator('.form-select').click()
+
+      await expect(page.getByRole('option', { name: 'Member' })).toBeVisible()
+      await expect(page.getByRole('option', { name: 'Admin' })).toHaveCount(0)
+    })
+  })
 
   test.describe('Members', () => {
     test('lists members with correct role counts', async ({ page, apiMocks }) => {
@@ -428,6 +455,37 @@ test.describe('Organizations', () => {
       await confirmBtn.click()
 
       await expect.poll(() => deleteCalled).toBe(true)
+    })
+
+    test('hides the admin role in user settings for organization admins', async ({
+      page,
+      apiMocks,
+    }) => {
+      await apiMocks.get(
+        `**/v1/organizations/${ORG_ID}`,
+        makeOrganizationDetails({
+          members: [
+            makeMember({ role: OrganizationRole.admin }),
+            makeMember({
+              id: MEMBER_ID_2,
+              role: OrganizationRole.member,
+              user: { ...USER_FIXTURE, id: USER_ID_2, full_name: 'Plain Member', email: 'plain@example.com' },
+            }),
+          ],
+          members_by_role: { owner: 0, admin: 1, member: 1 },
+        }),
+      )
+
+      await page.goto(`/organization/${ORG_ID}`)
+
+      const memberRow = page.locator('.row').filter({ hasText: 'Plain Member' })
+      await memberRow.getByRole('button').click()
+
+      await expect(page.getByRole('heading', { name: /user settings/i })).toBeVisible()
+      await page.locator('#role').click()
+
+      await expect(page.getByRole('option', { name: 'Member' })).toBeVisible()
+      await expect(page.getByRole('option', { name: 'Admin' })).toHaveCount(0)
     })
   })
 })

@@ -169,6 +169,14 @@ class OrganizationHandler:
             Resource.ORGANIZATION_INVITE,
             Action.CREATE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            invite_.organization_id, user_id
+        )
+
+        if user_role != OrgRole.OWNER and invite_.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can invite new admins."
+            )
 
         user_info = await self.__user_repository.get_public_user_by_id(user_id)
 
@@ -322,9 +330,19 @@ class OrganizationHandler:
         if user_id == member_to_update.user.id:
             raise InsufficientPermissionsError("You can not update your own data.")
 
+        if member_to_update.role == OrgRole.OWNER:
+            raise InsufficientPermissionsError(
+                "Organization Owner role can not be changed."
+            )
+
         if user_role != OrgRole.OWNER and member.role == OrgRole.ADMIN:
             raise InsufficientPermissionsError(
                 "Only Organization Owner can assign new admins."
+            )
+
+        if user_role != OrgRole.OWNER and member_to_update.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can change admin roles."
             )
 
         return await self.__user_repository.update_organization_member(
@@ -340,6 +358,9 @@ class OrganizationHandler:
             Resource.ORGANIZATION_USER,
             Action.DELETE,
         )
+        user_role = await self.__user_repository.get_organization_member_role(
+            organization_id, user_id
+        )
 
         member_to_delete = await self.__user_repository.get_organization_member_by_id(
             member_id
@@ -353,8 +374,13 @@ class OrganizationHandler:
                 "You can not remove yourself from organization."
             )
 
-        if member_to_delete and member_to_delete.role == OrgRole.OWNER:
+        if member_to_delete.role == OrgRole.OWNER:
             raise InsufficientPermissionsError("Organization Owner can not be removed.")
+
+        if user_role != OrgRole.OWNER and member_to_delete.role == OrgRole.ADMIN:
+            raise InsufficientPermissionsError(
+                "Only Organization Owner can remove admins."
+            )
 
         return await self.__user_repository.delete_organization_member(member_id)
 
