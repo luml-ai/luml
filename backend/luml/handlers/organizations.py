@@ -235,7 +235,9 @@ class OrganizationHandler:
             Action.DELETE,
         )
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            organization_id, invite_id
+        )
 
     async def accept_invite(
         self, invite_id: UUID, user_id: UUID, user_email: EmailStr
@@ -275,7 +277,9 @@ class OrganizationHandler:
         if invite.email != user_email:
             raise InsufficientPermissionsError("This invite is not for you")
 
-        return await self.__invites_repository.delete_organization_invite(invite_id)
+        return await self.__invites_repository.delete_organization_invite(
+            invite.organization_id, invite_id
+        )
 
     async def get_organization_invites(
         self, user_id: UUID, organization_id: UUID
