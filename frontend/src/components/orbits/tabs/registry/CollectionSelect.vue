@@ -64,7 +64,7 @@ const { setRequestInfo, getInitialPage, collectionsList, reset, onLazyLoad, addC
 
 const virtualScrollerOptions = computed(() => {
   if (collectionsList.value.length < 10) return undefined
-  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 38 }
+  return { lazy: true, onLazyLoad: onLazyLoad, itemSize: 107 }
 })
 
 const modelValue = defineModel<string | null>()
