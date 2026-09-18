@@ -196,9 +196,7 @@ async def test_cancel_invite(
     mock_get_organization_member_role.return_value = OrgRole.OWNER
 
     await handler.cancel_invite(user_id, organization_id, invite_id)
-    mock_delete_organization_invite.assert_awaited_once_with(
-        organization_id, invite_id
-    )
+    mock_delete_organization_invite.assert_awaited_once_with(organization_id, invite_id)
 
 
 @patch(
@@ -278,9 +276,7 @@ async def test_reject_invite(
     mock_get_invite.return_value = Mock(email=email, organization_id=organization_id)
 
     await handler.reject_invite(invite_id, email)
-    mock_delete_organization_invite.assert_awaited_once_with(
-        organization_id, invite_id
-    )
+    mock_delete_organization_invite.assert_awaited_once_with(organization_id, invite_id)
 
 
 @patch(
