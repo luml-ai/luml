@@ -48,7 +48,6 @@ class OrganizationSwitcher(Organization):
 class CreateOrganizationInviteIn(BaseModel):
     email: EmailStr = Field(max_length=254)
     role: OrgRole
-    organization_id: UUID
 
     @field_validator("role")
     @classmethod

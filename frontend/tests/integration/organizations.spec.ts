@@ -308,10 +308,8 @@ test.describe('Organizations', () => {
       await page.getByPlaceholder('Email').fill('new@example.com')
       await page.getByRole('button', { name: 'Invite', exact: true }).click()
 
-      await expect.poll(() => createPayload).toMatchObject({
-        email: 'new@example.com',
-        organization_id: ORG_ID,
-      })
+      await expect.poll(() => createPayload).toMatchObject({ email: 'new@example.com' })
+      expect(createPayload).not.toHaveProperty('organization_id')
       await expect(
         page.getByText('An email invitation was sent to the user.'),
       ).toBeVisible()

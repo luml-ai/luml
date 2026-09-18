@@ -36,7 +36,9 @@ async def get_organization_invites(
 async def create_invite_in_organization(
     request: Request, organization_id: UUID, invite: CreateOrganizationInviteIn
 ) -> OrganizationInvite:
-    return await organization_handler.send_invite(request.user.id, invite)
+    return await organization_handler.send_invite(
+        request.user.id, organization_id, invite
+    )
 
 
 @invites_router.delete(
