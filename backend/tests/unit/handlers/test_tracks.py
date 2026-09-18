@@ -1750,16 +1750,14 @@ async def test_get_entry(
 @patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
 @patch("luml.handlers.tracks.TrackEntryRepository.get_entry", new_callable=AsyncMock)
 @pytest.mark.asyncio
-async def test_get_entry_returns_none_when_missing(
+async def test_get_entry_not_found_when_missing(
     mock_get_entry: AsyncMock, mock_get_track: AsyncMock, mock_perms: AsyncMock
 ) -> None:
     mock_get_track.return_value = _make_track()
     mock_get_entry.return_value = None
 
-    result = await tracks_handler.get_entry(
-        USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, ENTRY_ID
-    )
-    assert result is None
+    with pytest.raises(NotFoundError, match="Entry not found"):
+        await tracks_handler.get_entry(USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, ENTRY_ID)
 
 
 @patch(
@@ -1820,6 +1818,33 @@ async def test_get_entry_by_stage(
         USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID
     )
     assert result == expected
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.TrackStageRepository.get_stage", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.TrackEntryRepository.get_entry_by_stage",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_get_entry_by_stage_not_found_when_empty(
+    mock_by_stage: AsyncMock,
+    mock_get_stage: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_track.return_value = _make_track()
+    mock_get_stage.return_value = _make_stage()
+    mock_by_stage.return_value = None
+
+    with pytest.raises(NotFoundError, match="Entry not found"):
+        await tracks_handler.get_entry_by_stage(
+            USER_ID, ORG_ID, ORBIT_ID, TRACK_ID, STAGE_ID
+        )
 
 
 @patch(

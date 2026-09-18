@@ -196,7 +196,7 @@ async def get_entry_by_stage(
     orbit_id: UUID,
     track_id: UUID,
     stage_id: UUID,
-) -> TrackEntry | None:
+) -> TrackEntry:
     return await tracks_handler.get_entry_by_stage(
         request.user.id, organization_id, orbit_id, track_id, stage_id
     )
@@ -213,7 +213,7 @@ async def get_entry(
     orbit_id: UUID,
     track_id: UUID,
     entry_id: UUID,
-) -> TrackEntry | None:
+) -> TrackEntry:
     return await tracks_handler.get_entry(
         request.user.id, organization_id, orbit_id, track_id, entry_id
     )

@@ -337,7 +337,7 @@ class TracksHandler:
         orbit_id: UUID,
         track_id: UUID,
         entry_id: UUID,
-    ) -> TrackEntry | None:
+    ) -> TrackEntry:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -353,7 +353,7 @@ class TracksHandler:
 
         entry = await self.__entry_repository.get_entry(entry_id)
 
-        if entry and entry.track_id != track_id:
+        if not entry or entry.track_id != track_id:
             raise NotFoundError("Entry not found")
 
         return entry
@@ -365,7 +365,7 @@ class TracksHandler:
         orbit_id: UUID,
         track_id: UUID,
         stage_id: UUID,
-    ) -> TrackEntry | None:
+    ) -> TrackEntry:
         await self.__permissions_handler.check_permissions(
             organization_id,
             user_id,
@@ -384,7 +384,11 @@ class TracksHandler:
         if not stage or stage.track_id != track_id:
             raise NotFoundError("Stage not found")
 
-        return await self.__entry_repository.get_entry_by_stage(track_id, stage_id)
+        entry = await self.__entry_repository.get_entry_by_stage(track_id, stage_id)
+        if not entry:
+            raise NotFoundError("Entry not found")
+
+        return entry
 
     async def list_entries(
         self,
