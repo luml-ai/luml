@@ -8,7 +8,7 @@ dependencies = [
     "httpx==0.27.2",
     "aiodocker==0.24.0",
     "pydantic==2.12.4",
-    "pydantic-settings==2.12.0",
+    "pydantic-settings==2.14.2",
     "fastapi==0.121.2",
     "uvicorn==0.38.0",
     "cashews==7.4.3",
