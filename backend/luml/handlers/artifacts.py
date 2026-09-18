@@ -7,6 +7,7 @@ from luml.handlers.lineage import LineageHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
+    ArtifactDeployedError,
     ArtifactNotFoundError,
     ArtifactTrackedError,
     ArtifactTypeMismatchError,
@@ -573,6 +574,8 @@ class ArtifactHandler:
             raise InvalidStatusTransitionError(
                 f"Unable to confirm deletion with status '{artifact.status}'"
             )
+        if artifact.deployments:
+            raise ArtifactDeployedError()
         await self._delete_artifact(orbit_id, artifact_id)
 
     async def _delete_artifact(self, orbit_id: UUID, artifact_id: UUID) -> None:
