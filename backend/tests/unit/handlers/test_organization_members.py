@@ -7,6 +7,7 @@ from luml.infra.exceptions import InsufficientPermissionsError
 from luml.schemas.organization import (
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationMemberCreateIn,
     OrgRole,
     UpdateOrganizationMember,
 )
@@ -151,11 +152,9 @@ async def test_add_organization_member_uses_path_organization_id(
     user_id = member_data.user.id
     user_to_create_member_for = UUID("0199c419-b7c1-71d6-8382-5697010cee46")
     organization_id = member_data.organization_id
-    body_organization_id = UUID("0199c43e-8b7b-7ae8-a84b-3ec65bb63a17")
 
-    member_create = OrganizationMemberCreate(
+    member_create = OrganizationMemberCreateIn(
         user_id=user_to_create_member_for,
-        organization_id=body_organization_id,
         role=OrgRole.MEMBER,
     )
 

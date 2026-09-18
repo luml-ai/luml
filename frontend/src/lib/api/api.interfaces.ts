@@ -155,7 +155,6 @@ export interface Member {
 
 export interface AddMemberPayload {
   user_id: string
-  organization_id: string
   role: OrganizationRoleEnum
 }
 

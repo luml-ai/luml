@@ -108,9 +108,8 @@ class OrganizationMember(BaseModel, BaseOrmConfig):
     updated_at: datetime | None = None
 
 
-class OrganizationMemberCreate(BaseModel):
+class OrganizationMemberCreateIn(BaseModel):
     user_id: UUID
-    organization_id: UUID
     role: OrgRole
 
     @field_validator("role")
@@ -119,6 +118,10 @@ class OrganizationMemberCreate(BaseModel):
         if value == OrgRole.OWNER:
             raise ValueError("Role 'OWNER' cant be assigned")
         return value
+
+
+class OrganizationMemberCreate(OrganizationMemberCreateIn):
+    organization_id: UUID
 
 
 class OrganizationOwnerCreate(BaseModel):
