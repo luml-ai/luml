@@ -28,6 +28,7 @@ from luml.schemas.organization import (
     OrganizationInvite,
     OrganizationMember,
     OrganizationMemberCreate,
+    OrganizationMemberCreateIn,
     OrganizationSwitcher,
     OrganizationUpdate,
     OrgRole,
@@ -388,7 +389,7 @@ class OrganizationHandler:
         self,
         user_id: UUID,
         organization_id: UUID,
-        member: OrganizationMemberCreate,
+        member: OrganizationMemberCreateIn,
     ) -> OrganizationMember:
         await self.__permissions_handler.check_permissions(
             organization_id,
@@ -408,7 +409,11 @@ class OrganizationHandler:
             )
         try:
             created_member = await self.__user_repository.create_organization_member(
-                member
+                OrganizationMemberCreate(
+                    user_id=member.user_id,
+                    organization_id=organization_id,
+                    role=member.role,
+                )
             )
         except DatabaseConstraintError as error:
             raise OrganizationMemberAlreadyExistsError() from error
