@@ -40,8 +40,8 @@ export const useInvitationsStore = defineStore('invitations', () => {
     invitations.value = invitations.value.filter((invitation) => invitation.id !== inviteId)
   }
 
-  async function createInvite(payload: CreateInvitePayload) {
-    return api.createInvite(payload.organization_id, payload)
+  async function createInvite(organizationId: string, payload: CreateInvitePayload) {
+    return api.createInvite(organizationId, payload)
   }
 
   async function cancelInvite(organizationId: string, inviteId: string) {

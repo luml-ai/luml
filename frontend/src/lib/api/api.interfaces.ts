@@ -166,7 +166,6 @@ export interface UpdateMemberPayload {
 export interface CreateInvitePayload {
   email: string
   role: OrganizationRoleEnum
-  organization_id: string
 }
 
 export interface Orbit {
