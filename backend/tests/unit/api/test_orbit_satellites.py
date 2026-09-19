@@ -17,6 +17,7 @@ from starlette.requests import HTTPConnection, Request
 USER_ID = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
 ORGANIZATION_ID = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
 ORBIT_ID = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+SATELLITE_ID = UUID("0199c418-8be4-737c-a5e4-997685950d42")
 
 
 class _SignedInBackend(AuthenticationBackend):
@@ -50,6 +51,23 @@ def test_create_satellite_requires_name(
     assert response.status_code == 422
     assert ["body", "name"] in [error["loc"] for error in response.json()["detail"]]
     mock_create_satellite.assert_not_awaited()
+
+
+@pytest.mark.parametrize("body", [{"name": None}], ids=["null"])
+@patch(
+    "luml.handlers.satellites.SatelliteHandler.update_satellite",
+    new_callable=AsyncMock,
+)
+def test_update_satellite_rejects_invalid_name(
+    mock_update_satellite: AsyncMock, body: dict[str, object]
+) -> None:
+    response = _client().patch(
+        f"/{ORGANIZATION_ID}/orbits/{ORBIT_ID}/satellites/{SATELLITE_ID}", json=body
+    )
+
+    assert response.status_code == 422
+    assert ["body", "name"] in [error["loc"] for error in response.json()["detail"]]
+    mock_update_satellite.assert_not_awaited()
 
 
 @patch(

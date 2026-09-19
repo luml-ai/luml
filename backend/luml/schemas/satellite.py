@@ -310,6 +310,13 @@ class SatelliteUpdateIn(BaseModel, BaseOrmConfig):
     name: str | None = Field(default=None, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def reject_null_name(cls, value: Any) -> Any:  # noqa: ANN401
+        if value is None:
+            raise ValueError("name cannot be null; omit it instead")
+        return value
+
 
 class SatelliteUpdate(BaseModel, BaseOrmConfig):
     id: UUID
