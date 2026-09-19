@@ -36,7 +36,9 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
-@pytest.mark.parametrize("body", [{}, {"name": None}], ids=["missing", "null"])
+@pytest.mark.parametrize(
+    "body", [{}, {"name": None}, {"name": ""}], ids=["missing", "null", "empty"]
+)
 @patch(
     "luml.handlers.satellites.SatelliteHandler.create_satellite",
     new_callable=AsyncMock,
@@ -53,7 +55,7 @@ def test_create_satellite_requires_name(
     mock_create_satellite.assert_not_awaited()
 
 
-@pytest.mark.parametrize("body", [{"name": None}], ids=["null"])
+@pytest.mark.parametrize("body", [{"name": None}, {"name": ""}], ids=["null", "empty"])
 @patch(
     "luml.handlers.satellites.SatelliteHandler.update_satellite",
     new_callable=AsyncMock,

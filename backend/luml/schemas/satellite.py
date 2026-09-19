@@ -256,7 +256,7 @@ class Satellite(BaseModel, BaseOrmConfig):
 
 
 class SatelliteCreateIn(BaseModel, BaseOrmConfig):
-    name: str = Field(max_length=100)
+    name: str = Field(min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
 
 
@@ -307,7 +307,7 @@ class SatellitePair(BaseModel, BaseOrmConfig):
 
 
 class SatelliteUpdateIn(BaseModel, BaseOrmConfig):
-    name: str | None = Field(default=None, max_length=100)
+    name: str | None = Field(default=None, min_length=1, max_length=100)
     description: str | None = Field(default=None, max_length=1000)
 
     @field_validator("name", mode="before")
