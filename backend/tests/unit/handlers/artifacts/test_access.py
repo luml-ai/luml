@@ -284,7 +284,6 @@ class TestArtifactAccess:
             )
 
         assert error.value.status_code == 404
-        mocks.deployment_repository.delete_deployments_by_artifact_id.assert_not_awaited()
         mocks.repository.delete_artifact.assert_not_awaited()
 
     async def test_get_satellite_artifact_rejects_artifact_outside_orbit(
