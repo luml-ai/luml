@@ -1,0 +1,33 @@
+from datetime import datetime
+from enum import StrEnum
+from typing import Any
+
+from luml_satellite.wire._base import PlatformModel
+
+
+class SatelliteTaskStatus(StrEnum):
+    PENDING = "pending"
+    RUNNING = "running"
+    DONE = "done"
+    FAILED = "failed"
+
+
+class SatelliteTaskType(StrEnum):
+    DEPLOY = "deploy"
+    UNDEPLOY = "undeploy"
+    RECONCILE = "reconcile"
+
+
+class SatelliteQueueTask(PlatformModel):
+    id: str
+    satellite_id: str
+    orbit_id: str
+    type: str
+    payload: dict[str, Any] | None = None
+    status: SatelliteTaskStatus
+    scheduled_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    result: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
