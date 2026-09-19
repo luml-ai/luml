@@ -10,7 +10,7 @@ import pytest_asyncio
 from jwt.exceptions import InvalidTokenError
 from luml.clients.oauth_providers import OAuthGoogleProvider
 from luml.handlers.auth import AuthHandler
-from luml.infra.exceptions import AuthError
+from luml.infra.exceptions import AuthError, EmailDeliveryError
 from luml.schemas.auth import OAuthLogin, Token, UserInfo
 from luml.schemas.user import (
     AuthProvider,
@@ -301,12 +301,12 @@ def test_verify_token_accepts_access_token() -> None:
 
 @patch.object(AuthHandler, "_get_password_hash")
 @patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
-@patch("luml.handlers.auth.UserRepository.create_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.create_user_transaction")
 @patch("luml.handlers.auth.EmailHandler.send_activation_email", new_callable=MagicMock)
 @pytest.mark.asyncio
 async def test_handle_signup(
     mock_send_activation_email: MagicMock,
-    mock_create_user: AsyncMock,
+    mock_create_user_transaction: MagicMock,
     mock_get_user: AsyncMock,
     mock_get_password_hash: Mock,
     test_user_create_in: CreateUserIn,
@@ -318,7 +318,7 @@ async def test_handle_signup(
 
     mock_get_user.return_value = None
     mock_get_password_hash.return_value = create_user.hashed_password
-    mock_create_user.return_value = test_user
+    mock_create_user_transaction.return_value.__aenter__.return_value = test_user
 
     actual = await handler.handle_signup(create_user_in)
 
@@ -327,7 +327,33 @@ async def test_handle_signup(
     mock_send_activation_email.assert_called_once()
     mock_get_password_hash.assert_called_once_with(create_user_in.password)
     mock_get_user.assert_awaited_once_with(create_user.email)
-    mock_create_user.assert_awaited_once_with(create_user=create_user)
+    mock_create_user_transaction.assert_called_once_with(create_user=create_user)
+
+
+@patch.object(AuthHandler, "_get_password_hash")
+@patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)
+@patch("luml.handlers.auth.UserRepository.create_user_transaction")
+@patch("luml.handlers.auth.EmailHandler.send_activation_email", new_callable=MagicMock)
+@pytest.mark.asyncio
+async def test_handle_signup_rolls_back_when_activation_email_fails(
+    mock_send_activation_email: MagicMock,
+    mock_create_user_transaction: MagicMock,
+    mock_get_user: AsyncMock,
+    mock_get_password_hash: Mock,
+    test_user_create_in: CreateUserIn,
+    test_user_create: CreateUser,
+    test_user: User,
+) -> None:
+    mock_get_user.return_value = None
+    mock_get_password_hash.return_value = test_user_create.hashed_password
+    mock_create_user_transaction.return_value.__aenter__.return_value = test_user
+    mock_send_activation_email.side_effect = RuntimeError("email delivery failed")
+
+    with pytest.raises(EmailDeliveryError):
+        await handler.handle_signup(test_user_create_in)
+
+    mock_create_user_transaction.assert_called_once_with(create_user=test_user_create)
+    mock_create_user_transaction.return_value.__aexit__.assert_awaited_once()
 
 
 @patch("luml.handlers.auth.UserRepository.get_user", new_callable=AsyncMock)

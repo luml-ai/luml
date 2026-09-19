@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
@@ -59,7 +61,15 @@ class UserRepository(RepositoryBase, CrudMixin):
         self,
         create_user: CreateUser,
     ) -> User:
-        async with self._get_session() as session:
+        async with self.create_user_transaction(create_user) as user:
+            return user
+
+    @asynccontextmanager
+    async def create_user_transaction(
+        self,
+        create_user: CreateUser,
+    ) -> AsyncIterator[User]:
+        async with self._get_session() as session, session.begin():
             db_user = UserOrm.from_user(create_user)
             session.add(db_user)
 
@@ -82,8 +92,8 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             session.add(db_organization_member)
 
-            await session.commit()
-        return user_response
+            await session.flush()
+            yield user_response
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
