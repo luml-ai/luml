@@ -7,6 +7,7 @@ from luml.handlers.lineage import LineageHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
+    ArtifactDeployedError,
     ArtifactNotFoundError,
     ArtifactTrackedError,
     ArtifactTypeMismatchError,
@@ -23,7 +24,6 @@ from luml.infra.exceptions import (
 from luml.repositories.artifacts import ArtifactDeletionRecord, ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
-from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
@@ -62,7 +62,6 @@ class ArtifactHandler:
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
-    __deployment_repository = DeploymentRepository(engine)
     __lineage_repository = LineageRepository(engine)
     __track_entry_repository = TrackEntryRepository(engine)
     __track_repository = TrackRepository(engine)
@@ -675,9 +674,7 @@ class ArtifactHandler:
         )
 
         if artifact.deployments:
-            await self.__deployment_repository.delete_deployments_by_artifact_id(
-                artifact_id
-            )
+            raise ArtifactDeployedError()
 
         await self._delete_artifact(orbit_id, artifact_id)
 

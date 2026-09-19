@@ -2782,10 +2782,6 @@ async def test_force_delete_artifact_without_deployments(
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.DeploymentRepository.delete_deployments_by_artifact_id",
-    new_callable=AsyncMock,
-)
-@patch(
     "luml.handlers.artifacts.ArtifactRepository.delete_artifact",
     new_callable=AsyncMock,
 )
@@ -2803,11 +2799,10 @@ async def test_force_delete_artifact_without_deployments(
     new=_deletion_transaction,
 )
 @pytest.mark.asyncio
-async def test_force_delete_artifact_with_deployments(
+async def test_force_delete_artifact_rejects_deployed_artifact(
     mock_lock_orbit: AsyncMock,
     mock_has_track_entries: AsyncMock,
     mock_delete_artifact: AsyncMock,
-    mock_delete_deployments_by_artifact_id: AsyncMock,
     mock_get_artifact: AsyncMock,
     mock_get_collection: AsyncMock,
     mock_get_orbit_simple: AsyncMock,
@@ -2832,17 +2827,18 @@ async def test_force_delete_artifact_with_deployments(
         deployments=[Mock(id=deployment_id)],
     )
 
-    await handler.force_delete_artifact(
-        user_id, organization_id, orbit_id, collection_id, artifact_id
-    )
+    with pytest.raises(ArtifactDeployedError) as error:
+        await handler.force_delete_artifact(
+            user_id, organization_id, orbit_id, collection_id, artifact_id
+        )
 
+    assert error.value.status_code == 409
     mock_check_permissions.assert_awaited_once_with(
         organization_id, user_id, Resource.ARTIFACT, Action.DELETE, orbit_id
     )
-    mock_delete_deployments_by_artifact_id.assert_awaited_once_with(artifact_id)
-    mock_refresh_node_copy.assert_awaited_once_with(artifact_id, DELETION_SESSION)
-    mock_delete_artifact.assert_awaited_once_with(artifact_id, DELETION_SESSION)
-    mock_delete_unreachable_nodes.assert_awaited_once_with(orbit_id, DELETION_SESSION)
+    mock_refresh_node_copy.assert_not_awaited()
+    mock_delete_artifact.assert_not_awaited()
+    mock_delete_unreachable_nodes.assert_not_awaited()
 
 
 @patch(
@@ -3619,10 +3615,6 @@ async def test_artifact_deletion_checks_rejects_artifact_from_another_collection
     new_callable=AsyncMock,
 )
 @patch(
-    "luml.handlers.artifacts.DeploymentRepository.delete_deployments_by_artifact_id",
-    new_callable=AsyncMock,
-)
-@patch(
     "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
     new_callable=AsyncMock,
     return_value=False,
@@ -3645,7 +3637,6 @@ async def test_force_delete_artifact_rejects_artifact_from_another_collection(
     mock_check_access: AsyncMock,
     mock_get_details: AsyncMock,
     mock_has_entries: AsyncMock,
-    mock_delete_deployments: AsyncMock,
     mock_delete_artifact: AsyncMock,
 ) -> None:
     mock_check_access.return_value = (Mock(id=_ORBIT), Mock(id=_COLLECTION))
@@ -3659,7 +3650,6 @@ async def test_force_delete_artifact_rejects_artifact_from_another_collection(
         await handler.force_delete_artifact(_USER, _ORG, _ORBIT, _COLLECTION, _ARTIFACT)
 
     assert error.value.status_code == 404
-    mock_delete_deployments.assert_not_awaited()
     mock_delete_artifact.assert_not_awaited()
 
 
