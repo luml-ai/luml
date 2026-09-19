@@ -152,6 +152,7 @@ async def test_get_satellite_openapi(
     mock_get_satellite.return_value = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
@@ -555,6 +556,7 @@ def test_bare_monitoring_declaration_is_complete_in_satellite_payload() -> None:
     satellite = Satellite(
         id=UUID("0199c418-8be4-737c-a5e4-997685950d42"),
         orbit_id=UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
@@ -575,6 +577,7 @@ def test_satellite_payload_does_not_include_openapi() -> None:
         {
             "id": UUID("0199c418-8be4-737c-a5e4-997685950d42"),
             "orbit_id": UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+            "name": "test-satellite",
             "paired": True,
             "capabilities": {"deploy": {"version": 1}},
             "openapi": {"openapi": "3.1.0", "paths": {}},
@@ -740,6 +743,7 @@ def test_present_capabilities_respects_reserved_versions() -> None:
     satellite = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
@@ -1262,6 +1266,54 @@ async def test_update_satellite(
     )
     mock_get_satellite.assert_awaited_once_with(satellite_id)
     mock_update_satellite.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{"description": "updated-desc"}, {"name": "updated-name"}],
+    ids=["description-only", "name-only"],
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.update_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_update_satellite_sends_only_provided_fields(
+    mock_check_permissions: AsyncMock,
+    mock_get_satellite: AsyncMock,
+    mock_update_satellite: AsyncMock,
+    body: dict[str, str],
+) -> None:
+    user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
+    organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
+    orbit_id = UUID("0199c337-09f3-753e-9def-b27745e69be6")
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+
+    mock_get_satellite.return_value = Mock(orbit_id=orbit_id)
+
+    await handler.update_satellite(
+        user_id,
+        organization_id,
+        orbit_id,
+        satellite_id,
+        SatelliteUpdateIn.model_validate(body),
+    )
+
+    mock_update_satellite.assert_awaited_once()
+    update_call = mock_update_satellite.await_args
+    assert update_call is not None
+    assert update_call.args[0].model_dump(exclude_unset=True) == {
+        "id": satellite_id,
+        **body,
+    }
 
 
 @patch(
