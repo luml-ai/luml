@@ -152,19 +152,19 @@ class AuthHandler:
             auth_method=AuthProvider.EMAIL,
         )
 
-        user = await self.__user_repository.create_user(create_user=create_user)
-
-        confirmation_token = self._generate_email_confirmation_token(user.email)
-        confirmation_link = self._get_email_confirmation_link(confirmation_token)
-        try:
-            self.__emails_handler.send_activation_email(
-                user.email, confirmation_link, user.full_name
-            )
-        except Exception as error:
-            await self.__user_repository.delete_user(user.email)
-            raise EmailDeliveryError(
-                "Error sending confirmation email. User is not created."
-            ) from error
+        async with self.__user_repository.create_user_transaction(
+            create_user=create_user
+        ) as user:
+            confirmation_token = self._generate_email_confirmation_token(user.email)
+            confirmation_link = self._get_email_confirmation_link(confirmation_token)
+            try:
+                self.__emails_handler.send_activation_email(
+                    user.email, confirmation_link, user.full_name
+                )
+            except Exception as error:
+                raise EmailDeliveryError(
+                    "Error sending confirmation email. User is not created."
+                ) from error
         return {"detail": "Please confirm your email address"}
 
     async def handle_signin(self, user: SignInUser) -> SignInResponse:

@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
+from luml.models import OrganizationOrm
 from luml.repositories.users import UserRepository
 from luml.schemas.user import (
     AuthProvider,
@@ -12,7 +13,8 @@ from luml.schemas.user import (
     User,
     UserOut,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 
 @dataclass
@@ -61,6 +63,34 @@ async def test_create_user_and_organization(
     assert fetched_org_member
     assert fetched_org_member.organization_id == fetched_org.id
     assert created_user == fetched_user
+
+
+@pytest.mark.asyncio
+async def test_create_user_transaction_rolls_back_user_and_organization(
+    create_database_and_apply_migrations: str,
+) -> None:
+    engine = create_async_engine(create_database_and_apply_migrations)
+    repo = UserRepository(engine)
+    user = CreateUser(
+        email=f"test_{uuid.uuid4()}@example.com",
+        full_name="Test User",
+        disabled=False,
+        email_verified=False,
+        auth_method=AuthProvider.EMAIL,
+        photo=None,
+        hashed_password="hashed_password",
+    )
+
+    with pytest.raises(RuntimeError, match="email delivery failed"):
+        async with repo.create_user_transaction(user):
+            raise RuntimeError("email delivery failed")
+
+    assert await repo.get_user(user.email) is None
+    async with AsyncSession(engine) as session:
+        organization = await session.scalar(
+            select(OrganizationOrm).where(OrganizationOrm.name == "Test's organization")
+        )
+    assert organization is None
 
 
 @pytest.mark.asyncio
