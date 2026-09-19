@@ -577,6 +577,7 @@ def test_satellite_payload_does_not_include_openapi() -> None:
         {
             "id": UUID("0199c418-8be4-737c-a5e4-997685950d42"),
             "orbit_id": UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+            "name": "test-satellite",
             "paired": True,
             "capabilities": {"deploy": {"version": 1}},
             "openapi": {"openapi": "3.1.0", "paths": {}},
