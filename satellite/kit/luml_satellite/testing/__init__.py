@@ -18,6 +18,12 @@ from luml_satellite.testing.fake_platform import (
     RecordedRequest,
     RecordedTransition,
 )
+from luml_satellite.testing.fake_serving import (
+    FakeServingPlacement,
+    ServingRegistration,
+    model_description,
+)
+from luml_satellite.testing.scripted_deploy import ScriptedDeployCase
 
 __all__ = [
     "DEFAULT_MONITORING_FEATURES",
@@ -28,10 +34,14 @@ __all__ = [
     "FakeMonitoringBundle",
     "FakePlatform",
     "FakeSettings",
+    "FakeServingPlacement",
     "InMemoryArtifactPusher",
     "PushedArtifact",
     "RecordedRequest",
     "RecordedTransition",
+    "ServingRegistration",
+    "ScriptedDeployCase",
     "assert_driver_conforms",
     "fake_artifact_handle",
+    "model_description",
 ]

@@ -23,6 +23,9 @@ def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
 
 builtins.__import__ = blocked_import
 package = importlib.import_module("luml_satellite")
+importlib.import_module("luml_satellite.convergence")
+importlib.import_module("luml_satellite.convergence.polling")
+importlib.import_module("luml_satellite.convergence.serving")
 for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
     importlib.import_module(module.name)
 """

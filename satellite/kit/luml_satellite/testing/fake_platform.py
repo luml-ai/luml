@@ -85,6 +85,9 @@ class FakePlatform:
     contract_error: tuple[int, object] | None = None
     refused_deployment_transitions: set[tuple[str, str]] = field(default_factory=set)
     refused_task_transitions: set[tuple[str, str]] = field(default_factory=set)
+    scripted_responses: dict[tuple[str, str], list[tuple[int, object] | None]] = field(
+        default_factory=dict
+    )
     contract_openapi: dict[str, Any] = field(default_factory=lambda: default_contract_openapi())
 
     @property
@@ -121,6 +124,14 @@ class FakePlatform:
         if metadata is not None:
             artifact_metadata.update(_json_mapping(metadata))
         self.artifacts[identifier] = FakeArtifact(artifact_metadata, content)
+
+    def script_responses(
+        self,
+        method: str,
+        path: str,
+        *responses: tuple[int, object] | None,
+    ) -> None:
+        self.scripted_responses.setdefault((method.upper(), path), []).extend(responses)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         scope_type = scope.get("type")
@@ -166,6 +177,13 @@ class FakePlatform:
 
         if not self._authenticated(scope):
             return _json_response(401, {"detail": "Authentication error"})
+
+        scripted = self.scripted_responses.get((method, path))
+        if scripted:
+            response = scripted.pop(0)
+            if response is not None:
+                status_code, response_body = response
+                return _json_response(status_code, response_body)
 
         if method == "POST" and path == "/satellites/v1/pair":
             return self._pair(body)
