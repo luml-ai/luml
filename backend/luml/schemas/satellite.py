@@ -225,7 +225,7 @@ class SatelliteStatus(StrEnum):
 class Satellite(BaseModel, BaseOrmConfig):
     id: UUID
     orbit_id: UUID
-    name: str | None = None
+    name: str
     description: str | None = None
     base_url: str | None = None
     paired: bool
@@ -263,7 +263,7 @@ class SatelliteCreateIn(BaseModel, BaseOrmConfig):
 class SatelliteCreate(BaseModel, BaseOrmConfig):
     orbit_id: UUID
     api_key_hash: str
-    name: str | None = None
+    name: str
     description: str | None = None
 
 

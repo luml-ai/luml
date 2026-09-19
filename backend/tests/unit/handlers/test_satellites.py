@@ -152,6 +152,7 @@ async def test_get_satellite_openapi(
     mock_get_satellite.return_value = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities={"deploy": {"version": 1}},
         created_at=datetime.datetime.now(),
@@ -555,6 +556,7 @@ def test_bare_monitoring_declaration_is_complete_in_satellite_payload() -> None:
     satellite = Satellite(
         id=UUID("0199c418-8be4-737c-a5e4-997685950d42"),
         orbit_id=UUID("0199c337-09f3-753e-9def-b27745e69be6"),
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
@@ -740,6 +742,7 @@ def test_present_capabilities_respects_reserved_versions() -> None:
     satellite = Satellite(
         id=satellite_id,
         orbit_id=orbit_id,
+        name="test-satellite",
         paired=True,
         capabilities=capabilities,
         created_at=datetime.datetime.now(),
