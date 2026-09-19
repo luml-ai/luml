@@ -28,8 +28,16 @@ importlib.import_module("luml_satellite.convergence.polling")
 importlib.import_module("luml_satellite.convergence.reconciliation")
 importlib.import_module("luml_satellite.convergence.serving")
 importlib.import_module("luml_satellite.runtime")
-for module in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
-    importlib.import_module(module.name)
+
+def import_tree(paths, prefix):
+    for module in pkgutil.iter_modules(paths, prefix):
+        if module.name.startswith("luml_satellite.monitoring"):
+            continue
+        imported = importlib.import_module(module.name)
+        if module.ispkg:
+            import_tree(imported.__path__, module.name + ".")
+
+import_tree(package.__path__, package.__name__ + ".")
 """
     subprocess.run([sys.executable, "-c", script], check=True)
 

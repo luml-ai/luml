@@ -250,7 +250,10 @@ async def test_missing_workload_is_relaunched_only_with_the_recovery_marker(
 
 
 @pytest.mark.asyncio
-async def test_relaunch_writes_marker_before_start_and_keeps_serving_registration() -> None:
+@pytest.mark.parametrize("through_reconciliation", [False, True])
+async def test_relaunch_writes_marker_before_start_and_keeps_serving_registration(
+    through_reconciliation: bool,
+) -> None:
     platform = FakePlatform()
     seed_active(platform)
     driver = MarkerCheckingDriver(platform)
@@ -261,7 +264,10 @@ async def test_relaunch_writes_marker_before_start_and_keeps_serving_registratio
         await kit.convergence.health_pass()
         driver.script_observe(DEPLOYMENT_ID, observed(WorkloadState.STOPPED))
         driver.script_start(DEPLOYMENT_ID, StartResult(StartStatus.IN_PROGRESS))
-        await kit.convergence.health_pass()
+        if through_reconciliation:
+            await kit.reconciliation.run()
+        else:
+            await kit.convergence.health_pass()
 
     assert driver.statuses_at_start == ["not_responding"]
     assert DEPLOYMENT_ID in serving.registered

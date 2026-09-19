@@ -1,0 +1,118 @@
+import secrets
+import time
+from collections.abc import Callable
+from dataclasses import dataclass, replace
+from uuid import UUID
+
+from fastapi import HTTPException, Request, status
+
+SESSION_COOKIE_NAME = "monitoring_session"
+DEFAULT_SESSION_TTL_SECONDS = 30 * 60
+
+DEFAULT_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
+
+
+@dataclass(frozen=True)
+class MonitoringSession:
+    session_id: str
+    deployment_id: UUID
+    scope: str
+    expires_at: float
+    hard_deadline: float
+
+    def is_expired(self, now: float) -> bool:
+        return now >= self.expires_at
+
+
+class MonitoringSessionStore:
+    """In-memory dashboard-session store.
+
+    The Agent runs as a single process, so sessions live in memory. Each session is
+    scoped to exactly one ``deployment_id``; the cookie only carries the opaque id.
+
+    The TTL slides: every authenticated request pushes the expiry ``ttl_seconds`` out
+    again, so a dashboard someone is actually looking at (or that auto-refreshes) does
+    not die under them mid-use. ``max_age_seconds`` is the absolute cap activity cannot
+    extend past.
+    """
+
+    def __init__(
+        self,
+        ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
+        clock: Callable[[], float] = time.time,
+        max_age_seconds: int = DEFAULT_SESSION_MAX_AGE_SECONDS,
+    ) -> None:
+        self._ttl_seconds = ttl_seconds
+        self._max_age_seconds = max_age_seconds
+        self._clock = clock
+        self._sessions: dict[str, MonitoringSession] = {}
+
+    @property
+    def ttl_seconds(self) -> int:
+        return self._ttl_seconds
+
+    def create(self, deployment_id: UUID, scope: str) -> MonitoringSession:
+        now = self._clock()
+        self._purge_expired(now)
+        session = MonitoringSession(
+            session_id=secrets.token_urlsafe(32),
+            deployment_id=deployment_id,
+            scope=scope,
+            expires_at=now + self._ttl_seconds,
+            hard_deadline=now + self._max_age_seconds,
+        )
+        self._sessions[session.session_id] = session
+        return session
+
+    def get(self, session_id: str) -> MonitoringSession | None:
+        session = self._sessions.get(session_id)
+        if session is None:
+            return None
+        now = self._clock()
+        if session.is_expired(now):
+            del self._sessions[session_id]
+            return None
+
+        renewed = replace(session, expires_at=min(now + self._ttl_seconds, session.hard_deadline))
+        self._sessions[session_id] = renewed
+        return renewed
+
+    def _purge_expired(self, now: float) -> None:
+        expired = [sid for sid, s in self._sessions.items() if s.is_expired(now)]
+        for sid in expired:
+            del self._sessions[sid]
+
+
+def require_monitoring_write(request: Request) -> MonitoringSession:
+    """Session for a dashboard action that changes local alert state.
+
+    The launch token the Platform mints carries ``monitoring:read``, so today this is the
+    same session as a read — deliberately, not by oversight: acknowledging touches nothing
+    but this deployment's own alert rows, the Platform has already authenticated the user
+    and checked their permission on that deployment, and the session cannot name another
+    one. Keeping it a separate dependency means a stricter scope is one edit here.
+    """
+    return require_monitoring_session(request)
+
+
+def require_monitoring_session(request: Request) -> MonitoringSession:
+    """Resolve the active dashboard session, deriving ``deployment_id`` from the cookie.
+
+    Every monitoring query depends on this so its deployment scope comes from the session
+    and never from a client-supplied parameter. Returns ``401`` when the session cookie is
+    missing or the session has expired.
+    """
+    store: MonitoringSessionStore = request.app.state.monitoring_sessions
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Monitoring session required",
+        )
+    session = store.get(session_id)
+    if session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Monitoring session expired",
+        )
+    return session

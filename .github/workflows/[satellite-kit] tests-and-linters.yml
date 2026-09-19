@@ -31,7 +31,7 @@ jobs:
       - name: Install dependencies with uv
         run: |
           python -m pip install --upgrade uv
-          uv sync --group dev
+          uv sync --group dev --extra monitoring
 
       - name: Check formatting
         run: uv run ruff format --check .

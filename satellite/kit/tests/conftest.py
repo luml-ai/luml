@@ -4,6 +4,15 @@ import httpx
 import pytest
 import respx
 
+from luml_satellite.monitoring.ingest.testing import FakeTelemetry
+
+
+@pytest.fixture()
+def fake_telemetry() -> Iterator[FakeTelemetry]:
+    telemetry = FakeTelemetry()
+    yield telemetry
+    telemetry.shutdown()
+
 
 @pytest.fixture()
 def mock_model_server(respx_mock: respx.MockRouter) -> Iterator[respx.MockRouter]:
