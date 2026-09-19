@@ -4,7 +4,11 @@ from dataclasses import dataclass
 
 import pytest
 import pytest_asyncio
+from luml.repositories.artifacts import ArtifactRepository
+from luml.repositories.tracks import TrackEntryRepository, TrackRepository
 from luml.repositories.users import UserRepository
+from luml.schemas.artifacts import ArtifactCreate, ArtifactStatus
+from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from luml.schemas.user import (
     AuthProvider,
     CreateUser,
@@ -13,6 +17,8 @@ from luml.schemas.user import (
     UserOut,
 )
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from tests.conftest import CollectionFixtureData
 
 
 @dataclass
@@ -100,6 +106,47 @@ async def test_delete_user(get_created_user: UserFixtureData) -> None:
     fetch_deleted_user = await repo.get_user(user.email)
 
     assert fetch_deleted_user is None
+
+
+@pytest.mark.asyncio
+async def test_delete_user_with_track_entry(
+    create_collection: CollectionFixtureData,
+    test_artifact: ArtifactCreate,
+) -> None:
+    data = create_collection
+    user_repo = UserRepository(data.engine)
+    artifact_repo = ArtifactRepository(data.engine)
+    track_repo = TrackRepository(data.engine)
+    entry_repo = TrackEntryRepository(data.engine)
+
+    artifact_data = test_artifact.model_copy(
+        update={
+            "collection_id": data.collection.id,
+            "status": ArtifactStatus.UPLOADED,
+        }
+    )
+    artifact = await artifact_repo.create_artifact(artifact_data)
+    track = await track_repo.create_track(
+        TrackCreate(
+            orbit_id=data.orbit.id,
+            name="account-deletion-track",
+            artifact_type=artifact.type,
+        )
+    )
+    entry = await entry_repo.create_entry(
+        TrackEntryCreate(
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by=data.user.id,
+        )
+    )
+
+    await user_repo.delete_user(data.user.email)
+
+    assert await user_repo.get_user(data.user.email) is None
+    persisted_entry = await entry_repo.get_entry(entry.id)
+    assert persisted_entry is not None
+    assert persisted_entry.added_by is None
 
 
 @pytest.mark.asyncio
