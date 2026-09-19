@@ -2,7 +2,7 @@ import asyncio
 import time
 from collections.abc import Mapping, Sequence, Set
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
 
@@ -146,6 +146,8 @@ class WorkloadDriver(Protocol):
 class Clock(Protocol):
     def monotonic(self) -> float: ...
 
+    def utcnow(self) -> datetime: ...
+
     async def sleep(self, seconds: float) -> None: ...
 
 
@@ -153,6 +155,9 @@ class Clock(Protocol):
 class SystemClock:
     def monotonic(self) -> float:
         return time.monotonic()
+
+    def utcnow(self) -> datetime:
+        return datetime.now(UTC)
 
     async def sleep(self, seconds: float) -> None:
         await asyncio.sleep(seconds)

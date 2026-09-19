@@ -91,6 +91,24 @@ class PollingPass:
     async def poll(self) -> None:
         await self.run()
 
+    async def resume_running(self) -> None:
+        raw_tasks = await self.platform.list_tasks(SatelliteTaskStatus.RUNNING)
+        resumable: list[tuple[SatelliteQueueTask, CustomTaskHandler | None]] = []
+        for raw_task in raw_tasks:
+            task = await self._parse(raw_task)
+            if task is None:
+                continue
+            handler = self.custom_handlers.get(task.type)
+            if task.type not in _BUILT_IN_TYPES and handler is None:
+                await self._fail_raw_task(task.id, f"unknown type: {task.type}")
+                continue
+            if task.type in _BUILT_IN_TYPES and _deployment_id(task) is None:
+                await self._fail_raw_task(task.id, "invalid task payload")
+                continue
+            resumable.append((task, handler))
+
+        await asyncio.gather(*(self._resume_task(task, handler) for task, handler in resumable))
+
     async def drain(self) -> None:
         while self._in_flight:
             tasks = tuple(self._in_flight.values())
@@ -126,6 +144,24 @@ class PollingPass:
             await self.convergence.handle_task(task)
         except Exception as error:
             self.logger.exception("task '%s' handler failed", task.id)
+            await self._fail_raw_task(task.id, f"handler error: {error}")
+
+    async def _resume_task(
+        self,
+        task: SatelliteQueueTask,
+        custom_handler: CustomTaskHandler | None,
+    ) -> None:
+        if custom_handler is not None and task.type not in _BUILT_IN_TYPES:
+            try:
+                await self.convergence.run_custom(task, custom_handler)
+            except Exception as error:
+                self.logger.error("resumed custom task '%s' failed: %s", task.id, error)
+                await self._fail_raw_task(task.id, f"handler error: {error}")
+            return
+        try:
+            await self.convergence.resume_task(task)
+        except Exception as error:
+            self.logger.exception("resumed task '%s' handler failed", task.id)
             await self._fail_raw_task(task.id, f"handler error: {error}")
 
     async def _fail_raw_task(self, task_id: str, reason: str) -> None:

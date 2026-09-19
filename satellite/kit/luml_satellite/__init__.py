@@ -16,6 +16,7 @@ from luml_satellite.convergence import (
     MonitoringLinks,
     NoServingPlacement,
     PollingPass,
+    Reconciliation,
     ServingPlacement,
     TaskPoller,
 )
@@ -40,6 +41,7 @@ from luml_satellite.declaration import (
     setting_field,
     settings_fields,
 )
+from luml_satellite.runtime import Runtime, RuntimeMonitoringBundle, SatelliteRuntime
 from luml_satellite.tokens import TokenDeriver, TokenPurpose, mint_artifact_token
 from luml_satellite.wire import (
     ArtifactDownload,
@@ -161,6 +163,7 @@ __all__ = [
     "Recorder",
     "RecordingPolicy",
     "RecordingSession",
+    "Reconciliation",
     "RemoveResult",
     "SatelliteContract",
     "SatelliteConfiguration",
@@ -175,6 +178,7 @@ __all__ = [
     "StartResult",
     "StartStatus",
     "ServingPlacement",
+    "SatelliteRuntime",
     "TaskPoller",
     "TokenDeriver",
     "TokenPurpose",
@@ -206,4 +210,6 @@ __all__ = [
     "status_transition_allowed",
     "wait_for_workload",
     "wait_until_not_starting",
+    "Runtime",
+    "RuntimeMonitoringBundle",
 ]

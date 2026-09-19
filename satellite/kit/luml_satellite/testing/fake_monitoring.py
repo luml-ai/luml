@@ -22,6 +22,8 @@ class FakeMonitoringBundle:
     ) -> None:
         self._features = tuple(features)
         self._link_prefix = link_prefix.rstrip("/")
+        self.started = False
+        self.closed = False
 
     @property
     def monitoring_features(self) -> tuple[str, ...]:
@@ -31,3 +33,9 @@ class FakeMonitoringBundle:
         if deployment.monitoring_mode.strip().lower() == "off":
             return None
         return f"{self._link_prefix}/{deployment.id}/monitoring"
+
+    async def start(self) -> None:
+        self.started = True
+
+    async def aclose(self) -> None:
+        self.closed = True

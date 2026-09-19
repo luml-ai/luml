@@ -1,6 +1,7 @@
 from collections import defaultdict, deque
 from collections.abc import Callable, Sequence, Set
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 
 from luml_satellite.declaration import DeploymentSettings
 from luml_satellite.wire import ArtifactDownload, Deployment
@@ -49,12 +50,21 @@ class InMemoryArtifactPusher:
 
 
 class FakeClock:
-    def __init__(self, now: float = 0.0) -> None:
+    def __init__(
+        self,
+        now: float = 0.0,
+        *,
+        wall_start: datetime = datetime(2026, 1, 1, tzinfo=UTC),
+    ) -> None:
         self.now = now
+        self.wall_start = wall_start
         self.sleeps: list[float] = []
 
     def monotonic(self) -> float:
         return self.now
+
+    def utcnow(self) -> datetime:
+        return self.wall_start + timedelta(seconds=self.now)
 
     async def sleep(self, seconds: float) -> None:
         self.sleeps.append(seconds)
