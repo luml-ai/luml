@@ -87,11 +87,12 @@ class TestRetention:
     @respx.mock
     async def test_a_failing_alter_does_not_stop_the_worker(self) -> None:
         """Retention is best-effort: an old GreptimeDB or a missing table must not block writes."""
-        calls = {"n": 0}
+        failed = {"alter": False}
 
         def answer(request: httpx.Request) -> httpx.Response:
-            calls["n"] += 1
-            if calls["n"] == 4:  # the first ALTER of the run
+            statement = request.content.decode()
+            if "ALTER+TABLE" in statement and not failed["alter"]:
+                failed["alter"] = True
                 return httpx.Response(500, text="boom")
             return httpx.Response(200, json={"output": []})
 

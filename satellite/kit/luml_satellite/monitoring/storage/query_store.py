@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import Any, Protocol
 from uuid import UUID
 
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
 
 
@@ -205,6 +206,8 @@ class MonitoringStore(Protocol):
 
     async def profile_status(self, deployment_id: UUID) -> ProfileStatus: ...
 
+    async def read_worker_heartbeats(self) -> list[WorkerHeartbeat]: ...
+
 
 @dataclass
 class InMemoryMonitoringStore:
@@ -222,6 +225,7 @@ class InMemoryMonitoringStore:
     _profile_data: dict[UUID, ReferenceProfile] = field(default_factory=dict)
     # The worker's own failure history, as the dashboard reads it back.
     transitions: list[StoredMetricTransition] = field(default_factory=list)
+    _heartbeats: dict[tuple[int, int], WorkerHeartbeat] = field(default_factory=dict)
 
     def add_deployment(self, descriptor: DeploymentDescriptor) -> None:
         self._meta[descriptor.deployment_id] = descriptor
@@ -245,6 +249,13 @@ class InMemoryMonitoringStore:
     def add_profile(self, profile: ReferenceProfile) -> None:
         self._profile_data[profile.deployment_id] = profile
         self._profiles[profile.deployment_id] = ProfileStatus(profile.status)
+
+    async def write_worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
+        self._heartbeats[(heartbeat.shard_count, heartbeat.shard_index)] = heartbeat
+
+    async def read_worker_heartbeats(self) -> list[WorkerHeartbeat]:
+        self._guard()
+        return list(self._heartbeats.values())
 
     def _guard(self) -> None:
         if self.unavailable:

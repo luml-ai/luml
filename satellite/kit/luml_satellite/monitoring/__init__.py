@@ -2,9 +2,17 @@ from luml_satellite.monitoring.bundle import (
     DeploymentProvider,
     MonitoringBundle,
     MonitoringLinkProvider,
+    MonitoringRole,
 )
 from luml_satellite.monitoring.compute.data_quality import DataQualityMetric
 from luml_satellite.monitoring.compute.feature_drift import FeatureDriftMetric
+from luml_satellite.monitoring.compute.health import DeploymentHealth, MetricFailure
+from luml_satellite.monitoring.compute.heartbeat import (
+    MergedWorkerHeartbeat,
+    WorkerHeartbeat,
+    deployment_shard,
+    heartbeat_file_is_fresh,
+)
 from luml_satellite.monitoring.compute.metric import Metric, MetricInput
 from luml_satellite.monitoring.compute.models import (
     Alert,
@@ -41,6 +49,11 @@ from luml_satellite.monitoring.dashboard.session import (
     MonitoringSessionStore,
     require_monitoring_session,
 )
+from luml_satellite.monitoring.deployments import (
+    DeploymentSource,
+    PlatformDeploymentSource,
+    ServedDeploymentSource,
+)
 from luml_satellite.monitoring.ingest.events import InferenceEvent
 from luml_satellite.monitoring.ingest.instrumentation import InferenceInstrumentation
 from luml_satellite.monitoring.ingest.metrics import InferenceMetrics
@@ -54,7 +67,9 @@ __all__ = [
     "AlertSignal",
     "AlertState",
     "DataQualityMetric",
+    "DeploymentHealth",
     "DeploymentProvider",
+    "DeploymentSource",
     "DeploymentContext",
     "FeatureDriftMetric",
     "GreptimeMonitoringStore",
@@ -66,6 +81,7 @@ __all__ = [
     "LocalDeployment",
     "Metric",
     "MetricComputation",
+    "MetricFailure",
     "MetricInput",
     "MetricRegistry",
     "MetricResult",
@@ -73,21 +89,28 @@ __all__ = [
     "MonitoringQueryService",
     "MonitoringBundle",
     "MonitoringLinkProvider",
+    "MonitoringRole",
     "MonitoringSession",
     "MonitoringSessionStore",
     "MonitoringStore",
     "MonitoringWorker",
+    "MergedWorkerHeartbeat",
     "MultivariateDriftMetric",
     "OutputDriftMetric",
+    "PlatformDeploymentSource",
     "QueryDimensions",
     "RuntimeHealthMetric",
     "Severity",
+    "ServedDeploymentSource",
     "TelemetrySetup",
     "Threshold",
     "TimeWindow",
+    "WorkerHeartbeat",
     "create_telemetry",
     "default_registry",
+    "deployment_shard",
     "frame_ancestors_csp",
+    "heartbeat_file_is_fresh",
     "monitored_deployments",
     "monitoring_features",
     "register_monitoring",

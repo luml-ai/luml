@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.compute.models import (
     Alert,
     AlertState,
@@ -38,6 +39,7 @@ INFERENCE_EVENTS_TABLE = "inference_events"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
 FAILURES_TABLE = "monitoring_worker_failures"
+HEARTBEATS_TABLE = "monitoring_worker_heartbeat"
 OTEL_TRACES_TABLE = "otel_traces"
 
 LEGACY_METRIC_TABLES = (
@@ -68,6 +70,19 @@ CREATE TABLE IF NOT EXISTS {FAILURES_TABLE} (
     happened_at TIMESTAMP,
     TIME INDEX (happened_at),
     PRIMARY KEY (deployment_id, metric, kind)
+)
+"""
+
+_CREATE_HEARTBEATS = f"""
+CREATE TABLE IF NOT EXISTS {HEARTBEATS_TABLE} (
+    shard_index INT,
+    shard_count INT,
+    tick_at TIMESTAMP,
+    window_seconds DOUBLE,
+    interval_seconds DOUBLE,
+    deployments STRING,
+    TIME INDEX (tick_at),
+    PRIMARY KEY (shard_count, shard_index)
 )
 """
 
@@ -275,6 +290,7 @@ class GreptimeMonitoringStore:
         await self._execute(_with_ttl(_CREATE_RESULTS, self._results_ttl))
         await self._execute(_with_ttl(_CREATE_ALERTS, self._alerts_ttl))
         await self._execute(_with_ttl(_CREATE_FAILURES, self._alerts_ttl))
+        await self._execute(_CREATE_HEARTBEATS)
         await self._apply_ttl(RESULTS_TABLE, self._results_ttl)
         await self._apply_ttl(ALERTS_TABLE, self._alerts_ttl)
         await self._apply_ttl(FAILURES_TABLE, self._alerts_ttl)
@@ -368,6 +384,17 @@ class GreptimeMonitoringStore:
             f"{_sql_str(result.deployment_id)}, {_sql_str(result.metric)}, "
             f"{_sql_ts(result.window_start)}, {_sql_ts(result.window_end)}, {values}, "
             f"{_sql_str(result.severity.value)}, {_sql_str(result.profile_status)})"
+        )
+        await self._execute(sql)
+
+    async def write_worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
+        await self._ensure_tables()
+        sql = (
+            f"INSERT INTO {HEARTBEATS_TABLE} "
+            f"(shard_index, shard_count, tick_at, window_seconds, interval_seconds, deployments) "
+            f"VALUES ({heartbeat.shard_index}, {heartbeat.shard_count}, "
+            f"{_sql_ts(heartbeat.tick_at)}, {heartbeat.window_seconds}, "
+            f"{heartbeat.interval_seconds}, {_sql_str(heartbeat.to_json())})"
         )
         await self._execute(sql)
 

@@ -1,4 +1,5 @@
-from collections.abc import Callable
+import inspect
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import cast
 from uuid import UUID
@@ -293,7 +294,7 @@ def build_query_router() -> APIRouter:
     return router
 
 
-HostedFn = Callable[[UUID], bool]
+HostedFn = Callable[[UUID], bool | Awaitable[bool]]
 
 
 def build_machine_router(hosted: HostedFn) -> APIRouter:
@@ -309,8 +310,10 @@ def build_machine_router(hosted: HostedFn) -> APIRouter:
     """
     router = APIRouter(prefix="/deployments/{deployment_id}/monitoring", tags=[MONITORING_FACET])
 
-    def _hosted_deployment(deployment_id: UUID) -> UUID:
-        if not hosted(deployment_id):
+    async def _hosted_deployment(deployment_id: UUID) -> UUID:
+        result = hosted(deployment_id)
+        is_hosted = await result if inspect.isawaitable(result) else result
+        if not is_hosted:
             raise DeploymentNotHostedError()
         return deployment_id
 

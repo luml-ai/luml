@@ -2,6 +2,7 @@ from collections.abc import Iterable
 from datetime import datetime
 from typing import Protocol
 
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.compute.models import (
     Alert,
     AlertState,
@@ -44,6 +45,8 @@ class MonitoringStore(Protocol):
         """
         ...
 
+    async def write_worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None: ...
+
 
 class InMemoryMonitoringStore:
     """In-process store used for tests and as a dependency-free default."""
@@ -53,6 +56,7 @@ class InMemoryMonitoringStore:
         self.results: list[MetricResult] = []
         self.alerts: dict[tuple[str, str], Alert] = {}
         self.transitions: dict[str, list[MetricTransition]] = {}
+        self._heartbeats: dict[tuple[int, int], WorkerHeartbeat] = {}
 
     def add_events(self, deployment_id: str, events: Iterable[InferenceEvent]) -> None:
         self.events.setdefault(deployment_id, []).extend(events)
@@ -95,3 +99,9 @@ class InMemoryMonitoringStore:
 
     async def save_alert(self, alert: Alert) -> None:
         self.alerts[(alert.deployment_id, alert.metric)] = alert
+
+    async def write_worker_heartbeat(self, heartbeat: WorkerHeartbeat) -> None:
+        self._heartbeats[(heartbeat.shard_count, heartbeat.shard_index)] = heartbeat
+
+    async def read_worker_heartbeats(self) -> list[WorkerHeartbeat]:
+        return list(self._heartbeats.values())

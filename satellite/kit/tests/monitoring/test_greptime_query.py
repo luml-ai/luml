@@ -6,6 +6,7 @@ import httpx
 import pytest
 import respx
 
+from luml_satellite.monitoring.compute.health import MetricFailure
 from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
 from luml_satellite.monitoring.storage.greptime_query import GreptimeQueryStore
 from luml_satellite.monitoring.storage.query_store import MonitoringStoreUnavailable
@@ -94,6 +95,42 @@ def _alert_row(metric: str, state: str, minutes_ago: int, value: float) -> list[
 
 
 class TestGreptimeQuery:
+    @respx.mock
+    async def test_reads_latest_worker_heartbeat_per_shard(self) -> None:
+        tick = datetime(2026, 7, 9, 20, 30, tzinfo=UTC)
+        deployments = (
+            '{"019f46e3-3aa1-7672-96a9-8c6d98ab25cd":'
+            '{"failures":[{"at":"2026-07-09T20:30:00+00:00",'
+            '"error":"broken","metric":"runtime"}],'
+            '"last_lag_seconds":2.0,"last_processed_at":null,'
+            '"last_window_end":"2026-07-09T20:29:00+00:00",'
+            '"windows_processed":4}}'
+        )
+        body = _records(
+            [
+                "shard_index",
+                "shard_count",
+                "tick_at",
+                "window_seconds",
+                "interval_seconds",
+                "deployments",
+            ],
+            [[0, 2, int(tick.timestamp() * 1000), 300.0, 60.0, deployments]],
+        )
+        respx.post(_URL).mock(return_value=httpx.Response(200, json=body))
+
+        store = _store()
+        heartbeat = (await store.read_worker_heartbeats())[0]
+
+        assert heartbeat.shard_index == 0
+        assert heartbeat.shard_count == 2
+        assert heartbeat.tick_at == tick
+        assert heartbeat.deployments[str(_DEP)].windows_processed == 4
+        assert heartbeat.deployments[str(_DEP)].failures == (
+            MetricFailure("runtime", "broken", tick),
+        )
+        await store.aclose()
+
     @respx.mock
     async def test_fetch_events_parses_span_attributes(self) -> None:
         ns = int(datetime(2026, 7, 9, 20, 30, tzinfo=UTC).timestamp() * 1_000_000_000)

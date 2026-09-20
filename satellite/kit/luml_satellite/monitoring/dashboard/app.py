@@ -4,7 +4,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request, Response, status
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.routing import APIRouter
 from starlette.datastructures import MutableHeaders
 from starlette.staticfiles import StaticFiles
@@ -14,10 +14,10 @@ from luml_satellite.monitoring.dashboard.api import build_query_router
 from luml_satellite.monitoring.dashboard.query import HealthSource, MonitoringQueryService
 from luml_satellite.monitoring.dashboard.session import (
     DEFAULT_SESSION_TTL_SECONDS,
-    SESSION_COOKIE_NAME,
     MonitoringSession,
     MonitoringSessionStore,
     require_monitoring_session,
+    set_monitoring_cookie,
 )
 from luml_satellite.monitoring.storage.query_store import InMemoryMonitoringStore, MonitoringStore
 from luml_satellite.wire import (
@@ -112,14 +112,11 @@ def _build_router(introspect: IntrospectFn, cookie_secure: bool) -> APIRouter:
         if theme in ("light", "dark"):
             target = f"{MONITORING_APP_PATH}?theme={theme}"
         response = RedirectResponse(url=target, status_code=status.HTTP_303_SEE_OTHER)
-        response.set_cookie(
-            key=SESSION_COOKIE_NAME,
-            value=session.session_id,
-            max_age=store.ttl_seconds,
-            httponly=True,
+        set_monitoring_cookie(
+            response,
+            store,
+            session,
             secure=cookie_secure,
-            samesite="none",  # the dashboard runs cross-site inside the Platform iframe
-            path=MONITORING_PATH_PREFIX,
         )
         return response
 
@@ -152,6 +149,7 @@ def register_monitoring(
 ) -> None:
     store = session_store or MonitoringSessionStore(ttl_seconds=session_ttl_seconds)
     app.state.monitoring_sessions = store
+    app.state.monitoring_cookie_secure = cookie_secure
     app.state.monitoring_query = MonitoringQueryService(
         data_store or InMemoryMonitoringStore(), clock=clock, health_source=health_source
     )
@@ -166,3 +164,16 @@ def register_monitoring(
         StaticFiles(directory=str(static_root), html=True, check_dir=False),
         name="monitoring-app",
     )
+
+
+def install_machine_unknown_route(app: FastAPI) -> None:
+    @app.api_route(
+        "/deployments/{deployment_id}/monitoring/{unmatched_path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        include_in_schema=False,
+    )
+    async def unknown_machine_route(deployment_id: str, unmatched_path: str) -> JSONResponse:
+        return JSONResponse(
+            status_code=status.HTTP_404_NOT_FOUND,
+            content={"detail": "Not Found", "code": "unknown_route"},
+        )

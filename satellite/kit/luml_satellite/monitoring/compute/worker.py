@@ -1,10 +1,13 @@
 import asyncio
+import inspect
 import logging
 import math
-from collections.abc import Callable, Iterable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from pathlib import Path
 
 from luml_satellite.monitoring.compute.health import WorkerHealth
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat, deployment_shard
 from luml_satellite.monitoring.compute.metric import Metric, MetricInput
 from luml_satellite.monitoring.compute.models import (
     Alert,
@@ -12,18 +15,20 @@ from luml_satellite.monitoring.compute.models import (
     AlertState,
     DeploymentContext,
     InferenceEvent,
-    LocalDeployment,
     MetricComputation,
     MetricResult,
     MonitoredDeployment,
     TimeWindow,
+    monitored_deployments as monitored_deployments,
 )
 from luml_satellite.monitoring.compute.registry import MetricRegistry
 from luml_satellite.monitoring.storage.store import MonitoringStore
 
 logger = logging.getLogger("satellite")
 
-DeploymentProvider = Callable[[], list[MonitoredDeployment]]
+type DeploymentProvider = Callable[
+    [], list[MonitoredDeployment] | Awaitable[list[MonitoredDeployment]]
+]
 Clock = Callable[[], datetime]
 
 
@@ -45,16 +50,30 @@ class MonitoringWorker:
         clock: Clock | None = None,
         health: WorkerHealth | None = None,
         max_backfill_windows: int = 12,
+        shard_index: int = 0,
+        shard_count: int = 1,
+        heartbeat_file: Path | str | None = None,
     ) -> None:
+        if shard_count <= 0:
+            raise ValueError("shard_count must be greater than zero")
+        if not 0 <= shard_index < shard_count:
+            raise ValueError("shard_index must be within shard_count")
         self._store = store
         self._registry = registry
         self._provider = provider
         self._window_seconds = window_seconds
         self._interval_seconds = interval_seconds
         self._clock = clock or (lambda: datetime.now(UTC))
-        self._health = health
+        self._health = health or WorkerHealth()
         self._max_backfill_windows = max(1, max_backfill_windows)
+        self._shard_index = shard_index
+        self._shard_count = shard_count
+        self._heartbeat_file = Path(heartbeat_file) if heartbeat_file is not None else None
         self._stopped = False
+
+    @property
+    def health(self) -> WorkerHealth:
+        return self._health
 
     def stop(self) -> None:
         self._stopped = True
@@ -71,11 +90,45 @@ class MonitoringWorker:
     async def tick(self, now: datetime | None = None) -> None:
         moment = now or self._clock()
         latest = self.latest_window(moment)
-        for deployment in self._provider():
+        deployments = await self._load_deployments()
+        selected = [
+            deployment
+            for deployment in deployments
+            if deployment_shard(deployment.deployment_id, self._shard_count) == self._shard_index
+        ]
+        for deployment in selected:
             for window in await self._pending_windows(deployment.deployment_id, latest):
                 await self._process_deployment(deployment, window)
-        if self._health is not None:
-            self._health.tick_finished(moment)
+        self._health.tick_finished(moment)
+        heartbeat = WorkerHeartbeat(
+            shard_index=self._shard_index,
+            shard_count=self._shard_count,
+            tick_at=moment,
+            window_seconds=self._window_seconds,
+            interval_seconds=self._interval_seconds,
+            deployments={
+                deployment.deployment_id: self._health.for_deployment(deployment.deployment_id)
+                for deployment in selected
+            },
+        )
+        try:
+            await self._store.write_worker_heartbeat(heartbeat)
+        except Exception as error:  # noqa: BLE001 - a stale probe must expose this failure
+            logger.warning(f"[monitoring] heartbeat write failed: {error}")
+        else:
+            self._touch_heartbeat_file()
+
+    async def _load_deployments(self) -> list[MonitoredDeployment]:
+        result = self._provider()
+        if inspect.isawaitable(result):
+            return await result
+        return result
+
+    def _touch_heartbeat_file(self) -> None:
+        if self._heartbeat_file is None:
+            return
+        self._heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+        self._heartbeat_file.touch()
 
     async def _pending_windows(self, deployment_id: str, latest: TimeWindow) -> list[TimeWindow]:
         """Every complete window still missing for this deployment, oldest first.
@@ -121,10 +174,9 @@ class MonitoringWorker:
             logger.warning(
                 f"[monitoring] storage read failed for {deployment.deployment_id}: {error}"
             )
-            if self._health is not None:
-                self._health.metric_failed(
-                    deployment.deployment_id, "storage", str(error), self._clock()
-                )
+            self._health.metric_failed(
+                deployment.deployment_id, "storage", str(error), self._clock()
+            )
             return
 
         context = DeploymentContext(
@@ -134,9 +186,8 @@ class MonitoringWorker:
             profile_status=deployment.effective_profile_status,
         )
         active_by_metric = {alert.metric: alert for alert in active_alerts}
-        if self._health is not None:
-            self._health.metric_recovered(deployment.deployment_id, "storage")
-            self._health.window_processed(deployment.deployment_id, window.end, self._clock())
+        self._health.metric_recovered(deployment.deployment_id, "storage")
+        self._health.window_processed(deployment.deployment_id, window.end, self._clock())
 
         for metric in self._registry.metrics():
             if not metric.applies(context):
@@ -200,8 +251,6 @@ class MonitoringWorker:
         possible — after a restart it is empty, so the first failure that follows opens a
         new incident, which is the honest reading of a process that just came back.
         """
-        if self._health is None:
-            return
         was_failing = any(
             failure.metric == metric
             for failure in self._health.for_deployment(deployment_id).failures
@@ -299,18 +348,3 @@ class MonitoringWorker:
         if existing.state != AlertState.ACKNOWLEDGED:
             existing.state = AlertState.OPEN
         return existing
-
-
-def monitored_deployments(
-    local_deployments: Iterable[LocalDeployment],
-) -> list[MonitoredDeployment]:
-    """Select the deployments the worker should process — those with monitoring on."""
-    return [
-        MonitoredDeployment(
-            deployment_id=deployment.deployment_id,
-            profile=deployment.reference_profile,
-            profile_status=deployment.profile_status,
-        )
-        for deployment in local_deployments
-        if deployment.monitoring_enabled
-    ]

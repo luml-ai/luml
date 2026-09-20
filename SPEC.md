@@ -1162,10 +1162,10 @@ Plain objects with labels instead of a custom resource and operator keep the sat
   - [x] Repoint the monitoring UI build output into the kit, rebuild and commit the built bundle in place of the copied assets, without touching the old agent's checked-in static assets
   - [x] Tests: the platform-backed authorizer with its cache and its unavailable answer, per-instance worker health, the recording policy, the vendor store, bundle wiring, and the registry-driven cases of `satellite/tests/unit/test_capabilities.py` against the real bundle
 
-- [ ] Add stateless sessions and split monitoring processes
-  - [ ] Add signed sessions, heartbeat storage and file, the deployment sources, worker shards, the bundle's split roles, and the worker and dashboard executables with their probes
-  - [ ] Add the monitoring Dockerfile and its publish workflow
-  - [ ] Tests: the dashboard application's `unknown_route` body on an unknown path under a deployment's monitoring prefix and the plain 404 under `/monitoring`, the split-mode worker answer carrying the fields the API client requires, session replica, tamper and cap tests, query requests alone sliding the session, split worker and dashboard with the heartbeat's per-deployment fields and the probe, shards with their heartbeats merged, platform source caching and token
+- [x] Add stateless sessions and split monitoring processes
+  - [x] Add signed sessions, heartbeat storage and file, the deployment sources, worker shards, the bundle's split roles, and the worker and dashboard executables with their probes
+  - [x] Add the monitoring Dockerfile and its publish workflow
+  - [x] Tests: the dashboard application's `unknown_route` body on an unknown path under a deployment's monitoring prefix and the plain 404 under `/monitoring`, the split-mode worker answer carrying the fields the API client requires, session replica, tamper and cap tests, query requests alone sliding the session, split worker and dashboard with the heartbeat's per-deployment fields and the probe, shards with their heartbeats merged, platform source caching and token
 
 - [ ] Add the kit serving extra with the in-process placement
   - [ ] Implement the serving application (the route table, bearer on inference-access, the 403 for a missing bearer, the two caps, an event for every call of a monitored deployment and none otherwise, the 45 s upstream timeout, error mapping with the upstream error envelope, per-deployment schema, the starting gate, single-deployment and not-hosted modes), the internal application with the artifact route, and the in-process placement

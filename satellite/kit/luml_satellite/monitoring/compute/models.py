@@ -213,3 +213,17 @@ class LocalDeployment:
     profile_status: ProfileStatus = ProfileStatus.ABSENT
     monitoring_enabled: bool = False
     metadata: DeploymentMetadata = field(default_factory=DeploymentMetadata)
+
+
+def monitored_deployments(
+    local_deployments: Iterable[LocalDeployment],
+) -> list[MonitoredDeployment]:
+    return [
+        MonitoredDeployment(
+            deployment_id=deployment.deployment_id,
+            profile=deployment.reference_profile,
+            profile_status=deployment.profile_status,
+        )
+        for deployment in local_deployments
+        if deployment.monitoring_enabled
+    ]

@@ -17,6 +17,7 @@ from uuid import UUID
 
 from luml_satellite.monitoring.compute import thresholds
 from luml_satellite.monitoring.compute.health import HealthSnapshot
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.dashboard.alerts import (
     COUNT,
     format_value,
@@ -798,14 +799,22 @@ class MonitoringQueryService:
         )
 
     async def worker_health(self, deployment_id: UUID) -> WorkerHealthResponse:
-        """How the background worker is doing for this deployment.
-
-        Read straight from the worker's in-process counters — this is the one part of the
-        dashboard that is about the monitoring itself, not about the model.
-        """
-        if self._health_source is None:
-            return WorkerHealthResponse(state=SectionState.UNAVAILABLE)
-        snapshot, cadence = self._health_source(deployment_id)
+        if self._health_source is not None:
+            snapshot, cadence = self._health_source(deployment_id)
+        else:
+            try:
+                heartbeats = await self._store.read_worker_heartbeats()
+            except MonitoringStoreUnavailable:
+                return WorkerHealthResponse(state=SectionState.UNAVAILABLE)
+            merged = WorkerHeartbeat.merge(
+                heartbeats,
+                deployment_id,
+                now=datetime.fromtimestamp(self._clock(), tz=UTC),
+            )
+            if merged is None:
+                return WorkerHealthResponse(state=SectionState.UNAVAILABLE)
+            snapshot = merged.snapshot
+            cadence = (merged.window_seconds, merged.interval_seconds)
         deployment = snapshot.deployment
         incidents = await self._metric_incidents(deployment_id)
         return WorkerHealthResponse(

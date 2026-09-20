@@ -1,14 +1,19 @@
+import base64
+import hashlib
+import hmac
+import json
+import math
 import secrets
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from typing import Any
 from uuid import UUID
 
-from fastapi import HTTPException, Request, status
+from fastapi import HTTPException, Request, Response, status
 
 SESSION_COOKIE_NAME = "monitoring_session"
 DEFAULT_SESSION_TTL_SECONDS = 30 * 60
-
 DEFAULT_SESSION_MAX_AGE_SECONDS = 12 * 60 * 60
 
 
@@ -17,35 +22,33 @@ class MonitoringSession:
     session_id: str
     deployment_id: UUID
     scope: str
+    issued_at: float
     expires_at: float
     hard_deadline: float
 
     def is_expired(self, now: float) -> bool:
-        return now >= self.expires_at
+        return now >= self.expires_at or now >= self.hard_deadline
 
 
 class MonitoringSessionStore:
-    """In-memory dashboard-session store.
-
-    The Agent runs as a single process, so sessions live in memory. Each session is
-    scoped to exactly one ``deployment_id``; the cookie only carries the opaque id.
-
-    The TTL slides: every authenticated request pushes the expiry ``ttl_seconds`` out
-    again, so a dashboard someone is actually looking at (or that auto-refreshes) does
-    not die under them mid-use. ``max_age_seconds`` is the absolute cap activity cannot
-    extend past.
-    """
-
     def __init__(
         self,
+        secret: str | bytes | None = None,
         ttl_seconds: int = DEFAULT_SESSION_TTL_SECONDS,
         clock: Callable[[], float] = time.time,
         max_age_seconds: int = DEFAULT_SESSION_MAX_AGE_SECONDS,
     ) -> None:
+        if ttl_seconds <= 0:
+            raise ValueError("ttl_seconds must be greater than zero")
+        if max_age_seconds <= 0:
+            raise ValueError("max_age_seconds must be greater than zero")
+        secret_bytes = secret.encode() if isinstance(secret, str) else secret
+        if secret_bytes == b"":
+            raise ValueError("session secret must not be empty")
+        self._secret = secret_bytes or secrets.token_bytes(32)
         self._ttl_seconds = ttl_seconds
         self._max_age_seconds = max_age_seconds
         self._clock = clock
-        self._sessions: dict[str, MonitoringSession] = {}
 
     @property
     def ttl_seconds(self) -> int:
@@ -53,55 +56,95 @@ class MonitoringSessionStore:
 
     def create(self, deployment_id: UUID, scope: str) -> MonitoringSession:
         now = self._clock()
-        self._purge_expired(now)
         session = MonitoringSession(
-            session_id=secrets.token_urlsafe(32),
+            session_id="",
             deployment_id=deployment_id,
             scope=scope,
-            expires_at=now + self._ttl_seconds,
+            issued_at=now,
+            expires_at=min(now + self._ttl_seconds, now + self._max_age_seconds),
             hard_deadline=now + self._max_age_seconds,
         )
-        self._sessions[session.session_id] = session
-        return session
+        return self._with_token(session)
 
     def get(self, session_id: str) -> MonitoringSession | None:
-        session = self._sessions.get(session_id)
+        session = self._decode(session_id)
         if session is None:
             return None
         now = self._clock()
         if session.is_expired(now):
-            del self._sessions[session_id]
+            return None
+        renewed = replace(
+            session,
+            session_id="",
+            expires_at=min(now + self._ttl_seconds, session.hard_deadline),
+        )
+        return self._with_token(renewed)
+
+    def cookie_max_age(self, session: MonitoringSession) -> int:
+        return max(0, math.ceil(min(self._ttl_seconds, session.hard_deadline - self._clock())))
+
+    def _with_token(self, session: MonitoringSession) -> MonitoringSession:
+        payload = {
+            "deployment": str(session.deployment_id),
+            "scope": session.scope,
+            "issued_at": session.issued_at,
+            "expiry": session.expires_at,
+            "hard_deadline": session.hard_deadline,
+        }
+        encoded = _encode(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
+        signature = _encode(hmac.new(self._secret, encoded.encode(), hashlib.sha256).digest())
+        return replace(session, session_id=f"{encoded}.{signature}")
+
+    def _decode(self, token: str) -> MonitoringSession | None:
+        try:
+            encoded, signature = token.split(".", maxsplit=1)
+            expected = _encode(hmac.new(self._secret, encoded.encode(), hashlib.sha256).digest())
+            if not hmac.compare_digest(signature, expected):
+                return None
+            payload: Any = json.loads(_decode(encoded))
+            if not isinstance(payload, dict):
+                return None
+            issued_at = float(payload["issued_at"])
+            expires_at = float(payload["expiry"])
+            hard_deadline = float(payload["hard_deadline"])
+            scope = payload["scope"]
+            if not isinstance(scope, str) or not issued_at <= expires_at <= hard_deadline:
+                return None
+            return MonitoringSession(
+                session_id=token,
+                deployment_id=UUID(str(payload["deployment"])),
+                scope=scope,
+                issued_at=issued_at,
+                expires_at=expires_at,
+                hard_deadline=hard_deadline,
+            )
+        except KeyError, TypeError, ValueError, json.JSONDecodeError:
             return None
 
-        renewed = replace(session, expires_at=min(now + self._ttl_seconds, session.hard_deadline))
-        self._sessions[session_id] = renewed
-        return renewed
 
-    def _purge_expired(self, now: float) -> None:
-        expired = [sid for sid, s in self._sessions.items() if s.is_expired(now)]
-        for sid in expired:
-            del self._sessions[sid]
-
-
-def require_monitoring_write(request: Request) -> MonitoringSession:
-    """Session for a dashboard action that changes local alert state.
-
-    The launch token the Platform mints carries ``monitoring:read``, so today this is the
-    same session as a read — deliberately, not by oversight: acknowledging touches nothing
-    but this deployment's own alert rows, the Platform has already authenticated the user
-    and checked their permission on that deployment, and the session cannot name another
-    one. Keeping it a separate dependency means a stricter scope is one edit here.
-    """
-    return require_monitoring_session(request)
+def set_monitoring_cookie(
+    response: Response,
+    store: MonitoringSessionStore,
+    session: MonitoringSession,
+    *,
+    secure: bool,
+) -> None:
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session.session_id,
+        max_age=store.cookie_max_age(session),
+        httponly=True,
+        secure=secure,
+        samesite="none",
+        path="/monitoring",
+    )
 
 
-def require_monitoring_session(request: Request) -> MonitoringSession:
-    """Resolve the active dashboard session, deriving ``deployment_id`` from the cookie.
+def require_monitoring_write(request: Request, response: Response) -> MonitoringSession:
+    return require_monitoring_session(request, response)
 
-    Every monitoring query depends on this so its deployment scope comes from the session
-    and never from a client-supplied parameter. Returns ``401`` when the session cookie is
-    missing or the session has expired.
-    """
+
+def require_monitoring_session(request: Request, response: Response) -> MonitoringSession:
     store: MonitoringSessionStore = request.app.state.monitoring_sessions
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if not session_id:
@@ -115,4 +158,19 @@ def require_monitoring_session(request: Request) -> MonitoringSession:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Monitoring session expired",
         )
+    set_monitoring_cookie(
+        response,
+        store,
+        session,
+        secure=bool(request.app.state.monitoring_cookie_secure),
+    )
     return session
+
+
+def _encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def _decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}")

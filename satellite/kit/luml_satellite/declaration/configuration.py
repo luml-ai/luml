@@ -19,6 +19,11 @@ class SatelliteConfiguration(BaseSettings):
     MONITORING_WINDOW_SEC: float = 300.0
     MONITORING_LATENCY_P95_THRESHOLD_MS: float = 1000.0
     MONITORING_BACKFILL_MAX_WINDOWS: int = 12
+    MONITORING_WORKER_SHARD_INDEX: int = Field(default=0, ge=0)
+    MONITORING_WORKER_SHARD_COUNT: int = Field(default=1, gt=0)
+    MONITORING_HEARTBEAT_FILE: str = "/tmp/luml-monitoring-worker-heartbeat"
+    MONITORING_DEPLOYMENTS_REFRESH_SEC: float = Field(default=60.0, gt=0)
+    SIDECAR_INTERNAL_URL_TEMPLATE: str = "http://luml-dep-{deployment_id}:8001"
     MONITORING_EVENTS_TTL: str = "30d"
     MONITORING_RESULTS_TTL: str = "30d"
     MONITORING_ALERTS_TTL: str = "30d"

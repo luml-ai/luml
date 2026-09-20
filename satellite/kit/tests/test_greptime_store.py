@@ -6,6 +6,8 @@ from typing import Any
 import httpx
 import pytest
 
+from luml_satellite.monitoring.compute.health import DeploymentHealth
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.compute.models import (
     Alert,
     AlertState,
@@ -62,6 +64,28 @@ class Recorder:
 
 
 class TestGreptimeStore:
+    async def test_write_worker_heartbeat_persists_shard_and_progress(self) -> None:
+        recorder = Recorder()
+        store = recorder.store()
+        heartbeat = WorkerHeartbeat(
+            shard_index=1,
+            shard_count=2,
+            tick_at=WINDOW.end,
+            window_seconds=300,
+            interval_seconds=60,
+            deployments={"dep-1": DeploymentHealth(windows_processed=3)},
+        )
+
+        await store.write_worker_heartbeat(heartbeat)
+
+        insert = next(
+            statement
+            for statement in recorder.statements
+            if statement.startswith("INSERT INTO monitoring_worker_heartbeat")
+        )
+        assert "VALUES (1, 2" in insert
+        assert '"windows_processed":3' in insert
+
     async def test_read_events_parses_records(self) -> None:
         ns = int(datetime(2026, 1, 1, 0, 1, tzinfo=UTC).timestamp() * 1_000_000_000)
         span_attributes = {
@@ -144,8 +168,8 @@ class TestGreptimeStore:
         await store.write_result(result)
 
         creates = [s for s in recorder.statements if s.strip().startswith("CREATE TABLE")]
-        # results, alerts and the worker's own failure history
-        assert len(creates) == 3
+        # results, alerts, worker failure history and worker heartbeats
+        assert len(creates) == 4
 
     async def test_save_alert_inserts_row(self) -> None:
         recorder = Recorder()

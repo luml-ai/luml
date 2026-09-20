@@ -10,15 +10,17 @@ their tables do not yet exist the corresponding sections degrade to an empty sta
 than failing. Only a real database outage raises :class:`MonitoringStoreUnavailable`.
 """
 
+import inspect
 import json
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
 import httpx
 
+from luml_satellite.monitoring.compute.heartbeat import WorkerHeartbeat
 from luml_satellite.monitoring.dashboard.alerts import parse_alert_key
 from luml_satellite.monitoring.dashboard.profile import build_reference_profile, profile_status
 from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
@@ -34,6 +36,12 @@ from luml_satellite.monitoring.storage.query_store import (
 )
 
 logger = logging.getLogger("satellite")
+
+type ProfileSource = Callable[[UUID], dict[str, Any] | None | Awaitable[dict[str, Any] | None]]
+type ProfileStatusSource = Callable[[UUID], ProfileStatus | str | Awaitable[ProfileStatus | str]]
+type DeploymentMetadataSource = Callable[
+    [UUID], dict[str, Any] | None | Awaitable[dict[str, Any] | None]
+]
 
 INFERENCE_EVENTS_TABLE = "inference_events"
 OTEL_TRACES_TABLE = "otel_traces"
@@ -57,6 +65,7 @@ _ATTR_SPAN_TYPE = "dfs.span_type"
 RESULTS_TABLE = "monitoring_results"
 ALERTS_TABLE = "monitoring_alerts"
 FAILURES_TABLE = "monitoring_worker_failures"
+HEARTBEATS_TABLE = "monitoring_worker_heartbeat"
 _RESOLVED = "resolved"
 _ACKNOWLEDGED = "acknowledged"
 
@@ -163,9 +172,9 @@ class GreptimeQueryStore:
         database: str = "public",
         client: httpx.AsyncClient | None = None,
         timeout: float = 15.0,
-        profile_source: Callable[[UUID], dict[str, Any] | None] | None = None,
-        profile_status_source: Callable[[UUID], ProfileStatus | str] | None = None,
-        deployment_source: Callable[[UUID], dict[str, Any] | None] | None = None,
+        profile_source: ProfileSource | None = None,
+        profile_status_source: ProfileStatusSource | None = None,
+        deployment_source: DeploymentMetadataSource | None = None,
         username: str | None = None,
         password: str | None = None,
     ) -> None:
@@ -240,7 +249,11 @@ class GreptimeQueryStore:
         except _TableMissing:
             rows = []  # no span has reached the collector yet — nothing predicted so far
         last = rows[0][0] if rows and rows[0] else None
-        meta = self._deployment_source(deployment_id) if self._deployment_source else None
+        meta = (
+            await _resolve(self._deployment_source(deployment_id))
+            if self._deployment_source
+            else None
+        )
         if last is None and not meta:
             # Nothing known about this deployment: no telemetry and no Platform record.
             return None
@@ -498,6 +511,42 @@ class GreptimeQueryStore:
             )
         return transitions
 
+    async def read_worker_heartbeats(self) -> list[WorkerHeartbeat]:
+        sql = (
+            f"SELECT shard_index, shard_count, tick_at, window_seconds, interval_seconds, "
+            f"deployments FROM {HEARTBEATS_TABLE} ORDER BY tick_at DESC LIMIT 1000"
+        )
+        try:
+            columns, rows = await self._query(sql)
+        except _QueryError as error:
+            logger.debug("read_worker_heartbeats skipped: %s", error)
+            return []
+        heartbeats: list[WorkerHeartbeat] = []
+        seen: set[tuple[int, int]] = set()
+        for row in rows:
+            record = dict(zip(columns, row, strict=False))
+            try:
+                shard_index = int(record.get("shard_index", 0))
+                shard_count = int(record.get("shard_count", 0))
+                key = (shard_count, shard_index)
+                tick_at = _ms_to_dt(record.get("tick_at"))
+                if key in seen or tick_at is None:
+                    continue
+                heartbeats.append(
+                    WorkerHeartbeat.from_json(
+                        shard_index=shard_index,
+                        shard_count=shard_count,
+                        tick_at=tick_at,
+                        window_seconds=float(record.get("window_seconds", 0)),
+                        interval_seconds=float(record.get("interval_seconds", 0)),
+                        deployments_json=str(record.get("deployments", "{}")),
+                    )
+                )
+                seen.add(key)
+            except TypeError, ValueError, json.JSONDecodeError:
+                logger.warning("Ignoring invalid monitoring worker heartbeat")
+        return heartbeats
+
     async def acknowledge_alert(self, deployment_id: UUID, metric: str) -> bool:
         """Rewrite the alert's newest row as acknowledged.
 
@@ -524,26 +573,31 @@ class GreptimeQueryStore:
         return True
 
     async def fetch_profile(self, deployment_id: UUID) -> ReferenceProfile | None:
-        return build_reference_profile(deployment_id, self._raw_profile(deployment_id))
+        return build_reference_profile(deployment_id, await self._raw_profile(deployment_id))
 
     async def profile_status(self, deployment_id: UUID) -> ProfileStatus:
         if self._profile_status_source is not None:
             try:
-                return ProfileStatus(self._profile_status_source(deployment_id))
+                value = await _resolve(self._profile_status_source(deployment_id))
+                return ProfileStatus(value)
             except TypeError, ValueError:
                 logger.warning("Invalid reference profile status", exc_info=True)
             except Exception:  # noqa: BLE001 — deployment lookup must not break the dashboard
                 logger.warning("Failed to read reference profile status", exc_info=True)
-        return profile_status(self._raw_profile(deployment_id))
+        return profile_status(await self._raw_profile(deployment_id))
 
-    def _raw_profile(self, deployment_id: UUID) -> dict[str, Any] | None:
+    async def _raw_profile(self, deployment_id: UUID) -> dict[str, Any] | None:
         if self._profile_source is None:
             return None
         try:
-            return self._profile_source(deployment_id)
+            return await _resolve(self._profile_source(deployment_id))
         except Exception:  # noqa: BLE001 — a profile lookup must never break the dashboard
             logger.warning("Failed to read reference profile", exc_info=True)
             return None
+
+
+async def _resolve[T](value: T | Awaitable[T]) -> T:
+    return await value if inspect.isawaitable(value) else value
 
 
 def _as_float(value: Any) -> float | None:  # noqa: ANN401
