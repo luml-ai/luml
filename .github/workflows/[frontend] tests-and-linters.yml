@@ -5,10 +5,12 @@ on:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
   pull_request:
     branches: [ main ]
     paths:
       - 'frontend/**'
+      - 'satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
 
 jobs:
   lint:

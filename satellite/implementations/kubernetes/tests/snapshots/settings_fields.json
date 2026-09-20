@@ -1,0 +1,113 @@
+[
+  {
+    "name": "health_check_timeout",
+    "type": "number",
+    "values": null,
+    "required": false,
+    "validators": [
+      { "type": "min", "value": 60 },
+      { "type": "max", "value": 7200 }
+    ],
+    "conditions": [],
+    "default": 1800
+  },
+  {
+    "name": "replicas",
+    "type": "number",
+    "values": null,
+    "required": false,
+    "validators": [
+      { "type": "min", "value": 1 },
+      { "type": "max", "value": 64 }
+    ],
+    "conditions": [],
+    "default": 1
+  },
+  {
+    "name": "cpu_millicores",
+    "type": "number",
+    "values": null,
+    "required": false,
+    "validators": [
+      { "type": "min", "value": 100 },
+      { "type": "max", "value": 64000 }
+    ],
+    "conditions": [],
+    "default": 1000
+  },
+  {
+    "name": "memory",
+    "type": "dropdown",
+    "values": [
+      { "label": "512 MiB", "value": "512Mi" },
+      { "label": "1 GiB", "value": "1Gi" },
+      { "label": "2 GiB", "value": "2Gi" },
+      { "label": "4 GiB", "value": "4Gi" },
+      { "label": "8 GiB", "value": "8Gi" },
+      { "label": "16 GiB", "value": "16Gi" },
+      { "label": "32 GiB", "value": "32Gi" },
+      { "label": "64 GiB", "value": "64Gi" }
+    ],
+    "required": false,
+    "validators": [],
+    "conditions": [],
+    "default": "2Gi"
+  },
+  {
+    "name": "use_gpu",
+    "type": "boolean",
+    "values": null,
+    "required": false,
+    "validators": [],
+    "conditions": [],
+    "default": false
+  },
+  {
+    "name": "gpu_count",
+    "type": "number",
+    "values": null,
+    "required": false,
+    "validators": [
+      { "type": "min", "value": 1 },
+      { "type": "max", "value": 8 }
+    ],
+    "conditions": [
+      {
+        "type": "field",
+        "body": { "field": "use_gpu", "operator": "equal", "value": true }
+      }
+    ],
+    "default": 1
+  },
+  {
+    "name": "gpu_resource_name",
+    "type": "dropdown",
+    "values": [
+      { "label": "NVIDIA", "value": "nvidia.com/gpu" },
+      { "label": "AMD", "value": "amd.com/gpu" }
+    ],
+    "required": false,
+    "validators": [],
+    "conditions": [
+      {
+        "type": "field",
+        "body": { "field": "use_gpu", "operator": "equal", "value": true }
+      }
+    ],
+    "default": "nvidia.com/gpu"
+  },
+  {
+    "name": "log_level",
+    "type": "dropdown",
+    "values": [
+      { "label": "Debug", "value": "debug" },
+      { "label": "Info", "value": "info" },
+      { "label": "Warning", "value": "warning" },
+      { "label": "Error", "value": "error" }
+    ],
+    "required": false,
+    "validators": [],
+    "conditions": [],
+    "default": "info"
+  }
+]

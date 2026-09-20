@@ -6,6 +6,7 @@ import {
   SatelliteFieldTypeEnum,
   type SatelliteField,
 } from '@/lib/api/satellites/interfaces'
+import kubernetesFields from '../../../../../satellite/implementations/kubernetes/tests/snapshots/settings_fields.json'
 import type { SatelliteFieldInfo } from '../deployments.interfaces'
 import DeploymentsFormSatelliteSettings from './DeploymentsFormSatelliteSettings.vue'
 
@@ -26,109 +27,7 @@ const DEPLOY_CAPABILITY = {
 
 const ALL_MONITORING_FEATURES = Object.values(MonitoringFeature)
 
-const KUBERNETES_FIELDS: SatelliteField[] = [
-  {
-    name: 'replicas',
-    type: SatelliteFieldTypeEnum.number,
-    values: null,
-    required: false,
-    validators: [
-      { type: 'min', value: 1 },
-      { type: 'max', value: 64 },
-    ],
-    conditions: [],
-    default: 1,
-  },
-  {
-    name: 'cpu_millicores',
-    type: SatelliteFieldTypeEnum.number,
-    values: null,
-    required: false,
-    validators: [
-      { type: 'min', value: 100 },
-      { type: 'max', value: 64_000 },
-    ],
-    conditions: [],
-    default: 1_000,
-  },
-  {
-    name: 'memory',
-    type: SatelliteFieldTypeEnum.dropdown,
-    values: [
-      { label: '512 MiB', value: '512Mi' },
-      { label: '1 GiB', value: '1Gi' },
-      { label: '2 GiB', value: '2Gi' },
-      { label: '4 GiB', value: '4Gi' },
-      { label: '8 GiB', value: '8Gi' },
-      { label: '16 GiB', value: '16Gi' },
-      { label: '32 GiB', value: '32Gi' },
-      { label: '64 GiB', value: '64Gi' },
-    ],
-    required: false,
-    validators: [],
-    conditions: [],
-    default: '2Gi',
-  },
-  {
-    name: 'use_gpu',
-    type: SatelliteFieldTypeEnum.boolean,
-    values: null,
-    required: false,
-    validators: [],
-    conditions: [],
-    default: false,
-  },
-  {
-    name: 'gpu_count',
-    type: SatelliteFieldTypeEnum.number,
-    values: null,
-    required: false,
-    validators: [
-      { type: 'min', value: 1 },
-      { type: 'max', value: 8 },
-    ],
-    conditions: [{ type: 'field', body: { field: 'use_gpu', operator: 'equal', value: true } }],
-    default: 1,
-  },
-  {
-    name: 'gpu_resource_name',
-    type: SatelliteFieldTypeEnum.dropdown,
-    values: [
-      { label: 'NVIDIA', value: 'nvidia.com/gpu' },
-      { label: 'AMD', value: 'amd.com/gpu' },
-    ],
-    required: false,
-    validators: [],
-    conditions: [{ type: 'field', body: { field: 'use_gpu', operator: 'equal', value: true } }],
-    default: 'nvidia.com/gpu',
-  },
-  {
-    name: 'health_check_timeout',
-    type: SatelliteFieldTypeEnum.number,
-    values: null,
-    required: false,
-    validators: [
-      { type: 'min', value: 60 },
-      { type: 'max', value: 7_200 },
-    ],
-    conditions: [],
-    default: 1_800,
-  },
-  {
-    name: 'log_level',
-    type: SatelliteFieldTypeEnum.dropdown,
-    values: [
-      { label: 'Debug', value: 'debug' },
-      { label: 'Info', value: 'info' },
-      { label: 'Warning', value: 'warning' },
-      { label: 'Error', value: 'error' },
-    ],
-    required: false,
-    validators: [],
-    conditions: [],
-    default: 'info',
-  },
-]
+const KUBERNETES_FIELDS = kubernetesFields as SatelliteField[]
 
 function monitoringCapability(features = ALL_MONITORING_FEATURES) {
   return {
