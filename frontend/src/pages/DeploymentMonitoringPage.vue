@@ -108,6 +108,9 @@ const breadcrumbs = computed(() => [
 ])
 
 const disabledDescription = computed(() => {
+  if (store.reason === MonitoringIneligibilityReason.no_dashboard_address) {
+    return 'This satellite has no dashboard address.'
+  }
   if (store.reason === MonitoringIneligibilityReason.capability_missing) {
     return 'The Satellite hosting this deployment does not advertise the monitoring capability.'
   }

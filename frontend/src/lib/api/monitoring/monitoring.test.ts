@@ -29,7 +29,8 @@ describe('MonitoringApi', () => {
   it('mints the launch token via POST on the deployment-scoped endpoint', async () => {
     const tokenResponse = {
       token: 't',
-      satellite_base_url: 'https://s',
+      satellite_base_url: null,
+      launch_url: 'https://dashboard.example/monitoring/launch?token=t',
       expires_at: 1_800_000_000,
     }
     const { instance, post } = makeApi(tokenResponse)

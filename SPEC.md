@@ -1184,9 +1184,9 @@ Plain objects with labels instead of a custom resource and operator keep the sat
   - [x] The public contract route in `backend/luml/api/satellites.py`, included in the service
   - [x] Tests under `backend/tests/` for every backend scenario and the migration, with the parameter verification run over every shared condition case; mypy, ruff and pytest pass
 
-- [ ] Show the new satellite contract fields in the frontend
-  - [ ] Update the satellite, deployment and monitoring interfaces, the monitoring store, the monitoring page copy, the schema page and its OpenAPI component, the settings form default seeding and validator, the deployments table, the deployment editor and the satellites card under `frontend/src/`
-  - [ ] Tests: the monitoring store (launch URL, fallback, null), the monitoring page reason, the schema page's three cases, the editor and table with old fixtures unchanged, the settings form with the GPU fixture, the field hook run over every shared condition case read from `backend/tests/`, defaults submitting untouched and an old declaration unchanged; type-check, lint and the CI test run pass
+- [x] Show the new satellite contract fields in the frontend
+  - [x] Update the satellite, deployment and monitoring interfaces, the monitoring store, the monitoring page copy, the schema page and its OpenAPI component, the settings form default seeding and validator, the deployments table, the deployment editor and the satellites card under `frontend/src/`
+  - [x] Tests: the monitoring store (launch URL, fallback, null), the monitoring page reason, the schema page's three cases, the editor and table with old fixtures unchanged, the settings form with the GPU fixture, the field hook run over every shared condition case read from `backend/tests/`, defaults submitting untouched and an old declaration unchanged; type-check, lint and the CI test run pass
 
 - [ ] Rebuild the Docker satellite on the kit
   - [ ] Create `satellite/implementations/docker/` as a uv project with the kit as path dependency and aiodocker, the driver, the settings, the configuration, the main module and a Dockerfile with the `satellite/` context

@@ -33,7 +33,7 @@ export interface Satellite {
   orbit_id: string
   name: string
   description: string
-  base_url: string
+  base_url: string | null
   paired: boolean
   capabilities: SatelliteCapabilities
   present_capabilities: string[]
@@ -42,6 +42,14 @@ export interface Satellite {
   last_seen_at: string
   status: SatelliteStatusEnum
   slug?: string
+  kit_info?: SatelliteKitInfo | null
+}
+
+export interface SatelliteKitInfo {
+  name: string
+  version: string
+  kind: string
+  api_version: number
 }
 
 export interface CapabilityEnvelope {
@@ -146,11 +154,13 @@ export interface SatelliteField {
   required: boolean
   validators: Validator[]
   conditions: ConditionsObject[]
+  default?: string | number | boolean | null
 }
 
 export interface Validator {
   type: ValidatorType
   value: unknown
+  message?: string
 }
 
 export interface ConditionsObject {

@@ -1,8 +1,15 @@
-import { mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
-import { MonitoringFeature } from '@/lib/api/satellites/interfaces'
+import {
+  MonitoringFeature,
+  SatelliteFieldTypeEnum,
+  type SatelliteField,
+} from '@/lib/api/satellites/interfaces'
+import type { SatelliteFieldInfo } from '../deployments.interfaces'
 import DeploymentsFormSatelliteSettings from './DeploymentsFormSatelliteSettings.vue'
+
+enableAutoUnmount(afterEach)
 
 const TABULAR_KIND_TAG = 'luml.ai::kind_tabular:v1'
 const LLM_KIND_TAG = 'luml.ai::kind_llm:v1'
@@ -18,6 +25,110 @@ const DEPLOY_CAPABILITY = {
 }
 
 const ALL_MONITORING_FEATURES = Object.values(MonitoringFeature)
+
+const KUBERNETES_FIELDS: SatelliteField[] = [
+  {
+    name: 'replicas',
+    type: SatelliteFieldTypeEnum.number,
+    values: null,
+    required: false,
+    validators: [
+      { type: 'min', value: 1 },
+      { type: 'max', value: 64 },
+    ],
+    conditions: [],
+    default: 1,
+  },
+  {
+    name: 'cpu_millicores',
+    type: SatelliteFieldTypeEnum.number,
+    values: null,
+    required: false,
+    validators: [
+      { type: 'min', value: 100 },
+      { type: 'max', value: 64_000 },
+    ],
+    conditions: [],
+    default: 1_000,
+  },
+  {
+    name: 'memory',
+    type: SatelliteFieldTypeEnum.dropdown,
+    values: [
+      { label: '512 MiB', value: '512Mi' },
+      { label: '1 GiB', value: '1Gi' },
+      { label: '2 GiB', value: '2Gi' },
+      { label: '4 GiB', value: '4Gi' },
+      { label: '8 GiB', value: '8Gi' },
+      { label: '16 GiB', value: '16Gi' },
+      { label: '32 GiB', value: '32Gi' },
+      { label: '64 GiB', value: '64Gi' },
+    ],
+    required: false,
+    validators: [],
+    conditions: [],
+    default: '2Gi',
+  },
+  {
+    name: 'use_gpu',
+    type: SatelliteFieldTypeEnum.boolean,
+    values: null,
+    required: false,
+    validators: [],
+    conditions: [],
+    default: false,
+  },
+  {
+    name: 'gpu_count',
+    type: SatelliteFieldTypeEnum.number,
+    values: null,
+    required: false,
+    validators: [
+      { type: 'min', value: 1 },
+      { type: 'max', value: 8 },
+    ],
+    conditions: [{ type: 'field', body: { field: 'use_gpu', operator: 'equal', value: true } }],
+    default: 1,
+  },
+  {
+    name: 'gpu_resource_name',
+    type: SatelliteFieldTypeEnum.dropdown,
+    values: [
+      { label: 'NVIDIA', value: 'nvidia.com/gpu' },
+      { label: 'AMD', value: 'amd.com/gpu' },
+    ],
+    required: false,
+    validators: [],
+    conditions: [{ type: 'field', body: { field: 'use_gpu', operator: 'equal', value: true } }],
+    default: 'nvidia.com/gpu',
+  },
+  {
+    name: 'health_check_timeout',
+    type: SatelliteFieldTypeEnum.number,
+    values: null,
+    required: false,
+    validators: [
+      { type: 'min', value: 60 },
+      { type: 'max', value: 7_200 },
+    ],
+    conditions: [],
+    default: 1_800,
+  },
+  {
+    name: 'log_level',
+    type: SatelliteFieldTypeEnum.dropdown,
+    values: [
+      { label: 'Debug', value: 'debug' },
+      { label: 'Info', value: 'info' },
+      { label: 'Warning', value: 'warning' },
+      { label: 'Error', value: 'error' },
+    ],
+    required: false,
+    validators: [],
+    conditions: [],
+    default: 'info',
+  },
+]
 
 function monitoringCapability(features = ALL_MONITORING_FEATURES) {
   return {
@@ -70,8 +181,38 @@ const REDUCED_MONITORING = {
   },
 }
 
+const KUBERNETES = {
+  id: 'sat-kubernetes',
+  name: 'Kubernetes satellite',
+  present_capabilities: ['deploy'],
+  capabilities: {
+    deploy: { ...DEPLOY_CAPABILITY, extra_fields_form_spec: KUBERNETES_FIELDS },
+  },
+}
+
+const OLD_DECLARATION = {
+  id: 'sat-old',
+  name: 'Old satellite',
+  present_capabilities: ['deploy'],
+  capabilities: {
+    deploy: {
+      ...DEPLOY_CAPABILITY,
+      extra_fields_form_spec: [
+        {
+          name: 'legacy_setting',
+          type: SatelliteFieldTypeEnum.text,
+          values: null,
+          required: false,
+          validators: [],
+          conditions: [],
+        },
+      ],
+    },
+  },
+}
+
 const satellitesStore = reactive({
-  satellitesList: [MONITORED, PLAIN, RAW_DEPLOY_ONLY],
+  satellitesList: [MONITORED, PLAIN, RAW_DEPLOY_ONLY] as unknown[],
   loadSatellites: vi.fn(async () => [MONITORED, PLAIN, RAW_DEPLOY_ONLY]),
   setList: vi.fn(),
 })
@@ -122,9 +263,15 @@ function mountForm(props: Record<string, unknown> = {}) {
           `,
         },
         FormField: { template: '<div><slot /></div>' },
-        InputText: { template: '<input />' },
-        InputNumber: { template: '<input />' },
-        ToggleButton: { template: '<button />' },
+        InputText: {
+          props: ['modelValue', 'size', 'required', 'placeholder'],
+          template: '<input />',
+        },
+        InputNumber: {
+          props: ['modelValue', 'size', 'required', 'placeholder'],
+          template: '<input />',
+        },
+        ToggleButton: { props: ['modelValue', 'size'], template: '<button />' },
         ToggleSwitch: {
           template:
             '<button data-testid="toggle" @click="$emit(\'update:modelValue\', !modelValue)" />',
@@ -247,5 +394,51 @@ describe('DeploymentsFormSatelliteSettings', () => {
     expect(monitoringSections(wrapper)).toContain('Feature drift')
     expect(monitoringSections(wrapper)).toContain('Multivariate drift')
     expect(monitoringSections(wrapper)).not.toContain('Output drift')
+  })
+
+  it('seeds Kubernetes fields from defaults and reveals GPU fields only when enabled', async () => {
+    satellitesStore.satellitesList = [KUBERNETES]
+    const wrapper = mountForm()
+
+    await wrapper.setProps({ satelliteId: KUBERNETES.id })
+    await flushPromises()
+
+    const defaultFields = wrapper.emitted('update:fields')?.at(-1)?.[0] as SatelliteFieldInfo[]
+    expect(Object.fromEntries(defaultFields.map(({ key, value }) => [key, value]))).toEqual({
+      replicas: 1,
+      cpu_millicores: 1_000,
+      memory: '2Gi',
+      use_gpu: false,
+      health_check_timeout: 1_800,
+      log_level: 'info',
+    })
+    expect(defaultFields.some(({ key }) => key === 'gpu_count')).toBe(false)
+    expect(defaultFields.some(({ key }) => key === 'gpu_resource_name')).toBe(false)
+
+    await wrapper.setProps({
+      fields: defaultFields.map((field) =>
+        field.key === 'use_gpu' ? { ...field, value: true } : field,
+      ),
+    })
+    await flushPromises()
+
+    const gpuFields = wrapper.emitted('update:fields')?.at(-1)?.[0] as SatelliteFieldInfo[]
+    expect(Object.fromEntries(gpuFields.map(({ key, value }) => [key, value]))).toMatchObject({
+      use_gpu: true,
+      gpu_count: 1,
+      gpu_resource_name: 'nvidia.com/gpu',
+    })
+  })
+
+  it('leaves fields empty when an old declaration has no defaults', async () => {
+    satellitesStore.satellitesList = [OLD_DECLARATION]
+    const wrapper = mountForm()
+
+    await wrapper.setProps({ satelliteId: OLD_DECLARATION.id })
+    await flushPromises()
+
+    const fields = wrapper.emitted('update:fields')?.at(-1)?.[0] as SatelliteFieldInfo[]
+    expect(fields).toHaveLength(1)
+    expect(fields[0]).toMatchObject({ key: 'legacy_setting', value: null })
   })
 })
