@@ -14,6 +14,7 @@ from luml_satellite.testing import (
     FakeDriver,
     FakeMonitoringBundle,
     FakePlatform,
+    FakeServingPlacement,
 )
 from luml_satellite.workload import StartResult, StartStatus, WorkloadObservation, WorkloadState
 from tests.helpers import deployment_record, task_record
@@ -85,6 +86,15 @@ class LifecycleRuntime(SatelliteRuntime):
 
     async def poll(self) -> None:
         self.stop()
+
+
+class CloseableServingPlacement(FakeServingPlacement):
+    def __init__(self) -> None:
+        super().__init__()
+        self.closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
 
 
 class DisabledHealthRuntime(SatelliteRuntime):
@@ -274,9 +284,10 @@ async def test_runtime_loop_uses_capped_backoff_and_names_authentication_failure
 
 
 @pytest.mark.asyncio
-async def test_runtime_starts_and_closes_the_monitoring_bundle() -> None:
+async def test_runtime_starts_monitoring_and_closes_monitoring_and_serving() -> None:
     platform = FakePlatform()
     monitoring = FakeMonitoringBundle()
+    serving = CloseableServingPlacement()
     async with PlatformClient(
         "http://platform",
         platform.token,
@@ -287,11 +298,13 @@ async def test_runtime_starts_and_closes_the_monitoring_bundle() -> None:
             client,
             FakeDriver(),
             monitoring=monitoring,
+            serving=serving,
         )
         await runtime.run_forever()
 
     assert monitoring.started is True
     assert monitoring.closed is True
+    assert serving.closed is True
     assert "monitoring" in runtime.capabilities
 
 

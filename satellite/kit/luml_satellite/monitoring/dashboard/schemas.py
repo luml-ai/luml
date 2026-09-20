@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from luml_satellite.workload import ProfileStatus as ProfileStatus
+
 
 class Window(StrEnum):
     H24 = "24h"
@@ -55,13 +57,6 @@ class SectionState(StrEnum):
     OK = "ok"
     EMPTY = "empty"  # the worker has not materialized this group/window yet
     UNAVAILABLE = "unavailable"  # the underlying store could not be reached
-
-
-class ProfileStatus(StrEnum):
-    READY = "ready"
-    PLACEHOLDER = "placeholder"
-    ABSENT = "absent"
-    UNSUPPORTED = "unsupported"
 
 
 class SeriesPoint(BaseModel):

@@ -31,13 +31,31 @@ importlib.import_module("luml_satellite.runtime")
 
 def import_tree(paths, prefix):
     for module in pkgutil.iter_modules(paths, prefix):
-        if module.name.startswith("luml_satellite.monitoring"):
+        if module.name.startswith(("luml_satellite.monitoring", "luml_satellite.serving")):
             continue
         imported = importlib.import_module(module.name)
         if module.ispkg:
             import_tree(imported.__path__, module.name + ".")
 
 import_tree(package.__path__, package.__name__ + ".")
+"""
+    subprocess.run([sys.executable, "-c", script], check=True)
+
+
+def test_serving_imports_without_the_monitoring_extra() -> None:
+    script = r"""
+import builtins
+import importlib
+
+original_import = builtins.__import__
+
+def blocked_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if name == "opentelemetry" or name.startswith("opentelemetry."):
+        raise AssertionError(f"unexpected monitoring import: {name}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = blocked_import
+importlib.import_module("luml_satellite.serving")
 """
     subprocess.run([sys.executable, "-c", script], check=True)
 

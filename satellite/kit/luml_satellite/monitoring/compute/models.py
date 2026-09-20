@@ -1,11 +1,13 @@
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
-from luml_satellite.monitoring.dashboard.schemas import ProfileStatus
-from luml_satellite.workload import DeploymentMetadata
+from luml_satellite.workload import (
+    LocalDeployment as LocalDeployment,
+    ProfileStatus,
+)
 
 _SUCCESS_STATUSES = frozenset({"success", "ok", "succeeded", "completed"})
 _ERROR_STATUSES = frozenset({"error", "failed", "failure"})
@@ -201,18 +203,6 @@ class MonitoredDeployment:
         if self.profile_status is not None:
             return self.profile_status
         return ProfileStatus.READY if self.profile is not None else ProfileStatus.ABSENT
-
-
-@dataclass
-class LocalDeployment:
-    deployment_id: str
-    dynamic_attributes_secrets: dict[str, str] = field(default_factory=dict)
-    manifest: dict[str, Any] | None = None
-    openapi_schema: dict[str, Any] | None = None
-    reference_profile: dict[str, Any] | None = None
-    profile_status: ProfileStatus = ProfileStatus.ABSENT
-    monitoring_enabled: bool = False
-    metadata: DeploymentMetadata = field(default_factory=DeploymentMetadata)
 
 
 def monitored_deployments(

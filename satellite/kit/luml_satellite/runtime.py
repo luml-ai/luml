@@ -48,6 +48,17 @@ class RuntimeCloseable(Protocol):
 
 
 @runtime_checkable
+class ReconciliationAware(Protocol):
+    def mark_reconciled(self) -> None: ...
+
+
+@runtime_checkable
+class InternalApplicationProvider(Protocol):
+    @property
+    def internal_application(self) -> object | None: ...
+
+
+@runtime_checkable
 class OpenAPIProvider(Protocol):
     def openapi(self) -> Mapping[str, object]: ...
 
@@ -88,7 +99,15 @@ class SatelliteRuntime:
         self._public_application = (
             public_application if public_application is not None else self.serving.router
         )
-        self._internal_application = internal_application
+        self._internal_application = (
+            internal_application
+            if internal_application is not None
+            else (
+                self.serving.internal_application
+                if isinstance(self.serving, InternalApplicationProvider)
+                else None
+            )
+        )
         self._serves_deployments = (
             self._public_application is not None
             if serves_deployments is None
@@ -170,6 +189,7 @@ class SatelliteRuntime:
 
     async def reconcile(self) -> None:
         await self.reconciliation.run()
+        self._mark_reconciled()
 
     async def poll(self) -> None:
         await self.polling.run()
@@ -188,6 +208,7 @@ class SatelliteRuntime:
             if self._stopped:
                 return
             await self.reconcile()
+            self._mark_reconciled()
             next_health = self.clock.monotonic() + self.configuration.HEALTH_PASS_INTERVAL_SEC
             failures = 0
             while not self._stopped:
@@ -215,6 +236,7 @@ class SatelliteRuntime:
                 await self.clock.sleep(self.configuration.POLL_INTERVAL_SEC)
         finally:
             await self.polling.drain()
+            await self._close_serving()
             await self._close_monitoring()
 
     async def _pair_with_backoff(self) -> None:
@@ -265,6 +287,15 @@ class SatelliteRuntime:
         if isinstance(self.monitoring, RuntimeCloseable):
             with suppress(Exception):
                 await self.monitoring.aclose()
+
+    def _mark_reconciled(self) -> None:
+        if isinstance(self.serving, ReconciliationAware):
+            self.serving.mark_reconciled()
+
+    async def _close_serving(self) -> None:
+        if isinstance(self.serving, RuntimeCloseable):
+            with suppress(Exception):
+                await self.serving.aclose()
 
 
 Runtime = SatelliteRuntime

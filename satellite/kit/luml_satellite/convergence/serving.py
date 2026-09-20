@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Any, Protocol
 
 from luml_satellite.wire import Deployment
+from luml_satellite.workload import ProfileStatus
 
 
 @dataclass(frozen=True)
@@ -10,6 +11,7 @@ class ModelDescription:
     manifest: Mapping[str, Any] | None = None
     schema: Mapping[str, Any] | None = None
     reference_profile: Mapping[str, Any] | None = None
+    profile_status: ProfileStatus = ProfileStatus.ABSENT
 
 
 class ServingPlacement(Protocol):

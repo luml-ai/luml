@@ -1793,4 +1793,5 @@ def _without_secret_attributes(
         manifest=description.manifest,
         schema=schema,
         reference_profile=description.reference_profile,
+        profile_status=description.profile_status,
     )

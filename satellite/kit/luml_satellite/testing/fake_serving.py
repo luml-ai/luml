@@ -5,6 +5,7 @@ from typing import Any
 
 from luml_satellite.convergence import ModelDescription
 from luml_satellite.wire import Deployment
+from luml_satellite.workload import ProfileStatus
 
 type HealthStep = bool | Exception
 type DescriptionStep = ModelDescription | Exception
@@ -110,11 +111,13 @@ def model_description(
     manifest: Mapping[str, Any] | None = None,
     schema: Mapping[str, Any] | None = None,
     reference_profile: Mapping[str, Any] | None = None,
+    profile_status: ProfileStatus = ProfileStatus.ABSENT,
 ) -> ModelDescription:
     return ModelDescription(
         manifest=manifest,
         schema=schema,
         reference_profile=reference_profile,
+        profile_status=profile_status,
     )
 
 

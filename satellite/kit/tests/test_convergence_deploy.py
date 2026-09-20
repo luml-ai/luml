@@ -27,6 +27,7 @@ from luml_satellite.testing import (
 )
 from luml_satellite.workload import (
     ArtifactDeliveryMode,
+    ProfileStatus,
     StartResult,
     StartStatus,
     WorkloadObservation,
@@ -442,6 +443,7 @@ async def test_finalize_strips_secret_attributes_and_keeps_unreadable_parts_as_n
                 }
             },
             reference_profile=None,
+            profile_status=ProfileStatus.UNSUPPORTED,
         ),
     )
 
@@ -456,6 +458,7 @@ async def test_finalize_strips_secret_attributes_and_keeps_unreadable_parts_as_n
     registration = serving.register_calls[0]
     assert registration.description.reference_profile is None
     assert registration.description.manifest == {"name": "model"}
+    assert registration.description.profile_status is ProfileStatus.UNSUPPORTED
 
 
 @pytest.mark.asyncio
