@@ -16,11 +16,26 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.43.0",
 ]
 
+[dependency-groups]
+dev = [
+    "mypy>=1.18.2,<2.0.0",
+    "pytest>=9.0.3,<10.0.0",
+    "pytest-asyncio>=1.3.0,<2.0.0",
+    "respx>=0.22.0,<1.0.0",
+    "ruff>=0.14.5,<1.0.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [tool.ruff]
 target-version = "py313"
 line-length = 100
 indent-width = 4
-src = ["model_server"]
+src = ["."]
 
 [tool.ruff.lint]
 select = [
@@ -39,5 +54,24 @@ line-ending = "auto"
 [tool.ruff.lint.isort]
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["model_server"]
+known-first-party = ["clients", "handlers", "services", "utils"]
 split-on-trailing-comma = true
+
+[tool.mypy]
+python_version = "3.13"
+strict = false
+explicit_package_bases = true
+ignore_missing_imports = true
+files = [
+    "clients",
+    "handlers",
+    "services",
+    "utils",
+    "conda_manager.py",
+    "conda_worker.py",
+    "main.py",
+    "openapi_generator.py",
+    "server.py",
+    "telemetry.py",
+    "tests",
+]

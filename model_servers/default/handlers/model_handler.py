@@ -13,9 +13,10 @@ from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
+from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
+
 from clients.agent_client import AgentClient
 from conda_manager import ModelCondaManager
-from fnnx.envs.conda import CondaLikeEnvManager, install_micromamba
 from utils.logging import log_success  # type: ignore
 
 from .file_handler import ArtifactAccessExpired, FileHandler

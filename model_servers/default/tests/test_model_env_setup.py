@@ -8,30 +8,12 @@ the container's next start to trip over.
 
 import logging
 import subprocess
-import sys
-import types
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
-# model_server code imports via bare module names (e.g. `from clients...`) because
-# conda_worker.py runs with model_server/ on sys.path.
-_model_server_dir = str(Path(__file__).resolve().parent.parent.parent / "model_server")
-if _model_server_dir not in sys.path:
-    sys.path.insert(0, _model_server_dir)
-
-# fnnx builds conda environments and is a model-server runtime dependency, not a test one.
-_fnnx_conda = types.ModuleType("fnnx.envs.conda")
-_fnnx_conda.CondaLikeEnvManager = object
-_fnnx_conda.install_micromamba = lambda *args, **kwargs: None
-sys.modules.setdefault("fnnx", types.ModuleType("fnnx"))
-sys.modules.setdefault("fnnx.envs", types.ModuleType("fnnx.envs"))
-sys.modules.setdefault("fnnx.envs.conda", _fnnx_conda)
-
-from handlers.model_handler import WORKER_PACKAGES, ModelHandler  # noqa: E402
-
-from handlers import model_handler as model_handler_module  # noqa: E402
+from handlers import model_handler as model_handler_module
+from handlers.model_handler import WORKER_PACKAGES, ModelHandler
 
 
 def _deps(*specs: str) -> list[dict]:
@@ -212,6 +194,7 @@ class TestModelEnvSetup:
 
         with (
             patch.object(model_handler_module, "CondaLikeEnvManager", FakeEnvManager),
+            patch.object(model_handler_module, "install_micromamba"),
             patch.object(model_handler_module.importlib_metadata, "version", return_value="1.0"),
             patch.object(model_handler_module.subprocess, "run", locked),
             caplog.at_level(logging.WARNING),
@@ -238,6 +221,7 @@ class TestModelEnvSetup:
 
         with (
             patch.object(model_handler_module, "CondaLikeEnvManager", FakeEnvManager),
+            patch.object(model_handler_module, "install_micromamba"),
             patch.object(model_handler_module.importlib_metadata, "version", return_value="1.0"),
             patch.object(model_handler_module.subprocess, "run", fake_run),
         ):

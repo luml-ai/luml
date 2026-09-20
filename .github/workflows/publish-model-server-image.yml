@@ -6,7 +6,7 @@ on:
     tags:
       - "satellite/model-server/v*"
     paths:
-      - satellite/model_server/**
+      - model_servers/default/**
   workflow_dispatch:
 
 concurrency:
@@ -76,8 +76,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/build-push-action@v6
         with:
-          context: satellite/model_server
-          file: satellite/model_server/Dockerfile
+          context: model_servers/default
+          file: model_servers/default/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ github.sha }}

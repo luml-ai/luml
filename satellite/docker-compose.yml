@@ -31,7 +31,7 @@ services:
   model-image:
     image: luml-random-svc:latest
     build:
-      context: model_server
+      context: ../model_servers/default
     command: ["true"]
     restart: "no"
     networks:

@@ -1,6 +1,4 @@
-import sys
 import tarfile
-import types
 from pathlib import Path
 from unittest.mock import patch
 
@@ -8,24 +6,9 @@ import httpx
 import pytest
 import respx
 
-# model_server code imports via bare module names (e.g. `from clients...`) because
-# conda_worker.py runs with model_server/ on sys.path.
-_model_server_dir = str(Path(__file__).resolve().parent.parent.parent / "model_server")
-if _model_server_dir not in sys.path:
-    sys.path.insert(0, _model_server_dir)
-
-# fnnx builds conda environments and is a model-server runtime dependency, not a test one.
-# Only its import is in the way of reaching the download logic.
-_fnnx_conda = types.ModuleType("fnnx.envs.conda")
-_fnnx_conda.CondaLikeEnvManager = object
-_fnnx_conda.install_micromamba = lambda *args, **kwargs: None
-sys.modules.setdefault("fnnx", types.ModuleType("fnnx"))
-sys.modules.setdefault("fnnx.envs", types.ModuleType("fnnx.envs"))
-sys.modules.setdefault("fnnx.envs.conda", _fnnx_conda)
-
-from clients.agent_client import AgentClient, ArtifactResolutionError  # noqa: E402
-from handlers.file_handler import ArtifactAccessExpired  # noqa: E402
-from handlers.model_handler import ModelHandler  # noqa: E402
+from clients.agent_client import AgentClient, ArtifactResolutionError
+from handlers.file_handler import ArtifactAccessExpired
+from handlers.model_handler import ModelHandler
 
 AGENT_URL = "http://satellite-agent:8000"
 DEPLOYMENT_ID = "01a014fd-1ebc-7021-b0f5-fe92f2fdaf9b"

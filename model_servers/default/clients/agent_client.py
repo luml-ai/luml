@@ -30,9 +30,9 @@ class AgentClient:
         deployment_id: str | None = None,
         token: str | None = None,
     ) -> None:
-        self._base_url = (base_url or os.getenv("SATELLITE_AGENT_URL", "")).rstrip("/")
-        self._deployment_id = deployment_id or os.getenv("DEPLOYMENT_ID", "")
-        self._token = token or os.getenv("MODEL_ARTIFACT_TOKEN", "")
+        self._base_url: str = (base_url or os.getenv("SATELLITE_AGENT_URL") or "").rstrip("/")
+        self._deployment_id: str = deployment_id or os.getenv("DEPLOYMENT_ID") or ""
+        self._token: str = token or os.getenv("MODEL_ARTIFACT_TOKEN") or ""
 
     @property
     def configured(self) -> bool:

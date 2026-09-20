@@ -1,26 +1,17 @@
-import sys
 from collections.abc import Iterator
-from pathlib import Path
 
 import pytest
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider as SDKTracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 
-from agent.monitoring.testing import InMemorySpanExporter
-
-# model_server code imports via bare module names (e.g. `from telemetry import ...`)
-# because conda_worker.py runs with model_server/ on sys.path.
-_model_server_dir = str(Path(__file__).resolve().parent.parent.parent / "model_server")
-if _model_server_dir not in sys.path:
-    sys.path.insert(0, _model_server_dir)
-
-from model_server.telemetry import (  # noqa: E402
+from telemetry import (
     extract_context,
     init_tracer,
     model_span,
     reset,
 )
+from tests.span_exporter import InMemorySpanExporter
 
 
 @pytest.fixture(autouse=True)
