@@ -8,7 +8,7 @@ from luml_satellite.wire import (
     PlatformClient,
     PlatformRefusal,
 )
-from tests.helpers import ARTIFACT_ID, DEPLOYMENT_ID, deployment_record
+from tests.helpers import ARTIFACT_ID, DEPLOYMENT_ID, deployment_record, task_record
 
 
 @pytest.mark.asyncio
@@ -80,3 +80,57 @@ async def test_deprecated_artifact_routes_and_artifact_bytes() -> None:
     assert url_response.status_code == 200
     assert content.status_code == 200
     assert content.content == b"fixture"
+
+
+@pytest.mark.asyncio
+async def test_fake_platform_control_state_can_inspect_and_seed_runtime_records() -> None:
+    platform = FakePlatform()
+    headers = {"Authorization": "Bearer test-token"}
+    deployment = deployment_record()
+    task = task_record()
+
+    async with httpx.AsyncClient(
+        base_url="http://platform",
+        transport=platform.transport,
+        headers=headers,
+    ) as client:
+        seeded = await client.post(
+            "/__fake__/state",
+            json={
+                "deployments": [deployment],
+                "tasks": [task],
+                "allowed_api_keys": ["valid-key"],
+                "monitoring_tokens": {
+                    "launch-token": {"active": False, "claims": None},
+                },
+            },
+        )
+        state = await client.get("/__fake__/state")
+
+    assert seeded.status_code == 204
+    assert state.status_code == 200
+    assert state.json()["deployments"] == [deployment]
+    assert state.json()["tasks"] == [task]
+    assert state.json()["allowed_api_keys"] == ["valid-key"]
+    assert state.json()["monitoring_tokens"] == {"launch-token": {"active": False, "claims": None}}
+    assert state.json()["requests"][-1]["path"] == "/__fake__/state"
+
+
+@pytest.mark.asyncio
+async def test_fake_platform_control_state_requires_authentication_and_valid_records() -> None:
+    platform = FakePlatform()
+
+    async with httpx.AsyncClient(
+        base_url="http://platform",
+        transport=platform.transport,
+    ) as client:
+        unauthorized = await client.get("/__fake__/state")
+        invalid = await client.post(
+            "/__fake__/state",
+            headers={"Authorization": "Bearer test-token"},
+            json={"deployments": [{"name": "missing id"}]},
+        )
+
+    assert unauthorized.status_code == 401
+    assert invalid.status_code == 422
+    assert platform.deployments == {}

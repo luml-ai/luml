@@ -32,6 +32,7 @@ _LEGACY_ARTIFACT_DOWNLOAD_PATH = re.compile(
 )
 _LEGACY_ARTIFACT_PATH = re.compile(r"^/satellites/v1/model_artifacts/([^/]+)$")
 _ARTIFACT_CONTENT_PATH = re.compile(r"^/__fake__/artifacts/([^/]+)$")
+_FAKE_STATE_PATH = "/__fake__/state"
 
 
 @dataclass(frozen=True)
@@ -178,6 +179,12 @@ class FakePlatform:
         if not self._authenticated(scope):
             return _json_response(401, {"detail": "Authentication error"})
 
+        if path == _FAKE_STATE_PATH:
+            if method == "GET":
+                return self._control_state()
+            if method == "POST":
+                return self._seed_control_state(body)
+
         scripted = self.scripted_responses.get((method, path))
         if scripted:
             response = scripted.pop(0)
@@ -240,6 +247,64 @@ class FakePlatform:
             return self._artifact(scope, legacy_artifact_match.group(1), legacy=True)
 
         return _json_response(404, {"detail": "Not Found"})
+
+    def _control_state(self) -> _Response:
+        return _json_response(
+            200,
+            {
+                "deployments": list(self.deployments.values()),
+                "tasks": list(self.tasks.values()),
+                "allowed_api_keys": sorted(self.allowed_api_keys),
+                "monitoring_tokens": self.monitoring_tokens,
+                "requests": [
+                    {
+                        "method": request.method,
+                        "path": request.path,
+                        "query": request.query,
+                        "body": request.body,
+                    }
+                    for request in self.requests
+                ],
+                "transitions": [
+                    {
+                        "resource": transition.resource,
+                        "resource_id": transition.resource_id,
+                        "previous_status": transition.previous_status,
+                        "status": transition.status,
+                        "body": transition.body,
+                    }
+                    for transition in self.transitions
+                ],
+            },
+        )
+
+    def _seed_control_state(self, body: object) -> _Response:
+        if not isinstance(body, Mapping):
+            return _validation_error("body")
+        deployments = _control_records(body, "deployments")
+        tasks = _control_records(body, "tasks")
+        if deployments is None or tasks is None:
+            return _validation_error("id")
+        api_keys = body.get("allowed_api_keys", [])
+        monitoring_tokens = body.get("monitoring_tokens", {})
+        if not isinstance(api_keys, list) or not isinstance(monitoring_tokens, Mapping):
+            return _validation_error("control state")
+        if any(not isinstance(value, Mapping) for value in monitoring_tokens.values()):
+            return _validation_error("monitoring_tokens")
+
+        for deployment in deployments:
+            self.add_deployment(deployment)
+        for task in tasks:
+            self.add_task(task)
+        self.allowed_api_keys.update(str(value) for value in api_keys)
+        self.monitoring_tokens.update(
+            {
+                str(token): _json_mapping(value)
+                for token, value in monitoring_tokens.items()
+                if isinstance(value, Mapping)
+            }
+        )
+        return _Response(204, content_type=None)
 
     def _authenticated(self, scope: Scope) -> bool:
         headers = {
@@ -460,6 +525,18 @@ def _mapping_items(value: object) -> list[Mapping[str, Any]]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, Mapping)]
+
+
+def _control_records(body: Mapping[Any, Any], key: str) -> list[Mapping[str, Any]] | None:
+    value = body.get(key, [])
+    if not isinstance(value, list):
+        return None
+    records: list[Mapping[str, Any]] = []
+    for item in value:
+        if not isinstance(item, Mapping) or not isinstance(item.get("id"), str):
+            return None
+        records.append(item)
+    return records
 
 
 def _json_mapping(value: Mapping[Any, Any]) -> dict[str, Any]:

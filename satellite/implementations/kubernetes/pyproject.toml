@@ -40,7 +40,7 @@ testpaths = ["tests"]
 target-version = "py314"
 line-length = 100
 indent-width = 4
-src = ["luml_satellite_kubernetes", "tests"]
+src = ["luml_satellite_kubernetes", "tests", "e2e"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "ANN", "C4", "SIM", "TID252"]
@@ -61,5 +61,4 @@ split-on-trailing-comma = true
 python_version = "3.14"
 strict = true
 explicit_package_bases = true
-files = ["luml_satellite_kubernetes", "tests"]
-
+files = ["luml_satellite_kubernetes", "tests", "e2e"]

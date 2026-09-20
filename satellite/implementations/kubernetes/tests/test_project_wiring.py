@@ -87,3 +87,36 @@ def test_kubernetes_workflows_exist() -> None:
     assert '"oci://ghcr.io/$OWNER_LOWER/charts"' in chart_workflow
     frontend_workflow = (workflows / "[frontend] tests-and-linters.yml").read_text()
     assert "kubernetes/tests/snapshots/settings_fields.json" in frontend_workflow
+
+
+def test_kind_end_to_end_wiring_and_release_checklist_exist() -> None:
+    workflows = REPOSITORY_ROOT / ".github/workflows"
+    workflow = workflows / "[satellite-kubernetes] end-to-end.yml"
+    e2e_root = PACKAGE_ROOT / "e2e"
+    checklist = PACKAGE_ROOT / "RELEASE_CHECKLIST.md"
+
+    assert workflow.is_file()
+    workflow_text = workflow.read_text()
+    assert "vanilla" in workflow_text
+    assert "openshift" in workflow_text
+    assert "model_servers/default/**" in workflow_text
+    assert "workflow_dispatch" in workflow_text
+    assert "actions/setup-python@v5" in workflow_text
+    assert "python-version: '3.14'" in workflow_text
+    assert (e2e_root / "run.sh").is_file()
+    assert (e2e_root / "test_kind.py").is_file()
+    assert (e2e_root / "kind-config.yaml").is_file()
+    assert checklist.is_file()
+
+    checklist_text = checklist.read_text()
+    for required_check in (
+        "real OpenShift",
+        "GPU",
+        "NetworkPolicy",
+        "satellite token",
+        "derivation key",
+        "assigned user",
+        "satellite/kubernetes/v",
+        "satellite/kubernetes/chart/v",
+    ):
+        assert required_check in checklist_text

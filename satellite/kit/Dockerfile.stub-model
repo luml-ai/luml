@@ -1,0 +1,25 @@
+FROM python:3.14-slim-bookworm
+
+WORKDIR /app
+
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
+ENV PATH="/app/.venv/bin:$PATH"
+
+COPY --from=ghcr.io/astral-sh/uv:0.9.5 /uv /bin/uv
+COPY pyproject.toml uv.lock README.md /app/
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+COPY luml_satellite /app/luml_satellite
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev && \
+    mkdir -p /app/models && \
+    chgrp -R 0 /app && \
+    chmod -R g=u /app
+
+USER 10001:0
+
+CMD ["luml-stub-model-server"]

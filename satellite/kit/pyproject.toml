@@ -25,6 +25,7 @@ monitoring = [
 
 [project.scripts]
 luml-fake-platform = "luml_satellite.testing.fake_platform:main"
+luml-stub-model-server = "luml_satellite.testing.stub_model_server:main"
 luml-artifact-fetch = "luml_satellite.artifact_fetch:main"
 luml-monitoring-worker = "luml_satellite.monitoring.worker_main:main"
 luml-monitoring-dashboard = "luml_satellite.monitoring.dashboard_main:main"

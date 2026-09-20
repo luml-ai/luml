@@ -24,6 +24,7 @@ from luml_satellite.testing.fake_serving import (
     model_description,
 )
 from luml_satellite.testing.scripted_deploy import ScriptedDeployCase
+from luml_satellite.testing.stub_model_server import create_stub_model_server
 
 __all__ = [
     "DEFAULT_MONITORING_FEATURES",
@@ -42,6 +43,7 @@ __all__ = [
     "ServingRegistration",
     "ScriptedDeployCase",
     "assert_driver_conforms",
+    "create_stub_model_server",
     "fake_artifact_handle",
     "model_description",
 ]
