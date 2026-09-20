@@ -1,0 +1,61 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "luml.collectorName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "collector") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "luml.selectorLabels" (dict "root" . "component" "collector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "luml.selectorLabels" (dict "root" . "component" "collector") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "luml.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.satellite.imagePullSecrets }}
+      imagePullSecrets:
+        {{- include "luml.imagePullSecrets" $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: collector
+          image: {{ include "luml.image" .Values.monitoring.collector.image | quote }}
+          imagePullPolicy: {{ .Values.monitoring.collector.image.pullPolicy }}
+          args: ["--config=/etc/otel/config.yaml"]
+          securityContext:
+            {{- include "luml.containerSecurityContext" . | nindent 12 }}
+          {{- if include "luml.storeCredentialsConfigured" . }}
+          env:
+            {{- include "luml.storeCredentialEnv" . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+          resources:
+            {{- toYaml .Values.monitoring.collector.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: otlp-grpc
+            periodSeconds: 10
+          readinessProbe:
+            tcpSocket:
+              port: otlp-grpc
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "luml.collectorName" . | quote }}
+        - name: tmp
+          emptyDir: {}
+{{- end }}

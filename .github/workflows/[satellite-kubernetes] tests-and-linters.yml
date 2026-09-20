@@ -8,6 +8,7 @@ on:
       - 'satellite/kit/**'
       - 'frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts'
       - '.github/workflows/publish-kubernetes-satellite-image.yml'
+      - '.github/workflows/publish-kubernetes-satellite-chart.yml'
       - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   pull_request:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - 'satellite/kit/**'
       - 'frontend/src/components/deployments/form/DeploymentsFormSatelliteSettings.test.ts'
       - '.github/workflows/publish-kubernetes-satellite-image.yml'
+      - '.github/workflows/publish-kubernetes-satellite-chart.yml'
       - '.github/workflows/*satellite-kubernetes*tests-and-linters.yml'
   workflow_dispatch:
 
@@ -51,3 +53,18 @@ jobs:
       - name: Test
         run: uv run pytest
 
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.17.3
+
+      - name: Install Helm unittest
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest.git --version v0.8.0
+
+      - name: Lint Helm chart
+        run: |
+          helm lint chart --strict -f chart/ci/vanilla-values.yaml
+          helm lint chart --strict -f chart/ci/openshift-values.yaml
+
+      - name: Test Helm chart
+        run: helm unittest --strict chart

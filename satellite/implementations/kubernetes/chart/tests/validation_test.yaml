@@ -1,0 +1,50 @@
+suite: chart value validation
+templates:
+  - templates/deployment-satellite.yaml
+  - templates/configmap-collector.yaml
+  - templates/secret-store.yaml
+  - templates/secret-object-storage.yaml
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: rejects external mode without a host
+    template: templates/configmap-collector.yaml
+    set:
+      monitoring.store.mode: external
+    asserts:
+      - failedTemplate:
+          errorMessage: monitoring.store.host is required in external mode
+
+  - it: rejects incomplete direct store credentials
+    template: templates/secret-store.yaml
+    set:
+      monitoring.store.username: user
+    asserts:
+      - failedTemplate:
+          errorMessage: monitoring.store.username and monitoring.store.password must be set together
+
+  - it: rejects incomplete direct object storage credentials
+    template: templates/secret-object-storage.yaml
+    set:
+      monitoring.store.objectStorage.enabled: true
+      monitoring.store.objectStorage.accessKey: access
+    asserts:
+      - failedTemplate:
+          errorMessage: monitoring.store.objectStorage.accessKey and secretKey must be set together
+
+  - it: rejects a sidecar cache TTL that conflicts with refresh ahead
+    template: templates/deployment-satellite.yaml
+    set:
+      sidecar.cacheTtlSeconds: 15
+    asserts:
+      - failedTemplate:
+          errorPattern: sidecar.cacheTtlSeconds
+
+  - it: rejects an unknown security preset
+    template: templates/deployment-satellite.yaml
+    set:
+      podSecurity.preset: unknown
+    asserts:
+      - failedTemplate:
+          errorPattern: podSecurity.preset

@@ -37,6 +37,15 @@ def deployment_object_name(deployment_id: str) -> str:
     return f"luml-dep-{deployment_id.lower()}"
 
 
+def _suffixed_object_name(prefix: str, suffix: str) -> str:
+    candidate = f"{prefix}-{suffix}"
+    if len(candidate) <= 63:
+        return candidate
+    digest = hashlib.sha256(prefix.encode()).hexdigest()[:8]
+    prefix_length = 63 - len(suffix) - len(digest) - 2
+    return f"{prefix[:prefix_length].rstrip('-')}-{digest}-{suffix}"
+
+
 def render_deployment_manifests(
     configuration: KubernetesConfiguration,
     deployment: Deployment,
@@ -84,7 +93,7 @@ def render_deployment_manifests(
     init_container = {
         "name": "artifact-fetch",
         "image": configuration.SERVING_IMAGE,
-        "imagePullPolicy": "IfNotPresent",
+        "imagePullPolicy": configuration.SERVING_IMAGE_PULL_POLICY,
         "command": ["luml-artifact-fetch"],
         "env": [
             _literal_env("MODEL_ARTIFACT_ID", artifact_id),
@@ -99,7 +108,7 @@ def render_deployment_manifests(
     model_container = {
         "name": "model",
         "image": configuration.MODEL_IMAGE,
-        "imagePullPolicy": "IfNotPresent",
+        "imagePullPolicy": configuration.MODEL_IMAGE_PULL_POLICY,
         "env": [
             _secret_env(key, name, _model_secret_key(key)) for key in sorted(model_environment)
         ],
@@ -115,7 +124,7 @@ def render_deployment_manifests(
     sidecar = {
         "name": "sidecar",
         "image": configuration.SERVING_IMAGE,
-        "imagePullPolicy": "IfNotPresent",
+        "imagePullPolicy": configuration.SERVING_IMAGE_PULL_POLICY,
         "env": [
             _literal_env("DEPLOYMENT_ID", deployment_id),
             _literal_env("SATELLITE_INTERNAL_URL", configuration.SATELLITE_INTERNAL_URL),
@@ -126,6 +135,14 @@ def render_deployment_manifests(
             ),
             _literal_env("SERVING_PORT", str(configuration.SERVING_PORT)),
             _literal_env("INTERNAL_PORT", str(configuration.INTERNAL_PORT)),
+            _literal_env(
+                "COMPANION_CACHE_TTL_SECONDS",
+                str(configuration.SIDECAR_CACHE_TTL_SEC),
+            ),
+            _literal_env(
+                "COMPANION_STALE_ALLOWANCE_SECONDS",
+                str(configuration.SIDECAR_STALE_ALLOWANCE_SEC),
+            ),
             _literal_env("LOG_LEVEL", settings.log_level),
             _literal_env("RECORDING_SAMPLE_RATE", str(context.recording_policy.sample_rate)),
             _literal_env(
@@ -233,7 +250,7 @@ def render_cache_sweep_job(
 ) -> dict[str, Any]:
     if configuration.SHARED_CACHE_CLAIM_NAME is None:
         raise ValueError("a shared cache claim is required for a cache sweep")
-    name = f"{configuration.SATELLITE_NAME}-cache-sweep"
+    name = _suffixed_object_name(configuration.SATELLITE_NAME, "cache-sweep")
     labels = {
         KUBERNETES_MANAGED_BY_LABEL: "luml-satellite",
         KUBERNETES_SATELLITE_LABEL: configuration.SATELLITE_NAME,
@@ -250,10 +267,14 @@ def render_cache_sweep_job(
                 "spec": {
                     "restartPolicy": "Never",
                     "securityContext": configuration.pod_security_context,
+                    "imagePullSecrets": [
+                        {"name": item} for item in configuration.IMAGE_PULL_SECRETS
+                    ],
                     "containers": [
                         {
                             "name": "cache-sweep",
                             "image": configuration.SERVING_IMAGE,
+                            "imagePullPolicy": configuration.SERVING_IMAGE_PULL_POLICY,
                             "command": ["luml-artifact-fetch", "--sweep"],
                             "env": [
                                 _literal_env(

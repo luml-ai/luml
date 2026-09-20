@@ -157,6 +157,7 @@ def test_shared_cache_is_offered_only_when_a_claim_exists() -> None:
             {"DEPLOYMENT_REPLICAS_MAX": PLATFORM_INTEGER_MAX + 1},
             "DEPLOYMENT_REPLICAS_MAX",
         ),
+        ({"SIDECAR_CACHE_TTL_SEC": 15}, "SIDECAR_CACHE_TTL_SEC"),
     ],
 )
 def test_contradictory_limits_stop_configuration(

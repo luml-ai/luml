@@ -327,7 +327,11 @@ async def test_driver_passes_the_shared_conformance_suite() -> None:
 async def test_sweep_runs_only_for_a_shared_cache() -> None:
     without_cache = InMemoryKubernetesApi()
     without_driver = KubernetesDriver(configuration(), without_cache)
-    with_config = configuration(SHARED_CACHE_CLAIM_NAME="release-one-cache")
+    with_config = configuration(
+        SHARED_CACHE_CLAIM_NAME="release-one-cache",
+        SERVING_IMAGE_PULL_POLICY="Always",
+        IMAGE_PULL_SECRETS=["private-registry"],
+    )
     with_cache = InMemoryKubernetesApi()
     with_driver = KubernetesDriver(with_config, with_cache)
 
@@ -341,6 +345,25 @@ async def test_sweep_runs_only_for_a_shared_cache() -> None:
     assert job["spec"]["template"]["spec"]["containers"][0]["env"] == [
         {"name": "MODEL_ARTIFACT_KEEP", "value": ARTIFACT_ID}
     ]
+    assert job["spec"]["template"]["spec"]["containers"][0]["imagePullPolicy"] == "Always"
+    assert job["spec"]["template"]["spec"]["imagePullSecrets"] == [{"name": "private-registry"}]
+
+
+@pytest.mark.asyncio
+async def test_sweep_name_is_valid_for_the_longest_helm_release_name() -> None:
+    config = configuration(
+        SATELLITE_NAME="a" * 53,
+        SHARED_CACHE_CLAIM_NAME="shared-cache",
+    )
+    api = InMemoryKubernetesApi()
+    driver = KubernetesDriver(config, api)
+
+    await driver.sweep({ARTIFACT_ID})
+
+    kind, name = api.apply_calls[0]
+    assert kind == "Job"
+    assert len(name) == 63
+    assert name.endswith("-cache-sweep")
 
 
 async def _started_driver(

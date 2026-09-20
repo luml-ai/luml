@@ -23,13 +23,16 @@ _KUBERNETES_QUANTITY = re.compile(
 
 class KubernetesConfiguration(SatelliteConfiguration):
     BASE_URL: str = "http://localhost"
+    SATELLITE_SLUG: str = Field(default="kubernetes-2026.01-v1", min_length=1)
     NAMESPACE: str = Field(default="default", min_length=1)
     SATELLITE_NAME: str = Field(default="luml", min_length=1)
     SATELLITE_INTERNAL_URL: str = "http://luml-satellite:8001"
     INTERNAL_PORT: int = Field(default=8001, ge=1, le=65535)
 
     MODEL_IMAGE: str = Field(default="luml-model-server:latest", min_length=1)
+    MODEL_IMAGE_PULL_POLICY: Literal["Always", "IfNotPresent", "Never"] = "IfNotPresent"
     SERVING_IMAGE: str = Field(default="ghcr.io/luml-ai/luml-satellite-serving:dev", min_length=1)
+    SERVING_IMAGE_PULL_POLICY: Literal["Always", "IfNotPresent", "Never"] = "IfNotPresent"
     MODEL_SERVER_PORT: int = Field(default=8080, ge=1, le=65535)
     SERVING_PORT: int = Field(default=8000, ge=1, le=65535)
     INGRESS_HOST: str = Field(default="localhost", min_length=1)
@@ -63,6 +66,8 @@ class KubernetesConfiguration(SatelliteConfiguration):
     CONTAINER_SECURITY_CONTEXT: dict[str, Any] | None = None
     IMAGE_PULL_SECRETS: list[str] = Field(default_factory=list)
     SIDECAR_RESOURCES: dict[str, Any] = Field(default_factory=dict)
+    SIDECAR_CACHE_TTL_SEC: float = Field(default=60.0, gt=15.0)
+    SIDECAR_STALE_ALLOWANCE_SEC: float = Field(default=600.0, ge=0.0)
 
     KUBERNETES_FIELD_MANAGER: str = "luml-satellite"
     REMOVAL_TIMEOUT_SEC: float = Field(default=60.0, ge=0)

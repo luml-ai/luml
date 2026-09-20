@@ -11,7 +11,7 @@ from luml_satellite.container import (
 from luml_satellite.testing import FakePlatform, ScriptedDeployCase
 
 from luml_satellite_kubernetes import InMemoryKubernetesApi, KubernetesDriver
-from luml_satellite_kubernetes.main import SLUG, build_runtime
+from luml_satellite_kubernetes.main import build_runtime
 from luml_satellite_kubernetes.manifests import deployment_object_name
 from tests.support import (
     ARTIFACT_ID,
@@ -68,7 +68,7 @@ async def test_scripted_deploy_reaches_the_shared_status_sequence() -> None:
 async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_process() -> None:
     fake_platform = FakePlatform()
     fake_platform.allowed_api_keys.add("access-key")
-    config = configuration()
+    config = configuration(SATELLITE_SLUG="custom-kubernetes-v1")
     api = InMemoryKubernetesApi()
 
     async with PlatformClient(
@@ -129,7 +129,7 @@ async def test_main_composition_pairs_reconciles_and_keeps_compute_out_of_proces
     assert internal.status_code == 404
     assert deployments.status_code == 200
     assert deployments.json() == []
-    assert body["slug"] == SLUG
+    assert body["slug"] == "custom-kubernetes-v1"
     assert body["kit"]["kind"] == "kubernetes"
     assert body["base_url"] == "http://satellite.example"
     assert isinstance(body["openapi"], dict)

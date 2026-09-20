@@ -1,0 +1,103 @@
+{{- if and .Values.monitoring.enabled (eq .Values.monitoring.store.mode "standalone") }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "luml.storeName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "store") | nindent 4 }}
+spec:
+  serviceName: {{ include "luml.storeName" . | quote }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "luml.selectorLabels" (dict "root" . "component" "store") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "luml.selectorLabels" (dict "root" . "component" "store") | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "luml.podSecurityContext" . | nindent 8 }}
+      {{- with .Values.satellite.imagePullSecrets }}
+      imagePullSecrets:
+        {{- include "luml.imagePullSecrets" $ | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: store
+          image: {{ include "luml.image" .Values.monitoring.store.image | quote }}
+          imagePullPolicy: {{ .Values.monitoring.store.image.pullPolicy }}
+          args:
+            - standalone
+            - start
+            - --http-addr=0.0.0.0:4000
+            - --rpc-addr=0.0.0.0:4001
+          securityContext:
+            {{- include "luml.containerSecurityContext" . | nindent 12 }}
+          {{- if .Values.monitoring.store.objectStorage.enabled }}
+          env:
+            - name: GREPTIMEDB_STANDALONE__STORAGE__TYPE
+              value: S3
+            - name: GREPTIMEDB_STANDALONE__STORAGE__ENDPOINT
+              value: {{ .Values.monitoring.store.objectStorage.endpoint | quote }}
+            - name: GREPTIMEDB_STANDALONE__STORAGE__BUCKET
+              value: {{ .Values.monitoring.store.objectStorage.bucket | quote }}
+            - name: GREPTIMEDB_STANDALONE__STORAGE__REGION
+              value: {{ .Values.monitoring.store.objectStorage.region | quote }}
+            {{- if or .Values.monitoring.store.objectStorage.existingSecret .Values.monitoring.store.objectStorage.accessKey }}
+            - name: GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "luml.objectStorageSecretName" . | quote }}
+                  key: {{ include "luml.objectStorageAccessKey" . | quote }}
+            - name: GREPTIMEDB_STANDALONE__STORAGE__SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "luml.objectStorageSecretName" . | quote }}
+                  key: {{ include "luml.objectStorageSecretKey" . | quote }}
+            {{- end }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 4000
+            - name: grpc
+              containerPort: 4001
+          resources:
+            {{- toYaml .Values.monitoring.store.resources | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /tmp/greptimedb
+            - name: tmp
+              mountPath: /tmp/runtime
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- if not .Values.monitoring.store.persistence.enabled }}
+        - name: data
+          emptyDir: {}
+        {{- end }}
+  {{- if .Values.monitoring.store.persistence.enabled }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels:
+          {{- include "luml.labels" (dict "root" . "component" "store") | nindent 10 }}
+      spec:
+        accessModes:
+          {{- toYaml .Values.monitoring.store.persistence.accessModes | nindent 10 }}
+        {{- if .Values.monitoring.store.persistence.storageClass }}
+        storageClassName: {{ .Values.monitoring.store.persistence.storageClass | quote }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.monitoring.store.persistence.size | quote }}
+  {{- end }}
+{{- end }}

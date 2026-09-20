@@ -1,0 +1,167 @@
+nameOverride: ""
+fullnameOverride: ""
+
+satellite:
+  token: ""
+  existingSecret: ""
+  existingSecretKey: satellite-token
+  derivationKey: ""
+  platformUrl: https://api.luml.ai
+  host: satellite.example.com
+  baseUrl: ""
+  slug: kubernetes-2026.01-v1
+  pollIntervalSeconds: 2
+  logLevel: info
+  image:
+    repository: ghcr.io/luml-ai/luml-satellite-kubernetes
+    tag: dev
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  resources: {}
+
+model:
+  image:
+    repository: ghcr.io/luml-ai/luml-model-server
+    tag: dev
+    pullPolicy: IfNotPresent
+
+sidecar:
+  image:
+    repository: ghcr.io/luml-ai/luml-satellite-serving
+    tag: dev
+    pullPolicy: IfNotPresent
+  cacheTtlSeconds: 60
+  staleAllowanceSeconds: 600
+  recording:
+    sampleRate: 1.0
+    bodyMaxBytes: 65536
+    keepInputs: true
+    keepOutputs: true
+  resources: {}
+
+deploymentLimits:
+  replicas:
+    maximum: 64
+    default: 1
+  cpuMillicores:
+    minimum: 100
+    maximum: 64000
+    default: 1000
+  memory:
+    values:
+      - 512Mi
+      - 1Gi
+      - 2Gi
+      - 4Gi
+      - 8Gi
+      - 16Gi
+      - 32Gi
+      - 64Gi
+    default: 2Gi
+  healthCheckTimeoutSeconds:
+    minimum: 60
+    maximum: 7200
+    default: 1800
+
+gpu:
+  enabled: false
+  maximumCount: 8
+  resourceNames:
+    - nvidia.com/gpu
+    - amd.com/gpu
+  nodeSelector: {}
+  tolerations: []
+  runtimeClassName: ""
+
+sharedCache:
+  enabled: false
+  existingClaim: ""
+  size: 20Gi
+  storageClass: ""
+  accessModes:
+    - ReadWriteMany
+
+ingress:
+  className: ""
+  annotations: {}
+  tls:
+    secretName: ""
+
+podSecurity:
+  preset: vanilla
+  podContext: {}
+  containerContext: {}
+
+monitoring:
+  enabled: true
+  frameAncestors: ""
+  sessionSecret: ""
+  sessionTtlSeconds: 1800
+  logLevel: info
+  image:
+    repository: ghcr.io/luml-ai/luml-satellite-monitoring
+    tag: dev
+    pullPolicy: IfNotPresent
+  dashboard:
+    replicas: 1
+    resources: {}
+  worker:
+    resources: {}
+    intervalSeconds: 60
+    windowSeconds: 300
+    maxBackfillWindows: 12
+    deploymentsRefreshSeconds: 60
+  collector:
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: 0.127.0
+      pullPolicy: IfNotPresent
+    resources: {}
+  store:
+    mode: standalone
+    image:
+      repository: greptime/greptimedb
+      tag: v0.13.1
+      pullPolicy: IfNotPresent
+    host: ""
+    port: 4000
+    database: public
+    username: ""
+    password: ""
+    existingSecret: ""
+    existingSecretUsernameKey: username
+    existingSecretPasswordKey: password
+    resources: {}
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClass: ""
+      accessModes:
+        - ReadWriteOnce
+    objectStorage:
+      enabled: false
+      endpoint: ""
+      bucket: ""
+      region: ""
+      accessKey: ""
+      secretKey: ""
+      existingSecret: ""
+      existingSecretAccessKeyKey: access-key
+      existingSecretSecretKeyKey: secret-key
+    retention:
+      events: 30d
+      results: 30d
+      alerts: 30d
+      traces: 30d
+      metrics: 7d
+
+networkPolicy:
+  enabled: true
+
+rbac:
+  create: true
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}

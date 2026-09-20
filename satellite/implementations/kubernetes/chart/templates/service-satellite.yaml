@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "luml.satelliteName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "satellite") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "luml.selectorLabels" (dict "root" . "component" "satellite") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+    - name: internal
+      port: 8001
+      targetPort: internal

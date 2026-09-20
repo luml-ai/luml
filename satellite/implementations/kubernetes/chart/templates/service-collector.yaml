@@ -1,0 +1,16 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "luml.collectorName" . | quote }}
+  labels:
+    {{- include "luml.labels" (dict "root" . "component" "collector") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "luml.selectorLabels" (dict "root" . "component" "collector") | nindent 4 }}
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+{{- end }}

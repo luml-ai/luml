@@ -76,5 +76,14 @@ def test_kubernetes_workflows_exist() -> None:
 
     assert (workflows / "[satellite-kubernetes] tests-and-linters.yml").is_file()
     assert (workflows / "publish-kubernetes-satellite-image.yml").is_file()
+    assert (workflows / "publish-kubernetes-satellite-chart.yml").is_file()
+    kubernetes_workflow = (workflows / "[satellite-kubernetes] tests-and-linters.yml").read_text()
+    assert "helm lint chart --strict" in kubernetes_workflow
+    assert "helm unittest --strict chart" in kubernetes_workflow
+    chart_workflow = (workflows / "publish-kubernetes-satellite-chart.yml").read_text()
+    assert '"satellite/kubernetes/chart/v*"' in chart_workflow
+    assert "helm package satellite/implementations/kubernetes/chart" in chart_workflow
+    assert "helm push" in chart_workflow
+    assert '"oci://ghcr.io/$OWNER_LOWER/charts"' in chart_workflow
     frontend_workflow = (workflows / "[frontend] tests-and-linters.yml").read_text()
     assert "kubernetes/tests/snapshots/settings_fields.json" in frontend_workflow

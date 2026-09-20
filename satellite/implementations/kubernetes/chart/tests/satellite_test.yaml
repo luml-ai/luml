@@ -1,0 +1,188 @@
+suite: satellite deployment configuration
+templates:
+  - templates/deployment-satellite.yaml
+release:
+  name: unit
+  namespace: models
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: runs one polling copy with recreate and secret checksums
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.strategy.type
+          value: Recreate
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+          pattern: ^[0-9a-f]{64}$
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+          pattern: ^[0-9a-f]{64}$
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.httpGet.path
+          value: /livez
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.httpGet.path
+          value: /livez
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DERIVATION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: unit-luml-satellite-kubernetes-derivation-key
+                key: derivation-key
+
+  - it: passes operator limits and GPU placement to satellite configuration
+    set:
+      deploymentLimits.replicas.maximum: 7
+      deploymentLimits.replicas.default: 2
+      deploymentLimits.cpuMillicores.minimum: 250
+      deploymentLimits.cpuMillicores.maximum: 8000
+      deploymentLimits.cpuMillicores.default: 750
+      deploymentLimits.memory.values:
+        - 1Gi
+        - 3Gi
+      deploymentLimits.memory.default: 3Gi
+      deploymentLimits.healthCheckTimeoutSeconds.minimum: 90
+      deploymentLimits.healthCheckTimeoutSeconds.maximum: 900
+      deploymentLimits.healthCheckTimeoutSeconds.default: 300
+      gpu.enabled: true
+      gpu.maximumCount: 4
+      gpu.resourceNames:
+        - amd.com/gpu
+      gpu.nodeSelector:
+        accelerator: amd
+      gpu.tolerations:
+        - key: gpu
+          operator: Exists
+      gpu.runtimeClassName: amd-runtime
+      model.image.pullPolicy: Always
+      sidecar.image.pullPolicy: Never
+      satellite.imagePullSecrets:
+        - private-registry
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_REPLICAS_MAX, value: "7"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_REPLICAS_DEFAULT, value: "2"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_CPU_MIN_MILLICORES, value: "250"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_CPU_MAX_MILLICORES, value: "8000"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_CPU_DEFAULT_MILLICORES, value: "750"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_MEMORY_VALUES, value: '["1Gi","3Gi"]'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_MEMORY_DEFAULT, value: 3Gi}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_HEALTH_TIMEOUT_MIN, value: "90"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_HEALTH_TIMEOUT_MAX, value: "900"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: DEPLOYMENT_HEALTH_TIMEOUT_DEFAULT, value: "300"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_OFFERED, value: "true"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_COUNT_MAX, value: "4"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_RESOURCE_NAMES, value: '["amd.com/gpu"]'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_NODE_SELECTOR, value: '{"accelerator":"amd"}'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_TOLERATIONS, value: '[{"key":"gpu","operator":"Exists"}]'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_RUNTIME_CLASS, value: amd-runtime}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: MODEL_IMAGE_PULL_POLICY, value: Always}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SERVING_IMAGE_PULL_POLICY, value: Never}
+      - equal:
+          path: spec.template.spec.imagePullSecrets
+          value: [{name: private-registry}]
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: IMAGE_PULL_SECRETS, value: '["private-registry"]'}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SIDECAR_CACHE_TTL_SEC, value: "60"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SIDECAR_STALE_ALLOWANCE_SEC, value: "600"}
+
+  - it: does not offer GPUs by default
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_OFFERED, value: "false"}
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GPU_RUNTIME_CLASS}
+          any: true
+
+  - it: wires an existing satellite token secret
+    set:
+      satellite.existingSecret: "true"
+      satellite.existingSecretKey: "true"
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.name
+          value: "true"
+      - equal:
+          path: spec.template.spec.containers[0].env[0].valueFrom.secretKeyRef.key
+          value: "true"
+
+  - it: derives an HTTP base URL without TLS
+    set:
+      satellite.host: model.example.test
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: BASE_URL, value: "http://model.example.test"}
+
+  - it: derives an HTTPS base URL with TLS
+    set:
+      satellite.host: model.example.test
+      ingress.tls.secretName: ingress-tls
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: BASE_URL, value: "https://model.example.test"}
+
+  - it: derives an HTTPS base URL for OpenShift edge termination
+    set:
+      satellite.host: model.example.test
+      podSecurity.preset: openshift
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: BASE_URL, value: "https://model.example.test"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: INGRESS_CLASS, value: openshift-default}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: SECURITY_PRESET, value: openshift}

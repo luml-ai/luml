@@ -71,7 +71,7 @@ def build_runtime(
         public_application=placement.application,
         internal_application=placement.internal_application,
         pairing_document=placement.application.openapi,
-        slug=SLUG,
+        slug=configuration.SATELLITE_SLUG,
         on_paired=lambda paired: driver.bind_satellite(paired.id),
     )
 

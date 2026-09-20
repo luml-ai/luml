@@ -71,6 +71,11 @@ def test_gpu_shared_cache_and_replica_manifests_match_the_golden_projection() ->
     config = configuration(
         GPU_OFFERED=True,
         SHARED_CACHE_CLAIM_NAME="release-one-model-cache",
+        MODEL_IMAGE_PULL_POLICY="Always",
+        SERVING_IMAGE_PULL_POLICY="Never",
+        IMAGE_PULL_SECRETS=["private-registry"],
+        SIDECAR_CACHE_TTL_SEC=90,
+        SIDECAR_STALE_ALLOWANCE_SEC=900,
         GPU_NODE_SELECTOR={"accelerator": "amd"},
         GPU_TOLERATIONS=[{"key": "gpu", "operator": "Exists", "effect": "NoSchedule"}],
         GPU_RUNTIME_CLASS="gpu-runtime",
@@ -115,6 +120,10 @@ def test_gpu_shared_cache_and_replica_manifests_match_the_golden_projection() ->
     assert pod_spec["nodeSelector"] == {"accelerator": "amd"}
     assert pod_spec["tolerations"] == [{"key": "gpu", "operator": "Exists", "effect": "NoSchedule"}]
     assert pod_spec["runtimeClassName"] == "gpu-runtime"
+    assert pod_spec["imagePullSecrets"] == [{"name": "private-registry"}]
+    assert model["imagePullPolicy"] == "Always"
+    assert fetch["imagePullPolicy"] == "Never"
+    assert sidecar["imagePullPolicy"] == "Never"
     assert [path["path"] for path in _ingress_paths(manifests.ingress)] == [
         f"/deployments/{DEPLOYMENT_ID}/monitoring",
         f"/deployments/{DEPLOYMENT_ID}",
@@ -138,6 +147,8 @@ def test_gpu_shared_cache_and_replica_manifests_match_the_golden_projection() ->
     assert "SATELLITE_TOKEN" not in sidecar_env
     assert "DERIVATION_KEY" not in sidecar_env
     assert sidecar_env["LOG_LEVEL"]["value"] == "debug"
+    assert sidecar_env["COMPANION_CACHE_TTL_SECONDS"]["value"] == "90.0"
+    assert sidecar_env["COMPANION_STALE_ALLOWANCE_SECONDS"]["value"] == "900.0"
     for container in [fetch, model, sidecar]:
         assert container["securityContext"]["capabilities"] == {"drop": ["ALL"]}
         assert container["securityContext"]["allowPrivilegeEscalation"] is False

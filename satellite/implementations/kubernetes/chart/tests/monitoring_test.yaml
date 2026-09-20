@@ -1,0 +1,229 @@
+suite: monitoring workloads and store modes
+templates:
+  - templates/deployment-dashboard.yaml
+  - templates/deployment-worker.yaml
+  - templates/deployment-collector.yaml
+  - templates/configmap-collector.yaml
+  - templates/statefulset-store.yaml
+  - templates/service-store.yaml
+  - templates/secret-object-storage.yaml
+  - templates/secret-store.yaml
+release:
+  name: monitoring
+  namespace: models
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: mounts token and derivation secrets with checksums into the dashboard
+    template: templates/deployment-dashboard.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+          pattern: ^[0-9a-f]{64}$
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+          pattern: ^[0-9a-f]{64}$
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: SATELLITE_TOKEN
+            valueFrom:
+              secretKeyRef:
+                name: monitoring-luml-satellite-kubernetes-token
+                key: satellite-token
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DERIVATION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: monitoring-luml-satellite-kubernetes-derivation-key
+                key: derivation-key
+
+  - it: mounts token and derivation secrets with checksums into the worker
+    template: templates/deployment-worker.yaml
+    asserts:
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/satellite-token"]
+          pattern: ^[0-9a-f]{64}$
+      - matchRegex:
+          path: spec.template.metadata.annotations["checksum/derivation-key"]
+          pattern: ^[0-9a-f]{64}$
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: DERIVATION_KEY
+            valueFrom:
+              secretKeyRef:
+                name: monitoring-luml-satellite-kubernetes-derivation-key
+                key: derivation-key
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value: [luml-monitoring-worker, --probe]
+
+  - it: runs the standalone store with its service and data volume
+    template: templates/statefulset-store.yaml
+    asserts:
+      - isKind:
+          of: StatefulSet
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.serviceName
+          value: monitoring-luml-satellite-kubernetes-store
+      - equal:
+          path: spec.volumeClaimTemplates[0].metadata.name
+          value: data
+      - equal:
+          path: spec.volumeClaimTemplates[0].spec.accessModes
+          value: [ReadWriteOnce]
+
+  - it: exposes the standalone store service
+    template: templates/service-store.yaml
+    asserts:
+      - isKind:
+          of: Service
+      - contains:
+          path: spec.ports
+          content: {name: http, port: 4000, targetPort: http}
+
+  - it: configures object storage on the standalone store
+    template: templates/statefulset-store.yaml
+    set:
+      monitoring.store.objectStorage.enabled: true
+      monitoring.store.objectStorage.endpoint: https://objects.example.test
+      monitoring.store.objectStorage.bucket: luml-monitoring
+      monitoring.store.objectStorage.region: eu-test-1
+      monitoring.store.objectStorage.existingSecret: object-store
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GREPTIMEDB_STANDALONE__STORAGE__TYPE, value: S3}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GREPTIMEDB_STANDALONE__STORAGE__ENDPOINT, value: "https://objects.example.test"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GREPTIMEDB_STANDALONE__STORAGE__ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: object-store
+                key: access-key
+
+  - it: creates chart-managed object storage credentials
+    template: templates/secret-object-storage.yaml
+    set:
+      monitoring.store.objectStorage.enabled: true
+      monitoring.store.objectStorage.accessKey: access
+      monitoring.store.objectStorage.secretKey: secret
+    asserts:
+      - equal:
+          path: stringData.access-key
+          value: access
+      - equal:
+          path: stringData.secret-key
+          value: secret
+
+  - it: leaves object storage credentials to an existing secret
+    template: templates/secret-object-storage.yaml
+    set:
+      monitoring.store.objectStorage.enabled: true
+      monitoring.store.objectStorage.existingSecret: object-store
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: removes the in-chart store workload in external mode
+    template: templates/statefulset-store.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: removes the in-chart store service in external mode
+    template: templates/service-store.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: points kit store settings at the external store and its existing credentials
+    template: templates/deployment-dashboard.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+      monitoring.store.port: 4444
+      monitoring.store.database: luml
+      monitoring.store.existingSecret: external-greptime
+      monitoring.store.existingSecretUsernameKey: user
+      monitoring.store.existingSecretPasswordKey: pass
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GREPTIMEDB_HOST, value: greptime.example.test}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GREPTIMEDB_HTTP_PORT, value: "4444"}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: {name: GREPTIMEDB_DATABASE, value: luml}
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: GREPTIMEDB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: external-greptime
+                key: user
+
+  - it: templates the external address database and credentials into the collector
+    template: templates/configmap-collector.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+      monitoring.store.port: 4444
+      monitoring.store.database: luml
+      monitoring.store.username: collector
+      monitoring.store.password: secret
+    asserts:
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: http://greptime\.example\.test:4444/v1/otlp
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: 'x-greptime-db-name: "luml"'
+      - matchRegex:
+          path: data["config.yaml"]
+          pattern: basicauth/client
+
+  - it: creates chart-managed external store credentials
+    template: templates/secret-store.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+      monitoring.store.username: collector
+      monitoring.store.password: secret
+    asserts:
+      - equal:
+          path: stringData.username
+          value: collector
+      - equal:
+          path: stringData.password
+          value: secret
+
+  - it: leaves external store credentials to an existing secret
+    template: templates/secret-store.yaml
+    set:
+      monitoring.store.mode: external
+      monitoring.store.host: greptime.example.test
+      monitoring.store.existingSecret: external-greptime
+    asserts:
+      - hasDocuments:
+          count: 0

@@ -1,0 +1,30 @@
+suite: generated derivation key upgrades
+templates:
+  - templates/secret-derivation.yaml
+release:
+  name: upgrade
+  namespace: models
+  upgrade: true
+set:
+  satellite.token: test-token
+kubernetesProvider:
+  scheme:
+    "v1/Secret":
+      gvr:
+        version: v1
+        resource: secrets
+      namespaced: true
+  objects:
+    - apiVersion: v1
+      kind: Secret
+      metadata:
+        name: upgrade-luml-satellite-kubernetes-derivation-key
+        namespace: models
+      data:
+        derivation-key: c3RhYmxlLWdlbmVyYXRlZC1rZXk=
+tests:
+  - it: keeps the key returned by lookup during an upgrade
+    asserts:
+      - equal:
+          path: stringData.derivation-key
+          value: stable-generated-key
