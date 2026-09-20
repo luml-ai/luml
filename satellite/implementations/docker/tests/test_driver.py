@@ -2,6 +2,7 @@ import asyncio
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
+import aiohttp
 import pytest
 from aiodocker.exceptions import DockerError
 from luml_satellite import (
@@ -173,6 +174,55 @@ async def test_observe_distinguishes_missing_from_an_unknown_daemon_answer() -> 
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "transient_error",
+    [
+        DockerError(500, "daemon busy"),
+        TimeoutError("daemon timed out"),
+        aiohttp.ClientConnectionError("socket closed"),
+        OSError("connection reset"),
+    ],
+)
+async def test_observe_retries_transient_lookup_and_status_errors(
+    transient_error: BaseException,
+) -> None:
+    fake = FakeDocker()
+    container = fake.containers.add(f"sat-{DEPLOYMENT_ID}")
+    sleeps: list[float] = []
+
+    async def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+
+    fake.containers.get_effects[f"sat-{DEPLOYMENT_ID}"].append(transient_error)
+    container.show_errors.append(transient_error)
+    driver = DockerDriver(
+        configuration(),
+        client=fake.as_client(),
+        satellite_id=SATELLITE_ID,
+        sleep=sleep,
+    )
+
+    after_lookup_error = await driver.observe(DEPLOYMENT_ID)
+    after_status_error = await driver.observe(DEPLOYMENT_ID)
+
+    assert after_lookup_error.state is WorkloadState.READY
+    assert after_status_error.state is WorkloadState.READY
+    assert sleeps == [1.0, 1.0]
+
+
+@pytest.mark.asyncio
+async def test_observe_treats_a_container_removed_during_status_read_as_missing() -> None:
+    fake = FakeDocker()
+    container = fake.containers.add(f"sat-{DEPLOYMENT_ID}")
+    container.show_errors.append(DockerError(404, "No such container"))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    observation = await driver.observe(DEPLOYMENT_ID)
+
+    assert observation.state is WorkloadState.MISSING
+
+
+@pytest.mark.asyncio
 async def test_listing_marks_only_this_satellites_labelled_containers_as_owned() -> None:
     fake = FakeDocker()
     own_labels = {
@@ -249,6 +299,26 @@ async def test_release_and_sweep_preserve_referenced_or_mounted_cache_volumes() 
     }
     sweep = fake.containers.containers.get("cache-1")
     assert sweep is None
+
+
+@pytest.mark.asyncio
+async def test_release_deletes_only_an_unreferenced_existing_cache_volume() -> None:
+    fake = FakeDocker()
+    referenced = model_cache_volume("referenced")
+    unused = model_cache_volume("unused")
+    mounted = model_cache_volume("mounted")
+    fake.volumes.add(referenced)
+    fake.volumes.add(unused)
+    fake.volumes.add(mounted, in_use=True)
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.release_artifact("referenced", still_referenced=True)
+    await driver.release_artifact("unused", still_referenced=False)
+    await driver.release_artifact("mounted", still_referenced=False)
+    await driver.release_artifact("missing", still_referenced=False)
+
+    assert set(fake.volumes.volumes) == {referenced, mounted}
+    assert fake.volumes.deleted == [unused]
 
 
 @pytest.mark.asyncio

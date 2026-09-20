@@ -93,9 +93,7 @@ async def test_pairing_document_matches_snapshot_and_has_only_the_two_declared_c
     body = cast(dict[str, Any], request.body)
     document = cast(dict[str, Any], body["openapi"])
     snapshot = _read_json(Path(__file__).parent / "snapshots" / "static_openapi.json")
-    old_document = _read_json(
-        Path(__file__).parents[3] / "tests" / "snapshots" / "static_openapi.json"
-    )
+    old_document = _read_json(Path(__file__).parent / "snapshots" / "legacy_static_openapi.json")
     expected = copy.deepcopy(old_document)
     expected["paths"][INFERENCE_ACCESS_PATH]["post"]["security"] = [{"HTTPBearer": []}]
     expected["paths"][DEPLOYMENT_SCHEMA_PATH] = document["paths"][DEPLOYMENT_SCHEMA_PATH]

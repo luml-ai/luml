@@ -6,12 +6,18 @@ on:
     paths:
       - 'satellite/implementations/docker/**'
       - 'satellite/kit/**'
+      - 'satellite/.env.example'
+      - 'satellite/docker-compose.yml'
+      - '.github/workflows/publish-satellite-agent-image.yml'
       - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   pull_request:
     branches: [ main ]
     paths:
       - 'satellite/implementations/docker/**'
       - 'satellite/kit/**'
+      - 'satellite/.env.example'
+      - 'satellite/docker-compose.yml'
+      - '.github/workflows/publish-satellite-agent-image.yml'
       - '.github/workflows/*satellite-docker*tests-and-linters.yml'
   workflow_dispatch:
 
