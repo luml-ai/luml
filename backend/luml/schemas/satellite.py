@@ -19,6 +19,7 @@ from luml.schemas.base import BaseOrmConfig
 
 DEPLOY_CAPABILITY = "deploy"
 MONITORING_CAPABILITY = "monitoring"
+SATELLITE_API_VERSION = 1
 MAX_OPENAPI_DOCUMENT_SIZE_BYTES = 2 * 1024 * 1024
 RESERVED_CAPABILITIES = frozenset({DEPLOY_CAPABILITY, MONITORING_CAPABILITY})
 SUPPORTED_CAPABILITY_DECLARATION_VERSIONS: dict[str, frozenset[int]] = {
@@ -65,7 +66,7 @@ class CapabilityEnvelope(BaseModel):
 
 
 class DeployCapabilityV1(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     version: Literal[1]
     api_versions: list[CapabilityVersion] = Field(default_factory=lambda: [1])
@@ -76,7 +77,7 @@ class DeployCapabilityV1(BaseModel):
 
 
 class MonitoringCapabilityV1(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")
 
     version: Literal[1]
     api_versions: list[CapabilityVersion] = Field(default_factory=lambda: [1])
@@ -222,6 +223,13 @@ class SatelliteStatus(StrEnum):
     ERROR = "error"  # orange
 
 
+class KitInfo(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    version: str = Field(min_length=1, max_length=255)
+    kind: str = Field(min_length=1, max_length=255)
+    api_version: int = Field(strict=True, ge=1)
+
+
 class Satellite(BaseModel, BaseOrmConfig):
     id: UUID
     orbit_id: UUID
@@ -231,6 +239,7 @@ class Satellite(BaseModel, BaseOrmConfig):
     paired: bool
     capabilities: dict[str, dict[str, Any]]
     slug: str | None = None
+    kit_info: KitInfo | None = None
     created_at: datetime
     updated_at: datetime | None = None
     last_seen_at: datetime | None = None
@@ -268,10 +277,11 @@ class SatelliteCreate(BaseModel, BaseOrmConfig):
 
 
 class SatellitePairIn(BaseModel):
-    base_url: HttpUrl
+    base_url: HttpUrl | None = None
     capabilities: dict[str, dict[str, Any]]
     slug: str | None = None
     openapi: dict[str, Any] | None = None
+    kit: KitInfo | None = None
 
     @field_validator("openapi")
     @classmethod
@@ -298,12 +308,18 @@ class SatellitePairIn(BaseModel):
 
 class SatellitePair(BaseModel, BaseOrmConfig):
     id: UUID
-    base_url: str
+    base_url: str | None
     capabilities: dict[str, dict[str, Any]]
     slug: str | None = None
     openapi: dict[str, Any] | None = None
+    kit_info: KitInfo | None = None
     paired: bool = True
     last_seen_at: datetime
+
+
+class SatelliteContract(BaseModel):
+    api_version: Literal[1] = 1
+    openapi: dict[str, Any]
 
 
 class SatelliteUpdateIn(BaseModel, BaseOrmConfig):

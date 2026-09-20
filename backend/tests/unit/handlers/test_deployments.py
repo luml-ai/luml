@@ -143,6 +143,10 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         artifact_id=artifact_id,
         monitoring_mode=MonitoringMode.FULL,
+        satellite_parameters={
+            "health_check_timeout": 60,
+            "future_setting": "kept",
+        },
         tags=["tag"],
     )
     deployment_create_data = DeploymentCreate(
@@ -151,6 +155,7 @@ async def test_create_deployment(
         satellite_id=satellite_id,
         artifact_id=artifact_id,
         monitoring_mode=MonitoringMode.FULL,
+        satellite_parameters=deployment_create_data_in.satellite_parameters,
         tags=deployment_create_data_in.tags,
         created_by_user=user_name,
     )
@@ -1274,7 +1279,9 @@ async def test_update_deployment_details_forwards_only_the_fields_sent(
         DeploymentDetailsUpdateIn(name="new-name"),
     )
 
-    forwarded = mock_update_deployment_details.await_args.args[2]
+    update_call = mock_update_deployment_details.await_args
+    assert update_call is not None
+    forwarded = update_call.args[2]
     assert forwarded.model_fields_set == {"name"}
     assert forwarded.model_dump(exclude_unset=True) == {"name": "new-name"}
 
@@ -1627,6 +1634,58 @@ async def test_update_worker_deployment(
     "luml.handlers.deployments.DeploymentRepository.update_deployment",
     new_callable=AsyncMock,
 )
+@pytest.mark.asyncio
+async def test_provider_ref_and_progress_note_are_forwarded_and_clearable(
+    mock_update_deployment: AsyncMock,
+) -> None:
+    deployment_id = UUID("0199c337-09f7-751e-add2-d952f0d6cf4e")
+    satellite_id = UUID("0199c337-09f9-706e-9b80-58939d5fba79")
+    mock_update_deployment.return_value = Mock(spec=Deployment)
+
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(
+            provider_ref="provider-job-123",
+            progress_note="Creating workload",
+        ),
+    )
+    await handler.update_worker_deployment(
+        satellite_id,
+        deployment_id,
+        DeploymentUpdateIn(status=DeploymentStatus.ACTIVE, progress_note=None),
+    )
+
+    first_update = mock_update_deployment.await_args_list[0].args[2]
+    second_update = mock_update_deployment.await_args_list[1].args[2]
+    assert first_update.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "provider_ref": "provider-job-123",
+        "progress_note": "Creating workload",
+    }
+    assert second_update.model_dump(exclude_unset=True) == {
+        "id": deployment_id,
+        "status": DeploymentStatus.ACTIVE,
+        "progress_note": None,
+    }
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        {"provider_ref": "p" * 513},
+        {"progress_note": "n" * 1001},
+    ],
+)
+def test_worker_deployment_metadata_is_bounded(data: dict[str, str]) -> None:
+    with pytest.raises(ValidationError):
+        DeploymentUpdateIn.model_validate(data)
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentRepository.update_deployment",
+    new_callable=AsyncMock,
+)
 @pytest.mark.parametrize(
     "monitoring_url",
     ["/deployments/dep-1/monitoring", None],
@@ -1648,7 +1707,9 @@ async def test_update_worker_deployment_preserves_partial_fields(
     )
 
     assert result is expected
-    update = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    update = update_call.args[2]
     assert update.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "monitoring_url": monitoring_url,
@@ -1679,7 +1740,9 @@ async def test_update_worker_deployment_leaves_unsent_fields_alone(
         DeploymentUpdateIn(status=DeploymentStatus.ACTIVE),
     )
 
-    sent = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    sent = update_call.args[2]
     assert sent.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "status": DeploymentStatus.ACTIVE,
@@ -1705,7 +1768,9 @@ async def test_update_worker_deployment_can_clear_error_message_explicitly(
         DeploymentUpdateIn(status=DeploymentStatus.ACTIVE, error_message=None),
     )
 
-    sent = mock_update_deployment.await_args.args[2]
+    update_call = mock_update_deployment.await_args
+    assert update_call is not None
+    sent = update_call.args[2]
     assert sent.model_dump(exclude_unset=True) == {
         "id": deployment_id,
         "status": DeploymentStatus.ACTIVE,

@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, Mock, call
 from uuid import UUID, uuid7
 
@@ -62,10 +63,11 @@ class TestArtifactsBatchDeletion:
         check_access = AsyncMock(return_value=(orbit, Mock()))
         get_storage_client = AsyncMock(return_value=storage_client)
 
-        handler._ArtifactHandler__repository = repository
-        handler._ArtifactHandler__permissions_handler = permissions
-        handler._check_orbit_and_collection_access = check_access
-        handler._get_storage_client = get_storage_client
+        untyped_handler: Any = handler
+        untyped_handler._ArtifactHandler__repository = repository
+        untyped_handler._ArtifactHandler__permissions_handler = permissions
+        untyped_handler._check_orbit_and_collection_access = check_access
+        untyped_handler._get_storage_client = get_storage_client
 
         return SimpleNamespace(
             handler=handler,

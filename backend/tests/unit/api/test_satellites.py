@@ -104,3 +104,20 @@ def test_delete_deployment_from_another_satellite_is_rejected(
     assert response.status_code == 404
     assert response.json() == {"detail": "Deployment not found"}
     mock_delete_satellite_deployment.assert_not_awaited()
+
+
+@patch(
+    "luml.handlers.deployments.DeploymentHandler.update_worker_deployment",
+    new_callable=AsyncMock,
+)
+def test_progress_note_over_the_limit_is_rejected(
+    mock_update_worker_deployment: AsyncMock,
+) -> None:
+    response = _client(OWNER_SATELLITE_ID, OWNER_ORBIT_ID).patch(
+        DEPLOYMENT_PATH,
+        json={"progress_note": "n" * 1001},
+    )
+
+    assert response.status_code == 422
+    assert "progress_note" in response.text
+    mock_update_worker_deployment.assert_not_awaited()

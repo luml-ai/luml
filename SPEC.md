@@ -1176,13 +1176,13 @@ Plain objects with labels instead of a custom resource and operator keep the sat
   - [x] Add the serving Dockerfile (3.14, both extras, non-root) and its publish workflow
   - [x] Tests: the companion cache timeline, a 403 or 404 from the companion API served from the stale cache and never cached as a denial, companion API refusals, sidecar boot with the satellite down and with the deployment not yet registered, a monitoring mode change reaching the sidecar within one TTL, recorder selection and policy precedence, the trace-context header reaching the upstream through the sidecar, the internal port guard, the companion API left ungated by the starting gate
 
-- [ ] Extend the satellite contract in the backend
-  - [ ] The next migration with the guarded downgrade and the ORM changes in `backend/luml/models/deployment.py` and `backend/luml/models/satellite.py`
-  - [ ] Capability schemas keeping unknown fields, the optional pairing address, the kit object and its storage, the new deployment fields with limits, in `backend/luml/schemas/` and `backend/luml/handlers/satellites.py`
-  - [ ] The launch base resolution, the launch URL, the new ineligibility reason and the 409 for minting without a base in `backend/luml/schemas/monitoring.py` and `backend/luml/handlers/monitoring.py`
-  - [ ] Verification of satellite parameters against the declared field list at deployment creation, in `backend/luml/handlers/deployments.py`, with condition evaluation matching `frontend/src/hooks/satellites/useSatelliteFields.ts`, and the shared condition case file under `backend/tests/` covering every condition type, operator and nested group with matching and non-matching values and manifests
-  - [ ] The public contract route in `backend/luml/api/satellites.py`, included in the service
-  - [ ] Tests under `backend/tests/` for every backend scenario and the migration, with the parameter verification run over every shared condition case; mypy, ruff and pytest pass
+- [x] Extend the satellite contract in the backend
+  - [x] The next migration with the guarded downgrade and the ORM changes in `backend/luml/models/deployment.py` and `backend/luml/models/satellite.py`
+  - [x] Capability schemas keeping unknown fields, the optional pairing address, the kit object and its storage, the new deployment fields with limits, in `backend/luml/schemas/` and `backend/luml/handlers/satellites.py`
+  - [x] The launch base resolution, the launch URL, the new ineligibility reason and the 409 for minting without a base in `backend/luml/schemas/monitoring.py` and `backend/luml/handlers/monitoring.py`
+  - [x] Verification of satellite parameters against the declared field list at deployment creation, in `backend/luml/handlers/deployments.py`, with condition evaluation matching `frontend/src/hooks/satellites/useSatelliteFields.ts`, and the shared condition case file under `backend/tests/` covering every condition type, operator and nested group with matching and non-matching values and manifests
+  - [x] The public contract route in `backend/luml/api/satellites.py`, included in the service
+  - [x] Tests under `backend/tests/` for every backend scenario and the migration, with the parameter verification run over every shared condition case; mypy, ruff and pytest pass
 
 - [ ] Show the new satellite contract fields in the frontend
   - [ ] Update the satellite, deployment and monitoring interfaces, the monitoring store, the monitoring page copy, the schema page and its OpenAPI component, the settings form default seeding and validator, the deployments table, the deployment editor and the satellites card under `frontend/src/`

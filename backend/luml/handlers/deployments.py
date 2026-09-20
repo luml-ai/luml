@@ -1,3 +1,6 @@
+import re
+from collections.abc import Mapping
+from typing import Never
 from uuid import UUID
 
 from fastapi import status
@@ -39,6 +42,280 @@ from luml.schemas.satellite import (
     SatelliteQueueTask,
 )
 
+_MISSING = object()
+_KNOWN_VALIDATORS = frozenset({"min", "max", "regex", "equal", "in", "notEqual"})
+
+
+def _strict_equal(left: object, right: object) -> bool:
+    if (
+        isinstance(left, int | float)
+        and not isinstance(left, bool)
+        and isinstance(right, int | float)
+        and not isinstance(right, bool)
+    ):
+        return left == right
+    return type(left) is type(right) and left == right
+
+
+def _field_condition_holds(
+    body: Mapping[str, object], current_values: Mapping[str, object]
+) -> bool:
+    field = body.get("field")
+    operator = body.get("operator")
+    if not isinstance(field, str) or not isinstance(operator, str):
+        return False
+
+    if operator == "includes":
+        return field in current_values
+    if operator == "notIncludes":
+        return field not in current_values
+
+    current = current_values.get(field, _MISSING)
+    expected = body.get("value")
+    if operator == "equal":
+        return _strict_equal(current, expected)
+    if operator == "notEqual":
+        return not _strict_equal(current, expected)
+    if not (
+        isinstance(current, int | float)
+        and not isinstance(current, bool)
+        and isinstance(expected, int | float)
+        and not isinstance(expected, bool)
+    ):
+        return False
+    comparisons = {
+        "gt": current > expected,
+        "gte": current >= expected,
+        "lt": current < expected,
+        "lte": current <= expected,
+    }
+    return comparisons.get(operator, False)
+
+
+def _tag_condition_holds(
+    operator: str, expected: object, producer_tags: list[str]
+) -> bool:
+    if not isinstance(expected, list):
+        return True
+    combinations = [
+        (
+            isinstance(combination, list),
+            isinstance(combination, list)
+            and all(tag in producer_tags for tag in combination),
+        )
+        for combination in expected
+    ]
+    if operator == "includes":
+        return any(valid and matches for valid, matches in combinations)
+    if operator == "notIncludes":
+        return all(valid and not matches for valid, matches in combinations)
+    return False
+
+
+def _variant_condition_holds(operator: str, expected: object, variant: str) -> bool:
+    if operator == "eq":
+        return _strict_equal(variant, expected)
+    if operator == "neq":
+        return not _strict_equal(variant, expected)
+    if operator == "includes":
+        return isinstance(expected, str) and variant in expected
+    if operator == "notIncludes":
+        return isinstance(expected, str) and variant not in expected
+    return False
+
+
+def _model_condition_holds(
+    body: Mapping[str, object],
+    producer_tags: list[str],
+    version: str,
+    variant: str,
+) -> bool:
+    field = body.get("field")
+    operator = body.get("operator")
+    expected = body.get("value")
+    if not isinstance(field, str) or not isinstance(operator, str):
+        return False
+
+    if field == "tags":
+        return _tag_condition_holds(operator, expected, producer_tags)
+    if field == "version":
+        if operator == "eq":
+            return _strict_equal(version, expected)
+        if operator == "neq":
+            return not _strict_equal(version, expected)
+        return False
+    if field == "variant":
+        return _variant_condition_holds(operator, expected, variant)
+    return False
+
+
+def _condition_holds(
+    condition: object,
+    current_values: Mapping[str, object],
+    producer_tags: list[str],
+    version: str,
+    variant: str,
+) -> bool:
+    if not isinstance(condition, Mapping):
+        return True
+    body = condition.get("body")
+    if isinstance(body, list):
+        return satellite_field_conditions_hold(
+            body,
+            current_values,
+            producer_tags=producer_tags,
+            version=version,
+            variant=variant,
+        )
+
+    condition_type = condition.get("type")
+    if not isinstance(condition_type, str) or condition_type not in {
+        "field",
+        "model",
+    }:
+        return True
+    if not isinstance(body, Mapping):
+        return False
+    if condition_type == "field":
+        return _field_condition_holds(body, current_values)
+    return _model_condition_holds(body, producer_tags, version, variant)
+
+
+def satellite_field_conditions_hold(
+    conditions: object,
+    current_values: Mapping[str, object],
+    *,
+    producer_tags: list[str],
+    version: str | None,
+    variant: str | None,
+) -> bool:
+    if not isinstance(conditions, list):
+        return True
+    return all(
+        _condition_holds(
+            condition,
+            current_values,
+            producer_tags,
+            version or "",
+            variant or "",
+        )
+        for condition in conditions
+    )
+
+
+def _field_type_accepts(field: Mapping[str, object], value: object) -> bool | None:
+    field_type = field.get("type")
+    if field_type == "boolean":
+        return type(value) is bool
+    if field_type == "number":
+        return type(value) is int
+    if field_type == "text":
+        return type(value) is str
+    if field_type != "dropdown":
+        return None
+
+    options = field.get("values")
+    if not isinstance(options, list):
+        return False
+    return any(
+        isinstance(option, Mapping)
+        and _strict_equal(value, option.get("value", _MISSING))
+        for option in options
+    )
+
+
+def _validator_accepts(value: object, validator: object) -> bool | None:
+    if not isinstance(validator, Mapping):
+        return None
+    validator_type = validator.get("type")
+    if not isinstance(validator_type, str) or validator_type not in _KNOWN_VALIDATORS:
+        return None
+    expected = validator.get("value")
+    try:
+        if validator_type == "min":
+            return (
+                isinstance(value, int | float)
+                and not isinstance(value, bool)
+                and isinstance(expected, int | float)
+                and not isinstance(expected, bool)
+                and value >= expected
+            )
+        if validator_type == "max":
+            return (
+                isinstance(value, int | float)
+                and not isinstance(value, bool)
+                and isinstance(expected, int | float)
+                and not isinstance(expected, bool)
+                and value <= expected
+            )
+        if validator_type == "regex":
+            return (
+                isinstance(value, str)
+                and isinstance(expected, str)
+                and re.search(expected, value) is not None
+            )
+        if validator_type == "equal":
+            return _strict_equal(value, expected)
+        if validator_type == "notEqual":
+            return not _strict_equal(value, expected)
+        if validator_type == "in":
+            return isinstance(expected, list) and any(
+                _strict_equal(value, item) for item in expected
+            )
+    except re.error:
+        return False
+    return False
+
+
+def _parameter_error(field: str, rule: str) -> Never:
+    raise ApplicationError(
+        f"Invalid satellite parameter '{field}': failed {rule}",
+        status.HTTP_422_UNPROCESSABLE_CONTENT,
+    )
+
+
+def validate_satellite_parameters(
+    deploy: DeployCapabilityV1,
+    parameters: Mapping[str, object],
+    artifact: Artifact,
+) -> None:
+    for field in deploy.extra_fields_form_spec:
+        name = field.get("name")
+        if not isinstance(name, str):
+            continue
+        offered = satellite_field_conditions_hold(
+            field.get("conditions", []),
+            parameters,
+            producer_tags=artifact.manifest.producer_tags,
+            version=artifact.manifest.version,
+            variant=artifact.manifest.variant,
+        )
+        present = name in parameters
+        if present and not offered:
+            _parameter_error(name, "condition")
+        if field.get("required") is True and offered and not present:
+            _parameter_error(name, "required rule")
+        if not present:
+            continue
+
+        value = parameters[name]
+        type_result = _field_type_accepts(field, value)
+        if type_result is False:
+            _parameter_error(name, f"type '{field.get('type')}'")
+
+        validators = field.get("validators", [])
+        if not isinstance(validators, list):
+            continue
+        for validator in validators:
+            result = _validator_accepts(value, validator)
+            if result is False:
+                validator_type = (
+                    validator.get("type")
+                    if isinstance(validator, Mapping)
+                    else "validator"
+                )
+                _parameter_error(name, f"validator '{validator_type}'")
+
 
 class DeploymentHandler:
     __repo = DeploymentRepository(engine)
@@ -74,6 +351,7 @@ class DeploymentHandler:
         satellite: Satellite,
         artifact: Artifact,
         monitoring_mode: MonitoringMode,
+        satellite_parameters: Mapping[str, object],
     ) -> None:
         cls._require_present_capability(satellite, DEPLOY_CAPABILITY)
         deploy = DeployCapabilityV1.model_validate(
@@ -97,6 +375,8 @@ class DeploymentHandler:
                 "supported_tags_combinations",
                 status.HTTP_409_CONFLICT,
             )
+
+        validate_satellite_parameters(deploy, satellite_parameters, artifact)
 
         if monitoring_mode != MonitoringMode.OFF:
             cls._require_present_capability(satellite, MONITORING_CAPABILITY)
@@ -140,6 +420,7 @@ class DeploymentHandler:
             satellite,
             artifact,
             data.monitoring_mode,
+            data.satellite_parameters,
         )
 
         try:

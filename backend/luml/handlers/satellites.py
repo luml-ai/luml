@@ -232,10 +232,15 @@ class SatelliteHandler:
 
         satellite_pair = SatellitePair(
             id=satellite_id,
-            base_url=str(satellite_in.base_url),
+            base_url=(
+                str(satellite_in.base_url)
+                if satellite_in.base_url is not None
+                else None
+            ),
             capabilities=capabilities,
             slug=satellite_in.slug,
             openapi=satellite_in.openapi,
+            kit_info=satellite_in.kit,
             paired=True,
             last_seen_at=datetime.now(UTC),
         )

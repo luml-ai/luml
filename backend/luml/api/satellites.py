@@ -1,7 +1,9 @@
+from functools import lru_cache
 from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
+from fastapi.openapi.utils import get_openapi
 
 from luml.handlers.artifacts import ArtifactHandler
 from luml.handlers.deployments import DeploymentHandler
@@ -27,7 +29,9 @@ from luml.schemas.monitoring import (
 )
 from luml.schemas.orbit_secret import OrbitSecret
 from luml.schemas.satellite import (
+    SATELLITE_API_VERSION,
     Satellite,
+    SatelliteContract,
     SatellitePairIn,
     SatelliteQueueTask,
     SatelliteTaskStatus,
@@ -40,6 +44,7 @@ satellite_worker_router = APIRouter(
     dependencies=[Depends(UserAuthentication(["satellite"]))],
     tags=["satellites-worker"],
 )
+satellite_contract_router = APIRouter(prefix="/satellites/v1")
 
 satellite_handler = SatelliteHandler()
 deployment_handler = DeploymentHandler()
@@ -258,3 +263,17 @@ async def get_model_artifact(
         request.user.orbit_id, model_artifact_id
     )
     return SatelliteModelArtifactResponse(artifact=result.artifact, url=result.url)
+
+
+@lru_cache(maxsize=1)
+def _contract_openapi() -> dict[str, Any]:
+    return get_openapi(
+        title="LUML Satellite API",
+        version=str(SATELLITE_API_VERSION),
+        routes=[*satellite_worker_router.routes, *satellite_contract_router.routes],
+    )
+
+
+@satellite_contract_router.get("/contract", response_model=SatelliteContract)
+async def get_satellite_contract() -> SatelliteContract:
+    return SatelliteContract(openapi=_contract_openapi())
