@@ -1,4 +1,6 @@
-from pydantic import AnyHttpUrl, Field
+from typing import Self
+
+from pydantic import AnyHttpUrl, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,6 +27,8 @@ class SatelliteConfiguration(BaseSettings):
     GREPTIMEDB_HOST: str = "localhost"
     GREPTIMEDB_HTTP_PORT: int = 4000
     GREPTIMEDB_DATABASE: str = "public"
+    GREPTIMEDB_USERNAME: str | None = None
+    GREPTIMEDB_PASSWORD: str | None = None
 
     POLL_BACKOFF_MAX_SEC: float = Field(default=60.0, gt=0)
     MAX_PARALLEL_CONVERGENCE: int = Field(default=8, gt=0)
@@ -46,6 +50,12 @@ class SatelliteConfiguration(BaseSettings):
 
     def monitoring_frame_ancestors(self) -> list[str]:
         return self.MONITORING_FRAME_ANCESTORS.split()
+
+    @model_validator(mode="after")
+    def validate_store_credentials(self) -> Self:
+        if (self.GREPTIMEDB_USERNAME is None) != (self.GREPTIMEDB_PASSWORD is None):
+            raise ValueError("GREPTIMEDB_USERNAME and GREPTIMEDB_PASSWORD must be set together")
+        return self
 
 
 Configuration = SatelliteConfiguration

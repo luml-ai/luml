@@ -1,4 +1,5 @@
 from luml_satellite._version import KIT_NAME, KIT_VERSION, SATELLITE_API_VERSION
+from luml_satellite.authorization import AuthorizationVerdict, Authorizer, PlatformAuthorizer
 from luml_satellite.container import (
     ContainerResources,
     build_container_environment,
@@ -113,6 +114,8 @@ __all__ = [
     "KIT_VERSION",
     "SATELLITE_API_VERSION",
     "ArtifactDownload",
+    "Authorizer",
+    "AuthorizationVerdict",
     "AuthenticationFailure",
     "ArtifactDeliveryMode",
     "CapabilityDeclaration",
@@ -155,6 +158,7 @@ __all__ = [
     "PairedSatellite",
     "PairingRequest",
     "PlatformAuthenticationError",
+    "PlatformAuthorizer",
     "PlatformClient",
     "PlatformError",
     "PlatformRefusal",

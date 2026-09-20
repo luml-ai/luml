@@ -36,10 +36,6 @@ class MonitoringStore(Protocol):
         """Append a ``failed`` / ``recovered`` entry to a metric's history."""
         ...
 
-    async def fetch_metric_transitions(
-        self, deployment_id: str, since: datetime
-    ) -> list[MetricTransition]: ...
-
     async def last_materialized_window(self, deployment_id: str) -> datetime | None:
         """End of the newest window already materialized, or ``None`` for a fresh deployment.
 

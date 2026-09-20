@@ -166,12 +166,21 @@ class GreptimeQueryStore:
         profile_source: Callable[[UUID], dict[str, Any] | None] | None = None,
         profile_status_source: Callable[[UUID], ProfileStatus | str] | None = None,
         deployment_source: Callable[[UUID], dict[str, Any] | None] | None = None,
+        username: str | None = None,
+        password: str | None = None,
     ) -> None:
+        if (username is None) != (password is None):
+            raise ValueError("username and password must be set together")
         self._url = f"http://{host}:{port}/v1/sql"
         self._database = database
         self._timeout = timeout
         self._client = client
         self._owns_client = client is None
+        self._auth = (
+            httpx.BasicAuth(username, password)
+            if username is not None and password is not None
+            else None
+        )
         self._profile_source = profile_source
         self._profile_status_source = profile_status_source
         self._deployment_source = deployment_source
@@ -188,9 +197,18 @@ class GreptimeQueryStore:
 
     async def _query(self, sql: str) -> tuple[list[str], list[list[Any]]]:
         try:
-            response = await self._get_client().post(
-                self._url, params={"db": self._database}, data={"sql": sql}
-            )
+            client = self._get_client()
+            if self._auth is None:
+                response = await client.post(
+                    self._url, params={"db": self._database}, data={"sql": sql}
+                )
+            else:
+                response = await client.post(
+                    self._url,
+                    params={"db": self._database},
+                    data={"sql": sql},
+                    auth=self._auth,
+                )
         except httpx.HTTPError as error:
             raise MonitoringStoreUnavailable("GreptimeDB unreachable") from error
         try:

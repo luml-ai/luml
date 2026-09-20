@@ -11,11 +11,12 @@ class InferenceEvent:
     latency_ms: float
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     status_code: int | None = None
-    inputs: dict[str, Any] | None = None
-    output: dict[str, Any] | None = None
+    inputs: object | None = None
+    output: object | None = None
     error: str | None = None
     trace_id: str | None = None
     span_id: str | None = None
+    bodies_sampled: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         d: dict[str, Any] = {
@@ -24,6 +25,7 @@ class InferenceEvent:
             "status": self.status,
             "latency_ms": self.latency_ms,
             "timestamp": self.timestamp,
+            "bodies_sampled": self.bodies_sampled,
         }
         if self.status_code is not None:
             d["status_code"] = self.status_code

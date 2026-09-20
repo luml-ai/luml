@@ -21,7 +21,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from luml_satellite import DeploymentMetadata
 from luml_satellite.monitoring import LocalDeployment, MonitoringQueryService, register_monitoring
-from luml_satellite.monitoring.compute.health import worker_health
+from luml_satellite.monitoring.compute.health import WorkerHealth
 from luml_satellite.monitoring.dashboard.api import (
     DeploymentNotHostedError,
     build_machine_router,
@@ -55,6 +55,8 @@ def app() -> Iterator[FastAPI]:
     application = FastAPI()
     security = HTTPBearer(auto_error=False)
     deployments: dict[str, LocalDeployment] = {}
+    worker_health = WorkerHealth()
+    application.state.worker_health = worker_health
 
     @application.exception_handler(DeploymentNotHostedError)
     async def deployment_not_hosted(
@@ -263,6 +265,7 @@ class TestMachineAPI:
         assert resp.status_code in (404, 405)
 
     async def test_the_listing_says_what_is_monitored_here(self, app: FastAPI) -> None:
+        worker_health: WorkerHealth = app.state.worker_health
         worker_health.window_processed(
             str(DEPLOYMENT_ID),
             datetime.fromtimestamp(FIXED_NOW - 300, tz=UTC),

@@ -186,7 +186,11 @@ class GreptimeMonitoringStore:
         traces_ttl: str = "",
         metrics_ttl: str = "",
         ttl_retry_seconds: float = 60.0,
+        username: str | None = None,
+        password: str | None = None,
     ) -> None:
+        if (username is None) != (password is None):
+            raise ValueError("username and password must be set together")
         self._events_ttl = events_ttl
         self._results_ttl = results_ttl
         self._alerts_ttl = alerts_ttl
@@ -197,6 +201,11 @@ class GreptimeMonitoringStore:
         self._timeout = timeout
         self._client = client
         self._owns_client = client is None
+        self._auth = (
+            httpx.BasicAuth(username, password)
+            if username is not None and password is not None
+            else None
+        )
         self._tables_ready = False
         # Collector-owned tables that did not exist when their retention was first set;
         # tried again, at most once per ``ttl_retry_seconds``, until they appear.
@@ -216,9 +225,18 @@ class GreptimeMonitoringStore:
             self._client = None
 
     async def _execute(self, sql: str) -> dict[str, Any]:
-        response = await self._get_client().post(
-            self._url, params={"db": self._database}, data={"sql": sql}
-        )
+        client = self._get_client()
+        if self._auth is None:
+            response = await client.post(
+                self._url, params={"db": self._database}, data={"sql": sql}
+            )
+        else:
+            response = await client.post(
+                self._url,
+                params={"db": self._database},
+                data={"sql": sql},
+                auth=self._auth,
+            )
         if response.status_code == 400:
             # GreptimeDB answers a plan error with 400 and the reason in the JSON body;
             # a missing table is the one reason that has its own meaning here.

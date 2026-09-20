@@ -99,7 +99,3 @@ class WorkerHealth:
             last_tick_at=self.last_tick_at,
             deployment=self.for_deployment(deployment_id),
         )
-
-
-# One per process, like the deployment handler: the worker writes it, the API reads it.
-worker_health = WorkerHealth()

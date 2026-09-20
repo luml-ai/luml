@@ -1,3 +1,6 @@
+import pytest
+from pydantic import ValidationError
+
 from luml_satellite.declaration import SatelliteConfiguration
 
 
@@ -24,6 +27,8 @@ def test_configuration_keeps_existing_and_new_defaults() -> None:
     assert configuration.GREPTIMEDB_HOST == "localhost"
     assert configuration.GREPTIMEDB_HTTP_PORT == 4000
     assert configuration.GREPTIMEDB_DATABASE == "public"
+    assert configuration.GREPTIMEDB_USERNAME is None
+    assert configuration.GREPTIMEDB_PASSWORD is None
     assert configuration.POLL_BACKOFF_MAX_SEC == 60
     assert configuration.MAX_PARALLEL_CONVERGENCE == 8
     assert configuration.MAX_RELAUNCH_ATTEMPTS == 3
@@ -66,3 +71,8 @@ def test_two_configurations_coexist_without_shared_state() -> None:
     assert second.SATELLITE_TOKEN == "second-token"
     assert second.BASE_URL is None
     assert second.POLL_INTERVAL_SEC == 5
+
+
+def test_store_credentials_must_be_configured_together() -> None:
+    with pytest.raises(ValidationError, match="GREPTIMEDB_USERNAME and GREPTIMEDB_PASSWORD"):
+        SatelliteConfiguration(SATELLITE_TOKEN="token", GREPTIMEDB_USERNAME="monitoring")

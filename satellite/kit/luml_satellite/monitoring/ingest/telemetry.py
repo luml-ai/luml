@@ -45,7 +45,7 @@ class _OTLPEventExporter:
         with self._tracer.start_as_current_span("inference_event") as span:
             for key, value in event.to_dict().items():
                 if value is not None:
-                    if isinstance(value, dict):
+                    if isinstance(value, dict | list):
                         span.set_attribute(f"inference.{key}", json.dumps(value))
                     elif isinstance(value, (str, int, float, bool)):
                         span.set_attribute(f"inference.{key}", value)

@@ -1,3 +1,8 @@
+from luml_satellite.monitoring.bundle import (
+    DeploymentProvider,
+    MonitoringBundle,
+    MonitoringLinkProvider,
+)
 from luml_satellite.monitoring.compute.data_quality import DataQualityMetric
 from luml_satellite.monitoring.compute.feature_drift import FeatureDriftMetric
 from luml_satellite.monitoring.compute.metric import Metric, MetricInput
@@ -49,6 +54,7 @@ __all__ = [
     "AlertSignal",
     "AlertState",
     "DataQualityMetric",
+    "DeploymentProvider",
     "DeploymentContext",
     "FeatureDriftMetric",
     "GreptimeMonitoringStore",
@@ -65,6 +71,8 @@ __all__ = [
     "MetricResult",
     "MonitoredDeployment",
     "MonitoringQueryService",
+    "MonitoringBundle",
+    "MonitoringLinkProvider",
     "MonitoringSession",
     "MonitoringSessionStore",
     "MonitoringStore",

@@ -1156,11 +1156,11 @@ Plain objects with labels instead of a custom resource and operator keep the sat
   - [x] Copy the checked-in static assets into the kit so the copied embedding test finds the dashboard bundle; the next task replaces them with the rebuilt bundle
   - [x] Tests: copy the monitoring tests into the kit with the same assertions, from both places they live in: the directory `satellite/tests/unit/monitoring/` and the top-level files `test_monitoring_worker.py`, `test_monitoring_data_quality.py`, `test_monitoring_feature_drift.py`, `test_monitoring_output_drift.py`, `test_monitoring_multivariate_drift.py`, `test_greptime_store.py`, `test_runtime_health.py` and `test_telemetry_setup.py` in `satellite/tests/unit/`
 
-- [ ] Add the monitoring bundle, authorizer and recording policy
-  - [ ] Add the authorizer contract and the platform-backed authorizer to the core
-  - [ ] Add per-instance worker health, the recording contract implemented by the instrumentation, the recording policy in ingest, the store credentials and the bundle in its all-in-one role, which implements the bundle contract from the declaration task
-  - [ ] Repoint the monitoring UI build output into the kit, rebuild and commit the built bundle in place of the copied assets, without touching the old agent's checked-in static assets
-  - [ ] Tests: the platform-backed authorizer with its cache and its unavailable answer, per-instance worker health, the recording policy, the vendor store, bundle wiring, and the registry-driven cases of `satellite/tests/unit/test_capabilities.py` against the real bundle
+- [x] Add the monitoring bundle, authorizer and recording policy
+  - [x] Add the authorizer contract and the platform-backed authorizer to the core
+  - [x] Add per-instance worker health, the recording contract implemented by the instrumentation, the recording policy in ingest, the store credentials and the bundle in its all-in-one role, which implements the bundle contract from the declaration task
+  - [x] Repoint the monitoring UI build output into the kit, rebuild and commit the built bundle in place of the copied assets, without touching the old agent's checked-in static assets
+  - [x] Tests: the platform-backed authorizer with its cache and its unavailable answer, per-instance worker health, the recording policy, the vendor store, bundle wiring, and the registry-driven cases of `satellite/tests/unit/test_capabilities.py` against the real bundle
 
 - [ ] Add stateless sessions and split monitoring processes
   - [ ] Add signed sessions, heartbeat storage and file, the deployment sources, worker shards, the bundle's split roles, and the worker and dashboard executables with their probes

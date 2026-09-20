@@ -157,4 +157,11 @@ class TestTelemetrySetup:
             latency_ms=1.0,
         )
         d = event.to_dict()
-        assert set(d.keys()) == {"event_id", "deployment_id", "status", "latency_ms", "timestamp"}
+        assert set(d.keys()) == {
+            "event_id",
+            "deployment_id",
+            "status",
+            "latency_ms",
+            "timestamp",
+            "bodies_sampled",
+        }
