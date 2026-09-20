@@ -196,7 +196,7 @@ async def test_authenticate_user_password_not_verified(
     with pytest.raises(AuthError, match="Invalid email or password") as error:
         await handler._authenticate_user(expected.email, passwords.password)
 
-    assert error.value.status_code == 400
+    assert error.value.status_code == 401
     mock_get_user.assert_awaited_once_with(expected.email)
     mock_verify_password.assert_called_once_with(
         passwords.password, expected.hashed_password
