@@ -21,7 +21,7 @@ from luml_satellite.declaration import (
     pair_satellite,
 )
 from luml_satellite.tokens import TokenDeriver
-from luml_satellite.wire import AuthenticationFailure, PlatformClient
+from luml_satellite.wire import AuthenticationFailure, PairedSatellite, PlatformClient
 from luml_satellite.workload import (
     ArtifactResolver,
     Clock,
@@ -81,6 +81,7 @@ class SatelliteRuntime:
         serves_deployments: bool | None = None,
         clock: Clock | None = None,
         jitter: Callable[[float], float] | None = None,
+        on_paired: Callable[[PairedSatellite], None] | None = None,
         logger: logging.Logger | None = None,
     ) -> None:
         if configuration.POLL_INTERVAL_SEC <= 0:
@@ -93,6 +94,7 @@ class SatelliteRuntime:
         self.monitoring = monitoring if configuration.MONITORING_ENABLED else None
         self.clock = clock or SystemClock()
         self.jitter = jitter or _full_jitter
+        self._on_paired = on_paired
         self.logger = logger or logging.getLogger("luml_satellite.runtime")
         self.slug = slug
         self._pairing_document = pairing_document
@@ -177,7 +179,7 @@ class SatelliteRuntime:
         return self._internal_application
 
     async def pair(self) -> None:
-        await pair_satellite(
+        paired = await pair_satellite(
             self.platform,
             kind=self.driver.kind,
             capabilities=self.capabilities,
@@ -186,6 +188,8 @@ class SatelliteRuntime:
             openapi=self._openapi_document(),
             logger=self.logger,
         )
+        if self._on_paired is not None:
+            self._on_paired(paired)
 
     async def reconcile(self) -> None:
         await self.reconciliation.run()
@@ -201,7 +205,6 @@ class SatelliteRuntime:
         self._stopped = True
 
     async def run_forever(self) -> None:
-        self._stopped = False
         try:
             await self._start_monitoring()
             await self._pair_with_backoff()

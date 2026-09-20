@@ -78,7 +78,10 @@ class FailingLoopRuntime(SatelliteRuntime):
 
 
 class LifecycleRuntime(SatelliteRuntime):
+    pair_calls: int = 0
+
     async def pair(self) -> None:
+        self.pair_calls += 1
         return None
 
     async def reconcile(self) -> None:
@@ -147,6 +150,26 @@ async def test_runtime_retries_pairing_with_backoff() -> None:
     ]
     assert len(pairing_requests) == 2
     assert clock.sleeps == [1.0]
+
+
+@pytest.mark.asyncio
+async def test_runtime_reports_the_paired_satellite() -> None:
+    platform = FakePlatform()
+    paired_ids: list[str] = []
+    async with PlatformClient(
+        "http://platform",
+        platform.token,
+        transport=platform.transport,
+    ) as client:
+        runtime = SatelliteRuntime(
+            configuration(),
+            client,
+            FakeDriver(),
+            on_paired=lambda paired: paired_ids.append(paired.id),
+        )
+        await runtime.pair()
+
+    assert paired_ids == [platform.satellite_id]
 
 
 @pytest.mark.asyncio
@@ -306,6 +329,26 @@ async def test_runtime_starts_monitoring_and_closes_monitoring_and_serving() -> 
     assert monitoring.closed is True
     assert serving.closed is True
     assert "monitoring" in runtime.capabilities
+
+
+@pytest.mark.asyncio
+async def test_stop_before_run_is_not_lost() -> None:
+    platform = FakePlatform()
+    async with PlatformClient(
+        "http://platform",
+        platform.token,
+        transport=platform.transport,
+    ) as client:
+        runtime = LifecycleRuntime(
+            configuration(),
+            client,
+            FakeDriver(),
+        )
+        runtime.stop()
+
+        await runtime.run_forever()
+
+    assert runtime.pair_calls == 0
 
 
 @pytest.mark.asyncio
