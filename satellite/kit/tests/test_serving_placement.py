@@ -121,11 +121,17 @@ async def test_in_process_placement_reads_registers_and_updates_a_deployment() -
                 "dynamic_attributes_secrets": {},
             }
         )
-        placement.note_platform_record(DEPLOYMENT_ID, updated)
+        await placement.register(
+            updated,
+            upstream_url=None,
+            description=ModelDescription(),
+        )
         assert local.metadata.name == "renamed"
         assert local.metadata.status == "active"
         assert local.monitoring_enabled is False
         assert local.dynamic_attributes_secrets == {}
+        assert local.upstream_url == "http://model"
+        assert local.reference_profile == READY_PROFILE
 
         request_count = len(requests)
         placement.mark_reconciled()

@@ -344,6 +344,8 @@ def create_serving_application(
     not_hosted: bool = False,
     injection_body_max_bytes: int = 16_777_216,
     upstream_timeout_seconds: float = UPSTREAM_TIMEOUT_SECONDS,
+    authorization_unavailable_status_code: int = 502,
+    authorization_unavailable_detail: str = "Authorization failed",
     last_monitored_at: Callable[[str], datetime | None] | None = None,
     clock: Callable[[], float] = time.monotonic,
     logger: logging.Logger | None = None,
@@ -352,6 +354,8 @@ def create_serving_application(
         raise ValueError("injection_body_max_bytes must be greater than zero")
     if upstream_timeout_seconds <= 0:
         raise ValueError("upstream_timeout_seconds must be greater than zero")
+    if not 400 <= authorization_unavailable_status_code <= 599:
+        raise ValueError("authorization_unavailable_status_code must be an error status")
 
     active_gate = starting_gate or StartingGate()
     client = upstream_client or httpx.AsyncClient(timeout=upstream_timeout_seconds)
@@ -380,7 +384,10 @@ def create_serving_application(
         if verdict is AuthorizationVerdict.DENIED:
             raise HTTPException(status_code=401, detail="Invalid API key")
         if verdict is AuthorizationVerdict.UNAVAILABLE:
-            raise HTTPException(status_code=502, detail="Authorization failed")
+            raise HTTPException(
+                status_code=authorization_unavailable_status_code,
+                detail=authorization_unavailable_detail,
+            )
 
     def hosted(deployment_id: str) -> LocalDeployment:
         if single_deployment_id is not None and deployment_id != single_deployment_id:
@@ -422,7 +429,10 @@ def create_serving_application(
     async def authorize_inference_access(body: InferenceAccessIn) -> InferenceAccessOut:
         verdict = await authorizer.authorize(body.api_key)
         if verdict is AuthorizationVerdict.UNAVAILABLE:
-            raise HTTPException(status_code=502, detail="Authorization failed")
+            raise HTTPException(
+                status_code=authorization_unavailable_status_code,
+                detail=authorization_unavailable_detail,
+            )
         return InferenceAccessOut(authorized=verdict is AuthorizationVerdict.ALLOWED)
 
     @application.get(
