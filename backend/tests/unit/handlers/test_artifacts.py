@@ -1747,7 +1747,6 @@ async def test_confirm_deletion_pending(
     mock_check_permissions: AsyncMock,
     mock_delete_unreachable_nodes: AsyncMock,
     mock_refresh_node_copy: AsyncMock,
-    manifest_example: Manifest,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -1755,22 +1754,10 @@ async def test_confirm_deletion_pending(
     collection_id = UUID("0199c337-09f4-7a01-9f5f-5f68db62cf70")
     artifact_id = UUID("0199c337-09fa-7ff6-b1e7-fc89a65f8622")
 
-    artifact = Artifact(
-        id=artifact_id,
+    artifact = Mock(
         collection_id=collection_id,
-        file_name="model.luml",
-        name=None,
-        extra_values={},
-        manifest=manifest_example,
-        file_hash="hash",
-        file_index={},
-        bucket_location="loc",
-        size=1,
-        unique_identifier="uid",
         status=ArtifactStatus.PENDING_DELETION,
-        created_at=datetime.now(),
-        updated_at=None,
-        type=ArtifactType.MODEL,
+        deployments=[],
     )
 
     mock_get_artifact.return_value = artifact
@@ -1790,6 +1777,72 @@ async def test_confirm_deletion_pending(
     mock_refresh_node_copy.assert_awaited_once_with(artifact_id, DELETION_SESSION)
     mock_delete_artifact.assert_awaited_once_with(artifact_id, DELETION_SESSION)
     mock_delete_unreachable_nodes.assert_awaited_once_with(orbit_id, DELETION_SESSION)
+
+
+@patch(
+    "luml.handlers.artifacts.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.CollectionRepository.get_collection",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.OrbitRepository.get_orbit_simple",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.get_artifact_details",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.ArtifactRepository.delete_artifact",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.artifacts.TrackEntryRepository.has_entries_for_artifact",
+    new_callable=AsyncMock,
+    return_value=False,
+)
+@pytest.mark.asyncio
+async def test_confirm_deletion_with_deployment_returns_conflict(
+    mock_has_track_entries: AsyncMock,
+    mock_delete_artifact: AsyncMock,
+    mock_get_artifact: AsyncMock,
+    mock_get_orbit_simple: AsyncMock,
+    mock_get_collection: AsyncMock,
+    mock_check_permissions: AsyncMock,
+) -> None:
+    user_id = uuid7()
+    organization_id = uuid7()
+    orbit_id = uuid7()
+    collection_id = uuid7()
+    artifact_id = uuid7()
+    mock_get_artifact.return_value = Mock(
+        collection_id=collection_id,
+        status=ArtifactStatus.PENDING_DELETION,
+        deployments=[Mock()],
+    )
+    mock_get_orbit_simple.return_value = Mock(
+        organization_id=organization_id,
+    )
+    mock_get_collection.return_value = Mock(orbit_id=orbit_id)
+
+    with pytest.raises(ArtifactDeployedError) as error:
+        await handler.confirm_deletion(
+            user_id,
+            organization_id,
+            orbit_id,
+            collection_id,
+            artifact_id,
+        )
+
+    assert error.value.status_code == 409
+    assert error.value.message == (
+        "Cannot delete artifact because it is used in deployments."
+    )
+    mock_has_track_entries.assert_awaited_once_with(artifact_id)
+    mock_delete_artifact.assert_not_awaited()
 
 
 @patch(
