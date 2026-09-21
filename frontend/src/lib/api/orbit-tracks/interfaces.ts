@@ -51,7 +51,7 @@ export interface TrackEntry {
   artifact_collection_id: string
   version: number
   stage_id: string | null
-  added_by_user: string | null
+  added_by: string
   created_at: string
   updated_at: string | null
   artifact_name: string | null

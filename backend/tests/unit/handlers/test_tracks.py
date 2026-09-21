@@ -68,7 +68,7 @@ def _make_entry(**overrides: object) -> TrackEntry:
         "artifact_id": ARTIFACT_ID,
         "version": 1,
         "stage_id": None,
-        "added_by_user": USER_NAME,
+        "added_by": USER_NAME,
         "created_at": datetime.now(),
         "updated_at": None,
     }
@@ -597,7 +597,7 @@ async def test_create_entry(
     create_call = mock_create.await_args
     assert create_call is not None
     assert create_call.args[0].stage_id is None
-    assert create_call.args[0].added_by_user == USER_NAME
+    assert create_call.args[0].added_by == USER_NAME
     mock_perms.assert_awaited_once_with(
         ORG_ID, USER_ID, Resource.TRACK, Action.CREATE, ORBIT_ID
     )

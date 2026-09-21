@@ -422,7 +422,7 @@ class TrackEntryRepository(RepositoryBase, CrudMixin):
                 track_id=entry.track_id,
                 artifact_id=entry.artifact_id,
                 version=version,
-                added_by_user=entry.added_by_user,
+                added_by=entry.added_by,
                 stage_id=entry.stage_id,
             )
             session.add(db_entry)
