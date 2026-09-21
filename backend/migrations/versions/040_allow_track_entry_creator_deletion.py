@@ -26,33 +26,17 @@ def upgrade() -> None:
         "UPDATE track_entries e SET added_by_user = u.full_name "
         "FROM users u WHERE u.id = e.added_by"
     )
-    op.drop_constraint(
-        "track_entries_added_by_fkey", "track_entries", type_="foreignkey"
-    )
-    op.alter_column("track_entries", "added_by", nullable=True)
-    op.create_foreign_key(
-        "track_entries_added_by_fkey",
-        "track_entries",
-        "users",
-        ["added_by"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    op.drop_column("track_entries", "added_by")
 
 
 def downgrade() -> None:
-    orphaned = op.get_bind().scalar(
-        sa.text("SELECT count(*) FROM track_entries WHERE added_by IS NULL")
-    )
-    if orphaned:
+    entries = op.get_bind().scalar(sa.text("SELECT count(*) FROM track_entries"))
+    if entries:
         raise RuntimeError(
-            f"{orphaned} track entries were added by deleted users, "
-            "reassign them before downgrading"
+            f"{entries} track entries only carry an author name, "
+            "added_by cannot be restored"
         )
-    op.drop_constraint(
-        "track_entries_added_by_fkey", "track_entries", type_="foreignkey"
-    )
-    op.alter_column("track_entries", "added_by", nullable=False)
+    op.add_column("track_entries", sa.Column("added_by", sa.UUID(), nullable=False))
     op.create_foreign_key(
         "track_entries_added_by_fkey",
         "track_entries",

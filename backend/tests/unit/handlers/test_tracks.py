@@ -68,7 +68,7 @@ def _make_entry(**overrides: object) -> TrackEntry:
         "artifact_id": ARTIFACT_ID,
         "version": 1,
         "stage_id": None,
-        "added_by": USER_ID,
+        "added_by_user": USER_NAME,
         "created_at": datetime.now(),
         "updated_at": None,
     }
@@ -2277,8 +2277,8 @@ async def test_create_entry_loses_race_after_pre_checks(
     "error",
     [
         _integrity_error(constraint_name="uq_track_entries_track_id_version"),
-        _integrity_error("track_entries_added_by_fkey", "23503"),
-        IntegrityError("", {}, Exception('null value in column "added_by"')),
+        _integrity_error("track_entries_orbit_id_fkey", "23503"),
+        IntegrityError("", {}, Exception('null value in column "version"')),
     ],
 )
 @pytest.mark.asyncio
@@ -2389,7 +2389,7 @@ async def test_create_entry_propagates_unknown_foreign_key_failures(
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
     mock_get_user.return_value = Mock(full_name=USER_NAME)
-    mock_create.side_effect = _integrity_error("track_entries_added_by_fkey", "23503")
+    mock_create.side_effect = _integrity_error("track_entries_orbit_id_fkey", "23503")
 
     with pytest.raises(IntegrityError):
         await tracks_handler.create_entry(

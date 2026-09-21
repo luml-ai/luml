@@ -354,7 +354,7 @@ async def test_create_entry_and_version_assignment(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -386,7 +386,7 @@ async def test_list_entries(create_collection: CollectionFixtureData) -> None:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=artifact.id,
-                added_by=data.user.id,
+                added_by_user=data.user.full_name,
             )
         )
 
@@ -428,7 +428,7 @@ async def test_list_entries_sorting(
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=artifact.id,
-                    added_by=data.user.id,
+                    added_by_user=data.user.full_name,
                 )
             )
         )
@@ -482,7 +482,7 @@ async def _seed_entries(
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=artifact.id,
-                    added_by=data.user.id,
+                    added_by_user=data.user.full_name,
                 )
             )
         )
@@ -704,7 +704,7 @@ async def test_update_entry_stage(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -743,7 +743,7 @@ async def test_stage_is_used_flag(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used_stage.id))
@@ -780,7 +780,7 @@ async def test_delete_entry(create_collection: CollectionFixtureData) -> None:
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -811,7 +811,7 @@ async def test_delete_entries_bulk(create_collection: CollectionFixtureData) -> 
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=artifact.id,
-                    added_by=data.user.id,
+                    added_by_user=data.user.full_name,
                 )
             )
         )
@@ -844,7 +844,9 @@ async def test_delete_entries_scoped_to_track(
     artifact = await _create_artifact(data.engine, data.collection.id)
     entry_b = await entry_repo.create_entry(
         TrackEntryCreate(
-            track_id=track_b.id, artifact_id=artifact.id, added_by=data.user.id
+            track_id=track_b.id,
+            artifact_id=artifact.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -883,14 +885,14 @@ async def test_list_entries_for_artifact(
         TrackEntryCreate(
             track_id=track1.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track2.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -924,7 +926,7 @@ async def test_has_entries_for_artifact(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -956,7 +958,7 @@ async def test_clear_stage_from_entries(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -996,7 +998,7 @@ async def test_version_monotonicity_after_deletion(
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=a.id,
-                added_by=data.user.id,
+                added_by_user=data.user.full_name,
             )
         )
         entries.append(e)
@@ -1012,7 +1014,7 @@ async def test_version_monotonicity_after_deletion(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=new_artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -1046,14 +1048,14 @@ async def test_force_stage_reassign(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=art1.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
     entry2 = await entry_repo.create_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=art2.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
 
@@ -1090,7 +1092,7 @@ async def test_pagination(create_collection: CollectionFixtureData) -> None:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=art.id,
-                added_by=data.user.id,
+                added_by_user=data.user.full_name,
             )
         )
 
@@ -1140,7 +1142,7 @@ async def test_is_stage_in_use(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
@@ -1176,7 +1178,7 @@ async def test_get_entry_by_stage(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=stage.id))
@@ -1416,7 +1418,9 @@ async def test_sync_stages_in_use_conflict_is_atomic(
     artifact = await _create_artifact(data.engine, data.collection.id)
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
-            track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used.id))
@@ -1501,7 +1505,9 @@ async def test_update_track_with_stages_is_atomic(
     artifact = await _create_artifact(data.engine, data.collection.id)
     entry = await entry_repo.create_entry(
         TrackEntryCreate(
-            track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+            track_id=track.id,
+            artifact_id=artifact.id,
+            added_by_user=data.user.full_name,
         )
     )
     await entry_repo.update_entry(entry.id, TrackEntryUpdate(stage_id=used.id))
@@ -1588,7 +1594,7 @@ async def test_create_entry_with_stage(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
+            added_by_user=data.user.full_name,
             stage_id=stage.id,
         )
     )
@@ -1627,7 +1633,9 @@ async def test_get_tracks_for_artifact(
     for track in (track_a, track_b):
         await entry_repo.create_entry(
             TrackEntryCreate(
-                track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+                track_id=track.id,
+                artifact_id=artifact.id,
+                added_by_user=data.user.full_name,
             )
         )
 

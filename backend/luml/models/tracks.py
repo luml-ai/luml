@@ -60,11 +60,6 @@ class TrackArtifactOrm(TimestampMixin, Base):
         ),
         nullable=True,
     )
-    added_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
     added_by_user: Mapped[str | None] = mapped_column(String, nullable=True)
 
     track: Mapped[TrackOrm] = relationship(  # noqa: F821

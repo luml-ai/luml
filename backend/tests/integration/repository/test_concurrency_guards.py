@@ -209,7 +209,9 @@ class TestConcurrencyGuards:
         )
         await TrackEntryRepository(data.engine).create_entry(
             TrackEntryCreate(
-                track_id=track.id, artifact_id=data.model.id, added_by=data.user.id
+                track_id=track.id,
+                artifact_id=data.model.id,
+                added_by_user=data.user.full_name,
             )
         )
 
@@ -239,7 +241,9 @@ class TestConcurrencyGuards:
         first, second = [
             await entries.create_entry(
                 TrackEntryCreate(
-                    track_id=track.id, artifact_id=a.id, added_by=data.user.id
+                    track_id=track.id,
+                    artifact_id=a.id,
+                    added_by_user=data.user.full_name,
                 )
             )
             for a in artifacts
@@ -277,7 +281,9 @@ class TestConcurrencyGuards:
         holder, b, c = [
             await entries.create_entry(
                 TrackEntryCreate(
-                    track_id=track.id, artifact_id=a.id, added_by=data.user.id
+                    track_id=track.id,
+                    artifact_id=a.id,
+                    added_by_user=data.user.full_name,
                 )
             )
             for a in artifacts
@@ -319,7 +325,7 @@ class TestConcurrencyGuards:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=artifact.id,
-                added_by=data.user.id,
+                added_by_user=data.user.full_name,
                 stage_id=stage.id,
             )
         )
@@ -637,7 +643,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=data.model.id,
-                    added_by=data.user.id,
+                    added_by_user=data.user.full_name,
                 )
             ),
         }
@@ -723,7 +729,9 @@ class TestConcurrencyGuards:
             )
             entry = await entries.create_entry(
                 TrackEntryCreate(
-                    track_id=track.id, artifact_id=artifact.id, added_by=data.user.id
+                    track_id=track.id,
+                    artifact_id=artifact.id,
+                    added_by_user=data.user.full_name,
                 )
             )
 

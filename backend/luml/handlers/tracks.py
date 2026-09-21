@@ -328,7 +328,6 @@ class TracksHandler:
         entry_create = TrackEntryCreate(
             track_id=track_id,
             artifact_id=entry_in.artifact_id,
-            added_by=user_id,
             added_by_user=user.full_name,
             stage_id=entry_in.stage_id,
         )

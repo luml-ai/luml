@@ -137,7 +137,6 @@ async def test_delete_user_with_track_entry(
         TrackEntryCreate(
             track_id=track.id,
             artifact_id=artifact.id,
-            added_by=data.user.id,
             added_by_user=data.user.full_name,
         )
     )
@@ -147,7 +146,6 @@ async def test_delete_user_with_track_entry(
     assert await user_repo.get_user(data.user.email) is None
     persisted_entry = await entry_repo.get_entry(entry.id)
     assert persisted_entry is not None
-    assert persisted_entry.added_by is None
     assert persisted_entry.added_by_user == data.user.full_name
 
 
