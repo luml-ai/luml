@@ -196,7 +196,7 @@ class TestArtifactsBatchDeletion:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=tracked_artifact.id,
-                    added_by=data.user.id,
+                    added_by=data.user.email,
                 )
             )
 
@@ -362,7 +362,7 @@ class TestArtifactsBatchDeletion:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=tracked.id,
-                added_by=data.user.id,
+                added_by=data.user.email,
             )
         )
 

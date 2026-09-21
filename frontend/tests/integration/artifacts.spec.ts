@@ -359,7 +359,7 @@ test.describe('Artifacts', () => {
               artifact_collection_id: COLLECTION_ID,
               version: 1,
               stage_id: null,
-              added_by: USER_FIXTURE.id,
+              added_by: USER_FIXTURE.full_name,
               created_at: '2025-03-01T00:00:00.000Z',
               updated_at: null,
               artifact_name: 'C',
