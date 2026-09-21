@@ -65,6 +65,7 @@ class TrackArtifactOrm(TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    added_by_user: Mapped[str | None] = mapped_column(String, nullable=True)
 
     track: Mapped[TrackOrm] = relationship(  # noqa: F821
         "TrackOrm", back_populates="entries", lazy="selectin"

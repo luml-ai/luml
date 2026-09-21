@@ -19,6 +19,13 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "track_entries", sa.Column("added_by_user", sa.String(), nullable=True)
+    )
+    op.execute(
+        "UPDATE track_entries e SET added_by_user = u.full_name "
+        "FROM users u WHERE u.id = e.added_by"
+    )
     op.drop_constraint(
         "track_entries_added_by_fkey", "track_entries", type_="foreignkey"
     )
@@ -34,10 +41,17 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    orphaned = op.get_bind().scalar(
+        sa.text("SELECT count(*) FROM track_entries WHERE added_by IS NULL")
+    )
+    if orphaned:
+        raise RuntimeError(
+            f"{orphaned} track entries were added by deleted users, "
+            "reassign them before downgrading"
+        )
     op.drop_constraint(
         "track_entries_added_by_fkey", "track_entries", type_="foreignkey"
     )
-    op.execute(sa.text("DELETE FROM track_entries WHERE added_by IS NULL"))
     op.alter_column("track_entries", "added_by", nullable=False)
     op.create_foreign_key(
         "track_entries_added_by_fkey",
@@ -46,3 +60,4 @@ def downgrade() -> None:
         ["added_by"],
         ["id"],
     )
+    op.drop_column("track_entries", "added_by_user")

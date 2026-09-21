@@ -41,6 +41,7 @@ ENTRY_ID = UUID("0199c337-09f5-7b02-af60-6079ec73d081")
 ARTIFACT_ID = UUID("0199c337-09f6-7c03-bf71-7180fd84e192")
 STAGE_ID = UUID("0199c337-09f7-7d04-cf82-8291ae95f2a3")
 COLLECTION_ID = UUID("0199c337-09f8-7e05-df93-93a2bfa603b4")
+USER_NAME = "Track Author"
 
 
 def _make_track(**overrides: object) -> Track:
@@ -563,8 +564,13 @@ async def test_delete_track_not_found(
     "luml.handlers.tracks.TrackEntryRepository.create_entry",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_entry(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_get_coll: AsyncMock,
     mock_get_art: AsyncMock,
@@ -574,6 +580,7 @@ async def test_create_entry(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     expected = _make_entry(version=1)
     mock_create.return_value = expected
 
@@ -590,6 +597,7 @@ async def test_create_entry(
     create_call = mock_create.await_args
     assert create_call is not None
     assert create_call.args[0].stage_id is None
+    assert create_call.args[0].added_by_user == USER_NAME
     mock_perms.assert_awaited_once_with(
         ORG_ID, USER_ID, Resource.TRACK, Action.CREATE, ORBIT_ID
     )
@@ -610,8 +618,13 @@ async def test_create_entry(
     new_callable=AsyncMock,
 )
 @patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_entry_with_stage(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_by_stage: AsyncMock,
     mock_get_stage: AsyncMock,
@@ -623,6 +636,7 @@ async def test_create_entry_with_stage(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     mock_get_stage.return_value = _make_stage()  # belongs to TRACK_ID
     mock_by_stage.return_value = None  # stage free
     mock_create.return_value = _make_entry(stage_id=STAGE_ID)
@@ -806,8 +820,13 @@ async def test_create_entry_different_orbit(
     "luml.handlers.tracks.TrackEntryRepository.create_entry",
     new_callable=AsyncMock,
 )
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_entry_duplicate(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_get_coll: AsyncMock,
     mock_get_art: AsyncMock,
@@ -817,6 +836,7 @@ async def test_create_entry_duplicate(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     mock_create.side_effect = IntegrityError(
         "", {}, Exception("uq_track_entries_track_id_artifact_id")
     )
@@ -1728,6 +1748,42 @@ async def test_create_entry_track_not_found(
     new_callable=AsyncMock,
 )
 @patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
+@patch("luml.handlers.tracks.ArtifactRepository.get_artifact", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
+)
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_entry_user_not_found(
+    mock_get_user: AsyncMock,
+    mock_get_coll: AsyncMock,
+    mock_get_art: AsyncMock,
+    mock_get_track: AsyncMock,
+    mock_perms: AsyncMock,
+) -> None:
+    mock_get_track.return_value = _make_track()
+    mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
+    mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = None
+
+    with pytest.raises(NotFoundError, match="User not found"):
+        await tracks_handler.create_entry(
+            USER_ID,
+            ORG_ID,
+            ORBIT_ID,
+            TRACK_ID,
+            TrackEntryCreateIn(artifact_id=ARTIFACT_ID),
+        )
+
+
+@patch(
+    "luml.handlers.permissions.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@patch("luml.handlers.tracks.TrackRepository.get_track", new_callable=AsyncMock)
 @patch("luml.handlers.tracks.TrackEntryRepository.get_entry", new_callable=AsyncMock)
 @pytest.mark.asyncio
 async def test_get_entry(
@@ -2136,6 +2192,10 @@ def _integrity_error(
     new_callable=AsyncMock,
 )
 @patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.parametrize(
     ("error", "status", "message"),
     [
@@ -2168,6 +2228,7 @@ def _integrity_error(
 )
 @pytest.mark.asyncio
 async def test_create_entry_loses_race_after_pre_checks(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_by_stage: AsyncMock,
     mock_get_stage: AsyncMock,
@@ -2182,6 +2243,7 @@ async def test_create_entry_loses_race_after_pre_checks(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     mock_get_stage.return_value = _make_stage(name="Production")
     mock_by_stage.return_value = None
     mock_create.side_effect = error
@@ -2207,6 +2269,10 @@ async def test_create_entry_loses_race_after_pre_checks(
     "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
 )
 @patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.parametrize(
     "error",
     [
@@ -2217,6 +2283,7 @@ async def test_create_entry_loses_race_after_pre_checks(
 )
 @pytest.mark.asyncio
 async def test_create_entry_unrelated_constraint_propagates(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_get_coll: AsyncMock,
     mock_get_art: AsyncMock,
@@ -2227,6 +2294,7 @@ async def test_create_entry_unrelated_constraint_propagates(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     mock_create.side_effect = error
 
     with pytest.raises(IntegrityError) as exc:
@@ -2304,8 +2372,13 @@ async def test_update_entry_loses_race_after_pre_checks(
     "luml.handlers.tracks.CollectionRepository.get_collection", new_callable=AsyncMock
 )
 @patch("luml.handlers.tracks.TrackEntryRepository.create_entry", new_callable=AsyncMock)
+@patch(
+    "luml.handlers.tracks.UserRepository.get_public_user_by_id",
+    new_callable=AsyncMock,
+)
 @pytest.mark.asyncio
 async def test_create_entry_propagates_unknown_foreign_key_failures(
+    mock_get_user: AsyncMock,
     mock_create: AsyncMock,
     mock_get_coll: AsyncMock,
     mock_get_art: AsyncMock,
@@ -2315,6 +2388,7 @@ async def test_create_entry_propagates_unknown_foreign_key_failures(
     mock_get_track.return_value = _make_track()
     mock_get_art.return_value = Mock(type="model", collection_id=COLLECTION_ID)
     mock_get_coll.return_value = Mock(orbit_id=ORBIT_ID)
+    mock_get_user.return_value = Mock(full_name=USER_NAME)
     mock_create.side_effect = _integrity_error("track_entries_added_by_fkey", "23503")
 
     with pytest.raises(IntegrityError):

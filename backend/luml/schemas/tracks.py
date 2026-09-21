@@ -91,6 +91,7 @@ class TrackEntryCreate(BaseModel):
     track_id: UUID
     artifact_id: UUID
     added_by: UUID
+    added_by_user: str | None = None
     stage_id: UUID | None = None
 
 
@@ -110,6 +111,7 @@ class TrackEntry(BaseModel, BaseOrmConfig):
     version: int
     stage_id: UUID | None = None
     added_by: UUID | None
+    added_by_user: str | None = None
     created_at: datetime
     updated_at: datetime | None = None
     artifact_collection_id: UUID | None = Field(
