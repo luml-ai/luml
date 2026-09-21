@@ -362,9 +362,9 @@ class UserRepository(RepositoryBase, CrudMixin):
                 options=[joinedload(OrganizationMemberOrm.user)],
                 order_by=[
                     case(
-                        (OrganizationMemberOrm.role == "OWNER", 0),
-                        (OrganizationMemberOrm.role == "ADMIN", 1),
-                        (OrganizationMemberOrm.role == "MEMBER", 2),
+                        (OrganizationMemberOrm.role == OrgRole.OWNER, 0),
+                        (OrganizationMemberOrm.role == OrgRole.ADMIN, 1),
+                        (OrganizationMemberOrm.role == OrgRole.MEMBER, 2),
                         else_=3,
                     ),
                     OrganizationMemberOrm.created_at,
