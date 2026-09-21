@@ -8,8 +8,6 @@ from luml.schemas.artifacts import ArtifactType
 from luml.schemas.base import BaseOrmConfig
 from luml.schemas.track_base import TrackBase
 
-UNKNOWN_AUTHOR = "Unknown user"
-
 
 class TrackSortBy(StrEnum):
     NAME = "name"
@@ -92,7 +90,7 @@ class TrackUpdate(TrackUpdateIn):
 class TrackEntryCreate(BaseModel):
     track_id: UUID
     artifact_id: UUID
-    added_by: str = UNKNOWN_AUTHOR
+    added_by: str
     stage_id: UUID | None = None
 
 

@@ -17,22 +17,14 @@ down_revision: str | None = "039"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-UNKNOWN_AUTHOR = "Unknown user"
-
 
 def upgrade() -> None:
     op.add_column(
         "track_entries", sa.Column("added_by_name", sa.String(), nullable=True)
     )
     op.execute(
-        "UPDATE track_entries e SET added_by_name = u.full_name "
-        "FROM users u WHERE u.id = e.added_by AND u.full_name IS NOT NULL"
-    )
-    op.execute(
-        sa.text(
-            "UPDATE track_entries SET added_by_name = :author "
-            "WHERE added_by_name IS NULL"
-        ).bindparams(author=UNKNOWN_AUTHOR)
+        "UPDATE track_entries e SET added_by_name = COALESCE(u.full_name, u.email) "
+        "FROM users u WHERE u.id = e.added_by"
     )
     op.drop_column("track_entries", "added_by")
     op.alter_column(
@@ -41,7 +33,6 @@ def upgrade() -> None:
         new_column_name="added_by",
         existing_type=sa.String(),
         nullable=False,
-        server_default=UNKNOWN_AUTHOR,
     )
 
 

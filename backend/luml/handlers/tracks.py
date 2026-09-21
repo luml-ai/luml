@@ -23,7 +23,6 @@ from luml.repositories.users import UserRepository
 from luml.schemas.general import Cursor, PaginationParams, SortOrder
 from luml.schemas.permissions import Action, Resource
 from luml.schemas.tracks import (
-    UNKNOWN_AUTHOR,
     Stage,
     StageCreate,
     StageCreateIn,
@@ -329,7 +328,7 @@ class TracksHandler:
         entry_create = TrackEntryCreate(
             track_id=track_id,
             artifact_id=entry_in.artifact_id,
-            added_by=user.full_name or UNKNOWN_AUTHOR,
+            added_by=user.full_name or user.email,
             stage_id=entry_in.stage_id,
         )
         try:

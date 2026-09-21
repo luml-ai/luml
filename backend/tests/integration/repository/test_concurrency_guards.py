@@ -211,6 +211,7 @@ class TestConcurrencyGuards:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=data.model.id,
+                added_by=data.user.email,
             )
         )
 
@@ -242,6 +243,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=a.id,
+                    added_by=data.user.email,
                 )
             )
             for a in artifacts
@@ -281,6 +283,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=a.id,
+                    added_by=data.user.email,
                 )
             )
             for a in artifacts
@@ -322,6 +325,7 @@ class TestConcurrencyGuards:
             TrackEntryCreate(
                 track_id=track.id,
                 artifact_id=artifact.id,
+                added_by=data.user.email,
                 stage_id=stage.id,
             )
         )
@@ -639,6 +643,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=data.model.id,
+                    added_by=data.user.email,
                 )
             ),
         }
@@ -726,6 +731,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=artifact.id,
+                    added_by=data.user.email,
                 )
             )
 

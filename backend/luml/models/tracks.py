@@ -15,7 +15,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, column_property, mapped_column, relationship
 
 from luml.models.base import Base, TimestampMixin
-from luml.schemas.tracks import UNKNOWN_AUTHOR
 
 
 class TrackArtifactOrm(TimestampMixin, Base):
@@ -61,9 +60,7 @@ class TrackArtifactOrm(TimestampMixin, Base):
         ),
         nullable=True,
     )
-    added_by: Mapped[str] = mapped_column(
-        String, nullable=False, server_default=UNKNOWN_AUTHOR
-    )
+    added_by: Mapped[str] = mapped_column(String, nullable=False)
 
     track: Mapped[TrackOrm] = relationship(  # noqa: F821
         "TrackOrm", back_populates="entries", lazy="selectin"

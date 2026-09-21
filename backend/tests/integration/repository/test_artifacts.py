@@ -953,13 +953,14 @@ async def _add_artifact_to_track(
     engine: AsyncEngine,
     orbit_id: uuid.UUID,
     artifact_id: uuid.UUID,
+    added_by: str,
     name: str = "track",
 ) -> uuid.UUID:
     track = await TrackRepository(engine).create_track(
         TrackCreate(orbit_id=orbit_id, name=name, artifact_type=ArtifactType.MODEL)
     )
     await TrackEntryRepository(engine).create_entry(
-        TrackEntryCreate(track_id=track.id, artifact_id=artifact_id)
+        TrackEntryCreate(track_id=track.id, artifact_id=artifact_id, added_by=added_by)
     )
     return track.id
 
@@ -976,7 +977,9 @@ async def test_get_collection_artifacts_excludes_tracks(
     )
     free = await _make_artifact(repo, test_artifact, data.collection.id, name="free")
 
-    track_id = await _add_artifact_to_track(data.engine, data.orbit.id, in_track.id)
+    track_id = await _add_artifact_to_track(
+        data.engine, data.orbit.id, in_track.id, data.user.email
+    )
 
     # Without the filter both artifacts are returned.
     all_items, _ = await repo.get_collection_artifacts(
@@ -1002,9 +1005,11 @@ async def test_get_collection_artifacts_excludes_only_listed_tracks(
     a_in_t2 = await _make_artifact(repo, test_artifact, data.collection.id, name="t2")
 
     t1 = await _add_artifact_to_track(
-        data.engine, data.orbit.id, a_in_t1.id, name="track-1"
+        data.engine, data.orbit.id, a_in_t1.id, data.user.email, name="track-1"
     )
-    await _add_artifact_to_track(data.engine, data.orbit.id, a_in_t2.id, name="track-2")
+    await _add_artifact_to_track(
+        data.engine, data.orbit.id, a_in_t2.id, data.user.email, name="track-2"
+    )
 
     # Only t1 is excluded -> the artifact in t2 stays.
     items, _ = await repo.get_collection_artifacts(
