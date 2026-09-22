@@ -25,7 +25,11 @@ from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.general import PaginationParams, SortOrder
 from luml.schemas.lineage import LineageVia
 from luml.schemas.orbit import OrbitCreateIn
-from luml.schemas.satellite import SatelliteCreate
+from luml.schemas.satellite import (
+    SatelliteCreate,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
+)
 from luml.schemas.tracks import TrackCreate, TrackEntryCreate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -455,6 +459,53 @@ async def test_delete_artifact_refuses_deployed_artifact(
     ]
     assert attached_node.artifact_id == created_model.id
     assert await lineage_repo.get_edges_by_ids(orbit.id, [edge.id])
+
+
+@pytest.mark.asyncio
+async def test_forced_deletion_undeploys_then_removes_the_artifact(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    engine, orbit, collection = data.engine, data.orbit, data.collection
+    repo = ArtifactRepository(engine)
+    lineage_repo = LineageRepository(engine)
+    deployment_repo = DeploymentRepository(engine)
+
+    model = test_artifact.model_copy()
+    model.collection_id = collection.id
+    model.status = ArtifactStatus.UPLOADED
+    created_model = await repo.create_artifact(model)
+
+    satellite = await SatelliteRepository(engine).create_satellite(
+        SatelliteCreate(
+            orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test_satellite"
+        )
+    )
+    deployment, _ = await deployment_repo.create_deployment(
+        DeploymentCreate(
+            name="my-deployment",
+            orbit_id=orbit.id,
+            satellite_id=satellite.id,
+            artifact_id=created_model.id,
+            status=DeploymentStatus.ACTIVE,
+        )
+    )
+
+    async with lineage_repo.transaction() as session:
+        await lineage_repo.lock_orbit(orbit.id, session)
+        await deployment_repo.undeploy_artifact_deployments(created_model.id, session)
+        await lineage_repo.refresh_node_copy(created_model.id, session)
+        await repo.delete_artifact(created_model.id, session)
+        await lineage_repo.delete_unreachable_deleted_nodes(orbit.id, session)
+
+    assert await repo.get_artifact(created_model.id) is None
+    assert await deployment_repo.list_deployments(orbit.id) == []
+
+    tasks = await SatelliteRepository(engine).list_tasks(
+        satellite.id, status=SatelliteTaskStatus.PENDING
+    )
+    undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
+    assert [task.payload["deployment_id"] for task in undeploys] == [str(deployment.id)]
 
 
 @pytest.mark.asyncio

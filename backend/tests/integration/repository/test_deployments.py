@@ -26,6 +26,7 @@ from luml.schemas.satellite import (
     SatelliteTaskStatus,
     SatelliteTaskType,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from tests.conftest import SatelliteFixtureData
 
@@ -719,13 +720,14 @@ async def test_operations_on_an_unknown_deployment_return_none(
 
 
 @pytest.mark.asyncio
-async def test_delete_deployments_by_artifact_id(
+async def test_undeploy_artifact_deployments(
     create_satellite: SatelliteFixtureData,
 ) -> None:
     data = create_satellite
     repo = DeploymentRepository(data.engine)
+    created = []
     for name in ["first", "second"]:
-        await repo.create_deployment(
+        deployment, _ = await repo.create_deployment(
             DeploymentCreate(
                 name=name,
                 orbit_id=data.orbit.id,
@@ -734,11 +736,22 @@ async def test_delete_deployments_by_artifact_id(
                 status=DeploymentStatus.PENDING,
             )
         )
+        created.append(deployment)
     assert len(await repo.list_deployments(data.orbit.id)) == 2
 
-    await repo.delete_deployments_by_artifact_id(data.model.id)
+    async with AsyncSession(data.engine) as session, session.begin():
+        await repo.undeploy_artifact_deployments(data.model.id, session)
 
     assert await repo.list_deployments(data.orbit.id) == []
+
+    tasks = await SatelliteRepository(data.engine).list_tasks(
+        data.satellite.id, status=SatelliteTaskStatus.PENDING
+    )
+    undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
+    assert {task.payload["deployment_id"] for task in undeploys} == {
+        str(deployment.id) for deployment in created
+    }
+    assert {task.orbit_id for task in undeploys} == {data.orbit.id}
 
 
 @patch(
