@@ -750,7 +750,7 @@ class TestConcurrencyGuards:
                 TrackEntryCreate(
                     track_id=track.id,
                     artifact_id=data.model.id,
-                    added_by=data.user.id,
+                    added_by=data.user.email,
                 )
             ),
         }

@@ -517,7 +517,9 @@ async def test_delete_artifact_refuses_tracked_artifact(
     artifact = await _make_artifact(
         repo, test_artifact, data.collection.id, name="tracked"
     )
-    await _add_artifact_to_track(data.engine, data.orbit.id, artifact.id, data.user.id)
+    await _add_artifact_to_track(
+        data.engine, data.orbit.id, artifact.id, data.user.email
+    )
 
     with pytest.raises(ArtifactTrackedError) as error:
         await repo.delete_artifact(artifact.id)
