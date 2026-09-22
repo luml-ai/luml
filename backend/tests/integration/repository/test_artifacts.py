@@ -1,7 +1,11 @@
 import uuid
 
 import pytest
-from luml.infra.exceptions import DatabaseConstraintError, InvalidSortingError
+from luml.infra.exceptions import (
+    ArtifactDeployedError,
+    ArtifactTrackedError,
+    InvalidSortingError,
+)
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
@@ -388,7 +392,7 @@ async def test_delete_artifact_preserves_connected_lineage_node_snapshot(
 
 
 @pytest.mark.asyncio
-async def test_delete_artifact_with_deployment_constraint(
+async def test_delete_artifact_refuses_deployed_artifact(
     create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
 ) -> None:
     data = create_collection
@@ -441,7 +445,7 @@ async def test_delete_artifact_with_deployment_constraint(
     await deployment_repo.create_deployment(deployment_data)
     await lineage_repo.refresh_node_copy(created_model.id)
 
-    with pytest.raises(DatabaseConstraintError) as error:
+    with pytest.raises(ArtifactDeployedError) as error:
         await repo.delete_artifact(created_model.id)
 
     assert error.value.status_code == 409
@@ -451,6 +455,24 @@ async def test_delete_artifact_with_deployment_constraint(
     ]
     assert attached_node.artifact_id == created_model.id
     assert await lineage_repo.get_edges_by_ids(orbit.id, [edge.id])
+
+
+@pytest.mark.asyncio
+async def test_delete_artifact_refuses_tracked_artifact(
+    create_collection: CollectionFixtureData, test_artifact: ArtifactCreate
+) -> None:
+    data = create_collection
+    repo = ArtifactRepository(data.engine)
+    artifact = await _make_artifact(
+        repo, test_artifact, data.collection.id, name="tracked"
+    )
+    await _add_artifact_to_track(data.engine, data.orbit.id, artifact.id, data.user.id)
+
+    with pytest.raises(ArtifactTrackedError) as error:
+        await repo.delete_artifact(artifact.id)
+
+    assert error.value.status_code == 409
+    assert await repo.get_artifact(artifact.id) is not None
 
 
 @pytest.mark.asyncio
