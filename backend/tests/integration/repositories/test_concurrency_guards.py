@@ -10,6 +10,7 @@ from luml.infra.exceptions import (
     ApplicationError,
     ArtifactBeingDeletedError,
     ArtifactDeployedError,
+    ArtifactNotFoundError,
     ArtifactStatusMismatchError,
     ArtifactTrackedError,
     CollectionDeleteError,
@@ -33,6 +34,7 @@ from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.collections import CollectionRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.invites import InviteRepository
+from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbit_secrets import OrbitSecretRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.satellites import SatelliteRepository
@@ -147,6 +149,19 @@ async def _artifacts(
         )
         for _ in range(count)
     ]
+
+
+
+async def _delete_artifact(
+    engine: AsyncEngine, orbit_id: UUID, artifact_id: UUID
+) -> None:
+    lineage = LineageRepository(engine)
+    artifacts = ArtifactRepository(engine)
+    async with lineage.transaction() as session:
+        await lineage.lock_orbit(orbit_id, session)
+        await lineage.refresh_node_copy(artifact_id, session)
+        await artifacts.delete_artifact(artifact_id, session)
+        await lineage.delete_unreachable_deleted_nodes(orbit_id, session)
 
 
 class TestConcurrencyGuards:
@@ -856,6 +871,96 @@ class TestConcurrencyGuards:
             else:
                 assert isinstance(refused, ArtifactTrackedError)
                 assert linked is True
+            assert stored.status == seeded_satellite.model.status
+
+    @pytest.mark.parametrize("reference", ["deployment", "entry"])
+    @pytest.mark.parametrize("first", ["deletion", "reference"])
+    async def test_delete_artifact_serializes_with_new_reference(
+        self,
+        engine: AsyncEngine,
+        seeded_satellite: SatelliteFixtureData,
+        first: str,
+        reference: str,
+    ) -> None:
+        artifacts = ArtifactRepository(engine)
+        deployments = DeploymentRepository(engine)
+        entries = TrackEntryRepository(engine)
+        track = await TrackRepository(engine).create_track(
+            TrackCreate(
+                orbit_id=seeded_satellite.orbit.id,
+                name="t",
+                artifact_type=ArtifactType.MODEL,
+            )
+        )
+        make_reference: dict[str, Callable[[], Coroutine[Any, Any, Any]]] = {
+            "deployment": lambda: deployments.create_deployment(
+                DeploymentCreate(
+                    name="late",
+                    orbit_id=seeded_satellite.orbit.id,
+                    satellite_id=seeded_satellite.satellite.id,
+                    artifact_id=seeded_satellite.model.id,
+                    status=DeploymentStatus.PENDING,
+                )
+            ),
+            "entry": lambda: entries.create_entry(
+                TrackEntryCreate(
+                    track_id=track.id,
+                    artifact_id=seeded_satellite.model.id,
+                    added_by=seeded_satellite.user.email,
+                )
+            ),
+        }
+        writers: dict[str, Callable[[], Coroutine[Any, Any, Any]]] = {
+            "deletion": lambda: _delete_artifact(
+                engine, seeded_satellite.orbit.id, seeded_satellite.model.id
+            ),
+            "reference": make_reference[reference],
+        }
+        second = "reference" if first == "deletion" else "deletion"
+
+        async with AsyncSession(engine) as session:
+            await session.execute(
+                select(ArtifactOrm.id)
+                .where(ArtifactOrm.id == seeded_satellite.model.id)
+                .with_for_update()
+            )
+            tasks = {first: asyncio.create_task(writers[first]())}
+            await _wait_for_lock_waiters(session, 1)
+            tasks[second] = asyncio.create_task(writers[second]())
+            await _wait_for_lock_waiters(session, 2)
+            assert not tasks[first].done()
+            assert not tasks[second].done()
+            await session.commit()
+
+        results = {
+            name: (await asyncio.gather(task, return_exceptions=True))[0]
+            for name, task in tasks.items()
+        }
+        stored = await artifacts.get_artifact(seeded_satellite.model.id)
+        async with AsyncSession(engine) as session:
+            deployment_count = await session.scalar(
+                select(func.count())
+                .select_from(DeploymentOrm)
+                .where(DeploymentOrm.artifact_id == seeded_satellite.model.id)
+            )
+        linked = await entries.has_entries_for_artifact(seeded_satellite.model.id)
+
+        if first == "deletion":
+            assert results["deletion"] is None
+            assert stored is None
+            assert isinstance(results["reference"], ArtifactNotFoundError)
+            assert deployment_count == 0
+            assert linked is False
+        else:
+            assert not isinstance(results["reference"], BaseException), results
+            refused = results["deletion"]
+            if reference == "deployment":
+                assert isinstance(refused, ArtifactDeployedError)
+                assert deployment_count == 1
+            else:
+                assert isinstance(refused, ArtifactTrackedError)
+                assert linked is True
+            assert stored is not None
             assert stored.status == seeded_satellite.model.status
 
     async def test_delete_stage_leaves_no_dangling_assignment_when_racing_assignment(

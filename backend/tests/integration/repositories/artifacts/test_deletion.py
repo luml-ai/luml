@@ -1,7 +1,7 @@
 import uuid
 
 import pytest
-from luml.infra.exceptions import DatabaseConstraintError
+from luml.infra.exceptions import ArtifactDeployedError, ArtifactTrackedError
 from luml.repositories.artifacts import ArtifactRepository
 from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.lineage import LineageRepository
@@ -17,6 +17,7 @@ from luml.schemas.lineage import LineageVia
 from luml.schemas.satellite import SatelliteCreate
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
 from tests.support.builders import create_artifact
 from tests.support.seeds import CollectionFixtureData
 
@@ -133,7 +134,7 @@ class TestArtifactRepositoryDeletion:
             seeded_collection.orbit.id, [edge.id]
         )
 
-    async def test_delete_artifact_raises_conflict_when_artifact_is_deployed(
+    async def test_delete_artifact_refuses_deployed_artifact(
         self,
         repository: ArtifactRepository,
         engine: AsyncEngine,
@@ -193,7 +194,7 @@ class TestArtifactRepositoryDeletion:
         await deployment_repository.create_deployment(deployment_data)
         await lineage_repository.refresh_node_copy(created_model.id)
 
-        with pytest.raises(DatabaseConstraintError) as error:
+        with pytest.raises(ArtifactDeployedError) as error:
             await repository.delete_artifact(created_model.id)
 
         assert error.value.status_code == 409
@@ -207,3 +208,26 @@ class TestArtifactRepositoryDeletion:
         assert await lineage_repository.get_edges_by_ids(
             seeded_collection.orbit.id, [edge.id]
         )
+
+    async def test_delete_artifact_refuses_tracked_artifact(
+        self,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        artifact = await create_artifact(
+            engine, new_artifact, seeded_collection.collection.id, name="tracked"
+        )
+        await _add_artifact_to_track(
+            engine,
+            seeded_collection.orbit.id,
+            artifact.id,
+            seeded_collection.user.email,
+        )
+
+        with pytest.raises(ArtifactTrackedError) as error:
+            await repository.delete_artifact(artifact.id)
+
+        assert error.value.status_code == 409
+        assert await repository.get_artifact(artifact.id) is not None
