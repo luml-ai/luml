@@ -7,6 +7,7 @@ from luml.handlers.lineage import LineageHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
+    ArtifactDeployedError,
     ArtifactNotFoundError,
     ArtifactTrackedError,
     ArtifactTypeMismatchError,
