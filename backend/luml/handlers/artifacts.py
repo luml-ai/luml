@@ -7,7 +7,6 @@ from luml.handlers.lineage import LineageHandler
 from luml.handlers.permissions import PermissionsHandler
 from luml.infra.db import engine
 from luml.infra.exceptions import (
-    ArtifactDeployedError,
     ArtifactNotFoundError,
     ArtifactTrackedError,
     ArtifactTypeMismatchError,
@@ -24,6 +23,7 @@ from luml.infra.exceptions import (
 from luml.repositories.artifacts import ArtifactDeletionRecord, ArtifactRepository
 from luml.repositories.bucket_secrets import BucketSecretRepository
 from luml.repositories.collections import CollectionRepository
+from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.lineage import LineageRepository
 from luml.repositories.orbits import OrbitRepository
 from luml.repositories.tracks import TrackEntryRepository, TrackRepository
@@ -62,6 +62,7 @@ class ArtifactHandler:
     __orbit_repository = OrbitRepository(engine)
     __secret_repository = BucketSecretRepository(engine)
     __collection_repository = CollectionRepository(engine)
+    __deployment_repository = DeploymentRepository(engine)
     __lineage_repository = LineageRepository(engine)
     __track_entry_repository = TrackEntryRepository(engine)
     __track_repository = TrackRepository(engine)
@@ -576,9 +577,15 @@ class ArtifactHandler:
             raise ArtifactDeployedError()
         await self._delete_artifact(orbit_id, artifact_id)
 
-    async def _delete_artifact(self, orbit_id: UUID, artifact_id: UUID) -> None:
+    async def _delete_artifact(
+        self, orbit_id: UUID, artifact_id: UUID, *, undeploy: bool = False
+    ) -> None:
         async with self.__lineage_repository.transaction() as session:
             await self.__lineage_repository.lock_orbit(orbit_id, session)
+            if undeploy:
+                await self.__deployment_repository.undeploy_artifact_deployments(
+                    artifact_id, session
+                )
             await self.__lineage_repository.refresh_node_copy(artifact_id, session)
             await self.__repository.delete_artifact(artifact_id, session)
             await self.__lineage_repository.delete_unreachable_deleted_nodes(
@@ -671,14 +678,11 @@ class ArtifactHandler:
         collection_id: UUID,
         artifact_id: UUID,
     ) -> None:
-        artifact = await self._artifact_deletion_checks(
+        await self._artifact_deletion_checks(
             user_id, organization_id, orbit_id, collection_id, artifact_id
         )
 
-        if artifact.deployments:
-            raise ArtifactDeployedError()
-
-        await self._delete_artifact(orbit_id, artifact_id)
+        await self._delete_artifact(orbit_id, artifact_id, undeploy=True)
 
     @staticmethod
     def _validate_cursor(

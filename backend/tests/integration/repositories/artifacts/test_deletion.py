@@ -14,7 +14,11 @@ from luml.schemas.artifacts import (
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.lineage import LineageVia
-from luml.schemas.satellite import SatelliteCreate
+from luml.schemas.satellite import (
+    SatelliteCreate,
+    SatelliteTaskStatus,
+    SatelliteTaskType,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.integration.repositories.artifacts.conftest import _add_artifact_to_track
@@ -208,6 +212,54 @@ class TestArtifactRepositoryDeletion:
         assert await lineage_repository.get_edges_by_ids(
             seeded_collection.orbit.id, [edge.id]
         )
+
+    async def test_forced_deletion_undeploys_then_removes_the_artifact(
+        self,
+        repository: ArtifactRepository,
+        engine: AsyncEngine,
+        seeded_collection: CollectionFixtureData,
+        new_artifact: ArtifactCreate,
+    ) -> None:
+        orbit = seeded_collection.orbit
+        lineage_repository = LineageRepository(engine)
+        deployment_repository = DeploymentRepository(engine)
+        satellite_repository = SatelliteRepository(engine)
+        artifact = await create_artifact(
+            engine, new_artifact, seeded_collection.collection.id, name="deployed"
+        )
+        satellite = await satellite_repository.create_satellite(
+            SatelliteCreate(
+                orbit_id=orbit.id, api_key_hash=str(uuid.uuid4()), name="test_satellite"
+            )
+        )
+        deployment, _ = await deployment_repository.create_deployment(
+            DeploymentCreate(
+                name="my-deployment",
+                orbit_id=orbit.id,
+                satellite_id=satellite.id,
+                artifact_id=artifact.id,
+                status=DeploymentStatus.ACTIVE,
+            )
+        )
+
+        async with lineage_repository.transaction() as session:
+            await lineage_repository.lock_orbit(orbit.id, session)
+            await deployment_repository.undeploy_artifact_deployments(
+                artifact.id, session
+            )
+            await lineage_repository.refresh_node_copy(artifact.id, session)
+            await repository.delete_artifact(artifact.id, session)
+            await lineage_repository.delete_unreachable_deleted_nodes(orbit.id, session)
+
+        assert await repository.get_artifact(artifact.id) is None
+        assert await deployment_repository.list_deployments(orbit.id) == []
+        tasks = await satellite_repository.list_tasks(
+            satellite.id, status=SatelliteTaskStatus.PENDING
+        )
+        undeploys = [task for task in tasks if task.type == SatelliteTaskType.UNDEPLOY]
+        assert [task.payload["deployment_id"] for task in undeploys] == [
+            str(deployment.id)
+        ]
 
     async def test_delete_artifact_refuses_tracked_artifact(
         self,

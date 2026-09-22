@@ -585,6 +585,9 @@ class TestArtifactDeletion:
         await mocks.handler.force_delete_artifact(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
         )
+        mocks.deployment_repository.undeploy_artifact_deployments.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
+        )
         mocks.lineage_repository.refresh_node_copy.assert_awaited_once_with(
             ARTIFACT_ID, mocks.session
         )
@@ -598,7 +601,7 @@ class TestArtifactDeletion:
             ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.DELETE, ORBIT_ID
         )
 
-    async def test_force_delete_artifact_rejects_deployed_artifact(
+    async def test_force_delete_artifact_undeploys_deployments(
         self, mocks: CollaboratorMocks[ArtifactHandler]
     ) -> None:
         mocks.track_entry_repository.has_entries_for_artifact.return_value = False
@@ -614,15 +617,22 @@ class TestArtifactDeletion:
             deployments=[Mock(id=DEPLOYMENT_ID)],
         )
 
-        with pytest.raises(ArtifactDeployedError) as error:
-            await mocks.handler.force_delete_artifact(
-                USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
-            )
+        await mocks.handler.force_delete_artifact(
+            USER_ID, ORGANIZATION_ID, ORBIT_ID, COLLECTION_ID, ARTIFACT_ID
+        )
 
-        assert error.value.status_code == 409
         mocks.permissions_handler.check_permissions.assert_awaited_once_with(
             ORGANIZATION_ID, USER_ID, Resource.ARTIFACT, Action.DELETE, ORBIT_ID
         )
-        mocks.lineage_repository.refresh_node_copy.assert_not_awaited()
-        mocks.repository.delete_artifact.assert_not_awaited()
-        mocks.lineage_repository.delete_unreachable_deleted_nodes.assert_not_awaited()
+        mocks.deployment_repository.undeploy_artifact_deployments.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
+        )
+        mocks.lineage_repository.refresh_node_copy.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
+        )
+        mocks.repository.delete_artifact.assert_awaited_once_with(
+            ARTIFACT_ID, mocks.session
+        )
+        mocks.lineage_repository.delete_unreachable_deleted_nodes.assert_awaited_once_with(
+            ORBIT_ID, mocks.session
+        )

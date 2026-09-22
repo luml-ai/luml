@@ -151,7 +151,6 @@ async def _artifacts(
     ]
 
 
-
 async def _delete_artifact(
     engine: AsyncEngine, orbit_id: UUID, artifact_id: UUID
 ) -> None:
