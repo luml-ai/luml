@@ -245,3 +245,17 @@ def _secret_hash(workload: dict[str, Any]) -> str:
         str,
         workload["spec"]["template"]["metadata"]["annotations"]["luml.ai/secret-hash"],
     )
+
+
+def test_model_and_sidecar_probes_carry_the_configured_timeout() -> None:
+    config = configuration(PROBE_TIMEOUT_SEC=12)
+    manifests = render_deployment_manifests(
+        config,
+        deployment(),
+        start_context(config),
+        TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+    )
+    workload = manifests.deployment
+
+    assert container_by_name(workload, "model")["readinessProbe"]["timeoutSeconds"] == 12
+    assert container_by_name(workload, "sidecar")["readinessProbe"]["timeoutSeconds"] == 12

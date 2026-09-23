@@ -40,9 +40,10 @@ spec:
             {{- toYaml .Values.monitoring.worker.resources | nindent 12 }}
           livenessProbe:
             exec:
-              command: ["luml-monitoring-worker", "--probe"]
+              command: ["luml-monitoring-probe"]
             initialDelaySeconds: 180
             periodSeconds: 60
+            {{- include "luml.probeTuning" . | nindent 12 }}
           volumeMounts:
             - name: heartbeat
               mountPath: /var/run/luml-monitoring

@@ -316,3 +316,8 @@ openshift-default
       key: session-secret
 {{- end }}
 {{- end -}}
+
+{{- define "luml.probeTuning" -}}
+timeoutSeconds: {{ .Values.probes.timeoutSeconds }}
+failureThreshold: {{ .Values.probes.failureThreshold }}
+{{- end -}}

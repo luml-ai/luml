@@ -1,0 +1,84 @@
+suite: probe tuning
+templates:
+  - templates/deployment-satellite.yaml
+  - templates/deployment-dashboard.yaml
+  - templates/deployment-worker.yaml
+  - templates/statefulset-store.yaml
+release:
+  name: first
+  namespace: shared
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: gives the satellite probes a timeout instead of the one-second default
+    template: templates/deployment-satellite.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 3
+
+  - it: gives the dashboard probes the same timeout
+    template: templates/deployment-dashboard.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+
+  - it: gives the store probes the same timeout
+    template: templates/statefulset-store.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+
+  - it: probes the worker through the entry point that skips the satellite imports
+    template: templates/deployment-worker.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.exec.command
+          value: [luml-monitoring-probe]
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: carries a configured timeout into every probe and on to the model pods
+    set:
+      probes.timeoutSeconds: 15
+      probes.failureThreshold: 5
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 15
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 5
+
+  - it: tells the satellite which timeout to give the probes it creates
+    template: templates/deployment-satellite.yaml
+    set:
+      probes.timeoutSeconds: 15
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PROBE_TIMEOUT_SEC
+            value: "15"

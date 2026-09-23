@@ -67,6 +67,7 @@ class KubernetesConfiguration(SatelliteConfiguration):
     IMAGE_PULL_SECRETS: list[str] = Field(default_factory=list)
     SIDECAR_RESOURCES: dict[str, Any] = Field(default_factory=dict)
     SIDECAR_CACHE_TTL_SEC: float = Field(default=60.0, gt=15.0)
+    PROBE_TIMEOUT_SEC: int = Field(default=5, ge=1)
     SIDECAR_STALE_ALLOWANCE_SEC: float = Field(default=600.0, ge=0.0)
 
     KUBERNETES_FIELD_MANAGER: str = "luml-satellite"

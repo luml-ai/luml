@@ -1,12 +1,12 @@
 import hashlib
 import json
-import time
-from collections.abc import Callable, Iterable
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+from luml_heartbeat import heartbeat_file_is_fresh as heartbeat_file_is_fresh
 
 from luml_satellite.monitoring.compute.health import (
     DeploymentHealth,
@@ -140,21 +140,6 @@ def deployment_shard(deployment_id: str, shard_count: int) -> int:
         raise ValueError("shard_count must be greater than zero")
     digest = hashlib.sha256(deployment_id.encode()).digest()
     return int.from_bytes(digest[:8], "big") % shard_count
-
-
-def heartbeat_file_is_fresh(
-    path: Path | str,
-    *,
-    interval_seconds: float,
-    clock: Callable[[], float] = time.time,
-) -> bool:
-    if interval_seconds <= 0:
-        return False
-    try:
-        modified_at = Path(path).stat().st_mtime
-    except OSError:
-        return False
-    return max(0.0, clock() - modified_at) <= interval_seconds * 3
 
 
 def _latest_generation(heartbeats: Iterable[WorkerHeartbeat]) -> list[WorkerHeartbeat]:

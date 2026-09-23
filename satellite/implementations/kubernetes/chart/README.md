@@ -30,8 +30,11 @@ The release name is the satellite identity inside its namespace. Use a different
 | `podSecurity` | `vanilla` or `openshift` preset plus pod/container context overrides |
 | `monitoring` | Dashboard, worker, collector, session, retention and store configuration |
 | `networkPolicy`, `rbac`, `serviceAccount` | Namespaced access controls |
+| `probes` | Timeout and failure threshold for every probe this chart renders, including the ones the satellite gives model pods |
 
 `satellite.baseUrl` overrides URL derivation. Otherwise the chart uses `https://` when an Ingress TLS Secret is configured or the OpenShift preset is active, and `http://` otherwise.
+
+Kubernetes gives an unset probe timeout one second, which is too little for a container that has to start a process to answer. `probes.timeoutSeconds` and `probes.failureThreshold` are applied to the satellite, dashboard, worker and store, and the timeout is passed to the satellite so the model and sidecar probes it creates carry it too. The worker is probed through `luml-monitoring-probe`, an entry point that reads the heartbeat file without importing the rest of the kit.
 
 The vanilla security preset pins user 10001, group 0 and file-system group 10001. Both presets require non-root containers, runtime-default seccomp, no privilege escalation and all Linux capabilities dropped. Context maps may be overridden for installations with additional policy requirements.
 

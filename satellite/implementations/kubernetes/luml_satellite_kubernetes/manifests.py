@@ -116,6 +116,7 @@ def render_deployment_manifests(
         "readinessProbe": {
             "httpGet": {"path": "/healthz", "port": "model"},
             "periodSeconds": 5,
+            "timeoutSeconds": configuration.PROBE_TIMEOUT_SEC,
         },
         "resources": {"limits": _model_limits(settings)},
         "volumeMounts": [{"name": "model-cache", "mountPath": MODEL_CACHE_PATH}],
@@ -170,6 +171,7 @@ def render_deployment_manifests(
         "readinessProbe": {
             "httpGet": {"path": "/livez", "port": "http"},
             "periodSeconds": 5,
+            "timeoutSeconds": configuration.PROBE_TIMEOUT_SEC,
         },
         "resources": configuration.SIDECAR_RESOURCES,
         "securityContext": configuration.container_security_context,
