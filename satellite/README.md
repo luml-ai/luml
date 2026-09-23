@@ -7,6 +7,10 @@ from here into the Platform's iframe. Raw inputs and outputs never leave this ma
 See `SMOKE_TEST.md` for bringing a local stand up, and `spec_full.md` /
 `MONITORING_API_SPEC.md` in the repository root for the architecture.
 
+The Docker satellite lives in `implementations/docker`, the Kubernetes one in
+`implementations/kubernetes`, and both are built on the kit in `kit/`. The Kubernetes
+README covers its chart, a local stand on kind and the end-to-end scenario.
+
 ## Monitoring over the machine API
 
 Monitoring is a facet of the deployment tree, next to inference, behind the same bearer
