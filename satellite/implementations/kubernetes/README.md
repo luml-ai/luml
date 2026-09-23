@@ -102,7 +102,6 @@ helm upgrade --install local satellite/implementations/kubernetes/chart \
   --set model.image.tag=latest \
   --set model.image.pullPolicy=Never \
   --set monitoring.frameAncestors=http://localhost:5173 \
-  --set monitoring.store.persistence.enabled=false \
   --set ingress.className=nginx \
   --set networkPolicy.enabled=false \
   --wait --timeout 8m
@@ -110,6 +109,15 @@ helm upgrade --install local satellite/implementations/kubernetes/chart \
 
 `host.docker.internal` is how pods reach the host on Docker Desktop; the cluster's own
 gateway address does not lead to the host's ports.
+
+The monitoring store keeps its default claim. With `monitoring.store.persistence.enabled=false`
+its data lives in an `emptyDir`, so a restarted store pod comes back without the recorded
+inferences and the dashboard reads empty.
+
+Upgrade this release with `--reset-then-reuse-values` rather than `--reuse-values`: the latter
+keeps the previous values verbatim and a value added to the chart since the install renders as
+null. Switching the store's persistence on or off afterwards replaces the claim template of a
+StatefulSet, which Kubernetes forbids; delete the StatefulSet and upgrade again.
 
 The network policy is disabled because a development backend listens on port 8000, while
 the policy permits outbound 80 and 443, the Kubernetes API port and traffic within the
