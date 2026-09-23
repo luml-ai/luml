@@ -103,7 +103,7 @@ export const useDataTable = (validator: ValidatorFunction) => {
   }
   function setColumnTypes(row: object) {
     for (const key in row) {
-      if (Number(row[key as keyof typeof row])) columnTypes.value[key] = 'number'
+      if (typeof row[key as keyof typeof row] === 'number') columnTypes.value[key] = 'number'
       else columnTypes.value[key] = 'string'
     }
   }
