@@ -12,6 +12,7 @@ COPY pyproject.toml uv.lock README.md /app/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra serving --extra monitoring --no-install-project
 
+COPY luml_heartbeat.py /app/
 COPY luml_satellite /app/luml_satellite
 
 RUN --mount=type=cache,target=/root/.cache/uv \
