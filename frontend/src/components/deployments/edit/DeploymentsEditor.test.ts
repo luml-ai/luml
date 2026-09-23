@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
 import { DeploymentStatusEnum, MonitoringMode } from '@/lib/api/deployments/interfaces'
 import { MonitoringFeature } from '@/lib/api/satellites/interfaces'
+import { deploymentEditorResolver } from '@/utils/forms/resolvers'
 import DeploymentsEditor from './DeploymentsEditor.vue'
 
 const TABULAR_KIND_TAG = 'luml.ai::kind_tabular:v1'
@@ -42,6 +43,11 @@ const secretsStore = {
   loadSecrets: vi.fn(async () => undefined),
 }
 
+const deploymentsStore = {
+  update: vi.fn(),
+  forceDeleteDeployment: vi.fn(),
+}
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { organizationId: 'org-1' } }),
 }))
@@ -65,7 +71,7 @@ vi.mock('@/stores/collections', () => ({
 }))
 
 vi.mock('@/stores/deployments', () => ({
-  useDeploymentsStore: () => ({ update: vi.fn(), forceDeleteDeployment: vi.fn() }),
+  useDeploymentsStore: () => deploymentsStore,
 }))
 
 vi.mock('@/lib/fnnx/FnnxService', () => ({
@@ -108,7 +114,12 @@ function mountEditor(data = deployment(MONITORED.id)) {
           props: ['visible'],
           template: '<div><slot name="header" /><slot /><slot name="footer" /></div>',
         },
-        Form: { template: '<form><slot /></form>' },
+        Form: {
+          name: 'Form',
+          props: ['resolver'],
+          emits: ['submit'],
+          template: '<form><slot /></form>',
+        },
         FormField: { template: '<div><slot /></div>' },
         DeploymentsFormBasicsSettings: true,
         DeploymentsDelete: true,
@@ -158,5 +169,24 @@ describe('DeploymentsEditor monitoring settings', () => {
 
     expect(wrapper.find('[data-testid="editor-monitoring-toggle"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('does not report the monitoring capability')
+  })
+})
+
+describe('DeploymentsEditor validation', () => {
+  beforeEach(() => {
+    deploymentsStore.update.mockReset()
+    artifactsStore.getArtifact.mockResolvedValue(modelWithTags([]))
+  })
+
+  it('does not update a deployment when the form is invalid', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const form = wrapper.findComponent({ name: 'Form' })
+
+    expect(form.props('resolver')).toBe(deploymentEditorResolver)
+    form.vm.$emit('submit', { valid: false })
+    await flushPromises()
+
+    expect(deploymentsStore.update).not.toHaveBeenCalled()
   })
 })

@@ -1301,6 +1301,16 @@ def test_details_update_in_rejects_null_for_not_null_columns(field: str) -> None
         DeploymentDetailsUpdateIn.model_validate({field: None})
 
 
+def test_details_update_in_rejects_empty_name() -> None:
+    with pytest.raises(ValidationError, match="at least 1 character"):
+        DeploymentDetailsUpdateIn(name="")
+
+
+def test_create_deployment_rejects_empty_name() -> None:
+    with pytest.raises(ValidationError, match="at least 1 character"):
+        DeploymentCreateIn(satellite_id=uuid7(), artifact_id=uuid7(), name="")
+
+
 @pytest.mark.parametrize(
     "capabilities",
     [
