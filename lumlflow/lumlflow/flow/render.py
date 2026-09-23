@@ -176,11 +176,18 @@ def context(payload: dict[str, Any]) -> list[str]:
     ]
     if interpreter is not None:
         lines.append(interpreter)
+    position = payload.get("position") or {}
+    if position and position.get("step") != position.get("newest"):
+        lines.append(
+            f"at step {position['step']} · behind its newest step "
+            f"{position['newest']} · changes from here go on a new lane"
+        )
     lines += [
         f"cells {payload['cells']}",
         "checkpoint "
         + (
-            f"step {payload['checkpoint']['step']} · {payload['checkpoint']['intent']}"
+            f"step {payload['checkpoint']['step']} · "
+            + (payload["checkpoint"].get("mark") or payload["checkpoint"]["intent"])
             if payload.get("checkpoint")
             else "none yet"
         ),

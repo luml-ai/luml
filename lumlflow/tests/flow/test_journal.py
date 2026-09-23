@@ -24,7 +24,7 @@ class TestAppendAndReplay:
             transaction(
                 2, [AgentBegin(actor="claude-1", label="claude")], actor="agent"
             ),
-            transaction(3, [Checkpointed(branch_id="main")], settled=True),
+            transaction(3, [Checkpointed(branch_id="main", step=1)], settled=True),
         ]
         for entry in written:
             journal.append(entry)

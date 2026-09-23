@@ -28,7 +28,7 @@
 
     <GallerySpecimen
       title="The step timeline"
-      caption="Where a lane moves through its own history: its steps newest first, the one it is on marked, every older one a rewind behind a confirm that names what it restores. Marking a point is the other half. The journal records every change, so what a checkpoint adds is a name for one of them."
+      caption="Where a lane moves through its own history: its steps newest first, the one it is on marked, every older one a rewind behind a confirm that names what it restores. Marking a point is the other half. The journal records every change, so what a checkpoint adds is words on one of them — no step of its own."
     >
       <StepTimeline
         branch="main"
@@ -107,22 +107,19 @@ const overlayVisible = ref(false)
 const forking = ref(false)
 
 /**
- * `main`'s own steps, plus a marked one — the timeline lists positions on one
+ * `main`'s own steps, one of them marked — the timeline lists positions on one
  * branch, so the workspace-scoped lines the activity feed folds in are not
  * rows here: an env change is not somewhere this branch can be moved back to.
+ * The mark rides on a step rather than being one.
  */
-const steps = computed(() => [
-  {
-    step: 24,
-    time: '14:35',
-    branch: 'main',
-    actor: { kind: 'user' as const, label: 'user' },
-    intent: 'before I rewrite the scorer',
-    kind: 'checkpoint' as const,
-    summary: '',
-  },
-  ...journal.filter((entry) => entry.branch === 'main'),
-])
+const steps = computed(() => {
+  const own = journal.filter((entry) => entry.branch === 'main')
+  return own.map((entry, index) =>
+    index === Math.min(1, own.length - 1)
+      ? { ...entry, mark: 'before I rewrite the scorer' }
+      : entry,
+  )
+})
 
 function onView(name: string): void {
   toast.add({
@@ -174,11 +171,11 @@ function onRewind(step: number): void {
   })
 }
 
-function onCheckpoint(intent: string): void {
+function onCheckpoint(intent: string, step: number): void {
   toast.add({
     severity: 'secondary',
     summary: 'checkpoint',
-    detail: `would mark this point: "${intent}"`,
+    detail: `would write "${intent}" on step ${step}`,
     life: 2500,
   })
 }

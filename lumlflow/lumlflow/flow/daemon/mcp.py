@@ -280,8 +280,10 @@ TOOLS: tuple[_Tool, ...] = (
     _Tool(
         "rewind",
         "rewind",
-        "Restore a lane to a step, from the recent transactions `context` "
-        "lists. This is instant. Nothing recomputes.",
+        "Move a lane to a step, from the recent transactions `context` "
+        "lists. This is instant, nothing recomputes, and no step is added: the "
+        "lane stands there until the next change on it. To change things from "
+        "there without moving this lane on, start a lane with `new-lane` first.",
         (
             _Arg("to_step", "integer", "The step to restore to.", required=True),
             _INTENT,
@@ -291,10 +293,18 @@ TOOLS: tuple[_Tool, ...] = (
     _Tool(
         "checkpoint",
         "checkpoint",
-        "Mark this point on the lane under your own words, so it can be found "
-        "again. Nothing is copied or frozen. `context` reads the lane's latest one "
-        "back.",
-        (_INTENT,),
+        "Mark a step on the lane under your own words, so it can be found "
+        "again. The words attach to the step itself — the lane's newest one "
+        "unless `step` names another — so nothing is copied, frozen or added. "
+        "`context` reads the lane's latest one back.",
+        (
+            _Arg(
+                "step",
+                "integer",
+                "The step to mark. Defaults to the lane's newest step.",
+            ),
+            _INTENT,
+        ),
         writes=True,
     ),
     _Tool(

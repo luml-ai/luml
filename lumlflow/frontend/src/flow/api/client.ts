@@ -127,7 +127,7 @@ export interface ContextBrief {
   branch: string
   checked_out: boolean
   agent: string | null
-  checkpoint: { step: number; intent: string; ts: string } | null
+  checkpoint: { step: number; intent: string; ts: string; mark: string | null } | null
   cells: number
   unsynced: { slug: string; state: StaleState; causes: string[] }[]
   unsynced_omitted: number
@@ -260,12 +260,14 @@ export interface FlowMethods {
     Projected & FlowBrief & { rewound_branch: string; to_step: number; cells: number }
   >
   /**
-   * Mark this point on a branch. A marker, not a snapshot: the store already
-   * keeps every version this step resolved to, so the intent is the whole
-   * payload — and it comes back as the branch's `checkpoint` in the brief.
+   * Mark a step on a branch. A marker, not a snapshot and not a step: the
+   * store already keeps every version the step resolved to, so the intent is
+   * the whole payload, and it attaches to the step itself — the branch's
+   * newest one unless `step` names another — the way a commit message rides
+   * on its commit. It comes back as the branch's `checkpoint` in the brief.
    */
   checkpoint: Method<
-    Intentful,
+    Intentful & { step?: number },
     { branch: string; step: number; intent: string; ts: string; settled: boolean }
   >
   adopt: Method<

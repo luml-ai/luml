@@ -90,6 +90,11 @@
             <ExternalLink :size="14" />
             open in Experiments
           </RouterLink>
+          <!-- The tracker record is what LUML takes; the cell is only where it was made. -->
+          <TrackerUploadLink
+            v-if="tracker.url && tracker.state === 'ok'"
+            :experiment-id="tracker.id"
+          />
         </div>
         <p v-if="trackerStateLine" class="text-muted-color">{{ trackerStateLine }}</p>
       </div>
@@ -150,6 +155,7 @@ import { KIND_ICONS } from '../../ui/kinds'
 import TrackerStateBadge from '../../ui/TrackerStateBadge.vue'
 import RendererHost from '../../renderers/RendererHost.vue'
 import CellTabStrip, { type CellTab } from './CellTabStrip.vue'
+import TrackerUploadLink from '../../ui/TrackerUploadLink.vue'
 
 /**
  * The card expanded into a full-height right drawer: the selected output at

@@ -740,6 +740,8 @@ def test_checkpoint_marks_the_lane_on_disk(cli: Invoke, workspace: Path) -> None
     cli("init", "churn")
     write_cell(workspace / "churn.flow", "score", SCORE_CELL)
 
+    newest = json.loads(cli("context", "--json").output)["recent"][0]["step"]
+
     marked = cli("checkpoint", "-m", "the one that scored")
     match = re.search(
         r"marked `main` at step (\d+) · the one that scored", marked.output
@@ -748,9 +750,35 @@ def test_checkpoint_marks_the_lane_on_disk(cli: Invoke, workspace: Path) -> None
 
     assert marked.exit_code == 0, marked.output
     assert match is not None
-    assert context["checkpoint"]["step"] == int(match.group(1))
-    assert context["checkpoint"]["intent"] == "the one that scored"
+    # The words land on the newest step; marking adds none.
+    assert int(match.group(1)) == newest
+    assert context["recent"][0]["step"] == newest
+    assert context["checkpoint"]["step"] == newest
+    assert context["checkpoint"]["mark"] == "the one that scored"
+    assert "the one that scored" in cli("context").output
     _no_internals(marked)
+
+
+def test_checkpoint_marks_a_named_step(cli: Invoke, workspace: Path) -> None:
+    flow = workspace / "churn.flow"
+    cli("init", "churn")
+    write_cell(flow, "score", SCORE_CELL)
+    earlier = json.loads(cli("context", "--json").output)["recent"][0]["step"]
+    write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.77"))
+    cli("status")
+
+    marked = cli("checkpoint", "--step", str(earlier), "-m", "the original")
+    context = json.loads(cli("context", "--json").output)
+
+    assert marked.exit_code == 0, marked.output
+    assert f"marked `main` at step {earlier} · the original" in marked.output
+    assert context["checkpoint"]["step"] == earlier
+    assert context["recent"][0]["step"] > earlier
+
+    refused = cli("checkpoint", "--step", "10000", "-m", "x")
+    assert refused.exit_code == 1
+    assert "not on main" in refused.output
+    assert "Traceback" not in refused.output
 
 
 def test_checkpoint_marks_another_lane(cli: Invoke) -> None:
@@ -838,17 +866,42 @@ def test_rewind_asks_nothing_and_recomputes_nothing(cli: Invoke, workspace: Path
     # the rewind cost a selection write and no execution.
     states = [entry["state"] for entry in json.loads(listed.output)["cells"]]
     assert states == ["synced"]
-    assert context_json["last_cells_rewrite"] == {
-        "verb": "rewind",
-        "lane": "main",
-        "step": context_json["recent"][0]["step"],
-    }
+    # The rewind is not a step of the lane: the history still tops out at the
+    # edit, the lane stands at the step it was moved to, and the brief says so.
+    newest = context_json["recent"][0]["step"]
+    assert newest > at
+    assert context_json["position"] == {"step": at, "newest": newest}
+    assert f"at step {at} · behind its newest step {newest}" in context_text.output
+    rewrite = context_json["last_cells_rewrite"]
+    assert rewrite["verb"] == "rewind" and rewrite["lane"] == "main"
+    assert rewrite["step"] > newest
     assert (
-        f"last `cells/` rewrite: rewind · `main` · step "
-        f"{context_json['last_cells_rewrite']['step']}"
+        f"last `cells/` rewrite: rewind · `main` · step {rewrite['step']}"
     ) in context_text.output
     assert context_text.output.rstrip().endswith("full agent guide: `lumlflow guide`")
     _no_internals(rewound)
+
+
+def test_a_change_after_a_rewind_moves_the_lane_on_from_there(
+    cli: Invoke, workspace: Path
+):
+    flow = workspace / "churn.flow"
+    cli("init", "churn")
+    write_cell(flow, "score", SCORE_CELL)
+    at = json.loads(cli("context", "--json").output)["recent"][0]["step"]
+    write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.77"))
+    cli("status")
+    cli("rewind", str(at))
+    behind = json.loads(cli("context", "--json").output)["position"]
+
+    write_cell(flow, "score", SCORE_CELL.replace("0.91", "0.85"))
+    cli("status")
+    moved = json.loads(cli("context", "--json").output)
+
+    assert behind["step"] == at and behind["newest"] > at
+    assert moved["position"]["step"] == moved["position"]["newest"]
+    assert moved["position"]["step"] > behind["newest"]
+    assert "behind its newest step" not in cli("context").output
 
 
 def test_adopt_takes_the_winner_and_never_overwrites_a_side_silently(

@@ -178,6 +178,17 @@
       @create="onFork"
     />
 
+    <FromHereDialog
+      v-model:visible="fromHereOpen"
+      :branch="fromHere?.branch ?? viewedBranch"
+      :head-step="fromHere?.head ?? 0"
+      :newest-step="fromHere?.newest ?? 0"
+      :refusal="fromHereRefusal"
+      :busy="branchBusy"
+      @new-lane="onLaneFromHere"
+      @continue="settleFromHere(fromHere?.branch ?? null)"
+    />
+
     <BranchGraphOverlay
       v-model:visible="graphVisible"
       :branches="records.branches.value"
@@ -191,7 +202,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, shallowRef, watch } from 'vue'
+import { computed, onScopeDispose, provide, ref, shallowRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button, Dialog, InputText } from 'primevue'
 import { useToast } from 'primevue/usetoast'
@@ -200,6 +211,7 @@ import { Plus, Terminal } from 'lucide-vue-next'
 import { FlowApiError } from '@/flow/api/client'
 import type { FlowStream } from '@/flow/api/stream'
 import type { AgentHarness, CellSummary } from '@/flow/api/types'
+import FromHereDialog from '../components/branch/FromHereDialog.vue'
 import NewBranchDialog from '../components/branch/NewBranchDialog.vue'
 import FlowCanvas, { type CanvasSessionState } from '../components/canvas/FlowCanvas.vue'
 import AgentEndedBanner from '../components/card/AgentEndedBanner.vue'
@@ -213,7 +225,7 @@ import { coalesceTransactions } from '../live/toasts'
 import { formatCount } from '../model/format'
 import { reorderNeighbours } from '../model/registry'
 import { summarized } from '../live/useCell'
-import { useFlowOps } from '../live/useFlowOps'
+import { MOVE_GUARD, MoveCancelled, useFlowOps } from '../live/useFlowOps'
 import type { FlowSessionHandle } from '../live/useFlowSession'
 import { useSelection } from '../live/useSelection'
 import { useSlice } from '../live/useSlice'
@@ -244,7 +256,7 @@ const router = useRouter()
 const toast = useToast()
 
 const session = props.session
-const ops = useFlowOps(session)
+const ops = useFlowOps(session, { guard: askWhereFrom })
 const records = useWorkbench(session)
 
 const selection = useSelection(route, {
@@ -429,6 +441,8 @@ let plans = 0
 const kernelDeath = ref<{ slug: string; cause?: string } | null>(null)
 
 function refused(failure: unknown): void {
+  // Stepping back from a gesture is not something lumlflow refused.
+  if (failure instanceof MoveCancelled) return
   toast.add({
     severity: 'warn',
     summary: 'lumlflow refused this',
@@ -834,9 +848,10 @@ async function onFork(name: string): Promise<void> {
 }
 
 /**
- * Rewind restores the selection this branch had at a step. Nothing recomputes
- * and nothing is lost — the steps after it stay in the journal, which is what
- * makes rewinding forward again the same gesture.
+ * Rewind moves the branch to a step and restores the selection it had there.
+ * Nothing recomputes, nothing is lost and no step is added — the steps after
+ * it stay in the journal, which is what makes moving forward again the same
+ * gesture. The branch stands there until the next change on it.
  */
 async function onRewind(step: number): Promise<void> {
   if (branchBusy.value) return
@@ -845,8 +860,8 @@ async function onRewind(step: number): Promise<void> {
   try {
     const restored = await ops.rewind(step, { branch })
     acknowledge(
-      `${branch} is at step ${step}`,
-      `${formatCount(restored.projected?.written.length ?? 0, 'file')} rewritten. nothing recomputed.`,
+      `${branch} stands at step ${step}`,
+      `${formatCount(restored.projected?.written.length ?? 0, 'file')} rewritten. nothing recomputed, no step added.`,
     )
   } catch (failure) {
     refused(failure)
@@ -855,13 +870,90 @@ async function onRewind(step: number): Promise<void> {
   }
 }
 
+// --- changes from behind the newest step ------------------------------------
+
+/**
+ * The question every moving op asks first, answered here because this page
+ * owns the dialog and the lane the screen lands on. A branch standing on its
+ * newest step needs no question. One standing behind — rewound, and left there
+ * on purpose — gets asked once per gesture whether the change goes on this
+ * lane, moving it on from where it stands, or on a new lane started there.
+ */
+interface FromHere {
+  branch: string
+  head: number
+  newest: number
+  settle: (target: string | null) => void
+}
+
+const fromHere = ref<FromHere | null>(null)
+const fromHereRefusal = ref<string | null>(null)
+
+/** Open while a gesture waits on the answer; closing it is stepping back. */
+const fromHereOpen = computed({
+  get: () => fromHere.value !== null,
+  set: (open: boolean) => {
+    if (!open) settleFromHere(null)
+  },
+})
+
+function askWhereFrom(branch: string): Promise<string | null> {
+  const standing = records.branches.value.find((entry) => entry.name === branch)
+  if (!standing || standing.newestStep === undefined || standing.newestStep <= standing.headStep) {
+    return Promise.resolve(branch)
+  }
+  // A second gesture while the first is being asked about gets no answer.
+  if (fromHere.value) return Promise.resolve(null)
+  fromHereRefusal.value = null
+  return new Promise((settle) => {
+    fromHere.value = {
+      branch,
+      head: standing.headStep,
+      newest: standing.newestStep as number,
+      settle,
+    }
+  })
+}
+
+provide(MOVE_GUARD, askWhereFrom)
+
+function settleFromHere(target: string | null): void {
+  const asked = fromHere.value
+  fromHere.value = null
+  asked?.settle(target)
+}
+
+/** A lane from where the branch stands, and the gesture lands on it — so the screen does too. */
+async function onLaneFromHere(name: string): Promise<void> {
+  const asked = fromHere.value
+  if (!asked || branchBusy.value) return
+  branchBusy.value = true
+  fromHereRefusal.value = null
+  try {
+    const created = await ops.fork(name, asked.branch)
+    selection.viewedBranch.value = created.branch
+    acknowledge(
+      `Started ${created.branch}`,
+      `from ${asked.branch} at step ${asked.head} · ${formatCount(created.cells, 'cell')}.`,
+    )
+    settleFromHere(created.branch)
+  } catch (failure) {
+    fromHereRefusal.value = failure instanceof Error ? failure.message : String(failure)
+  } finally {
+    branchBusy.value = false
+  }
+}
+
 /** The one op whose content is the user's sentence rather than an auto-intent. */
-async function onCheckpoint(intent: string): Promise<void> {
+async function onCheckpoint(intent: string, step: number): Promise<void> {
   if (branchBusy.value) return
   branchBusy.value = true
   try {
-    const marked = await ops.checkpoint(intent, viewedBranch.value)
-    acknowledge(`Marked step ${marked.step}`, 'a place in the history, not a copy of anything')
+    const marked = await ops.checkpoint(intent, viewedBranch.value, step)
+    acknowledge(
+      `Marked step ${marked.step}`,
+      'the words are on the step. nothing was added or copied',
+    )
   } catch (failure) {
     refused(failure)
   } finally {
@@ -932,5 +1024,4 @@ async function onUpdateSettings(next: FlowSettings): Promise<void> {
     refused(failure)
   }
 }
-
 </script>

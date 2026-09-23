@@ -5,13 +5,14 @@
   >
     <div class="flex items-baseline justify-between gap-3 flex-wrap">
       <span class="font-mono text-base truncate">{{ preview.runName }}</span>
-      <RouterLink
-        v-if="preview.tracker?.url"
-        class="link text-sm whitespace-nowrap"
-        :to="preview.tracker.url"
-      >
-        open in Experiments
-      </RouterLink>
+      <span v-if="preview.tracker?.url" class="flex items-center gap-2 whitespace-nowrap">
+        <RouterLink class="link text-sm" :to="preview.tracker.url">open in Experiments</RouterLink>
+        <!-- Upload takes the tracker record straight from the card; no detour through Experiments. -->
+        <TrackerUploadLink
+          v-if="preview.tracker.state === 'ok'"
+          :experiment-id="preview.tracker.id"
+        />
+      </span>
       <TrackerStateBadge v-else-if="preview.tracker" :state="preview.tracker.state" />
     </div>
 
@@ -60,6 +61,7 @@ import { formatMetric } from '../model/format'
 import type { ExperimentPreview } from '../model/types'
 import TrackerStateBadge from '../ui/TrackerStateBadge.vue'
 import MiniChart from './MiniChart.vue'
+import TrackerUploadLink from '../ui/TrackerUploadLink.vue'
 import { chartHeight, formatParam, type RenderDensity } from './shared'
 
 const props = defineProps<{

@@ -27,6 +27,13 @@ CellClassification = Literal["cell", "note"]
 MaterializationState = Literal["running", "succeeded", "failed", "cancelled"]
 KindSource = Literal["declared", "matcher", "fallback"]
 Reactivity = Literal["lazy", "auto"]
+
+#: Who a run nobody asked for is attributed to. A first-class actor beside
+#: `user` and an agent's name, because the journal is read back as *who did
+#: this* and answering `user` for a run the user never asked for is a lie the
+#: timeline would then render. What it writes keeps a branch synced; it is
+#: never a place the branch moved to.
+AUTO_ACTOR = "auto"
 CellNoteKind = Literal[
     "projection_completed",
     "refresh_failed",
@@ -149,6 +156,10 @@ class BranchCreated(_Frozen):
     name: str
     parent_branch_id: str | None = None
     fork_step: int = 0
+    #: The parent's own step this branch copied — where the parent stood, which
+    #: after a rewind is not its newest line. Absent on lines written before
+    #: branches had a position; those derive it from the fork step.
+    parent_step: int | None = None
 
 
 class BranchArchived(_Frozen):
@@ -164,7 +175,12 @@ class WorktreeBound(_Frozen):
 
 
 class Rewound(_Frozen):
-    """Carries the restored state so the index never replays to fold this."""
+    """Carries the restored state so the index never replays to fold this.
+
+    Not a step of the branch: the line moves the branch's position to
+    `to_step` and adds nothing to its history. The steps after it stay where
+    they are, which is what makes moving forward again the same gesture.
+    """
 
     op: Literal["rewound"] = "rewound"
     branch_id: str
@@ -266,15 +282,21 @@ class AgentEnd(_Frozen):
 
 
 class Checkpointed(_Frozen):
-    """A point somebody marked on purpose.
+    """A step somebody marked on purpose, under the transaction's own intent.
 
-    A marker, never a snapshot: every version the branch selects at this step
-    is already in the store, so what a checkpoint adds is the transaction's own
-    intent — the one thing the journal cannot record without being told.
+    A marker, never a snapshot, and never a step of its own: every version the
+    branch selected at `step` is already in the store, and the line carrying
+    this op is not a position on the branch — the index folds it onto the step
+    it names, the way a commit message rides on its commit. The words are the
+    carrying transaction's intent, the one thing the journal cannot record
+    without being told.
     """
 
     op: Literal["checkpointed"] = "checkpointed"
     branch_id: str
+    #: The branch's own step the words attach to. Absent on lines written
+    #: before marks folded; those ride the position the branch stood on then.
+    step: int | None = None
 
 
 Op = Annotated[

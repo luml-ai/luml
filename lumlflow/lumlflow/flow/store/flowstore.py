@@ -21,7 +21,7 @@ from lumlflow.flow.errors import FlowAlreadyExists, FlowError, FlowNotFound
 from lumlflow.flow.ids import new_ulid
 from lumlflow.flow.store.branches import MAIN_BRANCH, Branches, is_settled
 from lumlflow.flow.store.cas import Cas
-from lumlflow.flow.store.index import INDEX_SCHEMA_VERSION, Index
+from lumlflow.flow.store.index import INDEX_SCHEMA_VERSION, Index, is_annotation
 from lumlflow.flow.store.journal import Journal
 from lumlflow.flow.store.models import (
     JOURNAL_SCHEMA_VERSION,
@@ -199,7 +199,7 @@ class FlowStore:
         verdict is read off a rolled-back probe of the index with the draft
         applied.
         """
-        if draft.branch is None:
+        if draft.branch is None or is_annotation(draft):
             return draft
         with self.index.probe(draft) as ahead:
             settled = is_settled(ahead, draft.branch)

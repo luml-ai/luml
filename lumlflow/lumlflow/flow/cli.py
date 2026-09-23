@@ -375,7 +375,8 @@ def rewind(
     intent: str | None = _INTENT,
     as_json: bool = _JSON,
 ) -> None:
-    """Restore a lane to a step. This is instant. Nothing recomputes."""
+    """Move a lane to a step. Instant, nothing recomputes, and no step is
+    added: the lane stands there until the next change on it."""
     params = {
         "to_step": to_step,
         "branch": lane,
@@ -397,12 +398,16 @@ def checkpoint(
     intent: str = typer.Option(
         ..., "-m", "--intent", help="What this point is. Recorded in the journal."
     ),
+    step: int | None = typer.Option(
+        None, "--step", help="The step to mark. Defaults to the lane's newest step."
+    ),
     flow: str | None = _FLOW,
     lane: str | None = _LANE,
     as_json: bool = _JSON,
 ) -> None:
-    """Mark this point on a lane under a one-line intent. Nothing is copied."""
-    params = {"branch": lane, "intent": intent}
+    """Mark a step on a lane under a one-line intent. Nothing is copied, and
+    no step is added: the words attach to the step itself."""
+    params = {"branch": lane, "intent": intent, "step": step}
     result = _call("checkpoint", params, flow=flow, as_json=as_json)
     _emit(
         result,

@@ -1,5 +1,6 @@
 import type { Model } from '@/store/experiments/experiments.interface'
 import type { FormInstance } from '@primevue/forms'
+import type { ArtifactKind } from './collectionTypes'
 
 export enum UploadTypeEnum {
   AUTO = 'auto',
@@ -56,7 +57,10 @@ export interface UploadedArtifactInfo {
 
 export interface UploadModalProps {
   experimentId: string
-  models: Model[]
+  /** Kept for the Experiments overview, which lists them; the upload itself reads them off the tracker. */
+  models?: Model[]
+  /** The host renders its own trigger and calls the exposed `open()`. */
+  hideTrigger?: boolean
 }
 
 export interface CollectionFieldProps {
@@ -64,6 +68,8 @@ export interface CollectionFieldProps {
   organizationId?: string | null
   orbitId?: string | null
   formRef: FormInstance | undefined
+  /** What the upload will put in the collection; collections that refuse it are left out. */
+  requiredKinds: ArtifactKind[]
 }
 
 export interface CollectionFieldEmits {

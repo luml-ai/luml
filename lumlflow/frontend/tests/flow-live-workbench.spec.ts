@@ -117,6 +117,8 @@ const BRANCHES: BranchRecord[] = [
     cells: MAIN.length,
     states: { synced: 3, unsynced: 1, unmaterialized: 1 },
     checkpoint: 6,
+    head_step: 14,
+    newest_step: 14,
     last_intent: {
       step: 14,
       ts: '2026-08-13T09:14:00Z',
@@ -138,6 +140,8 @@ const BRANCHES: BranchRecord[] = [
     cells: SWEEP.length,
     states: { synced: 2 },
     checkpoint: 10,
+    head_step: 10,
+    newest_step: 10,
     last_intent: {
       step: 10,
       ts: '2026-08-13T09:10:00Z',

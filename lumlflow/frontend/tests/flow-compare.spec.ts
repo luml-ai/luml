@@ -121,6 +121,8 @@ function branchRecords(): BranchRecord[] {
     cells: 5,
     states: { synced: 5 },
     checkpoint: 20,
+    head_step: 20 + index,
+    newest_step: 20 + index,
     last_intent: {
       step: 20 + index,
       ts: '2026-08-13T09:20:00Z',

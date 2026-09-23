@@ -230,13 +230,19 @@ export interface AgentEndOp {
 }
 
 /**
- * A point somebody marked on purpose. It carries no state of its own — the
- * step, the intent and the actor are the transaction's, which is the whole
- * reason a marker costs one line and copies nothing.
+ * A step somebody marked on purpose, under the carrying transaction's intent.
+ * The line that carries it is not a step of the branch: it folds onto `step`,
+ * the way a commit message rides on its commit, so marking adds nothing to the
+ * timeline and copies nothing.
  */
 export interface CheckpointedOp {
   op: 'checkpointed'
   branch_id: string
+  /**
+   * The branch's own step the words attach to. Absent on lines written before
+   * marks folded, which were steps of their own and stay so.
+   */
+  step?: number | null
 }
 
 export type FlowOp =
@@ -642,6 +648,13 @@ export interface BranchRecord {
   cells: number
   states: Partial<Record<StaleState, number>>
   checkpoint: number | null
+  /**
+   * Where the branch stands, and its newest own step. They differ after a
+   * rewind — the branch stands behind — and until the next change on it.
+   */
+  head_step: number
+  newest_step: number
+  /** The line the branch stands on. */
   last_intent: TransactionSummary | null
   agent: string | null
 }

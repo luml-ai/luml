@@ -344,6 +344,9 @@ def test_checkpoint_marks_the_sessions_lane_and_refuses_bad_requests(
     assert isinstance(marked["step"], int)
     assert marked["intent"] == "baseline"
     assert sweep_context["checkpoint"]["step"] == marked["step"]
+    assert sweep_context["checkpoint"]["mark"] == "baseline"
+    # The words ride on the lane's newest step rather than adding one.
+    assert sweep_context["recent"][0]["step"] == marked["step"]
     assert main_context["checkpoint"] is None
     assert "`intent`" in failed(answers, 7)
     assert "nowhere" in failed(answers, 8)
@@ -630,7 +633,7 @@ def test_the_handshake_answers_in_the_version_the_client_asked_for(talk: Talk):
     assert "directory" in tools["init-flow"]["inputSchema"]["properties"]
     checkpoint_schema = tools["checkpoint"]["inputSchema"]
     assert checkpoint_schema["required"] == ["intent"]
-    assert {"lane", "flow"} <= set(checkpoint_schema["properties"])
+    assert {"lane", "flow", "step"} <= set(checkpoint_schema["properties"])
     assert "force" not in checkpoint_schema["properties"]
     assert next(tool for tool in mcp.TOOLS if tool.name == "checkpoint").writes is True
     assert answers[4]["error"]["code"] == mcp.METHOD_NOT_FOUND

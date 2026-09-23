@@ -25,7 +25,13 @@ from lumlflow.flow.errors import (
     RewindTargetNotFound,
 )
 from lumlflow.flow.ids import new_ulid
-from lumlflow.flow.store.index import BranchRow, Index, MaterializationRow, VersionRow
+from lumlflow.flow.store.index import (
+    BranchRow,
+    Index,
+    MaterializationRow,
+    TransactionRow,
+    VersionRow,
+)
 from lumlflow.flow.store.models import (
     Adopted,
     BranchArchived,
@@ -122,6 +128,9 @@ class Branches:
             name=name,
             parent_branch_id=parent.branch_id,
             fork_step=self._store.next_step,
+            # Where the parent stands, not its newest line: a lane started
+            # from a rewound parent starts from the step it was rewound to.
+            parent_step=self._index.head_step(parent.branch_id),
         )
         self._store.commit(
             [created],
@@ -168,23 +177,46 @@ class Branches:
         )
         return self.get(name)
 
-    def checkpoint(self, name: str, *, actor: str = "user", intent: str) -> Transaction:
-        """Mark this point on a branch under a one-line intent.
+    def checkpoint(
+        self,
+        name: str,
+        *,
+        step: int | None = None,
+        actor: str = "user",
+        intent: str,
+    ) -> TransactionRow:
+        """Mark a step on a branch under a one-line intent.
 
         The deliberate counterpart of the `settled` badge, and deliberately not
-        a snapshot: every version the branch selects here is already kept, so
-        the only thing a checkpoint adds is a name for the step — which is the
-        transaction's own intent, the field every journal line already carries.
+        a snapshot: every version the branch selected at that step is already
+        kept, so the only thing a mark adds is the words. And deliberately not
+        a step either: the line that carries the words is folded onto the step
+        it names, the way a commit message rides on its commit, so marking
+        moves nothing and the branch stands where it stood. Without `step`,
+        the branch's newest own step is the one marked.
         """
         if not intent.strip():
             raise ValueError("a checkpoint needs a one-line intent")
         branch = self.get(name)
-        return self._store.commit(
-            [Checkpointed(branch_id=branch.branch_id)],
+        index = self._store.index
+        if step is None:
+            standing = index.head(branch.branch_id)
+            if standing is None:
+                raise ValueError(f"nothing on {name} to mark yet")
+            step = standing.step
+        else:
+            found = index.transaction(step)
+            if found is None or found.branch != branch.branch_id:
+                raise ValueError(f"step {step} is not on {name}")
+        self._store.commit(
+            [Checkpointed(branch_id=branch.branch_id, step=step)],
             intent=intent.strip(),
             actor=actor,
             branch=branch.branch_id,
         )
+        marked = index.transaction(step)
+        assert marked is not None
+        return marked
 
     def rewind(
         self,
@@ -194,12 +226,16 @@ class Branches:
         actor: str = "user",
         intent: str | None = None,
     ) -> RewindResult:
-        """Restore selections *and* baselines to their as-of-step values.
+        """Move the branch to a step: restore selections *and* baselines to
+        their as-of-step values, and stand there.
 
         No gate and no preflight: every value the restored state points at is
         still in the CAS, so there is nothing to warn about and nothing to
         recompute. Baselines travel with the selections, so a rewound branch
-        keeps its staleness verdicts instead of lighting up wholesale.
+        keeps its staleness verdicts instead of lighting up wholesale. And no
+        step is added: the line that carries the move folds into the branch's
+        position, the steps after it stay in the history, and the next change
+        on the branch is what moves it on again.
         """
         branch = self.get(name)
         if not 1 <= to_step < self._store.next_step:

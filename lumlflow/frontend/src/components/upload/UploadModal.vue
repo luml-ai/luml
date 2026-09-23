@@ -1,5 +1,11 @@
 <template>
-  <Button label="Upload to LUML" severity="secondary" @click="uploadClick" :loading="loading">
+  <Button
+    v-if="!hideTrigger"
+    label="Upload to LUML"
+    severity="secondary"
+    :loading="loading"
+    @click="uploadClick"
+  >
     <template #icon>
       <CloudUploadIcon :size="14" />
     </template>
@@ -57,6 +63,7 @@
         :organization-id="$form['organization']?.value"
         :orbit-id="$form['orbit']?.value"
         :form-ref="formRef"
+        :required-kinds="requiredKinds"
         @change-collection="handleChangeCollection"
       />
       <FormField name="name" class="flex flex-col gap-2">
@@ -121,8 +128,7 @@ import {
   ProgressBar,
 } from 'primevue'
 import { CloudUploadIcon } from 'lucide-vue-next'
-import { reactive, watch } from 'vue'
-import { ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { FormField, Form, type FormInstance, type FormSubmitEvent } from '@primevue/forms'
 import { DIALOG_PT, resolver, selectTypeOptions } from './data'
 import { useAuthStore } from '@/store/auth'
@@ -131,6 +137,8 @@ import { apiService } from '@/api/api.service'
 import { useUpload } from '@/hooks/useUpload'
 import UiTagsSelect from '../ui/UiTagsSelect.vue'
 import CollectionField from './CollectionField.vue'
+import { requiredArtifactKinds } from './collectionTypes'
+import type { Model } from '@/store/experiments/experiments.interface'
 
 const props = defineProps<UploadModalProps>()
 
@@ -162,11 +170,35 @@ const orbitsLoading = ref<boolean>(false)
 
 const existingTags = ref<string[]>([])
 
+/**
+ * The tracker models decide what `auto` sends, so the dialog needs them
+ * before it can say which collections fit. The Experiments overview passes
+ * them in; a host that has only the experiment id (a flow cell) lets the
+ * dialog fetch them when it opens.
+ */
+const models = ref<Model[]>(props.models ?? [])
+watch(
+  () => props.models,
+  (value) => {
+    if (value) models.value = value
+  },
+)
+
+const requiredKinds = computed(() =>
+  requiredArtifactKinds(
+    (formRef.value?.states['type']?.value as UploadTypeEnum | undefined) ?? UploadTypeEnum.AUTO,
+    models.value.length,
+  ),
+)
+
 const lmlUrl = import.meta.env.VITE_LUML_URL
 
 function openModal() {
   visible.value = true
 }
+
+/** A host with its own trigger opens the dialog through this. */
+defineExpose({ open: uploadClick, loading })
 
 async function uploadClick() {
   loading.value = true
@@ -241,6 +273,13 @@ watch(
 
 watch(visible, async (value) => {
   if (value) {
+    if (!props.models) {
+      try {
+        models.value = await apiService.getExperimentModels(props.experimentId)
+      } catch (error) {
+        toast.add(errorToast(error))
+      }
+    }
     await getOrganizations()
   } else {
     organizations.value = []

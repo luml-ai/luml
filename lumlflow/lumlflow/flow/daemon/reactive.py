@@ -22,16 +22,12 @@ import logging
 from typing import TYPE_CHECKING
 
 from lumlflow.flow.errors import FlowError
-from lumlflow.flow.store.models import CellNoted
+from lumlflow.flow.store.models import AUTO_ACTOR, CellNoted
 
 if TYPE_CHECKING:
     from lumlflow.flow.daemon.hub import FlowSession
 
-#: Who a run nobody asked for is attributed to. A first-class actor beside
-#: `user` and an agent's name, because the journal is read back as *who did
-#: this* and answering `user` for a run the user never asked for is a lie the
-#: timeline would then render.
-AUTO_ACTOR = "auto"
+__all__ = ["AUTO_ACTOR", "Reactor"]
 
 logger = logging.getLogger(__name__)
 

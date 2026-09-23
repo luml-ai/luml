@@ -679,6 +679,9 @@ def spawn_environment(
         "PYTHONUNBUFFERED": "1",
         "LUMLFLOW_DAEMON_SDK_VERSION": DAEMON_SDK_VERSION,
     }
+    # Cells run on a worker thread; a GUI matplotlib backend (macOS, Tk) can only
+    # draw on the main thread. A backend the workspace sets explicitly wins.
+    environment.setdefault("MPLBACKEND", "Agg")
     if tracker_store is not None:
         store = str(tracker_store.resolve())
         environment["BACKEND_STORE_URI"] = store

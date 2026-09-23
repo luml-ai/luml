@@ -602,15 +602,11 @@ class Api:
             actor=_actor(params),
             intent=params.get("intent"),
         )
-        parent_record = session.store.branches.get(parent)
-        found = session.store.index.last_step_on(
-            parent_record.branch_id, at_or_before=created.fork_step
-        )
         return {
             "branch": created.name,
             "from_branch": parent,
             "forked_at_step": created.fork_step,
-            "parent_step": created.fork_step if found is None else found,
+            "parent_step": created.parent_step,
             "cells": len(session.store.index.selections(created.branch_id)),
         }
 
@@ -679,7 +675,8 @@ class Api:
         return await self._flow_brief(session) | _projection(projection)
 
     async def rewind(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Restore a branch to a step. Instant, and the files follow."""
+        """Move a branch to a step. Instant, the files follow, and no step is
+        added: the branch stands there until the next change on it."""
         actor = _actor(params)
         session = self._session(params, actor=actor)
         await self.hub.quiesce(session, actor=actor)
@@ -698,27 +695,37 @@ class Api:
                 "to_step": result.to_step,
                 "cells": len(result.selections),
             }
-            | _projection(self._reproject(session, branch))
+            | _projection(self._reproject(session, branch, react=False))
         )
 
     async def checkpoint(self, params: dict[str, Any]) -> dict[str, Any]:
-        """Mark this point in a branch's history. Nothing is copied or frozen.
+        """Mark a step in a branch's history. Nothing is copied or frozen.
 
         The journal already records every change; what it cannot record on its
         own is that one of those points is the one to come back to. This
-        journals that, and it becomes the branch's `checkpoint` in the brief.
+        attaches the words to that step — the branch's newest one unless
+        `step` names another — without adding a step, and it becomes the
+        branch's `checkpoint` in the brief.
         """
         session, branch = await self._read(params)
         intent = str(params.get("intent") or "").strip()
         if not intent:
             raise FlowError("a checkpoint needs a one-line intent")
-        marked = session.store.branches.checkpoint(
-            branch, actor=_actor(params), intent=intent
+        step = (
+            _number(params["step"], int, name="step")
+            if params.get("step") is not None
+            else None
         )
+        try:
+            marked = session.store.branches.checkpoint(
+                branch, step=step, actor=_actor(params), intent=intent
+            )
+        except ValueError as refused:
+            raise FlowError(str(refused)) from refused
         return {
             "branch": branch,
             "step": marked.step,
-            "intent": marked.intent,
+            "intent": marked.mark,
             "ts": marked.ts,
             "settled": marked.settled,
         }
@@ -1113,12 +1120,18 @@ class Api:
         renamed = session.acceptance.rewire(uids, branch=branch, actor=actor)
         return [accepted.slug for accepted in renamed]
 
-    def _reproject(self, session: FlowSession, branch: str) -> Projection | None:
+    def _reproject(
+        self, session: FlowSession, branch: str, *, react: bool = True
+    ) -> Projection | None:
         """Carry a slice change into the files, when it is this branch's files."""
-        # Switching, forking, rewinding, adopting and deleting all move which
-        # versions the branch selects, which is the other half of what a verdict
-        # is derived from. Reactivity has a new answer after every one of them.
-        session.reactor.arm()
+        # Switching, forking, adopting and deleting all move which versions the
+        # branch selects, which is the other half of what a verdict is derived
+        # from. Reactivity has a new answer after every one of them. A rewind
+        # is the exception: it promises that nothing recomputes, and a sweep
+        # that then reused a cached result would move the branch off the step
+        # it was just put on.
+        if react:
+            session.reactor.arm()
         if session.worktree.bound() is None or branch != session.branch:
             return None
         return session.worktree.project(branch)

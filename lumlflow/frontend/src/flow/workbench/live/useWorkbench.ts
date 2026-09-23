@@ -109,11 +109,7 @@ export function useWorkbench(session: FlowSessionHandle): WorkbenchRecords {
       envState(report.value, session.brief.value?.flow ?? '', session.brief.value?.kernel),
     ),
     settings: computed(() => flowSettings(written.value ?? session.brief.value?.settings)),
-    journal: computed(() =>
-      [...session.transactions.value]
-        .reverse()
-        .map((transaction) => journalEntry(transaction, names.value)),
-    ),
+    journal: computed(() => journalEntries(session.transactions.value, names.value)),
     overview: computed(() => overview(session)),
     refreshEnv,
     applySettings: (settings) => {
@@ -132,7 +128,8 @@ function branchInfo(record: BranchRecord): BranchInfo {
     // starts at the origin rather than one that split off something.
     forkedAtStep: record.parent === null ? null : record.forked_at_step,
     parentStep: record.parent === null ? null : record.parent_step,
-    headStep: record.last_intent?.step ?? record.forked_at_step,
+    headStep: record.head_step,
+    newestStep: record.newest_step,
     lastIntent: record.last_intent?.intent ?? '',
     settled: record.last_intent?.settled ?? false,
     checkpointStep: record.checkpoint ?? undefined,
@@ -146,11 +143,9 @@ function branchInfo(record: BranchRecord): BranchInfo {
 
 /** Which glyph a transaction reads under. The first match in this order wins. */
 const KINDS: [FlowOp['op'], JournalKind][] = [
-  // A marker is journaled alone, so its position here is about reading rather
-  // than precedence: what a checkpoint transaction says is that somebody
-  // stopped and named this point, which outranks anything else in the line.
-  ['checkpointed', 'checkpoint'],
+  ['rewound', 'rewind'],
   ['run_recorded', 'run'],
+  ['worktree_bound', 'checkout'],
   ['branch_created', 'fork'],
   ['adopted', 'adopt'],
   ['renamed', 'rename'],
@@ -160,6 +155,52 @@ const KINDS: [FlowOp['op'], JournalKind][] = [
   ['agent_begin', 'agent-begin'],
   ['agent_end', 'agent-end'],
 ]
+
+/**
+ * The journal newest first, with every mark folded onto the step it names.
+ *
+ * A line that only marks another step is not a step: it is the words somebody
+ * put on one, the way a commit message rides on its commit. So it is not a row
+ * here — the row it names carries the words instead, and marking the same step
+ * again replaces them. Folding happens on the client because the stream serves
+ * journal lines as written, and the step a mark names was served before it.
+ */
+export function journalEntries(
+  transactions: readonly Transaction[],
+  names: Map<string, string>,
+): JournalEntry[] {
+  const marks = new Map<number, string>()
+  const entries: JournalEntry[] = []
+  // Where each branch last stood, for a mark from before marks folded: it
+  // names no step, and rides the position the branch was on when written.
+  const stood = new Map<string, number>()
+  for (const transaction of transactions) {
+    const mark = markOf(transaction)
+    if (mark !== null) {
+      const at = mark.step ?? (transaction.branch ? stood.get(transaction.branch) : undefined)
+      if (at !== undefined) marks.set(at, mark.words)
+      continue
+    }
+    const entry = journalEntry(transaction, names)
+    if (entry.position && transaction.branch) stood.set(transaction.branch, entry.step)
+    entries.push(entry)
+  }
+  return entries
+    .map((entry) => {
+      const mark = marks.get(entry.step)
+      return mark === undefined ? entry : { ...entry, mark }
+    })
+    .reverse()
+}
+
+/** A line that only marks a step, read as which step (when it names one) and under what. */
+function markOf(transaction: Transaction): { step: number | null; words: string } | null {
+  if (transaction.ops.length === 0) return null
+  if (!transaction.ops.every((op) => op.op === 'checkpointed')) return null
+  const [op] = transaction.ops
+  if (op.op !== 'checkpointed') return null
+  return { step: op.step ?? null, words: transaction.intent }
+}
 
 export function journalEntry(transaction: Transaction, names: Map<string, string>): JournalEntry {
   const ops = new Set(transaction.ops.map((op) => op.op))
@@ -175,7 +216,33 @@ export function journalEntry(transaction: Transaction, names: Map<string, string
     kind: transaction.offline ? 'offline' : (matched?.[1] ?? 'edit'),
     summary: summarize(transaction),
     settled: transaction.settled,
+    position: isPosition(transaction),
   }
+}
+
+/**
+ * Lines that are a branch's history without being places in it — the daemon's
+ * `_NOT_A_PLACE`, kept in step. Nothing the branch selects changed, so there
+ * is nothing there to stand on or go back to.
+ */
+const NOT_A_PLACE = new Set<FlowOp['op']>([
+  'worktree_bound',
+  'cell_noted',
+  'flag_set',
+  'agent_begin',
+  'agent_end',
+  'workspace_code_changed',
+  'env_changed',
+  'branch_archived',
+  'checkpointed',
+  'rewound',
+])
+
+function isPosition(transaction: Transaction): boolean {
+  // What reactivity did on its own keeps the branch synced where it stands.
+  if (transaction.actor === 'auto') return false
+  if (transaction.ops.length === 0) return true
+  return !transaction.ops.every((op) => NOT_A_PLACE.has(op.op))
 }
 
 /**
@@ -203,6 +270,9 @@ function summarize(transaction: Transaction): string {
         break
       case 'branch_created':
         said.push(`branch \`${op.name}\``)
+        break
+      case 'rewound':
+        said.push(`now at step ${op.to_step}`)
         break
       case 'workspace_code_changed':
         said.push(changedFiles(op.changed_paths))

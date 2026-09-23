@@ -10,7 +10,9 @@ from lumlflow.flow.errors import (
 )
 from lumlflow.flow.store.branches import MAIN_BRANCH
 from lumlflow.flow.store.flowstore import FlowStore
+from lumlflow.flow.store.index import CellsRewriteRow
 from lumlflow.flow.store.models import (
+    Checkpointed,
     MemoHit,
     SelectionSet,
     Transaction,
@@ -207,6 +209,123 @@ class TestArchive:
 
 
 class TestRewind:
+    def head(self, store: FlowStore, branch: str = MAIN_BRANCH) -> int:
+        return store.index.head_step(store.branches.get(branch).branch_id)
+
+    def newest(self, store: FlowStore, branch: str = MAIN_BRANCH) -> int:
+        return store.index.newest_step(store.branches.get(branch).branch_id)
+
+    def test_a_rewind_moves_the_branch_to_the_step_and_adds_none(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        newest = last(store).step
+        assert self.head(store) == newest
+
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+
+        branch_id = store.branches.get(MAIN_BRANCH).branch_id
+        assert self.head(store) == earlier
+        assert self.newest(store) == newest
+        # The line is in the journal and folded onto the branch: no row of its
+        # own, the history still tops out at the edit.
+        assert [op.op for op in last(store).ops] == ["rewound"]
+        assert store.index.transaction(last(store).step) is None
+        assert store.index.history(limit=1, branch_id=branch_id)[0].step == newest
+        assert store.index.last_cells_rewrite(branch_id) == CellsRewriteRow(
+            verb="rewind", step=last(store).step
+        )
+
+    def test_the_next_change_moves_a_rewound_branch_on_from_there(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+
+        third = accept(store, "features", uid=features.uid, source="class F: v3")
+
+        assert self.head(store) == last(store).step == self.newest(store)
+        assert selections(store, MAIN_BRANCH) == {features.uid: third.version_id}
+
+    def test_what_reactivity_does_on_its_own_does_not_move_a_rewound_branch(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        run = record_run(store, features)
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+        branch_id = store.branches.get(MAIN_BRANCH).branch_id
+
+        store.commit(
+            [
+                MemoHit(
+                    branch_id=branch_id,
+                    uid=features.uid,
+                    version_id=features.version_id,
+                    memo_key="k",
+                    mat_id=run.mat_id,
+                )
+            ],
+            intent="reused a cached features",
+            actor="auto",
+            branch=branch_id,
+        )
+
+        assert self.head(store) == earlier
+        reused = store.index.transaction(last(store).step)
+        assert reused is not None and reused.position is False
+
+    def test_binding_the_files_does_not_move_a_rewound_branch(
+        self, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+
+        store.branches.switch(MAIN_BRANCH)
+        store.branches.checkpoint(MAIN_BRANCH, intent="the one to keep")
+
+        assert self.head(store) == earlier
+        # Binding the files is not a place either: the newest position is
+        # still the edit, so the branch reads as behind by exactly that.
+        assert self.newest(store) == earlier + 1
+        bound = store.index.transaction(last(store).step - 1)
+        assert bound is not None and bound.position is False
+        # The mark went where the branch stands, not on its newest line.
+        found = store.index.transaction(earlier)
+        assert found is not None and found.mark == "the one to keep"
+
+    def test_a_fork_starts_from_where_its_parent_stands(self, store: FlowStore) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+
+        sweep = store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+
+        assert sweep.parent_step == earlier
+        assert selections(store, "sweep") == {features.uid: features.version_id}
+
+    def test_the_position_survives_an_index_rebuild(
+        self, flow_dir: Path, store: FlowStore
+    ) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+        store.branches.rewind(MAIN_BRANCH, to_step=earlier)
+        store.close()
+
+        reopened = FlowStore.open(flow_dir)
+
+        assert self.head(reopened) == earlier
+        assert self.newest(reopened) > earlier
+
     def test_rewind_restores_selections_and_baselines_without_recomputing(
         self, store: FlowStore
     ) -> None:
@@ -883,26 +1002,56 @@ class TestSettled:
 class TestCheckpoint:
     """The deliberate marker beside the computed `settled` badge.
 
-    A marker is one journal line and nothing else — no value is copied, no
-    selection moves — so what these assert is that the line lands, that it
-    reaches the brief the same way the badge does, and that the two never
-    shadow each other by class rather than by recency.
+    A mark is a line that folds onto the step it names, the way a commit
+    message rides on its commit: no value is copied, no selection moves, and
+    the branch stands where it stood. What these assert is that the words land
+    on the step, that they reach the brief the same way the badge does, and
+    that the two never shadow each other by class rather than by recency.
     """
 
     def marked(self, store: FlowStore, branch: str = MAIN_BRANCH) -> int | None:
         found = store.index.checkpoint(store.branches.get(branch).branch_id)
         return found.step if found else None
 
-    def test_marking_a_point_journals_the_intent_as_the_transaction(
+    def test_marking_attaches_the_words_to_the_newest_step_without_adding_one(
         self, store: FlowStore
     ) -> None:
         accept(store, "features")
+        newest = last(store)
 
         marked = store.branches.checkpoint(MAIN_BRANCH, intent="before the rewrite")
 
-        assert last(store).step == marked.step
-        assert last(store).intent == "before the rewrite"
+        assert marked.step == newest.step
+        assert marked.mark == "before the rewrite"
+        assert marked.intent == newest.intent
+        # The line that carried the words is in the journal, folded onto the
+        # step it names rather than listed as one.
         assert [op.op for op in last(store).ops] == ["checkpointed"]
+        assert last(store).intent == "before the rewrite"
+        branch_id = store.branches.get(MAIN_BRANCH).branch_id
+        assert store.index.history(limit=1, branch_id=branch_id)[0].step == newest.step
+        assert store.index.transaction(last(store).step) is None
+
+    def test_marking_names_a_step_by_number(self, store: FlowStore) -> None:
+        features = accept(store, "features")
+        earlier = last(store).step
+        accept(store, "features", uid=features.uid, source="class F: v2")
+
+        marked = store.branches.checkpoint(
+            MAIN_BRANCH, step=earlier, intent="the one that scored"
+        )
+
+        assert marked.step == earlier
+        assert marked.mark == "the one that scored"
+        assert self.marked(store) == earlier
+
+    def test_marking_a_step_again_replaces_the_words(self, store: FlowStore) -> None:
+        accept(store, "features")
+        store.branches.checkpoint(MAIN_BRANCH, intent="first words")
+
+        marked = store.branches.checkpoint(MAIN_BRANCH, intent="second words")
+
+        assert marked.mark == "second words"
 
     def test_a_marker_becomes_the_branchs_checkpoint(self, store: FlowStore) -> None:
         accept(store, "features")
@@ -933,11 +1082,24 @@ class TestCheckpoint:
     ) -> None:
         accept(store, "features")
         store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+        fork_line = last(store).step
 
         store.branches.checkpoint("sweep", intent="swept")
 
-        assert self.marked(store, "sweep") == last(store).step
+        assert self.marked(store, "sweep") == fork_line
         assert self.marked(store, MAIN_BRANCH) is None
+
+    def test_a_step_off_the_branch_cannot_be_marked_on_it(
+        self, store: FlowStore
+    ) -> None:
+        accept(store, "features")
+        on_main = last(store).step
+        store.branches.fork("sweep", from_branch=MAIN_BRANCH)
+
+        with pytest.raises(ValueError, match="not on sweep"):
+            store.branches.checkpoint("sweep", step=on_main, intent="x")
+        with pytest.raises(ValueError, match="not on"):
+            store.branches.checkpoint(MAIN_BRANCH, step=10_000, intent="x")
 
     def test_a_marker_is_a_rewind_target_like_any_other_step(
         self, store: FlowStore
@@ -960,6 +1122,26 @@ class TestCheckpoint:
         with pytest.raises(BranchNotFound):
             store.branches.checkpoint("nowhere", intent="here")
 
+    def test_a_mark_from_before_marks_folded_rides_the_position_it_was_made_at(
+        self, store: FlowStore
+    ) -> None:
+        """A journal from before this change carries marks as lines of their
+        own, each naming no step. They fold onto where the branch stood."""
+        accept(store, "features")
+        stood = last(store).step
+        branch_id = store.branches.get(MAIN_BRANCH).branch_id
+        store.commit(
+            [Checkpointed(branch_id=branch_id)],
+            intent="from before",
+            actor="user",
+            branch=branch_id,
+        )
+
+        assert store.index.transaction(last(store).step) is None
+        found = store.index.transaction(stood)
+        assert found is not None and found.mark == "from before"
+        assert store.index.newest_step(branch_id) == stood
+
     def test_a_marker_survives_an_index_rebuild(
         self, flow_dir: Path, store: FlowStore
     ) -> None:
@@ -970,6 +1152,8 @@ class TestCheckpoint:
         reopened = FlowStore.open(flow_dir)
 
         assert self.marked(reopened) == marked.step
+        found = reopened.index.transaction(marked.step)
+        assert found is not None and found.mark == "before the rewrite"
 
 
 def test_a_rebuild_from_the_journal_reproduces_every_branch_row(

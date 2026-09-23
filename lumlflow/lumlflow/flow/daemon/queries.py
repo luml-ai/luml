@@ -713,6 +713,10 @@ def context(session: "FlowSession", branch: str) -> dict[str, Any]:
         "checked_out": checked_out,
         "agent": agent.label if (checked_out and agent is not None) else None,
         "checkpoint": _transaction(checkpoint) if checkpoint is not None else None,
+        "position": {
+            "step": index.head_step(here.branch.branch_id),
+            "newest": index.newest_step(here.branch.branch_id),
+        },
         "last_cells_rewrite": (
             {"verb": rewrite.verb, "lane": bound.name, "step": rewrite.step}
             if rewrite is not None and bound is not None
@@ -844,7 +848,9 @@ def _branch(
     index = session.store.index
     verdicts = staleness.derive_all(index, record.branch_id)
     checkpoint = index.checkpoint(record.branch_id)
-    last = index.history(limit=1, branch_id=record.branch_id)
+    standing = index.head(record.branch_id)
+    head_step = standing.step if standing is not None else record.fork_step
+    newest_step = index.newest_step(record.branch_id)
     parent = (
         index.branch_by_id(record.parent_branch_id)
         if record.parent_branch_id is not None
@@ -852,8 +858,11 @@ def _branch(
     )
     parent_step: int | None = None
     if parent is not None:
-        # The fork line belongs to the child, so it cannot mask the parent's
-        # newest line at the same global step.
+        parent_step = record.parent_step
+    if parent is not None and parent_step is None:
+        # A fork line from before positions were recorded: the parent's newest
+        # line at the fork. The fork line belongs to the child, so it cannot
+        # mask the parent's newest line at the same global step.
         found = index.last_step_on(parent.branch_id, at_or_before=record.fork_step)
         parent_step = record.fork_step if found is None else found
     states: dict[str, int] = {}
@@ -873,7 +882,11 @@ def _branch(
         "cells": len(verdicts),
         "states": states,
         "checkpoint": checkpoint.step if checkpoint is not None else None,
-        "last_intent": _transaction(last[0]) if last else None,
+        # Where the branch stands, and its newest own step. They differ after a
+        # rewind, and until the next change on the branch moves it on.
+        "head_step": head_step,
+        "newest_step": newest_step,
+        "last_intent": _transaction(standing) if standing is not None else None,
         "agent": agent.label if (checked_out and agent is not None) else None,
     }
 
@@ -1186,6 +1199,8 @@ def _transaction(entry: TransactionRow) -> dict[str, Any]:
         "intent": entry.intent,
         "offline": entry.offline,
         "settled": entry.settled,
+        "mark": entry.mark,
+        "position": entry.position,
     }
 
 

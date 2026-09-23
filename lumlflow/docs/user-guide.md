@@ -193,7 +193,9 @@ Reading a lane and working on a lane are two different gestures. **Viewing** any
 lumlflow lane use exp/lr-sweep
 ```
 
-**Rewind** restores a lane to an earlier step. It is instant and recomputes nothing. It swaps the selection back to what the lane pointed at then. Every value any recorded step referred to is still in the store. Any step is a valid target. `lumlflow lane list` and the activity feed show the steps. They also show the intent recorded with each step.
+**Rewind** moves a lane to an earlier step. It is instant and recomputes nothing. It swaps the selection back to what the lane pointed at then. Every value any recorded step referred to is still in the store. Any step is a valid target. `lumlflow lane list` and the activity feed show the steps. They also show the intent recorded with each step.
+
+A rewind adds no step and wakes no refresh. The lane stands on the step it was moved to, behind its newest one, and the later steps stay in its history marked *ahead*. The timeline lists only the steps somebody made: an edit, a run, a new or deleted cell, an adopt, a rename, a fork. Putting a lane on disk, a note, a flag, or a result reactivity refreshed on its own is history the activity feed reads, not a place the lane can stand. Clicking one of them moves the lane forward again. The lane identifier says when a lane stands behind. The next change on a lane standing behind moves it on from that step, so the workbench asks first: put the change on a new lane started from here, which leaves this lane as it is, or continue on this lane. `lumlflow context` reports the position, and an agent that wants to keep the later steps reachable starts a lane with `new-lane` before changing anything.
 
 ```bash
 lumlflow rewind 42 -m "back to before the feature rewrite"
@@ -201,7 +203,7 @@ lumlflow rewind 42 -m "back to before the feature rewrite"
 
 In the workbench, the step count in the lane identifier holds the steps of the lane you are viewing. Click *30 steps* to open the **step timeline**. The timeline lists the lane's transactions newest first. Each row carries the intent, who made it, and when. It marks the step the lane stands on as *current*. It offers a rewind on every older step, behind a line that names what the rewind restores. The activity section further down the panel is the same history read the other way. It shows what happened, with its summaries and its *since you were here* divider. The timeline is where you move. Activity is where you read.
 
-**Mark this point** sits at the top of that timeline. The journal already records every change. A checkpoint therefore copies nothing and freezes nothing. It is one line saying this step was worth naming, under a sentence you write. It becomes the lane's checkpoint in `lumlflow context`. It reads back in the timeline as a flagged row. You can rewind to it like any other step. Without one, `lumlflow context` reports the last step the lane was whole at. That is a useful answer, but not one anybody chose.
+**Mark this point** sits at the top of that timeline. The journal already records every change. A checkpoint therefore copies nothing and freezes nothing, and it adds no step. It writes a sentence of yours on the current step. The step keeps what it did underneath. It becomes the lane's checkpoint in `lumlflow context`. It reads back in the timeline as a flagged row under your words. Click that row to rewind to it, like any other step. Marking the same step again replaces the words. From the CLI, `lumlflow checkpoint -m "why"` marks the newest step, and `--step` names an older one. Without a mark, `lumlflow context` reports the last step the lane was whole at. That is a useful answer, but not one anybody chose.
 
 **Archive** puts a lane away without deleting anything it produced. Archived lanes collapse behind a toggle in the lane map.
 

@@ -83,10 +83,14 @@ async def test_marking_a_point_gives_the_brief_a_checkpoint_it_could_not_compute
         brief = await api.context({"flow": "churn"})
 
     assert marked["branch"] == "main"
+    assert marked["intent"] == "before I rewrite the scorer"
     assert brief["checkpoint"]["step"] == marked["step"]
-    assert brief["checkpoint"]["intent"] == "before I rewrite the scorer"
-    # The marker is a journal line like any other, so it leads the history.
-    assert brief["recent"][0]["intent"] == "before I rewrite the scorer"
+    assert brief["checkpoint"]["mark"] == "before I rewrite the scorer"
+    # The words ride on the step they name: the history's newest line is still
+    # the run, now carrying the mark, and no line was added for the marking.
+    assert brief["recent"][0]["step"] == marked["step"]
+    assert brief["recent"][0]["mark"] == "before I rewrite the scorer"
+    assert brief["recent"][0]["intent"] != "before I rewrite the scorer"
 
 
 async def test_a_checkpoint_marks_the_branch_it_was_asked_for(tmp_path: Path):
@@ -116,6 +120,124 @@ async def test_a_checkpoint_with_nothing_to_say_is_refused(tmp_path: Path):
         history = (await api.context({"flow": "churn"}))["recent"]
 
     assert all(entry["intent"].strip() for entry in history)
+    assert all(entry["mark"] is None for entry in history)
+
+
+async def test_a_rewind_moves_the_branch_and_the_tree_says_where_it_stands(
+    tmp_path: Path,
+):
+    """A rewound branch stands on the step, behind its newest one: no step is
+    added, the last intent is the one it stands on, and a lane started from it
+    starts there."""
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        recent = (await api.context({"flow": "churn"}))["recent"]
+        # Binding the files is the newest line, and not a place: the branch
+        # stands on the accept before it.
+        assert recent[0]["position"] is False
+        earlier = next(entry["step"] for entry in recent if entry["position"])
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+                "intent": "raise the score",
+            }
+        )
+        before = _branch(await api.tree({"flow": "churn"}), "main")
+        await api.rewind({"flow": "churn", "to_step": earlier})
+        after = _branch(await api.tree({"flow": "churn"}), "main")
+        brief = await api.context({"flow": "churn"})
+        forked = await api.fork({"flow": "churn", "name": "from-there"})
+        child = _branch(await api.tree({"flow": "churn"}), "from-there")
+
+    assert before["head_step"] == before["newest_step"] == before["last_intent"]["step"]
+    assert after["head_step"] == earlier
+    assert after["newest_step"] == before["newest_step"]
+    assert after["last_intent"]["step"] == earlier
+    assert brief["position"] == {"step": earlier, "newest": before["newest_step"]}
+    assert [entry["step"] for entry in brief["recent"]][0] == before["newest_step"]
+    assert forked["parent_step"] == earlier
+    assert child["parent_step"] == earlier
+
+
+async def test_a_rewind_wakes_no_sweep_and_stays_where_it_was_put(tmp_path: Path):
+    """Rewinding promises that nothing recomputes. A sweep that then reused a
+    cached result would be a line the branch did not ask for, moving it off
+    the step it was just put on."""
+    root = make_workspace(tmp_path / "project")
+    flow = root / "churn.flow"
+    write_cell(flow, "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        await api.run({"flow": "churn", "target": "score"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+                "intent": "raise the score",
+            }
+        )
+        edited = (await api.context({"flow": "churn"}))["recent"][0]["step"]
+        await api.run({"flow": "churn", "target": "score"})
+        session = api.hub.session("churn")
+        await session.reactor.settled()
+        before = session.store.next_step
+
+        await api.rewind({"flow": "churn", "to_step": edited})
+        await session.reactor.settled()
+        after = session.store.next_step
+        position = (await api.context({"flow": "churn"}))["position"]
+        lines = [
+            entry for entry in session.store.journal.replay() if entry.step >= before
+        ]
+
+    assert after == before + 1
+    assert [op.op for entry in lines for op in entry.ops] == ["rewound"]
+    assert position["step"] == edited
+
+
+async def test_a_checkpoint_marks_the_step_it_names_and_adds_none(tmp_path: Path):
+    """The words go on the step, like a commit message on its commit, and the
+    branch stands where it stood: the newest step before and after is the same
+    one, and an older step can be named outright."""
+    root = make_workspace(tmp_path / "project")
+    write_cell(root / "churn.flow", "score", SCORE_CELL)
+
+    async with daemon_api(root) as api:
+        await api.flow_open({"flow": "churn"})
+        before = (await api.context({"flow": "churn"}))["recent"]
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+                "intent": "raise the score",
+            }
+        )
+        after_edit = (await api.context({"flow": "churn"}))["recent"]
+        marked = await api.checkpoint(
+            {"flow": "churn", "step": before[0]["step"], "intent": "the original"}
+        )
+        after_mark = (await api.context({"flow": "churn"}))["recent"]
+        with pytest.raises(FlowError, match="not on main"):
+            await api.checkpoint({"flow": "churn", "step": 10_000, "intent": "x"})
+        with pytest.raises(FlowError, match="`step` must be an integer"):
+            await api.checkpoint({"flow": "churn", "step": "soon", "intent": "x"})
+
+    assert marked["step"] == before[0]["step"]
+    assert marked["intent"] == "the original"
+    assert [entry["step"] for entry in after_mark] == [
+        entry["step"] for entry in after_edit
+    ]
+    by_step = {entry["step"]: entry for entry in after_mark}
+    assert by_step[marked["step"]]["mark"] == "the original"
+    assert by_step[after_edit[0]["step"]]["mark"] is None
 
 
 async def test_the_fork_tree_says_where_each_branch_split_and_how_it_stands(
@@ -151,18 +273,39 @@ async def test_the_fork_tree_carries_the_parent_step_the_child_copied(
     async with daemon_api(root) as api:
         await api.flow_open({"flow": "churn"})
         await api.fork({"flow": "churn", "name": "sweep"})
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "main",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.92"),
+                "intent": "main at the split",
+            }
+        )
         marked_main = await api.checkpoint(
             {"flow": "churn", "branch": "main", "intent": "main at the split"}
         )
-        await api.checkpoint(
-            {"flow": "churn", "branch": "sweep", "intent": "sweep moved on"}
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "sweep",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.93"),
+                "intent": "sweep moved on",
+            }
         )
         forked = await api.fork(
             {"flow": "churn", "name": "exp/lr", "from_branch": "main"}
         )
         at_fork = await api.tree({"flow": "churn"})
-        await api.checkpoint(
-            {"flow": "churn", "branch": "main", "intent": "main moved on"}
+        await api.cells_edit(
+            {
+                "flow": "churn",
+                "branch": "main",
+                "slug": "score",
+                "source": SCORE_CELL.replace("0.91", "0.94"),
+                "intent": "main moved on",
+            }
         )
         after_main_moved = await api.tree({"flow": "churn"})
 

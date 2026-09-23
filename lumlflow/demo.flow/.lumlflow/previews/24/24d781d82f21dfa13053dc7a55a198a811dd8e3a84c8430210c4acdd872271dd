@@ -1,0 +1,1 @@
+{"blocks":[{"block":"markdown","text":"**params**"},{"block":"kv","entries":{"alpha":25.0}},{"block":"markdown","text":"**metrics**"},{"block":"kv","entries":{"mae":0.27748641631230603,"r2":0.745922949801282,"rmse":0.3445922843754289}}],"kind":"experiment","schema":1,"truncated":false}

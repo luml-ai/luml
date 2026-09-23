@@ -157,7 +157,7 @@ import MaterializationRows from '../components/compare/MaterializationRows.vue'
 import ResultColumns from '../components/compare/ResultColumns.vue'
 import ShapelessTable from '../components/compare/ShapelessTable.vue'
 import { useCompare } from '../live/useCompare'
-import { useFlowOps } from '../live/useFlowOps'
+import { MoveCancelled, useFlowOps } from '../live/useFlowOps'
 import type { FlowSessionHandle } from '../live/useFlowSession'
 import { useSelection } from '../live/useSelection'
 import BranchTag from '../ui/BranchTag.vue'
@@ -250,6 +250,7 @@ async function onAdopt(force: boolean): Promise<void> {
       life: 4000,
     })
   } catch (failure) {
+    if (failure instanceof MoveCancelled) return
     if (failure instanceof FlowApiError && failure.kind === 'AdoptConflict') {
       conflict.value = failure.message
       return

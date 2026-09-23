@@ -11,6 +11,7 @@
  * what it did is a materialization it records.
  */
 
+import { getCurrentInstance, inject, type InjectionKey } from 'vue'
 import type { EditedCell, FlowMethods } from '@/flow/api/client'
 import type {
   CellContextPayload,
@@ -53,8 +54,12 @@ export interface FlowOps {
   fork: (name: string, from: string) => Result<'fork'>
   checkout: (branch: string) => Result<'switch'>
   rewind: (toStep: number, options: { branch: string }) => Result<'rewind'>
-  /** The one op whose intent is the user's own words rather than an auto-intent. */
-  checkpoint: (intent: string, branch: string) => Result<'checkpoint'>
+  /**
+   * The one op whose intent is the user's own words rather than an auto-intent.
+   * The words attach to `step` — the one the timeline showed as current — and
+   * add no step of their own.
+   */
+  checkpoint: (intent: string, branch: string, step: number) => Result<'checkpoint'>
   adopt: (
     slug: string,
     from: string,
@@ -68,8 +73,43 @@ export interface FlowOps {
   restartKernel: () => Result<'kernel.restart'>
 }
 
-export function useFlowOps(session: FlowSessionHandle): FlowOps {
+/**
+ * Asked before any op that moves a branch. It answers with the branch the op
+ * should land on — the same one, or a lane just started from where it stands —
+ * or `null` when the reader stepped back from the gesture.
+ *
+ * A branch that was rewound stands behind its newest step, and a change made
+ * there moves it on from that step. The page owning the dialog provides this
+ * so every card and page asks the same question the same way.
+ */
+export type MoveGuard = (branch: string) => Promise<string | null>
+
+export const MOVE_GUARD: InjectionKey<MoveGuard> = Symbol('lumlflow.move-guard')
+
+/** The reader stepped back from a gesture the guard asked about. Not a refusal. */
+export class MoveCancelled extends Error {
+  constructor() {
+    super('stayed where the lane stands')
+    this.name = 'MoveCancelled'
+  }
+}
+
+export function useFlowOps(
+  session: FlowSessionHandle,
+  options: { guard?: MoveGuard } = {},
+): FlowOps {
   const flow = () => session.brief.value?.path
+  // The page that owns the dialog hands its guard in directly — a component
+  // cannot inject what it provides itself — and everything under it injects.
+  const guard = options.guard ?? (getCurrentInstance() ? inject(MOVE_GUARD, null) : null)
+
+  /** The branch a moving op lands on, once the guard — when one is provided — has answered. */
+  async function onto(branch: string): Promise<string> {
+    if (guard === null) return branch
+    const target = await guard(branch)
+    if (target === null) throw new MoveCancelled()
+    return target
+  }
 
   function applyBrief(next: FlowBrief): void {
     const current = session.brief.value
@@ -96,21 +136,24 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         ...(Array.isArray(targets) ? { targets } : { target: targets }),
       }),
 
-    run: (target, { branch, force }) =>
-      session.request('run', {
+    run: async (target, { branch: asked, force }) => {
+      const branch = await onto(asked)
+      return session.request('run', {
         flow: flow(),
         branch,
         ...(target ? { target } : {}),
         force,
         intent: `${force ? 'force rerun' : target ? 'run' : 'rerun'} ${target ?? branch}`,
-      }),
+      })
+    },
 
     // Named for what it is: leaving a run, which only stops it when no other
     // branch is still awaiting the result.
     cancel: (branch) => session.request('cancel', { flow: flow(), branch }),
 
-    edit: (slug, source, { branch, base, force }) =>
-      session.request('cells.edit', {
+    edit: async (slug, source, { branch: asked, base, force }) => {
+      const branch = await onto(asked)
+      return session.request('cells.edit', {
         flow: flow(),
         branch,
         slug,
@@ -118,10 +161,12 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         base,
         force,
         intent: force ? `overwrote ${slug}` : `edited ${slug}`,
-      }),
+      })
+    },
 
-    addCell: ({ branch, slug, after, anchor, source }) =>
-      session.request('cells.new', {
+    addCell: async ({ branch: asked, slug, after, anchor, source }) => {
+      const branch = await onto(asked)
+      return session.request('cells.new', {
         flow: flow(),
         branch,
         slug,
@@ -129,38 +174,45 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
         anchor,
         source,
         intent: intentFor({ slug, after, source }),
-      }),
+      })
+    },
 
-    reorder: (slug, { branch, before, after }) =>
-      session.request('cells.reorder', {
+    reorder: async (slug, { branch: asked, before, after }) => {
+      const branch = await onto(asked)
+      return session.request('cells.reorder', {
         flow: flow(),
         branch,
         slug,
         before,
         after,
-      }),
+      })
+    },
 
-    deleteCell: (slug, { branch }) =>
-      session.request('cells.delete', {
+    deleteCell: async (slug, { branch: asked }) => {
+      const branch = await onto(asked)
+      return session.request('cells.delete', {
         flow: flow(),
         branch,
         slug,
         intent: `deleted ${slug} from ${branch}`,
-      }),
+      })
+    },
 
     // Reactivity, not a run: this decides whether the cell rematerializes
     // without being asked, so it carries no intent and journals nothing.
     setEager: (slug, on, branch) =>
       session.request('cells.eager', { flow: flow(), branch, slug, eager: on }),
 
-    rename: (slug, to, { branch }) =>
-      session.request('rename', {
+    rename: async (slug, to, { branch: asked }) => {
+      const branch = await onto(asked)
+      return session.request('rename', {
         flow: flow(),
         branch,
         slug,
         to,
         intent: `renamed ${slug} to ${to}`,
-      }),
+      })
+    },
 
     fork: (name, from) =>
       session.request('fork', {
@@ -195,24 +247,25 @@ export function useFlowOps(session: FlowSessionHandle): FlowOps {
     // The intent is not written here. Every other verb above carries an
     // auto-intent because the gesture says what happened; a checkpoint's whole
     // content is what the user meant by it, so there is nothing to default to.
-    checkpoint: (intent, branch) =>
-      session.request('checkpoint', { flow: flow(), branch, intent }),
+    checkpoint: (intent, branch, step) =>
+      session.request('checkpoint', { flow: flow(), branch, step, intent }),
 
-    adopt: (slug, from, { branch, force }) =>
-      session.request('adopt', {
+    adopt: async (slug, from, { branch: asked, force }) => {
+      const branch = await onto(asked)
+      return session.request('adopt', {
         flow: flow(),
         branch,
         slug,
         from_branch: from,
         force,
         intent: `adopted ${slug} from ${from}`,
-      }),
+      })
+    },
 
     archive: (branch) =>
       session.request('archive', { flow: flow(), branch, intent: `archived ${branch}` }),
 
-    copyContext: (slug, branch) =>
-      session.request('agent.payload', { flow: flow(), branch, slug }),
+    copyContext: (slug, branch) => session.request('agent.payload', { flow: flow(), branch, slug }),
 
     // A read of what the branch already observed. The names hydrate as copies,
     // so this writes no version, no materialization and no journal line.
