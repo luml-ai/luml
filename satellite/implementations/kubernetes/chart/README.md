@@ -65,6 +65,8 @@ To use an independently operated GreptimeDB cluster, select `monitoring.store.mo
 
 ## Network policy and meshes
 
-The enabled-by-default policy selects only pods carrying this release's `luml.ai/satellite-id` label, including model pods created later by the satellite. It permits traffic within the release, public serving on port 8000, DNS, outbound HTTP/HTTPS for platform, artifact and package access, and the configured external-store port. It does not select unrelated namespace workloads or another satellite release.
+The enabled-by-default policy selects only pods carrying this release's `luml.ai/satellite-id` label, including model pods created later by the satellite. It permits traffic within the release, public serving on port 8000, DNS, outbound HTTP/HTTPS for platform, artifact and package access, the Kubernetes API on `networkPolicy.apiServerPort`, and the configured external-store port. It does not select unrelated namespace workloads or another satellite release.
+
+The satellite reaches the API through the `kubernetes` service address, but the service port is translated to the API server's own port before the policy is evaluated, so the policy has to permit that port rather than 443. The default 6443 matches kubeadm clusters. Set `networkPolicy.apiServerPort` to the port the API server listens on, or clear it on installations whose API server answers on 443.
 
 With a service mesh, exclude the satellite's internal port 8001 from public ingress and preserve direct access among the satellite, sidecars, dashboard and worker. The model Service exposes only the sidecar's `http` and `internal` ports; the model-server port is never exposed.

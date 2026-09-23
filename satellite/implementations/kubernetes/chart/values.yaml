@@ -157,6 +157,7 @@ monitoring:
 
 networkPolicy:
   enabled: true
+  apiServerPort: 6443
 
 rbac:
   create: true

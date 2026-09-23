@@ -30,6 +30,11 @@ spec:
           port: 53
         - protocol: TCP
           port: 53
+    {{- with .Values.networkPolicy.apiServerPort }}
+    - ports:
+        - protocol: TCP
+          port: {{ . }}
+    {{- end }}
     - ports:
         - protocol: TCP
           port: 80
