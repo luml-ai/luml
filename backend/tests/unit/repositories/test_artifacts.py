@@ -3,8 +3,10 @@ from uuid import uuid7
 
 import pytest
 from luml.infra.exceptions import InvalidSortingError
+from luml.models.artifacts import ArtifactOrm
 from luml.repositories.artifacts import ArtifactRepository
 from luml.schemas.artifacts import ArtifactSortBy
+from luml.schemas.general import PaginationParams, SortOrder
 
 
 @pytest.mark.asyncio
@@ -59,3 +61,24 @@ async def test_is_extra_values_sort_accepts_collection_metric() -> None:
 
     assert result is True
     get_metrics.assert_awaited_once_with(collection_ids)
+
+
+def test_metric_sort_cursor_keeps_requested_sort_column() -> None:
+    artifact = ArtifactOrm(id=uuid7(), extra_values={"accuracy": 0.9})
+    scope_id = uuid7()
+    pagination = PaginationParams(
+        sort_by="extra_values",
+        extra_sort_field="accuracy",
+        order=SortOrder.DESC,
+        scope_id=scope_id,
+    )
+
+    cursor = ArtifactRepository._get_cursor_from_record(
+        artifact, pagination, is_extra_value=True
+    )
+
+    assert cursor.id == artifact.id
+    assert cursor.value == 0.9
+    assert cursor.sort_by == "accuracy"
+    assert cursor.order == SortOrder.DESC
+    assert cursor.scope_id == scope_id

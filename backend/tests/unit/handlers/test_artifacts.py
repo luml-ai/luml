@@ -559,11 +559,17 @@ async def test_create_artifact_type_mismatch(
     "luml.handlers.artifacts.PermissionsHandler.check_permissions",
     new_callable=AsyncMock,
 )
+@pytest.mark.parametrize(
+    ("sort_by", "cursor_value"),
+    [("created_at", datetime(2026, 9, 16)), ("accuracy", 0.8)],
+)
 @pytest.mark.asyncio
 async def test_get_collection_artifacts_reuses_matching_cursor(
     mock_check_permissions: AsyncMock,
     mock_check_access: AsyncMock,
     mock_repo: AsyncMock,
+    sort_by: str,
+    cursor_value: datetime | float,
 ) -> None:
     orbit_id = uuid7()
     cursor_id = uuid7()
@@ -577,8 +583,8 @@ async def test_get_collection_artifacts_reuses_matching_cursor(
     cursor_str = encode_cursor(
         Cursor(
             id=cursor_id,
-            value=datetime.now(),
-            sort_by="created_at",
+            value=cursor_value,
+            sort_by=sort_by,
             order=SortOrder.DESC,
             scope_id=scope,
         )
@@ -586,7 +592,7 @@ async def test_get_collection_artifacts_reuses_matching_cursor(
     mock_repo.return_value = ([], None)
 
     await handler.get_collection_artifacts(
-        uuid7(), uuid7(), orbit_id, cursor_str=cursor_str
+        uuid7(), uuid7(), orbit_id, cursor_str=cursor_str, sort_by=sort_by
     )
 
     pagination = _pagination_arg(mock_repo)
