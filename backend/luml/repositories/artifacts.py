@@ -36,6 +36,7 @@ from luml.schemas.artifacts import (
     ArtifactDeleteTrack,
     ArtifactDetails,
     ArtifactListed,
+    ArtifactSortBy,
     ArtifactStatus,
     ArtifactType,
     ArtifactUpdate,
@@ -353,7 +354,7 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
         if sort_by == "extra_values":
             raise InvalidSortingError("Cannot sort by 'metrics'. Pass a metric key")
 
-        if hasattr(ArtifactOrm, sort_by):
+        if sort_by in ArtifactSortBy:
             return False
 
         metrics = await self.get_batch_collection_artifacts_extra_values(collection_ids)
@@ -391,16 +392,13 @@ class ArtifactRepository(RepositoryBase, CrudMixin):
     ) -> tuple[list[ArtifactListed], Cursor | None]:
         async with self._get_session() as session:
             sort_by = pagination.sort_by
-            is_extra_values = False
+            is_extra_values = await self._is_extra_values_sort(
+                collection_ids or [], sort_by
+            )
 
-            if collection_ids and len(collection_ids) > 0:
-                is_extra_values = await self._is_extra_values_sort(
-                    collection_ids, sort_by
-                )
-
-                if is_extra_values:
-                    pagination.extra_sort_field = sort_by
-                    pagination.sort_by = "extra_values"
+            if is_extra_values:
+                pagination.extra_sort_field = sort_by
+                pagination.sort_by = "extra_values"
 
             conditions: list[Any] = [
                 ArtifactOrm.collection_id.in_(
