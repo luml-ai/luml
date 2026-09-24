@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from collections.abc import Awaitable, Callable, Sequence, Set
+import os
+from collections.abc import Awaitable, Callable, Mapping, Sequence, Set
 from contextlib import suppress
 from types import TracebackType
 from typing import Any, Self, cast
@@ -73,6 +74,8 @@ class DockerDriver:
         self._sleep = sleep
         self._logger = logger or logging.getLogger("luml_satellite_docker.driver")
         self.removal_rechecks = 0
+        self._prepared_networks: set[str] = set()
+        self._agent_networks: tuple[str, ...] | None = None
 
     async def __aenter__(self) -> Self:
         return self
@@ -99,7 +102,10 @@ class DockerDriver:
         satellite_id = self._satellite_id_for(deployment)
         deployment_id = str(deployment.id)
         artifact_id = str(deployment.artifact_id)
-        satellite_address = f"http://{AGENT_HOST}:{self.configuration.AGENT_PORT}"
+        network = await self._ensure_network(satellite_id)
+        satellite_address = (
+            f"http://{self._agent_alias(satellite_id)}:{self.configuration.AGENT_PORT}"
+        )
         environment = build_container_environment(
             deployment,
             context.secrets,
@@ -120,7 +126,7 @@ class DockerDriver:
             "Env": [f"{name}={value}" for name, value in environment.items()],
             "HostConfig": {
                 "RestartPolicy": {"Name": "on-failure", "MaximumRetryCount": 3},
-                "NetworkMode": self.configuration.DOCKER_NETWORK_NAME,
+                "NetworkMode": network,
                 "Binds": [f"{model_cache_volume(artifact_id)}:{MODEL_CACHE_MOUNT}"],
             },
         }
@@ -130,6 +136,7 @@ class DockerDriver:
                 config=container_config,
             )
             information = await container.show()
+            await self._join_agent_networks(str(information.get("Id") or ""), network)
             if not _container_is_running(information):
                 await container.start()
         except DockerError as error:
@@ -356,6 +363,96 @@ class DockerDriver:
             return "".join(str(line) for line in logs)
         return str(logs or "")
 
+    def _network_name(self, satellite_id: str) -> str:
+        configured = self.configuration.DOCKER_NETWORK_NAME.strip()
+        return configured or f"luml-satellite-{satellite_id}"
+
+    def _agent_alias(self, satellite_id: str) -> str:
+        return f"{AGENT_HOST}-{satellite_id}"
+
+    async def _ensure_network(self, satellite_id: str) -> str:
+        name = self._network_name(satellite_id)
+        if name in self._prepared_networks:
+            return name
+        await self._create_network(name, satellite_id)
+        await self._join_network(name, satellite_id)
+        self._prepared_networks.add(name)
+        return name
+
+    async def _create_network(self, name: str, satellite_id: str) -> None:
+        try:
+            await self.client.networks.get(name)
+            return
+        except DockerError as error:
+            if error.status != 404:
+                raise
+        try:
+            await self.client.networks.create(
+                {
+                    "Name": name,
+                    "Driver": "bridge",
+                    "Labels": {DOCKER_SATELLITE_LABEL: satellite_id},
+                }
+            )
+        except DockerError as error:
+            if error.status != 409:
+                raise
+
+    async def _join_network(self, name: str, satellite_id: str) -> None:
+        container = await self._own_container()
+        if container is None:
+            self._logger.warning(
+                "could not identify this satellite's own container, "
+                "so network '%s' has to be wired to it by hand",
+                name,
+            )
+            return
+        information = await container.show()
+        if name in _container_networks(information):
+            return
+        network = await self.client.networks.get(name)
+        await network.connect(
+            {
+                "Container": str(information.get("Id") or container.id),
+                "EndpointConfig": {"Aliases": [AGENT_HOST, self._agent_alias(satellite_id)]},
+            }
+        )
+
+    async def _join_agent_networks(self, container_id: str, primary: str) -> None:
+        if not container_id:
+            return
+        for name in await self._agent_network_names():
+            if name == primary:
+                continue
+            try:
+                network = await self.client.networks.get(name)
+                await network.connect({"Container": container_id})
+            except DockerError as error:
+                if error.status not in (403, 409):
+                    raise
+
+    async def _agent_network_names(self) -> tuple[str, ...]:
+        if self._agent_networks is not None:
+            return self._agent_networks
+        container = await self._own_container()
+        if container is None:
+            self._agent_networks = ()
+            return self._agent_networks
+        information = await container.show()
+        self._agent_networks = _container_networks(information)
+        return self._agent_networks
+
+    async def _own_container(self) -> DockerContainer | None:
+        identifier = os.environ.get("HOSTNAME", "").strip()
+        if not identifier:
+            return None
+        try:
+            container = await self.client.containers.get(identifier)
+            await container.show()
+        except DockerError, aiohttp.ClientError, TimeoutError, OSError:
+            return None
+        return container
+
     def _satellite_id_for(self, deployment: Deployment) -> str:
         if self.satellite_id is None:
             self.bind_satellite(str(deployment.satellite_id))
@@ -375,6 +472,14 @@ class DockerDriver:
 
 def _docker_status(error: BaseException) -> int | None:
     return error.status if isinstance(error, DockerError) else None
+
+
+def _container_networks(information: Mapping[str, Any]) -> tuple[str, ...]:
+    settings = information.get("NetworkSettings")
+    networks = settings.get("Networks") if isinstance(settings, Mapping) else None
+    if not isinstance(networks, Mapping):
+        return ()
+    return tuple(str(name) for name in networks)
 
 
 def _container_is_running(information: dict[str, Any]) -> bool:

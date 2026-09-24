@@ -226,11 +226,41 @@ class FakeImages:
         self.pulled.append(name)
 
 
+class FakeNetwork:
+    def __init__(self, name: str, config: dict[str, Any]) -> None:
+        self.name = name
+        self.config = config
+        self.connected: list[dict[str, Any]] = []
+
+    async def connect(self, config: dict[str, Any]) -> None:
+        self.connected.append(config)
+
+
+class FakeNetworks:
+    def __init__(self) -> None:
+        self.networks: dict[str, FakeNetwork] = {}
+        self.created_configs: list[dict[str, Any]] = []
+
+    async def get(self, name: str) -> FakeNetwork:
+        try:
+            return self.networks[name]
+        except KeyError as error:
+            raise DockerError(404, "No such network") from error
+
+    async def create(self, config: dict[str, Any]) -> FakeNetwork:
+        name = str(config["Name"])
+        self.created_configs.append(config)
+        network = FakeNetwork(name, config)
+        self.networks[name] = network
+        return network
+
+
 class FakeDocker:
     def __init__(self) -> None:
         self.containers = FakeContainers()
         self.volumes = FakeVolumes()
         self.images = FakeImages()
+        self.networks = FakeNetworks()
         self.closed = False
 
     async def close(self) -> None:

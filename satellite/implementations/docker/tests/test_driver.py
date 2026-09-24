@@ -47,9 +47,61 @@ def test_configuration_keeps_field_install_defaults_and_settings_hidden() -> Non
     assert config.BASE_URL == "http://localhost"
     assert config.MODEL_IMAGE == "luml-random-svc:latest"
     assert config.MODEL_SERVER_PORT == 8080
-    assert config.DOCKER_NETWORK_NAME == "satellite_satellite-network"
+    assert config.DOCKER_NETWORK_NAME == ""
     assert config.DERIVATION_KEY is None
     assert settings_fields(DockerDeploymentSettings) == []
+
+
+@pytest.mark.asyncio
+async def test_start_creates_a_network_named_after_the_satellite() -> None:
+    fake = FakeDocker()
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    assert [config["Name"] for config in fake.networks.created_configs] == [expected]
+    assert fake.networks.created_configs[0]["Labels"] == {DOCKER_SATELLITE_LABEL: SATELLITE_ID}
+    _, container_config = fake.containers.created_configs[-1]
+    assert container_config["HostConfig"]["NetworkMode"] == expected
+    environment = dict(entry.split("=", 1) for entry in container_config["Env"])
+    assert environment["SATELLITE_AGENT_URL"] == f"http://satellite-agent-{SATELLITE_ID}:8000"
+
+
+@pytest.mark.asyncio
+async def test_two_satellites_never_share_a_network_or_an_address() -> None:
+    fake = FakeDocker()
+    first = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+    second = DockerDriver(configuration(), client=fake.as_client(), satellite_id=OTHER_SATELLITE_ID)
+
+    await first.start(deployment(), start_context())
+    await second.start(
+        deployment(id=OTHER_DEPLOYMENT_ID, satellite_id=OTHER_SATELLITE_ID), start_context()
+    )
+
+    networks = [config["Name"] for config in fake.networks.created_configs]
+    assert networks == [
+        f"luml-satellite-{SATELLITE_ID}",
+        f"luml-satellite-{OTHER_SATELLITE_ID}",
+    ]
+    addresses = {
+        dict(entry.split("=", 1) for entry in container_config["Env"])["SATELLITE_AGENT_URL"]
+        for _, container_config in fake.containers.created_configs
+    }
+    assert len(addresses) == 2
+
+
+@pytest.mark.asyncio
+async def test_an_existing_network_is_reused_and_created_once() -> None:
+    fake = FakeDocker()
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+    await fake.networks.create({"Name": f"luml-satellite-{SATELLITE_ID}"})
+    fake.networks.created_configs.clear()
+
+    await driver.start(deployment(), start_context())
+    await driver.start(deployment(id=OTHER_DEPLOYMENT_ID), start_context())
+
+    assert fake.networks.created_configs == []
 
 
 @pytest.mark.asyncio
@@ -89,7 +141,7 @@ async def test_start_builds_the_protocol_three_container_on_the_configured_netwo
         "DEPLOYMENT_ID": DEPLOYMENT_ID,
         "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4317",
         "MODEL_ARTIFACT_TOKEN": "artifact-token",
-        "SATELLITE_AGENT_URL": "http://satellite-agent:8123",
+        "SATELLITE_AGENT_URL": f"http://satellite-agent-{SATELLITE_ID}:8123",
     }
 
 

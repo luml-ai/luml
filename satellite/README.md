@@ -8,8 +8,9 @@ See `SMOKE_TEST.md` for bringing a local stand up, and `spec_full.md` /
 `MONITORING_API_SPEC.md` in the repository root for the architecture.
 
 The Docker satellite lives in `implementations/docker`, the Kubernetes one in
-`implementations/kubernetes`, and both are built on the kit in `kit/`. The Kubernetes
-README covers its chart, a local stand on kind and the end-to-end scenario.
+`implementations/kubernetes`, and both are built on the kit in `kit/`. Each has a README:
+the Docker one covers its network per satellite and running several on one host, the
+Kubernetes one its chart, a local stand on kind and the end-to-end scenario.
 
 ## Monitoring over the machine API
 
