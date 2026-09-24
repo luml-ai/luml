@@ -1,4 +1,5 @@
 import datetime
+import logging
 from collections.abc import Callable, Coroutine
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -7,7 +8,9 @@ from uuid import UUID, uuid7
 import pytest
 from luml.handlers.orbits import OrbitHandler
 from luml.infra.exceptions import (
+    DatabaseConstraintError,
     NotFoundError,
+    OrbitMemberAlreadyExistsError,
     OrbitMemberNotFoundError,
     OrbitNotFoundError,
 )
@@ -601,6 +604,7 @@ async def test_get_orbit_members(
     "luml.handlers.orbits.UserRepository.get_organization_member",
     new_callable=AsyncMock,
 )
+@pytest.mark.parametrize("email_fails", [False, True])
 @pytest.mark.asyncio
 async def test_create_orbit_member(
     mock_get_organization_member: AsyncMock,
@@ -611,6 +615,8 @@ async def test_create_orbit_member(
     mock_send_added_to_orbit_email: MagicMock,
     mock_get_orbit_simple: AsyncMock,
     test_orbit_member: OrbitMember,
+    caplog: pytest.LogCaptureFixture,
+    email_fails: bool,
 ) -> None:
     user_id = UUID("0199c337-09f1-7d8f-b0c4-b68349bbe24b")
     organization_id = UUID("0199c337-09f2-7af1-af5e-83fd7a5b51a0")
@@ -636,13 +642,53 @@ async def test_create_orbit_member(
     mock_get_orbit_simple.return_value = Mock(
         bucket_secret_id=1, organization_id=organization_id, name="name"
     )
+    if email_fails:
+        mock_send_added_to_orbit_email.side_effect = RuntimeError("email rejected")
 
-    result = await handler.create_orbit_member(
-        expected.user.id, organization_id, create_member
-    )
+    with caplog.at_level(logging.ERROR, logger="luml.handlers.orbits"):
+        result = await handler.create_orbit_member(
+            expected.user.id, organization_id, create_member
+        )
 
     assert result == expected
     mock_create_orbit_member.assert_awaited_once_with(create_member)
+    mock_send_added_to_orbit_email.assert_called_once()
+    if email_fails:
+        assert "Failed to send added-to-orbit email" in caplog.text
+
+
+@patch(
+    "luml.handlers.orbits.OrbitRepository.create_orbit_member",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.UserRepository.get_organization_member",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.orbits.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_create_orbit_member_rejects_duplicate(
+    mock_check_permissions: AsyncMock,
+    mock_get_organization_member: AsyncMock,
+    mock_create_orbit_member: AsyncMock,
+    test_orbit_member: OrbitMember,
+) -> None:
+    member = OrbitMemberCreate(
+        user_id=test_orbit_member.user.id,
+        orbit_id=test_orbit_member.orbit_id,
+        role=test_orbit_member.role,
+    )
+    mock_get_organization_member.return_value = Mock()
+    mock_create_orbit_member.side_effect = DatabaseConstraintError()
+
+    with pytest.raises(OrbitMemberAlreadyExistsError) as error:
+        await handler.create_orbit_member(USER_ID, OTHER_ORGANIZATION_ID, member)
+
+    assert error.value.status_code == 409
+    mock_create_orbit_member.assert_awaited_once_with(member)
 
 
 @patch(
