@@ -26,6 +26,7 @@ from luml_satellite_docker import (
     DockerDriver,
     model_cache_volume,
 )
+from luml_satellite_docker.driver import AGENT_HOST
 from tests.support import (
     ARTIFACT_ID,
     DEPLOYMENT_ID,
@@ -34,6 +35,7 @@ from tests.support import (
     SATELLITE_ID,
     FakeContainer,
     FakeDocker,
+    agent_container,
     configuration,
     deployment,
     start_context,
@@ -94,8 +96,11 @@ async def test_a_satellite_outside_a_stack_labels_nothing_extra(
 
 
 @pytest.mark.asyncio
-async def test_start_creates_a_network_named_after_the_satellite() -> None:
+async def test_start_creates_a_network_named_after_the_satellite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeDocker()
+    agent = agent_container(fake, monkeypatch)
     driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
 
     await driver.start(deployment(), start_context())
@@ -103,15 +108,78 @@ async def test_start_creates_a_network_named_after_the_satellite() -> None:
     expected = f"luml-satellite-{SATELLITE_ID}"
     assert [config["Name"] for config in fake.networks.created_configs] == [expected]
     assert fake.networks.created_configs[0]["Labels"] == {DOCKER_SATELLITE_LABEL: SATELLITE_ID}
+    assert agent.networks[expected] == [AGENT_HOST, f"{AGENT_HOST}-{SATELLITE_ID}"]
     _, container_config = fake.containers.created_configs[-1]
     assert container_config["HostConfig"]["NetworkMode"] == expected
     environment = dict(entry.split("=", 1) for entry in container_config["Env"])
-    assert environment["SATELLITE_AGENT_URL"] == f"http://satellite-agent-{SATELLITE_ID}:8000"
+    assert environment["SATELLITE_AGENT_URL"] == f"http://{AGENT_HOST}-{SATELLITE_ID}:8000"
 
 
 @pytest.mark.asyncio
-async def test_two_satellites_never_share_a_network_or_an_address() -> None:
+async def test_an_agent_attached_without_its_alias_is_addressed_by_container_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeDocker()
+    agent_container(fake, monkeypatch, networks={"customer-network": ["agent"]})
+    await fake.networks.create({"Name": "customer-network"})
+    fake.networks.created_configs.clear()
+    driver = DockerDriver(
+        configuration(DOCKER_NETWORK_NAME="customer-network"),
+        client=fake.as_client(),
+        satellite_id=SATELLITE_ID,
+    )
+
+    await driver.start(deployment(), start_context())
+
+    assert fake.networks.created_configs == []
+    assert fake.networks.networks["customer-network"].connected == []
+    _, container_config = fake.containers.created_configs[-1]
+    environment = dict(entry.split("=", 1) for entry in container_config["Env"])
+    assert environment["SATELLITE_AGENT_URL"] == "http://agent-host:8000"
+
+
+@pytest.mark.asyncio
+async def test_a_configured_network_has_to_exist_already(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    driver = DockerDriver(
+        configuration(DOCKER_NETWORK_NAME="missing-network"),
+        client=fake.as_client(),
+        satellite_id=SATELLITE_ID,
+    )
+
+    with pytest.raises(DriverError, match="missing-network"):
+        await driver.start(deployment(), start_context())
+
+    assert fake.networks.created_configs == []
+
+
+@pytest.mark.asyncio
+async def test_deployments_racing_for_a_first_network_prepare_it_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await asyncio.gather(
+        driver.start(deployment(), start_context()),
+        driver.start(deployment(id=OTHER_DEPLOYMENT_ID), start_context()),
+    )
+
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    assert [config["Name"] for config in fake.networks.created_configs] == [expected]
+    assert len(fake.networks.networks[expected].connected) == 1
+
+
+@pytest.mark.asyncio
+async def test_two_satellites_never_share_a_network_or_an_address(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent_container(fake, monkeypatch)
     first = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
     second = DockerDriver(configuration(), client=fake.as_client(), satellite_id=OTHER_SATELLITE_ID)
 
@@ -133,8 +201,11 @@ async def test_two_satellites_never_share_a_network_or_an_address() -> None:
 
 
 @pytest.mark.asyncio
-async def test_an_existing_network_is_reused_and_created_once() -> None:
+async def test_an_existing_network_is_reused_and_created_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeDocker()
+    agent_container(fake, monkeypatch)
     driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
     await fake.networks.create({"Name": f"luml-satellite-{SATELLITE_ID}"})
     fake.networks.created_configs.clear()
@@ -146,8 +217,12 @@ async def test_an_existing_network_is_reused_and_created_once() -> None:
 
 
 @pytest.mark.asyncio
-async def test_start_builds_the_protocol_three_container_on_the_configured_network() -> None:
+async def test_start_builds_the_protocol_three_container_on_the_configured_network(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeDocker()
+    agent_container(fake, monkeypatch)
+    await fake.networks.create({"Name": "customer_satellite-network"})
     config = configuration(DOCKER_NETWORK_NAME="customer_satellite-network", AGENT_PORT=8123)
     driver = DockerDriver(config, client=fake.as_client(), satellite_id=SATELLITE_ID)
     record = deployment(

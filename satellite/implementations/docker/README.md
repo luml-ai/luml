@@ -15,15 +15,22 @@ Each model container is also connected to the networks the satellite itself belo
 the telemetry collector of its stack stays reachable by name.
 
 Set `DOCKER_NETWORK_NAME` to place model containers in an existing network instead. The
-satellite then creates nothing and trusts the name it was given.
+satellite creates nothing in that mode and refuses to start a deployment when the named
+network is absent, rather than quietly building a new bridge under a misspelled name. If the
+satellite is already attached to that network without its own alias — the usual case when
+Compose wired it — models are given its container name, which resolves there just as well.
 
 ## Model containers belong to their stack
 
 A satellite started as part of a Compose stack copies that stack's project label onto every
 model container it creates, so the models appear next to their own satellite, collector and
-store rather than as loose containers. Tearing the stack down with `docker compose down`
-therefore removes those model containers as well; the Platform still lists the deployments
-and the satellite reports them as not responding until they are deployed again.
+store rather than as loose containers.
+
+The label groups them; it does not hand them to Compose. `docker compose down` removes only
+the containers declared in the file and leaves every model container running, with or without
+`--remove-orphans`, and the stack network then survives the teardown as well, because a
+container is still attached to it. Undeploy through the Platform first, which is what removes
+those containers, and bring the stack down afterwards.
 
 ## Several satellites on one host
 

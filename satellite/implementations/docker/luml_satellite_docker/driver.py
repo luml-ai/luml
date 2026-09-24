@@ -76,7 +76,8 @@ class DockerDriver:
         self._sleep = sleep
         self._logger = logger or logging.getLogger("luml_satellite_docker.driver")
         self.removal_rechecks = 0
-        self._prepared_networks: set[str] = set()
+        self._prepared_networks: dict[str, str] = {}
+        self._network_lock = asyncio.Lock()
         self._agent_networks: tuple[str, ...] | None = None
         self._stack_labels: dict[str, str] | None = None
 
@@ -105,10 +106,8 @@ class DockerDriver:
         satellite_id = self._satellite_id_for(deployment)
         deployment_id = str(deployment.id)
         artifact_id = str(deployment.artifact_id)
-        network = await self._ensure_network(satellite_id)
-        satellite_address = (
-            f"http://{self._agent_alias(satellite_id)}:{self.configuration.AGENT_PORT}"
-        )
+        network, agent_host = await self._ensure_network(satellite_id)
+        satellite_address = f"http://{agent_host}:{self.configuration.AGENT_PORT}"
         environment = build_container_environment(
             deployment,
             context.secrets,
@@ -376,14 +375,16 @@ class DockerDriver:
     def _agent_alias(self, satellite_id: str) -> str:
         return f"{AGENT_HOST}-{satellite_id}"
 
-    async def _ensure_network(self, satellite_id: str) -> str:
+    async def _ensure_network(self, satellite_id: str) -> tuple[str, str]:
         name = self._network_name(satellite_id)
-        if name in self._prepared_networks:
-            return name
-        await self._create_network(name, satellite_id)
-        await self._join_network(name, satellite_id)
-        self._prepared_networks.add(name)
-        return name
+        async with self._network_lock:
+            prepared = self._prepared_networks.get(name)
+            if prepared is not None:
+                return name, prepared
+            await self._create_network(name, satellite_id)
+            host = await self._join_network(name, satellite_id)
+            self._prepared_networks[name] = host
+            return name, host
 
     async def _create_network(self, name: str, satellite_id: str) -> None:
         try:
@@ -392,6 +393,12 @@ class DockerDriver:
         except DockerError as error:
             if error.status != 404:
                 raise
+            if self.configuration.DOCKER_NETWORK_NAME.strip():
+                raise DriverError(
+                    f"Network '{name}' does not exist. "
+                    "DOCKER_NETWORK_NAME must name a network that is already created.",
+                    reason="Docker network not found",
+                ) from error
         try:
             await self.client.networks.create(
                 {
@@ -404,7 +411,8 @@ class DockerDriver:
             if error.status != 409:
                 raise
 
-    async def _join_network(self, name: str, satellite_id: str) -> None:
+    async def _join_network(self, name: str, satellite_id: str) -> str:
+        alias = self._agent_alias(satellite_id)
         container = await self._own_container()
         if container is None:
             self._logger.warning(
@@ -412,17 +420,33 @@ class DockerDriver:
                 "so network '%s' has to be wired to it by hand",
                 name,
             )
-            return
+            return AGENT_HOST
         information = await container.show()
-        if name in _container_networks(information):
-            return
+        identifier = str(information.get("Id") or container.id)
+        endpoint = _container_endpoint(information, name)
+        if endpoint is not None:
+            if alias in _endpoint_aliases(endpoint):
+                return alias
+            reachable = _container_hostname(information) or AGENT_HOST
+            self._logger.info(
+                "this satellite is already attached to network '%s' without its own alias, "
+                "so its models will reach it as '%s'",
+                name,
+                reachable,
+            )
+            return reachable
         network = await self.client.networks.get(name)
-        await network.connect(
-            {
-                "Container": str(information.get("Id") or container.id),
-                "EndpointConfig": {"Aliases": [AGENT_HOST, self._agent_alias(satellite_id)]},
-            }
-        )
+        try:
+            await network.connect(
+                {
+                    "Container": identifier,
+                    "EndpointConfig": {"Aliases": [AGENT_HOST, alias]},
+                }
+            )
+        except DockerError as error:
+            if error.status not in (403, 409):
+                raise
+        return alias
 
     async def _join_agent_networks(self, container_id: str, primary: str) -> None:
         if not container_id:
@@ -495,6 +519,25 @@ class DockerDriver:
 
 def _docker_status(error: BaseException) -> int | None:
     return error.status if isinstance(error, DockerError) else None
+
+
+def _container_endpoint(information: Mapping[str, Any], name: str) -> Mapping[str, Any] | None:
+    settings = information.get("NetworkSettings")
+    networks = settings.get("Networks") if isinstance(settings, Mapping) else None
+    endpoint = networks.get(name) if isinstance(networks, Mapping) else None
+    return endpoint if isinstance(endpoint, Mapping) else None
+
+
+def _endpoint_aliases(endpoint: Mapping[str, Any]) -> tuple[str, ...]:
+    aliases = endpoint.get("Aliases")
+    if not isinstance(aliases, list):
+        return ()
+    return tuple(str(alias) for alias in aliases)
+
+
+def _container_hostname(information: Mapping[str, Any]) -> str:
+    name = str(information.get("Name") or "").lstrip("/")
+    return name
 
 
 def _container_networks(information: Mapping[str, Any]) -> tuple[str, ...]:
