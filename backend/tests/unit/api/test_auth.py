@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from luml.api.auth import auth_router
 from luml.models import AuthUser
+from luml.schemas.user import ChangePasswordIn
 from starlette.authentication import AuthCredentials, AuthenticationBackend
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.requests import HTTPConnection
@@ -57,3 +58,36 @@ def test_update_profile_accepts_profile_fields(
 
     assert response.status_code == 200
     mock_update_user.assert_awaited_once()
+
+
+@patch("luml.api.auth.auth_handler.handle_change_password", new_callable=AsyncMock)
+def test_change_password(mock_change_password: AsyncMock) -> None:
+    response = _client().post(
+        "/v1/auth/change-password",
+        json={
+            "current_password": "current-password",
+            "new_password": "new-password",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"detail": "Password changed successfully"}
+    mock_change_password.assert_awaited_once_with(
+        "caller@example.com",
+        ChangePasswordIn(
+            current_password="current-password", new_password="new-password"
+        ),
+    )
+
+
+@patch("luml.api.auth.auth_handler.handle_change_password", new_callable=AsyncMock)
+def test_change_password_rejects_short_passwords(
+    mock_change_password: AsyncMock,
+) -> None:
+    response = _client().post(
+        "/v1/auth/change-password",
+        json={"current_password": "short", "new_password": "new-password"},
+    )
+
+    assert response.status_code == 422
+    mock_change_password.assert_not_awaited()
