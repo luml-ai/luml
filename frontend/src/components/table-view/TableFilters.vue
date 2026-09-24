@@ -17,12 +17,14 @@
             placeholder="Column"
             :options="columnSelectOptions"
             v-model="filter.column"
+            append-to="self"
             @click.stop
           />
           <d-select
             placeholder="Operator"
             :options="getFilterTypeSelectOptions(filter.column)"
             v-model="filter.filterType"
+            append-to="self"
             @click.stop
           />
           <d-input-text
