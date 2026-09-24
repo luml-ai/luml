@@ -153,7 +153,9 @@ spec:
             - name: RECORDING_KEEP_OUTPUTS
               value: {{ .Values.sidecar.recording.keepOutputs | quote }}
             - name: PROBE_TIMEOUT_SEC
-              value: {{ .Values.probes.timeoutSeconds | quote }}
+              value: {{ include "luml.probeTimeout" . | quote }}
+            - name: PROBE_FAILURE_THRESHOLD
+              value: {{ include "luml.probeFailureThreshold" . | quote }}
           resources:
             {{- toYaml .Values.satellite.resources | nindent 12 }}
           livenessProbe:

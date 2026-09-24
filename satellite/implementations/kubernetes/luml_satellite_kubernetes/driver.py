@@ -25,6 +25,7 @@ from luml_satellite.container import (
     KUBERNETES_MANAGED_BY_LABEL,
     KUBERNETES_SATELLITE_LABEL,
     KUBERNETES_SHARED_LABEL,
+    KUBERNETES_SPEC_FINGERPRINT_LABEL,
 )
 
 from luml_satellite_kubernetes.api import KubernetesApiClient
@@ -250,6 +251,8 @@ class KubernetesDriver:
         launcher_protocol = labels.get(KUBERNETES_LAUNCHER_PROTOCOL_LABEL)
         needs_reapply = (
             labels.get(KUBERNETES_DERIVATION_FINGERPRINT_LABEL) != self.tokens.fingerprint
+            or labels.get(KUBERNETES_SPEC_FINGERPRINT_LABEL)
+            != self.configuration.workload_spec_fingerprint
         )
         if available > 0:
             return WorkloadObservation(

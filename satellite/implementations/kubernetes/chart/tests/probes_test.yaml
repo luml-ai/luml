@@ -4,6 +4,7 @@ templates:
   - templates/deployment-dashboard.yaml
   - templates/deployment-worker.yaml
   - templates/statefulset-store.yaml
+  - templates/deployment-collector.yaml
 release:
   name: first
   namespace: shared
@@ -72,13 +73,62 @@ tests:
           path: spec.template.spec.containers[0].livenessProbe.failureThreshold
           value: 5
 
-  - it: tells the satellite which timeout to give the probes it creates
+  - it: tells the satellite which tuning to give the probes it creates
     template: templates/deployment-satellite.yaml
     set:
       probes.timeoutSeconds: 15
+      probes.failureThreshold: 5
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: PROBE_TIMEOUT_SEC
             value: "15"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PROBE_FAILURE_THRESHOLD
+            value: "5"
+
+  - it: gives the collector probes the same tuning
+    template: templates/deployment-collector.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 3
+
+  - it: falls back to the defaults for a release installed before the group existed
+    set:
+      probes: null
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.timeoutSeconds
+          value: 5
+      - equal:
+          path: spec.template.spec.containers[0].livenessProbe.failureThreshold
+          value: 3
+
+  - it: keeps the satellite environment rendering without the group
+    template: templates/deployment-satellite.yaml
+    set:
+      probes: null
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PROBE_TIMEOUT_SEC
+            value: "5"
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: PROBE_FAILURE_THRESHOLD
+            value: "3"

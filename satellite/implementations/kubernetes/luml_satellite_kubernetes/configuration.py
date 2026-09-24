@@ -1,3 +1,5 @@
+import hashlib
+import json
 import re
 from typing import Any, Literal, Self
 
@@ -68,6 +70,7 @@ class KubernetesConfiguration(SatelliteConfiguration):
     SIDECAR_RESOURCES: dict[str, Any] = Field(default_factory=dict)
     SIDECAR_CACHE_TTL_SEC: float = Field(default=60.0, gt=15.0)
     PROBE_TIMEOUT_SEC: int = Field(default=5, ge=1)
+    PROBE_FAILURE_THRESHOLD: int = Field(default=3, ge=1)
     SIDECAR_STALE_ALLOWANCE_SEC: float = Field(default=600.0, ge=0.0)
 
     KUBERNETES_FIELD_MANAGER: str = "luml-satellite"
@@ -140,6 +143,18 @@ class KubernetesConfiguration(SatelliteConfiguration):
             "allowPrivilegeEscalation": False,
             "capabilities": {"drop": ["ALL"]},
         }
+
+    @property
+    def workload_spec_fingerprint(self) -> str:
+        payload = json.dumps(
+            {
+                "probe_failure_threshold": self.PROBE_FAILURE_THRESHOLD,
+                "probe_timeout_seconds": self.PROBE_TIMEOUT_SEC,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
     @property
     def monitoring_dashboard_service(self) -> str:

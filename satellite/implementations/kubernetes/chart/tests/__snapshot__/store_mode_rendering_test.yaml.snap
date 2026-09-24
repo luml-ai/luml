@@ -112,17 +112,21 @@ changes only the external store boundary:
               image: otel/opentelemetry-collector-contrib:0.127.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 periodSeconds: 10
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               name: collector
               ports:
                 - containerPort: 4317
                   name: otlp-grpc
               readinessProbe:
+                failureThreshold: 3
                 periodSeconds: 5
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false
@@ -569,17 +573,21 @@ matches the standalone store rendering:
               image: otel/opentelemetry-collector-contrib:0.127.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 periodSeconds: 10
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               name: collector
               ports:
                 - containerPort: 4317
                   name: otlp-grpc
               readinessProbe:
+                failureThreshold: 3
                 periodSeconds: 5
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false

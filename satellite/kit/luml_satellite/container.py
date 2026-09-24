@@ -15,6 +15,7 @@ KUBERNETES_ARTIFACT_LABEL = "luml.ai/artifact-id"
 KUBERNETES_SATELLITE_LABEL = "luml.ai/satellite-id"
 KUBERNETES_LAUNCHER_PROTOCOL_LABEL = "luml.ai/launcher-protocol"
 KUBERNETES_DERIVATION_FINGERPRINT_LABEL = "luml.ai/derivation-key-fingerprint"
+KUBERNETES_SPEC_FINGERPRINT_LABEL = "luml.ai/workload-spec-fingerprint"
 KUBERNETES_SHARED_LABEL = "luml.ai/shared"
 
 MODEL_ARTIFACT_ID = "MODEL_ARTIFACT_ID"
@@ -65,6 +66,7 @@ def kubernetes_labels(
     satellite_id: str,
     launcher_protocol: str,
     derivation_key_fingerprint: str,
+    spec_fingerprint: str,
     shared: bool = False,
 ) -> dict[str, str]:
     return {
@@ -74,6 +76,7 @@ def kubernetes_labels(
         KUBERNETES_SATELLITE_LABEL: satellite_id,
         KUBERNETES_LAUNCHER_PROTOCOL_LABEL: launcher_protocol,
         KUBERNETES_DERIVATION_FINGERPRINT_LABEL: derivation_key_fingerprint,
+        KUBERNETES_SPEC_FINGERPRINT_LABEL: spec_fingerprint,
         KUBERNETES_SHARED_LABEL: str(shared).lower(),
     }
 
