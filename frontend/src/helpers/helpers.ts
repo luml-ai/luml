@@ -29,9 +29,11 @@ export const getMetrics = (
 }
 
 export const getFormattedMetric = (num: number | null | undefined) => {
-  if (!num) return '0'
-  if (Math.log10(Math.abs(num)) > 5) return formatNumberScientific(num)
-  else if (Math.log10(Math.abs(num)) > 2) return num.toFixed()
+  if (num === null || num === undefined) return '—'
+  if (num === 0) return '0'
+  const orderOfMagnitude = Math.log10(Math.abs(num))
+  if (orderOfMagnitude > 5 || orderOfMagnitude < -2) return formatNumberScientific(num)
+  else if (orderOfMagnitude > 2) return num.toFixed()
   return num.toFixed(2)
 }
 
@@ -56,8 +58,10 @@ export const getMetricsCards = (
 
 export const toPercent = (float: number) => Number((float * 100).toFixed())
 
-export const fixNumber = (float: number | null | undefined, decimals: number) =>
-  float ? float.toFixed(decimals) : '0'
+export const fixNumber = (float: number | null | undefined, decimals: number) => {
+  if (float === null || float === undefined) return '—'
+  return float === 0 ? '0' : float.toFixed(decimals)
+}
 
 export const convertObjectToCsvBlob = (data: object) => {
   const headers = Object.keys(data)
