@@ -17,6 +17,14 @@ the telemetry collector of its stack stays reachable by name.
 Set `DOCKER_NETWORK_NAME` to place model containers in an existing network instead. The
 satellite then creates nothing and trusts the name it was given.
 
+## Model containers belong to their stack
+
+A satellite started as part of a Compose stack copies that stack's project label onto every
+model container it creates, so the models appear next to their own satellite, collector and
+store rather than as loose containers. Tearing the stack down with `docker compose down`
+therefore removes those model containers as well; the Platform still lists the deployments
+and the satellite reports them as not responding until they are deployed again.
+
 ## Several satellites on one host
 
 Several satellites can share a daemon. Each is its own process with its own token, and the

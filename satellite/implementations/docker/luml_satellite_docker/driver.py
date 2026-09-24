@@ -40,6 +40,8 @@ MODEL_CACHE_MOUNT = "/app/models"
 MODEL_CACHE_VOLUME_PREFIX = "satellite-model-cache-"
 LEGACY_MODEL_CACHE_VOLUME = "satellite-models-cache"
 AGENT_HOST = "satellite-agent"
+COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
+COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
 STALE_STAGING_MINUTES = 180
 
 type Sleep = Callable[[float], Awaitable[None]]
@@ -76,6 +78,7 @@ class DockerDriver:
         self.removal_rechecks = 0
         self._prepared_networks: set[str] = set()
         self._agent_networks: tuple[str, ...] | None = None
+        self._stack_labels: dict[str, str] | None = None
 
     async def __aenter__(self) -> Self:
         return self
@@ -116,12 +119,15 @@ class DockerDriver:
         )
         container_config: dict[str, Any] = {
             "Image": self.configuration.MODEL_IMAGE,
-            "Labels": docker_labels(
-                deployment_id=deployment_id,
-                artifact_id=artifact_id,
-                satellite_id=satellite_id,
-                launcher_protocol=self.launcher_protocol,
-            ),
+            "Labels": {
+                **await self._compose_labels(),
+                **docker_labels(
+                    deployment_id=deployment_id,
+                    artifact_id=artifact_id,
+                    satellite_id=satellite_id,
+                    launcher_protocol=self.launcher_protocol,
+                ),
+            },
             "ExposedPorts": {f"{self.configuration.MODEL_SERVER_PORT}/tcp": {}},
             "Env": [f"{name}={value}" for name, value in environment.items()],
             "HostConfig": {
@@ -441,6 +447,23 @@ class DockerDriver:
         information = await container.show()
         self._agent_networks = _container_networks(information)
         return self._agent_networks
+
+    async def _compose_labels(self) -> dict[str, str]:
+        if self._stack_labels is not None:
+            return self._stack_labels
+        labels: dict[str, str] = {}
+        container = await self._own_container()
+        if container is not None:
+            information = await container.show()
+            configuration = information.get("Config")
+            own = configuration.get("Labels") if isinstance(configuration, Mapping) else None
+            project = ""
+            if isinstance(own, Mapping):
+                project = str(own.get(COMPOSE_PROJECT_LABEL) or "").strip()
+            if project:
+                labels = {COMPOSE_PROJECT_LABEL: project, COMPOSE_SERVICE_LABEL: "model"}
+        self._stack_labels = labels
+        return labels
 
     async def _own_container(self) -> DockerContainer | None:
         identifier = os.environ.get("HOSTNAME", "").strip()

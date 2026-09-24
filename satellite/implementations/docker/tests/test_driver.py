@@ -32,6 +32,7 @@ from tests.support import (
     OTHER_DEPLOYMENT_ID,
     OTHER_SATELLITE_ID,
     SATELLITE_ID,
+    FakeContainer,
     FakeDocker,
     configuration,
     deployment,
@@ -50,6 +51,46 @@ def test_configuration_keeps_field_install_defaults_and_settings_hidden() -> Non
     assert config.DOCKER_NETWORK_NAME == ""
     assert config.DERIVATION_KEY is None
     assert settings_fields(DockerDeploymentSettings) == []
+
+
+@pytest.mark.asyncio
+async def test_models_join_the_stack_their_satellite_belongs_to(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    fake.containers.containers["agent-host"] = FakeContainer(
+        fake.containers,
+        "agent-host",
+        {"Labels": {"com.docker.compose.project": "sat-a"}},
+    )
+    monkeypatch.setenv("HOSTNAME", "agent-host")
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    _, container_config = fake.containers.created_configs[-1]
+    assert container_config["Labels"]["com.docker.compose.project"] == "sat-a"
+    assert container_config["Labels"]["com.docker.compose.service"] == "model"
+    assert container_config["Labels"][DOCKER_SATELLITE_LABEL] == SATELLITE_ID
+
+
+@pytest.mark.asyncio
+async def test_a_satellite_outside_a_stack_labels_nothing_extra(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    monkeypatch.setenv("HOSTNAME", "not-a-container")
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    _, container_config = fake.containers.created_configs[-1]
+    assert set(container_config["Labels"]) == {
+        DOCKER_DEPLOYMENT_LABEL,
+        DOCKER_ARTIFACT_LABEL,
+        DOCKER_SATELLITE_LABEL,
+        DOCKER_LAUNCHER_PROTOCOL_LABEL,
+    }
 
 
 @pytest.mark.asyncio
