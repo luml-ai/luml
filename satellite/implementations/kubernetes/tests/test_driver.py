@@ -10,6 +10,7 @@ from luml_satellite.container import (
     KUBERNETES_MANAGED_BY_LABEL,
     KUBERNETES_SATELLITE_LABEL,
     KUBERNETES_SHARED_LABEL,
+    KUBERNETES_SPEC_FINGERPRINT_LABEL,
 )
 from luml_satellite.testing import DriverConformanceSuite
 
@@ -222,6 +223,22 @@ async def test_stale_derivation_fingerprint_requests_reapplication() -> None:
     workload = _workload(api)
     workload["metadata"]["labels"][KUBERNETES_DERIVATION_FINGERPRINT_LABEL] = "stale"
     api.put(workload)
+
+    observation = await driver.observe(DEPLOYMENT_ID)
+
+    assert observation.state is WorkloadState.READY
+    assert observation.needs_reapply is True
+
+
+@pytest.mark.asyncio
+async def test_changed_probe_configuration_requests_reapplication() -> None:
+    driver, api = await _started_driver(auto_ready=True)
+    workload = _workload(api)
+    labels = workload["metadata"]["labels"]
+    assert (
+        labels[KUBERNETES_SPEC_FINGERPRINT_LABEL] == driver.configuration.workload_spec_fingerprint
+    )
+    driver.configuration.PROBE_TIMEOUT_SEC += 5
 
     observation = await driver.observe(DEPLOYMENT_ID)
 

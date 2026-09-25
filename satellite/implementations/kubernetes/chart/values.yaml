@@ -157,6 +157,11 @@ monitoring:
 
 networkPolicy:
   enabled: true
+  apiServerPort: 6443
+
+probes:
+  timeoutSeconds: 5
+  failureThreshold: 3
 
 rbac:
   create: true

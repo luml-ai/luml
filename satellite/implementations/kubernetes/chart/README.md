@@ -1,6 +1,8 @@
 # LUML Kubernetes satellite chart
 
-This chart installs one LUML satellite, its monitoring processes, and the namespaced RBAC needed to manage model workloads. It uses standard Kubernetes resources and supports both vanilla Kubernetes and OpenShift.
+This chart installs one LUML satellite, its monitoring processes and the namespaced RBAC that
+manages model workloads. It uses standard Kubernetes resources. It supports vanilla Kubernetes
+and OpenShift.
 
 ## Install
 
@@ -13,9 +15,15 @@ helm install my-satellite ./chart \
   --set satellite.host=models.example.com
 ```
 
-For OpenShift, add `-f chart/values-openshift.yaml`. The OpenShift preset leaves user and group IDs unset for the security context constraint, selects `openshift-default`, adds edge termination, and still renders a standard Ingress rather than a Route.
+For OpenShift, add `-f chart/values-openshift.yaml`. The OpenShift preset:
 
-The release name is the satellite identity inside its namespace. Use a different release name and host for each satellite installed in the same namespace.
+1. Leaves user and group IDs unset, so that the security context constraint assigns them.
+2. Selects the `openshift-default` ingress class.
+3. Adds edge termination.
+4. Still renders a standard Ingress, not a Route.
+
+The release name is the satellite identity inside its namespace. Use a different release name
+and host for each satellite that you install in the same namespace.
 
 ## Values
 
@@ -24,47 +32,121 @@ The release name is the satellite identity inside its namespace. Use a different
 | `satellite` | Token or existing token Secret, derivation key, platform URL, host/base URL, slug, image, pull secrets and resources |
 | `model`, `sidecar` | Model and serving images, sidecar authorization cache, recording defaults and resources |
 | `deploymentLimits` | User-visible replica, CPU, memory and health-check limits sent in the satellite capability declaration |
-| `gpu` | Whether GPU fields are offered, their limits, node selector, tolerations and runtime class |
+| `gpu` | Whether the chart offers GPU fields, their limits, node selector, tolerations and runtime class |
 | `sharedCache` | Optional artifact-cache claim, size, storage class and access modes |
 | `ingress` | Ingress class, annotations and optional TLS Secret |
 | `podSecurity` | `vanilla` or `openshift` preset plus pod/container context overrides |
 | `monitoring` | Dashboard, worker, collector, session, retention and store configuration |
 | `networkPolicy`, `rbac`, `serviceAccount` | Namespaced access controls |
+| `probes` | Timeout and failure threshold for every probe this chart renders, including the ones the satellite gives model pods |
 
-`satellite.baseUrl` overrides URL derivation. Otherwise the chart uses `https://` when an Ingress TLS Secret is configured or the OpenShift preset is active, and `http://` otherwise.
+`satellite.baseUrl` overrides URL derivation. Without it, the chart uses `https://` when you
+configure an Ingress TLS Secret or select the OpenShift preset. Otherwise it uses `http://`.
 
-The vanilla security preset pins user 10001, group 0 and file-system group 10001. Both presets require non-root containers, runtime-default seccomp, no privilege escalation and all Linux capabilities dropped. Context maps may be overridden for installations with additional policy requirements.
+### Probes
+
+Kubernetes gives an unset probe timeout one second. That is too little for a container that
+has to start a process to answer. The chart applies `probes.timeoutSeconds` and
+`probes.failureThreshold` to every probe it renders:
+
+1. satellite
+2. dashboard
+3. worker
+4. collector
+5. store
+
+The chart also passes both values to the satellite. The model and sidecar probes it creates
+carry them too. A change to either value changes the workload fingerprint that the satellite
+puts on those pods. Reconciliation then reapplies the model Deployments that already run.
+Both values fall back to the chart defaults when you upgrade a release that predates this
+group. The chart probes the worker through `luml-monitoring-probe`. That entry point reads
+the heartbeat file and imports nothing else from the kit.
+
+### Security presets
+
+The vanilla preset pins user 10001, group 0 and file-system group 10001. Both presets require
+non-root containers, runtime-default seccomp and no privilege escalation. Both drop all Linux
+capabilities. You may override the context maps for installations with additional policy
+requirements.
 
 ### Secrets and rotation
 
-Set `satellite.existingSecret` and `satellite.existingSecretKey` to read the satellite token from an existing Secret. Otherwise the chart creates a token Secret from `satellite.token` and rolls the satellite, dashboard and worker when that value changes.
+Set `satellite.existingSecret` and `satellite.existingSecretKey` to read the satellite token
+from an existing Secret. Otherwise the chart creates a token Secret from `satellite.token`.
+The chart rolls the satellite, dashboard and worker when that value changes.
 
-The derivation key is always held in a separate chart Secret. Set `satellite.derivationKey` to supply one; when it is empty, Helm generates one on the first install and retrieves the existing value during upgrades. The Secret is retained if the release is removed. Back it up before uninstalling.
+The chart always keeps the derivation key in a separate Secret. Set `satellite.derivationKey`
+to supply one. When the value is empty, Helm generates a key on the first install and reads
+the existing key during upgrades. Helm keeps that Secret when you remove the release. Back it
+up before you uninstall.
 
-Rotating only the satellite token leaves the derivation key and model pods unchanged. Existing token Secrets cannot be checksummed by Helm, so restart the three Deployments after rotating one:
+A rotation of the satellite token alone leaves the derivation key and the model pods
+unchanged. Helm cannot checksum an existing token Secret. After you rotate one, restart the
+three Deployments:
 
 ```shell
 kubectl rollout restart deployment -l luml.ai/satellite-id=my-satellite
 ```
 
-Rotate a compromised derivation key deliberately with `--set-string satellite.derivationKey=...`. The chart workloads restart, and reconciliation replaces owned model pods whose derivation-key fingerprint is stale. Sidecars continue serving cached authorization and secrets during the restart allowance.
+To rotate a compromised derivation key, set `--set-string satellite.derivationKey=...` on
+purpose. The chart workloads restart. Reconciliation then replaces the owned model pods whose
+derivation-key fingerprint is stale. Sidecars continue to serve cached authorization and
+secrets during the restart allowance.
 
 ### GPU and shared cache
 
-GPU fields are not offered by default. Enabling `gpu.enabled` exposes GPU use, count and resource-name fields within the configured limits. Placement settings are emitted only for deployments that select GPU use.
+The chart does not offer GPU fields by default. `gpu.enabled=true` exposes the GPU use, count
+and resource-name fields within the configured limits. The satellite emits placement settings
+only for deployments that select GPU use.
 
-Enabling `sharedCache.enabled` creates a release-scoped claim with `ReadWriteMany` by default and exposes the shared-cache deployment setting. Use `sharedCache.existingClaim` to reuse a provisioned claim. Confirm that the storage class supports the chosen access modes.
+`sharedCache.enabled=true` creates a release-scoped claim with `ReadWriteMany` by default and
+exposes the shared-cache deployment setting. Use `sharedCache.existingClaim` to reuse a
+provisioned claim. Check that the storage class supports the chosen access modes.
 
 ## Monitoring store modes
 
-The default `monitoring.store.mode=standalone` runs a single GreptimeDB StatefulSet and Service. Its data claim is controlled by `monitoring.store.persistence`. This is the simplest starting point for one satellite.
+The default `monitoring.store.mode=standalone` runs a single GreptimeDB StatefulSet and
+Service. `monitoring.store.persistence` controls its data claim. This is the simplest starting
+point for one satellite.
 
-For larger persistent installations, keep standalone mode and enable `monitoring.store.objectStorage`. Configure its endpoint, bucket and region, then provide access keys directly or through `objectStorage.existingSecret`. The local data volume remains available for runtime state and caching.
+For larger persistent installations, keep standalone mode and enable
+`monitoring.store.objectStorage`. Configure its endpoint, bucket and region. Then provide
+access keys directly or through `objectStorage.existingSecret`. The local data volume remains
+available for runtime state and caching.
 
-To use an independently operated GreptimeDB cluster, select `monitoring.store.mode=external`, set `host`, `port` and `database`, and provide credentials directly or with `monitoring.store.existingSecret`. External mode removes only the in-chart store workload, Service and volume, and rewires the dashboard, worker, collector and network-policy egress to the external store.
+To use a GreptimeDB cluster that you operate yourself:
+
+1. Select `monitoring.store.mode=external`.
+2. Set `host`, `port` and `database`.
+3. Provide credentials directly or with `monitoring.store.existingSecret`.
+
+External mode removes only the in-chart store workload, its Service and its volume. It points
+the dashboard, worker, collector and network-policy egress at the external store.
 
 ## Network policy and meshes
 
-The enabled-by-default policy selects only pods carrying this release's `luml.ai/satellite-id` label, including model pods created later by the satellite. It permits traffic within the release, public serving on port 8000, DNS, outbound HTTP/HTTPS for platform, artifact and package access, and the configured external-store port. It does not select unrelated namespace workloads or another satellite release.
+The policy is on by default. It selects only the pods that carry this release's
+`luml.ai/satellite-id` label. That includes the model pods the satellite creates later. The
+policy permits:
 
-With a service mesh, exclude the satellite's internal port 8001 from public ingress and preserve direct access among the satellite, sidecars, dashboard and worker. The model Service exposes only the sidecar's `http` and `internal` ports; the model-server port is never exposed.
+1. Traffic within the release.
+2. Public serving on port 8000.
+3. DNS.
+4. Outbound HTTP and HTTPS for platform, artifact and package access.
+5. The configured external-store port.
+
+The policy does not select unrelated namespace workloads or another satellite release.
+
+The satellite reaches the Kubernetes API through the `kubernetes` service address. Kubernetes
+translates the service port to the API server's own port before it evaluates the policy. A
+separate policy therefore permits that port, for the satellite pod alone. It does not select
+model pods, and model pods mount no service-account token either.
+
+The default port 6443 matches kubeadm clusters. Set `networkPolicy.apiServerPort` to the port
+the API server listens on. Set it to 0 on installations whose API server answers on 443 and
+need no rule of their own. A release that predates this value keeps the default on upgrade.
+It does not lose the rule.
+
+With a service mesh, exclude the satellite's internal port 8001 from public ingress. Keep
+direct access among the satellite, sidecars, dashboard and worker. The model Service exposes
+only the `http` and `internal` ports of the sidecar. It never exposes the model-server port.

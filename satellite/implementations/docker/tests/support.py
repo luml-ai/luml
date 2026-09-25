@@ -6,6 +6,7 @@ from typing import Any, Protocol, cast
 
 import aiodocker
 import httpx
+import pytest
 from aiodocker.exceptions import DockerError
 from luml_satellite import (
     ArtifactDeliveryMode,
@@ -43,6 +44,7 @@ class FakeContainer:
         self.status_after_start = status_after_start
         self.logs = list(logs or [])
         self.show_errors: deque[BaseException] = deque()
+        self.networks: dict[str, list[str]] = {}
         self.start_count = 0
         self.delete_count = 0
 
@@ -59,6 +61,11 @@ class FakeContainer:
             "Config": {
                 "Labels": dict(self.config.get("Labels") or {}),
                 "Env": list(self.config.get("Env") or []),
+            },
+            "NetworkSettings": {
+                "Networks": {
+                    name: {"Aliases": list(aliases)} for name, aliases in self.networks.items()
+                }
             },
         }
 
@@ -226,11 +233,50 @@ class FakeImages:
         self.pulled.append(name)
 
 
+class FakeNetwork:
+    def __init__(self, owner: FakeNetworks, name: str, config: dict[str, Any]) -> None:
+        self.owner = owner
+        self.name = name
+        self.config = config
+        self.connected: list[dict[str, Any]] = []
+
+    async def connect(self, config: dict[str, Any]) -> None:
+        container = self.owner.containers.containers.get(str(config.get("Container") or ""))
+        if container is not None and self.name in container.networks:
+            raise DockerError(403, "endpoint already exists in network")
+        self.connected.append(config)
+        if container is None:
+            return
+        endpoint = config.get("EndpointConfig") or {}
+        container.networks[self.name] = list(endpoint.get("Aliases") or [])
+
+
+class FakeNetworks:
+    def __init__(self, containers: FakeContainers) -> None:
+        self.containers = containers
+        self.networks: dict[str, FakeNetwork] = {}
+        self.created_configs: list[dict[str, Any]] = []
+
+    async def get(self, name: str) -> FakeNetwork:
+        try:
+            return self.networks[name]
+        except KeyError as error:
+            raise DockerError(404, "No such network") from error
+
+    async def create(self, config: dict[str, Any]) -> FakeNetwork:
+        name = str(config["Name"])
+        self.created_configs.append(config)
+        network = FakeNetwork(self, name, config)
+        self.networks[name] = network
+        return network
+
+
 class FakeDocker:
     def __init__(self) -> None:
         self.containers = FakeContainers()
         self.volumes = FakeVolumes()
         self.images = FakeImages()
+        self.networks = FakeNetworks(self.containers)
         self.closed = False
 
     async def close(self) -> None:
@@ -238,6 +284,21 @@ class FakeDocker:
 
     def as_client(self) -> aiodocker.Docker:
         return cast(aiodocker.Docker, self)
+
+
+def agent_container(
+    fake: FakeDocker,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    name: str = "agent-host",
+    labels: dict[str, str] | None = None,
+    networks: dict[str, list[str]] | None = None,
+) -> FakeContainer:
+    container = FakeContainer(fake.containers, name, {"Labels": labels or {}})
+    container.networks = dict(networks or {})
+    fake.containers.containers[name] = container
+    monkeypatch.setenv("HOSTNAME", name)
+    return container
 
 
 def configuration(**overrides: object) -> DockerConfiguration:

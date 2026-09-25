@@ -112,17 +112,21 @@ changes only the external store boundary:
               image: otel/opentelemetry-collector-contrib:0.127.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 periodSeconds: 10
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               name: collector
               ports:
                 - containerPort: 4317
                   name: otlp-grpc
               readinessProbe:
+                failureThreshold: 3
                 periodSeconds: 5
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false
@@ -245,19 +249,23 @@ changes only the external store boundary:
               image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 httpGet:
                   path: /livez
                   port: http
                 periodSeconds: 10
+                timeoutSeconds: 5
               name: dashboard
               ports:
                 - containerPort: 8000
                   name: http
               readinessProbe:
+                failureThreshold: 3
                 httpGet:
                   path: /livez
                   port: http
                 periodSeconds: 5
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false
@@ -376,10 +384,11 @@ changes only the external store boundary:
               livenessProbe:
                 exec:
                   command:
-                    - luml-monitoring-worker
-                    - --probe
+                    - luml-monitoring-probe
+                failureThreshold: 3
                 initialDelaySeconds: 180
                 periodSeconds: 60
+                timeoutSeconds: 5
               name: worker
               resources: {}
               securityContext:
@@ -561,17 +570,21 @@ matches the standalone store rendering:
               image: otel/opentelemetry-collector-contrib:0.127.0
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 periodSeconds: 10
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               name: collector
               ports:
                 - containerPort: 4317
                   name: otlp-grpc
               readinessProbe:
+                failureThreshold: 3
                 periodSeconds: 5
                 tcpSocket:
                   port: otlp-grpc
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false
@@ -684,19 +697,23 @@ matches the standalone store rendering:
               image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 httpGet:
                   path: /livez
                   port: http
                 periodSeconds: 10
+                timeoutSeconds: 5
               name: dashboard
               ports:
                 - containerPort: 8000
                   name: http
               readinessProbe:
+                failureThreshold: 3
                 httpGet:
                   path: /livez
                   port: http
                 periodSeconds: 5
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false
@@ -805,10 +822,11 @@ matches the standalone store rendering:
               livenessProbe:
                 exec:
                   command:
-                    - luml-monitoring-worker
-                    - --probe
+                    - luml-monitoring-probe
+                failureThreshold: 3
                 initialDelaySeconds: 180
                 periodSeconds: 60
+                timeoutSeconds: 5
               name: worker
               resources: {}
               securityContext:
@@ -944,9 +962,11 @@ matches the standalone store rendering:
               image: greptime/greptimedb:v0.13.1
               imagePullPolicy: IfNotPresent
               livenessProbe:
+                failureThreshold: 3
                 periodSeconds: 10
                 tcpSocket:
                   port: http
+                timeoutSeconds: 5
               name: store
               ports:
                 - containerPort: 4000
@@ -954,9 +974,11 @@ matches the standalone store rendering:
                 - containerPort: 4001
                   name: grpc
               readinessProbe:
+                failureThreshold: 3
                 periodSeconds: 5
                 tcpSocket:
                   port: http
+                timeoutSeconds: 5
               resources: {}
               securityContext:
                 allowPrivilegeEscalation: false

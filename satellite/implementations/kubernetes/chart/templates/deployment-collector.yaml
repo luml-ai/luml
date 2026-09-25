@@ -42,10 +42,12 @@ spec:
             tcpSocket:
               port: otlp-grpc
             periodSeconds: 10
+            {{- include "luml.probeTuning" . | nindent 12 }}
           readinessProbe:
             tcpSocket:
               port: otlp-grpc
             periodSeconds: 5
+            {{- include "luml.probeTuning" . | nindent 12 }}
           volumeMounts:
             - name: config
               mountPath: /etc/otel

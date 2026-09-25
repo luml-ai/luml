@@ -16,6 +16,7 @@ from luml_satellite.container import (
     KUBERNETES_MANAGED_BY_LABEL,
     KUBERNETES_SATELLITE_LABEL,
     KUBERNETES_SHARED_LABEL,
+    KUBERNETES_SPEC_FINGERPRINT_LABEL,
     MODEL_ARTIFACT_ID,
     MODEL_ARTIFACT_TOKEN,
     MODEL_NAME,
@@ -90,6 +91,7 @@ def test_docker_and_kubernetes_label_sets_carry_ownership() -> None:
         satellite_id="release",
         launcher_protocol="1",
         derivation_key_fingerprint="abcdef",
+        spec_fingerprint="123456",
         shared=True,
     )
 
@@ -106,6 +108,7 @@ def test_docker_and_kubernetes_label_sets_carry_ownership() -> None:
         KUBERNETES_SATELLITE_LABEL: "release",
         KUBERNETES_LAUNCHER_PROTOCOL_LABEL: "1",
         KUBERNETES_DERIVATION_FINGERPRINT_LABEL: "abcdef",
+        KUBERNETES_SPEC_FINGERPRINT_LABEL: "123456",
         KUBERNETES_SHARED_LABEL: "true",
     }
 

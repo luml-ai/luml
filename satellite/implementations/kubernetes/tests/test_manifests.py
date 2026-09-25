@@ -4,6 +4,7 @@ from luml_satellite import TokenDeriver
 from luml_satellite.container import (
     DEPLOYMENT_ID as DEPLOYMENT_ID_ENV,
     KUBERNETES_DERIVATION_FINGERPRINT_LABEL,
+    KUBERNETES_SPEC_FINGERPRINT_LABEL,
     MODEL_ARTIFACT_ID,
     MODEL_ARTIFACT_TOKEN,
     MODEL_NAME,
@@ -11,6 +12,7 @@ from luml_satellite.container import (
     TELEMETRY_ENDPOINT,
 )
 
+from luml_satellite_kubernetes.configuration import KubernetesConfiguration
 from luml_satellite_kubernetes.manifests import render_deployment_manifests
 from tests.support import (
     DEPLOYMENT_ID,
@@ -245,3 +247,52 @@ def _secret_hash(workload: dict[str, Any]) -> str:
         str,
         workload["spec"]["template"]["metadata"]["annotations"]["luml.ai/secret-hash"],
     )
+
+
+def test_model_pods_never_mount_a_service_account_token() -> None:
+    config = configuration()
+    manifests = render_deployment_manifests(
+        config,
+        deployment(),
+        start_context(config),
+        TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+    )
+
+    pod_spec = manifests.deployment["spec"]["template"]["spec"]
+    assert pod_spec["automountServiceAccountToken"] is False
+
+
+def test_model_and_sidecar_probes_carry_the_configured_tuning() -> None:
+    config = configuration(PROBE_TIMEOUT_SEC=12, PROBE_FAILURE_THRESHOLD=7)
+    manifests = render_deployment_manifests(
+        config,
+        deployment(),
+        start_context(config),
+        TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+    )
+    workload = manifests.deployment
+
+    for name in ("model", "sidecar"):
+        probe = container_by_name(workload, name)["readinessProbe"]
+        assert probe["timeoutSeconds"] == 12
+        assert probe["failureThreshold"] == 7
+
+
+def test_probe_configuration_changes_the_workload_spec_fingerprint() -> None:
+    def fingerprint(config: KubernetesConfiguration) -> str:
+        manifests = render_deployment_manifests(
+            config,
+            deployment(),
+            start_context(config),
+            TokenDeriver(config.SATELLITE_TOKEN, config.DERIVATION_KEY),
+        )
+        labels = cast(dict[str, str], manifests.deployment["metadata"]["labels"])
+        return labels[KUBERNETES_SPEC_FINGERPRINT_LABEL]
+
+    first = configuration(PROBE_TIMEOUT_SEC=12)
+    slower = configuration(PROBE_TIMEOUT_SEC=20)
+    tolerant = configuration(PROBE_TIMEOUT_SEC=12, PROBE_FAILURE_THRESHOLD=7)
+
+    assert fingerprint(first) == first.workload_spec_fingerprint
+    assert fingerprint(first) != fingerprint(slower)
+    assert fingerprint(first) != fingerprint(tolerant)

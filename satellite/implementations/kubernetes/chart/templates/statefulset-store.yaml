@@ -68,10 +68,12 @@ spec:
             tcpSocket:
               port: http
             periodSeconds: 5
+            {{- include "luml.probeTuning" . | nindent 12 }}
           livenessProbe:
             tcpSocket:
               port: http
             periodSeconds: 10
+            {{- include "luml.probeTuning" . | nindent 12 }}
           volumeMounts:
             - name: data
               mountPath: /tmp/greptimedb

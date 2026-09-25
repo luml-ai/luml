@@ -60,7 +60,7 @@ tests:
                 key: derivation-key
       - equal:
           path: spec.template.spec.containers[0].livenessProbe.exec.command
-          value: [luml-monitoring-worker, --probe]
+          value: [luml-monitoring-probe]
 
   - it: runs the standalone store with its service and data volume
     template: templates/statefulset-store.yaml

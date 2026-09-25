@@ -229,14 +229,19 @@ def _wait_for_deployments(control: PlatformControl) -> None:
 
 def _assert_public_serving(host: str) -> str:
     compute_path = f"/deployments/{MAIN_DEPLOYMENT_ID}/compute"
-    valid = _http(
-        18080,
-        "POST",
-        compute_path,
-        host=host,
-        bearer=VALID_API_KEY,
-        json_body={"value": 7},
-    )
+
+    def routed() -> HttpResult | None:
+        result = _http(
+            18080,
+            "POST",
+            compute_path,
+            host=host,
+            bearer=VALID_API_KEY,
+            json_body={"value": 7},
+        )
+        return None if result.status == 503 else result
+
+    valid = _wait_for("the ingress controller to route the deployment", routed, timeout=120)
     assert valid.status == 200, valid.body
     assert valid.headers.get("x-event-id")
     assert valid.json()["fixture"] == {"prediction": 42}

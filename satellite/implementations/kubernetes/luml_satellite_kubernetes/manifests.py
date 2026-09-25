@@ -62,6 +62,7 @@ def render_deployment_manifests(
         satellite_id=configuration.SATELLITE_NAME,
         launcher_protocol="1",
         derivation_key_fingerprint=token_deriver.fingerprint,
+        spec_fingerprint=configuration.workload_spec_fingerprint,
     )
     model_environment = build_container_environment(
         deployment,
@@ -116,6 +117,8 @@ def render_deployment_manifests(
         "readinessProbe": {
             "httpGet": {"path": "/healthz", "port": "model"},
             "periodSeconds": 5,
+            "timeoutSeconds": configuration.PROBE_TIMEOUT_SEC,
+            "failureThreshold": configuration.PROBE_FAILURE_THRESHOLD,
         },
         "resources": {"limits": _model_limits(settings)},
         "volumeMounts": [{"name": "model-cache", "mountPath": MODEL_CACHE_PATH}],
@@ -170,11 +173,14 @@ def render_deployment_manifests(
         "readinessProbe": {
             "httpGet": {"path": "/livez", "port": "http"},
             "periodSeconds": 5,
+            "timeoutSeconds": configuration.PROBE_TIMEOUT_SEC,
+            "failureThreshold": configuration.PROBE_FAILURE_THRESHOLD,
         },
         "resources": configuration.SIDECAR_RESOURCES,
         "securityContext": configuration.container_security_context,
     }
     pod_spec: dict[str, Any] = {
+        "automountServiceAccountToken": False,
         "securityContext": configuration.pod_security_context,
         "initContainers": [init_container],
         "containers": [model_container, sidecar],

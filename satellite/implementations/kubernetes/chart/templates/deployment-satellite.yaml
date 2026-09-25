@@ -152,6 +152,10 @@ spec:
               value: {{ .Values.sidecar.recording.keepInputs | quote }}
             - name: RECORDING_KEEP_OUTPUTS
               value: {{ .Values.sidecar.recording.keepOutputs | quote }}
+            - name: PROBE_TIMEOUT_SEC
+              value: {{ include "luml.probeTimeout" . | quote }}
+            - name: PROBE_FAILURE_THRESHOLD
+              value: {{ include "luml.probeFailureThreshold" . | quote }}
           resources:
             {{- toYaml .Values.satellite.resources | nindent 12 }}
           livenessProbe:
@@ -159,11 +163,13 @@ spec:
               path: /livez
               port: http
             periodSeconds: 10
+            {{- include "luml.probeTuning" . | nindent 12 }}
           readinessProbe:
             httpGet:
               path: /livez
               port: http
             periodSeconds: 5
+            {{- include "luml.probeTuning" . | nindent 12 }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
