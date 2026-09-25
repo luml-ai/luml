@@ -107,6 +107,77 @@ describe('artifacts store', () => {
     store = useArtifactsStore()
   })
 
+  it('adds an uploaded artifact to the open collection', async () => {
+    const existing = makeArtifact('existing')
+    const uploaded = makeArtifact('uploaded')
+    store.setArtifactsList([existing])
+    mockApi.artifacts.update.mockResolvedValueOnce(uploaded)
+
+    await store.confirmArtifactUpload(
+      { id: uploaded.id },
+      {
+        organizationId: ORG,
+        orbitId: ORBIT,
+        collectionId: COLLECTION,
+      },
+    )
+
+    expect(mockApi.artifacts.update).toHaveBeenCalledWith(ORG, ORBIT, COLLECTION, uploaded.id, {
+      id: uploaded.id,
+    })
+    expect(store.artifactsList).toEqual([existing, uploaded])
+  })
+
+  it('adds an uploaded artifact when the destination comes from the current route', async () => {
+    const uploaded = makeArtifact('uploaded')
+    mockApi.artifacts.update.mockResolvedValueOnce(uploaded)
+
+    await store.confirmArtifactUpload({ id: uploaded.id })
+
+    expect(mockApi.artifacts.update).toHaveBeenCalledWith(ORG, ORBIT, COLLECTION, uploaded.id, {
+      id: uploaded.id,
+    })
+    expect(store.artifactsList).toEqual([uploaded])
+  })
+
+  it('leaves the open collection unchanged when uploading to another collection', async () => {
+    const existing = makeArtifact('existing')
+    const uploaded = makeArtifact('uploaded', { collection_id: 'collection-2' })
+    store.setArtifactsList([existing])
+    mockApi.artifacts.update.mockResolvedValueOnce(uploaded)
+
+    await store.confirmArtifactUpload(
+      { id: uploaded.id },
+      {
+        organizationId: ORG,
+        orbitId: ORBIT,
+        collectionId: 'collection-2',
+      },
+    )
+
+    expect(mockApi.artifacts.update).toHaveBeenCalledWith(ORG, ORBIT, 'collection-2', uploaded.id, {
+      id: uploaded.id,
+    })
+    expect(store.artifactsList).toEqual([existing])
+  })
+
+  it('leaves the open collection unchanged when uploading to another orbit', async () => {
+    const existing = makeArtifact('existing')
+    store.setArtifactsList([existing])
+    mockApi.artifacts.update.mockResolvedValueOnce(makeArtifact('uploaded'))
+
+    await store.confirmArtifactUpload(
+      { id: 'uploaded' },
+      {
+        organizationId: ORG,
+        orbitId: 'orbit-2',
+        collectionId: COLLECTION,
+      },
+    )
+
+    expect(store.artifactsList).toEqual([existing])
+  })
+
   it('runs all three phases and removes deleted artifacts from the list', async () => {
     const ids = ['artifact-a', 'artifact-b', 'artifact-c']
     store.setArtifactsList(ids.map((id) => makeArtifact(id)))
