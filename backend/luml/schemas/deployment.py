@@ -50,6 +50,8 @@ class Deployment(DeploymentBase):
     collection_id: UUID
     inference_url: str | None = None
     monitoring_url: str | None = None
+    provider_ref: str | None = None
+    progress_note: str | None = None
     status: DeploymentStatus
     monitoring_mode: MonitoringMode = MonitoringMode.OFF
     satellite_parameters: dict[str, bool | int | str] = Field(default_factory=dict)
@@ -102,6 +104,8 @@ class DeploymentCreate(DeploymentCreateBase, BaseOrmConfig):
 class DeploymentUpdateIn(BaseModel):
     inference_url: str | None = Field(default=None, max_length=2048)
     monitoring_url: str | None = Field(default=None, max_length=2048)
+    provider_ref: str | None = Field(default=None, max_length=512)
+    progress_note: str | None = Field(default=None, max_length=1000)
     status: DeploymentStatus | None = None
     tags: TagList | None = None
     schemas: dict[str, Any] | None = None

@@ -28,6 +28,14 @@
         :showTitle="false"
         class="base-settings"
       ></DeploymentsFormBasicsSettings>
+      <div
+        v-if="data.provider_ref"
+        class="provider-reference"
+        data-testid="deployment-provider-reference"
+      >
+        <span class="label">Provider handle</span>
+        <span class="provider-reference__value">{{ data.provider_ref }}</span>
+      </div>
       <div v-if="showMonitoringField" class="monitoring-field">
         <div class="monitoring-header">
           <label class="label">Live monitoring</label>
@@ -373,6 +381,19 @@ onBeforeMount(async () => {
   flex-direction: column;
   gap: 6px;
   margin-bottom: 12px;
+}
+
+.provider-reference {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.provider-reference__value {
+  overflow-wrap: anywhere;
+  color: var(--p-text-muted-color);
+  text-align: right;
 }
 
 .monitoring-header {

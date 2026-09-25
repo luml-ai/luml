@@ -1,0 +1,17 @@
+satellite:
+  token: ci-satellite-token
+  host: openshift.satellite.example.test
+  derivationKey: ci-derivation-key
+
+podSecurity:
+  preset: openshift
+
+ingress:
+  className: openshift-default
+  annotations:
+    route.openshift.io/termination: edge
+
+monitoring:
+  store:
+    persistence:
+      enabled: false

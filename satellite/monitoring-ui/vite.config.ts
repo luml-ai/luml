@@ -3,7 +3,7 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
-// The Agent serves the built bundle from agent/monitoring/static under /monitoring/app.
+// The kit serves the built bundle from its monitoring dashboard under /monitoring/app.
 // base './' keeps asset URLs relative so they resolve under that sub-path inside the iframe.
 export default defineConfig({
   base: './',
@@ -20,7 +20,9 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: fileURLToPath(new URL('../agent/monitoring/static', import.meta.url)),
+    outDir: fileURLToPath(
+      new URL('../kit/luml_satellite/monitoring/dashboard/static', import.meta.url),
+    ),
     emptyOutDir: true,
     // A single inlined bundle carrying ApexCharts is expectedly over the default 500 kB hint.
     chunkSizeWarningLimit: 1500,

@@ -29,12 +29,14 @@ export const useMonitoringStore = defineStore('monitoring', () => {
 
   const launchUrl = computed(() => {
     if (!launchToken.value) return null
+    if (launchToken.value.launch_url) return launchToken.value.launch_url
+    if (!launchToken.value.satellite_base_url) return null
     const base = launchToken.value.satellite_base_url.replace(/\/$/, '')
     return `${base}/monitoring/launch?token=${encodeURIComponent(launchToken.value.token)}`
   })
 
   const satelliteOrigin = computed(() => {
-    const url = launchToken.value?.satellite_base_url
+    const url = launchUrl.value
     if (!url) return null
     try {
       return new URL(url).origin

@@ -237,15 +237,15 @@ class TestArtifactsBatchDeletion:
             "release",
             "latest",
         }
-        assert (
-            await repository.get_artifact(failed_deployment_artifact.id)
-        ).status == ArtifactStatus.UPLOADED
-        assert (
-            await repository.get_artifact(active_deployment_artifact.id)
-        ).status == ArtifactStatus.UPLOADED
-        assert (
-            await repository.get_artifact(tracked_artifact.id)
-        ).status == ArtifactStatus.UPLOADED
+        failed_artifact = await repository.get_artifact(failed_deployment_artifact.id)
+        active_artifact = await repository.get_artifact(active_deployment_artifact.id)
+        tracked = await repository.get_artifact(tracked_artifact.id)
+        assert failed_artifact is not None
+        assert active_artifact is not None
+        assert tracked is not None
+        assert failed_artifact.status == ArtifactStatus.UPLOADED
+        assert active_artifact.status == ArtifactStatus.UPLOADED
+        assert tracked.status == ArtifactStatus.UPLOADED
         assert (
             await deployment_repository.get_deployment(
                 failed_deployment.id, data.orbit.id

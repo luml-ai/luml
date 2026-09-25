@@ -8,6 +8,7 @@ from luml.repositories.deployments import DeploymentRepository
 from luml.repositories.satellites import SatelliteRepository
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
 from luml.schemas.satellite import (
+    KitInfo,
     SatelliteCreate,
     SatellitePair,
     SatelliteRegenerateApiKey,
@@ -149,6 +150,12 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
         base_url=str(base_url),
         capabilities=capabilities,
         openapi=openapi,
+        kit_info=KitInfo(
+            name="luml-satellite",
+            version="1.2.3",
+            kind="docker",
+            api_version=1,
+        ),
         paired=True,
         last_seen_at=datetime.now(UTC),
     )
@@ -160,6 +167,8 @@ async def test_pair_satellite(create_orbit: OrbitFixtureData) -> None:
     assert paired_satellite.paired is True
     assert paired_satellite.base_url == base_url
     assert paired_satellite.capabilities == capabilities
+    assert paired_satellite.kit_info is not None
+    assert paired_satellite.kit_info.kind == "docker"
     assert paired_satellite.last_seen_at is not None
     assert await repo.get_satellite_openapi(satellite.id) == openapi
     assert "openapi" not in paired_satellite.model_dump()

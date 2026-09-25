@@ -46,6 +46,9 @@ class SatelliteOrm(TimestampMixin, Base):
     openapi: Mapped[dict[str, Any] | None] = mapped_column(
         postgresql.JSONB, nullable=True, default=None
     )
+    kit_info: Mapped[dict[str, Any] | None] = mapped_column(
+        postgresql.JSONB, nullable=True, default=None
+    )
     slug: Mapped[str] = mapped_column(String, nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(String, nullable=True)

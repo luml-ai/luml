@@ -208,39 +208,44 @@ export function tryParseJson(text: string) {
 }
 
 export function getSatelliteValidator(config: Validator) {
+  const message = config.message ? { message: config.message } : undefined
+
   switch (config.type) {
     case 'min':
-      return z.number().min(config.value as number)
+      return z.number().min(config.value as number, message)
 
     case 'max':
-      return z.number().max(config.value as number)
+      return z.number().max(config.value as number, message)
 
     case 'regex':
-      return z.string().regex(config.value as RegExp)
+      return z.string().regex(new RegExp(String(config.value)), message)
 
     case 'equal':
-      return z.any().refine((val) => val === config.value)
+      return z.any().refine((val) => val === config.value, message)
 
     case 'notEqual':
-      return z.any().refine((val) => val !== config.value)
+      return z.any().refine((val) => val !== config.value, message)
 
     case 'in':
-      return z.any().refine((val) => (config.value as string[]).includes(val))
+      return z.any().refine((val) => (config.value as unknown[]).includes(val), message)
   }
 }
 
 export function combineValidators(validators: z.ZodTypeAny[], required: boolean) {
-  let schema: z.ZodTypeAny = z.any()
+  let schema: z.ZodTypeAny = required
+    ? z.any().refine((value) => value !== null && value !== undefined && value !== '')
+    : z.any()
 
   for (const v of validators) {
     schema = schema.pipe(v)
   }
 
-  if (!required) {
-    schema = schema.optional()
-  }
-
-  return schema
+  return required
+    ? schema
+    : z.preprocess(
+        (value) => (value === null || value === '' ? undefined : value),
+        schema.optional(),
+      )
 }
 
 export const getArtifactColorByIndex = (index: number) => {

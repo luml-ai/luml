@@ -59,10 +59,10 @@ class DeploymentOrm(TimestampMixin, Base):
         .where(ArtifactOrm.id == artifact_id)
         .scalar_subquery()
     )
-    inference_url: Mapped[str | None] = mapped_column(
-        String, nullable=True, unique=True
-    )
+    inference_url: Mapped[str | None] = mapped_column(String, nullable=True)
     monitoring_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    provider_ref: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    progress_note: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="pending", server_default="pending"
     )

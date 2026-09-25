@@ -58,7 +58,14 @@ def _client(scope: str = "jwt") -> TestClient:
     app = FastAPI()
     app.include_router(lineage_router, prefix="/v1/organizations")
     app.add_middleware(AuthenticationMiddleware, backend=StubAuthBackend(scope))
-    app.add_exception_handler(RequestValidationError, request_validation_error_handler)
+
+    async def validation_error_handler(
+        request: Request, error: Exception
+    ) -> JSONResponse:
+        assert isinstance(error, RequestValidationError)
+        return await request_validation_error_handler(request, error)
+
+    app.add_exception_handler(RequestValidationError, validation_error_handler)
 
     @app.exception_handler(ApplicationError)
     async def application_error_handler(

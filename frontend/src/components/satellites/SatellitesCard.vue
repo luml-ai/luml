@@ -36,7 +36,10 @@
         <div class="capabilities">
           <Rocket v-if="data.capabilities.deploy" v-tooltip="'Deploy'" :size="16"></Rocket>
         </div>
-        <div v-if="data.slug" class="slug">{{ data.slug }}</div>
+        <div v-if="data.kit_info?.kind" class="slug" data-testid="satellite-kind-slug">
+          {{ data.kit_info.kind }}<span v-if="data.slug"> · {{ data.slug }}</span>
+        </div>
+        <div v-else-if="data.slug" class="slug">{{ data.slug }}</div>
       </div>
     </div>
   </div>

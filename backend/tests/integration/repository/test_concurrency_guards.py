@@ -48,14 +48,15 @@ from luml.schemas.artifacts import (
     ArtifactType,
 )
 from luml.schemas.deployment import DeploymentCreate, DeploymentStatus
-from luml.schemas.orbit import OrbitCreateIn
+from luml.schemas.orbit import OrbitCreateIn, OrbitDetails
 from luml.schemas.organization import (
     CreateOrganizationInvite,
     OrganizationCreateIn,
+    OrganizationMember,
     OrganizationMemberCreate,
     OrgRole,
 )
-from luml.schemas.satellite import SatelliteCreate
+from luml.schemas.satellite import Satellite, SatelliteCreate
 from luml.schemas.tracks import (
     StageCreate,
     StageUpsertIn,
@@ -63,7 +64,7 @@ from luml.schemas.tracks import (
     TrackEntryCreate,
     TrackEntryUpdate,
 )
-from luml.schemas.user import CreateUser
+from luml.schemas.user import CreateUser, User
 from sqlalchemy import func, insert, select, text, update
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import IntegrityError
@@ -85,7 +86,9 @@ async def _race(*calls: Awaitable[Any]) -> list[Any]:
     return list(await asyncio.gather(*calls, return_exceptions=True))
 
 
-def _split(results: list[Any], error: type[BaseException]) -> tuple[list, list]:
+def _split(
+    results: list[Any], error: type[BaseException]
+) -> tuple[list[Any], list[BaseException]]:
     winners = [r for r in results if not isinstance(r, BaseException)]
     losers = [r for r in results if isinstance(r, error)]
     unexpected = [r for r in results if isinstance(r, BaseException)]
@@ -473,10 +476,12 @@ class TestConcurrencyGuards:
         data = create_organization_with_user
         repo = OrbitRepository(data.engine)
         await _set_limit(data.engine, data.organization.id, orbits_limit=1)
-        make = lambda name: repo.create_orbit(  # noqa: E731
-            data.organization.id,
-            OrbitCreateIn(name=name, bucket_secret_id=data.bucket_secret.id),
-        )
+
+        async def make(name: str) -> OrbitDetails | None:
+            return await repo.create_orbit(
+                data.organization.id,
+                OrbitCreateIn(name=name, bucket_secret_id=data.bucket_secret.id),
+            )
 
         winners, losers = _split(
             await _race(make("first"), make("second")), OrganizationLimitReachedError
@@ -493,11 +498,15 @@ class TestConcurrencyGuards:
         data = create_collection
         repo = SatelliteRepository(data.engine)
         await _set_limit(data.engine, data.organization.id, satellites_limit=1)
-        make = lambda name: repo.create_satellite(  # noqa: E731
-            SatelliteCreate(
-                orbit_id=data.orbit.id, api_key_hash=str(uuid.uuid4()), name=name
+
+        async def make(name: str) -> Satellite:
+            return await repo.create_satellite(
+                SatelliteCreate(
+                    orbit_id=data.orbit.id,
+                    api_key_hash=str(uuid.uuid4()),
+                    name=name,
+                )
             )
-        )
 
         winners, losers = _split(
             await _race(make("first"), make("second")), OrganizationLimitReachedError
@@ -525,13 +534,15 @@ class TestConcurrencyGuards:
         ]
         assert all(joiners)
         await _set_limit(data.engine, data.organization.id, members_limit=2)
-        make = lambda user: repo.create_organization_member(  # noqa: E731
-            OrganizationMemberCreate(
-                user_id=user.id,
-                organization_id=data.organization.id,
-                role=OrgRole.MEMBER,
+
+        async def make(user: User) -> OrganizationMember:
+            return await repo.create_organization_member(
+                OrganizationMemberCreate(
+                    user_id=user.id,
+                    organization_id=data.organization.id,
+                    role=OrgRole.MEMBER,
+                )
             )
-        )
 
         winners, losers = _split(
             await _race(make(joiners[0]), make(joiners[1])),
@@ -769,12 +780,16 @@ class TestConcurrencyGuards:
         )
         await _set_limit(data.engine, second.id, members_limit=10)
         already = await repo.get_user_organizations_membership_count(joiner.id)
-        make = lambda organization_id, limit: repo.create_organization_member(  # noqa: E731
-            OrganizationMemberCreate(
-                user_id=joiner.id, organization_id=organization_id, role=OrgRole.MEMBER
-            ),
-            membership_limit=limit,
-        )
+
+        async def make(organization_id: UUID, limit: int) -> OrganizationMember:
+            return await repo.create_organization_member(
+                OrganizationMemberCreate(
+                    user_id=joiner.id,
+                    organization_id=organization_id,
+                    role=OrgRole.MEMBER,
+                ),
+                membership_limit=limit,
+            )
 
         with pytest.raises(
             OrganizationLimitReachedError, match="limit of organizations"

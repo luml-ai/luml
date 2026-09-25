@@ -1,0 +1,3 @@
+KIT_NAME = "luml-satellite"
+KIT_VERSION = "0.1.0"
+SATELLITE_API_VERSION = 1

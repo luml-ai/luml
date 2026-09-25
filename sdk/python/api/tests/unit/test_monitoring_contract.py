@@ -7,6 +7,8 @@ from luml_api.resources.monitoring import MONITORING_API_IMPLEMENTATIONS
 OPENAPI_SNAPSHOT = (
     Path(__file__).resolve().parents[5]
     / "satellite"
+    / "implementations"
+    / "docker"
     / "tests"
     / "snapshots"
     / "static_openapi.json"

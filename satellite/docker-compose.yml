@@ -31,7 +31,7 @@ services:
   model-image:
     image: luml-random-svc:latest
     build:
-      context: model_server
+      context: ../model_servers/default
     command: ["true"]
     restart: "no"
     networks:
@@ -41,7 +41,7 @@ services:
     image: luml-satellite-agent:latest
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: implementations/docker/Dockerfile
     networks:
       satellite-network:
         # Model containers call the Agent by this name. Without the alias only

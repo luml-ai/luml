@@ -18,6 +18,7 @@ from luml.schemas.satellite import (
     MAX_OPENAPI_DOCUMENT_SIZE_BYTES,
     MONITORING_FACETS,
     MONITORING_FEATURES,
+    KitInfo,
     Satellite,
     SatelliteCreateIn,
     SatelliteCreateOut,
@@ -417,6 +418,70 @@ async def test_pair_satellite(
     pair_call = mock_pair_satellite.await_args
     assert pair_call is not None
     assert pair_call.args[0].openapi == openapi
+    assert pair_call.args[0].kit_info is None
+
+
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.pair_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.satellites.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_pair_satellite_without_address_stores_kit_info(
+    mock_get_satellite: AsyncMock,
+    mock_pair_satellite: AsyncMock,
+) -> None:
+    satellite_id = UUID("0199c418-8be4-737c-a5e4-997685950d42")
+    kit = KitInfo(
+        name="luml-satellite",
+        version="1.2.3",
+        kind="kubernetes",
+        api_version=1,
+    )
+    mock_get_satellite.return_value = Mock()
+    mock_pair_satellite.return_value = Mock()
+
+    await handler.pair_satellite(
+        satellite_id,
+        SatellitePairIn(
+            capabilities={"deploy": {"version": 1}},
+            kit=kit,
+        ),
+    )
+
+    pair_call = mock_pair_satellite.await_args
+    assert pair_call is not None
+    paired = pair_call.args[0]
+    assert paired.base_url is None
+    assert paired.kit_info == kit
+
+
+@pytest.mark.parametrize(
+    "kit",
+    [
+        {"name": "", "version": "1", "kind": "docker", "api_version": 1},
+        {
+            "name": "luml-satellite",
+            "version": "1",
+            "kind": "docker",
+            "api_version": 0,
+        },
+        {
+            "name": "luml-satellite",
+            "version": "1",
+            "kind": "docker",
+            "api_version": "1",
+        },
+    ],
+)
+def test_pair_satellite_rejects_invalid_kit_info(kit: dict[str, object]) -> None:
+    with pytest.raises(ValidationError, match="kit"):
+        SatellitePairIn.model_validate(
+            {"capabilities": {"deploy": {"version": 1}}, "kit": kit}
+        )
 
 
 @patch(
@@ -513,6 +578,7 @@ async def test_pair_satellite_normalizes_reserved_capabilities(
                 "supported_variants": ["pyfunc"],
                 "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
                 "extra_fields_form_spec": [],
+                "future_deploy_field": {"enabled": True},
             },
             "monitoring": {"version": 1, "ignored": "value"},
         },
@@ -531,12 +597,14 @@ async def test_pair_satellite_normalizes_reserved_capabilities(
             "supported_variants": ["pyfunc"],
             "supported_tags_combinations": [["luml.ai::kind_tabular:v1"]],
             "extra_fields_form_spec": [],
+            "future_deploy_field": {"enabled": True},
         },
         "monitoring": {
             "version": 1,
             "api_versions": [1],
             "facets": MONITORING_FACETS,
             "features": MONITORING_FEATURES,
+            "ignored": "value",
         },
     }
 
@@ -706,6 +774,7 @@ async def test_pair_satellite_rejects_invalid_custom_facet(
 @pytest.mark.parametrize(
     ("capability", "declaration"),
     [
+        ("deploy", {"version": "1"}),
         ("monitoring", {"version": 1, "features": "runtime"}),
         ("monitoring", {"version": 1, "facets": ["satellite:future"]}),
         ("deploy", {"version": 1, "supported_variants": "pyfunc"}),

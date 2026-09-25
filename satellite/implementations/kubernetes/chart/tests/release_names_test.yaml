@@ -1,0 +1,57 @@
+suite: release-scoped object names
+templates:
+  - templates/serviceaccount.yaml
+  - templates/secret-token.yaml
+  - templates/secret-derivation.yaml
+  - templates/configmap-collector.yaml
+  - templates/rbac.yaml
+  - templates/service-satellite.yaml
+  - templates/service-dashboard.yaml
+  - templates/service-collector.yaml
+  - templates/service-store.yaml
+  - templates/deployment-satellite.yaml
+  - templates/deployment-dashboard.yaml
+  - templates/deployment-worker.yaml
+  - templates/deployment-collector.yaml
+  - templates/statefulset-store.yaml
+  - templates/networkpolicy.yaml
+  - templates/ingress.yaml
+release:
+  name: first
+  namespace: shared
+set:
+  satellite.token: test-token
+  satellite.derivationKey: test-derivation-key
+tests:
+  - it: prefixes every rendered object for the first release
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^first-
+      - notEqual:
+          path: kind
+          value: Route
+
+  - it: prefixes every rendered object differently for the second release
+    release:
+      name: second
+      namespace: shared
+    asserts:
+      - matchRegex:
+          path: metadata.name
+          pattern: ^second-
+      - notEqual:
+          path: kind
+          value: Route
+
+  - it: keeps a boolean-like release name as a string label
+    release:
+      name: "true"
+      namespace: shared
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: "true"
+      - equal:
+          path: metadata.labels["luml.ai/satellite-id"]
+          value: "true"

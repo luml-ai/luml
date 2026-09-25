@@ -243,6 +243,86 @@ async def test_update_deployment(create_satellite: SatelliteFixtureData) -> None
     assert updated_deployment.status == update_data.status
     assert updated_deployment.tags == update_data.tags
     assert updated_deployment.collection_id == model.collection_id
+    assert updated_deployment.provider_ref is None
+    assert updated_deployment.progress_note is None
+
+
+@pytest.mark.asyncio
+async def test_provider_ref_and_progress_note_round_trip(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployment, _ = await repo.create_deployment(
+        DeploymentCreate(
+            name="provider-deployment",
+            orbit_id=data.orbit.id,
+            satellite_id=data.satellite.id,
+            artifact_id=data.model.id,
+        )
+    )
+
+    pending = await repo.update_deployment(
+        deployment.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=deployment.id,
+            provider_ref="provider-job-123",
+            progress_note="Creating workload",
+        ),
+    )
+    active = await repo.update_deployment(
+        deployment.id,
+        data.satellite.id,
+        DeploymentUpdate(
+            id=deployment.id,
+            status=DeploymentStatus.ACTIVE,
+            progress_note=None,
+        ),
+    )
+
+    assert pending is not None
+    assert pending.provider_ref == "provider-job-123"
+    assert pending.progress_note == "Creating workload"
+    assert active is not None
+    assert active.provider_ref == "provider-job-123"
+    assert active.progress_note is None
+
+
+@pytest.mark.asyncio
+async def test_two_deployments_can_share_an_inference_url(
+    create_satellite: SatelliteFixtureData,
+) -> None:
+    data = create_satellite
+    repo = DeploymentRepository(data.engine)
+    deployments = [
+        (
+            await repo.create_deployment(
+                DeploymentCreate(
+                    name=f"shared-address-{index}",
+                    orbit_id=data.orbit.id,
+                    satellite_id=data.satellite.id,
+                    artifact_id=data.model.id,
+                )
+            )
+        )[0]
+        for index in range(2)
+    ]
+    inference_url = "https://multi-model.example/inference"
+
+    updated = [
+        await repo.update_deployment(
+            deployment.id,
+            data.satellite.id,
+            DeploymentUpdate(id=deployment.id, inference_url=inference_url),
+        )
+        for deployment in deployments
+    ]
+
+    assert [deployment.inference_url for deployment in updated if deployment] == [
+        inference_url,
+        inference_url,
+    ]
 
 
 @pytest.mark.asyncio

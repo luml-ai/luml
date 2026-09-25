@@ -1,0 +1,7 @@
+podSecurity:
+  preset: openshift
+
+ingress:
+  className: openshift-default
+  annotations:
+    route.openshift.io/termination: edge

@@ -1,0 +1,1020 @@
+changes only the external store boundary:
+  1: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+        extensions:
+          basicauth/client:
+            client_auth:
+              username: ${env:GREPTIMEDB_USERNAME}
+              password: ${env:GREPTIMEDB_PASSWORD}
+        exporters:
+          otlphttp/traces:
+            endpoint: "http://greptime.example.test:4444/v1/otlp"
+            tls:
+              insecure: true
+            auth:
+              authenticator: basicauth/client
+            headers:
+              x-greptime-db-name: "luml"
+              x-greptime-trace-table-name: otel_traces
+          otlphttp/events:
+            endpoint: "http://greptime.example.test:4444/v1/otlp"
+            tls:
+              insecure: true
+            auth:
+              authenticator: basicauth/client
+            headers:
+              x-greptime-db-name: "luml"
+              x-greptime-trace-table-name: inference_events
+        processors:
+          filter/traces_main:
+            error_mode: ignore
+            traces:
+              span:
+                - 'resource.attributes["service.name"] == "satellite-agent.events"'
+          filter/traces_events:
+            error_mode: ignore
+            traces:
+              span:
+                - 'resource.attributes["service.name"] != "satellite-agent.events"'
+        service:
+          extensions: [basicauth/client]
+          pipelines:
+            traces/main:
+              receivers: [otlp]
+              processors: [filter/traces_main]
+              exporters: [otlphttp/traces]
+            traces/events:
+              receivers: [otlp]
+              processors: [filter/traces_events]
+              exporters: [otlphttp/events]
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/component: collector
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-collector
+  2: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: collector
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-collector
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: collector
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: collector
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - args:
+                - --config=/etc/otel/config.yaml
+              env:
+                - name: GREPTIMEDB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      key: username
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+                - name: GREPTIMEDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      key: password
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+              image: otel/opentelemetry-collector-contrib:0.127.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                periodSeconds: 10
+                tcpSocket:
+                  port: otlp-grpc
+                timeoutSeconds: 5
+              name: collector
+              ports:
+                - containerPort: 4317
+                  name: otlp-grpc
+              readinessProbe:
+                failureThreshold: 3
+                periodSeconds: 5
+                tcpSocket:
+                  port: otlp-grpc
+                timeoutSeconds: 5
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /etc/otel
+                  name: config
+                  readOnly: true
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - configMap:
+                name: store-mode-luml-satellite-kubernetes-collector
+              name: config
+            - emptyDir: {}
+              name: tmp
+  3: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-dashboard
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: dashboard
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          annotations:
+            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
+            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+          labels:
+            app.kubernetes.io/component: dashboard
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - command:
+                - luml-monitoring-dashboard
+              env:
+                - name: SATELLITE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: satellite-token
+                      name: store-mode-luml-satellite-kubernetes-token
+                - name: DERIVATION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: derivation-key
+                      name: store-mode-luml-satellite-kubernetes-derivation-key
+                - name: PLATFORM_URL
+                  value: https://api.luml.ai
+                - name: GREPTIMEDB_HOST
+                  value: greptime.example.test
+                - name: GREPTIMEDB_HTTP_PORT
+                  value: "4444"
+                - name: GREPTIMEDB_DATABASE
+                  value: luml
+                - name: GREPTIMEDB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      key: username
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+                - name: GREPTIMEDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      key: password
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+                - name: SIDECAR_INTERNAL_URL_TEMPLATE
+                  value: http://luml-dep-{deployment_id}:8001
+                - name: MONITORING_FRAME_ANCESTORS
+                  value: ""
+                - name: MONITORING_SESSION_TTL_SECONDS
+                  value: "1800"
+                - name: MONITORING_DEPLOYMENTS_REFRESH_SEC
+                  value: "60"
+                - name: MONITORING_INTERVAL_SEC
+                  value: "60"
+                - name: MONITORING_WINDOW_SEC
+                  value: "300"
+                - name: MONITORING_BACKFILL_MAX_WINDOWS
+                  value: "12"
+                - name: MONITORING_EVENTS_TTL
+                  value: 30d
+                - name: MONITORING_RESULTS_TTL
+                  value: 30d
+                - name: MONITORING_ALERTS_TTL
+                  value: 30d
+                - name: MONITORING_TRACES_TTL
+                  value: 30d
+                - name: MONITORING_METRICS_TTL
+                  value: 7d
+                - name: LOG_LEVEL
+                  value: info
+                - name: AGENT_PORT
+                  value: "8000"
+              image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /livez
+                  port: http
+                periodSeconds: 10
+                timeoutSeconds: 5
+              name: dashboard
+              ports:
+                - containerPort: 8000
+                  name: http
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /livez
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 5
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - emptyDir: {}
+              name: tmp
+  4: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-worker
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: worker
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          annotations:
+            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
+            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+          labels:
+            app.kubernetes.io/component: worker
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - command:
+                - luml-monitoring-worker
+              env:
+                - name: SATELLITE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: satellite-token
+                      name: store-mode-luml-satellite-kubernetes-token
+                - name: DERIVATION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: derivation-key
+                      name: store-mode-luml-satellite-kubernetes-derivation-key
+                - name: PLATFORM_URL
+                  value: https://api.luml.ai
+                - name: GREPTIMEDB_HOST
+                  value: greptime.example.test
+                - name: GREPTIMEDB_HTTP_PORT
+                  value: "4444"
+                - name: GREPTIMEDB_DATABASE
+                  value: luml
+                - name: GREPTIMEDB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      key: username
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+                - name: GREPTIMEDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      key: password
+                      name: store-mode-luml-satellite-kubernetes-store-credentials
+                - name: SIDECAR_INTERNAL_URL_TEMPLATE
+                  value: http://luml-dep-{deployment_id}:8001
+                - name: MONITORING_FRAME_ANCESTORS
+                  value: ""
+                - name: MONITORING_SESSION_TTL_SECONDS
+                  value: "1800"
+                - name: MONITORING_DEPLOYMENTS_REFRESH_SEC
+                  value: "60"
+                - name: MONITORING_INTERVAL_SEC
+                  value: "60"
+                - name: MONITORING_WINDOW_SEC
+                  value: "300"
+                - name: MONITORING_BACKFILL_MAX_WINDOWS
+                  value: "12"
+                - name: MONITORING_EVENTS_TTL
+                  value: 30d
+                - name: MONITORING_RESULTS_TTL
+                  value: 30d
+                - name: MONITORING_ALERTS_TTL
+                  value: 30d
+                - name: MONITORING_TRACES_TTL
+                  value: 30d
+                - name: MONITORING_METRICS_TTL
+                  value: 7d
+                - name: LOG_LEVEL
+                  value: info
+                - name: MONITORING_HEARTBEAT_FILE
+                  value: /var/run/luml-monitoring/heartbeat
+              image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                exec:
+                  command:
+                    - luml-monitoring-probe
+                failureThreshold: 3
+                initialDelaySeconds: 180
+                periodSeconds: 60
+                timeoutSeconds: 5
+              name: worker
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /var/run/luml-monitoring
+                  name: heartbeat
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - emptyDir: {}
+              name: heartbeat
+            - emptyDir: {}
+              name: tmp
+  5: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app.kubernetes.io/component: network-policy
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes
+    spec:
+      egress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  luml.ai/satellite-id: store-mode
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - ports:
+            - port: 80
+              protocol: TCP
+            - port: 443
+              protocol: TCP
+        - ports:
+            - port: 4444
+              protocol: TCP
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  luml.ai/satellite-id: store-mode
+        - ports:
+            - port: 8000
+              protocol: TCP
+      podSelector:
+        matchLabels:
+          luml.ai/satellite-id: store-mode
+      policyTypes:
+        - Ingress
+        - Egress
+  6: |
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      labels:
+        app.kubernetes.io/component: store
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-store-credentials
+    stringData:
+      password: secret
+      username: collector
+    type: Opaque
+matches the standalone store rendering:
+  1: |
+    apiVersion: v1
+    data:
+      config.yaml: |
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+        exporters:
+          otlphttp/traces:
+            endpoint: "http://store-mode-luml-satellite-kubernetes-store:4000/v1/otlp"
+            tls:
+              insecure: true
+            headers:
+              x-greptime-db-name: "public"
+              x-greptime-trace-table-name: otel_traces
+          otlphttp/events:
+            endpoint: "http://store-mode-luml-satellite-kubernetes-store:4000/v1/otlp"
+            tls:
+              insecure: true
+            headers:
+              x-greptime-db-name: "public"
+              x-greptime-trace-table-name: inference_events
+        processors:
+          filter/traces_main:
+            error_mode: ignore
+            traces:
+              span:
+                - 'resource.attributes["service.name"] == "satellite-agent.events"'
+          filter/traces_events:
+            error_mode: ignore
+            traces:
+              span:
+                - 'resource.attributes["service.name"] != "satellite-agent.events"'
+        service:
+          pipelines:
+            traces/main:
+              receivers: [otlp]
+              processors: [filter/traces_main]
+              exporters: [otlphttp/traces]
+            traces/events:
+              receivers: [otlp]
+              processors: [filter/traces_events]
+              exporters: [otlphttp/events]
+    kind: ConfigMap
+    metadata:
+      labels:
+        app.kubernetes.io/component: collector
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-collector
+  2: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: collector
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-collector
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: collector
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: collector
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - args:
+                - --config=/etc/otel/config.yaml
+              image: otel/opentelemetry-collector-contrib:0.127.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                periodSeconds: 10
+                tcpSocket:
+                  port: otlp-grpc
+                timeoutSeconds: 5
+              name: collector
+              ports:
+                - containerPort: 4317
+                  name: otlp-grpc
+              readinessProbe:
+                failureThreshold: 3
+                periodSeconds: 5
+                tcpSocket:
+                  port: otlp-grpc
+                timeoutSeconds: 5
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /etc/otel
+                  name: config
+                  readOnly: true
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - configMap:
+                name: store-mode-luml-satellite-kubernetes-collector
+              name: config
+            - emptyDir: {}
+              name: tmp
+  3: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: dashboard
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-dashboard
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: dashboard
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          annotations:
+            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
+            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+          labels:
+            app.kubernetes.io/component: dashboard
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - command:
+                - luml-monitoring-dashboard
+              env:
+                - name: SATELLITE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: satellite-token
+                      name: store-mode-luml-satellite-kubernetes-token
+                - name: DERIVATION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: derivation-key
+                      name: store-mode-luml-satellite-kubernetes-derivation-key
+                - name: PLATFORM_URL
+                  value: https://api.luml.ai
+                - name: GREPTIMEDB_HOST
+                  value: store-mode-luml-satellite-kubernetes-store
+                - name: GREPTIMEDB_HTTP_PORT
+                  value: "4000"
+                - name: GREPTIMEDB_DATABASE
+                  value: public
+                - name: SIDECAR_INTERNAL_URL_TEMPLATE
+                  value: http://luml-dep-{deployment_id}:8001
+                - name: MONITORING_FRAME_ANCESTORS
+                  value: ""
+                - name: MONITORING_SESSION_TTL_SECONDS
+                  value: "1800"
+                - name: MONITORING_DEPLOYMENTS_REFRESH_SEC
+                  value: "60"
+                - name: MONITORING_INTERVAL_SEC
+                  value: "60"
+                - name: MONITORING_WINDOW_SEC
+                  value: "300"
+                - name: MONITORING_BACKFILL_MAX_WINDOWS
+                  value: "12"
+                - name: MONITORING_EVENTS_TTL
+                  value: 30d
+                - name: MONITORING_RESULTS_TTL
+                  value: 30d
+                - name: MONITORING_ALERTS_TTL
+                  value: 30d
+                - name: MONITORING_TRACES_TTL
+                  value: 30d
+                - name: MONITORING_METRICS_TTL
+                  value: 7d
+                - name: LOG_LEVEL
+                  value: info
+                - name: AGENT_PORT
+                  value: "8000"
+              image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /livez
+                  port: http
+                periodSeconds: 10
+                timeoutSeconds: 5
+              name: dashboard
+              ports:
+                - containerPort: 8000
+                  name: http
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /livez
+                  port: http
+                periodSeconds: 5
+                timeoutSeconds: 5
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - emptyDir: {}
+              name: tmp
+  4: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-worker
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: worker
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      template:
+        metadata:
+          annotations:
+            checksum/derivation-key: 645ded82e0d279b7c5640af80d655f23392439626284c13b13e818c7761ee71d
+            checksum/satellite-token: 4c5dc9b7708905f77f5e5d16316b5dfb425e68cb326dcd55a860e90a7707031e
+          labels:
+            app.kubernetes.io/component: worker
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - command:
+                - luml-monitoring-worker
+              env:
+                - name: SATELLITE_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      key: satellite-token
+                      name: store-mode-luml-satellite-kubernetes-token
+                - name: DERIVATION_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      key: derivation-key
+                      name: store-mode-luml-satellite-kubernetes-derivation-key
+                - name: PLATFORM_URL
+                  value: https://api.luml.ai
+                - name: GREPTIMEDB_HOST
+                  value: store-mode-luml-satellite-kubernetes-store
+                - name: GREPTIMEDB_HTTP_PORT
+                  value: "4000"
+                - name: GREPTIMEDB_DATABASE
+                  value: public
+                - name: SIDECAR_INTERNAL_URL_TEMPLATE
+                  value: http://luml-dep-{deployment_id}:8001
+                - name: MONITORING_FRAME_ANCESTORS
+                  value: ""
+                - name: MONITORING_SESSION_TTL_SECONDS
+                  value: "1800"
+                - name: MONITORING_DEPLOYMENTS_REFRESH_SEC
+                  value: "60"
+                - name: MONITORING_INTERVAL_SEC
+                  value: "60"
+                - name: MONITORING_WINDOW_SEC
+                  value: "300"
+                - name: MONITORING_BACKFILL_MAX_WINDOWS
+                  value: "12"
+                - name: MONITORING_EVENTS_TTL
+                  value: 30d
+                - name: MONITORING_RESULTS_TTL
+                  value: 30d
+                - name: MONITORING_ALERTS_TTL
+                  value: 30d
+                - name: MONITORING_TRACES_TTL
+                  value: 30d
+                - name: MONITORING_METRICS_TTL
+                  value: 7d
+                - name: LOG_LEVEL
+                  value: info
+                - name: MONITORING_HEARTBEAT_FILE
+                  value: /var/run/luml-monitoring/heartbeat
+              image: ghcr.io/luml-ai/luml-satellite-monitoring:dev
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                exec:
+                  command:
+                    - luml-monitoring-probe
+                failureThreshold: 3
+                initialDelaySeconds: 180
+                periodSeconds: 60
+                timeoutSeconds: 5
+              name: worker
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /var/run/luml-monitoring
+                  name: heartbeat
+                - mountPath: /tmp
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - emptyDir: {}
+              name: heartbeat
+            - emptyDir: {}
+              name: tmp
+  5: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      labels:
+        app.kubernetes.io/component: network-policy
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes
+    spec:
+      egress:
+        - to:
+            - podSelector:
+                matchLabels:
+                  luml.ai/satellite-id: store-mode
+        - ports:
+            - port: 53
+              protocol: UDP
+            - port: 53
+              protocol: TCP
+        - ports:
+            - port: 80
+              protocol: TCP
+            - port: 443
+              protocol: TCP
+      ingress:
+        - from:
+            - podSelector:
+                matchLabels:
+                  luml.ai/satellite-id: store-mode
+        - ports:
+            - port: 8000
+              protocol: TCP
+      podSelector:
+        matchLabels:
+          luml.ai/satellite-id: store-mode
+      policyTypes:
+        - Ingress
+        - Egress
+  6: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/component: store
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-store
+    spec:
+      ports:
+        - name: http
+          port: 4000
+          targetPort: http
+        - name: grpc
+          port: 4001
+          targetPort: grpc
+      selector:
+        app.kubernetes.io/component: store
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        luml.ai/satellite-id: store-mode
+      type: ClusterIP
+  7: |
+    apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      labels:
+        app.kubernetes.io/component: store
+        app.kubernetes.io/instance: store-mode
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: luml-satellite-kubernetes
+        app.kubernetes.io/version: 0.1.0
+        helm.sh/chart: luml-satellite-kubernetes-0.1.0
+        luml.ai/satellite-id: store-mode
+      name: store-mode-luml-satellite-kubernetes-store
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: store
+          app.kubernetes.io/instance: store-mode
+          app.kubernetes.io/name: luml-satellite-kubernetes
+          luml.ai/satellite-id: store-mode
+      serviceName: store-mode-luml-satellite-kubernetes-store
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/component: store
+            app.kubernetes.io/instance: store-mode
+            app.kubernetes.io/name: luml-satellite-kubernetes
+            luml.ai/satellite-id: store-mode
+        spec:
+          automountServiceAccountToken: false
+          containers:
+            - args:
+                - standalone
+                - start
+                - --http-addr=0.0.0.0:4000
+                - --rpc-addr=0.0.0.0:4001
+              image: greptime/greptimedb:v0.13.1
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                failureThreshold: 3
+                periodSeconds: 10
+                tcpSocket:
+                  port: http
+                timeoutSeconds: 5
+              name: store
+              ports:
+                - containerPort: 4000
+                  name: http
+                - containerPort: 4001
+                  name: grpc
+              readinessProbe:
+                failureThreshold: 3
+                periodSeconds: 5
+                tcpSocket:
+                  port: http
+                timeoutSeconds: 5
+              resources: {}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                runAsNonRoot: true
+              volumeMounts:
+                - mountPath: /tmp/greptimedb
+                  name: data
+                - mountPath: /tmp/runtime
+                  name: tmp
+          securityContext:
+            fsGroup: 10001
+            runAsGroup: 0
+            runAsNonRoot: true
+            runAsUser: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - emptyDir: {}
+              name: tmp
+      volumeClaimTemplates:
+        - metadata:
+            labels:
+              app.kubernetes.io/component: store
+              app.kubernetes.io/instance: store-mode
+              app.kubernetes.io/managed-by: Helm
+              app.kubernetes.io/name: luml-satellite-kubernetes
+              app.kubernetes.io/version: 0.1.0
+              helm.sh/chart: luml-satellite-kubernetes-0.1.0
+              luml.ai/satellite-id: store-mode
+            name: data
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 20Gi

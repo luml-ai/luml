@@ -1,7 +1,11 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { reactive } from 'vue'
-import { DeploymentStatusEnum, MonitoringMode } from '@/lib/api/deployments/interfaces'
+import {
+  DeploymentStatusEnum,
+  MonitoringMode,
+  type Deployment,
+} from '@/lib/api/deployments/interfaces'
 import { MonitoringFeature } from '@/lib/api/satellites/interfaces'
 import DeploymentsEditor from './DeploymentsEditor.vue'
 
@@ -77,7 +81,7 @@ vi.mock('primevue', async (importOriginal) => {
   return { ...actual, useToast: () => ({ add: vi.fn() }) }
 })
 
-function deployment(satelliteId: string, monitoringMode = MonitoringMode.off) {
+function deployment(satelliteId: string, monitoringMode = MonitoringMode.off): Deployment {
   return {
     id: 'deployment-1',
     orbit_id: 'orbit-1',
@@ -90,7 +94,7 @@ function deployment(satelliteId: string, monitoringMode = MonitoringMode.off) {
     tags: [],
     collection_id: 'collection-1',
     dynamic_attributes_secrets: {},
-  } as never
+  } as unknown as Deployment
 }
 
 function modelWithTags(producerTags: string[]) {
@@ -158,5 +162,24 @@ describe('DeploymentsEditor monitoring settings', () => {
 
     expect(wrapper.find('[data-testid="editor-monitoring-toggle"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('does not report the monitoring capability')
+  })
+
+  it('shows a read-only provider handle when the deployment has one', async () => {
+    const wrapper = mountEditor({
+      ...deployment(MONITORED.id),
+      provider_ref: 'deployment/provider-job-123',
+    })
+    await flushPromises()
+
+    const providerReference = wrapper.get('[data-testid="deployment-provider-reference"]')
+    expect(providerReference.text()).toContain('Provider handle')
+    expect(providerReference.text()).toContain('deployment/provider-job-123')
+  })
+
+  it('keeps the old editor unchanged when no provider handle is present', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="deployment-provider-reference"]').exists()).toBe(false)
   })
 })

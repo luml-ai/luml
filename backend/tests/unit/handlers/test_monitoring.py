@@ -32,8 +32,15 @@ BASE_URL = "https://satellite.example"
 handler = MonitoringHandler(secret_key=SECRET, launch_token_expire=300)
 
 
-def _deployment(mode: MonitoringMode = MonitoringMode.FULL) -> Mock:
-    return Mock(monitoring_mode=mode, satellite_id=SATELLITE_ID)
+def _deployment(
+    mode: MonitoringMode = MonitoringMode.FULL,
+    monitoring_url: str | None = None,
+) -> Mock:
+    return Mock(
+        monitoring_mode=mode,
+        monitoring_url=monitoring_url,
+        satellite_id=SATELLITE_ID,
+    )
 
 
 def _satellite(
@@ -276,6 +283,7 @@ async def test_mint_launch_token_carries_scope_claims_and_expiry(
     assert decoded["exp"] > int(time.time())
     assert result.expires_at == decoded["exp"]
     assert result.satellite_base_url == BASE_URL
+    assert result.launch_url == (f"{BASE_URL}/monitoring/launch?token={result.token}")
 
 
 @patch(
@@ -521,20 +529,97 @@ async def test_eligibility_satellite_not_found(
     new_callable=AsyncMock,
 )
 @pytest.mark.asyncio
-async def test_mint_launch_token_requires_satellite_base_url(
+async def test_monitoring_launch_without_any_address(
     mock_check_permissions: AsyncMock,
     mock_get_deployment: AsyncMock,
     mock_get_satellite: AsyncMock,
 ) -> None:
-    mock_get_deployment.return_value = _deployment(MonitoringMode.FULL)
+    mock_get_deployment.return_value = _deployment(
+        MonitoringMode.FULL, "/deployments/id/monitoring"
+    )
     mock_get_satellite.return_value = _satellite(base_url=None)
 
-    with pytest.raises(ApplicationError, match="base URL is not configured") as error:
+    eligibility = await handler.get_eligibility(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+
+    assert eligibility.eligible is False
+    assert eligibility.reason == MonitoringIneligibilityReason.NO_DASHBOARD_ADDRESS
+    assert eligibility.satellite_base_url is None
+
+    with pytest.raises(ApplicationError, match="dashboard address") as error:
         await handler.mint_launch_token(
             USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
         )
 
     assert error.value.status_code == 409
+
+
+@patch(
+    "luml.handlers.monitoring.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_monitoring_launch_uses_an_external_link_without_satellite_address(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    external_link = "https://monitoring.example/dashboards/deployment"
+    mock_get_deployment.return_value = _deployment(MonitoringMode.FULL, external_link)
+    mock_get_satellite.return_value = _satellite(base_url=None)
+
+    eligibility = await handler.get_eligibility(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+    result = await handler.mint_launch_token(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+
+    assert eligibility.eligible is True
+    assert result.satellite_base_url is None
+    assert result.launch_url == (
+        f"{external_link}/monitoring/launch?token={result.token}"
+    )
+
+
+@patch(
+    "luml.handlers.monitoring.SatelliteRepository.get_satellite",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.DeploymentRepository.get_deployment",
+    new_callable=AsyncMock,
+)
+@patch(
+    "luml.handlers.monitoring.PermissionsHandler.check_permissions",
+    new_callable=AsyncMock,
+)
+@pytest.mark.asyncio
+async def test_monitoring_launch_uses_satellite_address_for_a_relative_link(
+    mock_check_permissions: AsyncMock,
+    mock_get_deployment: AsyncMock,
+    mock_get_satellite: AsyncMock,
+) -> None:
+    mock_get_deployment.return_value = _deployment(
+        MonitoringMode.FULL, "/deployments/id/monitoring"
+    )
+    mock_get_satellite.return_value = _satellite(base_url=f"{BASE_URL}/")
+
+    result = await handler.mint_launch_token(
+        USER_ID, ORGANIZATION_ID, ORBIT_ID, DEPLOYMENT_ID
+    )
+
+    assert result.satellite_base_url == f"{BASE_URL}/"
+    assert result.launch_url == (f"{BASE_URL}/monitoring/launch?token={result.token}")
 
 
 # --- Introspection of a token with malformed claims ---------------------------

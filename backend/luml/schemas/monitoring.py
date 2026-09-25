@@ -10,6 +10,7 @@ class MonitoringIneligibilityReason(StrEnum):
     MONITORING_OFF = "monitoring_off"
     CAPABILITY_MISSING = "capability_missing"
     CAPABILITY_VERSION_UNSUPPORTED = "capability_version_unsupported"
+    NO_DASHBOARD_ADDRESS = "no_dashboard_address"
 
 
 class MonitoringEligibility(BaseModel):
@@ -20,7 +21,8 @@ class MonitoringEligibility(BaseModel):
 
 class MonitoringLaunchToken(BaseModel):
     token: str
-    satellite_base_url: str
+    satellite_base_url: str | None
+    launch_url: str
     expires_at: int
 
 

@@ -68,6 +68,13 @@
             <Tag v-if="data.status === DeploymentStatusEnum.deletion_pending" severity="warn">
               Shutting down
             </Tag>
+            <span
+              v-if="showProgressNote(data)"
+              class="progress-note"
+              data-testid="deployment-progress-note"
+            >
+              {{ data.progress_note }}
+            </span>
           </div>
         </template></Column
       >
@@ -175,6 +182,13 @@ const initFilters = () => {
 
 function onSettingsClick(deployment: Deployment) {
   editableDeployment.value = deployment
+}
+
+function showProgressNote(deployment: Deployment) {
+  return (
+    !!deployment.progress_note &&
+    [DeploymentStatusEnum.pending, DeploymentStatusEnum.not_responding].includes(deployment.status)
+  )
 }
 
 function checkDeploymentInQuery() {
@@ -297,5 +311,13 @@ onBeforeMount(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.progress-note {
+  display: block;
+  margin-top: 4px;
+  color: var(--p-text-muted-color);
+  font-size: 12px;
+  white-space: normal;
 }
 </style>

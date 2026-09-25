@@ -47,6 +47,8 @@ export interface Deployment {
   artifact_name: string
   error_message: DeploymentErrorMessage | null
   schemas: object
+  provider_ref?: string | null
+  progress_note?: string | null
 }
 
 export interface UpdateDeploymentPayload {
