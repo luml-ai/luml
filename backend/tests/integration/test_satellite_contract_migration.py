@@ -52,7 +52,7 @@ async def test_migration_upgrades_and_downgrades(
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     try:
-        await _migrate(engine, "039", upgrade=False)
+        await _migrate(engine, "040", upgrade=False)
         assert "provider_ref" not in await _columns(engine, "deployments")
         assert "progress_note" not in await _columns(engine, "deployments")
         assert "kit_info" not in await _columns(engine, "satellites")
@@ -65,7 +65,7 @@ async def test_migration_upgrades_and_downgrades(
         assert "kit_info" in await _columns(engine, "satellites")
         assert not await _has_inference_url_unique_constraint(engine)
 
-        await _migrate(engine, "039", upgrade=False)
+        await _migrate(engine, "040", upgrade=False)
         assert "provider_ref" not in await _columns(engine, "deployments")
         assert "progress_note" not in await _columns(engine, "deployments")
         assert "kit_info" not in await _columns(engine, "satellites")
@@ -102,7 +102,7 @@ async def test_downgrade_names_duplicate_inference_urls(
         )
 
     with pytest.raises(RuntimeError, match=re.escape(inference_url)):
-        await _migrate(data.engine, "039", upgrade=False)
+        await _migrate(data.engine, "040", upgrade=False)
 
     assert {"provider_ref", "progress_note"}.issubset(
         await _columns(data.engine, "deployments")
