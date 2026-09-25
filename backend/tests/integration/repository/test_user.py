@@ -74,31 +74,42 @@ async def test_create_user_and_organization(
 
 
 @pytest.mark.asyncio
-async def test_create_user_transaction_rolls_back_user_and_organization(
+async def test_delete_signup_removes_user_and_organization(
     create_database_and_apply_migrations: str,
 ) -> None:
     engine = create_async_engine(create_database_and_apply_migrations)
     repo = UserRepository(engine)
-    user = CreateUser(
-        email=f"test_{uuid.uuid4()}@example.com",
-        full_name="Test User",
-        disabled=False,
-        email_verified=False,
-        auth_method=AuthProvider.EMAIL,
-        photo=None,
-        hashed_password="hashed_password",
-    )
-
-    with pytest.raises(RuntimeError, match="email delivery failed"):
-        async with repo.create_user_transaction(user):
-            raise RuntimeError("email delivery failed")
-
-    assert await repo.get_user(user.email) is None
-    async with AsyncSession(engine) as session:
-        organization = await session.scalar(
-            select(OrganizationOrm).where(OrganizationOrm.name == "Test's organization")
+    signup, other = (
+        CreateUser(
+            email=f"test_{uuid.uuid4()}@example.com",
+            full_name=full_name,
+            disabled=False,
+            email_verified=False,
+            auth_method=AuthProvider.EMAIL,
+            photo=None,
+            hashed_password="hashed_password",
         )
-    assert organization is None
+        for full_name in ("Signup User", "Other User")
+    )
+    signup_user = await repo.create_user(signup)
+    other_user = await repo.create_user(other)
+    signup_org = (await repo.get_user_organizations(signup_user.id))[0]
+    other_org = (await repo.get_user_organizations(other_user.id))[0]
+
+    await repo.delete_signup(signup_user.id)
+
+    assert await repo.get_user(signup.email) is None
+    assert await repo.get_organization_users(signup_org.id) == []
+    async with AsyncSession(engine) as session:
+        remaining = set(
+            await session.scalars(
+                select(OrganizationOrm.id).where(
+                    OrganizationOrm.id.in_([signup_org.id, other_org.id])
+                )
+            )
+        )
+    assert remaining == {other_org.id}
+    assert await repo.get_user(other.email) is not None
 
 
 @pytest.mark.asyncio

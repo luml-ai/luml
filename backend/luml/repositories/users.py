@@ -1,10 +1,8 @@
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
 from pydantic import EmailStr
-from sqlalchemy import case, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -61,15 +59,7 @@ class UserRepository(RepositoryBase, CrudMixin):
         self,
         create_user: CreateUser,
     ) -> User:
-        async with self.create_user_transaction(create_user) as user:
-            return user
-
-    @asynccontextmanager
-    async def create_user_transaction(
-        self,
-        create_user: CreateUser,
-    ) -> AsyncIterator[User]:
-        async with self._get_session() as session, session.begin():
+        async with self._get_session() as session:
             db_user = UserOrm.from_user(create_user)
             session.add(db_user)
 
@@ -92,8 +82,8 @@ class UserRepository(RepositoryBase, CrudMixin):
             )
             session.add(db_organization_member)
 
-            await session.flush()
-            yield user_response
+            await session.commit()
+        return user_response
 
     async def get_user(self, email: EmailStr) -> User | None:
         async with self._get_session() as session:
@@ -119,6 +109,19 @@ class UserRepository(RepositoryBase, CrudMixin):
             return await self.delete_model_where(
                 session, UserOrm, UserOrm.email == email
             )
+
+    async def delete_signup(self, user_id: UUID) -> None:
+        async with self._get_session() as session, session.begin():
+            owned_organizations = select(OrganizationMemberOrm.organization_id).where(
+                OrganizationMemberOrm.user_id == user_id,
+                OrganizationMemberOrm.role == OrgRole.OWNER,
+            )
+            await session.execute(
+                delete(OrganizationOrm).where(
+                    OrganizationOrm.id.in_(owned_organizations)
+                )
+            )
+            await session.execute(delete(UserOrm).where(UserOrm.id == user_id))
 
     async def update_user(
         self,
