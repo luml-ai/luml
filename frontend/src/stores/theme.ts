@@ -1,5 +1,5 @@
 import { defineStore, storeToRefs } from 'pinia'
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useAuthStore } from './auth'
 
 export type Theme = 'light' | 'dark'
@@ -9,6 +9,16 @@ export const useThemeStore = defineStore('theme', () => {
   const { isAuth } = storeToRefs(authStore)
 
   const theme = ref<Theme>('light')
+  const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)')
+
+  const syncSystemTheme = (event: MediaQueryListEvent) => {
+    if (!localStorage.getItem('theme') || !isAuth.value) {
+      theme.value = event.matches ? 'dark' : 'light'
+    }
+  }
+
+  darkModeQuery.addEventListener('change', syncSystemTheme)
+  onScopeDispose(() => darkModeQuery.removeEventListener('change', syncSystemTheme))
 
   const getCurrentTheme = computed(() => theme.value)
 
@@ -28,11 +38,7 @@ export const useThemeStore = defineStore('theme', () => {
     if (themeInLocalstorage && isAuth.value) {
       theme.value = themeInLocalstorage as Theme
     } else {
-      theme.value = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
-
-      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (!localStorage.getItem('theme')) toggleTheme()
-      })
+      theme.value = darkModeQuery.matches ? 'dark' : 'light'
     }
   }
 
