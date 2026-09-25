@@ -157,6 +157,51 @@ async def test_a_configured_network_has_to_exist_already(
 
 
 @pytest.mark.asyncio
+async def test_a_transient_docker_failure_leaves_the_network_unprepared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    agent = agent_container(fake, monkeypatch)
+    fake.containers.get_effects[agent.name].append(DockerError(500, "daemon hiccup"))
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    with pytest.raises(DockerError):
+        await driver.start(deployment(), start_context())
+
+    await driver.start(deployment(), start_context())
+
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    assert agent.networks[expected] == [AGENT_HOST, f"{AGENT_HOST}-{SATELLITE_ID}"]
+    _, container_config = fake.containers.created_configs[-1]
+    environment = dict(entry.split("=", 1) for entry in container_config["Env"])
+    assert environment["SATELLITE_AGENT_URL"] == f"http://{AGENT_HOST}-{SATELLITE_ID}:8000"
+
+
+@pytest.mark.asyncio
+async def test_a_duplicate_connect_is_confirmed_by_inspecting_the_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeDocker()
+    expected = f"luml-satellite-{SATELLITE_ID}"
+    agent = agent_container(fake, monkeypatch)
+    network = await fake.networks.create({"Name": expected})
+    original = network.connect
+
+    async def racing_connect(config: dict[str, Any]) -> None:
+        agent.networks[expected] = [AGENT_HOST, f"{AGENT_HOST}-{SATELLITE_ID}"]
+        await original(config)
+
+    monkeypatch.setattr(network, "connect", racing_connect)
+    driver = DockerDriver(configuration(), client=fake.as_client(), satellite_id=SATELLITE_ID)
+
+    await driver.start(deployment(), start_context())
+
+    _, container_config = fake.containers.created_configs[-1]
+    environment = dict(entry.split("=", 1) for entry in container_config["Env"])
+    assert environment["SATELLITE_AGENT_URL"] == f"http://{AGENT_HOST}-{SATELLITE_ID}:8000"
+
+
+@pytest.mark.asyncio
 async def test_deployments_racing_for_a_first_network_prepare_it_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -217,7 +262,7 @@ async def test_an_existing_network_is_reused_and_created_once(
 
 
 @pytest.mark.asyncio
-async def test_start_builds_the_protocol_three_container_on_the_configured_network(
+async def test_start_builds_the_protocol_four_container_on_the_configured_network(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake = FakeDocker()
@@ -245,7 +290,7 @@ async def test_start_builds_the_protocol_three_container_on_the_configured_netwo
         DOCKER_DEPLOYMENT_LABEL: DEPLOYMENT_ID,
         DOCKER_ARTIFACT_LABEL: ARTIFACT_ID,
         DOCKER_SATELLITE_LABEL: SATELLITE_ID,
-        DOCKER_LAUNCHER_PROTOCOL_LABEL: "3",
+        DOCKER_LAUNCHER_PROTOCOL_LABEL: "4",
     }
     environment = dict(entry.split("=", 1) for entry in container_config["Env"])
     assert environment == {

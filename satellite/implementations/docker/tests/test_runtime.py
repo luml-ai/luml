@@ -60,7 +60,7 @@ async def test_scripted_deploy_reaches_the_same_status_sequence() -> None:
     container = fake_docker.containers.containers[f"sat-{case.deployment_id}"]
     labels = cast(dict[str, str], container.config["Labels"])
     assert labels[DOCKER_SATELLITE_LABEL] == fake_platform.satellite_id
-    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "3"
+    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "4"
     assert fake_platform.deployments[case.deployment_id]["inference_url"] == (
         f"/deployments/{case.deployment_id}"
     )
@@ -111,7 +111,7 @@ async def test_old_agent_container_is_relaunched_once_then_plainly_adopted() -> 
         labels={
             DOCKER_DEPLOYMENT_LABEL: DEPLOYMENT_ID,
             DOCKER_ARTIFACT_LABEL: ARTIFACT_ID,
-            DOCKER_LAUNCHER_PROTOCOL_LABEL: "2",
+            DOCKER_LAUNCHER_PROTOCOL_LABEL: "3",
         },
     )
     config = configuration()
@@ -162,7 +162,7 @@ async def test_old_agent_container_is_relaunched_once_then_plainly_adopted() -> 
         fake_docker.containers.containers[f"sat-{DEPLOYMENT_ID}"].config["Labels"],
     )
     assert labels[DOCKER_SATELLITE_LABEL] == SATELLITE_ID
-    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "3"
+    assert labels[DOCKER_LAUNCHER_PROTOCOL_LABEL] == "4"
     assert fake_platform.deployment_updates[updates_before_restart:] == [
         (DEPLOYMENT_ID, {"monitoring_url": None})
     ]
@@ -550,7 +550,7 @@ def _labels(
         DOCKER_DEPLOYMENT_LABEL: deployment_id,
         DOCKER_ARTIFACT_LABEL: artifact_id,
         DOCKER_SATELLITE_LABEL: satellite_id,
-        DOCKER_LAUNCHER_PROTOCOL_LABEL: "3",
+        DOCKER_LAUNCHER_PROTOCOL_LABEL: "4",
     }
 
 

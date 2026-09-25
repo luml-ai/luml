@@ -53,7 +53,7 @@ def model_cache_volume(artifact_id: str) -> str:
 
 class DockerDriver:
     kind: str = "docker"
-    launcher_protocol: str = "3"
+    launcher_protocol: str = "4"
     supported_variants: Sequence[str] = ("pyfunc", "pipeline")
     supported_tag_combinations: Sequence[Sequence[str]] | None = None
     settings_type: type[DockerDeploymentSettings] = DockerDeploymentSettings
@@ -446,7 +446,15 @@ class DockerDriver:
         except DockerError as error:
             if error.status not in (403, 409):
                 raise
-        return alias
+        endpoint = _container_endpoint(await container.show(), name)
+        if endpoint is None:
+            raise DriverError(
+                f"This satellite could not attach itself to network '{name}'.",
+                reason="Docker network attachment failed",
+            )
+        if alias in _endpoint_aliases(endpoint):
+            return alias
+        return _container_hostname(information) or AGENT_HOST
 
     async def _join_agent_networks(self, container_id: str, primary: str) -> None:
         if not container_id:
@@ -496,8 +504,10 @@ class DockerDriver:
         try:
             container = await self.client.containers.get(identifier)
             await container.show()
-        except DockerError, aiohttp.ClientError, TimeoutError, OSError:
-            return None
+        except DockerError as error:
+            if error.status == 404:
+                return None
+            raise
         return container
 
     def _satellite_id_for(self, deployment: Deployment) -> str:

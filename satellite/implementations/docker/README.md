@@ -26,11 +26,16 @@ A satellite started as part of a Compose stack copies that stack's project label
 model container it creates, so the models appear next to their own satellite, collector and
 store rather than as loose containers.
 
-The label groups them; it does not hand them to Compose. `docker compose down` removes only
-the containers declared in the file and leaves every model container running, with or without
-`--remove-orphans`, and the stack network then survives the teardown as well, because a
-container is still attached to it. Undeploy through the Platform first, which is what removes
-those containers, and bring the stack down afterwards.
+The label groups them; it does not hand them to Compose. With Compose v5.3, `docker compose
+up`, `up --remove-orphans` and `down --remove-orphans` all leave every model container running
+without a word, and the stack network then survives the teardown as well, because a container
+is still attached to it. The containers do carry Compose's project label, so a Compose release
+that treats any such container as an orphan would remove them. Either way, undeploy through
+the Platform first, which is what removes those containers, and bring the stack down
+afterwards.
+
+A satellite upgraded onto this behaviour relaunches the model containers it finds from the
+previous launcher protocol once, so they move to its network and take its address.
 
 ## Several satellites on one host
 
