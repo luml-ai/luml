@@ -33,24 +33,25 @@
 <script setup lang="ts">
 import { useBucketsStore } from '@/stores/buckets'
 import { useOrganizationStore } from '@/stores/organization'
-import { onMounted, ref } from 'vue'
+import { watch } from 'vue'
 import BucketSettings from './BucketSettings.vue'
 
 const bucketsStore = useBucketsStore()
 const organizationStore = useOrganizationStore()
 
-const loading = ref()
-
-onMounted(async () => {
-  try {
-    const organizationId = organizationStore.currentOrganization?.id
-    if (!organizationId) return
-    await bucketsStore.getBuckets(organizationId)
-  } catch {
-  } finally {
-    loading.value = false
-  }
-})
+watch(
+  () => organizationStore.currentOrganization?.id,
+  async (organizationId) => {
+    if (!organizationId) {
+      bucketsStore.clearBuckets()
+      return
+    }
+    try {
+      await bucketsStore.getBuckets(organizationId)
+    } catch {}
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
