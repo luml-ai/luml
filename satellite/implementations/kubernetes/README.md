@@ -1,21 +1,24 @@
 # Kubernetes satellite
 
-This directory holds the Kubernetes satellite package, its Helm chart (`chart/`), and the
-kind scenario (`e2e/`). `RELEASE_CHECKLIST.md` covers what a real OpenShift cluster still
-has to prove before a release.
+This directory holds the Kubernetes satellite package, its Helm chart (`chart/`) and the kind
+scenario (`e2e/`). `RELEASE_CHECKLIST.md` lists what a real OpenShift cluster still has to
+prove before a release.
 
 ## Local stand on kind
 
-This brings one satellite up in a kind cluster and pairs it with a Platform running on the
-same machine, so deployments, inference and monitoring can be driven from the local UI.
+This stand starts one satellite in a kind cluster and pairs it with a Platform on the same
+machine. You can then drive deployments, inference and monitoring from the local UI.
 
-Requires Docker, `kind`, `helm`, `kubectl` and `python3`. CI pins Helm 3.17.3; newer Helm
-is untested against this chart.
+You need Docker, `kind`, `helm`, `kubectl` and `python3`. CI pins Helm 3.17.3. We did not test
+newer Helm against this chart.
+
+The stand takes about 15 minutes to start the first time. Later starts take about 5 minutes,
+because Docker keeps the images in its cache.
 
 ### 1. Build the images
 
-The chart never pulls from a registry here, so every image is built locally and loaded into
-the cluster.
+The chart never pulls from a registry here. Build every image locally, then load it into the
+cluster in step 2.
 
 ```shell
 cd <repository root>
@@ -28,14 +31,18 @@ docker build --tag luml-local/monitoring:local \
 docker build --tag luml-random-svc:latest model_servers/default
 ```
 
-`luml-random-svc` is the same model server the Docker satellite runs, so deployments behave
-the way they do on the Docker stand.
+`luml-random-svc` is the model server the Docker satellite runs. Deployments therefore behave
+the same way on both stands.
 
 ### 2. Create the cluster
 
-The e2e kind configuration disables the default CNI, labels the node for ingress and maps
-the node's port 80 to 18080 on the host. Calico enforces NetworkPolicy the way a real
-cluster does, and the ingress controller terminates the satellite's public URL.
+The e2e kind configuration does three things:
+
+1. It disables the default CNI, so that Calico can enforce NetworkPolicy the way a real
+   cluster does.
+2. It labels the node for ingress. The ingress controller then terminates the satellite's
+   public URL.
+3. It maps port 80 of the node to port 18080 on the host.
 
 ```shell
 kind create cluster --name luml-local --image kindest/node:v1.32.2 \
@@ -56,10 +63,10 @@ for image in luml-local/kubernetes:local luml-local/serving:local \
 done
 ```
 
-### 3. Bring the Platform up
+### 3. Start the Platform
 
-The satellite pairs against the local backend, so the backend has to run the current branch
-with its migrations applied. Point `backend/.env` at the local database, then:
+The satellite pairs with the local backend. The backend must run the current branch with its
+migrations applied. Point `backend/.env` at the local database, then:
 
 ```shell
 cd backend
@@ -67,18 +74,22 @@ uv run --frozen alembic upgrade head
 uv run --frozen uvicorn luml.server:app --host 0.0.0.0 --port 8000
 ```
 
-Migration `040_satellite_contract` is what adds the `kit` field to `/satellites/v1/pair`. A
-backend started before it is applied answers the pairing request without that field and the
-satellite never pairs. Run the frontend dev server as usual for the UI on port 5173.
+Migration `040_satellite_contract` adds the `kit` field to `/satellites/v1/pair`. A backend
+that started before you applied it answers the pairing request without that field. The
+satellite then never pairs. Start the frontend dev server as usual for the UI on port 5173.
 
 ### 4. Create the satellite in the UI
 
-Open the orbit's **Satellites** tab, press **Connect a new satellite**, give it a name and
-create it. The dialog then shows the API key once; that key is the value the chart needs.
-It can only be replaced afterwards, by regenerating it, which invalidates the old one.
+1. Open the orbit's **Satellites** tab.
+2. Press **Connect a new satellite**.
+3. Give it a name and create it.
+4. Copy the API key from the dialog. The dialog shows the key once. The chart needs this key.
+
+You can only replace the key later by regenerating it, and regeneration invalidates the old
+key.
 
 Nothing in the dialog selects Docker or Kubernetes. The satellite reports
-`kit.kind=kubernetes` when it pairs, and the Platform records it from there.
+`kit.kind=kubernetes` when it pairs, and the Platform records the kind from there.
 
 ### 5. Install the chart
 
@@ -107,56 +118,72 @@ helm upgrade --install local satellite/implementations/kubernetes/chart \
   --wait --timeout 8m
 ```
 
-`host.docker.internal` is how pods reach the host on Docker Desktop; the cluster's own
-gateway address does not lead to the host's ports.
+Three values need an explanation.
 
-The monitoring store keeps its default claim. With `monitoring.store.persistence.enabled=false`
-its data lives in an `emptyDir`, so a restarted store pod comes back without the recorded
-inferences and the dashboard reads empty.
+**`satellite.platformUrl`.** Pods reach the host on Docker Desktop through
+`host.docker.internal`. The gateway address of the cluster does not lead to the host's ports.
 
-Upgrade this release with `--reset-then-reuse-values` rather than `--reuse-values`: the latter
-keeps the previous values verbatim and a value added to the chart since the install renders as
-null. Switching the store's persistence on or off afterwards replaces the claim template of a
-StatefulSet, which Kubernetes forbids; delete the StatefulSet and upgrade again.
+**`monitoring.store.persistence`.** The command keeps the default claim of the monitoring
+store. If you set `monitoring.store.persistence.enabled=false`, the data lives in an
+`emptyDir`. A restarted store pod then comes back without the recorded inferences, and the
+dashboard shows nothing.
 
-The network policy is disabled because a development backend listens on port 8000, while
-the policy permits outbound 80 and 443, the Kubernetes API port and traffic within the
-release. With the policy enabled the satellite cannot reach a Platform on 8000 and pairing
-fails with `platform request failed`. Serve the Platform on 80 or 443 to keep the policy
-on, or place it inside the release the way the kind scenario does with its fake platform.
+**`networkPolicy.enabled=false`.** A development backend listens on port 8000. The policy
+permits outbound 80 and 443, the Kubernetes API port and traffic within the release. With
+the policy on, the satellite cannot reach a Platform on port 8000, and pairing fails with
+`platform request failed`. To keep the policy on, serve the Platform on port 80 or 443, or
+place it inside the release the way the kind scenario does with its fake platform.
 
-### 6. Confirm the pairing
+### 6. Check the pairing
 
 ```shell
 kubectl -n luml get pods
 kubectl -n luml logs -l app.kubernetes.io/component=satellite --tail=50 | grep pair
 ```
 
-The satellite logs `POST /satellites/v1/pair "HTTP/1.1 200 OK"` followed by a compatible
-contract, and the Platform marks the satellite paired with its base URL, slug and kit. The
-UI then offers it as a deployment target. Inference and the monitoring dashboard answer on
+The satellite logs `POST /satellites/v1/pair "HTTP/1.1 200 OK"` and then a compatible
+contract. The Platform marks the satellite paired with its base URL, slug and kit. The UI
+then offers it as a deployment target. Inference and the monitoring dashboard answer on
 `http://localhost:18080`.
 
-### Tear down
+### Upgrade the release
+
+Upgrade with `--reset-then-reuse-values`, not with `--reuse-values`. The second flag keeps the
+previous values verbatim. A value that the chart gained after the install then renders as
+null.
+
+Kubernetes forbids a change to the claim template of a StatefulSet. To switch the store's
+persistence on or off after the install:
+
+1. Remove the StatefulSet with `kubectl -n luml delete statefulset <release>-store`.
+2. Run the upgrade again.
+
+### Remove the stand
 
 ```shell
 helm uninstall local --namespace luml
 kind delete cluster --name luml-local
 ```
 
-Uninstalling retains the derivation-key Secret, as the chart README describes. Deleting the
-cluster removes it with everything else.
+`helm uninstall` keeps the derivation-key Secret, as the chart README describes. Removing the
+cluster removes the Secret with everything else.
 
 ## End-to-end scenario
 
-`e2e/run.sh` builds the images, creates its own cluster, installs the chart against an
-in-cluster fake platform and asserts the full path: pairing, deployment, public inference,
-satellite outage, replicas, monitoring sessions, chart upgrade, orphan rules and undeploy.
+`e2e/run.sh` builds the images, creates its own cluster and installs the chart against an
+in-cluster fake platform. It then checks the full path:
+
+1. Pairing, deployment and public inference.
+2. Serving while the satellite is down.
+3. Replicas and the blocked model port.
+4. Monitoring sessions and a chart upgrade.
+5. Orphan rules and undeploy.
 
 ```shell
 bash satellite/implementations/kubernetes/e2e/run.sh vanilla
 bash satellite/implementations/kubernetes/e2e/run.sh openshift
 ```
 
-The cluster is deleted when the run ends. Set `KEEP_KIND_CLUSTER=1` to keep it for
-inspection; a failed run prints pod, log and resource diagnostics first.
+One run takes about 10 minutes. The script removes the cluster when the run ends. Set
+`KEEP_KIND_CLUSTER=1` to keep the cluster for inspection. A failed run prints pod, log and
+resource diagnostics before it removes anything.

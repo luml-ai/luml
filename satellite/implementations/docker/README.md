@@ -1,48 +1,65 @@
 # Docker satellite
 
-This directory holds the Docker satellite: the driver that runs model deployments as
-containers on one Docker daemon. `satellite/docker-compose.yml` brings a stand up with the
-agent, the telemetry collector and GreptimeDB.
+This directory holds the Docker satellite. The satellite runs model deployments as containers
+on one Docker daemon. `satellite/docker-compose.yml` starts a stand with the agent, the
+telemetry collector and GreptimeDB.
 
 ## One network per satellite
 
-The satellite creates its own Docker network, `luml-satellite-<satellite id>`, on the first
-deployment and joins it under two aliases: `satellite-agent` and
-`satellite-agent-<satellite id>`. Model containers are created in that network and are told
-to reach the satellite by the second, satellite-specific name.
+The satellite creates its own Docker network on the first deployment. It names the network
+`luml-satellite-<satellite id>`. The satellite joins it under two aliases:
 
-Each model container is also connected to the networks the satellite itself belongs to, so
-the telemetry collector of its stack stays reachable by name.
+1. `satellite-agent`
+2. `satellite-agent-<satellite id>`
 
-Set `DOCKER_NETWORK_NAME` to place model containers in an existing network instead. The
-satellite creates nothing in that mode and refuses to start a deployment when the named
-network is absent, rather than quietly building a new bridge under a misspelled name. If the
-satellite is already attached to that network without its own alias — the usual case when
-Compose wired it — models are given its container name, which resolves there just as well.
+The satellite creates model containers in that network. It tells each model to reach it by the
+second, satellite-specific name.
+
+The satellite also connects each model container to the networks it belongs to itself. The
+telemetry collector of its stack therefore stays reachable by name.
+
+### Use an existing network instead
+
+Set `DOCKER_NETWORK_NAME` to the name of an existing network. In this mode:
+
+1. The satellite creates no network.
+2. The satellite refuses to start a deployment when the named network does not exist. It does
+   not build a new bridge under a misspelled name.
+3. If Compose already attached the satellite to that network without the satellite-specific
+   alias, models get its container name instead. That name resolves there in the same way.
 
 ## Model containers belong to their stack
 
-A satellite started as part of a Compose stack copies that stack's project label onto every
-model container it creates, so the models appear next to their own satellite, collector and
-store rather than as loose containers.
+A satellite that runs inside a Compose stack copies the stack's project label onto every model
+container it creates. The models then appear next to their own satellite, collector and store
+instead of as loose containers.
 
-The label groups them; it does not hand them to Compose. With Compose v5.3, `docker compose
-up`, `up --remove-orphans` and `down --remove-orphans` all leave every model container running
-without a word, and the stack network then survives the teardown as well, because a container
-is still attached to it. The containers do carry Compose's project label, so a Compose release
-that treats any such container as an orphan would remove them. Either way, undeploy through
-the Platform first, which is what removes those containers, and bring the stack down
-afterwards.
+The label groups them. It does not hand them to Compose. With Compose v5.3, these commands
+leave every model container running and print no warning:
 
-A satellite upgraded onto this behaviour relaunches the model containers it finds from the
-previous launcher protocol once, so they move to its network and take its address.
+1. `docker compose up`
+2. `docker compose up --remove-orphans`
+3. `docker compose down --remove-orphans`
+
+The stack network then survives the teardown too, because a model container stays attached to
+it. The model containers do carry Compose's project label. A Compose release that treats any
+such container as an orphan would remove them. In both cases, follow this order:
+
+1. Undeploy through the Platform. This removes the model containers.
+2. Run `docker compose down`.
+
+A satellite that upgrades onto this behaviour relaunches every model container of the previous
+launcher protocol once. Each container then moves to the satellite's network and takes its
+address.
 
 ## Several satellites on one host
 
-Several satellites can share a daemon. Each is its own process with its own token, and the
-ownership rules in the repository root's spec apply: a container carries the identity of the
-satellite that started it in `df.satellite_id`, a satellite counts only its own containers as
-owned, and orphan cleanup logs every foreign container and leaves it alone.
+Several satellites can share one daemon. Each satellite is its own process with its own token.
+The ownership rules in the repository root's spec apply:
+
+1. A container carries the identity of the satellite that started it in `df.satellite_id`.
+2. A satellite counts only its own containers as owned.
+3. Orphan cleanup writes a log line for every foreign container and leaves it alone.
 
 Give each satellite its own published port and its own token:
 
@@ -57,6 +74,6 @@ docker run -d --name agent-one \
   luml-satellite-agent:latest
 ```
 
-Their model containers stay apart because each satellite addresses its own network, and the
-satellite-specific alias means a model reaches its own satellite even when two of them share
-a network.
+The model containers of different satellites stay apart, because each satellite addresses its
+own network. The satellite-specific alias also lets a model reach its own satellite when two
+satellites share a network.
